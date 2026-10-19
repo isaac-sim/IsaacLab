@@ -25,7 +25,6 @@ import runpy
 import shutil
 import sys
 import tempfile
-from collections.abc import Callable
 from dataclasses import replace
 from functools import lru_cache
 from importlib.metadata import version
@@ -36,19 +35,15 @@ import numpy as np
 import warp as wp
 from filelock import FileLock
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
-from newton import GeoType
 from newton.solvers.experimental.coupled import SolverCoupledProxy
 from scipy.interpolate import CubicSpline
-from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
-
-from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
 if TYPE_CHECKING:
-    from newton import ModelBuilder
+    import mujoco
 
     from isaaclab.assets import Articulation, ArticulationCfg, RigidObject
 
@@ -60,14 +55,13 @@ PICKUP_TIME = 2.0
 GRASP_CLOSE_INTERVAL = (0.6, 1.3)
 INITIAL_LIFT_TIME = 2.0
 POUR_PREFIX_TIME = PICKUP_TIME + 0.35
-HOLD_TIME = 0.0
 TILT_TIME = 4.0
 LIFT_DELAY = 2.5
 LIFT_TIME = 8.0
 LIFT_HEIGHT = 0.25
 POUR_HOLD_TIME = 0.65
 RECOVERY_TIME = 3.5
-SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + LIFT_DELAY + LIFT_TIME + POUR_HOLD_TIME + RECOVERY_TIME + 1.0
+SEQUENCE_DURATION = POUR_PREFIX_TIME + LIFT_DELAY + LIFT_TIME + POUR_HOLD_TIME + RECOVERY_TIME + 1.0
 _POUR_ANGLE = math.radians(42.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
@@ -76,7 +70,7 @@ _SPOUT_POUR_POS = (-0.169, 0.0, 0.9937642035)
 
 def _blend(raw: float) -> tuple[float, float]:
     """Return quintic progress and its derivative with respect to raw progress."""
-    progress = max(0.0, min(1.0, raw))
+    progress = max(0.0, min(1.0, float(raw)))
     return (
         progress**3 * (10.0 + progress * (-15.0 + 6.0 * progress)),
         30.0 * progress**2 * (1.0 - progress) ** 2 if 0.0 < raw < 1.0 else 0.0,
@@ -91,7 +85,7 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
     base_position = tuple(a + progress * delta for a, delta in zip(TABLETOP_CONTAINER_POS, displacement, strict=True))
     base_velocity = tuple(derivative * delta / INITIAL_LIFT_TIME for delta in displacement)
 
-    time = sim_time - POUR_PREFIX_TIME - HOLD_TIME
+    time = sim_time - POUR_PREFIX_TIME
     tilt, tilt_derivative = _blend(time / TILT_TIME)
     lift, lift_derivative = _blend((time - LIFT_DELAY) / LIFT_TIME)
     recovery_raw = (time - LIFT_DELAY - LIFT_TIME - POUR_HOLD_TIME) / RECOVERY_TIME
@@ -159,12 +153,6 @@ def main() -> None:
     finally:
         sys.argv[:] = original_args
 
-
-_ContainerPose = tuple[
-    tuple[float, float, float],
-    tuple[float, float, float, float],
-    tuple[float, float, float, float, float, float],
-]
 
 ASSET_REVISION = "d0dbd1ddaefc4996db546949a7dfb37e39afcbeb"
 ASSET_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
@@ -311,6 +299,8 @@ def get_robot_cfg(*, base_position: tuple[float, float, float] = (-0.68, 0.0, 0.
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import ArticulationCfg
 
+    from isaaclab_assets.robots.flexiv import FLEXIV_RIZON4S_CFG
+
     return ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
@@ -336,27 +326,10 @@ def get_robot_cfg(*, base_position: tuple[float, float, float] = (-0.68, 0.0, 0.
             },
         ),
         actuators={
-            "shoulder": ImplicitActuatorCfg(
-                joint_names_expr=["joint[1-2]"],
-                joint_effort_limit=123.0,
-                joint_velocity_limit=2.094,
-                stiffness=6000.0,
-                damping=108.5,
-            ),
-            "elbow": ImplicitActuatorCfg(
-                joint_names_expr=["joint[3-4]"],
-                joint_effort_limit=64.0,
-                joint_velocity_limit=2.443,
-                stiffness=4200.0,
-                damping=90.7,
-            ),
-            "wrist": ImplicitActuatorCfg(
-                joint_names_expr=["joint[5-7]"],
-                joint_effort_limit=39.0,
-                joint_velocity_limit=4.887,
-                stiffness=1500.0,
-                damping=54.2,
-            ),
+            **{
+                name: actuator.replace(friction=None, armature=None)
+                for name, actuator in FLEXIV_RIZON4S_CFG.actuators.items()
+            },
             "hand": ImplicitActuatorCfg(
                 joint_names_expr=["right_.*"],
                 joint_effort_limit=3.3,
@@ -402,7 +375,7 @@ def prepared_contact_path(source: Path) -> Path:
     digest.update(str(source).encode())
     digest.update(json.dumps(options, sort_keys=True).encode())
     digest.update(f"{version('newton')}:{version('coacd')}:{newton.Mesh.MAX_HULL_VERTICES}".encode())
-    directory = Path.home() / ".cache/isaaclab/rizon-sharpa-teapot/teapot-prepared-v5"
+    directory = Path.home() / ".cache/isaaclab/rizon-sharpa-teapot/teapot-prepared-v6"
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / f"{digest.hexdigest()}.usda"
     with FileLock(str(destination.with_suffix(".lock"))):
@@ -431,6 +404,7 @@ def prepared_contact_path(source: Path) -> Path:
             if not colliders or any(builder.shape_body[index] != 0 for index in colliders):
                 raise ValueError("Teapot source requires enabled triangle-mesh contacts on its default body")
             collider_paths = [builder.shape_label[index] for index in colliders]
+            base_z = math.inf
             for index, path in zip(colliders, collider_paths):
                 imported = builder.shape_source[index]
                 mesh = newton.usd.get_mesh(
@@ -443,6 +417,11 @@ def prepared_contact_path(source: Path) -> Path:
                 )
                 mesh.is_solid = imported.is_solid
                 builder.shape_source[index] = mesh
+                transform = builder.shape_transform[index]
+                points = Rotation.from_quat(transform.q).apply(
+                    mesh.vertices * np.asarray(builder.shape_scale[index])
+                ) + np.asarray(transform.p)
+                base_z = min(base_z, float(points[:, 2].min()))
             previous_count = builder.shape_count
             remeshed = builder.approximate_meshes(
                 method="coacd", shape_indices=colliders, raise_on_failure=True, **options
@@ -486,6 +465,14 @@ def prepared_contact_path(source: Path) -> Path:
                 group = root.GetPath().AppendChild("PreparedConvexContacts")
                 UsdGeom.Xform.Define(stage, group)
                 for ordinal, (points, faces) in enumerate(contact_meshes):
+                    # CoACD can extend hulls below the flat base, causing an initial support impulse.
+                    if np.any(points[:, 2] < base_z):
+                        points = np.array(points, copy=True)
+                        points[:, 2] = np.maximum(points[:, 2], base_z)
+                        hull = newton.Mesh(
+                            points, np.empty((0, 3), dtype=np.int32), compute_inertia=False
+                        ).compute_convex_hull()
+                        points, faces = hull.vertices, hull.indices.reshape(-1, 3)
                     # Points are body-local; the referenced root already carries its pose.
                     points = np.asarray(points / units, dtype=np.float32)
                     prim = UsdGeom.Mesh.Define(stage, group.AppendChild(f"part_{ordinal:04d}"))
@@ -601,52 +588,7 @@ class _TeapotProxySolver(SolverCoupledProxy):
 
 
 class NewtonTeapotCouplerManager(NewtonCouplerManager):
-    """Prepare rigid support geometry and select the pot's solver-specific colliders."""
-
-    def _prepare_builder_for_finalize(self, builder: ModelBuilder) -> None:
-        """Keep generated rigid hulls above the exact shell's body-local base plane."""
-        for body, label in enumerate(builder.body_label):
-            if not label.endswith("/PourContainer"):
-                continue
-            shell = next(i for i, name in enumerate(builder.shape_label) if name.startswith(label + "/geometry/"))
-            transform = builder.shape_transform[shell]
-            points = Rotation.from_quat(transform.q).apply(
-                builder.shape_source[shell].vertices * np.asarray(builder.shape_scale[shell])
-            ) + np.asarray(transform.p)
-            base_z = float(points[:, 2].min())
-            for shape, name in enumerate(builder.shape_label):
-                if (
-                    builder.shape_body[shape] != body
-                    or not name.startswith(label + "/RigidCollider/")
-                    or builder.shape_type[shape] != GeoType.CONVEX_MESH
-                ):
-                    continue
-                mesh = builder.shape_source[shape]
-                transform = builder.shape_transform[shape]
-                rotation = Rotation.from_quat(transform.q)
-                scale = np.asarray(builder.shape_scale[shape])
-                points = rotation.apply(mesh.vertices * scale) + np.asarray(transform.p)
-                below = points[:, 2] < base_z
-                if not below.any():
-                    continue
-                # CoACD's voxel preprocessing can extend hulls below a flat base,
-                # producing a first-step impulse and an uneven support footprint.
-                points[below, 2] = base_z
-                vertices = mesh.vertices.copy()
-                vertices[below] = rotation.inv().apply(points[below] - np.asarray(transform.p)) / scale
-                hull = ConvexHull(vertices)
-                faces = hull.simplices.copy()
-                normals = np.cross(
-                    vertices[faces[:, 1]] - vertices[faces[:, 0]], vertices[faces[:, 2]] - vertices[faces[:, 0]]
-                )
-                reverse = np.einsum("ij,ij->i", normals, hull.equations[:, :3]) < 0.0
-                faces[reverse] = faces[reverse][:, (0, 2, 1)]
-                # Copying geometry rebuilds mesh caches while preserving authored
-                # mass properties; the exact shell and handle vertices are untouched.
-                builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
-        # MPM preparation converts convex parts to triangle meshes; repair their
-        # generated support geometry before that classification is lost.
-        super()._prepare_builder_for_finalize(builder)
+    """Select the pot's solver-specific colliders for standard proxy coupling."""
 
     def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
         coupling = SolverCoupledProxy.Config(
@@ -670,30 +612,18 @@ class TeapotPourMotion:
         self,
         robot: Articulation,
         container: RigidObject,
-        pose_at_time: Callable[[float], _ContainerPose],
+        mj_model: mujoco.MjModel,
         *,
         sim_dt: float,
-        duration: float,
-        grasp_time: float,
-        close_interval: tuple[float, float],
-        pickup_end_time: float,
-        approach_offset_at_time: Callable[[float], tuple[float, float, float]] | None = None,
     ) -> None:
         import mujoco
         from scipy.optimize import least_squares
 
-        from isaaclab.sim import SimulationContext
-
-        if not 0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < pickup_end_time < duration:
-            raise ValueError("Closure, pickup and sequence timings must be strictly ordered.")
         if not math.isclose(sim_dt, 1.0 / 800.0, rel_tol=1.0e-9):
             raise ValueError("The calibrated contact grasp requires an 800 Hz simulation timestep.")
         self._robot = robot
         self._container = container
-        self._pose_at_time = pose_at_time
-        self._grasp_time = grasp_time
-        self._pickup_end_time = pickup_end_time
-        self._gain_start, self._gain_end = close_interval[1] + 0.1, grasp_time - 0.3
+        self._gain_start, self._gain_end = GRASP_CLOSE_INTERVAL[1] + 0.1, PICKUP_TIME - 0.3
         self._gain_settled = False
         self._path_hz = 100.0
         self._physics_hz = 1.0 / sim_dt
@@ -707,31 +637,32 @@ class TeapotPourMotion:
         self._thumb_joints = joint_ids[7:12]
         self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
-        mj = SimulationContext.instance().backend_manager._solver.solver("robot").mj_model
-        names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
+        names = [
+            mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1]
+            for i in range(mj_model.njnt)
+        ]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
-        arm_q = mj.jnt_qposadr[joints[:7]]
-        self._qmin, self._qmax = mj.jnt_range[joints[:7], 0] + 0.03, mj.jnt_range[joints[:7], 1] - 0.03
-        self._thumb_qmin = mj.jnt_range[joints[7:12], 0] + 0.002
-        self._thumb_qmax = mj.jnt_range[joints[7:12], 1] - 0.002
+        arm_q = mj_model.jnt_qposadr[joints[:7]]
+        self._qmin, self._qmax = mj_model.jnt_range[joints[:7], 0] + 0.03, mj_model.jnt_range[joints[:7], 1] - 0.03
+        self._thumb_qmin = mj_model.jnt_range[joints[7:12], 0] + 0.002
+        self._thumb_qmax = mj_model.jnt_range[joints[7:12], 1] - 0.002
         self._speed_limits = robot.data.joint_vel_limits.warp.numpy()[0, joint_ids].astype(np.float64)
-        data = mujoco.MjData(mj)
-        mj_palm = mujoco.mj_name2id(mj, mujoco.mjtObj.mjOBJ_BODY, "_World_envs_env_0_Robot_" + PALM_BODY_NAME)
+        data = mujoco.MjData(mj_model)
+        mj_palm = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "_World_envs_env_0_Robot_" + PALM_BODY_NAME)
         palm_rotation = Rotation.from_quat(PALM_IN_POT[1])
         previous = np.array(ARM_HOME_POSITIONS)
-        times = np.arange(round(grasp_time * self._path_hz) + 1) / self._path_hz
+        times = np.arange(round(PICKUP_TIME * self._path_hz) + 1) / self._path_hz
         trajectory = []
         for time in times:
             position, quaternion, _ = pose_at_time(float(time))
             rotation = Rotation.from_quat(quaternion)
             target_position = np.asarray(position) + rotation.apply(PALM_IN_POT[0])
-            if approach_offset_at_time is not None:
-                target_position += approach_offset_at_time(float(time))
+            target_position += approach_offset_at_time(float(time))
             target_rotation = rotation * palm_rotation
 
             def residual(q):
                 data.qpos[arm_q] = q
-                mujoco.mj_kinematics(mj, data)
+                mujoco.mj_kinematics(mj_model, data)
                 error_rotation = target_rotation * Rotation.from_matrix(data.xmat[mj_palm].reshape(3, 3)).inv()
                 return np.concatenate(
                     (
@@ -754,14 +685,16 @@ class TeapotPourMotion:
             if error > 2.0e-4:
                 raise RuntimeError(f"Teapot approach is unreachable at {time:.2f}s (IK error {error:.4g}).")
             previous = solution.x
-            alpha = self._blend((time - close_interval[0]) / (close_interval[1] - close_interval[0]))
-            squeeze = self._blend((time - close_interval[1]) / (self._gain_end - close_interval[1]))
+            alpha, _ = _blend((time - GRASP_CLOSE_INTERVAL[0]) / (GRASP_CLOSE_INTERVAL[1] - GRASP_CLOSE_INTERVAL[0]))
+            squeeze, _ = _blend((time - GRASP_CLOSE_INTERVAL[1]) / (self._gain_end - GRASP_CLOSE_INTERVAL[1]))
             hand = (
                 np.asarray(HAND_OPEN_POSITIONS)
                 + alpha * (np.asarray(HAND_GRASP_POSITIONS) - HAND_OPEN_POSITIONS)
                 + squeeze * (np.asarray(HAND_HOLD_POSITIONS) - HAND_GRASP_POSITIONS)
             )
-            thumb_alpha = self._blend((time - close_interval[0]) / (0.65 * (close_interval[1] - close_interval[0])))
+            thumb_alpha, _ = _blend(
+                (time - GRASP_CLOSE_INTERVAL[0]) / (0.65 * (GRASP_CLOSE_INTERVAL[1] - GRASP_CLOSE_INTERVAL[0]))
+            )
             hand[:5] = (
                 np.asarray(HAND_OPEN_POSITIONS[:5])
                 + thumb_alpha * (np.asarray(HAND_GRASP_POSITIONS[:5]) - HAND_OPEN_POSITIONS[:5])
@@ -771,7 +704,7 @@ class TeapotPourMotion:
         trajectory = np.asarray(trajectory, dtype=np.float32)
         spline = CubicSpline(times, trajectory, bc_type="clamped")
         speeds = np.max(
-            np.abs(spline(np.linspace(0.0, grasp_time, round(grasp_time * self._physics_hz) + 1), 1)), axis=0
+            np.abs(spline(np.linspace(0.0, PICKUP_TIME, round(PICKUP_TIME * self._physics_hz) + 1), 1)), axis=0
         )
         if np.any(speeds > self._speed_limits):
             raise RuntimeError(f"Teapot approach exceeds rated joint speeds: {speeds} rad/s.")
@@ -789,29 +722,24 @@ class TeapotPourMotion:
             wp.zeros(7, device=robot.device),
         )
         self._last_feedback_step = None
-        self._next_feedback_step = round(grasp_time * self._physics_hz)
+        self._next_feedback_step = round(PICKUP_TIME * self._physics_hz)
         initial = robot.data.default_joint_pos.warp.numpy()
         initial[0, joint_ids] = trajectory[0]
         self.initial_joint_positions = wp.array(initial, dtype=float, device=robot.device)
         robot.actuators.target_command.set_position_index(value=self.initial_joint_positions)
 
-    @staticmethod
-    def _blend(progress: float) -> float:
-        """Clamp and evaluate a quintic transition with zero endpoint velocity and acceleration."""
-        progress = float(np.clip(progress, 0.0, 1.0))
-        return progress**3 * (10.0 + progress * (-15.0 + 6.0 * progress))
-
     def update(self, sim_time: float) -> None:
         """Acquire the contact grasp, then drive the arm from measured object pose."""
         step = round(sim_time * self._physics_hz)
         if step % self._control_decimation == 0 and not self._gain_settled and sim_time >= self._gain_start:
-            gain = 24.0 + 76.0 * self._blend((sim_time - self._gain_start) / (self._gain_end - self._gain_start))
+            progress, _ = _blend((sim_time - self._gain_start) / (self._gain_end - self._gain_start))
+            gain = 24.0 + 76.0 * progress
             self._robot.write_joint_stiffness_to_sim_index(stiffness=gain, joint_ids=self._hand_joint_ids)
             self._robot.write_joint_damping_to_sim_index(
                 damping=1.2 * math.sqrt(gain / 24.0), joint_ids=self._hand_joint_ids
             )
             self._gain_settled = sim_time >= self._gain_end
-        feedback_active = sim_time >= self._grasp_time
+        feedback_active = sim_time >= PICKUP_TIME
         if feedback_active and step >= self._next_feedback_step:
             self._update_feedback(sim_time, step)
         # Advance the arm target by one physics step while holding 100 Hz feedback.
@@ -845,7 +773,7 @@ class TeapotPourMotion:
         if self._last_feedback_step is not None:
             self._arm_position += self._arm_velocity * (step - self._last_feedback_step) / self._physics_hz
         pot = self._container.data.root_link_pose_w.warp.numpy()[0].astype(np.float64)
-        position, quaternion, twist = self._pose_at_time(sim_time)
+        position, quaternion, twist = pose_at_time(sim_time)
         pot_rotation = Rotation.from_quat(pot[3:])
         error = np.concatenate(
             (
@@ -854,10 +782,9 @@ class TeapotPourMotion:
             )
         )
         # Level gently as the base clears the table; ease the higher pickup gain before pouring.
-        pickup_weight = 1.0 - self._blend((sim_time - self._pickup_end_time + 0.5) / 0.5)
-        feedback_weight = self._blend(
-            (sim_time - self._grasp_time) / (0.5 * (self._pickup_end_time - self._grasp_time))
-        )
+        pickup_progress, _ = _blend((sim_time - PICKUP_TIME - INITIAL_LIFT_TIME + 0.5) / 0.5)
+        pickup_weight = 1.0 - pickup_progress
+        feedback_weight, _ = _blend((sim_time - PICKUP_TIME) / (0.5 * INITIAL_LIFT_TIME))
         rotation_gain = (8.0 + 4.0 * pickup_weight) * feedback_weight
         command = np.asarray(twist) + error * np.array((10.0, 10.0, 10.0, rotation_gain, rotation_gain, rotation_gain))
         command[:3], command[3:] = np.clip(command[:3], -0.45, 0.45), np.clip(command[3:], -1.5, 1.5)
@@ -1012,16 +939,10 @@ def _interpolate_joints(
         targets[0, joints[i]] = thumb_position[0, i - 7]
 
 
-@configclass
-class TeapotSolverCfg(CouplerProxyCfg):
-    """Use two-way proxy coupling with solver-specific teapot collision geometry."""
-
-    class_type: type[NewtonTeapotCouplerManager] | str = "rizon_sharpa_teapot:NewtonTeapotCouplerManager"
-
-
-def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
+def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> CouplerProxyCfg:
     """Resolve rigid hand--pot contacts and return MPM reaction forces through a pot proxy."""
-    return TeapotSolverCfg(
+    return CouplerProxyCfg(
+        class_type=NewtonTeapotCouplerManager,
         entries=[
             CouplerEntryCfg(
                 name="robot",
@@ -1039,7 +960,6 @@ def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
                     nconmax=256,
                 ),
                 bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/PourContainer"],
-                substeps=1,
             ),
             CouplerEntryCfg(
                 name="fluid",
@@ -1056,12 +976,10 @@ def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
                 source="robot",
                 destination="fluid",
                 bodies=[r"/World/envs/env_.*/PourContainer"],
-                mode="lagged",
                 # MPM resolves shell contact internally.
                 collision_pipeline=None,
             )
         ],
-        iterations=1,
     )
 
 
