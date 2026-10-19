@@ -16,7 +16,6 @@ from isaaclab_tasks.utils import parse_env_cfg
 KUKA_TASK = "Isaac-Reorient-KukaAllegro-Camera"
 KUKA_PRESETS = "presets=cube,single_camera,newton_mjwarp,newton_renderer,rgb64"
 SHADOW_HAND_TASK = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
-SHADOW_HAND_CHAIN = "env.scene.tiled_camera.modifiers.distance_to_image_plane"
 KUKA_DUO_PRESETS = "presets=cube,duo_camera,newton_mjwarp,newton_renderer,rgb64"
 
 
@@ -58,7 +57,7 @@ def test_apply_cosmos_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
 
 
 def test_the_shadow_hand_preset_options_are_set_with_overrides():
-    """``env.cosmos`` overrides set the camera's own Cosmos settings; the depth range is set on its chain."""
+    """``env.cosmos`` overrides set the camera's own Cosmos settings."""
     prompts = "['A kitchen.', 'A lab.']"
     env_cfg = parse_env_cfg(
         SHADOW_HAND_TASK,
@@ -68,14 +67,12 @@ def test_the_shadow_hand_preset_options_are_set_with_overrides():
             f"env.cosmos.prompt={prompts}",
             "env.cosmos.endpoint=tcp://127.0.0.1:5556",
             "env.cosmos.transport=socket",
-            f"{SHADOW_HAND_CHAIN}.0.params.near=0.2",
         ),
     )
     env_cfg.validate()
     camera = env_cfg.scene.tiled_camera
     chain = camera.modifiers["distance_to_image_plane"]
     assert len(chain) == 2
-    assert chain[0].params == {"near": 0.2, "far": 1.5}
     assert chain[1].backend.prompt == ["A kitchen.", "A lab."]
     assert chain[1].backend.endpoint == "tcp://127.0.0.1:5556"
     assert chain[1].backend.transport == "socket"

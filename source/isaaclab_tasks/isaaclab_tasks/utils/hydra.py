@@ -692,11 +692,9 @@ def _setattr(obj, path: str, val):
     """Set nested attribute/key (e.g., "actions.arm_action.scale")."""
     *parts, leaf = path.split(".")
     for p in parts:
-        obj = obj[p] if isinstance(obj, Mapping) else obj[int(p)] if isinstance(obj, (list, tuple)) else getattr(obj, p)
+        obj = obj[p] if isinstance(obj, Mapping) else getattr(obj, p)
     if isinstance(obj, dict):
         obj[leaf] = val
-    elif isinstance(obj, list):
-        obj[int(leaf)] = val
     elif hasattr(obj, leaf):
         setattr(obj, leaf, val)
     else:
