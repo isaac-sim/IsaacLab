@@ -612,6 +612,20 @@ class NewtonVisualizerBase(BaseVisualizer):
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         if not imgui.collapsing_header("Camera View"):
             return
+        rtx_index = getattr(self, "rtx_view_index", None)
+        if rtx_index is not None:
+            rtx_on = self.rtx_rendering
+            imgui.text("Renderer")
+            imgui.same_line()
+            if imgui.radio_button("OpenGL", not rtx_on) and rtx_on:
+                self.set_rtx_rendering(False)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Fast rasterizer with model overlays, markers, and Policy Ghosts")
+            imgui.same_line()
+            if imgui.radio_button("RTX", rtx_on) and not rtx_on:
+                self.set_rtx_rendering(True)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without model overlays")
         labels = [
             f"Perspective {i + 1}" if view.camera is None else view.cfg.source
             for i, view in enumerate(self._image_views)
@@ -622,8 +636,13 @@ class NewtonVisualizerBase(BaseVisualizer):
         if imgui.is_item_hovered():
             imgui.set_tooltip(labels[self._image_views.index(self.current_image_view)])
 
-    def _select_camera(self, index: int) -> None:
-        """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle."""
+    def _select_camera(self, index: int, *, keep_pose: bool = False) -> None:
+        """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle.
+
+        Args:
+            index: Image view to display.
+            keep_pose: Continue from the viewer's current camera instead of the source's configured pose.
+        """
         self.current_image_view = self._image_views[index]
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
@@ -631,19 +650,35 @@ class NewtonVisualizerBase(BaseVisualizer):
             if self.current_image_view.render is not None and self.current_image_view.render != self._capture_frame:
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
             self.current_image_view.render = self._capture_frame
-            self.set_camera_view(camera.eye, camera.lookat)
-            self.cfg.focal_length = camera.focal_length
-            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+            if not keep_pose:
+                self.set_camera_view(camera.eye, camera.lookat)
+                self.cfg.focal_length = camera.focal_length
+                self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+        elif keep_pose:
+            self._place_scene_camera_at_viewer(self.current_image_view.camera)
         else:
             sensor = self.current_image_view.camera
             intrinsics = sensor._data.intrinsic_matrices.torch[0]
             self._viewer.camera.fov = math.degrees(2 * math.atan(sensor.cfg.height / (2 * float(intrinsics[1, 1]))))
-        self._navigation_fov = self._viewer.camera.fov
+        # None makes the first navigation step copy the viewer's field of view to a scene camera.
+        self._navigation_fov = (
+            None if keep_pose and not isinstance(camera, PerspectiveCameraCfg) else self._viewer.camera.fov
+        )
         if self._viewer.picking is not None:
             # Release an existing drag without replacing any graph-captured picking buffers.
             self._viewer.picking.release()
 
         self._navigation_view = self._viewer.camera.get_view_matrix().reshape(4, 4).T.copy()
+
+    def _place_scene_camera_at_viewer(self, camera: Camera) -> None:
+        """Move a scene camera to the viewer camera's current world pose."""
+        world_from_camera = np.linalg.inv(self._viewer.camera.get_view_matrix().reshape(4, 4).T)
+        positions, orientations = camera.get_world_poses(convention="opengl")
+        position = torch.as_tensor(world_from_camera[:3, 3], dtype=positions.dtype, device=positions.device)
+        rotation = quat_from_matrix(
+            torch.as_tensor(world_from_camera[:3, :3], dtype=positions.dtype, device=positions.device)
+        )
+        camera.set_world_poses(position.expand_as(positions), rotation.expand_as(orientations), convention="opengl")
 
     def _navigate_scene_camera(self) -> None:
         camera, viewer = self.current_image_view.camera, self._viewer
@@ -969,6 +1004,32 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self.backend.geometry_offsets:
             provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)
         return state
+
+    @property
+    def rtx_view_index(self) -> int | None:
+        """Index of the OVRTX viewer camera among the image views, or None when the scene has none."""
+        for index, view in enumerate(self._image_views):
+            if view.camera is not None and view.camera.cfg.prim_path.startswith("/World/viewer_camera_"):
+                return index
+        return None
+
+    @property
+    def rtx_rendering(self) -> bool:
+        """Whether the main view is currently rendered by OVRTX."""
+        index = self.rtx_view_index
+        return index is not None and self.current_image_view is self._image_views[index]
+
+    def set_rtx_rendering(self, enabled: bool) -> None:
+        """Render the main camera with OVRTX or with the Newton OpenGL rasterizer, keeping the camera pose.
+
+        Args:
+            enabled: ``True`` for the OVRTX viewer camera, ``False`` for the Newton GL perspective view.
+        """
+        rtx_index = self.rtx_view_index
+        if rtx_index is None:
+            raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLVisualizerCfg.rtx_camera.")
+        perspective = next(i for i, view in enumerate(self._image_views) if view.camera is None)
+        self._select_camera(rtx_index if enabled else perspective, keep_pose=True)
 
     def attach_policy_ghost_restart(self, restart: Callable[[bool], None]) -> None:
         """Offer an Enable Policy Ghosts button in the HUD of a run that started without the feature.

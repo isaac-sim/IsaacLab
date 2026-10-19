@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import logging
 import os
 import sys
@@ -159,6 +160,38 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
     return tuple(configs)
 
 
+def _fit_window_to_display(size: tuple[int, int], margin: float = 0.92) -> tuple[int, int]:
+    """Shrink a window size, keeping its aspect ratio, so the window fits the display with room for decorations.
+
+    Args:
+        size: Requested window width and height [px].
+        margin: Fraction of the display the window may occupy.
+
+    Returns:
+        The requested size, or a proportionally smaller one; unchanged when the display size is unknown.
+    """
+    if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
+        return size
+    try:
+        import pyglet  # noqa: PLC0415
+
+        screen = pyglet.display.get_display().get_default_screen()
+        scale = min(1.0, margin * screen.width / size[0], margin * screen.height / size[1])
+    except Exception:
+        return size
+    return (max(1, int(size[0] * scale)), max(1, int(size[1] * scale)))
+
+
+def _wants_rtx_viewer_camera(visualizer: VisualizerCfg, simulations: list[SimulationCfg]) -> bool:
+    """Return whether a Newton GL window should get an OVRTX viewer camera in its scene."""
+    if not isinstance(visualizer, NewtonGLVisualizerCfg) or visualizer.headless or visualizer.view is not None:
+        return False
+    if visualizer.rtx_camera is not None:
+        return visualizer.rtx_camera
+    on_physx = any(isinstance(sim.physics, (PhysxCfg, PhysxAutoCfg, OvPhysxCfg)) for sim in simulations)
+    return importlib.util.find_spec("ovrtx") is not None and not on_physx
+
+
 def validate_launch(  # noqa: C901
     cfg, launcher_args: argparse.Namespace | dict | None = None
 ) -> tuple[tuple[Any, ...], tuple[str, ...]]:
@@ -286,6 +319,27 @@ def validate_launch(  # noqa: C901
 
     # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
     scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
+    # A Newton GL window can switch its main view to an OVRTX camera, which must already exist in the scene.
+    for viewer_index, visualizer in enumerate(viewers):
+        if scene_cfg is None or not _wants_rtx_viewer_camera(visualizer, simulations):
+            continue
+        name = f"viewer_camera_{viewer_index}_rtx"
+        # The window must open at the camera's aspect ratio; an oversized window is clamped by the window manager.
+        visualizer.window.size = _fit_window_to_display(visualizer.window.size)
+        width, height = visualizer.window.size
+        rotation = quat_from_matrix(create_rotation_matrix_from_view(
+            torch.tensor([visualizer.eye]), torch.tensor([visualizer.lookat]), "Z", device="cpu"
+        ))[0].tolist()  # fmt: skip
+        vars(scene_cfg)[name] = CameraCfg(
+            prim_path=f"/World/{name}", width=width, height=height, data_types=["rgba"],
+            spawn=PinholeCameraCfg(
+                focal_length=visualizer.focal_length, vertical_aperture=15.2908,
+                horizontal_aperture=15.2908 * width / height,
+            ),
+            offset=CameraCfg.OffsetCfg(pos=visualizer.eye, rot=tuple(rotation), convention="opengl"),
+            renderer_cfg=visualizer.rtx_renderer_cfg, background_color=visualizer.background_color,
+            render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.rtx_render_settings},
+        )  # fmt: skip
     for viewer_index, visualizer in enumerate(viewers):
         if not isinstance(visualizer, NewtonRTXVisualizerCfg) or scene_cfg is None:
             continue
