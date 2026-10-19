@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "COSMOS_CANVASES",
     "CosmosModel",
     "CosmosModelCfg",
     "CosmosTransferModifier",
@@ -22,11 +21,9 @@ __all__ = [
     "regional_edge_processor",
     "regional_edges",
     "segmentation_processor",
-    "service_capabilities",
 ]
 
 from .client import (
-    COSMOS_CANVASES,
     CosmosModel,
     CosmosModelCfg,
     CosmosTransferModifier,
@@ -44,5 +41,4 @@ from .client import (
     regional_edge_processor,
     regional_edges,
     segmentation_processor,
-    service_capabilities,
 )

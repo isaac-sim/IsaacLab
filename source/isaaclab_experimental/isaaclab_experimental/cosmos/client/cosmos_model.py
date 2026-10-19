@@ -475,11 +475,6 @@ class _ShardedStream:
         self._streams = streams
         self._shares = shares
 
-    @property
-    def transport(self) -> list[str | None]:
-        """Transport of each service's session, in service order; None before the first step."""
-        return [stream.transport for stream in self._streams]
-
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
     ) -> list[torch.Tensor]:
@@ -553,17 +548,11 @@ class _CameraGroup:
         self._model = model
         self._cameras = cameras
         self._num_views: int | None = None
-        self._seeds: list[tuple[int, ...] | None] = [None] * len(cameras)
         self._streams: list[_CameraStream | None] = [None] * len(cameras)
         self._session: _CosmosStream | _ShardedStream | None = None
         self._chunks: dict[int, tuple[list[torch.Tensor], tuple[int, ...], tuple[int, ...]]] = {}
         self._images: dict[int, list[torch.Tensor]] | None = None
         self._closed = False
-
-    @property
-    def transport(self) -> str | list[str | None] | None:
-        """Transport of the shared session; None before its first step."""
-        return None if self._session is None else self._session.transport
 
     def join(self, num_views: int, seeds: tuple[int, ...]) -> _CameraStream:
         """Return a camera's stream into the shared session; its camera binds it later."""
@@ -584,7 +573,6 @@ class _CameraGroup:
         if self._streams[index] not in (None, stream):
             raise ValueError(f"Camera {name!r} already joined its Cosmos session.")
         self._streams[index] = stream
-        self._seeds[index] = stream.seeds
         stream.index = index
 
     def step(
@@ -635,7 +623,7 @@ class _CameraGroup:
         """Step the shared session with every camera's chunk; camera ``k`` has rows ``k * n`` up to ``k * n + n``."""
         num_views = self._num_views
         if self._session is None:
-            seeds = tuple(seed for camera_seeds in self._seeds for seed in camera_seeds)
+            seeds = tuple(seed for stream in self._streams for seed in stream.seeds)
             self._session = self._model._open_session(num_views * len(self._cameras), seeds)
         controls, reset_rows, reset_seeds = [], [], []
         for index in range(len(self._cameras)):
@@ -654,11 +642,6 @@ class _CameraStream:
         self._group = group
         self.seeds = seeds
         self.index: int | None = None
-
-    @property
-    def transport(self) -> str | list[str | None] | None:
-        """Transport of the shared session; None before its first step."""
-        return self._group.transport
 
     def bind_sensor(self, sensor: Any) -> None:
         """Take the views of ``sensor``, the camera whose modifier owns this stream."""
