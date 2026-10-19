@@ -268,7 +268,6 @@ def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint
 
     assert env_cfg.scene.num_envs == 1
     assert camera.data_types == ["rgb"] and transfer.output == "rgb"
-    assert transfer.backend.modality == "depth"
     assert transfer.backend.max_episode_frames == 301
     assert camera.update_period == 0.1
     assert env_cfg.feature_extractor.enabled and env_cfg.feature_extractor.train

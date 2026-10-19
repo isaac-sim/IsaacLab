@@ -159,7 +159,6 @@ class CosmosInferenceModel:
             raise
         self.capabilities: dict[str, Any] = {
             "max_concurrent_streams": 1,
-            "modalities": ["edge", "depth", "seg"],
             "initial_frames": 1,
             "update_frames": 4,
             "canvases": [list(canvas) for canvas in _CANVASES],
@@ -177,14 +176,13 @@ class CosmosInferenceModel:
         num_views: int,
         seeds: tuple[int, ...],
         prompt: str | None | list[str | None],
-        modality: str,
         height: int,
         width: int,
         max_episode_frames: int,
     ) -> _CosmosInferenceStream:
         """Open one fixed-resolution generation session with a fresh episode history.
 
-        Controls must already represent the selected modality. The Framework's
+        Controls must already be depth images prepared by the camera. The Framework's
         transfer system prompt and native duration/resolution formatting condition
         generation; no reference video or cookbook files are loaded.
 
@@ -194,7 +192,6 @@ class CosmosInferenceModel:
             seeds: One seed per view for its first episode.
             prompt: Appearance description, the same for every view or one per view. None uses empty text plus
                 native metadata. A view keeps its prompt across resets when the session has several views.
-            modality: Control type: edge, depth, or seg, prepared by the camera.
             height: Control image height [pixels].
             width: Control image width [pixels].
             max_episode_frames: Episode horizon, ``1 + 4*k`` frames; the model is told the episode's duration.
@@ -217,8 +214,6 @@ class CosmosInferenceModel:
         prompts = list(prompt) if isinstance(prompt, (list, tuple)) else [prompt] * num_views
         if len(prompts) != num_views or any(text is not None and not isinstance(text, str) for text in prompts):
             raise ValueError("The Cosmos appearance prompt must be text or None, or one per camera view.")
-        if modality not in self.capabilities["modalities"]:
-            raise ValueError("Cosmos controls must use edge, depth, or seg modality.")
         if (height, width) not in _CANVASES:
             raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(_CANVASES)}.")
         if type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4:
@@ -230,10 +225,10 @@ class CosmosInferenceModel:
             rows = {text: self._prompt_batch(text, height, width, max_episode_frames) for text in set(prompts)}
         if num_views == 1:
             data = rows[prompts[0]]
-            self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, modality)
+            self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames)
         else:
             data = _merge_prompt_rows([rows[text] for text in prompts], self._pipeline.model.input_caption_key)
-            self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames, modality)
+            self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames)
         return self._stream
 
     def warmup(self, *, height: int = 480, width: int = 832) -> None:
@@ -248,7 +243,6 @@ class CosmosInferenceModel:
             num_views=1,
             seeds=(0,),
             prompt=None,
-            modality="edge",
             height=height,
             width=width,
             max_episode_frames=frames,
@@ -357,7 +351,6 @@ class _CosmosInferenceStream:
         height: int,
         width: int,
         max_episode_frames: int,
-        modality: str,
     ):
         self._owner = owner
         self._model = owner._pipeline.model
@@ -365,7 +358,6 @@ class _CosmosInferenceStream:
         self._seed = seed
         self._canvas = (height, width, 3)
         self._max_episode_frames = max_episode_frames
-        self._modality = modality
         self._frame_count = 0
         self._closed = False
         self._cache_scope: ExitStack | None = None
@@ -512,12 +504,10 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         height: int,
         width: int,
         max_episode_frames: int,
-        modality: str,
     ):
         self._owner = owner
         self._model = owner._pipeline.model
         self._vae = _vae_cache_owner(self._model.tokenizer_vision_gen)
-        self._modality = modality
         self._data_batch = data_batch
         self._seeds = tuple(seeds)
         self._canvas = (height, width, 3)

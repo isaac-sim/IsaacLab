@@ -186,7 +186,6 @@ class _Model(Protocol):
         num_views: int,
         seeds: tuple[int, ...],
         prompt: str | None | list[str | None],
-        modality: str,
         height: int,
         width: int,
         max_episode_frames: int,
@@ -263,7 +262,6 @@ def _handle_connection(
                         "num_views",
                         "seeds",
                         "prompt",
-                        "modality",
                         "height",
                         "width",
                         "max_episode_frames",
@@ -502,8 +500,6 @@ def _open_arguments(metadata: dict) -> dict:
         text is not None and not isinstance(text, str) for text in prompts
     ):
         raise ValueError("Cosmos prompt must be a string or None, or one per view.")
-    if metadata["modality"] not in ("edge", "depth", "seg"):
-        raise ValueError("Cosmos modality must be edge, depth, or seg.")
     seeds = _seeds(metadata["seeds"], num_views)
     return {
         name: (seeds if name == "seeds" else value) for name, value in metadata.items() if name not in ("op", "version")

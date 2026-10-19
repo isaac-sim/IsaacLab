@@ -207,7 +207,6 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
 _COSMOS_DEPTH_INPUT, _COSMOS_DEPTH_MODIFIERS = depth_processor(
     CosmosModelCfg(
-        modality="depth",
         prompt=(
             "A close-up overhead view of a robotic Shadow Hand reorienting a small colored cube, "
             "with realistic metallic fingers, natural lighting, and a dark background."

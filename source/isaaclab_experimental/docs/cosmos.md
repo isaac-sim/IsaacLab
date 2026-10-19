@@ -34,20 +34,8 @@ For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoin
 ## Controls and prompts
 
 The service follows the Sim-Transfer recipe of the Cosmos cookbook: 480p canvases, four distilled denoising steps,
-guidance 1.0, a 30-latent history window with three attention sinks, and one control per stream:
-
-| Control | Prepared by | How |
-|---|---|---|
-| `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
-| `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
-| `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
-
-Other control recipes are `edge_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
-extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
-recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
-palette, while regional edges also require the camera's segmentation output and
-explicit foreground IDs. See the helper docstrings for their camera requirements.
+guidance 1.0, and a 30-latent history window with three attention sinks. Its control is depth, prepared in Isaac
+Lab by `depth_processor`: metric depth mapped to white (near) through black (far).
 
 The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
 uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
@@ -146,7 +134,6 @@ from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
 
 input_name, modifiers = depth_processor(
     CosmosModelCfg(
-        modality="depth",
         prompt="A robot arm manipulating an object on a workbench.",
         # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
         max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
@@ -190,7 +177,6 @@ prompt's first use can trigger compilation, so prefer a short list of prompts.
 
 ```python
 CosmosModelCfg(
-    modality="depth",
     prompt=[
         "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
         "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
@@ -279,8 +265,7 @@ falling back. `status` lists the service's transports. With the defaults on one 
 shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket
 transport's 16-view protocol limit; the available GPU memory still limits the batch size.
 
-CUDA IPC only avoids host copies between the two processes; edge extraction still runs on the CPU in the camera
-process. Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
+Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with

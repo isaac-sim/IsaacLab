@@ -51,7 +51,7 @@ def _unix_endpoint() -> tuple[str, str]:
 class TransportResource:
     """Already-loaded resource whose ownership is observable across a real socket."""
 
-    capabilities = {"modalities": ["edge", "depth", "seg"]}
+    capabilities = {}
 
     def __init__(self):
         self.streams = []
@@ -150,9 +150,7 @@ def cosmos_service(request):
 
 
 def _client(endpoint):
-    return CosmosModel(
-        CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", modality="edge", timeout=2)
-    )
+    return CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", timeout=2))
 
 
 def _controls():
@@ -313,7 +311,6 @@ def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_res
             "num_views": 1,
             "seeds": [1],
             "prompt": "A lab.",
-            "modality": "edge",
             "height": 2,
             "width": 3,
             "max_episode_frames": 9,
@@ -337,7 +334,6 @@ def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_
             "num_views": 1,
             "seeds": [7],
             "prompt": "A camera view",
-            "modality": "edge",
             "height": 2,
             "width": 3,
             "max_episode_frames": 13,
@@ -389,9 +385,7 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
         [
             ModifierCfg(func=depth_to_control, params={"near": 1.0, "far": 9.0}),
             CosmosTransferModifierCfg(
-                backend=CosmosModelCfg(
-                    max_episode_frames=13, endpoint=cosmos_service.endpoint, modality="depth", timeout=2
-                )
+                backend=CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2)
             ),
         ],
         device="cpu",
@@ -609,7 +603,6 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
                 "num_views": 1,
                 "seeds": [1],
                 "prompt": None,
-                "modality": "edge",
                 "height": 2,
                 "width": 3,
                 "max_episode_frames": 9,
@@ -680,7 +673,6 @@ def test_a_service_without_cuda_ipc_rejects_shared_gpu_sessions(cosmos_service):
             "num_views": 1,
             "seeds": [1],
             "prompt": None,
-            "modality": "edge",
             "height": 2,
             "width": 3,
             "max_episode_frames": 9,
@@ -796,7 +788,6 @@ def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos
             "num_views": 2,
             "seeds": [1, 2],
             "prompt": None,
-            "modality": "edge",
             "height": 2,
             "width": 3,
             "max_episode_frames": 9,

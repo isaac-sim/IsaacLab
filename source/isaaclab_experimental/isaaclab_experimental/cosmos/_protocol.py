@@ -22,8 +22,8 @@ from urllib.parse import urlsplit
 
 import numpy as np
 
-PROTOCOL_VERSION = 2
-"""Version 2 lets an episode reset carry the next appearance prompt."""
+PROTOCOL_VERSION = 3
+"""Version 3 drops the control type from ``open``: controls are depth."""
 MAX_CHUNK_FRAMES = 4
 """Most frames one control chunk carries: one initial frame, then four per update."""
 DEFAULT_ENDPOINT = (

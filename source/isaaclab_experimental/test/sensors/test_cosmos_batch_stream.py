@@ -125,13 +125,13 @@ def batch(monkeypatch):
     module.StreamingTransferStep = StreamingTransferStep
     monkeypatch.setitem(sys.modules, module.__name__, module)
 
-    def make(views=2, partial=True, budget=13, modality="depth"):
+    def make(views=2, partial=True, budget=13):
         model = Model()
         # Keep the real session admission and lifecycle; replace only the loaded Framework and text conditioning.
         owner = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
         owner._pipeline = SimpleNamespace(model=model)
         owner._device = torch.device("cuda", torch.cuda.current_device())
-        owner.capabilities = {"partial_resets": partial, "modalities": ["depth"]}
+        owner.capabilities = {"partial_resets": partial}
         owner._stream = None
         owner._closed = False
         monkeypatch.setattr(owner, "_prompt_batch", lambda text, *args: {"caption": [text]})
@@ -139,7 +139,6 @@ def batch(monkeypatch):
             num_views=views,
             seeds=tuple(range(views)),
             prompt="A lab.",
-            modality=modality,
             height=HEIGHT,
             width=WIDTH,
             max_episode_frames=budget,
@@ -163,7 +162,6 @@ def test_new_sessions_change_view_count_without_reloading_the_model(batch):
                 num_views=views,
                 seeds=tuple(range(views)),
                 prompt="A lab.",
-                modality="depth",
                 height=HEIGHT,
                 width=WIDTH,
                 max_episode_frames=13,
