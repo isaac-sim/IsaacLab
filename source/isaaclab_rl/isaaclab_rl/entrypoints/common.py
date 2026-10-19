@@ -186,25 +186,6 @@ def video_source(value: str) -> str:
     return value
 
 
-def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
-    """Add the options that put Cosmos on a task's camera; see :func:`isaaclab_experimental.cosmos.apply_cosmos`.
-
-    Args:
-        parser: The parser to add arguments to.
-    """
-    group = parser.add_argument_group("Cosmos", "Generate the policy camera's images with a running Cosmos service.")
-    group.add_argument("--cosmos", action="store_true", default=False, help="Put Cosmos on the task's rgb camera.")
-    group.add_argument(
-        "--cosmos_config",
-        metavar="FILE",
-        default=None,
-        help=(
-            "YAML file with the Cosmos options (prompt, camera, control, near, far, endpoint, transport; see"
-            " isaaclab_experimental.cosmos.COSMOS_OPTIONS). Implies --cosmos."
-        ),
-    )
-
-
 def add_common_train_args(
     parser: argparse.ArgumentParser,
     *,
@@ -225,7 +206,6 @@ def add_common_train_args(
         max_iterations_type: Converter and validator for ``--max_iterations``.
     """
     add_video_args(parser, action="training")
-    add_cosmos_args(parser)
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     add_frontend_args(parser)
@@ -295,7 +275,6 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         agent_help: Help text for the ``--agent`` argument.
     """
     add_video_args(parser, action="play")
-    add_cosmos_args(parser)
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
@@ -380,24 +359,6 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     # --deterministic is a Kit launcher flag, so it only reaches carb settings on its own. Record the
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
-    if hasattr(args_cli, "cosmos"):
-        from isaaclab_experimental.cosmos import CosmosTransferModifierCfg, apply_cosmos, read_cosmos_config
-
-        preset_cameras = [
-            name
-            for name, sensor in vars(env_cfg.scene).items()
-            if any(
-                isinstance(item, CosmosTransferModifierCfg)
-                for chain in (getattr(sensor, "modifiers", None) or {}).values()
-                for item in chain
-            )
-        ]
-        if not (args_cli.cosmos or args_cli.cosmos_config or preset_cameras):
-            return
-        options = read_cosmos_config(args_cli.cosmos_config) if args_cli.cosmos_config else {}
-        if "camera" not in options and len(preset_cameras) == 1:
-            options["camera"] = preset_cameras[0]
-        apply_cosmos(env_cfg, num_envs=args_cli.num_envs, **options)
 
 
 def request_determinism(args_cli: argparse.Namespace, env_cfg: Any) -> None:
@@ -490,10 +451,6 @@ def show_run_summary(
     """
     renderer = _renderer_name(env_cfg)
     visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
-    # The summary is shown before apply_env_overrides, which gives --cosmos runs one environment unless set.
-    num_envs = getattr(args_cli, "num_envs", None) or (
-        1 if getattr(args_cli, "cosmos", False) or getattr(args_cli, "cosmos_config", None) else env_cfg.scene.num_envs
-    )
     screen.summary(
         f"Isaac Lab · {action}",
         {
@@ -504,7 +461,7 @@ def show_run_summary(
             "Renderer": "n/a (no camera sensors)" if renderer is None else renderer,
             "Visualizer": ", ".join(visualizers) or "headless",
             "Device": env_cfg.sim.device,
-            "Environments": str(num_envs),
+            "Environments": str(getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs),
         },
     )
 
