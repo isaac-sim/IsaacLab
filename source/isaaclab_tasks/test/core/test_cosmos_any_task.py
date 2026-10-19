@@ -3,26 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The single Cosmos path: ``--cosmos`` on train/play puts Cosmos on an unmodified camera task."""
+"""Cosmos on camera tasks: ``apply_cosmos`` for an unmodified task, and the Shadow Hand preset with its overrides."""
 
-import argparse
 import logging
 
 import pytest
-from isaaclab_experimental.cosmos import apply_cosmos, read_cosmos_config
+from isaaclab_experimental.cosmos import apply_cosmos
 from isaaclab_experimental.cosmos.client import camera as cosmos_camera_module
-
-from isaaclab_rl.entrypoints.common import (
-    add_common_play_args,
-    add_common_train_args,
-    apply_env_overrides,
-    show_run_summary,
-)
 
 from isaaclab_tasks.utils import parse_env_cfg
 
 KUKA_TASK = "Isaac-Reorient-KukaAllegro-Camera"
 KUKA_PRESETS = "presets=cube,single_camera,newton_mjwarp,newton_renderer,rgb64"
+SHADOW_HAND_TASK = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
+SHADOW_HAND_CHAIN = "env.scene.tiled_camera.modifiers.distance_to_image_plane"
 
 
 def _kuka(**overrides):
@@ -36,17 +30,10 @@ def _budget(env_cfg):
     return env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.max_episode_frames
 
 
-def _cli(add_args, argv):
-    parser = argparse.ArgumentParser()
-    add_args(parser, agent_default=None, agent_help="")
-    return parser.parse_args(argv)
-
-
-def _config(tmp_path, text):
-    """Write a Cosmos config file and return the option that selects it."""
-    path = tmp_path / "cosmos.yaml"
-    path.write_text(text)
-    return ["--cosmos_config", str(path)]
+def _serve(monkeypatch, partial_resets=False):
+    """Stand in for the running service's status."""
+    capabilities = {"partial_resets": partial_resets}
+    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", lambda endpoint, **kwargs: capabilities)
 
 
 @pytest.fixture(autouse=True)
@@ -55,12 +42,10 @@ def _idle_service(monkeypatch):
     _serve(monkeypatch)
 
 
-@pytest.mark.parametrize("add_args", [add_common_train_args, add_common_play_args])
-def test_a_cosmos_config_puts_cosmos_on_the_policy_camera_of_an_unmodified_task(add_args, tmp_path):
-    """The Kuka Allegro camera task gets Cosmos from a config file, with its 64 x 64 observation kept."""
-    args = _cli(add_args, _config(tmp_path, "prompt: [A lab., A kitchen.]\n"))
+def test_apply_cosmos_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
+    """The Kuka Allegro camera task gets Cosmos with its 64 x 64 observation kept."""
     env_cfg = _kuka()
-    apply_env_overrides(args, env_cfg)
+    apply_cosmos(env_cfg, prompt=["A lab.", "A kitchen."])
     env_cfg.validate()
     camera = env_cfg.scene.base_camera
     chain = camera.modifiers["distance_to_image_plane"]
@@ -71,66 +56,58 @@ def test_a_cosmos_config_puts_cosmos_on_the_policy_camera_of_an_unmodified_task(
     assert chain[-1].params == {"width": 64, "height": 64}
 
 
-def _serve(monkeypatch, partial_resets=False):
-    """Stand in for the running service's status."""
-    capabilities = {"partial_resets": partial_resets}
-    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", lambda endpoint, **kwargs: capabilities)
-
-
-@pytest.mark.parametrize("add_args,enable", [(add_common_train_args, []), (add_common_play_args, ["--cosmos"])])
-def test_cosmos_preset_accepts_config_overrides_without_replacing_its_chain(add_args, enable, tmp_path, caplog):
-    """A config file overrides the preset directly; --cosmos with it does not apply the modifier twice."""
-    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
-    config = "prompt: A kitchen.\nendpoint: tcp://127.0.0.1:5556\nnear: 0.2\ntransport: socket\n"
-    args = _cli(add_args, [*enable, *_config(tmp_path, config)])
-    with caplog.at_level(logging.INFO):
-        apply_env_overrides(args, env_cfg)
+def test_the_shadow_hand_preset_options_are_set_with_overrides():
+    """Overrides reach the options inside the camera's modifier chain without replacing the chain."""
+    prompts = "['A kitchen.', 'A lab.']"
+    env_cfg = parse_env_cfg(
+        SHADOW_HAND_TASK,
+        overrides=(
+            "presets=cosmos",
+            "env.scene.num_envs=2",
+            f"{SHADOW_HAND_CHAIN}.1.backend.prompt={prompts}",
+            f"{SHADOW_HAND_CHAIN}.1.backend.endpoint=tcp://127.0.0.1:5556",
+            f"{SHADOW_HAND_CHAIN}.1.backend.transport=socket",
+            f"{SHADOW_HAND_CHAIN}.0.params.near=0.2",
+        ),
+    )
     env_cfg.validate()
     camera = env_cfg.scene.tiled_camera
     chain = camera.modifiers["distance_to_image_plane"]
     assert len(chain) == 2
     assert chain[0].params == {"near": 0.2, "far": 1.5}
-    assert chain[1].backend.prompt == "A kitchen."
+    assert chain[1].backend.prompt == ["A kitchen.", "A lab."]
     assert chain[1].backend.endpoint == "tcp://127.0.0.1:5556"
     assert chain[1].backend.transport == "socket"
     assert chain[1].backend.max_episode_frames == 601
     assert camera.update_period == 0.0
     assert env_cfg.feature_extractor.image_update_frames == 4
-    assert "60.000 captures/s, 15.000 generated updates/s" in caplog.text
 
 
-def test_cosmos_preset_keeps_defaults_and_rejects_changing_its_control(tmp_path):
-    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
+def test_apply_cosmos_keeps_a_preset_chain_and_rejects_changing_its_control():
+    env_cfg = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos",))
     original = env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend
-    apply_env_overrides(_cli(add_common_train_args, []), env_cfg)
+    apply_cosmos(env_cfg)
     backend = env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend
     assert backend.prompt == original.prompt and backend.endpoint == original.endpoint
     assert backend.transport == original.transport
     with pytest.raises(ValueError, match="preset prepares depth"):
-        apply_env_overrides(_cli(add_common_train_args, _config(tmp_path, "control: edge\n")), env_cfg)
-
-
-def test_a_cosmos_config_with_an_unknown_option_fails_instead_of_being_ignored(tmp_path):
-    path = _config(tmp_path, "prompt: A lab.\nprompts: typo\n")[1]
-    with pytest.raises(ValueError, match=r"Unknown Cosmos option\(s\) \['prompts'\]"):
-        read_cosmos_config(path)
+        apply_cosmos(env_cfg, control="edge")
 
 
 def test_several_environments_need_a_compiled_service_that_batches_them(monkeypatch):
-    """--num_envs selects the batch without a server view limit; independent resets still need compiled inference."""
-    args = _cli(add_common_train_args, ["--cosmos", "--num_envs", "4"])
+    """The batch size is the environment count; independent resets still need compiled inference."""
     _serve(monkeypatch, partial_resets=False)
     with pytest.raises(ValueError, match="without --no-compile"):
-        apply_env_overrides(args, _kuka())
+        apply_cosmos(_kuka(), num_envs=4)
 
     _serve(monkeypatch, partial_resets=True)
     env_cfg = _kuka()
-    apply_env_overrides(args, env_cfg)
+    apply_cosmos(env_cfg, num_envs=4)
     assert env_cfg.scene.num_envs == 4
     assert env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.max_episode_frames > 1
 
 
-def test_several_services_split_the_environments_and_each_is_checked(monkeypatch, tmp_path):
+def test_several_services_split_the_environments_and_each_is_checked(monkeypatch):
     """A list of endpoints splits the environments; only a service with several needs compiled inference."""
     checked = []
 
@@ -141,31 +118,25 @@ def test_several_services_split_the_environments_and_each_is_checked(monkeypatch
     monkeypatch.setattr(cosmos_camera_module, "service_capabilities", capabilities)
     compiled, eager = "tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"
 
-    def endpoints(*addresses):
-        return _config(tmp_path, "endpoint: [" + ", ".join(addresses) + "]\n")
-
     env_cfg = _kuka()
-    apply_env_overrides(_cli(add_common_train_args, ["--num_envs", "3", *endpoints(compiled, eager)]), env_cfg)
+    apply_cosmos(env_cfg, num_envs=3, endpoint=[compiled, eager])
     backend = env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend
     assert backend.endpoint == ["tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"]
     assert checked == [("tcp://127.0.0.1:5556", True), ("tcp://127.0.0.1:5557", True)]
 
     # In the other order, the eager service would get two of the three environments.
     with pytest.raises(ValueError, match="at tcp://127.0.0.1:5557 without --no-compile"):
-        apply_env_overrides(_cli(add_common_train_args, ["--num_envs", "3", *endpoints(eager, compiled)]), _kuka())
+        apply_cosmos(_kuka(), num_envs=3, endpoint=[eager, compiled])
     with pytest.raises(ValueError, match="at least one environment per service"):
-        apply_env_overrides(_cli(add_common_train_args, [*endpoints(compiled, eager)]), _kuka())
+        apply_cosmos(_kuka(), endpoint=[compiled, eager])
 
 
-def test_the_shadow_hand_preset_batches_several_environments_at_its_camera_rate(monkeypatch):
-    """--num_envs on the preset keeps its camera rate; each environment's budget counts its own captures."""
-    _serve(monkeypatch, partial_resets=True)
-    args = _cli(add_common_train_args, ["--num_envs", "2"])
+def test_the_shadow_hand_preset_batches_several_environments_at_its_camera_rate():
+    """Several environments on the preset keep its camera rate; each environment's budget counts its own captures."""
     env_cfg = parse_env_cfg(
-        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
-        overrides=("presets=cosmos", "env.scene.tiled_camera.update_period=0.1"),
+        SHADOW_HAND_TASK,
+        overrides=("presets=cosmos", "env.scene.num_envs=2", "env.scene.tiled_camera.update_period=0.1"),
     )
-    apply_env_overrides(args, env_cfg)
     env_cfg.validate()
 
     assert env_cfg.scene.num_envs == 2
@@ -194,7 +165,7 @@ def test_the_capture_count_uses_the_sensor_update_tolerance():
 
 def test_cosmos_needs_one_rgb_camera_or_an_explicit_choice():
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=("presets=cube,duo_camera,newton_mjwarp,newton_renderer,rgb64",))
-    with pytest.raises(ValueError, match="Cosmos config option `camera`"):
+    with pytest.raises(ValueError, match="`camera` argument"):
         apply_cosmos(env_cfg, prompt="A lab.")
     apply_cosmos(env_cfg, prompt="A lab.", camera="wrist_camera")
     assert env_cfg.scene.wrist_camera.modifiers and not env_cfg.scene.base_camera.modifiers
@@ -206,20 +177,3 @@ def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog):
     with caplog.at_level(logging.WARNING):
         apply_cosmos(env_cfg, prompt="A cart.")
     assert "Direct tasks" in caplog.text
-
-
-def test_the_run_summary_shows_the_single_cosmos_environment():
-    """The summary appears before the overrides; with --cosmos it reports the one environment the run uses."""
-
-    class Screen:
-        def summary(self, title, fields):
-            self.fields = fields
-
-    screen = Screen()
-    show_run_summary(screen, _cli(add_common_train_args, ["--cosmos"]), _kuka(), library="rsl_rl", action="train")
-    assert screen.fields["Environments"] == "1"
-    args = _cli(add_common_train_args, ["--cosmos", "--num_envs", "4"])
-    show_run_summary(screen, args, _kuka(), library="rsl_rl", action="train")
-    assert screen.fields["Environments"] == "4"
-    show_run_summary(screen, _cli(add_common_train_args, []), _kuka(), library="rsl_rl", action="train")
-    assert screen.fields["Environments"] != "1"
