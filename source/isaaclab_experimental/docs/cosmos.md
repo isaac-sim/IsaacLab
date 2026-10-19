@@ -53,7 +53,6 @@ apply_cosmos(env_cfg, prompt="A KUKA arm with an Allegro hand turning a cube in 
 | Argument | Meaning |
 |---|---|
 | `prompt` | Scene description: text, or a list for a different prompt per episode (one environment) or per environment (several) |
-| `prompt_file` | Scene description from files instead of `prompt`: `.txt` as written, `.json` (a structured caption) kept as JSON, serialized once rather than flattened into prose. One prompt per file; give a path, a pattern such as `prompts/*.json`, or a list |
 | `camera` | Scene camera to use, when the task has several rgb cameras |
 | `control` | `"depth"` or `"edge"`: control prepared from the render (default `"depth"`); see "Controls and prompts" |
 | `near`, `far` | Depth shown white and black [m] (defaults 0.1 and 2.0) |
@@ -280,13 +279,8 @@ Prompts can also come from files: `read_prompt_files(["prompts/*.json"])` return
 expanded in sorted order, so `prompt=read_prompt_files([...])` gives each of 16 environments its own file. A `.txt`
 file is used as written. A `.json` file is a structured caption, the format the model was trained on: it is parsed and
 serialized once into the prompt string, keeping its structure rather than flattening it into prose. The service does
-not upsample prompts, so prepared captions reach the model unchanged. In a `--cosmos_config` file, `prompt_file` does
-the same: one path, a pattern, or a list, used instead of `prompt`.
-
-```yaml
-# cosmos.yaml
-prompt_file: prompts/*.json
-```
+not upsample prompts, so prepared captions reach the model unchanged. Pass the result as the `prompt` of
+`apply_cosmos`, or set it in a preset's `CosmosModelCfg`.
 
 ## Runtime and resets
 
