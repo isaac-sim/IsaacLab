@@ -6,6 +6,7 @@
 """Exact evidence retrieval tests using local GitHub API and artifact fixtures."""
 
 import hashlib
+import http.client
 import io
 import json
 import urllib.error
@@ -160,17 +161,6 @@ class FixtureClient(baseline.GitHubClient):
 
 
 def check_evidence(subtests):
-    with subtests.test(evidence="missing source context"):
-        client = FixtureClient()
-        client.add(20, HEAD, start=stamp(12), samples={"leg": [bundle(start=stamp(12, 1), end=stamp(12, 5))]})
-        assert baseline.resolve_candidate(client, 20, 1).measurement_start == stamp(12, 1)
-        client.add(10, PARENT, context=False, samples={"leg": [bundle(end=stamp(12), fps=1)]}, conclusion="failure")
-        evidence = baseline.resolve_candidate(client, 10, 1)
-        assert evidence.identity["run_id"] == 10
-        assert evidence.context == {}
-        assert evidence.identity["tested_commit"] is None
-        assert "provenance" in evidence.issues[0]
-
     with subtests.test(evidence="rerun with an incomplete leg"):
         client = FixtureClient()
         client.add(10, PARENT)
@@ -179,12 +169,13 @@ def check_evidence(subtests):
             PARENT,
             attempt=2,
             start=stamp(11),
-            samples={"renamed-leg": [bundle(start=stamp(11), end=stamp(11, 5))]},
+            samples={"renamed-leg": [bundle(start=stamp(11, 1), end=stamp(11, 5))]},
             statuses={"renamed-leg": "ok", "missing-leg": "failed"},
             conclusion="failure",
         )
         evidence = baseline.resolve_candidate(client, 10, 2)
         assert evidence.identity["run_attempt"] == 2
+        assert evidence.measurement_start == stamp(11, 1)
         assert evidence.samples["missing-leg"] == []
         assert evidence.statuses["missing-leg"] == "failed"
 
@@ -213,6 +204,9 @@ def check_evidence(subtests):
         )
         evidence = baseline.resolve_candidate(client, 10, 1)
         assert evidence.identity["run_id"] == 10
+        assert evidence.context == {}
+        assert evidence.identity["tested_commit"] is None
+        assert any("provenance" in issue for issue in evidence.issues)
         assert len(evidence.samples["leg"]) == 1
         assert evidence.samples["broken"] == []
         assert evidence.measurement_end == stamp(11)
@@ -306,12 +300,19 @@ def check_transport(tmp_path, subtests):
         ("download", None, None, None),
         ("api_read", None, TimeoutError("read stalled: ?sig=secret"), "timeout"),
         ("download", None, TimeoutError("read stalled: ?sig=secret"), "timeout"),
+        ("api_read", None, "truncated", "inaccessible"),
+        ("download", None, "truncated", "inaccessible"),
         ("api_connect", urllib.error.URLError(TimeoutError("connect stalled: ?sig=secret")), None, "timeout"),
         ("download", urllib.error.HTTPError(secret_url, 403, "secret", {}, None), None, "inaccessible"),
     ):
         with subtests.test(transport=kind, open_error=open_error, read_error=read_error):
             client = baseline.GitHubClient(REPO, token="memory-only" if open_error is None else "")
             response = io.BytesIO(b"original zip")
+            if read_error == "truncated":
+                body = io.BytesIO(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nshort")
+                response = http.client.HTTPResponse(Mock(makefile=Mock(return_value=body)))
+                response.begin()
+                read_error = response.read
             client._opener = Mock()
             redirect = kind == "download" and open_error is None
             client._opener.open.return_value = response
