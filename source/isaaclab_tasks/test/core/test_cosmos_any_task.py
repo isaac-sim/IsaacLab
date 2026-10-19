@@ -57,16 +57,16 @@ def test_apply_cosmos_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
 
 
 def test_the_shadow_hand_preset_options_are_set_with_overrides():
-    """Overrides reach the options inside the camera's modifier chain without replacing the chain."""
+    """``env.cosmos`` overrides set the camera's own Cosmos settings; the depth range is set on its chain."""
     prompts = "['A kitchen.', 'A lab.']"
     env_cfg = parse_env_cfg(
         SHADOW_HAND_TASK,
         overrides=(
             "presets=cosmos",
             "env.scene.num_envs=2",
-            f"{SHADOW_HAND_CHAIN}.1.backend.prompt={prompts}",
-            f"{SHADOW_HAND_CHAIN}.1.backend.endpoint=tcp://127.0.0.1:5556",
-            f"{SHADOW_HAND_CHAIN}.1.backend.transport=socket",
+            f"env.cosmos.prompt={prompts}",
+            "env.cosmos.endpoint=tcp://127.0.0.1:5556",
+            "env.cosmos.transport=socket",
             f"{SHADOW_HAND_CHAIN}.0.params.near=0.2",
         ),
     )
@@ -79,6 +79,7 @@ def test_the_shadow_hand_preset_options_are_set_with_overrides():
     assert chain[1].backend.endpoint == "tcp://127.0.0.1:5556"
     assert chain[1].backend.transport == "socket"
     assert chain[1].backend.max_episode_frames == 601
+    assert env_cfg.cosmos is chain[1].backend
     assert camera.update_period == 0.0
     assert env_cfg.feature_extractor.image_update_frames == 4
 
@@ -166,3 +167,9 @@ def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog):
     with caplog.at_level(logging.WARNING):
         apply_cosmos(env_cfg, prompt="A cart.")
     assert "Direct tasks" in caplog.text
+
+
+def test_separate_shadow_hand_configs_do_not_share_cosmos_settings():
+    first = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos", "env.cosmos.prompt=A kitchen."))
+    second = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos",))
+    assert first.cosmos.prompt == "A kitchen." and second.cosmos.prompt != "A kitchen."
