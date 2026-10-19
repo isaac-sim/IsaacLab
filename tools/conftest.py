@@ -28,6 +28,7 @@ import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
 from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
 from _file_scheduler import JobContext, TestFileJob, run_test_files  # isort: skip
+from test_selection import collect_test_files, files_with_marker  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -1580,67 +1581,20 @@ def _collect_test_files(
     curobo_only,
 ):
     """Collect test files from source directories, applying all active filters."""
-    test_files = []
-    for source_dir in source_dirs:
-        if not os.path.exists(source_dir):
-            logger.error(f"Error: source directory not found at {source_dir}")
-            pytest.exit("Source directory not found", returncode=1)
-
-        for root, _, files in os.walk(source_dir):
-            # source/isaaclab/test/install_ci/ has its own pytest config and conftest.
-            # It is run via .github/actions/install-ci-run, never via this collector,
-            # so skip the whole subtree to keep install_ci tests out of build.yaml jobs.
-            if "install_ci" in root.replace("\\", "/").split("/"):
-                continue
-
-            for file in files:
-                if not (file.startswith("test_") and file.endswith(".py")):
-                    continue
-
-                # Mode-exclusive filters (each bypasses TESTS_TO_SKIP)
-                if quarantined_only:
-                    if file not in test_settings.QUARANTINED_TESTS:
-                        continue
-                elif curobo_only:
-                    if file not in test_settings.CUROBO_TESTS:
-                        continue
-                else:
-                    # An explicit include_files entry overrides TESTS_TO_SKIP, allowing
-                    # dedicated jobs (e.g. test-environments-training) to run tests that
-                    # are otherwise excluded from general CI runs.
-                    if file in test_settings.TESTS_TO_SKIP and file not in include_files:
-                        logger.debug(f"Skipping {file} as it's in the skip list")
-                        continue
-
-                full_path = os.path.join(root, file)
-
-                if filter_pattern and filter_pattern not in full_path:
-                    logger.debug(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
-                    continue
-                if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
-                    logger.debug(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
-                    continue
-                if include_files and file not in include_files:
-                    logger.debug(f"Skipping {full_path} (not in include files list)")
-                    continue
-
-                test_files.append(full_path)
-
-    # Sort test files deterministically to ensure consistent test ordering.
-    test_files.sort()
-
-    # Apply file-level sharding: select every Nth file from the deterministic order.
-    # Skip when include_files is set — in that case the test's own conftest handles
-    # sharding at the test-item level (e.g. parametrized test cases).
-    shard_index = os.environ.get("TEST_SHARD_INDEX", "")
-    shard_count = os.environ.get("TEST_SHARD_COUNT", "")
-    if shard_index and shard_count and not include_files:
-        shard_index = int(shard_index)
-        shard_count = int(shard_count)
-        test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
-        logger.info(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
-
-    return test_files
+    try:
+        return collect_test_files(
+            source_dirs,
+            filter_pattern,
+            exclude_pattern,
+            include_files,
+            quarantined_only,
+            curobo_only,
+            shard_index=os.environ.get("TEST_SHARD_INDEX", ""),
+            shard_count=os.environ.get("TEST_SHARD_COUNT", ""),
+        )
+    except FileNotFoundError as exc:
+        logger.error(f"Error: {exc}")
+        pytest.exit("Source directory not found", returncode=1)
 
 
 def _load_test_node_ids_from_toml(workspace_root: str) -> list[str]:
@@ -1758,6 +1712,11 @@ def pytest_sessionstart(session):
     # filter is owned by Isaac Sim's external CI pipeline; the CI_MARKER path
     # leaves that contract untouched.
     ci_marker = os.environ.get("CI_MARKER", "")
+    # The file scan below matches a single marker name, and a job with no marked file passes empty,
+    # so an expression or a misspelt name would pass every job without running anything.
+    registered_markers = {entry.split(":", 1)[0].strip() for entry in session.config.getini("markers")}
+    if ci_marker and ci_marker not in registered_markers:
+        pytest.exit(f"CI_MARKER {ci_marker!r} is not a single marker registered in pyproject.toml", returncode=1)
     test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
 
     # Parse include files list (comma-separated paths)
@@ -1813,22 +1772,7 @@ def pytest_sessionstart(session):
         test_files = new_test_files
 
     if ci_marker:
-        # Match both `@pytest.mark.<marker>` (per-function) and
-        # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
-        # (module-level) by looking for the common `pytest.mark.<marker>` substring.
-        marker_token = f"pytest.mark.{ci_marker}"
-        new_test_files = []
-        for test_file in test_files:
-            try:
-                with open(test_file) as f:
-                    if marker_token in f.read():
-                        new_test_files.append(test_file)
-            except OSError as exc:
-                raise RuntimeError(
-                    f"ci_marker post-scan could not read {test_file}; refusing to"
-                    f" silently drop a potentially marker-tagged file"
-                ) from exc
-        test_files = new_test_files
+        test_files = files_with_marker(test_files, ci_marker)
 
     if test_node_ids_by_file:
         configured_files = set(test_node_ids_by_file)
@@ -1842,6 +1786,10 @@ def pytest_sessionstart(session):
             logger.info("No quarantined tests configured — nothing to run.")
             _write_empty_report()
             pytest.exit("No quarantined tests configured", returncode=0)
+        if ci_marker:
+            logger.info(f"No selected test file carries marker '{ci_marker}' — nothing to run.")
+            _write_empty_report()
+            pytest.exit("No test files found for marker", returncode=0)
         if filter_pattern:
             logger.info(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
             _write_empty_report()

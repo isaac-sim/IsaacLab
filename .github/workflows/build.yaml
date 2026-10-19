@@ -67,6 +67,13 @@ on:
       - develop
       - 'release/**'
   workflow_dispatch:
+    inputs:
+      marker:
+        description: >-
+          Run only the tests carrying this registered pytest marker, e.g. kitless. A job with no
+          marked file passes with an empty report. Empty runs every test.
+        type: string
+        default: ''
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
@@ -130,11 +137,20 @@ jobs:
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
       ovphysx_wheelhouse_image: ${{ steps.load.outputs.ovphysx_wheelhouse_image }}
       ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
+      marker_jobs: ${{ steps.marker.outputs.marker_jobs }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-        sparse-checkout: .github/workflows/config.yaml
+        # The marker check below reads the workflow, the registered markers and the test files.
+        sparse-checkout: |
+          .github/workflows/config.yaml
+          .github/workflows/build.yaml
+          .github/test-subsets/
+          pyproject.toml
+          scripts/
+          source/
+          tools/
         sparse-checkout-cone-mode: false
     - id: load
       run: |
@@ -167,6 +183,23 @@ jobs:
         sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
+
+    # A marker run skips jobs with no marked test file here, before they wait for a GPU runner
+    # and pull the CI image.
+    - id: marker
+      env:
+        MARKER: ${{ inputs.marker }}
+        EVENT_NAME: ${{ github.event_name }}
+      run: |
+        set -euo pipefail
+        if [ -z "${MARKER}" ]; then
+          echo 'marker_jobs={}' >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        workflow_json="${RUNNER_TEMP}/build.json"
+        yq -o=json .github/workflows/build.yaml > "$workflow_json"
+        python3 tools/ci_marker_jobs.py --workflow "$workflow_json" --marker "$MARKER" --event-name "$EVENT_NAME" \
+          >> "$GITHUB_OUTPUT"
 
   test-dockerfile-contract:
     name: dockerfile-contract
@@ -258,7 +291,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-tasks'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -266,6 +300,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -286,7 +321,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-tasks-2'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -294,6 +330,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -314,7 +351,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-tasks-3'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -322,6 +360,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -341,7 +380,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-core'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -349,6 +389,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -368,7 +409,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-core-2'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -376,6 +418,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -395,7 +438,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-core-3'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -403,6 +447,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -426,7 +471,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-standalone-demos-kit'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -434,6 +480,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -457,7 +504,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-standalone-demos-non-kit'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -468,6 +516,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -491,7 +540,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-rl'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -499,6 +549,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -515,7 +566,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-mimic'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -523,6 +575,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -538,7 +591,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-contrib'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -546,6 +600,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -562,7 +617,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-teleop'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -570,6 +626,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -586,7 +643,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-visualizers'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -594,6 +652,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -610,7 +669,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-assets'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -618,6 +678,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -633,7 +694,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-experimental'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -641,6 +703,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -656,7 +719,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-newton'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -664,6 +728,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -680,7 +745,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-physx'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -688,6 +754,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -704,7 +771,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-isaaclab-ov'])
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -717,6 +785,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -753,7 +822,8 @@ jobs:
     needs: [build-curobo, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+      needs.build-curobo.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-curobo'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -761,6 +831,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -794,7 +865,8 @@ jobs:
     needs: [build-curobo, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+      needs.build-curobo.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-contrib-environments'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -802,6 +874,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -826,7 +899,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-record-video'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -834,6 +908,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -849,7 +924,9 @@ jobs:
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-rendering-correctness'])
     steps:
     - uses: actions/checkout@v6
       with:
@@ -857,6 +934,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -888,7 +966,9 @@ jobs:
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-rendering-correctness-kitless-legacy'])
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -901,6 +981,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -935,7 +1016,8 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'pull_request' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['test-rendering-correctness-kitless-ovstage'])
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -948,6 +1030,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -1259,7 +1342,8 @@ jobs:
       cancel-in-progress: false
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['warm-warp-cache'])
     env:
       # Caches are branch-scoped: publishing only helps from a PR base branch
       # (the on.push.branches list). A dispatch from elsewhere runs as a dry run
@@ -1273,6 +1357,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -1304,7 +1389,8 @@ jobs:
       cancel-in-progress: false
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (!inputs.marker || fromJSON(needs.config.outputs.marker_jobs)['warm-ovrtx-cache'])
     env:
       PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
     steps:
@@ -1317,6 +1403,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}

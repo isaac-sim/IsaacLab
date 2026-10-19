@@ -57,11 +57,12 @@ def test_sanitize_sys_argv_preserves_user_verbosity_outside_pytest(monkeypatch):
     assert result is argv
 
 
-def test_sanitize_sys_argv_removes_pytest_marker_pair(monkeypatch):
-    """Remove a pytest marker option together with its expression."""
+@pytest.mark.parametrize("marker_expression", ["not isaacsim_ci", "kitless"])
+def test_sanitize_sys_argv_removes_pytest_marker_pair(marker_expression, monkeypatch):
+    """Remove a pytest marker option together with its expression, whichever markers it names."""
     monkeypatch.setitem(sys.modules, "pytest", object())
 
-    result = _sanitize_sys_argv_for_kit(["test_script.py", "-m", "not isaacsim_ci", "--keep"])
+    result = _sanitize_sys_argv_for_kit(["test_script.py", "-m", marker_expression, "--keep"])
 
     assert result == ["test_script.py", "--keep"]
 

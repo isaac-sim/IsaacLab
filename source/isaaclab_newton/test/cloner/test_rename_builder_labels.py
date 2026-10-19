@@ -11,6 +11,7 @@ from unittest import mock
 
 import newton
 import numpy as np
+import pytest
 import warp as wp
 from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
@@ -26,6 +27,8 @@ from isaaclab.cloner import path as cloner_path
 from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab.sim.schemas import define_deformable_curve_properties
+
+pytestmark = pytest.mark.kitless
 
 
 class TestReplicateBuilderMapping(unittest.TestCase):

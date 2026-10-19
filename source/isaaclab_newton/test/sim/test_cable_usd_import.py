@@ -10,6 +10,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 
+pytestmark = pytest.mark.kitless
+
 # Cable joint degrees of freedom, in the order Newton lays them out.
 _SHEAR_X, _SHEAR_Y, _STRETCH, _BEND_X, _BEND_Y, _TWIST = range(6)
 

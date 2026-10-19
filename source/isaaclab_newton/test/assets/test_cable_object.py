@@ -29,6 +29,8 @@ from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
+pytestmark = pytest.mark.kitless
+
 
 @configclass
 class _CableSceneCfg(InteractiveSceneCfg):

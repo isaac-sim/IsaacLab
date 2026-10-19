@@ -13,6 +13,8 @@ from newton import ModelBuilder
 
 from isaaclab.utils.warp.math_ops import transform_to_vec_quat
 
+pytestmark = pytest.mark.kitless
+
 # ---------------------------------------------------------------------------
 # transform_to_vec_quat
 # ---------------------------------------------------------------------------

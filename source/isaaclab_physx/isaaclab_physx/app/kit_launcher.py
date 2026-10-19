@@ -67,9 +67,8 @@ def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
     indexes_to_remove: set[int] = set()
     for index, argument in enumerate(argv):
         if argument == "-m" and index + 1 < len(argv):
-            marker_expression = argv[index + 1]
-            if any(marker in marker_expression for marker in ("pytest", "isaacsim_ci", "windows_ci", "arm_ci")):
-                indexes_to_remove.update((index, index + 1))
+            # Under pytest every ``-m`` is a marker expression, and Kit crashes on one it does not know.
+            indexes_to_remove.update((index, index + 1))
         elif (
             (argument.startswith("--config-file=") and "pyproject.toml" in argument)
             or argument == "--capture=no"
