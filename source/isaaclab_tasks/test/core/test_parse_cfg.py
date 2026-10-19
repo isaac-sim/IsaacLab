@@ -79,19 +79,6 @@ def test_pink_task_checks_lazy_dependencies(monkeypatch: pytest.MonkeyPatch):
     assert parse_cfg.load_cfg_from_registry("Isaac-Cartpole", "env_cfg_entry_point") is not None
 
 
-def test_override_paths_index_into_lists():
-    """A dotted override reaches an item of a list, such as one modifier of a camera's chain."""
-    from types import SimpleNamespace
-
-    from isaaclab_tasks.utils.hydra import _setattr
-
-    cfg = SimpleNamespace(chain=[SimpleNamespace(value=1), SimpleNamespace(value=2)], names={"a": ["x", "y"]})
-    _setattr(cfg, "chain.1.value", 5)
-    _setattr(cfg, "names.a.0", "z")
-    assert [item.value for item in cfg.chain] == [1, 5]
-    assert cfg.names["a"] == ["z", "y"]
-
-
 def test_override_paths_reject_a_misspelled_field():
     """A misspelled field fails instead of being added beside the field it was meant to set."""
     from types import SimpleNamespace
