@@ -658,7 +658,7 @@ for their hardware. The SDPA patch avoids a separate flash-attn build.
 
    uv venv --no-config --python 3.12 "$GR00T_ROOT/.venv"
    uv pip install --no-config --python "$GR00T_PYTHON" \
-       --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1 torchvision==0.22.1
+       --index-url https://download.pytorch.org/whl/cu128 torch==2.10.0 torchvision==0.25.0
    uv pip install --no-config --python "$GR00T_PYTHON" \
        -r "$GR00T_SCRIPTS/requirements.txt" -e "$GR00T_ROOT"
    PYTORCH3D_NO_EXTENSION=1 uv pip install --no-config --python "$GR00T_PYTHON" \
