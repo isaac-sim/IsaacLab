@@ -343,8 +343,9 @@ class OperationalSpaceControllerActionCfg(ActionTermCfg):
     and ``rot_x``, ``rot_y``, ``rot_z`` for a ``pose_rel`` target, ``force_x``, ``force_y``, ``force_z``,
     ``torque_x``, ``torque_y``, ``torque_z`` for a ``wrench_abs`` target, and ``stiffness_<axis>`` and
     ``damping_ratio_<axis>`` (``x``, ``y``, ``z``, ``rx``, ``ry``, ``rz``) for the variable impedance modes.
-    The quaternion components of a ``pose_abs`` target cannot be clipped. The controller limits on the
-    impedance parameters still apply after clipping.
+    With both ``pose_abs`` and ``pose_rel`` targets, the pose components are prefixed with their target type
+    (``pose_abs_pos_x``, ``pose_rel_pos_x``, ...). The quaternion components of a ``pose_abs`` target cannot
+    be clipped. The controller limits on the impedance parameters are applied after clipping.
 
     See :class:`OperationalSpaceControllerAction` for more details.
     """

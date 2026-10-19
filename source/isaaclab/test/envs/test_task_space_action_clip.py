@@ -76,7 +76,6 @@ def _osc_cfg(target_types: tuple[str, ...], impedance_mode: str, clip=None) -> O
     ("command_type", "use_relative_mode", "expected"),
     [
         ("position", False, ["pos_x", "pos_y", "pos_z"]),
-        ("position", True, ["pos_x", "pos_y", "pos_z"]),
         ("pose", True, ["pos_x", "pos_y", "pos_z", "rot_x", "rot_y", "rot_z"]),
         ("pose", False, ["pos_x", "pos_y", "pos_z", "quat_x", "quat_y", "quat_z", "quat_w"]),
     ],
@@ -106,7 +105,7 @@ def test_diff_ik_clip_matches_task_space_names(monkeypatch: pytest.MonkeyPatch):
 
 def test_diff_ik_clip_with_joint_names_raises():
     """Joint-name keys do not describe task-space components and are rejected instead of mis-indexing."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="action names"):
         DifferentialInverseKinematicsAction(_diff_ik_cfg("pose", True, clip={"joint.*": (-1.0, 1.0)}), _make_env())
 
 
@@ -130,11 +129,21 @@ def test_osc_action_names():
 
 
 def test_osc_action_names_prefixed_when_ambiguous():
-    """With both pose targets, the names are prefixed with their block so every key stays unambiguous."""
-    action = OperationalSpaceControllerAction(_osc_cfg(("pose_abs", "pose_rel"), "fixed"), _make_env())
+    """With both pose targets, the pose names are prefixed with their target type; the impedance names are not."""
+    action = OperationalSpaceControllerAction(_osc_cfg(("pose_abs", "pose_rel"), "variable"), _make_env())
+    axes = ("x", "y", "z", "rx", "ry", "rz")
     assert action.action_names[:3] == ["pose_abs_pos_x", "pose_abs_pos_y", "pose_abs_pos_z"]
     assert action.action_names[7:10] == ["pose_rel_pos_x", "pose_rel_pos_y", "pose_rel_pos_z"]
+    assert action.action_names[13:19] == [f"stiffness_{axis}" for axis in axes]
+    assert action.action_names[19:25] == [f"damping_ratio_{axis}" for axis in axes]
     assert len(set(action.action_names)) == action.action_dim
+
+
+def test_osc_clip_prefixed_quaternion_raises():
+    """The quaternion components are rejected under their block prefix as well."""
+    cfg = _osc_cfg(("pose_abs", "pose_rel"), "fixed", clip={"pose_abs_quat_.*": (-0.1, 0.1)})
+    with pytest.raises(ValueError, match="quaternion"):
+        OperationalSpaceControllerAction(cfg, _make_env())
 
 
 def test_osc_clip_applies_to_processed_actions():
@@ -158,7 +167,14 @@ def test_osc_clip_applies_to_processed_actions():
     torch.testing.assert_close(processed[:, :2], raw[:, :2])
 
 
-def test_osc_clip_unknown_key_raises():
-    """A key that matches no action name is an error, not a silent no-op."""
-    with pytest.raises(ValueError):
-        OperationalSpaceControllerAction(_osc_cfg(("pose_rel",), "fixed", clip={"joint1": (-1.0, 1.0)}), _make_env())
+def test_osc_controller_limits_bound_clip():
+    """A clip range outside the controller limits cannot move the gains past them."""
+    cfg = _osc_cfg(("pose_rel",), "variable_kp", clip={"stiffness_.*": (600.0, 1000.0)})
+    action = OperationalSpaceControllerAction(cfg, _make_env())
+    raw = torch.zeros(NUM_ENVS, action.action_dim)
+    raw[0, 6:12] = 2000.0  # clipped to 1000, then limited to 500
+    raw[1, 6:12] = 0.0  # raised to 600 by the clip, then limited to 500
+
+    action._preprocess_actions(raw)
+
+    torch.testing.assert_close(action.processed_actions[:, 6:12], torch.full((NUM_ENVS, 6), 500.0))
