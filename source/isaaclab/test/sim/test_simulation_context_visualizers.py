@@ -402,7 +402,7 @@ class _DummyViserSceneDataProvider:
 
 @pytest.fixture
 def web_backend(monkeypatch):
-    model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
+    model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4, world_count=4)
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
@@ -415,6 +415,14 @@ def web_backend(monkeypatch):
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     return sim
+
+
+def _assert_requested_render_backend(sim) -> None:
+    """Assert that the last registry request was the render-only Newton backend of the simulation's physics."""
+    cfg = sim.get_or_create_backend.call_args.args[0]
+    assert isinstance(cfg, NewtonBackendCfg)
+    assert cfg.physics_cfg is sim.cfg.physics
+    assert cfg.device == sim.device
 
 
 class _DummyViserViewer:
@@ -452,7 +460,6 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(
     constructor = Mock(return_value=viewer)
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", constructor)
 
-    cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
     visualizer = viser_visualizer.ViserVisualizer(
         ViserVisualizerCfg(max_visible_envs=max_visible_envs, randomly_sample_visible_envs=False)
     )
@@ -478,7 +485,7 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(
     visualizer.reset()
     visualizer.reset()
     assert viewer.set_model.call_args_list == [call(backend.model), call(replacement.model)]
-    web_backend.get_or_create_backend.assert_called_with(cfg)
+    _assert_requested_render_backend(web_backend)
     visualizer.step(0.25)
     assert viewer.calls[-2] == ("log_state", replacement.state_0)
 
@@ -540,7 +547,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     web_backend.get_or_create_backend.return_value = replacement
     visualizer.reset()
     assert visualizer.backend is replacement
-    web_backend.get_or_create_backend.assert_called_with(visualizer.newton_cfg)
+    _assert_requested_render_backend(web_backend)
     assert captured["set_model"] is replacement.model
     assert captured["visible_worlds"] == expected_visible
 

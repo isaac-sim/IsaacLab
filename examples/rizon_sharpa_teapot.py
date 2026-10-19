@@ -44,7 +44,7 @@ from scipy.spatial.transform import Rotation
 from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
-from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
+from isaaclab_contrib.coupling.coupler import CouplerSolverAdapter
 
 if TYPE_CHECKING:
     from newton import ModelBuilder
@@ -629,10 +629,10 @@ class _TeapotColliderSyncSolver(SolverCoupled):
         self._step_entry(fluid, control, contacts, dt)
 
 
-class NewtonTeapotCouplerManager(NewtonCouplerManager):
+class TeapotCouplerSolverAdapter(CouplerSolverAdapter):
     """Couple the dynamic grasped pot to its exact MPM collision shell."""
 
-    def _prepare_builder_for_finalize(self, builder: ModelBuilder) -> None:
+    def prepare_solver_builder(self, builder: ModelBuilder) -> None:
         """Keep generated rigid hulls above the exact shell's body-local base plane."""
         for body, label in enumerate(builder.body_label):
             if not label.endswith("/PourContainer"):
@@ -675,9 +675,9 @@ class NewtonTeapotCouplerManager(NewtonCouplerManager):
                 builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
         # MPM preparation converts convex parts to triangle meshes; repair their
         # generated support geometry before that classification is lost.
-        super()._prepare_builder_for_finalize(builder)
+        super().prepare_solver_builder(builder)
 
-    def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
+    def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg, deterministic_mode):
         return _TeapotColliderSyncSolver(model=model, entries=entries)
 
 
@@ -732,7 +732,7 @@ class TeapotPourMotion:
         self._thumb_joints = joint_ids[7:12]
         self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
-        mj = SimulationContext.instance().backend_manager._solver.solver("robot").mj_model
+        mj = SimulationContext.instance().backend_manager.backend.solver.solver("robot").mj_model
         names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
         arm_q = mj.jnt_qposadr[joints[:7]]
@@ -1061,7 +1061,7 @@ def _interpolate_joints(
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: type[NewtonTeapotCouplerManager] | str = "rizon_sharpa_teapot:NewtonTeapotCouplerManager"
+    class_type: type[TeapotCouplerSolverAdapter] | str = "rizon_sharpa_teapot:TeapotCouplerSolverAdapter"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:

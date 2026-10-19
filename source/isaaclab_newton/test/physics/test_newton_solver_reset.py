@@ -16,7 +16,8 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, newton_backend
+from isaaclab_newton.physics.newton_backend import StepGraph
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
@@ -84,7 +85,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         articulation = _generate_single_joint_articulations(num_articulations=2, device=device)
         sim.reset()
 
-        solver = sim.backend_manager._solver
+        solver = sim.backend_manager.backend.solver
         assert isinstance(solver, SolverMuJoCo)
         warm_start = wp.to_torch(solver.mjw_data.qacc_warmstart)
         assert warm_start.shape[0] == 2
@@ -125,10 +126,9 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         warm_start[1].fill_(29.0)
         wp.synchronize_device(device)
 
-        with (
-            patch.object(sim.backend_manager, "_simulate_full", lambda: None),
-            patch.object(sim.backend_manager, "_simulate_physics_only", lambda: None),
-        ):
+        # Build an empty step graph so only the step boundary's forward touches the solver.
+        sim.backend_manager.backend.step_graph = None
+        with patch.object(newton_backend, "build_step_graph", lambda backend, steps: StepGraph((), steps)):
             sim.step(render=False)
         wp.synchronize_device(device)
 

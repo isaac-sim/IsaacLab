@@ -282,7 +282,7 @@ interaction.
 
 Current Isaac Lab limitations include no support for nested couplers or Newton
 contact sensors, and proxy coupling supports at most two entries. Some solver
-modes require manager-specific lifecycle work and cannot be nested in a
+modes require solver-adapter-specific lifecycle work and cannot be nested in a
 coupler. Validate each entry independently before tuning the coupled result,
 and consult the Newton concept page for current algorithm-level support and
 limitations.

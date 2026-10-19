@@ -280,7 +280,7 @@ in the scene. ``ccd_iterations`` can affect fast rigid contacts near
 deformables. See :doc:`/source/how-to/solver_tuning_mjwarp` for the rigid-solver
 parameters.
 
-Use the custom manager for direct shared-model substep ordering. Use proxy
+Use the custom coupled solver adapter for direct shared-model substep ordering. Use proxy
 coupling when deformable contact is localized to selected rigid bodies.
 
 Start from ``coupling_mode="two_way"``. With two-way coupling the body-particle
@@ -545,5 +545,5 @@ Symptoms and First Parameters to Check
     * - Self-contact is too expensive.
       - Increase ``particle_collision_detection_interval``, reduce mesh resolution, or disable self-contact until the rest of the scene is tuned.
 
-For implementation details of the VBD managers and Newton coupler, see
+For implementation details of the VBD solver adapter and Newton coupler, see
 :ref:`newton-extending-solvers`.

@@ -28,7 +28,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     .. _MuJoCo Warp documentation: https://github.com/google-deepmind/mujoco_warp
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.mjwarp_manager:NewtonMJWarpManager"
+    class_type: type[NewtonManager] | str = "{DIR}.mjwarp_manager:MJWarpSolverAdapter"
     """Manager class for the MuJoCo Warp solver."""
 
     solver_type: str = "mujoco_warp"

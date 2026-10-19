@@ -13,7 +13,7 @@ full Isaac Lab installation containing :mod:`isaaclab_tasks`.
   .. autosummary::
 
     newton_manager_cfg.CoupledMJWarpVBDSolverCfg
-    coupled_mjwarp_vbd_manager.NewtonCoupledMJWarpVBDManager
+    coupled_mjwarp_vbd_manager.CoupledMJWarpVBDSolverAdapter
     franka_soft_env_cfg.FrankaSoftCustomCouplingEnvCfg
 
 Custom Coupling
@@ -24,7 +24,7 @@ Custom Coupling
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager.NewtonCoupledMJWarpVBDManager
+.. autoclass:: isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager.CoupledMJWarpVBDSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:

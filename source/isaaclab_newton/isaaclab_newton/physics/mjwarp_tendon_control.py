@@ -17,7 +17,7 @@ resolution and shape checking rather than restating them. The command buffer its
 Tendon submission is solver-specific -- ``mujoco.ctrl`` exists only under MJWarp -- so it lives
 beside the MJWarp manager rather than in the backend-neutral actuator control. The articulation
 owns the target buffer and asks its manager to submit; only
-:class:`~isaaclab_newton.physics.NewtonMJWarpManager` imports this module.
+:class:`~isaaclab_newton.physics.MJWarpSolverAdapter` imports this module.
 """
 
 from __future__ import annotations
@@ -46,29 +46,12 @@ logger = logging.getLogger(__name__)
 class MjWarpTendonControl:
     """Drives an articulation's fixed tendons through MuJoCo's native tendon actuators.
 
-    Created on demand by :meth:`~isaaclab_newton.physics.NewtonMJWarpManager.fixed_tendon_control`
+    Created on demand by :meth:`~isaaclab_newton.physics.MJWarpSolverAdapter.fixed_tendon_control`
     when the model carries tendon actuators. Command tendons through the articulation's
     backend-neutral
     :meth:`~isaaclab.assets.articulation.BaseArticulation.set_fixed_tendon_position_target_index`
     rather than through this internal adapter.
     """
-
-    @classmethod
-    def create(cls, articulation: Articulation, model: Model) -> MjWarpTendonControl | None:
-        """Build the adapter, or None when no actuator drives any of the tendons.
-
-        Args:
-            articulation: Newton articulation owning the fixed tendons.
-            model: Newton model the articulation's view selects from.
-
-        Returns:
-            The adapter, or None when the articulation's tendons are all passive.
-        """
-        view = articulation.root_view
-        mapping = resolve_fixed_tendon_actuator_columns(view, model)
-        if mapping is None or mapping[0].size == 0:
-            return None
-        return cls(articulation, mapping, view)
 
     def __init__(self, articulation: Articulation, mapping: tuple[np.ndarray, np.ndarray], view: ArticulationView):
         """Bind a tendon-to-actuator mapping to the articulation it drives.
@@ -273,3 +256,20 @@ def _actuator_template_rows(view: ArticulationView, model: Model) -> np.ndarray:
 def _to_numpy(value) -> np.ndarray:
     """Return *value* as a numpy array, whether it is a Warp array already or a sequence."""
     return value.numpy() if hasattr(value, "numpy") else np.asarray(value)
+
+
+def create_mjwarp_tendon_control(articulation: Articulation, model: Model) -> MjWarpTendonControl | None:
+    """Build the MuJoCo tendon command adapter, or None when no actuator drives any of the tendons.
+
+    Args:
+        articulation: Newton articulation owning the fixed tendons.
+        model: Newton model the articulation's view selects from.
+
+    Returns:
+        The adapter, or None when the articulation's tendons are all passive.
+    """
+    view = articulation.root_view
+    mapping = resolve_fixed_tendon_actuator_columns(view, model)
+    if mapping is None or mapping[0].size == 0:
+        return None
+    return MjWarpTendonControl(articulation, mapping, view)

@@ -1,0 +1,246 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Stateless solver adapters used by the functional Newton simulation API."""
+
+from __future__ import annotations
+
+import inspect
+from typing import TYPE_CHECKING, Any, ClassVar
+
+import warp as wp
+from newton import CollisionPipeline, Contacts, Model, ModelBuilder, ShapeFlags, State, eval_fk
+from newton.solvers import SolverBase, SolverMuJoCo
+from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
+
+from isaaclab.utils import checked_apply, string_to_callable, to_dict
+
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
+from .vbd_manager_cfg import VBDSolverCfg
+
+if TYPE_CHECKING:
+    from .newton_backend import NewtonBackend
+    from .newton_manager_cfg import NewtonSolverCfg
+
+
+def create_solver_adapter(solver_cfg: NewtonSolverCfg | None) -> NewtonSolver:
+    """Construct the adapter selected by ``solver_cfg.class_type``; ``None`` gives the base, geometry-only adapter."""
+    if solver_cfg is None:
+        return NewtonSolver(None)
+    adapter_type = solver_cfg.class_type
+    if isinstance(adapter_type, str):
+        adapter_type = string_to_callable(adapter_type)
+    return adapter_type(solver_cfg)
+
+
+def create_builder(physics_cfg: NewtonCfg | None = None, up_axis: str | None = None, **kwargs) -> ModelBuilder:
+    """Create a :class:`ModelBuilder` configured with Isaac Lab's defaults.
+
+    Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream ``ModelBuilder.default_shape_cfg`` via
+    :func:`~isaaclab.utils.checked_apply`, and registers the custom attributes the configured solver reads. Without a
+    Newton configuration the default shape settings still apply, so rough-terrain margin and gap hold during early
+    construction.
+
+    Args:
+        physics_cfg: Newton physics configuration; ``None`` uses the default shape settings and no solver attributes.
+        up_axis: Override for the up-axis. Defaults to ``"Z"``.
+        **kwargs: Forwarded to :class:`ModelBuilder`.
+
+    Returns:
+        New builder with up-axis and per-shape defaults (gap, margin) applied.
+    """
+    newton_cfg = physics_cfg if isinstance(physics_cfg, NewtonCfg) else None
+    builder = ModelBuilder(up_axis=up_axis or "Z", **kwargs)
+    builder.default_bvh_cfg = ModelBuilder.BvhConfig(
+        mesh_constructor=newton_cfg.bvh_constructor_geometry if newton_cfg else None,
+        gaussian_constructor=newton_cfg.bvh_constructor_gaussian if newton_cfg else None,
+        shape_constructor=newton_cfg.bvh_constructor_scene if newton_cfg else None,
+        shape_flags=ShapeFlags.VISIBLE,
+    )
+    create_solver_adapter(newton_cfg.solver_cfg if newton_cfg else None).register_builder_attributes(builder)
+    checked_apply(newton_cfg.default_shape_cfg if newton_cfg else NewtonShapeCfg(), builder.default_shape_cfg)
+    return builder
+
+
+def solver_kwargs(solver_cls: type, solver_cfg: Any, deterministic_mode: wp.DeterministicMode) -> dict:
+    """Return the configuration fields matching ``solver_cls``'s constructor, plus ``deterministic`` if accepted."""
+    valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
+    kwargs = {key: value for key, value in to_dict(solver_cfg).items() if key in valid}
+    if isinstance(solver_cfg, VBDSolverCfg) and solver_cfg.rigid_compliant_alm is None:
+        kwargs.pop("rigid_compliant_alm", None)
+    if "deterministic" in valid:
+        kwargs["deterministic"] = deterministic_mode
+    return kwargs
+
+
+class NewtonSolver:
+    """Construction, stepping, reset and capability hooks of one Newton solver type.
+
+    An adapter holds its solver configuration and no runtime state: every hook takes the backend or builder it acts
+    on, so one adapter can serve any number of backends. Subclasses set the capability attributes below and override
+    the hooks the solver needs.
+    """
+
+    def __init__(self, solver_cfg: NewtonSolverCfg | None):
+        """Bind the adapter to a solver configuration; ``None`` for builders that only describe geometry."""
+        self.cfg = solver_cfg
+
+    def get_usd_import_schema_resolvers(self) -> list[SchemaResolver]:
+        """Return ordered schema resolvers for physics-model USD imports.
+
+        MJC is enabled for adapters that register ``SolverMuJoCo`` attributes. Visualization and articulation-ordering
+        builders keep their fixed pair because solver attributes do not affect their outputs.
+        """
+        resolvers: list[SchemaResolver] = [SchemaResolverNewton(), SchemaResolverPhysx()]
+        if self.registers_builder_attributes_from(SolverMuJoCo):
+            resolvers.append(SchemaResolverMjc())
+        return resolvers
+
+    # ----- Solver hooks ------------------------------------------------------------------
+    # Overridden by solver adapters. They are stateless and take every input explicitly, so a solver adapter can
+    # drive several backends at once.
+
+    solver_class: ClassVar[type[SolverBase] | None] = None
+    """Newton solver the default :meth:`create_solver` constructs from the matching configuration fields."""
+
+    builder_attribute_solvers: ClassVar[tuple[type[SolverBase], ...]] = ()
+    """Solvers whose custom builder attributes are registered before import."""
+
+    single_state: ClassVar[bool] = False
+    """Whether the solver steps in place on one :class:`newton.State`."""
+
+    supports_deterministic: ClassVar[bool] = False
+    """Whether the solver can honor a Warp determinism guarantee."""
+
+    supports_contact_sensors: ClassVar[bool] = True
+    """Whether Newton contact sensors can read the solver's contacts."""
+
+    prepares_step: ClassVar[bool] = False
+    """Whether :meth:`prepare_step` does work, so the step graph runs it."""
+
+    finishes_step: ClassVar[bool] = False
+    """Whether :meth:`finish_step` does work, so the step graph runs it."""
+
+    ignored_model_changes: ClassVar[dict[int, str]] = {}
+    """Model changes the solver does not apply after construction, mapped to the warning logged once."""
+
+    captures_model_changes: ClassVar[bool] = False
+    """Whether ``notify_model_changed`` can be recorded into a conditional CUDA graph; otherwise it runs eagerly."""
+
+    def create_solver(
+        self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
+    ) -> SolverBase:
+        """Construct :attr:`solver_class` from the matching fields of :attr:`cfg`; coupled solvers call it per entry."""
+        if self.solver_class is None:
+            raise NotImplementedError(f"{type(self).__name__} does not implement solver construction.")
+        return self.solver_class(model, **solver_kwargs(self.solver_class, self.cfg, deterministic_mode))
+
+    def validate_cfg(self, backend: NewtonBackend) -> None:
+        """Reject configurations the solver cannot run, before it is constructed."""
+        mode = backend.deterministic_mode
+        if mode != wp.DeterministicMode.NOT_GUARANTEED and not self.supports_deterministic:
+            raise ValueError(
+                f"Newton deterministic mode {mode.name} is not supported by {type(self.cfg).__name__}."
+                " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
+            )
+
+    def register_builder_attributes(self, builder: ModelBuilder) -> None:
+        """Register custom attributes the solver reads from the model on a builder that receives imported assets."""
+        for solver_cls in self.builder_attribute_solvers:
+            solver_cls.register_custom_attributes(builder)
+
+    def registers_builder_attributes_from(self, solver_cls: type[SolverBase]) -> bool:
+        """Return whether this adapter registers ``solver_cls``'s custom builder attributes (and USD schemas)."""
+        return solver_cls in self.builder_attribute_solvers
+
+    def prepare_solver_builder(self, builder: ModelBuilder) -> None:
+        """Normalize a complete builder for the solver before finalization. The default is a no-op."""
+
+    def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
+        """Whether contacts come from Newton's :class:`~newton.CollisionPipeline` instead of the solver."""
+        return True
+
+    def supports_body_forces(self, backend: NewtonBackend) -> bool:
+        """Whether the solver consumes applied rigid-body forces from :attr:`newton.State.body_f`."""
+        return True
+
+    def supports_graph_capture(self, backend: NewtonBackend) -> bool:
+        """Whether the configured solver can be recorded into a CUDA graph."""
+        return True
+
+    def create_collision_pipeline(self, backend: NewtonBackend, **kwargs) -> CollisionPipeline:
+        """Construct the collision pipeline of a solver that uses Newton's contact detection.
+
+        Args:
+            backend: Backend whose model the pipeline collides.
+            **kwargs: Pipeline settings from :attr:`NewtonCfg.collision_cfg`.
+        """
+        return CollisionPipeline(backend.model, **kwargs)
+
+    def create_contacts(self, backend: NewtonBackend) -> Contacts | None:
+        """Allocate contacts the solver reports itself; called when :meth:`uses_collision_pipeline` is ``False``."""
+        return None
+
+    def prepare_contacts(self, backend: NewtonBackend) -> None:
+        """Bind solver-owned buffers to newly allocated contacts. The default is a no-op."""
+
+    def initialize_output_state(self, backend: NewtonBackend, state: State) -> None:
+        """Initialize solver-owned buffers of the output state of double-buffered solvers. The default is a no-op."""
+
+    def prepare_step(self, backend: NewtonBackend, state: State) -> None:
+        """Refresh solver structures once per physics step, before collision; overrides set :attr:`prepares_step`."""
+
+    def finish_step(self, backend: NewtonBackend, state: State) -> None:
+        """Publish derived state once per physics step, after the substeps; overrides set :attr:`finishes_step`."""
+
+    def step_solver(
+        self, backend: NewtonBackend, state_in: State, state_out: State, contacts: Contacts | None, dt: float
+    ) -> None:
+        """Advance one solver substep.
+
+        Args:
+            backend: Backend whose solver to step.
+            state_in: Input state.
+            state_out: Output state; the same object as ``state_in`` for single-state solvers.
+            contacts: Contacts from the collision pipeline, or ``None`` when the solver detects contacts internally.
+            dt: Substep duration [s].
+        """
+        backend.solver.step(state_in, state_out, backend.control, contacts, dt)
+
+    def reset_solver(self, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
+        """Clear solver-owned history for masked worlds while keeping authored joint state.
+
+        Args:
+            backend: Backend whose solver to reset.
+            state: State whose solver-owned buffers are reset.
+            world_mask: Per-world mask of shape ``(world_count + 1,)``; the final entry selects global entities.
+        """
+        backend.solver.reset(state, world_mask=world_mask, flags=0)
+
+    def eval_fk(
+        self, backend: NewtonBackend, state: State, world_mask: wp.array | None, fk_mask: wp.array | None
+    ) -> None:
+        """Update body state from joint coordinates for masked articulations.
+
+        Args:
+            backend: Backend whose model to evaluate.
+            state: State to update in place.
+            world_mask: Per-world mask of reset worlds, or ``None`` for all worlds.
+            fk_mask: Per-articulation mask, or ``None`` for all articulations.
+        """
+        eval_fk(backend.model, state.joint_q, state.joint_qd, state, fk_mask)
+
+    def check_status(self, backend: NewtonBackend, captured: bool) -> None:
+        """Raise asynchronous solver failures after a (``captured``: replayed) step. The default is a no-op."""
+
+    def log_debug(self, backend: NewtonBackend) -> None:
+        """Log solver diagnostics after a step when debug mode is enabled. The default is a no-op."""
+
+    def create_fixed_tendon_control(self, articulation: Any, model: Model) -> Any:
+        """Build the solver's fixed-tendon command adapter for ``articulation``; only tendon-driving solvers do."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not drive fixed tendons. Fixed-tendon targets require a solver"
+            " that transmits to tendons, such as MJWarp."
+        )

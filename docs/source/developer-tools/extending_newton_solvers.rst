@@ -4,7 +4,7 @@ Extending Newton Solvers
 ========================
 
 To add a Newton solver or a custom coupled solver, implement a
-:class:`~isaaclab_newton.physics.NewtonManager` subclass. The sections below explain
+:class:`~isaaclab_newton.physics.NewtonSolver` adapter. The sections below explain
 its hooks, resource ownership, and extension requirements.
 
 If you only need to select and configure a shipped solver, use the user-facing
@@ -13,13 +13,14 @@ preset selection, the :ref:`solver tuning guides <solver-tuning>` for shipped so
 :ref:`newton-coupled-solvers` for choosing a coupling approach.
 
 
-When a Solver Manager Is Needed
+When a Solver Adapter Is Needed
 -------------------------------
 
-Each Newton solver is exposed as a
-:class:`~isaaclab_newton.physics.NewtonManager` subclass. Write a new one when:
+Each Newton solver is exposed as a :class:`~isaaclab_newton.physics.NewtonSolver` subclass, such as
+:class:`~isaaclab_newton.physics.MJWarpSolverAdapter`. An adapter instance holds its solver configuration and no
+runtime state. Write a new one when:
 
-* a Newton solver has no Isaac Lab manager yet;
+* a Newton solver has no Isaac Lab adapter yet;
 * the solver needs its own contact allocation, builder attributes, or reset
   handling;
 * several solvers must advance one shared model and the substep order is part
@@ -29,9 +30,9 @@ Do not write one when an existing solver can advance the whole model, or when
 the scene can be partitioned into named solver entries. Partitioning is already
 covered by :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` and
 :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg`, which
-:class:`~isaaclab_contrib.coupling.NewtonCouplerManager` resolves into entry
+:class:`~isaaclab_contrib.coupling.CouplerSolverAdapter` resolves into entry
 views over a shared model. Prefer that path for mixed rigid and deformable
-scenes. Write a coupled manager only when contact detection is shared but each
+scenes. Write a coupled solver adapter only when contact detection is shared but each
 solver consumes the contacts differently, or when the exchange between solvers
 is a custom force, impulse, or state transfer.
 
@@ -39,10 +40,11 @@ is a custom force, impulse, or state transfer.
 Responsibilities and Boundaries
 -------------------------------
 
-:class:`~isaaclab_newton.physics.NewtonManager` subclasses are instantiated by the
-simulation context, which owns exactly one manager instance as
-:attr:`~isaaclab.sim.SimulationContext.backend_manager`. All runtime state lives
-on that instance.
+Data and behavior are split. :class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized
+model, and the functions in :mod:`isaaclab_newton.physics.newton_backend` operate on it explicitly, in the style of
+``mj_step(m, d)``. A solver adapter is an instance built from its solver configuration
+(:func:`~isaaclab_newton.physics.newton_solver.create_solver_adapter`); its hooks take the backend or builder they act
+on as an argument and keep no runtime state, so one adapter can serve several backends.
 
 .. list-table::
    :header-rows: 1
@@ -51,34 +53,61 @@ on that instance.
    * - Owner
      - Responsibility
    * - Simulation context
-     - Resolves the manager subclass from
-       :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` and drives the
-       public lifecycle calls.
-   * - ``NewtonManager`` base
-     - Builder, finalized ``Model``, states, control, collision pipeline and
-       contacts, substep iteration, CUDA graph capture, Fabric and USD
-       synchronization, sensors, and reset masks.
-   * - Manager subclass
-     - Solver construction and any solver-owned internal state, contact
-       buffers, or builder attributes.
+     - Resolves the manager from :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` (or adopts the one passed in)
+       and drives the public lifecycle calls.
+   * - :class:`~isaaclab_newton.physics.NewtonManager`
+     - The :attr:`~isaaclab_newton.physics.NewtonManager.builder` and the active
+       :attr:`~isaaclab_newton.physics.NewtonManager.backend`, which it finalizes and closes itself, plus what must
+       survive a hard reset: site
+       requests, the replication outputs (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), and the decimation
+       setting. Each instance owns its construction data, callbacks and views; closing it cannot clear another manager.
+   * - :class:`~isaaclab_newton.physics.NewtonBackend`
+     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, step callbacks,
+       reset masks, and the compiled :class:`~isaaclab_newton.physics.StepGraph`. A hard reset or close discards it.
+   * - Solver adapter (``<Solver>SolverAdapter``)
+     - Solver construction, capabilities, stepping, per-world reset of solver-owned buffers, forward kinematics, and
+       builder attributes, as methods over an explicit backend or builder.
    * - Coupler entry
-     - A disjoint part of the shared model, when the active manager is a
-       coupler.
+     - A disjoint part of the shared model, when the selected solver adapter is a coupler.
    * - Task configuration
-     - A :class:`~isaaclab_newton.physics.NewtonSolverCfg` subclass whose
-       ``class_type`` points at the manager, plus entry ownership selectors for
-       coupled setups.
+     - A :class:`~isaaclab_newton.physics.NewtonSolverCfg` subclass whose ``class_type`` points at the solver adapter, plus
+       entry ownership selectors for coupled setups.
 
-:class:`~isaaclab_newton.physics.NewtonCfg` copies ``solver_cfg.class_type``
-onto its own :attr:`~isaaclab_newton.physics.NewtonCfg.class_type`, so task
-configuration never names the manager directly.
+``NewtonCfg.class_type`` selects the integration manager, while ``solver_cfg.class_type`` selects the solver
+adapter. Neither field is derived from the other. Asset factories use the manager's ``backend_name`` key, so a
+custom class name does not change backend selection.
+
+
+Independent and Custom Managers
+-------------------------------
+
+Managers can run without a ``SimulationContext``. Give each manager its own populated builder:
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import NewtonCfg, NewtonManager
+
+   cfg = NewtonCfg()
+   left = NewtonManager(builder_a, cfg, dt=0.01, device="cuda:0")
+   right = NewtonManager(builder_b, cfg, dt=0.01, device="cuda:0")
+   try:
+       left.reset()
+       right.reset()
+       left.step()   # right's model, state, callbacks and time remain unchanged
+       right.step()
+   finally:
+       left.close()
+       right.close()
+
+To customize Isaac Lab integration, subclass ``NewtonManager`` and select it with
+``NewtonCfg(class_type=MyManager, solver_cfg=...)``, or pass an instance with
+``SimulationContext(sim_cfg, backend_manager=my_manager)``; the context then owns its lifetime. Override
+``finalize_backend`` to customize model construction, and call the base implementation from overridden lifecycle
+methods. A custom solver only needs a ``NewtonSolver`` adapter, not a new manager.
 
 
 Lifecycle
 ---------
-
-The public entry points run in this order. Subclass hooks are private; the base
-class invokes them.
 
 .. list-table::
    :header-rows: 1
@@ -86,148 +115,158 @@ class invokes them.
 
    * - Public call
      - What happens
-     - Subclass hooks
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize`
-     - Stores the simulation context, reads gravity from the simulation
-       configuration, and creates the scene data backend.
-     - none
-   * - ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))``
-     - Acquires the shared builder through the active manager's ``create_builder()`` factory.
-       The cloner imports declared prototypes and composes worlds into it.
-     - ``_register_builder_attributes()``
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
-     - Finalizes the model, then allocates states and reset masks.
-     - ``_prepare_builder_for_finalize()``
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver`
-     - Builds the solver, checks that it was assigned, and allocates contacts.
-     - ``_build_solver()``, ``_initialize_contacts()``
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.reset`
-     - A hard reset re-runs ``start_simulation()`` and ``initialize_solver()``
-       against a re-finalized model; a soft reset reuses the existing model,
-       solver, contacts, and graph.
-     - ``_prepare_builder_for_finalize()``, ``_build_solver()``,
-       ``_initialize_contacts()`` (hard reset only)
+     - Solver hooks
+   * - ``get_newton_builder(sim)``
+     - Returns the physics manager's builder, created through the selected solver adapter's ``create_builder()``. The cloner imports
+       declared prototypes and composes worlds into it.
+     - ``register_builder_attributes()``
+   * - :meth:`~isaaclab_newton.physics.NewtonManager.reset` (hard)
+     - Dispatches ``MODEL_INIT``, finalizes the model into a new backend, dispatches ``PHYSICS_READY`` so consumers
+       bind views, sensors, actuators, and step callbacks, then constructs the solver and contacts and runs FK. Does
+       not advance physics. A soft reset keeps the backend.
+     - ``prepare_solver_builder()``, ``validate_cfg()``, ``create_solver()``, ``initialize_output_state()``,
+       ``uses_collision_pipeline()``, ``create_collision_pipeline()``, ``create_contacts()``, ``prepare_contacts()``,
+       ``eval_fk()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.step`
-     - Runs one actuator pass plus ``num_substeps`` solver substeps, then
-       updates sensors.
-     - ``_reset_solver_internals()``, ``_simulate_physics_only()``,
-       ``_step_solver()``, ``_check_solver_status()``,
-       ``_log_solver_debug()``
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.pre_render`
-     - Refreshes kinematics, then writes body, cable, and particle state to
-       Fabric for rendering.
-     - ``_reset_solver_internals()`` (via ``forward()``)
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.close` and
-       :meth:`~isaaclab_newton.physics.NewtonManager.clear`
-     - Releases the solver, model, and all manager state.
-     - ``_solver_specific_clear()``
+     - Runs :func:`~isaaclab_newton.physics.newton_backend.forward` for authored state, builds the step graph on the
+       first step after a structural change, runs that step eagerly, and captures the graph for later steps.
+     - ``reset_solver()``, ``eval_fk()``, ``prepare_step()``, ``step_solver()``, ``check_status()``, ``log_debug()``
+   * - :meth:`~isaaclab_newton.physics.NewtonManager.close`
+     - Closes the backend and clears the session state.
+     - none
 
-``_build_solver()`` runs after the model is finalized, so it may size solver
-resources from the real model. ``_register_builder_attributes()`` runs before
-particles are added and before ``finalize()``, so it is the only place to
-register Newton custom attributes.
+``register_builder_attributes()`` runs before particles are added and before ``finalize()``, so it is the only place
+to register Newton custom attributes. The solver is constructed after ``PHYSICS_READY``, so it sees model properties
+that consumers author while binding.
 
-``step()`` takes one of two paths, selected by
-:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`. When every
-actuator is on the graph-safe Newton fast path, actuators and substeps run
-together inside one graph and ``step()`` runs the whole decimation loop, so
-``_step_solver()`` runs ``decimation x num_substeps`` times per call. Otherwise
-actuators run eagerly, only the substeps are graphed through
-``_simulate_physics_only()``, and the environment drives decimation by calling
-``step()`` repeatedly. Both paths reach ``_step_solver()`` through the same
-substep loop.
 
-Graph capture happens at one of several points. ``initialize_solver()`` captures
-unless the graph-safe path is active; in that case
-:meth:`~isaaclab_newton.physics.NewtonManager.set_decimation` captures once the
-decimation is known, and the RTX path defers capture to the first ``step()``.
-All routes check ``_supports_cuda_graph_capture()``. The non-RTX route
-additionally checks ``_requires_initial_reset_before_graph_capture()``.
+The Step
+--------
 
-.. warning::
+Each :meth:`~isaaclab_newton.physics.NewtonManager.step` launches one :class:`~isaaclab_newton.physics.StepGraph`. It
+covers the whole decimation loop when the manager handles decimation
+(:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`) and one physics step otherwise. Pre-step
+callbacks run once first. Every physics step then runs ``collide -> control callbacks -> Newton actuators ->
+substeps -> finish_step() -> post-step callbacks -> sensors``, where every substep runs ``staged forces -> state-force callbacks ->
+step_solver()``, and post-actuator callbacks run after the actuators of the last physics step. Each list of
+:class:`~isaaclab_newton.physics.StepCallbacks` has one cadence.
 
-   With ``_use_single_state = False`` the base manager ping-pongs
-   ``self.backend.state_0`` and ``self.backend.state_1`` after each substep,
-   except on the final substep of an odd count, where it copies instead. Never
-   cache a ``State`` reference in ``_build_solver()``; read the current state
-   through the manager on each use.
+The graph binds every buffer when it is built. Double-buffered solvers alternate input and output states at build
+time, and each physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object.
+Consecutive graphable operations are captured together; operations that cannot be captured, such as actuators with Python history indices or eager callbacks, run in place between captured segments. Consumers add operations with
+:meth:`~isaaclab_newton.physics.NewtonManager.register_control_callback` and its siblings while ``PHYSICS_READY`` dispatches.
+
+The backend functions read no manager state, so backends with different solvers can be built from their own models
+and stepped side by side:
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBackend, NewtonCfg, VBDSolverCfg
+   from isaaclab_newton.physics import newton_backend as nb
+
+   rigid = NewtonBackend(rigid_model, NewtonCfg(solver_cfg=MJWarpSolverCfg()), dt=0.01)
+   cloth = NewtonBackend(cloth_model, NewtonCfg(solver_cfg=VBDSolverCfg()), dt=0.01)
+   for backend in (rigid, cloth):
+       nb.init_solver(backend)
+       backend.steps_per_call = 2
+
+   for _ in range(100):
+       nb.step(rigid)
+       nb.step(cloth)
+
+:func:`~isaaclab_newton.physics.newton_backend.step` runs the first launch after the step graph is built eagerly,
+then captures the graph for later launches when the backend's device and solver allow it.
+:func:`~isaaclab_newton.physics.newton_backend.prepare` builds the step graph and allocates scratch without advancing
+physics. :func:`~isaaclab_newton.physics.newton_backend.capture_graph` records Torch and Warp on one stream and keeps
+both libraries' allocations alive; use it rather than a bare capture when Torch work is recorded.
+
+Property writers call ``mark_model_changed(backend, flags)``; ``notify_model_changes`` commits the queued
+categories once at the next state read or step.
 
 
 Extension Contract
 ------------------
 
-A subclass must implement ``_build_solver()`` and assign four slots on the
-manager instance (``self``).
-:meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver` raises
-``RuntimeError`` if ``_solver`` is still unset. The other three are not
-validated and keep their defaults, so a subclass that forgets them runs with
-double-buffered states, no collision pipeline, and no visualizer force input.
+Subclass :class:`~isaaclab_newton.physics.NewtonSolver`, implement
+:meth:`~isaaclab_newton.physics.NewtonSolver.create_solver`, and set the capability class attributes when they differ
+from the defaults:
 
 .. list-table::
    :header-rows: 1
    :widths: 40 60
 
-   * - Slot
+   * - Attribute
      - Meaning
-   * - ``_solver``
-     - The constructed Newton ``SolverBase`` instance.
-   * - ``_use_single_state``
-     - ``True`` if the solver steps in place on one ``State``; ``False`` if it
-       needs separate input and output states.
-   * - ``_needs_collision_pipeline``
-     - ``True`` if the base manager should own Newton's collision pipeline;
-       ``False`` if the solver detects contacts internally.
-   * - ``_supports_rigid_body_force_input``
-     - ``True`` if the solver consumes external rigid-body forces from
-       ``State.body_f``.
+   * - ``single_state``
+     - ``True`` if the solver steps in place on one ``State``.
+   * - ``supports_deterministic``
+     - ``True`` if the solver honors a Warp determinism guarantee.
+   * - ``supports_contact_sensors``
+     - ``False`` if Newton contact sensors cannot read the solver's contacts.
+   * - ``prepares_step``
+     - ``True`` if ``prepare_step()`` does work once per physics step.
+   * - ``finishes_step``
+     - ``True`` if ``finish_step()`` publishes derived state once per physics step.
+   * - ``ignored_model_changes``
+     - Model changes the solver does not apply after construction, mapped to a one-time warning.
+   * - ``captures_model_changes``
+     - ``True`` if ``notify_model_changed()`` can be recorded into a CUDA graph. Model changes then run in a
+       conditional graph that skips the refresh when nothing changed; otherwise the solver is notified eagerly on
+       the host.
+   * - ``solver_class``
+     - Newton solver the default ``create_solver()`` constructs from the matching configuration fields.
+   * - ``builder_attribute_solvers``
+     - Newton solvers whose custom builder attributes are registered before import.
 
 .. code-block:: python
 
+   import warp as wp
    from newton import Model
    from newton.solvers import SolverMySolver
 
    from isaaclab.utils import configclass
-   from isaaclab_newton.physics import NewtonManager, NewtonSolverCfg
+   from isaaclab_newton.physics import NewtonSolver, NewtonSolverCfg
 
 
    @configclass
    class MySolverCfg(NewtonSolverCfg):
-       class_type: type[NewtonManager] | str = "{DIR}.my_solver_manager:NewtonMySolverManager"
+       class_type: type[NewtonSolver] | str = "{DIR}.my_solver_manager:MySolverAdapter"
        solver_type: str = "my_solver"
        iterations: int = 16
 
 
-   class NewtonMySolverManager(NewtonManager):
-       def _build_solver(self, model: Model, solver_cfg: MySolverCfg) -> None:
-           self._solver = SolverMySolver(model, iterations=solver_cfg.iterations)
-           self._use_single_state = False
-           self._needs_collision_pipeline = True
-           self._supports_rigid_body_force_input = True
+   class MySolverAdapter(NewtonSolver):
+       supports_deterministic = True
 
-Override anything else only when the solver needs it:
+       def create_solver(self, model: Model, deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED):
+           return SolverMySolver(model, iterations=self.cfg.iterations)
 
-* ``_create_solver()``: construct a solver without mutating manager state, so a
-  coupler can nest this solver.
-* ``_initialize_contacts()``: allocate custom contact buffers.
-* ``_step_solver(state_0, state_1, control, contacts, substep_dt)``: change one
-  substep while keeping the base simulation loop.
-* ``_simulate_physics_only()``: add per-step work around the substep loop.
-* ``_reset_solver_internals()``: clear solver-owned state for reset worlds.
-* ``_register_builder_attributes()``: register Newton custom particle, shape, or
-  body attributes on the builder.
-* ``_prepare_builder_for_finalize()``: normalize imported or replicated builder
-  data immediately before ``finalize()``.
-* ``_supports_cuda_graph_capture()``: return ``False`` to fall back to eager
-  execution.
-* ``_requires_initial_reset_before_graph_capture()``: delay headless capture
-  until the first post-reset step.
-* ``_solver_specific_clear()``: release manager state the subclass owns.
-* ``_check_solver_status()`` and ``_log_solver_debug()``: run after stepping.
+Override anything else only when the solver needs it. The configuration is :attr:`~isaaclab_newton.physics.NewtonSolver.cfg`;
+every other input is an argument, and hooks must not keep runtime state on the adapter:
 
-:class:`~isaaclab_newton.physics.NewtonMPMManager` overrides both builder hooks.
+* ``step_solver()``: change one substep, for example to run a projection after the solve.
+* ``reset_solver()``: clear solver-owned history for masked worlds without touching authored joint state.
+* ``eval_fk()``: use a solver-specific forward kinematics.
+* ``prepare_step()``: refresh acceleration structures once per physics step; must stay graphable.
+* ``finish_step()``: publish derived state, such as joint coordinates, once per physics step after the substeps.
+* ``initialize_output_state()``: initialize the output state of double-buffered solvers before capture.
+* ``uses_collision_pipeline()``, ``create_collision_pipeline()``, ``create_contacts()``, and ``prepare_contacts()``:
+  detect contacts internally, customize Newton's collision pipeline, allocate the contacts the solver reports, or bind
+  solver buffers to them.
+* ``supports_body_forces()`` and ``supports_graph_capture()``: report configuration-dependent capabilities.
+* ``register_builder_attributes()``, ``registers_builder_attributes_from()``, and ``prepare_solver_builder()``:
+  register Newton custom attributes and normalize the builder before ``finalize()``.
+* ``validate_cfg()``: reject settings that conflict across the physics and solver configurations.
+* ``check_status()`` and ``log_debug()``: run after stepping.
+* ``create_fixed_tendon_control()``: build a fixed-tendon command adapter (MJWarp only).
 
-Raise from ``_build_solver()`` on an unsupported configuration rather than
-silently degrading. Name the manager ``Newton<Solver>Manager``.
+:class:`~isaaclab_newton.physics.MPMSolverAdapter` overrides both builder hooks. Subclasses of it that need a
+custom implicit MPM solver override ``instantiate_solver(model, config)``, which receives the resolved
+``SolverImplicitMPM.Config``.
+
+Raise from a hook on an unsupported configuration rather than silently degrading. Name the adapter
+``<Solver>SolverAdapter``. State a solver needs between steps belongs on the Newton solver object itself; a custom
+coupled solver is a :class:`newton.solvers.SolverBase` subclass holding its sub-solvers.
 
 
 Coupling Paths
@@ -242,12 +281,11 @@ The four architectures differ in what drives the substep loop:
    * - Path
      - Structure
    * - Standalone solver
-     - One manager subclass, one solver, one model. The base class owns the
-       substep loop.
+     - One manager, one solver, one model. The step graph owns the substep loop.
    * - Proxy coupling
      - :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` partitions the model
        into named entries.
-       :class:`~isaaclab_contrib.coupling.NewtonCouplerManager` builds a Newton
+       :class:`~isaaclab_contrib.coupling.CouplerSolverAdapter` builds a Newton
        coupled solver that exposes source bodies to the destination solver as
        proxies and returns lagged feedback. No new manager is required.
    * - ADMM coupling
@@ -255,10 +293,11 @@ The four architectures differ in what drives the substep loop:
        and entry model, but Newton creates symmetric interface constraints and
        iterates the sub-solvers. No new manager is required.
    * - Custom shared-model manager
-     - A subclass constructs several sub-solvers itself and overrides
-       ``_step_solver()`` to fix the substep order.
+     - ``create_solver()`` returns a :class:`newton.solvers.SolverBase` subclass
+       that holds several sub-solvers and fixes the substep order in its
+       ``step()``.
        :class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
-       is the in-tree example. Its manager clears force accumulators, detects
+       is the in-tree example. Its adapter clears force accumulators, detects
        contacts once, injects soft-to-rigid reactions into ``body_f`` when
        ``coupling_mode="two_way"``, then advances MJWarp on its own internal
        contacts and VBD on the detected ones.

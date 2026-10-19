@@ -82,7 +82,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # projected_gravity_b kernel broadcasts each env's vector across its bodies.
         # The final entry is reserved for Newton's global world and is not an
         # Isaac Lab environment.
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self.num_instances, self.num_bodies, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
@@ -296,7 +296,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
-        if self._body_link_vel_w.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
                 shared_kernels.get_body_link_vel_from_body_com_vel,
@@ -323,7 +323,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_com_pose_w.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
                 shared_kernels.get_body_com_pose_from_body_link_pose,
@@ -394,7 +394,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             category=UserWarning,
             stacklevel=2,
         )
-        if self._body_com_pose_b.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_com_pose_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 shared_kernels.make_dummy_body_com_pose_b,
@@ -448,7 +448,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
         """
-        if self._projected_gravity_b.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
                 shared_kernels.projected_gravity_b_2D_kernel,
@@ -469,7 +469,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        if self._heading_w.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
                 shared_kernels.body_heading_w,
@@ -489,7 +489,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_lin_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
@@ -509,7 +509,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_ang_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
@@ -529,7 +529,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_lin_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
@@ -549,7 +549,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_ang_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
@@ -705,8 +705,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         per world) corresponds to the different body types. This gives us direct 2D bindings into
         Newton's state with no scatter/gather overhead.
         """
-        state_0 = self._backend_manager.get_state_0()
-        model = self._backend_manager.get_model()
+        state_0 = self._backend_manager.backend.state_0
+        model = self._backend_manager.backend.model
 
         # Root transforms/velocities are (num_envs, num_bodies) — direct 2D bindings
         self._sim_bind_body_link_pose_w = self._root_view.get_root_transforms(state_0)
@@ -886,7 +886,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._body_state_w.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
@@ -912,7 +912,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._body_link_state_w.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
@@ -938,7 +938,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._body_com_state_w.timestamp < self._sim_timestamp:
+        if self._backend_manager.backend.live or self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,

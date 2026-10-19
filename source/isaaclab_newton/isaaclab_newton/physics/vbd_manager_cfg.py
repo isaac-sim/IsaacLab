@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class VBDSolverCfg(NewtonSolverCfg):
     """Configuration for the Vertex Block Descent solver."""
 
-    class_type: type[NewtonManager] | str = "{DIR}.vbd_manager:NewtonVBDManager"
+    class_type: type[NewtonManager] | str = "{DIR}.vbd_manager:VBDSolverAdapter"
     """Manager class for the VBD solver."""
 
     iterations: int = 10

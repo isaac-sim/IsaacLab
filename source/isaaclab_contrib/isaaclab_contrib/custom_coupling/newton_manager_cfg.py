@@ -14,14 +14,14 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonSolverCfg, VBDSolverC
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import NewtonSolver
 
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """Configuration for the custom MJWarp and VBD coupling manager."""
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
+    class_type: type[NewtonSolver] | str = "{DIR}.coupled_mjwarp_vbd_manager:CoupledMJWarpVBDSolverAdapter"
     """Manager class for the coupled solver."""
 
     rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()

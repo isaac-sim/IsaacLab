@@ -32,7 +32,7 @@ class XPBDSolverCfg(NewtonSolverCfg):
 
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.xpbd_manager:NewtonXPBDManager"
+    class_type: type[NewtonManager] | str = "{DIR}.xpbd_manager:XPBDSolverAdapter"
     """Manager class for the XPBD solver."""
 
     solver_type: str = "xpbd"

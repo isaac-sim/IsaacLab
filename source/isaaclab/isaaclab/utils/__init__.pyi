@@ -13,6 +13,8 @@ __all__ = [
     "CircularBuffer",
     "DelayBuffer",
     "TimestampedBuffer",
+    "StepGraph",
+    "StepOp",
     "to_dict",
     "update_from_dict",
     "class_to_dict",
@@ -67,6 +69,7 @@ __all__ = [
 from .timer import Timer
 from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch, index_fill_
 from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer
+from .step_graph import StepGraph, StepOp
 from .dict import (
     to_dict,
     update_from_dict,

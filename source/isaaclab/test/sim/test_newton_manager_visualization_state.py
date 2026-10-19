@@ -49,7 +49,7 @@ def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
 def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     """Consumers acquire a completed resource, including late consumers and replacement after close."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.physics import NewtonBuilderCfg
+    from isaaclab_newton.physics import NewtonBuilderCfg, get_newton_backend
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     from newton import ModelBuilder
 
@@ -75,7 +75,8 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     sim._render_context = RenderContext(sim._backend_registry)
     sim.requires_usd_stage = sim.requires_newton_model = False
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    renderers = [sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag)) for flag in (False, True)]
+    for flag in (False, True):
+        sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag))
     builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
     declared_builder = sim.get_or_create_backend(builder_cfg)
     assert sim.get_or_create_backend(replace(builder_cfg)) is declared_builder
@@ -93,22 +94,21 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     assert finalized == []
     assert len(sim._backend_registry) == 3
     assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
-    assert renderers[0].newton_cfg == renderers[1].newton_cfg
-    first = sim.get_or_create_backend(renderers[0].newton_cfg)
-    assert sim.get_or_create_backend(renderers[1].newton_cfg) is first
+    first = get_newton_backend(sim)
+    assert get_newton_backend(sim) is first
     assert first.model.world_count == len(plan.topology.world_prototype_layout)
     assert first.model.body_count == 2
     assert first.model.body_label == ["/Scene/Copy_0/Cube", "/Scene/Copy_1/Cube"]
-    late = sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
-    assert sim.get_or_create_backend(late.newton_cfg) is first
+    sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
+    assert get_newton_backend(sim) is first
     assert finalized == [builder]
     sim.close_backend(first)
     assert len(sim._backend_registry) == 4
     assert first.model is first.state_0 is None
     assert sim.get_or_create_backend(builder_cfg) is builder
-    second = sim.get_or_create_backend(late.newton_cfg)
+    second = get_newton_backend(sim)
     assert second is not first
-    assert all(sim.get_or_create_backend(renderer.newton_cfg) is second for renderer in (*renderers, late))
+    assert get_newton_backend(sim) is second
     assert finalized == [builder, builder]
     sim.close_backend(second)
 
@@ -117,51 +117,66 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonXPBDManager
-    from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-    manager = NewtonXPBDManager()
-    manager._device = "cpu"
-    state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
-    backend = NewtonSceneDataBackend(manager)
+    state = SimpleNamespace(
+        body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"),
+        body_f=wp.zeros(1, dtype=wp.spatial_vectorf, device="cpu"),
+    )
+    owner = NewtonManager(device="cpu")
+    backend = NewtonSceneDataBackend(lambda: owner.backend)
     provider = SceneDataProvider(backend)
-    manager.backend = SimpleNamespace(model=SimpleNamespace(body_count=1, world_count=1), state_0=state)
-    manager._scene_data_backend = backend
-    manager._world_reset_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
-    manager._fk_reset_mask = wp.zeros(1, dtype=wp.bool, device="cpu")
-    # Fabric may bind between native allocation and the solver's FK-hook initialization.
+    manager = Mock()
+    newton_backend = SimpleNamespace(
+        model_changes=set(),
+        model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
+        state_0=state,
+        device=wp.get_device("cpu"),
+        cfg=SimpleNamespace(),
+        solver=None,
+        solver_adapter=manager,
+        world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
+        fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
+        world_ids=wp.zeros(1, dtype=wp.int32, device="cpu"),
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
+    )
+    monkeypatch.setattr(owner, "backend", newton_backend)
+    monkeypatch.setattr(owner, "_scene_data_backend", backend)
+    # Fabric may bind between native allocation and solver initialization.
     assert backend.transforms.transforms is state.body_q
-    manager._eval_fk = Mock()
-    manager._reset_solver_internals_delegate = Mock()
+    newton_backend.solver = object()
+    eval_fk = manager.eval_fk
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()
     assert provider.get_transforms(output)
     matrices = output.matrices
-    manager.pre_render()
-    manager._eval_fk.assert_not_called()
+    owner.pre_render()
+    eval_fk.assert_not_called()
     assert provider.get_transforms(SceneDataFormat.Transform())
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     assert wp.launch.call_count == 1
-    manager._eval_fk.assert_not_called()
+    eval_fk.assert_not_called()
 
     state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
-    getattr(manager, invalidate)()
+    getattr(owner, invalidate)()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
-    manager._eval_fk.assert_called_once()
+    eval_fk.assert_called_once()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
-    manager.pre_render()
-    manager._eval_fk.assert_called_once()
+    owner.pre_render()
+    eval_fk.assert_called_once()
     assert wp.launch.call_count == 2
 
     replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    manager.backend.state_0 = SimpleNamespace(body_q=replacement)
+    newton_backend.state_0 = SimpleNamespace(body_q=replacement)
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms is replacement
@@ -175,7 +190,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
 def test_clone_visualization_builder_imports_full_global_subtree(monkeypatch, global_path):
     """A declared global ancestor owns its full subtree, while unrelated roots stay out."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.physics import NewtonBackendCfg
+    from isaaclab_newton.physics import get_newton_backend
     from newton import ModelBuilder
 
     from pxr import Sdf, UsdGeom
@@ -196,7 +211,10 @@ def test_clone_visualization_builder_imports_full_global_subtree(monkeypatch, gl
     plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=(2,), env_template="/Copies/env_{}")
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-    sim.backend_manager = SimpleNamespace(get_device=lambda: "cpu")
+    from isaaclab_newton.physics import NewtonManager
+
+    sim.backend_manager = NewtonManager(device="cpu")
+    sim.backend_manager._sim = sim
     sim.stage, sim._backend_registry = stage, []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     usd_imports = []
@@ -210,7 +228,7 @@ def test_clone_visualization_builder_imports_full_global_subtree(monkeypatch, gl
 
     context = NewtonReplicateContext(sim)
     builder, _, _ = context.replicate(plan, (0, 2))
-    backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
+    backend = get_newton_backend(sim)
     geometry = backend.geometry_offsets
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])

@@ -22,7 +22,8 @@ from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import replace_background_depth_wp
 
-from ..physics import NewtonBackendCfg, NewtonQueries
+from ..physics import get_newton_backend
+from ..physics.newton_backend import run_query
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
@@ -442,14 +443,13 @@ class NewtonWarpRenderer(BaseRenderer):
         # Shared, scene-static segmentation lookup builder, created lazily in ``create_render_data``.
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
         sim.requires_usd_stage |= requires_stage
         sim.requires_newton_model |= requires_model
 
     def initialize(self) -> None:
         """Acquire the clone-built native resource and bind its SDP layout."""
-        self.backend = self._sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(self._sim)
         self._scene_data_provider = self._sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
@@ -589,7 +589,7 @@ class NewtonWarpRenderer(BaseRenderer):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        render_data.graph = NewtonQueries.run_query(
+        render_data.graph = run_query(
             self.backend,
             provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             partial(self._launch_render, render_data),

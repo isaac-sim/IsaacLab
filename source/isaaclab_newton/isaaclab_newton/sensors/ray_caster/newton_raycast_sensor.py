@@ -20,7 +20,8 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonQueries
+from isaaclab_newton.physics import get_newton_backend, get_newton_builder
+from isaaclab_newton.physics.newton_backend import run_query
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
 from .newton_raycast_sensor_data import NewtonRaycastSensorData
@@ -97,8 +98,6 @@ class _NewtonRayCasterPoseMixin:
         """Register the sensor site before Newton model finalization."""
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
         self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
-        sim = sim_utils.SimulationContext.instance()
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
 
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression."""
@@ -106,7 +105,7 @@ class _NewtonRayCasterPoseMixin:
         if plan is not None:
             matched = cloner.path.match(prim_expr, plan.env_template)
             if matched is not None and not matched.suffix:
-                return [self._backend_manager.cl_register_site(None, wp.transform(), per_world=True)]
+                return [self._backend_manager.register_site(None, wp.transform(), per_world=True)]
 
         try:
             body_expr, fixed_pos, fixed_quat = self._resolve_rigid_body_ancestor_expr()
@@ -124,12 +123,12 @@ class _NewtonRayCasterPoseMixin:
         quat = fixed_quat or (0.0, 0.0, 0.0, 1.0)
         site_transform = wp.transform(wp.vec3(*pos), wp.quat(*quat))
 
-        return [self._backend_manager.cl_register_site(_newton_body_pattern(body_expr), site_transform)]
+        return [self._backend_manager.register_site(_newton_body_pattern(body_expr), site_transform)]
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
         sim = sim_utils.SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(sim)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
         site_indices = self._resolve_site_indices(self._sensor_site_labels, self.cfg.prim_path, self._num_envs)
@@ -216,13 +215,13 @@ class _NewtonRayCasterPoseMixin:
 
     def _resolve_site_indices(self, labels: list[str], prim_expr: str, num_envs: int) -> list[int]:
         """Expand registered site labels into per-environment Newton site indices."""
-        site_map = self._backend_manager._cl_site_index_map
+        site_map = self._backend_manager.get_site_index_map()
         site_indices: list[int] = []
         for env_index in range(num_envs):
             for label in labels:
                 error_prefix = f"RayCaster target '{prim_expr}' site label '{label}'"
                 if label not in site_map:
-                    raise ValueError(f"{error_prefix} was not found in NewtonManager._cl_site_index_map.")
+                    raise ValueError(f"{error_prefix} was not found in the Newton site map.")
                 global_index, per_world = site_map[label]
                 env_site_indices = [global_index] if per_world is None else per_world[env_index]
                 site_indices.extend(env_site_indices)
@@ -284,7 +283,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
             raise ValueError(f"max_distance must be positive, received {cfg.max_distance}.")
         super().__init__(cfg)
         sim = sim_utils.SimulationContext.instance()
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = get_newton_builder(sim)
         builder.default_bvh_cfg.shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         self._data = NewtonRaycastSensorData()
         self._graph = None
@@ -381,7 +380,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        self._graph = NewtonQueries.run_query(
+        self._graph = run_query(
             self.backend,
             provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             self._launch_raycast,

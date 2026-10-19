@@ -7,37 +7,13 @@
 
 from __future__ import annotations
 
-import warp as wp
-from newton import Model
 from newton.solvers import SolverXPBD
 
-from .newton_manager import NewtonManager
-from .xpbd_manager_cfg import XPBDSolverCfg
+from .newton_solver import NewtonSolver
 
 
-class NewtonXPBDManager(NewtonManager):
-    """:class:`NewtonManager` specialization for the XPBD solver.
+class XPBDSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for the XPBD solver, which double-buffers state."""
 
-    Always uses Newton's :class:`CollisionPipeline` for contact handling.
-    """
-
-    @classmethod
-    def _create_solver(
-        cls,
-        model: Model,
-        solver_cfg: XPBDSolverCfg,
-        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
-    ) -> SolverXPBD:
-        """Construct the configured XPBD solver."""
-        return SolverXPBD(model, **cls._filter_solver_kwargs(SolverXPBD, solver_cfg, deterministic_mode))
-
-    def _build_solver(self, model: Model, solver_cfg: XPBDSolverCfg) -> None:
-        """Construct :class:`SolverXPBD` and populate the solver slots.
-
-        XPBD always uses Newton's :class:`CollisionPipeline` and steps with
-        separate input/output states, so the flags are fixed.
-        """
-        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
-        self._use_single_state = False
-        self._needs_collision_pipeline = True
-        self._supports_rigid_body_force_input = True
+    solver_class = SolverXPBD
+    supports_deterministic = True

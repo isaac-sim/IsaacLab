@@ -10,7 +10,7 @@ shows the intended Isaac Lab MPM path: configure
 :class:`~isaaclab_newton.physics.MPMSolverCfg`, add an
 :class:`~isaaclab_newton.assets.MPMObject` to an
 :class:`~isaaclab.scene.InteractiveScene`, and let
-:class:`~isaaclab_newton.physics.NewtonMPMManager` own solver creation and
+:class:`~isaaclab_newton.physics.MPMSolverAdapter` own solver creation and
 stepping.
 
 .. code-block:: bash
