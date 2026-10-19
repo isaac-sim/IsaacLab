@@ -42,7 +42,7 @@ def prepare_manifest(root: Path) -> dict:
         metadata, path_bytes = entry.split(b"\t", 1)
         _, kind, oid = metadata.decode().split()
         path = path_bytes.decode()
-        if kind == "blob" and path.endswith(".py"):
+        if kind == "blob" and path.endswith((".py", ".pyi")):
             entries.append((oid, path))
     if not entries:
         raise ValueError("The selected commit contains no Python source under source/ or scripts/.")
@@ -89,6 +89,17 @@ def _expected_paths(name: str, namespaces: dict) -> list[str]:
     return paths
 
 
+def _inspect_files(files: dict, root: Path, description: str) -> list[dict]:
+    mismatches = []
+    for relative, expected in files.items():
+        try:
+            if _sha256((root / relative).read_bytes()) != expected:
+                mismatches.append({"path": relative, "reason": f"{description} differs from the selected manifest."})
+        except OSError as exc:
+            mismatches.append({"path": relative, "reason": f"{description} could not be read: {exc.strerror}."})
+    return mismatches
+
+
 def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]]:
     records, mismatches = [], []
     for name, module in sorted(list(sys.modules.items())):
@@ -128,13 +139,10 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
             record["status"] = "failed"
             mismatches.extend({"module": name, "path": str(path), "reason": reason} for reason in reasons)
         records.append(record)
+    # lazy_export reads these import maps at runtime; they are not Python modules.
+    import_maps = {path: digest for path, digest in manifest["files"].items() if path.endswith(".pyi")}
+    mismatches.extend(_inspect_files(import_maps, root, "Import map"))
     return records, mismatches
-
-
-def _inspect_runtime() -> tuple[dict | None, list[dict]]:
-    if RUNTIME_MODULE not in sys.modules:
-        return None, [{"module": RUNTIME_MODULE, "reason": "Runtime entrypoint was not imported in this process."}]
-    return {"module": RUNTIME_MODULE}, []
 
 
 def _output_state(output_dir: Path) -> dict[Path, tuple[int, int]]:
@@ -173,8 +181,11 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
             sys.argv = old_argv
             sys.pycache_prefix = old_pycache
         modules, mismatches = _inspect_modules(manifest, root)
-        runtime, runtime_mismatches = _inspect_runtime()
-        mismatches.extend(runtime_mismatches)
+        runtime = {"module": RUNTIME_MODULE} if RUNTIME_MODULE in sys.modules else None
+        if runtime is None:
+            mismatches.append(
+                {"module": RUNTIME_MODULE, "reason": "Runtime entrypoint was not imported in this process."}
+            )
         outputs = []
         for path, state in sorted(_output_state(output_dir).items()):
             if before.get(path) == state:
