@@ -117,7 +117,7 @@
             ["IsaacContrib-Stack-Cube-Franka-IK-Abs", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
-            ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen", "", "isaacsim_physx,newton_mjwarp", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||"]],
+            ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow", "", "isaacsim_physx", "", "", "environment-previews/galbot_stack_cube.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],

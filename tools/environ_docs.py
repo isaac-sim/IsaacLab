@@ -114,6 +114,7 @@ _NEWTON_MJWARP_EXCLUSIONS = frozenset(
         "IsaacContrib-Stack-Cube-Franka-IK-Abs",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos",
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow",

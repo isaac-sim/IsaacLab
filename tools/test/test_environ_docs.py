@@ -230,6 +230,7 @@ def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
         "IsaacContrib-Stack-Cube-Franka-IK-Abs": False,
         "IsaacContrib-Stack-Cube-Franka-IK-Rel": False,
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen": False,
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor": False,
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos": False,
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow": False,
