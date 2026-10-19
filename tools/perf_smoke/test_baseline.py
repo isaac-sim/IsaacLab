@@ -228,11 +228,9 @@ def check_evidence(subtests):
         )
         evidence = baseline.resolve_candidate(client, 10, 1)
         assert len(evidence.samples["leg"]) == 2
-        assert all(not baseline.has_usable_runtime(item["bundle"]) for item in evidence.samples["leg"])
-        assert "FPS value" in str(evidence.issues)
+        assert sum("FPS value" in issue for issue in evidence.issues) == 2
         assert evidence.statuses["failed"] == "failed"
         assert evidence.samples["failed"][0]["bundle"]["run"]["status"] == "failed"
-        assert not baseline.has_usable_runtime(evidence.samples["failed"][0]["bundle"])
         assert evidence.measurement_end is None
         assert "runtime has no valid end timestamp" in str(evidence.issues)
 

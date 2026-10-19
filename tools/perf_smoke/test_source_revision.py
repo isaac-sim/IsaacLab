@@ -144,12 +144,12 @@ class SourceRevisionTests(unittest.TestCase):
             text=True,
         )
 
-    def _prepare(self, name="manifest", *, measurement=None, success=True):
+    def _prepare(self, name="manifest", *args, measurement=None, success=True):
         path = self.directory / f"{name}.json"
         measurement_args = ["--measurement-manifest", measurement] if measurement else []
-        process = self._invoke("prepare", "--output", path, *measurement_args)
+        process = self._invoke("prepare", "--output", path, *measurement_args, *args)
+        self.assertEqual(process.returncode == 0, success, process.stdout + process.stderr)
         if success:
-            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
             self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
         return path, process
 
@@ -196,14 +196,12 @@ class SourceRevisionTests(unittest.TestCase):
         modules = {item["name"]: item for item in sidecar["modules"]}
         self.assertIn(RUNTIME_MODULE, modules)
         task = modules["isaaclab_tasks.fixture_task"]
-        expected_hash = hashlib.sha256((self.checkout / TASK).read_bytes()).hexdigest()
         self.assertEqual(task["relative_path"], TASK.as_posix())
-        self.assertEqual(task["sha256"], expected_hash)
-        self.assertEqual(task["expected_sha256"], expected_hash)
+        self.assertEqual(task["digest"], self._git("rev-parse", f"{commit}:{TASK.as_posix()}"))
         return result
 
     def test_source_verification_workflow(self):
-        manifest_a, _ = self._prepare("manifest-a")
+        manifest_a, _ = self._prepare("manifest-a", "--commit", self.commit_a)
         with self.subTest(case="cached package origin is rejected"):
             process, output, sidecar = self._run(
                 manifest_a, "stale", expected_exit=None, roots=[self.cached, self.checkout]
@@ -292,14 +290,15 @@ class SourceRevisionTests(unittest.TestCase):
                             item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task"
                         )
                         self.assertEqual(task["relative_path"], TASK.as_posix())
-                        self.assertNotEqual(task["sha256"], task["expected_sha256"])
+                        self.assertNotEqual(task["digest"], self._git("rev-parse", f"HEAD:{TASK.as_posix()}"))
                         self.assertTrue(any(item.get("module") == task["name"] for item in sidecar["mismatches"]))
                         result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
                         self.assertEqual(result["executed_revision"], "B")
                     else:
                         self.assertTrue(any(item.get("path") == path.as_posix() for item in sidecar["mismatches"]))
+                    if path == TASK:
+                        self._git("add", path.as_posix())
                     _, process = self._prepare(name + "-dirty", measurement=measurement, success=False)
-                    self.assertNotEqual(process.returncode, 0)
                     self.assertIn(path.as_posix(), process.stderr)
         with self.subTest(case="tracked test package cannot impersonate the installed package"):
             self._git("checkout", "--force", "--detach", self.commit_a)
@@ -314,8 +313,7 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertEqual(result["executed_revision"], "T")
             task = next(item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task")
             self.assertEqual(task["relative_path"], shadow.as_posix())
-            self.assertEqual(task["expected_sha256"], json.loads(manifest.read_text())["files"][shadow.as_posix()])
-            self.assertEqual(task["sha256"], task["expected_sha256"])
+            self.assertEqual(task["digest"], self._git("rev-parse", f"HEAD:{shadow.as_posix()}"))
             self.assertEqual(task["status"], "failed")
         with self.subTest(case="revision B overrides cached packages and stale bytecode"):
             self._git("checkout", "--force", "--detach", self.commit_a)
@@ -337,7 +335,9 @@ class SourceRevisionTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(uncorrected.stdout.strip(), "A")
-            manifest, _ = self._prepare()
+            _, process = self._prepare("wrong-commit", "--commit", self.commit_a, success=False)
+            self.assertIn(self.commit_a, process.stderr)
+            manifest, _ = self._prepare("manifest", "--commit", commit_b)
             self._assert_verified(
                 *self._run(manifest, "fresh-bytecode", roots=[self.checkout, self.cached]), "B", commit_b
             )
