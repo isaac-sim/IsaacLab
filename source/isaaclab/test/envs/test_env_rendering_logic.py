@@ -195,7 +195,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         assert isinstance(env.sim.visualizers[0], KitVisualizer)
 
         # add physics callback via physics manager (IsaacEvents is PhysX-specific)
-        physics_handle = env.sim.physics_manager.register_callback(
+        physics_handle = env.sim.backend_manager.register_callback(
             physics_cb, IsaacEvents.POST_PHYSICS_STEP, name="physics_step"
         )
 
@@ -366,7 +366,7 @@ def test_env_render_false_with_resets(physics_callback, render_callback):
         env.reset()
         assert isinstance(env.sim.visualizers[0], KitVisualizer)
 
-        physics_handle = env.sim.physics_manager.register_callback(
+        physics_handle = env.sim.backend_manager.register_callback(
             physics_cb, IsaacEvents.POST_PHYSICS_STEP, name="physics_step"
         )
 

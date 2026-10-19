@@ -24,8 +24,7 @@ import pytest
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-import isaaclab.sim.schemas as schemas
-import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
+from isaaclab.sim.schemas import schemas, schemas_cfg
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils import clone, replace, to_dict
 

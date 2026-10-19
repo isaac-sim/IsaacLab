@@ -185,9 +185,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
-          # Keep equal to the uv in docker/Dockerfile.*: another uv release can
+          # Keep equal to the uv that generated uv.lock: another uv release can
           # re-serialize the whole lockfile, which ``compile`` then refuses.
-          version: "0.12.9"
+          version: "0.13.1"
 
       - name: Compile fragments
         # Capture the compile exit code so the next step can commit/push

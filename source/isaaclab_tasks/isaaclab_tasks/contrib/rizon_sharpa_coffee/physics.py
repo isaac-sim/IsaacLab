@@ -101,8 +101,7 @@ class NewtonCoffeeCouplerManager(NewtonCouplerManager):
     independent stepping required by this mounted-tool approximation.
     """
 
-    @classmethod
-    def _build_proxy_coupled_solver(cls, model, entries, proxy_cfgs, solver_cfg) -> SolverCoupled:
+    def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg) -> SolverCoupled:
         if proxy_cfgs:
             return super()._build_proxy_coupled_solver(model, entries, proxy_cfgs, solver_cfg)
         return SolverCoupled(model=model, entries=entries)
