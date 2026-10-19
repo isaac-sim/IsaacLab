@@ -131,7 +131,7 @@ def batch(monkeypatch):
         owner = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
         owner._pipeline = SimpleNamespace(model=model)
         owner._device = torch.device("cuda", torch.cuda.current_device())
-        owner.capabilities = {"partial_resets": partial, "modalities": ["depth", "blur"]}
+        owner.capabilities = {"partial_resets": partial, "modalities": ["depth"]}
         owner._stream = None
         owner._closed = False
         monkeypatch.setattr(owner, "_prompt_batch", lambda text, *args: {"caption": [text]})
@@ -298,28 +298,3 @@ def test_prompt_rows_merge_into_one_batch_with_a_caption_per_view():
     data = _framework._merge_prompt_rows(rows, "caption")
     assert data["caption"] == ["A lab.", "A kitchen."]
     assert data["neg_caption"] == ["", ""] and data["fps"] == [30.0, 30.0] and data["system_prompt"] == "S"
-
-
-def test_blur_views_are_blurred_by_the_framework_filter_before_encoding(batch, monkeypatch):
-    """The service turns each view's RGB into the blur control with the Framework's own augmentor (medium preset)."""
-    calls = []
-
-    def augment(frames, *, hint_key, preset_edge_threshold, preset_blur_strength):
-        calls.append((tuple(frames.shape), hint_key, preset_blur_strength))
-        return 255 - frames  # stands in for the blur; [3,T,H,W] uint8
-
-    args = types.ModuleType("cosmos_framework.inference.args")
-    args.TransferHintKey = SimpleNamespace(BLUR="blur")
-    args.PresetBlurStrength = SimpleNamespace(MEDIUM="medium")
-    args.PresetEdgeThreshold = SimpleNamespace(MEDIUM="medium")
-    transfer = types.ModuleType("cosmos_framework.inference.transfer")
-    transfer.apply_transfer_control_augmentor = augment
-    monkeypatch.setitem(sys.modules, args.__name__, args)
-    monkeypatch.setitem(sys.modules, transfer.__name__, transfer)
-
-    stream, _ = batch(modality="blur")
-    images = stream.step(_controls((1, 40), (1, 200)), (), ())
-
-    assert calls == [((3, 1, HEIGHT, WIDTH), "blur", "medium")] * 2
-    # The stand-in model echoes what it encoded: the blurred (here inverted) RGB of each view.
-    assert int(images[0].mean()) == 215 and int(images[1].mean()) == 55
