@@ -213,7 +213,8 @@ def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> No
         raise SystemExit(f"--policy_ghost_slots must be between 2 and {MAX_POLICY_GHOST_SLOTS}.")
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise SystemExit("--policy_ghosts only supports manager-based environments.")
-    if not any(name in ("newton", "newton_gl") for name in (args_cli.visualizer or [])):
+    visualizers = env_cfg.sim.visualizer_cfgs or []
+    if not any(getattr(cfg, "visualizer_type", None) == "newton_gl" for cfg in visualizers):
         raise SystemExit("--policy_ghosts requires the Newton GL visualizer; pass --visualizer newton_gl.")
 
 
