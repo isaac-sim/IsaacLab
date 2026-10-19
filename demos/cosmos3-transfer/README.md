@@ -28,24 +28,25 @@ The first three commands are one-time setup. Wait for `Cosmos ready at ...`.
 
 ## 2. Train with Cosmos on the camera
 
-In a second terminal, train with the example Cosmos config [shadow_hand_cosmos.yaml](shadow_hand_cosmos.yaml):
+In a second terminal, train with the Cosmos preset and one prompt per environment:
 
 ```bash
 cd "$ISAAC_LAB_ROOT"
 uv run isaaclab cosmos status      # expect "ready": true and "session_active": false
 
 uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
-  --max_iterations 20 --cosmos_config demos/cosmos3-transfer/shadow_hand_cosmos.yaml \
+  --max_iterations 20 \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
-  presets=cosmos
+  presets=cosmos \
+  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
 - `presets=cosmos` selects the task's Cosmos camera: depth goes to the service and the generated image replaces the
   camera's `rgb`.
-- `--cosmos_config` points to the Cosmos options. In the example, `prompt` describes the scene of each environment:
-  with `--num_envs 2` the first prompt is environment 0 and the second is environment 1. The file lists the other
-  options (`endpoint`, `transport`, `near`, `far`), which are described in the
-  [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
+- The last argument is an ordinary Isaac Lab override of the Cosmos step in the camera's modifier chain. Its `prompt`
+  describes the scene of each environment: with `--num_envs 2` the first prompt is environment 0 and the second is
+  environment 1. The same path sets `endpoint` and `transport`, and `...distance_to_image_plane.0.params.near` and
+  `far` set the depth range; see the [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
 - `--viz newton_gl --video viz:newton_gl:streaming_view --video_length 600` records 600 steps (one episode) of the
   generated images of both environments side by side. The run prints the folder with the clip.
 - `--kv-window 4` on the service lets two environments fit on a 48 GB GPU that Isaac Sim shares; omit it on a larger GPU.
