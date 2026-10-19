@@ -90,3 +90,15 @@ def test_override_paths_index_into_lists():
     _setattr(cfg, "names.a.0", "z")
     assert [item.value for item in cfg.chain] == [1, 5]
     assert cfg.names["a"] == ["z", "y"]
+
+
+def test_override_paths_reject_a_misspelled_field():
+    """A misspelled field fails instead of being added beside the field it was meant to set."""
+    from types import SimpleNamespace
+
+    from isaaclab_tasks.utils.hydra import _setattr
+
+    cfg = SimpleNamespace(backend=SimpleNamespace(prompt="A lab."))
+    with pytest.raises(AttributeError, match="has no field 'promt'"):
+        _setattr(cfg, "backend.promt", "x")
+    assert cfg.backend.prompt == "A lab." and not hasattr(cfg.backend, "promt")

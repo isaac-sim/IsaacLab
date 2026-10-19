@@ -697,8 +697,11 @@ def _setattr(obj, path: str, val):
         obj[leaf] = val
     elif isinstance(obj, list):
         obj[int(leaf)] = val
-    else:
+    elif hasattr(obj, leaf):
         setattr(obj, leaf, val)
+    else:
+        # A misspelled field would otherwise be added silently and leave the intended value unchanged.
+        raise AttributeError(f"Override {path!r}: {type(obj).__name__} has no field {leaf!r}.")
 
 
 def _parse_val(s: str):

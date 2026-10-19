@@ -130,6 +130,7 @@ def pci_bus_id(device_index: int) -> str:
     with _Context(device_index) as driver:
         device = ctypes.c_int()
         _check(driver, driver.cuDeviceGet(ctypes.byref(device), device_index))
+        # A PCI bus ID such as "00000000:01:00.0" is 16 characters; 32 bytes leave room for the null terminator.
         buffer = ctypes.create_string_buffer(32)
         _check(driver, driver.cuDeviceGetPCIBusId(buffer, 32, device))
         return buffer.value.decode().lower()
