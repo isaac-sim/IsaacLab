@@ -41,16 +41,16 @@ uv run isaaclab cosmos status      # expect "ready": true and "session_active": 
 
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
   presets=cosmos \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
+  env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
 - `presets=cosmos` selects the task's Cosmos camera: depth goes to the service and the generated image replaces the
   camera's `rgb`.
-- The last argument is an ordinary Isaac Lab override of the Cosmos step in the camera's modifier chain. Its `prompt`
+- `env.cosmos` holds the camera's Cosmos settings, set with ordinary Isaac Lab overrides. `env.cosmos.prompt`
   describes the scene of each environment: with `--num_envs 2` the first prompt is environment 0 and the second is
-  environment 1. The same path sets `endpoint` and `transport`, and `...distance_to_image_plane.0.params.near` and
-  `far` set the depth range; see the [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
-  A misspelled field in an override stops the run with an error naming it.
+  environment 1. `env.cosmos.endpoint` and `env.cosmos.transport` work the same way; see the
+  [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md). A misspelled field stops the run with
+  an error naming it.
 
 ## 3. Record a clip
 
@@ -61,7 +61,7 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   --max_iterations 20 \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
   presets=cosmos env.fall_dist=1000.0 agent.init_at_random_ep_len=false \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
+  env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
 - `--viz newton_gl --video viz:newton_gl:streaming_view --video_length 600` records 600 steps (one episode) of the
