@@ -219,14 +219,26 @@ def test_physics_names_for_docs_infers_physx_from_default():
     assert names == ["newton_mjwarp", "physx"]
 
 
-def test_collect_environment_doc_rows_reports_validated_mjwarp_support():
-    # One representative per task-owned physics declaration or compatibility guard.
+def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
+    # Exercise every explicit stack-task exclusion plus representative supported and guarded rows.
     expected = {
         "IsaacContrib-Factory-Franka": False,
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel": False,
         "IsaacContrib-Stack-Cube-Franka": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Abs": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos": False,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow": False,
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor": False,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position": False,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow": False,
         "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel": False,
         "IsaacContrib-Stack-Cube-SO101-v0": True,
         "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel": False,
     }
