@@ -62,9 +62,8 @@ class CosmosModelCfg(BackendCfg):
     ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
     resets. None omits an appearance description."""
 
-    modality: Literal["edge", "blur", "depth", "seg"] = "depth"
-    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls;
-    for blur the camera sends its RGB and the service applies the Framework's own blur filter."""
+    modality: Literal["edge", "depth", "seg"] = "depth"
+    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls."""
 
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The

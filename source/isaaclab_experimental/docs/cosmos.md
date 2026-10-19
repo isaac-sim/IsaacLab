@@ -39,11 +39,10 @@ guidance 1.0, a 30-latent history window with three attention sinks, and one con
 |---|---|---|
 | `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
 | `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
-| `blur` | The service | The camera's RGB, blurred by the Framework's own filter with the recipe's medium preset |
 | `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
 
-Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
+Other control recipes are `edge_processor`, `regional_edge_processor`, and
+`segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
 extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
 recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
 palette, while regional edges also require the camera's segmentation output and
