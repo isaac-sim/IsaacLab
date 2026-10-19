@@ -240,8 +240,7 @@ jobs:
   #region build jobs
   build:
     name: Build Base Docker Image
-    # Keep the required build check non-successful when activation is missing;
-    # skipping all required tests would otherwise allow an untested PR to merge.
+    # Fail the build check when activation is missing so an untested PR cannot merge.
     runs-on: ${{ fromJSON(needs.changes.outputs.activated == 'true' && '["self-hosted", "gpu"]' || '["ubuntu-latest"]') }}
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'

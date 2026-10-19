@@ -25,36 +25,32 @@ def workflow():
     return yaml.safe_load(WORKFLOW.read_text())
 
 
+def labeled(login):
+    return {"event": "labeled", "actor": {"login": login}}
+
+
 @pytest.mark.parametrize(
-    "event,action,pages,error,expected",
+    "event,action,label,pages,error,expected,cancel",
     [
-        ("pull_request", "labeled", [], True, True),
-        ("push", "", [], True, True),
+        ("pull_request", "labeled", "", [], True, True, False),
+        ("push", "", "", [], True, True, False),
+        ("pull_request", "synchronize", "", [[labeled("github-actions[bot]")]], False, False, True),
+        ("pull_request", "synchronize", "", [[labeled("maintainer"), {"event": "unlabeled"}]], False, True, True),
         (
             "pull_request",
             "synchronize",
-            [[{"event": "labeled", "actor": {"login": "github-actions[bot]"}}]],
-            False,
-            False,
-        ),
-        (
-            "pull_request",
-            "synchronize",
-            [[{"event": "labeled", "actor": {"login": "maintainer"}}, {"event": "unlabeled"}]],
+            "",
+            [[{"event": "commented"}], [labeled("isaaclab-bot[bot]")]],
             False,
             True,
-        ),
-        (
-            "pull_request",
-            "synchronize",
-            [[{"event": "commented"}], [{"event": "labeled", "actor": {"login": "isaaclab-bot[bot]"}}]],
-            False,
             True,
         ),
-        ("pull_request", "synchronize", [], True, False),
+        ("pull_request", "synchronize", "", [], True, False, True),
+        ("pull_request", "labeled", "ci:run-docker", [], True, True, True),
+        ("pull_request", "labeled", "triage", [], True, True, False),
     ],
 )
-def test_update_activation_routes_gpu_only_after_initial_label(workflow, event, action, pages, error, expected):
+def test_workflow_activation_routing_and_cancellation(workflow, event, action, label, pages, error, expected, cancel):
     jobs = workflow["jobs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")
     data = {
@@ -62,7 +58,7 @@ def test_update_activation_routes_gpu_only_after_initial_label(workflow, event, 
         "continue_on_error": activation.get("continue-on-error", False),
         "context": {
             "eventName": event,
-            "payload": {"action": action, "pull_request": {"number": 42}},
+            "payload": {"action": action, "pull_request": {"number": 42}, "label": {"name": label}},
             "repo": {"owner": "owner", "repo": "lab"},
         },
         "pages": pages,
@@ -70,10 +66,10 @@ def test_update_activation_routes_gpu_only_after_initial_label(workflow, event, 
         "runner": jobs["build"]["runs-on"].removeprefix("${{").removesuffix("}}"),
         "curobo": jobs["build-curobo"]["if"],
         "stop": next(step for step in jobs["build"]["steps"] if step.get("name") == "Explain missing PR activation"),
+        "cancel": workflow["concurrency"]["cancel-in-progress"].removeprefix("${{").removesuffix("}}"),
     }
     runner = """
-const fs = require('node:fs');
-const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
 const outputs = {};
 const core = {setOutput: (k,v) => outputs[k] = v};
 const github = {rest: {issues: {listEvents: 'events'}}, paginate: {iterator: async function*() {
@@ -89,10 +85,11 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
   }
   const needs = {changes: {outputs: {activated: outputs.activated, should_run: 'true'}}};
   const runner = new Function('needs', 'fromJSON', `return (${input.runner})`)(needs, JSON.parse);
-  const curobo = new Function('needs', 'github', `return (${input.curobo})`)(
-    needs, {event_name: input.context.eventName});
+  const event = {event_name: input.context.eventName, event: input.context.payload};
+  const curobo = new Function('needs', 'github', `return (${input.curobo})`)(needs, event);
   const stop = new Function('needs', `return (${input.stop.if})`)(needs);
-  process.stdout.write(JSON.stringify({runner, curobo, stop}));
+  const cancel = new Function('github', `return (${input.cancel})`)(event);
+  process.stdout.write(JSON.stringify({runner, curobo, stop, cancel}));
 })();
 """
     result = subprocess.run(["node", "-e", runner], input=json.dumps(data), capture_output=True, text=True)
@@ -101,25 +98,10 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
     assert observed["runner"] == (["self-hosted", "gpu"] if expected else ["ubuntu-latest"])
     assert observed["curobo"] is (expected and event != "push")
     assert observed["stop"] is (not expected)
+    assert observed["cancel"] is cancel
     if observed["stop"]:
         stopped = subprocess.run(["bash", "-e", "-c", data["stop"]["run"]], capture_output=True, text=True)
         assert stopped.returncode != 0
-
-
-@pytest.mark.parametrize(
-    "action,label,expected",
-    [("synchronize", "", True), ("labeled", "ci:run-docker", True), ("labeled", "triage", False)],
-)
-def test_only_updates_and_explicit_reruns_cancel_running_ci(workflow, action, label, expected):
-    expression = workflow["concurrency"]["cancel-in-progress"].removeprefix("${{").removesuffix("}}")
-    data = {"expression": expression, "github": {"event": {"action": action, "label": {"name": label}}}}
-    script = (
-        "const x=JSON.parse(require('node:fs').readFileSync(0,'utf8'));"
-        "process.stdout.write(JSON.stringify(new Function('github', `return (${x.expression})`)(x.github)));"
-    )
-    result = subprocess.run(["node", "-e", script], input=json.dumps(data), capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) is expected
 
 
 @pytest.mark.parametrize("stop_signal", [signal.SIGINT, signal.SIGTERM])
