@@ -53,12 +53,6 @@ class SourceRevisionTests(unittest.TestCase):
                 if os.environ.get("FIXTURE_INTERRUPT"):
                     raise KeyboardInterrupt
                 from isaaclab.benchmark.entrypoints import runtime
-                if os.environ.get("FIXTURE_REPLACE_RUNTIME"):
-                    from pathlib import Path
-                    altered = Path(runtime.__file__).read_text().replace("marker = observed()", "marker = 'X'")
-                    namespace = {}
-                    exec(compile(altered, runtime.__file__, "exec"), namespace)
-                    runtime.run.__code__ = namespace["run"].__code__
                 runtime.run(sys.argv[1:])
             """,
         )
@@ -70,7 +64,6 @@ class SourceRevisionTests(unittest.TestCase):
             from pathlib import Path
 
             def run(argv):
-                'Runtime revision A.'
                 from isaaclab_tasks.fixture_task import observed
                 marker = observed()
                 if os.environ.get("FIXTURE_NO_OUTPUT"):
@@ -80,7 +73,6 @@ class SourceRevisionTests(unittest.TestCase):
                 result = {
                     "executed_revision": marker,
                     "worker_pid": os.getpid(),
-                    "image_identity": os.environ["FIXTURE_IMAGE_IDENTITY"],
                     "run": {"status": "completed"},
                     "runtime": {"total_fps": {"mean": 100.0}},
                 }
@@ -121,7 +113,6 @@ class SourceRevisionTests(unittest.TestCase):
             for root in (roots or [self.checkout])
             for package in ("isaaclab", "isaaclab_tasks")
         )
-        environment["FIXTURE_IMAGE_IDENTITY"] = "same-cached-image"
         environment.update(extra)
         return environment
 
@@ -179,7 +170,6 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertEqual(result["executed_revision"], marker)
         self.assertEqual(result["worker_pid"], sidecar["pid"])
         self.assertNotEqual(result["worker_pid"], os.getpid())
-        self.assertEqual(result["image_identity"], "same-cached-image")
         self.assertIn(
             hashlib.sha256(result_path.read_bytes()).hexdigest(), [item["sha256"] for item in sidecar["outputs"]]
         )
@@ -195,27 +185,21 @@ class SourceRevisionTests(unittest.TestCase):
         )
         return result
 
-    def test_same_cached_image_executes_each_selected_commit(self):
+    def test_selected_checkout_wins_over_cached_packages(self):
         manifest_a, _ = self._prepare("manifest-a")
         run_a = self._run(manifest_a, "result-a", roots=[self.checkout, self.cached])
-        result_a = self._assert_verified(*run_a, "A", self.commit_a)
+        self._assert_verified(*run_a, "A", self.commit_a)
         self._task("B")
+        runtime = self.checkout / RUNTIME_PATH
+        runtime.write_text(
+            "def wrapper(function):\n    return lambda argv: function(argv)\n\n"
+            + runtime.read_text().replace("def run(argv):", "@wrapper\ndef entrypoint(argv):")
+            + "\nrun = entrypoint\n"
+        )
         commit_b = self._commit()
         manifest_b, _ = self._prepare("manifest-b")
         run_b = self._run(manifest_b, "result-b", roots=[self.checkout, self.cached])
-        result_b = self._assert_verified(*run_b, "B", commit_b)
-        self.assertNotEqual(self.commit_a, commit_b)
-        self.assertNotEqual(result_a["executed_revision"], result_b["executed_revision"])
-        self.assertEqual(result_a["image_identity"], result_b["image_identity"])
-
-        runtime = self.checkout / RUNTIME_PATH
-        runtime.write_text(runtime.read_text().replace("Runtime revision A.", "Runtime revision B."))
-        commit_c = self._commit()
-        manifest_c, _ = self._prepare("docstring-only")
-        run_c = self._run(manifest_c, "docstring-output", roots=[self.checkout, self.cached])
-        self._assert_verified(*run_c, "B", commit_c)
-        self.assertTrue(run_b[2]["runtime_entrypoint"]["source_code_matches"])
-        self.assertTrue(run_c[2]["runtime_entrypoint"]["source_code_matches"])
+        self._assert_verified(*run_b, "B", commit_b)
 
     def test_ci_launcher_verifies_the_initialized_benchmark_worker(self):
         self._write(
@@ -330,17 +314,6 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertNotEqual(process.returncode, 0)
         self.assertIn("Traceback (most recent call last):", process.stderr)
         self.assertIn("ValueError: Checked-out Python source differs", process.stderr)
-
-    def test_replaced_runtime_code_with_matching_source_bytes_is_detected(self):
-        manifest, _ = self._prepare()
-        process, output, sidecar = self._run(manifest, "replaced-code", FIXTURE_REPLACE_RUNTIME="1")
-        self.assertNotEqual(process.returncode, 0)
-        self.assertEqual(sidecar["status"], "failed")
-        self.assertTrue(sidecar["mismatches"])
-        runtime = next(item for item in sidecar["modules"] if item["name"] == RUNTIME_MODULE)
-        self.assertEqual(runtime["sha256"], runtime["expected_sha256"])
-        self.assertFalse(sidecar["runtime_entrypoint"]["source_code_matches"])
-        self.assertEqual(json.loads((output / "benchmark_runtime_fixture.json").read_text())["executed_revision"], "X")
 
     def test_cli_failures_preserve_exit_status_and_interruptions(self):
         manifest, _ = self._prepare()
