@@ -188,12 +188,9 @@ def _build_labels(rows: list[dict]) -> list[str]:
     labels = []
     for index, row in enumerate(rows, 1):
         legs = row.get("legs", {})
-        names = set(legs.get("baseline", [])) | set(legs.get("candidate", []))
         current = legs.get("candidate", [])
         previous = legs.get("baseline", [])
-        label = next(iter(names)) if len(names) == 1 else None
-        if label is None:
-            label = current[0] if len(current) == 1 else previous[0] if len(previous) == 1 else f"Workload {index}"
+        label = current[0] if len(current) == 1 else previous[0] if len(previous) == 1 else f"Workload {index}"
         labels.append(label)
     result, used = [], set(labels)
     for index, label in enumerate(labels, 1):

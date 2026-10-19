@@ -29,13 +29,9 @@ def _object(value: Any) -> dict:
 def _formula(evidence: Evidence | None) -> str | None:
     definition = _object(evidence.context.get("metric_definition")) if evidence else {}
     value = definition.get("total_fps")
-    return (
-        value
-        if isinstance(value, str)
-        and value.strip()
-        and value.strip().lower() not in ("unknown", "aggregate_frames_over_measured_seconds")
-        else None
-    )
+    if not isinstance(value, str):
+        return None
+    return value if value.strip().lower() not in ("", "unknown", "aggregate_frames_over_measured_seconds") else None
 
 
 def _groups(evidence: Evidence | None, aliases: dict[str, set[str]]) -> dict:

@@ -321,7 +321,7 @@ def check_comparisons(subtests):
 
 
 def check_rendering(subtests):
-    with subtests.test(msg="headline counts every workload without reclassifying rounded or missing deltas"):
+    with subtests.test(msg="headline counts and escaped artifact text preserve tables and sources"):
         a = evidence({name: [bundle(100, name)] * 3 for name in ("Higher", "Lower", "Same", "Tiny")})
         b = evidence(
             {
@@ -330,6 +330,12 @@ def check_rendering(subtests):
             }
         )
         report = compare_evidence(a, b)
+        report["baseline"].update(repository="isaac-sim/IsaacLab", run_url="https://example.invalid/untrusted")
+        row = report["rows"][0]
+        unsafe_leg = "leg | </details><script>"
+        row["legs"] = {"baseline": [unsafe_leg], "candidate": [unsafe_leg]}
+        row["label"] = "Task | [click](https://example.invalid)\n<script>bad()</script>"
+        row["notes"].append(unsafe_leg)
         before = copy.deepcopy(report)
         markdown = render_build_comparison(report)
         primary, diagnostics = markdown.split("<details>", 1)
@@ -345,6 +351,16 @@ def check_rendering(subtests):
         assert "3/3 / 3/3" in diagnostics
         assert "build-comparison.json" in diagnostics
         assert report == before
+        assert "<script>" not in markdown
+        assert "[click]" not in markdown
+        assert "&#91;click&#93;" in diagnostics
+        assert "&#124;" in markdown
+        assert "&lt;/details&gt;&lt;script&gt;" in markdown
+        assert "&lt;script&gt;" in markdown
+        assert markdown.count("<details>") == 1
+        assert markdown.count("</details>") == 1
+        assert "https://example.invalid/untrusted" not in markdown
+        assert "https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1" in markdown
     with subtests.test(msg="zero baseline and no rows are not misreported"):
         report = compare_evidence(evidence({"leg": [bundle(0)] * 3}), evidence({"leg": [bundle(10)] * 3}))
         row = report["rows"][0]
@@ -421,31 +437,6 @@ def check_rendering(subtests):
                 report["selection"] = {"baseline_reused": reused}
                 markdown = render_build_comparison(report)
                 assert f"Baseline measurements: {expected}" in markdown
-    with subtests.test(msg="artifact text preserves tables details and reconstructed github links"):
-        for target, text, escaped in (
-            ("legs", "leg | </details><script>", "&lt;/details&gt;&lt;script&gt;"),
-            ("label", "Task | [click](https://example.invalid)\n<script>bad()</script>", "&lt;script&gt;"),
-        ):
-            with subtests.test(target=target):
-                report = compare_evidence(evidence(), evidence())
-                report["baseline"].update(repository="isaac-sim/IsaacLab", run_url="https://example.invalid/untrusted")
-                row = report["rows"][0]
-                if target == "legs":
-                    row["legs"] = {"baseline": [text], "candidate": [text]}
-                    row["notes"].append(text)
-                else:
-                    row["label"] = text
-                markdown = render_build_comparison(report)
-                assert "<script>" not in markdown
-                assert "[click]" not in markdown
-                assert "&#124;" in markdown
-                assert escaped in markdown
-                assert markdown.count("<details>") == 1
-                assert markdown.count("</details>") == 1
-                primary = markdown.split("<details>", 1)[0]
-                assert all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|"))
-                assert "https://example.invalid/untrusted" not in markdown
-                assert "https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1" in markdown
     with subtests.test(msg="rolling gate exposes recorded skip and error causes"):
         missing_credential = "No baseline store credential is available for this run"
         reports = [
@@ -492,9 +483,7 @@ def check_rendering(subtests):
 
 def report_client():
     client = FixtureClient()
-    samples = [bundle(80) for _ in range(3)]
-    for sample in samples:
-        sample["run"].update(start_time_utc=stamp(12, 1), end_time_utc=stamp(12, 5))
+    samples = [bundle(80, start=stamp(12, 1), end=stamp(12, 5)) for _ in range(3)]
     client.add(20, HEAD, start=stamp(12), samples={"leg": samples}, event="pull_request")
     return client
 
