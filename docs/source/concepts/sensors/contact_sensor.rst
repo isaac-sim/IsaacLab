@@ -6,9 +6,9 @@
 Contact Sensor
 ==============
 
-A :class:`~sensors.ContactSensor` aggregates contacts on one or more rigid bodies into batched force
-measurements. The sensor scope is defined by :attr:`~sensors.ContactSensorCfg.prim_path`: each matched
-body becomes one sensor body in every environment.
+A :class:`~sensors.ContactSensor` measures contact forces on rigid bodies.
+:attr:`~sensors.ContactSensorCfg.prim_path` selects the bodies to measure in each
+environment.
 
 .. figure:: ../../_static/overview/sensors/contact_diagram.jpg
    :align: center

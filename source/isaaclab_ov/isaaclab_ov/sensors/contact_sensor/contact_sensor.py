@@ -24,7 +24,6 @@ from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov._clone import ordered_clone_paths
-from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .contact_sensor_data import ContactSensorData
@@ -182,7 +181,7 @@ class ContactSensor(BaseContactSensor):
     def _initialize_impl(self) -> None:
         super()._initialize_impl()
 
-        physx_instance = OvPhysxManager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._physx_instance = physx_instance
@@ -224,7 +223,7 @@ class ContactSensor(BaseContactSensor):
         # not share a parent. IsaacLab path forms map to ovphysx fnmatch globs the same way
         # Articulation does.
         sensor_patterns = [path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
-        plan = OvPhysxManager._sim.get_clone_plan()
+        plan = self._backend_manager._sim.get_clone_plan()
         sensor_patterns = [path for pattern in sensor_patterns for path in _expand_env_pattern(pattern, plan)]
         # a filter pattern must match one prim per sensor body, so each filter body gets its own pattern
         filter_globs = [path_expr_to_glob(expr) for expr in self._resolve_filter_body_exprs()]
@@ -457,6 +456,7 @@ class ContactSensor(BaseContactSensor):
                     contact_buffers[-1],
                     env_mask,
                     self._num_envs,
+                    self._timestamp,
                 ],
                 outputs=[self._data._contact_pos_w],
                 device=self._device,

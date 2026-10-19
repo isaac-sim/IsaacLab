@@ -23,6 +23,8 @@ from __future__ import annotations
 import argparse
 import math
 
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular example.")
@@ -75,23 +77,6 @@ Y_ROT_45_DEG = (0.0, math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 Y_ROT_NEG_45_DEG = (0.0, -math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 
 
-def create_visualizer_cfgs():
-    """Create example-specific visualizer configs for the requested backends."""
-    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
-        return []
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfgs = []
-    for name in args_cli.visualizer or []:
-        if name not in {"newton", "newton_gl", "newton_rtx"}:
-            continue
-        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-        particle_options = {} if name == "newton_rtx" else {"show_particles": True, "particle_color": PARTICLE_COLOR}
-        cfgs.append(cfg_type(eye=CAMERA_EYE, lookat=CAMERA_TARGET, **particle_options))
-    return cfgs
-
-
 def create_sim_cfg():
     """Create the Isaac Lab simulation config that the MPM manager drives."""
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg
@@ -102,7 +87,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=[NewtonGLVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)],
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,

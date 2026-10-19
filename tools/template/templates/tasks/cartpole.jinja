@@ -98,9 +98,7 @@ class {{ task.classname }}EnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics={{ task.classname }}PhysicsCfg())
 
     # scene
-    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(
-        num_envs=4096, env_spacing=4.0, replicate_physics=True
-    )
+    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=4096, env_spacing=4.0)
 
     # custom parameters/scales
     # - controllable joints
@@ -205,9 +203,7 @@ class {{ task.classname }}EnvCfg(DirectMARLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics={{ task.classname }}PhysicsCfg())
 
     # scene
-    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(
-        num_envs=4096, env_spacing=4.0, replicate_physics=True
-    )
+    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=4096, env_spacing=4.0)
 
     # custom parameters/scales
     # - controllable joint

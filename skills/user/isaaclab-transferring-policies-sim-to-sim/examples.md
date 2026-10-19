@@ -10,7 +10,7 @@ Use the same contract and control settings, reproduce NN with the explicit check
 
 ## PhysX-Trained ANYmal D Or G1 To MJWarp
 
-Both robots branch, so PhysX and MJWarp expose different joint and body axes. Add `env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx` to the Newton replay so the checkpoint's PhysX column semantics are preserved, and use `mjwarp` on both fields for the reverse direction. Only after the axes agree are remaining differences attributable to contacts, friction, and actuator response.
+Both robots branch, so PhysX and MJWarp expose different joint and body axes. Train in PhysX with `env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx` and keep both on the Newton replay so the checkpoint's column semantics are preserved, and use `mjwarp` on both fields for the reverse direction. Only after the axes agree are remaining differences attributable to contacts, friction, and actuator response.
 
 ## Duplicate PhysX Finger Drive
 
