@@ -1,6 +1,6 @@
 :orphan:
 
-.. seealso::
+.. Maintenance notes
 
    This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
    (:isaaclab-source:`skills/user/domain-randomization-events/ <skills/user/domain-randomization-events/SKILL.md>`).
@@ -14,15 +14,9 @@ Creating a Direct Workflow RL Environment
 
 .. currentmodule:: isaaclab
 
-In addition to the :class:`envs.ManagerBasedRLEnv` class, which encourages the use of configuration classes
-for more modular environments, the :class:`~isaaclab.envs.DirectRLEnv` class allows for more direct control
-in the scripting of environment.
-
-Instead of using Manager classes for defining rewards and observations, the direct workflow tasks
-implement the full reward and observation functions directly in the task script.
-This allows for more control in the implementation of the methods, such as using pytorch jit
-features, and provides a less abstracted framework that makes it easier to find the various
-pieces of code.
+A direct environment defines actions, observations, rewards, and resets as methods
+on :class:`envs.DirectRLEnv`. See :ref:`feature-workflows` for a comparison with
+manager-based environments.
 
 In this tutorial, we will configure the cartpole environment using the direct workflow implementation to create a task
 for balancing the pole upright. We will declare its scene and implement actions, resets, rewards, and observations.

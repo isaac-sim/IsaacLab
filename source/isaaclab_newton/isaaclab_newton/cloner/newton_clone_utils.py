@@ -282,13 +282,14 @@ def replicate_builder_mapping(
     quaternions: np.ndarray,
     source_builders: dict[str, ModelBuilder],
     *,
+    source_inverse: dict[str, np.ndarray],
     env_ids: np.ndarray,
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
     source_builder_added: Callable[[str, str, int, int], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
-    """Compose routed source builders once per world prototype, then batch their selected worlds."""
+    """Compose sources using their authored inverse frames, then place each world from the plan."""
     topology, env_template = plan.topology, plan.env_template
     layout = topology.world_prototype_layout
     source_site_indices = source_site_indices or {}
@@ -296,15 +297,12 @@ def replicate_builder_mapping(
     num_worlds = len(layout)
     xforms_np = np.concatenate((positions, quaternions), axis=1).astype(np.float32, copy=False)
     world_xforms = [wp.transform(*xform) for xform in xforms_np]
-    source_worlds = {str(env_id): world for world, env_id in enumerate(env_ids)}
     initial_sites = source_site_indices.get(id(builder), {})
     local_site_map = {label: [indices.copy() for _ in range(num_worlds)] for label, indices in initial_sites.items()}
-    source_inverse = {}
     sources = clone_path.get_asset_prototype_paths(plan)
     templates, starts = clone_path.get_world_prototype_asset_templates(plan)
     world_builders = {}
-    prototype_ids, first_world_ids = np.unique(layout, return_index=True)
-    for prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
+    for prototype_id in (-1, *np.unique(layout)):
         start, end = starts[prototype_id + 1 : prototype_id + 3]
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
         available = [(source, template) for source, template in reference_paths if source in source_builders]
@@ -314,22 +312,13 @@ def replicate_builder_mapping(
         prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
         sites, asset_offsets = {}, []
         for source, destination in components:
-            # Remove the source world's placement before composing assets into other world prototypes.
-            if source not in source_inverse:
-                match = clone_path.match(source, env_template)
-                # The first destination also covers plans that remap an authored source ID outside env_ids.
-                source_world = source_worlds.get(match.instance, first_world) if match is not None else None
-                source_inverse[source] = (
-                    np.asarray(wp.transform(), dtype=np.float32)
-                    if prototype_id == -1 or source_world is None
-                    else np.asarray(wp.transform_inverse(world_xforms[source_world]), dtype=np.float32)
-                )
             asset = source_builders[source]
             asset_offsets.append((prototype.shape_count, prototype.particle_count))
             for label, indices in source_site_indices.get(id(asset), {}).items():
                 sites.setdefault(label, []).extend(prototype.shape_count + index for index in indices)
             prefix = "" if prototype_id == -1 else env_template
-            _add_asset_builder(prototype, asset, source, destination, prefix, reference_paths, source_inverse[source])
+            xform = np.asarray(wp.transform(), dtype=np.float32) if prototype_id == -1 else source_inverse[source]
+            _add_asset_builder(prototype, asset, source, destination, prefix, reference_paths, xform)
         if prototype_id == -1:
             for label, indices in sites.items():
                 local_site_map[label] = np.tile(indices, (num_worlds, 1)).tolist()

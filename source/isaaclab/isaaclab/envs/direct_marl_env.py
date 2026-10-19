@@ -175,8 +175,8 @@ class DirectMARLEnv(gym.Env):
 
         # let the physics backend know about the env decimation so it can
         # fold the full loop into a single step() when possible
-        self.sim.physics_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
         # export after asset initialization, before startup events
         if self.cfg.scene.export_usd_path is not None:
             from ..sim.usd_export import BaseUsdExporter
