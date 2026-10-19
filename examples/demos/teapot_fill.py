@@ -223,11 +223,10 @@ SURFACE_PATH = "/fluid_surface"
 
 def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
     """Configure teapot-specific surface extraction after Newton initializes."""
-    from isaaclab_newton.physics import NewtonManager
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
     from newton.geometry import ParticleSurface
 
-    model = NewtonManager.get_model()
+    model = sim.backend_manager.get_model()
     surface = ParticleSurface(
         voxel_size=SURFACE_VOXEL_SIZE,
         max_grid_cells=SURFACE_MAX_GRID_CELLS,

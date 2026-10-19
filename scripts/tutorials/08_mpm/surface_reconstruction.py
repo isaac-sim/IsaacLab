@@ -476,11 +476,10 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
 
 def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
     """Configure splash-specific surface extraction after Newton initializes."""
-    from isaaclab_newton.physics import NewtonManager
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
     from newton.geometry import ParticleSurface
 
-    model = NewtonManager.get_model()
+    model = sim.backend_manager.get_model()
     surface = ParticleSurface(
         voxel_size=SURFACE_CFG.surface_voxel_size,
         max_grid_cells=MAX_SURFACE_GRID_CELLS,
@@ -507,6 +506,7 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
         opacity=args_cli.surface_opacity,
         roughness=0.06,
         use_cuda_graph=not args_cli.disable_cuda_graph,
+        backend_manager=sim.backend_manager,
     )
 
 

@@ -92,16 +92,17 @@ and synchronization responsibilities.
 Reuse Isaac Lab-owned access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use the manager accessors to obtain the current Newton objects:
+Use the accessors of the simulation's manager instance, ``sim.backend_manager``, to obtain the
+current Newton objects:
 
 .. code-block:: python
 
-   from isaaclab_newton.physics import NewtonManager
+   backend_manager = sim.backend_manager
 
-   model = NewtonManager.get_model()
-   state = NewtonManager.get_state_0()
-   control = NewtonManager.get_control()
-   contacts = NewtonManager.get_contacts()
+   model = backend_manager.get_model()
+   state = backend_manager.get_state_0()
+   control = backend_manager.get_control()
+   contacts = backend_manager.get_contacts()
 
    body_poses = state.body_q
    joint_forces = control.joint_f
@@ -151,7 +152,6 @@ selected value before modifying it when you want the write to remain explicit:
 
    import warp as wp
    from newton import ModelFlags
-   from isaaclab_newton.physics import NewtonManager
 
    rolling_friction = wp.clone(
        selection.get_attribute("shape_material_mu_rolling", model)
@@ -162,14 +162,14 @@ selected value before modifying it when you want the write to remain explicit:
        model,
        rolling_friction,
    )
-   NewtonManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+   sim.backend_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 The string names a Newton model attribute rather than an Isaac Lab field. This
 example uses rolling friction because it has no dedicated selection method.
 Notify the manager with the flag appropriate to the property changed; other
 model writes can require a different flag. State writes that change generalized
 coordinates instead require forward-kinematics synchronization through
-``NewtonManager.invalidate_fk()`` and ``NewtonManager.forward()``.
+``sim.backend_manager.invalidate_fk()`` and ``sim.backend_manager.forward()``.
 
 Ownership, synchronization, and invalidation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

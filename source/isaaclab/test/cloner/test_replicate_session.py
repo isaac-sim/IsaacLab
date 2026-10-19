@@ -45,7 +45,7 @@ class _RenderContext(_Context):
 def simulation(monkeypatch):
     registry = []
     sim = SimpleNamespace(
-        physics_manager=SimpleNamespace(clone_context_type=_Context),
+        backend_manager=SimpleNamespace(clone_context_type=_Context),
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),

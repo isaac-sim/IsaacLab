@@ -270,9 +270,9 @@ Factory dispatch
 All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`.
 They select a backend key, then locate its implementation by module path:
 
-1. The name of ``SimulationContext.physics_manager`` is mapped to one of the
-   backend keys recognized by ``FactoryBase._get_backend()``. Adding another
-   physics backend requires extending this core selector.
+1. ``FactoryBase._get_backend()`` returns the ``backend_name`` of the
+   ``SimulationContext.backend_manager`` instance. Adding another physics
+   backend requires setting this class attribute on its manager.
 2. The factory module path determines the backend module path. For example,
    ``isaaclab.assets.articulation`` maps to
    ``isaaclab_physx.assets.articulation``,
@@ -290,7 +290,7 @@ They select a backend key, then locate its implementation by module path:
     FactoryBase.__new__()
         │
         ├─ _get_backend()       → "physx", "newton", or "ovphysx"
-        │    (reads SimulationContext.physics_manager)
+        │    (reads SimulationContext.backend_manager)
         │
         ├─ _get_module_name()   → "isaaclab_physx.assets.articulation"
         │    (OvPhysX maps to the shared isaaclab_ov package)
@@ -344,7 +344,7 @@ perspective cameras with identical initial settings remain independent; windows 
 explicitly share a declaration to reuse its image.
 
 Managers and native renderers expose their borrowed resource through ``backend``.
-For example, ``NewtonManager.backend.model`` accesses the finalized native model.
+For example, ``sim.backend_manager.backend.model`` accesses the finalized native model of a Newton simulation.
 Closing a renderer releases its bindings, not the shared native resource.
 Exposing native handles does not replace SDP transport.
 
