@@ -5,15 +5,54 @@
 
 from __future__ import annotations
 
+from builtins import ExceptionGroup
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import gymnasium as gym
 import pytest
 
-from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv
+from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv
 from isaaclab.envs.utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
 
 pytestmark = pytest.mark.unit
+
+
+def test_manager_env_close_finishes_after_processor_cleanup_error():
+    """Processor errors propagate after releasing the environment, and close remains idempotent."""
+    error = ExceptionGroup("Failed to close observation pipelines.", [RuntimeError("Processor cleanup failed")])
+    observation_manager = SimpleNamespace(close=Mock(side_effect=error))
+    sim = SimpleNamespace(stop=Mock(), clear_instance=Mock())
+    env = object.__new__(ManagerBasedRLEnv)
+    env._is_closed = False
+    env._window = object()
+    env.sim = sim
+    env.scene = object()
+    env.action_manager = object()
+    env.observation_manager = observation_manager
+    env.event_manager = object()
+    env.recorder_manager = object()
+    env.command_manager = object()
+    env.reward_manager = object()
+    env.termination_manager = object()
+    env.curriculum_manager = object()
+    env.obs_buf = {"policy": object()}
+
+    try:
+        with pytest.raises(ExceptionGroup) as raised:
+            env.close()
+        assert raised.value is error
+        sim.clear_instance.assert_called_once_with()
+        assert env._is_closed
+        assert env._window is None
+        assert not hasattr(env, "scene")
+        assert not hasattr(env, "observation_manager")
+        assert not env.obs_buf
+        env.close()
+        sim.stop.assert_called_once_with()
+        observation_manager.close.assert_called_once_with()
+    finally:
+        env._is_closed = True
 
 
 class _FakeMultiAgentEnv:
