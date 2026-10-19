@@ -52,7 +52,7 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 | `--cosmos` | Put Cosmos on the task's rgb camera |
 | `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
 | `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras |
-| `--cosmos_control depth|edge` | Control prepared from the render (default `depth`); see "Controls and prompts" |
+| `--cosmos_control depth\|edge` | Control prepared from the render (default `depth`); see "Controls and prompts" |
 | `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
 | `--cosmos_endpoint URL` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
 | `--cosmos_transport auto\|cuda_ipc\|socket` | How images move to the service; see "Endpoints and transports" (default `auto`) |
