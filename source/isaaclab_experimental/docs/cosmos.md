@@ -277,7 +277,7 @@ A prompt can change only at an episode reset.
 
 Prompts can also come from files: `read_prompt_files(["prompts/*.json"])` returns one prompt per file, with patterns
 expanded in sorted order, so `prompt=read_prompt_files([...])` gives each of 16 environments its own file. A `.txt`
-file is used as written. A `.json` file is a structured caption, the format the model was trained on: it is parsed and
+file is used without leading and trailing whitespace. A `.json` file is a structured caption, the format the model was trained on: it is parsed and
 serialized once into the prompt string, keeping its structure rather than flattening it into prose. The service does
 not upsample prompts, so prepared captions reach the model unchanged. Pass the result as the `prompt` of
 `apply_cosmos`, or set it in a preset's `CosmosModelCfg`.

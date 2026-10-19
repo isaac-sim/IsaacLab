@@ -16,13 +16,13 @@ from pathlib import Path
 def read_prompt_files(paths: Sequence[str]) -> list[str]:
     """Read one Cosmos prompt per file, in the given order.
 
-    A ``.txt`` file is the prompt as written. A ``.json`` file, such as a structured caption, keeps its structure:
-    the parsed object is serialized once into the prompt string, the format Cosmos was trained on, rather than
-    flattened into prose. An entry with ``*``, ``?``, or ``[`` is a pattern that expands to its matches in sorted
-    order, and an entry such as ``"[a.json,b.txt]"`` lists several paths or patterns.
+    A ``.txt`` file is the prompt, without leading and trailing whitespace. A ``.json`` file, such as a structured
+    caption, keeps its structure: the parsed object is serialized once into the prompt string, the format Cosmos was
+    trained on, rather than flattened into prose. A path with ``*``, ``?``, or ``[`` is a pattern that expands to its
+    matches in sorted order.
 
     Args:
-        paths: File paths, patterns, or bracketed lists of them.
+        paths: File paths or patterns.
 
     Returns:
         The prompts, one per file. A list cycles per episode with one environment and assigns one prompt per
@@ -33,17 +33,14 @@ def read_prompt_files(paths: Sequence[str]) -> list[str]:
             ``.json``, or invalid JSON.
     """
     files = []
-    for entry in paths:
-        entry = entry.strip()
-        items = entry[1:-1].split(",") if entry.startswith("[") and entry.endswith("]") else [entry]
-        for item in (item.strip() for item in items):
-            if any(character in item for character in "*?["):
-                matches = sorted(glob.glob(str(Path(item).expanduser())))
-                if not matches:
-                    raise ValueError(f"No Cosmos prompt file matches {item!r}.")
-                files.extend(Path(match) for match in matches)
-            elif item:
-                files.append(Path(item).expanduser())
+    for path in (path.strip() for path in paths):
+        if any(character in path for character in "*?["):
+            matches = sorted(glob.glob(str(Path(path).expanduser())))
+            if not matches:
+                raise ValueError(f"No Cosmos prompt file matches {path!r}.")
+            files.extend(Path(match) for match in matches)
+        elif path:
+            files.append(Path(path).expanduser())
     if not files:
         raise ValueError("Cosmos prompt files need at least one path.")
     return [_read_prompt_file(path) for path in files]

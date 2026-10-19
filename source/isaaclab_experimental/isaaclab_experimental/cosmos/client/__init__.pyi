@@ -30,7 +30,6 @@ from .control_profiles import (
     depth_processor,
     edge_control,
     edge_processor,
-    read_prompt_files,
     region_control,
     regional_edge_processor,
     regional_edges,
