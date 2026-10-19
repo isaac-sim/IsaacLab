@@ -19,6 +19,3 @@ docs/source/_static/actuators/*.png binary linguist-generated
 
 *.bat text eol=crlf
 *.sh text eol=lf
-
-# Preserve whitespace in the vendored unified diff.
-demos/cosmos3-transfer/*.patch whitespace=-blank-at-eol

@@ -6,8 +6,7 @@
       "repo": "https://github.com/NVIDIA/cosmos-framework",
       "revision": "7cfaf7854b2114eda5deb36250a7e8f00c64d69e",
       "access": "public",
-      "patch": "cosmos-framework-causal-aliases.patch",
-      "patch_sha256": "c6e208468a3ab72e7a14290afc8d795a5f2252a4ff954a867e7d3e050bb5c165"
+      "causal_aliases": true
     }
   },
   "models": {

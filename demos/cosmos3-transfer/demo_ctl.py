@@ -748,6 +748,42 @@ def summary(values: list[float]) -> dict | None:
     }  # fmt: skip
 
 
+# The public Framework registers only the bidirectional model, so its loader cannot open the causal checkpoint. These
+# entries add the causal model and its attention configs to the loader's alias tables.
+_VFM = "projects.cosmos3.vfm."
+_CAUSAL_TARGET_ALIASES = {
+    _VFM + "models.omni_mot_causal_model.OmniMoTCausalModel": "omni_mot_causal_model",
+}
+_CAUSAL_TYPE_ALIASES = {
+    _VFM + "models.omni_mot_causal_model.OmniMoTCausalModelConfig": "omni_mot_causal_model_config",
+    _VFM + "configs.base.defaults.causal_flex_attention.CausalFlexAttentionConfig": "causal_flex_attention_config",
+    _VFM + "configs.base.defaults.causal_flex_attention.CausalFlexAttentionMaskConfig": (
+        "causal_flex_attention_mask_config"
+    ),
+    _VFM + "configs.base.defaults.flex_attention.FlexAttentionConfig": "flex_attention_config",
+    _VFM + "configs.base.defaults.flex_attention.FlexAttentionMaskConfig": "flex_attention_mask_config",
+    _VFM + "configs.base.defaults.replay_attention.TeacherForcingReplayPolicyConfig": (
+        "teacher_forcing_replay_policy_config"
+    ),
+}
+
+
+def register_causal_aliases(root: Path) -> None:
+    """Add the causal model aliases to the Framework loader; does nothing when they are already there."""
+    path = root / "cosmos_framework/inference/common/public_model_config.py"
+    text = path.read_text()
+    if "omni_mot_causal_model" in text:
+        return
+    for table, aliases in (("_TARGET_ALIASES", _CAUSAL_TARGET_ALIASES), ("_TYPE_ALIASES", _CAUSAL_TYPE_ALIASES)):
+        anchor = f"{table} = {{\n"
+        if anchor not in text:
+            raise SystemExit(f"Cannot register the causal model: {table} not found in {path}.")
+        entries = "".join(f'    "{key}": "{value}",\n' for key, value in aliases.items())
+        text = text.replace(anchor, anchor + entries, 1)
+    path.write_text(text)
+    print(f"Registered the causal model aliases in {path}.")
+
+
 def collect_versions(resolved: bool = True) -> list[dict]:
     """Each component with its source, access level, pinned snapshot and what is actually present."""
     sources = load_sources()
@@ -756,7 +792,6 @@ def collect_versions(resolved: bool = True) -> list[dict]:
     framework = sources["frameworks"][active]
     cosmos = sources["models"]["cosmos_checkpoint"]
     remote = subprocess.run(["git", "-C", str(REPO), "remote", "get-url", "origin"], capture_output=True, text=True)
-    patch = framework.get("patch")
     framework_present = _git_head(Path(config["framework_root"])) if config.get("framework_root") else None
     snapshots = _hf_snapshots(cosmos["repo"]) if resolved else []
     return [
@@ -766,7 +801,7 @@ def collect_versions(resolved: bool = True) -> list[dict]:
         },
         {
             "component": f"Cosmos Framework ({active})", "source": framework["repo"], "access": framework["access"],
-            "pinned": framework["revision"] + (f" + patch {Path(patch).name}" if patch else " (no patch)"),
+            "pinned": framework["revision"] + (" + causal model aliases" if framework.get("causal_aliases") else ""),
             "present": framework_present,
         },
         {
@@ -799,13 +834,8 @@ def setup(args) -> int:
 
     # Cosmos Framework: its own Python 3.13 / Torch environment, with this checkout's Cosmos server installed into it.
     clone_at(framework["repo"], framework["revision"], root)
-    if framework.get("patch"):
-        patch = DEMOS / framework["patch"]
-        done = subprocess.run(
-            ["git", "-C", str(root), "apply", "--reverse", "--check", str(patch)], capture_output=True
-        )
-        if done.returncode != 0:
-            step("Apply the Framework compatibility patch", ["git", "-C", str(root), "apply", str(patch)])
+    if framework.get("causal_aliases"):
+        register_causal_aliases(root)
     step("Install the Framework environment", ["uv", "sync", "--locked", "--all-extras", "--group=cu130-train"], root)
     step(
         "Install this checkout's Cosmos server into it",

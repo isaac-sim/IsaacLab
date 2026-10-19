@@ -16,7 +16,6 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: '^demos/cosmos3-transfer/cosmos-framework-causal-aliases\.patch$'
       - id: check-symlinks
       - id: destroyed-symlinks
       - id: check-added-large-files
@@ -42,7 +41,7 @@ repos:
       - id: codespell
         additional_dependencies:
         - tomli
-        exclude: "CONTRIBUTORS.md|docs/source/setup/walkthrough/concepts_env_design.rst|^demos/cosmos3-transfer/cosmos-framework-causal-aliases[.]patch$"
+        exclude: "CONTRIBUTORS.md|docs/source/setup/walkthrough/concepts_env_design.rst"
   # FIXME: Figure out why this is getting stuck under VPN.
   # - repo: https://github.com/RobertCraigie/pyright-python
   #   rev: v1.1.315
