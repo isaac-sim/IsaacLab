@@ -16,7 +16,7 @@ No source checkout is required.
    <div class="environment-browser demo-browser" data-demo-browser>
      <section class="environment-command-panel" aria-label="Isaac Lab demo command builder">
        <div class="environment-command-row environment-command-row-primary demo-command-row">
-         <span class="environment-command-prefix">uvx isaaclab demo</span>
+         <span class="environment-command-prefix">uvx --python 3.12 isaaclab demo</span>
          <strong class="demo-command-selection" data-demo-name>zoo</strong>
        </div>
        <div class="environment-command-row demo-command-options">
@@ -116,8 +116,8 @@ List all demos or focused API examples:
 
 .. code-block:: bash
 
-   uvx --torch-backend cu130 isaaclab demo list
-   uvx --torch-backend cu130 isaaclab example list
+   uvx --python 3.12 --torch-backend cu130 isaaclab demo list
+   uvx --python 3.12 --torch-backend cu130 isaaclab example list
 
 Run a focused example with ``isaaclab example <name>``. In the Newton GL viewer, the
 **Isaac Lab Programs** panel lets you switch between available demos and examples.

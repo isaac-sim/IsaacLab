@@ -638,7 +638,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
       .. code-block:: bash
 
-         uvx --index https://pypi.nvidia.com \
+         uvx --python 3.12 --index https://pypi.nvidia.com \
             --torch-backend cu130 \
             --from "isaaclab==3.0.0" \
             isaaclab demo zoo

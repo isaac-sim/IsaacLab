@@ -60,7 +60,7 @@
             const extraOrder = ["isaacsim", "ovphysx", "ovrtx", "tetrahedralization", "teleop", "rerun", "viser"];
             const extras = extraOrder.filter((extra) => requiredExtras.has(extra));
 
-            const parts = ["uvx"];
+            const parts = ["uvx", "--python", "3.12"];
             if (extras.length) {
                 parts.push("--from", `'isaaclab[${extras.join(",")}]'`);
             }
