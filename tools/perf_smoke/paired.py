@@ -242,8 +242,7 @@ def restore_baseline(
     protocol = _benchmark_protocol(legs, measurement_manifest)
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
     try:
-        current_run = client.run_attempt(run_id, run_attempt)
-        workflow_id = current_run.get("workflow_id")
+        workflow_id = client.run_attempt(run_id, run_attempt).get("workflow_id")
         if not isinstance(workflow_id, int) or workflow_id <= 0:
             raise baseline_mod.EvidenceError("identity_mismatch", "The producing workflow identity is unavailable.")
         runs = client.paginate(
@@ -252,12 +251,14 @@ def restore_baseline(
             event="pull_request",
             branch=pr["head"]["ref"],
         )
-        artifacts = [
-            artifact
-            for run in runs
-            for artifact in client.artifacts(run["id"])
-            if artifact.get("name", "").startswith(prefix)
-        ]
+        artifacts = []
+        for run in runs:
+            try:
+                artifacts.extend(
+                    artifact for artifact in client.artifacts(run["id"]) if artifact.get("name", "").startswith(prefix)
+                )
+            except baseline_mod.EvidenceError as exc:
+                selection["issues"].append(f"Run {run['id']} artifacts were unavailable: {exc}")
         for artifact in sorted(artifacts, key=lambda item: (item.get("created_at", ""), item["id"]), reverse=True):
             if artifact.get("expired"):
                 continue
@@ -610,27 +611,24 @@ def _record_failure(args: argparse.Namespace, event: dict, reason: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    resolve = commands.add_parser("resolve")
-    resolve.add_argument("--checkout-root", type=Path, required=True)
-    resolve.add_argument("--output-dir", type=Path)
-    restore = commands.add_parser("restore")
-    restore.add_argument("--checkout-root", type=Path, required=True)
-    restore.add_argument("--output-dir", type=Path, required=True)
-    restore.add_argument("--selection", type=Path, required=True)
-    restore.add_argument("--legs", type=Path, required=True)
-    restore.add_argument("--measurement-manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST"))
-    capture = commands.add_parser("capture")
-    capture.add_argument("--checkout-root", type=Path, required=True)
-    capture.add_argument("--output-dir", type=Path, required=True)
-    capture.add_argument("--image", required=True)
-    capture.add_argument("--role", choices=("baseline", "current"), required=True)
-    capture.add_argument("--legs", type=Path, required=True)
-    capture.add_argument("--measurement-manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST"))
-    bind = commands.add_parser("bind")
-    bind.add_argument("--selection", type=Path, required=True)
-    bind.add_argument("--output-dir", type=Path, required=True)
-    bind.add_argument("--artifact-id")
-    bind.add_argument("--baseline-issue", default="")
+    for name in ("resolve", "restore", "capture", "bind"):
+        command = commands.add_parser(name)
+        command.add_argument("--output-dir", type=Path, required=name != "resolve")
+        if name != "bind":
+            command.add_argument("--checkout-root", type=Path, required=True)
+        if name in ("restore", "bind"):
+            command.add_argument("--selection", type=Path, required=True)
+        if name in ("restore", "capture"):
+            command.add_argument("--legs", type=Path, required=True)
+            command.add_argument(
+                "--measurement-manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST")
+            )
+        if name == "capture":
+            command.add_argument("--image", required=True)
+            command.add_argument("--role", choices=("baseline", "current"), required=True)
+        if name == "bind":
+            command.add_argument("--artifact-id")
+            command.add_argument("--baseline-issue", default="")
     args = parser.parse_args(argv)
     event = {}
     try:

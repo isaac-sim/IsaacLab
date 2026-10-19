@@ -8,11 +8,12 @@
 import hashlib
 import io
 import json
-import unittest
 import urllib.error
 import urllib.parse
 import zipfile
 from unittest.mock import Mock, patch
+
+import pytest
 
 from . import baseline
 
@@ -24,17 +25,30 @@ def stamp(hour, minute=0):
     return f"2026-10-01T{hour:02d}:{minute:02d}:00+00:00"
 
 
-def bundle(start=stamp(10), end=stamp(10, 5), task="task", fps=100, status="completed"):
+def bundle(fps=100, task="Task", *, start=stamp(10), end=stamp(10, 5), status="completed", seed=42):
     return {
         "run": {
             "task": task,
             "num_envs": 512,
             "status": status,
+            "seed": seed,
             "config": {"physics_backend": "newton_mjwarp", "rendering_backend": "none", "presets": []},
             "start_time_utc": start,
             "end_time_utc": end,
         },
-        "runtime": {"total_fps": {"mean": fps}},
+        "runtime": {
+            "total_fps": {"mean": fps},
+            "iterations_completed": 200,
+            "steps_per_iteration": 512,
+            "environment_step_timing": {"warmup_steps": 100, "measurement_mode": "host_return"},
+        },
+        "hardware": {
+            "hostname": "worker-a",
+            "cpu_name": "Intel(R) Xeon(R) 6975P-C",
+            "cpu_count": 16,
+            "gpu_devices": [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}],
+        },
+        "versions": {"warp": "1.0"},
     }
 
 
@@ -145,59 +159,49 @@ class FixtureClient(baseline.GitHubClient):
             return super().download(artifact)
 
 
-class TestEvidence(unittest.TestCase):
-    def setUp(self):
-        self.client = FixtureClient()
-        self.client.add(20, HEAD, start=stamp(12), samples={"leg": [bundle(stamp(12, 1), stamp(12, 5))]})
+def check_evidence(subtests):
+    with subtests.test(evidence="missing source context"):
+        client = FixtureClient()
+        client.add(20, HEAD, start=stamp(12), samples={"leg": [bundle(start=stamp(12, 1), end=stamp(12, 5))]})
+        assert baseline.resolve_candidate(client, 20, 1).measurement_start == stamp(12, 1)
+        client.add(10, PARENT, context=False, samples={"leg": [bundle(end=stamp(12), fps=1)]}, conclusion="failure")
+        evidence = baseline.resolve_candidate(client, 10, 1)
+        assert evidence.identity["run_id"] == 10
+        assert evidence.context == {}
+        assert evidence.identity["tested_commit"] is None
+        assert "provenance" in evidence.issues[0]
 
-    def candidate(self, attempt=1):
-        return baseline.resolve_candidate(self.client, 20, attempt)
-
-    def test_missing_context_does_not_claim_verified_source(self):
-        self.client.add(
-            10, PARENT, context=False, samples={"leg": [bundle(end=stamp(12), fps=1)]}, conclusion="failure"
-        )
-        self.assertEqual(self.candidate().measurement_start, stamp(12, 1))
-        evidence = baseline.resolve_candidate(self.client, 10, 1)
-        self.assertEqual(evidence.identity["run_id"], 10)
-        self.assertEqual(evidence.context, {})
-        self.assertIsNone(evidence.identity["tested_commit"])
-        self.assertIn("provenance", evidence.issues[0])
-
-    def test_producing_attempt_preserves_incomplete_legs(self):
-        self.client.add(10, PARENT)
-        self.client.add(
+    with subtests.test(evidence="rerun with an incomplete leg"):
+        client = FixtureClient()
+        client.add(10, PARENT)
+        client.add(
             10,
             PARENT,
             attempt=2,
             start=stamp(11),
-            samples={"renamed-leg": [bundle(stamp(11), stamp(11, 5))]},
+            samples={"renamed-leg": [bundle(start=stamp(11), end=stamp(11, 5))]},
             statuses={"renamed-leg": "ok", "missing-leg": "failed"},
             conclusion="failure",
         )
-        evidence = baseline.resolve_candidate(self.client, 10, 2)
-        self.assertEqual(evidence.identity["run_attempt"], 2)
-        self.assertEqual(evidence.samples["missing-leg"], [])
-        self.assertEqual(evidence.statuses["missing-leg"], "failed")
+        evidence = baseline.resolve_candidate(client, 10, 2)
+        assert evidence.identity["run_attempt"] == 2
+        assert evidence.samples["missing-leg"] == []
+        assert evidence.statuses["missing-leg"] == "failed"
 
-    def test_missing_candidate_sample_start_uses_capture_or_unknown(self):
-        self.client.add(30, HEAD, start=stamp(9), samples={"leg": [bundle(), bundle(start=None)]})
-        candidate = baseline.resolve_candidate(self.client, 30, 1)
-        self.assertEqual(candidate.measurement_start, stamp(9))
-        self.assertIn("capture time", str(candidate.issues))
-        self.client.add(31, HEAD, context=False, samples={"leg": [bundle(), bundle(start=None)]})
-        self.assertIsNone(baseline.resolve_candidate(self.client, 31, 1).measurement_start)
+    for context in (True, False):
+        with subtests.test(evidence="missing sample start", context=context):
+            client = FixtureClient()
+            client.add(30, HEAD, start=stamp(9), context=context, samples={"leg": [bundle(), bundle(start=None)]})
+            evidence = baseline.resolve_candidate(client, 30, 1)
+            assert evidence.measurement_start == (stamp(9) if context else None)
+            if context:
+                assert "capture time" in str(evidence.issues)
 
-    def test_failed_sample_without_end_does_not_prove_baseline_finished(self):
-        self.client.add(10, PARENT, samples={"leg": [bundle(), bundle(end=None, status="failed")]})
-        evidence = baseline.resolve_candidate(self.client, 10, 1)
-        self.assertIsNone(evidence.measurement_end)
-        self.assertIn("runtime has no valid end timestamp", str(evidence.issues))
-
-    def test_corrupt_workload_preserved_alongside_valid_samples(self):
-        self.client.add(10, PARENT, artifact=False)
-        self.client.run_jobs[10, 1][0]["completed_at"] = stamp(11)
-        self.client.add_artifact(
+    with subtests.test(evidence="corrupt workload beside a valid sample"):
+        client = FixtureClient()
+        client.add(10, PARENT, artifact=False)
+        client.run_jobs[10, 1][0]["completed_at"] = stamp(11)
+        client.add_artifact(
             10,
             "performance-smoke-10-1",
             {
@@ -207,166 +211,137 @@ class TestEvidence(unittest.TestCase):
                 "broken/status": "failed",
             },
         )
-        evidence = baseline.resolve_candidate(self.client, 10, 1)
-        self.assertEqual(evidence.identity["run_id"], 10)
-        self.assertEqual(len(evidence.samples["leg"]), 1)
-        self.assertEqual(evidence.samples["broken"], [])
-        self.assertEqual(evidence.measurement_end, stamp(11))
-        self.assertIn("broken/sample-1/benchmark_runtime_broken.json", str(evidence.issues))
+        evidence = baseline.resolve_candidate(client, 10, 1)
+        assert evidence.identity["run_id"] == 10
+        assert len(evidence.samples["leg"]) == 1
+        assert evidence.samples["broken"] == []
+        assert evidence.measurement_end == stamp(11)
+        assert "broken/sample-1/benchmark_runtime_broken.json" in str(evidence.issues)
 
-    def test_malformed_fps_is_preserved_and_explicitly_unusable(self):
+    with subtests.test(evidence="unusable and incomplete samples"):
         malformed = bundle()
         malformed["runtime"]["total_fps"] = []
-        self.client.add(10, PARENT, samples={"leg": [malformed, bundle(fps=10**1000)]})
-        evidence = baseline.resolve_candidate(self.client, 10, 1)
-        self.assertEqual(len(evidence.samples["leg"]), 2)
-        self.assertTrue(all(not baseline.has_usable_runtime(item["bundle"]) for item in evidence.samples["leg"]))
-        self.assertIn("FPS value", str(evidence.issues))
-
-    def test_missing_job_time_is_explicit_not_old_evidence(self):
-        self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
-        self.client.run_jobs[20, 2][0]["started_at"] = None
-        with self.assertRaises(baseline.EvidenceError) as raised:
-            self.candidate(2)
-        self.assertEqual(raised.exception.code, "ambiguous_attempt")
-
-    def test_corrupt_digest_and_zip_report_explicit_errors(self):
-        artifact = self.client.run_artifacts[20][0]
-        artifact["digest"] = "sha256:" + "0" * 64
-        with self.assertRaisesRegex(baseline.EvidenceError, "digest does not match") as raised:
-            self.candidate()
-        self.assertEqual(raised.exception.code, "corrupt")
-        artifact.pop("digest")
-        self.client.contents[artifact["id"]] = b"not a zip"
-        with self.assertRaisesRegex(baseline.EvidenceError, "ZIP could not be read") as raised:
-            self.candidate()
-        self.assertEqual(raised.exception.code, "corrupt")
-
-    def test_expired_evidence_retains_api_identity_without_claiming_tested_commit(self):
-        self.client.run_artifacts[20][0]["expired"] = True
-        with self.assertRaises(baseline.EvidenceError) as raised:
-            self.candidate()
-        identity = raised.exception.identity
-        self.assertEqual((identity["repository"], identity["run_id"], identity["run_attempt"]), (REPO, 20, 1))
-        self.assertEqual(identity["artifact_id"], self.client.run_artifacts[20][0]["id"])
-        self.assertEqual(identity["source_commit"], HEAD)
-        self.assertEqual(identity["github_head_commit"], HEAD)
-        self.assertEqual(identity["source_provenance"], "github_run_metadata")
-        self.assertIsNone(identity["tested_commit"])
-        self.assertEqual(identity["run_url"], f"https://github.com/{REPO}/actions/runs/20/attempts/1")
-
-    def test_failed_samples_are_preserved(self):
-        self.client.add(10, PARENT, samples={"leg": [bundle(status="failed")]}, statuses={"leg": "failed"})
-        evidence = baseline.resolve_candidate(self.client, 10, 1)
-        self.assertEqual(evidence.statuses["leg"], "failed")
-        self.assertEqual(evidence.samples["leg"][0]["bundle"]["run"]["status"], "failed")
-        self.assertFalse(baseline.has_usable_runtime(evidence.samples["leg"][0]["bundle"]))
-
-    def test_missing_or_invalid_renderer_is_unknown_workload_identity(self):
-        sample = bundle()
-        self.assertIsNotNone(baseline.workload_key(sample))
-        sample["run"]["config"].pop("rendering_backend")
-        self.assertIsNone(baseline.workload_key(sample))
-        for renderer in (None, 42, "", " "):
-            with self.subTest(renderer=renderer):
-                sample["run"]["config"]["rendering_backend"] = renderer
-                self.assertIsNone(baseline.workload_key(sample))
-
-
-class TestGitHubTransport(unittest.TestCase):
-    def test_pagination_at_client_boundary(self):
-        client = baseline.GitHubClient(REPO, token="memory-only")
-        paths = []
-
-        def get(path):
-            paths.append(path)
-            page = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)["page"][0]
-            return {"total_count": 101, "artifacts": [{"id": i} for i in (range(100) if page == "1" else [100])]}
-
-        client.get = get
-        self.assertEqual(len(client.artifacts(10)), 101)
-        self.assertEqual(len(paths), 2)
-
-    def test_incomplete_history_is_not_treated_as_complete(self):
-        client = baseline.GitHubClient(REPO)
-        client.get = lambda path: {"total_count": 1001, "artifacts": []}
-        with self.assertRaises(baseline.EvidenceError) as raised:
-            client.artifacts(10)
-        self.assertEqual(raised.exception.code, "incomplete_history")
-
-    def test_redirect_does_not_forward_authorization(self):
-        client = baseline.GitHubClient(REPO, token="memory-only")
-        redirect = urllib.error.HTTPError(
-            "https://api.github.com/artifact",
-            302,
-            "redirect",
-            {
-                "Location": "https://storage.example.invalid/artifact?sig=secret",
+        client = FixtureClient()
+        client.add(
+            10,
+            PARENT,
+            samples={
+                "leg": [malformed, bundle(fps=10**1000)],
+                "failed": [bundle(status="failed")],
+                "incomplete": [bundle(), bundle(end=None, status="failed")],
             },
-            None,
+            statuses={"leg": "ok", "failed": "failed", "incomplete": "ok"},
         )
-        client._opener = Mock()
-        client._opener.open.side_effect = redirect
-        response = io.BytesIO(b"original zip")
-        response.headers = {}
-        with patch("urllib.request.urlopen", return_value=response) as opened:
-            self.assertEqual(client.download({"id": 7}), b"original zip")
-        self.assertIsNone(opened.call_args.args[0].get_header("Authorization"))
-        self.assertEqual(client._opener.open.call_args.args[0].get_header("Authorization"), "Bearer memory-only")
+        evidence = baseline.resolve_candidate(client, 10, 1)
+        assert len(evidence.samples["leg"]) == 2
+        assert all(not baseline.has_usable_runtime(item["bundle"]) for item in evidence.samples["leg"])
+        assert "FPS value" in str(evidence.issues)
+        assert evidence.statuses["failed"] == "failed"
+        assert evidence.samples["failed"][0]["bundle"]["run"]["status"] == "failed"
+        assert not baseline.has_usable_runtime(evidence.samples["failed"][0]["bundle"])
+        assert evidence.measurement_end is None
+        assert "runtime has no valid end timestamp" in str(evidence.issues)
 
-    def test_api_and_signed_download_read_timeouts_are_bounded_and_reported_safely(self):
-        for download in (False, True):
-            with self.subTest(download=download):
-                client = baseline.GitHubClient(REPO, token="memory-only")
-                client._opener = Mock()
-                response = io.BytesIO(b"unfinished response")
-                response.headers = {}
-                client._opener.open.return_value = response
-                if download:
-                    client._opener.open.side_effect = urllib.error.HTTPError(
-                        "https://api.github.com/artifact",
-                        302,
-                        "redirect",
-                        {"Location": "https://storage.example.invalid/artifact?sig=secret"},
-                        None,
-                    )
-                with (
-                    patch("urllib.request.urlopen", return_value=response) as opened,
-                    patch.object(response, "read", side_effect=TimeoutError("read stalled: ?sig=secret")),
-                    self.assertRaises(baseline.EvidenceError) as raised,
-                ):
-                    if download:
-                        client.download({"id": 7})
-                    else:
-                        client.run_attempt(10, 1)
-                self.assertEqual(raised.exception.code, "timeout")
-                self.assertNotIn("secret", str(raised.exception))
-                self.assertTrue(response.closed)
-                self.assertEqual(client._opener.open.call_args.kwargs["timeout"], 60)
-                if download:
-                    self.assertEqual(opened.call_args.kwargs["timeout"], 60)
-                    self.assertIsNone(opened.call_args.args[0].get_header("Authorization"))
+    for mutation, code, message in (
+        ("missing_job_time", "ambiguous_attempt", None),
+        ("digest", "corrupt", "digest does not match"),
+        ("zip", "corrupt", "ZIP could not be read"),
+        ("expired", "expired", None),
+    ):
+        with subtests.test(evidence=mutation):
+            client = FixtureClient()
+            client.add(20, HEAD)
+            artifact = client.run_artifacts[20][0]
+            attempt = 1
+            if mutation == "missing_job_time":
+                attempt = 2
+                client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
+                client.run_jobs[20, 2][0]["started_at"] = None
+            elif mutation == "digest":
+                artifact["digest"] = "sha256:" + "0" * 64
+            elif mutation == "zip":
+                artifact.pop("digest")
+                client.contents[artifact["id"]] = b"not a zip"
+            else:
+                artifact["expired"] = True
+            with pytest.raises(baseline.EvidenceError, match=message) as raised:
+                baseline.resolve_candidate(client, 20, attempt)
+            assert raised.value.code == code
+            if mutation == "expired":
+                identity = raised.value.identity
+                assert (identity["repository"], identity["run_id"], identity["run_attempt"]) == (REPO, 20, 1)
+                assert identity["artifact_id"] == artifact["id"]
+                assert identity["source_commit"] == identity["github_head_commit"] == HEAD
+                assert identity["source_provenance"] == "github_run_metadata"
+                assert identity["tested_commit"] is None
+                assert identity["run_url"] == f"https://github.com/{REPO}/actions/runs/20/attempts/1"
 
-    def test_request_failures_have_safe_reason_codes_and_messages(self):
-        for error in (
-            urllib.error.URLError(TimeoutError("connect stalled: ?sig=secret")),
-            urllib.error.HTTPError("https://storage.example.invalid/?sig=secret", 403, "secret", {}, None),
-        ):
-            with self.subTest(case=type(error).__name__):
-                client = baseline.GitHubClient(REPO)
-                client._opener = Mock()
-                client._opener.open.side_effect = error
-                with self.assertRaises(baseline.EvidenceError) as raised:
-                    if isinstance(error, urllib.error.HTTPError):
-                        client.download({"id": 7})
-                    else:
-                        client.run_attempt(10, 1)
-                self.assertNotIn("secret", str(raised.exception))
-                if isinstance(error, urllib.error.HTTPError):
-                    self.assertIn("403", str(raised.exception))
+    sample = bundle()
+    assert baseline.workload_key(sample) is not None
+    sample["run"]["config"].pop("rendering_backend")
+    assert baseline.workload_key(sample) is None
+    for renderer in (None, 42, "", " "):
+        with subtests.test(renderer=renderer):
+            sample["run"]["config"]["rendering_backend"] = renderer
+            assert baseline.workload_key(sample) is None
+
+
+def check_transport(tmp_path, subtests):
+    with subtests.test(transport="pagination"):
+        client = baseline.GitHubClient(REPO)
+        pages = [{"id": i} for i in range(100)], [{"id": 100}]
+        client.get = Mock(side_effect=[{"total_count": 101, "artifacts": page} for page in pages])
+        assert len(client.artifacts(10)) == 101
+        assert [
+            urllib.parse.parse_qs(urllib.parse.urlsplit(call.args[0]).query)["page"]
+            for call in client.get.call_args_list
+        ] == [["1"], ["2"]]
+        client.get = Mock(return_value={"total_count": 1001, "artifacts": []})
+        with pytest.raises(baseline.EvidenceError) as raised:
+            client.artifacts(10)
+        assert raised.value.code == "incomplete_history"
+
+    secret_url = "https://storage.example.invalid/artifact?sig=secret"
+    for kind, open_error, read_error, code in (
+        ("download", None, None, None),
+        ("api_read", None, TimeoutError("read stalled: ?sig=secret"), "timeout"),
+        ("download", None, TimeoutError("read stalled: ?sig=secret"), "timeout"),
+        ("api_connect", urllib.error.URLError(TimeoutError("connect stalled: ?sig=secret")), None, "timeout"),
+        ("download", urllib.error.HTTPError(secret_url, 403, "secret", {}, None), None, "inaccessible"),
+    ):
+        with subtests.test(transport=kind, open_error=open_error, read_error=read_error):
+            client = baseline.GitHubClient(REPO, token="memory-only" if open_error is None else "")
+            response = io.BytesIO(b"original zip")
+            client._opener = Mock()
+            redirect = kind == "download" and open_error is None
+            client._opener.open.return_value = response
+            client._opener.open.side_effect = (
+                urllib.error.HTTPError(
+                    "https://api.github.com/artifact", 302, "redirect", {"Location": secret_url}, None
+                )
+                if redirect
+                else open_error
+            )
+            with (
+                patch("urllib.request.urlopen", return_value=response) as opened,
+                patch.object(response, "read", side_effect=read_error, return_value=b"original zip"),
+            ):
+                request = (
+                    (lambda: client.download({"id": 7})) if kind == "download" else (lambda: client.run_attempt(10, 1))
+                )
+                if code is None:
+                    assert request() == b"original zip"
                 else:
-                    self.assertEqual(raised.exception.code, "timeout")
-
-
-if __name__ == "__main__":
-    unittest.main()
+                    with pytest.raises(baseline.EvidenceError) as raised:
+                        request()
+                    assert raised.value.code == code
+                    assert "secret" not in str(raised.value)
+                    if isinstance(open_error, urllib.error.HTTPError):
+                        assert "403" in str(raised.value)
+            if read_error:
+                assert response.closed
+                assert client._opener.open.call_args.kwargs["timeout"] == 60
+            if redirect:
+                assert opened.call_args.kwargs["timeout"] == 60
+                assert opened.call_args.args[0].get_header("Authorization") is None
+                assert client._opener.open.call_args.args[0].get_header("Authorization") == "Bearer memory-only"

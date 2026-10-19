@@ -7,45 +7,18 @@
 
 import copy
 import json
-import tempfile
-import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from . import build_compare, compare
 from .baseline import Evidence, workload_key
 from .build_compare import compare_evidence
 from .report import render_aggregate, render_build_comparison
-from .test_baseline import HEAD, PARENT, FixtureClient, stamp
+from .test_baseline import HEAD, PARENT, FixtureClient, bundle, stamp
 
 
-def bundle(fps, task="Task", *, seed=42):
-    return {
-        "run": {
-            "task": task,
-            "num_envs": 512,
-            "status": "completed",
-            "seed": seed,
-            "config": {"physics_backend": "newton_mjwarp", "rendering_backend": "none", "presets": []},
-        },
-        "runtime": {
-            "total_fps": {"mean": fps},
-            "iterations_completed": 200,
-            "steps_per_iteration": 512,
-            "environment_step_timing": {"warmup_steps": 100, "measurement_mode": "host_return"},
-        },
-        "hardware": {
-            "hostname": "worker-a",
-            "cpu_name": "Intel(R) Xeon(R) 6975P-C",
-            "cpu_count": 16,
-            "gpu_devices": [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}],
-        },
-        "versions": {"warp": "1.0"},
-    }
-
-
-def evidence(samples=None, *, expected=3, formula="measurement-v1:" + "a" * 64, statuses=None):
-    samples = {"leg": [bundle(90), bundle(100), bundle(110)]} if samples is None else samples
+def evidence(samples=None, *, fps=(90, 100, 110), expected=3, formula="measurement-v1:" + "a" * 64, statuses=None):
+    if samples is None:
+        samples = {"leg": [bundle(value) for value in (fps if isinstance(fps, tuple) else (fps,) * 3)]}
     return Evidence(
         identity={"run_id": 1, "run_attempt": 1, "source_commit": "a" * 40},
         context={
@@ -68,8 +41,287 @@ def evidence(samples=None, *, expected=3, formula="measurement-v1:" + "a" * 64, 
     )
 
 
-class ReportRenderingTests(unittest.TestCase):
-    def test_headline_counts_every_workload_without_reclassifying_rounded_or_missing_deltas(self):
+def set_sample_field(selection, path, value, *, index=None, remove=False):
+    """Change or remove one field in all repeats or one selected repeat."""
+    samples = selection.samples["leg"]
+    for sample in samples if index is None else [samples[index]]:
+        target = sample["bundle"]
+        *parents, key = path.split(".")
+        for parent in parents:
+            target = target[parent]
+        if remove:
+            target.pop(key)
+        else:
+            target[key] = copy.deepcopy(value)
+
+
+def assert_fields(actual, **expected):
+    assert {key: actual[key] for key in expected} == expected
+
+
+def run_report(client, output, *, attempt=1, comparison_dir=None, gate_only=False):
+    arguments = [
+        "--repository",
+        client.repository,
+        "--run_id",
+        "20",
+        "--run_attempt",
+        str(attempt),
+        "--output_dir",
+        str(output),
+    ]
+    if comparison_dir is not None:
+        arguments += ["--comparison_dir", str(comparison_dir)]
+    if gate_only:
+        arguments += ["--gate-only"]
+    with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=client):
+        status = build_compare.main(arguments)
+    if gate_only:
+        assert not output.exists()
+        return (status, None, None)
+    return (
+        status,
+        json.loads((output / "build-comparison.json").read_text()),
+        (output / "build-comparison.md").read_text(),
+    )
+
+
+def check_comparisons(subtests):
+    with subtests.test(msg="complete fps samples use medians and conventional delta"):
+        a = evidence({"leg": [bundle(90), bundle(100), bundle(1100)]})
+        b = evidence({"leg": [bundle(93), bundle(96), bundle(999)]})
+        report = compare_evidence(a, b)
+        row = report["rows"][0]
+        assert row["workload_key"] == workload_key(bundle(100))
+        assert_fields(row["baseline"], samples=[90, 100, 1100], median=100, min=90, max=1100, expected_count=3)
+        assert row["candidate"]["median"] == 96
+        assert_fields(row, absolute_change=-4, change_pct=-4, status="compared")
+        assert "verdict" not in row
+        assert any("not statistical significance" in note for note in report["notes"])
+    with subtests.test(msg="dynamic workloads include every shared and missing identity"):
+        a = evidence({"unfamiliar-leg": [bundle(100, "Shared")] * 3, "removed": [bundle(50, "Removed")] * 3})
+        b = evidence({"renamed-leg": [bundle(110, "Shared")] * 3, "new": [bundle(60, "New")] * 3})
+        rows = compare_evidence(a, b)["rows"]
+        assert len(rows) == 3
+        compared = [row for row in rows if row["status"] == "compared"]
+        assert len(compared) == 1
+        assert compared[0]["change_pct"] == 10
+        assert sum(row["status"] == "missing" for row in rows) == 2
+    with subtests.test(msg="status only leg is associated without claiming identity"):
+        b = evidence({"leg": []}, statuses={"leg": "failed"})
+        rows = compare_evidence(evidence(), b)["rows"]
+        assert len(rows) == 1
+        assert rows[0]["status"] == "missing"
+        assert any("display association" in reason for reason in rows[0]["reasons"])
+        unknown = compare_evidence(b, b)["rows"][0]
+        assert unknown["workload_key"] is None
+        assert "identity unavailable" in unknown["label"]
+    with subtests.test(msg="incomplete or unknown sample counts and failed runs preserve values"):
+        variants = [
+            ("partial", evidence({"leg": [bundle(100), bundle(110)]})),
+            ("partial", evidence(statuses={"leg": "failed"})),
+            ("partial", evidence(statuses={})),
+        ]
+        runtime_failed = evidence()
+        runtime_failed.samples["leg"][1]["bundle"]["run"]["status"] = "failed"
+        variants.append(("partial", runtime_failed))
+        variants.extend(("unknown", evidence(expected=value)) for value in (None, True, "3", 0))
+        for status, b in variants:
+            with subtests.test(statuses=b.statuses, execution=b.context["execution"], count=len(b.samples["leg"])):
+                report = compare_evidence(evidence(), b)
+                row = report["rows"][0]
+                assert_fields(row, status=status, absolute_change=None, change_pct=None)
+                assert row["candidate"]["samples"]
+                if status == "unknown":
+                    assert_fields(row["candidate"], count=3, expected_count=None)
+                elif len(b.samples["leg"]) != 3:
+                    assert "runtime samples; expected 3." in render_build_comparison(report)
+    with subtests.test(msg="invalid fps is not zero or a valid repeat"):
+        for value in (None, True, "100", float("nan"), float("inf"), -1):
+            with subtests.test(value=value):
+                b = evidence({"leg": [bundle(90), bundle(value), bundle(110)]})
+                row = compare_evidence(evidence(), b)["rows"][0]
+                assert_fields(row["candidate"], samples=[90, 110], observed_count=3, count=2)
+                assert_fields(row, status="partial", change_pct=None)
+    with subtests.test(msg="unknown different and legacy fps formulas are not equivalent"):
+        known = "measurement-v1:" + "a" * 64
+        legacy = "aggregate_frames_over_measured_seconds"
+        for case, baseline_formula, candidate_formula, candidate_fps, expected in (
+            ("missing", known, None, 100, "unknown"),
+            ("unknown", known, "unknown", 100, "unknown"),
+            ("padded_legacy", known, " AGGREGATE_FRAMES_OVER_MEASURED_SECONDS ", 100, "unknown"),
+            ("different", known, "mean_instantaneous_fps", 100, "incompatible"),
+            ("legacy_baseline", legacy, known, 110, "unknown"),
+            ("legacy_candidate", known, legacy, 110, "unknown"),
+            ("legacy_both", legacy, legacy, 110, "unknown"),
+        ):
+            with subtests.test(case=case):
+                a = evidence(formula=baseline_formula)
+                b = evidence(fps=(90, 100, 110) if candidate_fps == 100 else candidate_fps, formula=candidate_formula)
+                report = compare_evidence(a, b)
+                row = report["rows"][0]
+                assert row["status"] == expected
+                assert (row["baseline"]["median"], row["candidate"]["median"]) == (100, candidate_fps)
+                if case == "different":
+                    assert "FPS formula identities differ." in render_build_comparison(report)
+                assert_fields(row, absolute_change=None, change_pct=None)
+                if case.startswith("legacy_"):
+                    assert "FPS formula identity is unknown for one or both selections." in row["reasons"]
+    with subtests.test(msg="protocol changes and missing values are explicit"):
+        for field, path, value in (
+            ("seed", "run.seed", 7),
+            ("warmup_steps", "runtime.environment_step_timing.warmup_steps", 20),
+            ("measured_steps", "runtime.iterations_completed", 100),
+            ("measurement_mode", "runtime.environment_step_timing.measurement_mode", "synchronized"),
+            ("measurement_mode", "runtime.environment_step_timing.measurement_mode", None),
+        ):
+            with subtests.test(field=field, value=value):
+                b = evidence()
+                set_sample_field(b, path, value)
+                row = compare_evidence(evidence(), b)["rows"][0]
+                assert row["status"] == ("unknown" if value is None else "incompatible")
+                assert field in [item["field"] for item in row["protocol_differences"]]
+                assert row["change_pct"] is None
+    with subtests.test(msg="identical protocol variation on both sides is not silently pooled"):
+        a = evidence({"leg": [bundle(90, seed=1), bundle(100, seed=2), bundle(110, seed=3)]})
+        row = compare_evidence(a, copy.deepcopy(a))["rows"][0]
+        assert row["status"] == "incompatible"
+        assert row["protocol_differences"][0]["baseline"] == {"sample_values": [1, 2, 3]}
+        assert row["absolute_change"] is None
+    with subtests.test(msg="hardware packages and image qualify without causal verdict"):
+        for image, device_metadata in (
+            ("sha256:other", {}),
+            ("sha256:fixture", {"uuid": "different-device", "index": 7, "driver_version": "other-driver"}),
+        ):
+            with subtests.test(image=image, device_metadata=device_metadata):
+                b = evidence(fps=110)
+                b.context["source"]["image_digest"] = image
+                for sample in b.samples["leg"]:
+                    hardware = sample["bundle"]["hardware"]
+                    hardware["hostname"] = "worker-b"
+                    hardware["gpu_devices"][0].update(device_metadata)
+                    sample["bundle"]["versions"]["warp"] = "2.0"
+                report = compare_evidence(evidence(), b)
+                row = report["rows"][0]
+                assert_fields(row, status="compared", change_pct=10)
+                assert row["context_differences"]
+                fields = {item["field"] for item in row["context_differences"]}
+                expected = {"hardware.hostname", "versions.warp"}
+                if image != "sha256:fixture":
+                    expected.add("source.image_digest")
+                assert expected.issubset(fields)
+                assert any("does not isolate a commit effect" in note for note in row["notes"])
+                assert "does not isolate a commit effect" in render_build_comparison(report)
+    with subtests.test(msg="changed or unavailable hardware preserves fps without comparing them"):
+        cases = (
+            ("incompatible", "candidate", "cpu_name", "AMD EPYC 9554", None),
+            ("incompatible", "candidate", "cpu_count", 32, None),
+            ("incompatible", "candidate", "gpu_devices", [{"name": "NVIDIA H100"}], None),
+            (
+                "incompatible",
+                "candidate",
+                "gpu_devices",
+                [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}] * 2,
+                None,
+            ),
+            ("unknown", "baseline", None, None, None),
+            ("unknown", "candidate", None, None, None),
+            ("unknown", "both", None, None, None),
+            ("unknown", "baseline", "cpu_name", None, None),
+            ("unknown", "candidate", "cpu_count", None, None),
+            ("unknown", "both", "gpu_devices", None, None),
+            ("unknown", "candidate", "cpu_name", " unknown ", None),
+            ("unknown", "baseline", "cpu_name", 7, None),
+            ("unknown", "baseline", "cpu_count", True, None),
+            ("unknown", "candidate", "cpu_count", 0, None),
+            ("unknown", "candidate", "gpu_devices", [], None),
+            ("unknown", "baseline", "gpu_devices", "GPU", None),
+            ("unknown", "both", "gpu_devices", [{"name": "unknown"}], None),
+            ("unknown", "candidate", "gpu_devices", [None], None),
+            ("unknown", "baseline", "cpu_count", None, 1),
+            ("unknown", "candidate", "gpu_devices", [], 1),
+        )
+        for status, side, field, value, index in cases:
+            with subtests.test(status=status, side=side, field=field, value=value, index=index):
+                a, b = (evidence(), evidence(fps=110))
+                for selection in (a, b) if side == "both" else (a if side == "baseline" else b,):
+                    set_sample_field(
+                        selection, "hardware" + (f".{field}" if field else ""), value, index=index, remove=value is None
+                    )
+                report = compare_evidence(a, b)
+                row = report["rows"][0]
+                assert row["status"] == status
+                assert (row["baseline"]["median"], row["candidate"]["median"]) == (100, 110)
+                assert_fields(row, absolute_change=None, change_pct=None)
+                primary, details = render_build_comparison(report).split("<details>", 1)
+                assert "| ⚪ Not comparable | leg | 100 | 110 | — |" in primary
+                if status == "incompatible":
+                    assert "CPU/GPU hardware differs or varies within a selection." in row["reasons"]
+                    assert "+10.00%" not in primary
+                    assert "CPU/GPU hardware differs" in details
+                else:
+                    assert any("hardware" in reason for reason in row["reasons"])
+    with subtests.test(msg="hardware variation and heterogeneous gpu order are not pooled"):
+        a = evidence()
+        set_sample_field(a, "hardware.cpu_count", 32, index=1)
+        row = compare_evidence(a, copy.deepcopy(a))["rows"][0]
+        assert_fields(row, status="incompatible", change_pct=None)
+        a, b = (evidence(), evidence())
+        for selection, models in ((a, ("A100", "H100")), (b, ("H100", "A100"))):
+            set_sample_field(selection, "hardware.gpu_devices", [{"name": model} for model in models])
+        row = compare_evidence(a, b)["rows"][0]
+        assert_fields(row, status="incompatible", change_pct=None)
+    with subtests.test(msg="unavailable hardware preserves missing and partial sample status"):
+        for missing in (True, False):
+            with subtests.test(missing=missing):
+                b = evidence({"leg": [] if missing else [bundle(110)]})
+                set_sample_field(b, "hardware", None, remove=True)
+                row = compare_evidence(evidence(), b)["rows"][0]
+                assert row["status"] == ("missing" if missing else "partial")
+                assert row["candidate"]["median"] == (None if missing else 110)
+                assert row["change_pct"] is None
+    with subtests.test(msg="presets and environment count use validated workload identity"):
+        for path, value in (("run.num_envs", 1024), ("run.config.presets", ["new_preset"])):
+            b = evidence()
+            set_sample_field(b, path, value)
+            rows = compare_evidence(evidence(), b)["rows"]
+            assert len(rows) == 2
+            assert all(row["status"] == "missing" for row in rows)
+    with subtests.test(msg="solver and coupling changes or variation preserve fps without comparing workloads"):
+        config = {"physics_solvers": ["newton_mjwarp", "newton_vbd"], "physics_coupling": "proxy"}
+        for field, value, index in (
+            ("physics_solvers", ["newton_mjwarp"], None),
+            ("physics_solvers", None, None),
+            ("physics_solvers", ["newton_vbd"], None),
+            ("physics_coupling", "admm", None),
+            ("physics_coupling", None, None),
+            ("physics_coupling", "admm", 1),
+        ):
+            with subtests.test(field=field, value=value, index=index):
+                a, b = (evidence(), evidence(fps=110))
+                for selection in (a, b):
+                    for key, setting in config.items():
+                        set_sample_field(selection, f"run.config.{key}", setting)
+                set_sample_field(b, f"run.config.{field}", value, index=index, remove=value is None)
+                report = compare_evidence(a, b)
+                rows = report["rows"]
+                assert all(row["change_pct"] is None for row in rows)
+                for side in ("baseline", "candidate"):
+                    assert sum(row[side]["count"] for row in rows) == 3
+                primary, details = render_build_comparison(report).split("<details>", 1)
+                assert "⚪ Not comparable" in primary
+                assert "+10.00%" not in primary
+                assert "solvers: newton_mjwarp, newton_vbd · coupling: proxy" in details
+                if index is not None:
+                    assert len(rows) == 2
+                    shared = next(row for row in rows if row["baseline"]["count"])
+                    assert shared["status"] == "unknown"
+                    assert any("different workload identities" in reason for reason in shared["reasons"])
+    check_rendering(subtests)
+
+
+def check_rendering(subtests):
+    with subtests.test(msg="headline counts every workload without reclassifying rounded or missing deltas"):
         a = evidence({name: [bundle(100, name)] * 3 for name in ("Higher", "Lower", "Same", "Tiny")})
         b = evidence(
             {
@@ -81,57 +333,52 @@ class ReportRenderingTests(unittest.TestCase):
         before = copy.deepcopy(report)
         markdown = render_build_comparison(report)
         primary, diagnostics = markdown.split("<details>", 1)
-        self.assertIn("**🟢 Improved 2 · 🔴 Regressed 1 · ⚪ Not comparable 1 · ⚪ Unchanged 1**", primary)
-        self.assertIn("Status | Workload | Baseline FPS | PR FPS | Change %", primary)
-        self.assertNotIn("PASS", markdown)
-        self.assertNotIn("FAIL", markdown)
+        assert "**🟢 Improved 2 · 🔴 Regressed 1 · ⚪ Not comparable 1 · ⚪ Unchanged 1**" in primary
+        assert "Status | Workload | Baseline FPS | PR FPS | Change %" in primary
+        assert "PASS" not in markdown
+        assert "FAIL" not in markdown
         rows = [line for line in primary.splitlines() if line.startswith("|")]
-        self.assertEqual(len(rows), 7)
-        self.assertTrue(all(len(line.split("|")) == 7 for line in rows))
-        self.assertIn("Baseline: No runtime samples identify this workload.", diagnostics)
-        self.assertIn("samples A / B (valid/expected)", diagnostics)
-        self.assertIn("3/3 / 3/3", diagnostics)
-        self.assertIn("build-comparison.json", diagnostics)
-        self.assertEqual(report, before)
-
-    def test_zero_baseline_and_no_rows_are_not_misreported(self):
+        assert len(rows) == 7
+        assert all(len(line.split("|")) == 7 for line in rows)
+        assert "Baseline: No runtime samples identify this workload." in diagnostics
+        assert "samples A / B (valid/expected)" in diagnostics
+        assert "3/3 / 3/3" in diagnostics
+        assert "build-comparison.json" in diagnostics
+        assert report == before
+    with subtests.test(msg="zero baseline and no rows are not misreported"):
         report = compare_evidence(evidence({"leg": [bundle(0)] * 3}), evidence({"leg": [bundle(10)] * 3}))
         row = report["rows"][0]
-        self.assertEqual(row["absolute_change"], 10)
-        self.assertIsNone(row["change_pct"])
-        self.assertIn("zero", row["notes"][0])
+        assert_fields(row, absolute_change=10, change_pct=None)
+        assert "zero" in row["notes"][0]
         primary = render_build_comparison(report).split("<details>", 1)[0]
-        self.assertIn("🟢 Improved 1 · 🔴 Regressed 0 · ⚪ Not comparable 0", primary)
-        self.assertIn("N/A (baseline is zero)", primary)
+        assert "🟢 Improved 1 · 🔴 Regressed 0 · ⚪ Not comparable 0" in primary
+        assert "N/A (baseline is zero)" in primary
         empty = render_build_comparison({"rows": [], "selection": {"reason": "Current result artifact is missing."}})
-        self.assertIn("⚪ Not comparable: no workload results available", empty)
-        self.assertIn("Current result artifact is missing", empty.split("<details>", 1)[0])
-        self.assertNotIn("Not comparable 0", empty)
-
-    def test_selection_reason_is_visible_when_no_baseline_was_found_without_an_error_code(self):
+        assert "⚪ Not comparable: no workload results available" in empty
+        assert "Current result artifact is missing" in empty.split("<details>", 1)[0]
+        assert "Not comparable 0" not in empty
+    with subtests.test(msg="selection reason is visible when no baseline was found without an error code"):
         report = compare_evidence(None, evidence())
         report["selection"] = {"reason": "No verified baseline was available."}
         primary = render_build_comparison(report).split("<details>", 1)[0]
-        self.assertIn("No verified baseline was available", primary)
-        self.assertIn("| ⚪ Not comparable | leg | — | 100 | — |", primary)
-
-    def test_duplicate_short_labels_do_not_collide_with_existing_numbered_label(self):
+        assert "No verified baseline was available" in primary
+        assert "| ⚪ Not comparable | leg | — | 100 | — |" in primary
+    with subtests.test(msg="duplicate short labels do not collide with existing numbered label"):
         a = evidence({"leg": [bundle(100, "Before")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
         b = evidence({"leg": [bundle(100, "Task")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
         primary, diagnostics = render_build_comparison(compare_evidence(a, b)).split("<details>", 1)
         labels = [line.split("|")[2].strip() for line in primary.splitlines() if line.startswith("| ⚪")]
-        self.assertEqual(len(labels), 3)
-        self.assertEqual(len(set(labels)), 3)
-        self.assertIn("leg (1)", labels)
-        self.assertIn("leg (2)", labels)
-        self.assertNotIn("newton_mjwarp", primary)
-        self.assertIn("Before · newton_mjwarp", diagnostics)
-        self.assertIn("Task · newton_mjwarp", diagnostics)
+        assert len(labels) == 3
+        assert len(set(labels)) == 3
+        assert "leg (1)" in labels
+        assert "leg (2)" in labels
+        assert "newton_mjwarp" not in primary
+        assert "Before · newton_mjwarp" in diagnostics
+        assert "Task · newton_mjwarp" in diagnostics
         for side in ("Baseline", "Candidate"):
-            self.assertIn(f"{side}: No runtime samples identify this workload.", diagnostics)
-
-    def test_paired_pr_labels_exact_sources_and_reused_baseline_inside_details(self):
-        a, b = evidence(), evidence({"leg": [bundle(110)] * 3})
+            assert f"{side}: No runtime samples identify this workload." in diagnostics
+    with subtests.test(msg="paired pr labels exact sources and reused baseline inside details"):
+        a, b = (evidence(), evidence(fps=110))
         a.context["measurement"] = {"commit": "d" * 40, "digest": "e" * 64}
         b.context["measurement"] = {"commit": HEAD, "digest": "e" * 64}
         report = compare_evidence(a, b)
@@ -148,40 +395,38 @@ class ReportRenderingTests(unittest.TestCase):
             "baseline_origin": report["baseline"],
         }
         primary, details = render_build_comparison(report).split("<details>", 1)
-        self.assertIn("| 🟢 Improved | leg | 100 | 110 | +10.00% |", primary)
-        self.assertIn("A — PR base", details)
-        self.assertIn("B — PR merge result", details)
+        assert "| 🟢 Improved | leg | 100 | 110 | +10.00% |" in primary
+        assert "A — PR base" in details
+        assert "B — PR merge result" in details
         for commit in (HEAD, PARENT, "c" * 40, "d" * 40):
-            self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{commit}", details)
-            self.assertNotIn(commit, primary)
+            assert f"https://github.com/isaac-sim/IsaacLab/commit/{commit}" in details
+            assert commit not in primary
         for run in (12, 15):
-            self.assertEqual(details.count(f"https://github.com/isaac-sim/IsaacLab/actions/runs/{run}/attempts/1"), 1)
-            self.assertIn(f"https://github.com/isaac-sim/IsaacLab/actions/runs/{run}/artifacts/{run + 100}", details)
-        self.assertIn("Baseline measurements: reused.", details)
-        self.assertIn(f"Resolved PR base: `{PARENT}`", details)
-        self.assertIn(f"The PR event reported `{HEAD}`", details)
-        self.assertIn("Measurement sources (commit · SHA-256)", details)
-        self.assertIn("e" * 64, details)
-
-    def test_paired_baseline_measurement_status_reflects_available_evidence(self):
+            assert details.count(f"https://github.com/isaac-sim/IsaacLab/actions/runs/{run}/attempts/1") == 1
+            assert f"https://github.com/isaac-sim/IsaacLab/actions/runs/{run}/artifacts/{run + 100}" in details
+        assert "Baseline measurements: reused." in details
+        assert f"Resolved PR base: `{PARENT}`" in details
+        assert f"The PR event reported `{HEAD}`" in details
+        assert "Measurement sources (commit · SHA-256)" in details
+        assert "e" * 64 in details
+    with subtests.test(msg="paired baseline measurement status reflects available evidence"):
         for baseline, reused, expected in (
             (None, False, "unavailable."),
             (None, True, "unavailable."),
             (evidence(), False, "run for this PR."),
         ):
-            with self.subTest(baseline_available=baseline is not None, reused=reused):
+            with subtests.test(baseline_available=baseline is not None, reused=reused):
                 report = compare_evidence(baseline, evidence())
                 report.update(comparison_mode="paired_pr", candidate_kind="merge")
                 report["selection"] = {"baseline_reused": reused}
                 markdown = render_build_comparison(report)
-                self.assertIn(f"Baseline measurements: {expected}", markdown)
-
-    def test_artifact_text_preserves_tables_details_and_reconstructed_github_links(self):
+                assert f"Baseline measurements: {expected}" in markdown
+    with subtests.test(msg="artifact text preserves tables details and reconstructed github links"):
         for target, text, escaped in (
             ("legs", "leg | </details><script>", "&lt;/details&gt;&lt;script&gt;"),
             ("label", "Task | [click](https://example.invalid)\n<script>bad()</script>", "&lt;script&gt;"),
         ):
-            with self.subTest(target=target):
+            with subtests.test(target=target):
                 report = compare_evidence(evidence(), evidence())
                 report["baseline"].update(repository="isaac-sim/IsaacLab", run_url="https://example.invalid/untrusted")
                 row = report["rows"][0]
@@ -191,18 +436,17 @@ class ReportRenderingTests(unittest.TestCase):
                 else:
                     row["label"] = text
                 markdown = render_build_comparison(report)
-                self.assertNotIn("<script>", markdown)
-                self.assertNotIn("[click]", markdown)
-                self.assertIn("&#124;", markdown)
-                self.assertIn(escaped, markdown)
-                self.assertEqual(markdown.count("<details>"), 1)
-                self.assertEqual(markdown.count("</details>"), 1)
+                assert "<script>" not in markdown
+                assert "[click]" not in markdown
+                assert "&#124;" in markdown
+                assert escaped in markdown
+                assert markdown.count("<details>") == 1
+                assert markdown.count("</details>") == 1
                 primary = markdown.split("<details>", 1)[0]
-                self.assertTrue(all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|")))
-                self.assertNotIn("https://example.invalid/untrusted", markdown)
-                self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1", markdown)
-
-    def test_rolling_gate_exposes_recorded_skip_and_error_causes(self):
+                assert all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|"))
+                assert "https://example.invalid/untrusted" not in markdown
+                assert "https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1" in markdown
+    with subtests.test(msg="rolling gate exposes recorded skip and error causes"):
         missing_credential = "No baseline store credential is available for this run"
         reports = [
             (
@@ -232,360 +476,33 @@ class ReportRenderingTests(unittest.TestCase):
         ]
         snapshot = [report.as_dict() for _, report in reports]
         markdown = render_aggregate(reports)
-        self.assertIn("### Rolling-history CI gate: 🚫 ERROR", markdown)
-        self.assertNotIn("<details>", markdown)
-        self.assertIn("| Combination | Total FPS | Baseline | FPS regression %", markdown)
-        self.assertIn(f"- **cartpole-newton — SKIP:** {missing_credential}", markdown)
-        self.assertIn("Total FPS: insufficient independent runs for ASV significance testing", markdown)
-        self.assertIn("- **failed — ERROR:** comparison artifact could not be read: invalid JSON", markdown)
-        self.assertEqual([report.as_dict() for _, report in reports], snapshot)
-
-    def test_rolling_gate_does_not_invent_an_absent_reason(self):
+        assert "### Rolling-history CI gate: 🚫 ERROR" in markdown
+        assert "<details>" not in markdown
+        assert "| Combination | Total FPS | Baseline | FPS regression %" in markdown
+        assert f"- **cartpole-newton — SKIP:** {missing_credential}" in markdown
+        assert "Total FPS: insufficient independent runs for ASV significance testing" in markdown
+        assert "- **failed — ERROR:** comparison artifact could not be read: invalid JSON" in markdown
+        assert [report.as_dict() for _, report in reports] == snapshot
+    with subtests.test(msg="rolling gate does not invent an absent reason"):
         markdown = render_aggregate([("unknown", compare.Report(verdict=compare.SKIP))])
-        self.assertIn("No reason was recorded in this comparison artifact", markdown)
-        self.assertNotIn("credential", markdown)
-        self.assertIn("### Rolling-history CI gate: no results", render_aggregate([]))
+        assert "No reason was recorded in this comparison artifact" in markdown
+        assert "credential" not in markdown
+        assert "### Rolling-history CI gate: no results" in render_aggregate([])
 
 
-class BuildComparisonTests(unittest.TestCase):
-    def test_complete_fps_samples_use_medians_and_conventional_delta(self):
-        a = evidence({"leg": [bundle(90), bundle(100), bundle(1100)]})
-        b = evidence({"leg": [bundle(93), bundle(96), bundle(999)]})
-        report = compare_evidence(a, b)
-        row = report["rows"][0]
-        self.assertEqual(row["workload_key"], workload_key(bundle(100)))
-        self.assertEqual(row["baseline"]["samples"], [90, 100, 1100])
-        self.assertEqual(row["baseline"]["median"], 100)
-        self.assertEqual(row["baseline"]["min"], 90)
-        self.assertEqual(row["baseline"]["max"], 1100)
-        self.assertEqual(row["baseline"]["expected_count"], 3)
-        self.assertEqual(row["candidate"]["median"], 96)
-        self.assertEqual(row["absolute_change"], -4)
-        self.assertEqual(row["change_pct"], -4)
-        self.assertEqual(row["status"], "compared")
-        self.assertNotIn("verdict", row)
-        self.assertTrue(any("not statistical significance" in note for note in report["notes"]))
-
-    def test_dynamic_workloads_include_every_shared_and_missing_identity(self):
-        a = evidence({"unfamiliar-leg": [bundle(100, "Shared")] * 3, "removed": [bundle(50, "Removed")] * 3})
-        b = evidence({"renamed-leg": [bundle(110, "Shared")] * 3, "new": [bundle(60, "New")] * 3})
-        rows = compare_evidence(a, b)["rows"]
-        self.assertEqual(len(rows), 3)
-        compared = [row for row in rows if row["status"] == "compared"]
-        self.assertEqual(len(compared), 1)
-        self.assertEqual(compared[0]["change_pct"], 10)
-        self.assertEqual(sum(row["status"] == "missing" for row in rows), 2)
-
-    def test_status_only_leg_is_associated_without_claiming_identity(self):
-        b = evidence({"leg": []}, statuses={"leg": "failed"})
-        rows = compare_evidence(evidence(), b)["rows"]
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["status"], "missing")
-        self.assertTrue(any("display association" in reason for reason in rows[0]["reasons"]))
-        unknown = compare_evidence(b, b)["rows"][0]
-        self.assertIsNone(unknown["workload_key"])
-        self.assertIn("identity unavailable", unknown["label"])
-
-    def test_incomplete_counts_failed_status_and_runtime_failure_preserve_values(self):
-        variants = [
-            evidence({"leg": [bundle(100), bundle(110)]}),
-            evidence(statuses={"leg": "failed"}),
-            evidence(statuses={}),
-        ]
-        runtime_failed = evidence()
-        runtime_failed.samples["leg"][1]["bundle"]["run"]["status"] = "failed"
-        variants.append(runtime_failed)
-        for b in variants:
-            with self.subTest(statuses=b.statuses, count=len(b.samples["leg"])):
-                report = compare_evidence(evidence(), b)
-                row = report["rows"][0]
-                self.assertEqual(row["status"], "partial")
-                self.assertTrue(row["candidate"]["samples"])
-                self.assertIsNone(row["absolute_change"])
-                if len(b.samples["leg"]) != 3:
-                    self.assertIn("runtime samples; expected 3.", render_build_comparison(report))
-
-    def test_invalid_fps_is_not_zero_or_a_valid_repeat(self):
-        for value in (None, True, "100", float("nan"), float("inf"), -1):
-            with self.subTest(value=value):
-                b = evidence({"leg": [bundle(90), bundle(value), bundle(110)]})
-                row = compare_evidence(evidence(), b)["rows"][0]
-                self.assertEqual(row["candidate"]["samples"], [90, 110])
-                self.assertEqual(row["candidate"]["observed_count"], 3)
-                self.assertEqual(row["candidate"]["count"], 2)
-                self.assertEqual(row["status"], "partial")
-                self.assertIsNone(row["change_pct"])
-
-    def test_missing_expected_count_is_explicitly_unknown(self):
-        for expected in (None, True, "3", 0):
-            with self.subTest(expected=expected):
-                row = compare_evidence(evidence(), evidence(expected=expected))["rows"][0]
-                self.assertEqual(row["status"], "unknown")
-                self.assertEqual(row["candidate"]["count"], 3)
-                self.assertIsNone(row["candidate"]["expected_count"])
-                self.assertIsNone(row["change_pct"])
-
-    def test_unknown_different_and_legacy_fps_formulas_are_not_equivalent(self):
-        known = "measurement-v1:" + "a" * 64
-        legacy = "aggregate_frames_over_measured_seconds"
-        for case, baseline_formula, candidate_formula, candidate_fps, expected in (
-            ("missing", known, None, 100, "unknown"),
-            ("unknown", known, "unknown", 100, "unknown"),
-            ("padded_legacy", known, " AGGREGATE_FRAMES_OVER_MEASURED_SECONDS ", 100, "unknown"),
-            ("different", known, "mean_instantaneous_fps", 100, "incompatible"),
-            ("legacy_baseline", legacy, known, 110, "unknown"),
-            ("legacy_candidate", known, legacy, 110, "unknown"),
-            ("legacy_both", legacy, legacy, 110, "unknown"),
-        ):
-            with self.subTest(case=case):
-                samples = None if candidate_fps == 100 else {"leg": [bundle(candidate_fps) for _ in range(3)]}
-                a, b = evidence(formula=baseline_formula), evidence(samples, formula=candidate_formula)
-                report = compare_evidence(a, b)
-                row = report["rows"][0]
-                self.assertEqual(row["status"], expected)
-                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, candidate_fps))
-                if case == "different":
-                    self.assertIn("FPS formula identities differ.", render_build_comparison(report))
-                self.assertIsNone(row["absolute_change"])
-                self.assertIsNone(row["change_pct"])
-                if case.startswith("legacy_"):
-                    self.assertIn("FPS formula identity is unknown for one or both selections.", row["reasons"])
-
-    def test_protocol_changes_and_missing_values_are_explicit(self):
-        for field, value in (
-            ("seed", 7),
-            ("warmup_steps", 20),
-            ("measured_steps", 100),
-            ("measurement_mode", "synchronized"),
-            ("measurement_mode", None),
-        ):
-            with self.subTest(field=field, value=value):
-                b = evidence()
-                for sample in b.samples["leg"]:
-                    raw = sample["bundle"]
-                    if field == "seed":
-                        raw["run"]["seed"] = value
-                    elif field == "measured_steps":
-                        raw["runtime"]["iterations_completed"] = value
-                    else:
-                        raw["runtime"]["environment_step_timing"][field] = value
-                row = compare_evidence(evidence(), b)["rows"][0]
-                self.assertEqual(row["status"], "unknown" if value is None else "incompatible")
-                self.assertIn(field, [item["field"] for item in row["protocol_differences"]])
-                self.assertIsNone(row["change_pct"])
-
-    def test_identical_protocol_variation_on_both_sides_is_not_silently_pooled(self):
-        a = evidence({"leg": [bundle(90, seed=1), bundle(100, seed=2), bundle(110, seed=3)]})
-        row = compare_evidence(a, copy.deepcopy(a))["rows"][0]
-        self.assertEqual(row["status"], "incompatible")
-        self.assertEqual(row["protocol_differences"][0]["baseline"], {"sample_values": [1, 2, 3]})
-        self.assertIsNone(row["absolute_change"])
-
-    def test_hardware_packages_and_image_qualify_without_causal_verdict(self):
-        for image, device_metadata in (
-            ("sha256:other", {}),
-            ("sha256:fixture", {"uuid": "different-device", "index": 7, "driver_version": "other-driver"}),
-        ):
-            with self.subTest(image=image, device_metadata=device_metadata):
-                b = evidence({"leg": [bundle(110) for _ in range(3)]})
-                b.context["source"]["image_digest"] = image
-                for sample in b.samples["leg"]:
-                    hardware = sample["bundle"]["hardware"]
-                    hardware["hostname"] = "worker-b"
-                    hardware["gpu_devices"][0].update(device_metadata)
-                    sample["bundle"]["versions"]["warp"] = "2.0"
-                report = compare_evidence(evidence(), b)
-                row = report["rows"][0]
-                self.assertEqual(row["status"], "compared")
-                self.assertEqual(row["change_pct"], 10)
-                self.assertTrue(row["context_differences"])
-                fields = {item["field"] for item in row["context_differences"]}
-                expected = {"hardware.hostname", "versions.warp"}
-                if image != "sha256:fixture":
-                    expected.add("source.image_digest")
-                self.assertTrue(expected.issubset(fields))
-                self.assertTrue(any("does not isolate a commit effect" in note for note in row["notes"]))
-                self.assertIn("does not isolate a commit effect", render_build_comparison(report))
-
-    def test_material_hardware_changes_preserve_fps_without_comparing_them(self):
-        variants = (
-            {"cpu_name": "AMD EPYC 9554"},
-            {"cpu_count": 32},
-            {"gpu_devices": [{"name": "NVIDIA H100"}]},
-            {"gpu_devices": [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}] * 2},
-        )
-        for hardware in variants:
-            with self.subTest(hardware=hardware):
-                b = evidence({"leg": [bundle(110) for _ in range(3)]})
-                for sample in b.samples["leg"]:
-                    sample["bundle"]["hardware"].update(hardware)
-                report = compare_evidence(evidence(), b)
-                row = report["rows"][0]
-                self.assertEqual(row["status"], "incompatible")
-                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, 110))
-                self.assertIsNone(row["absolute_change"])
-                self.assertIsNone(row["change_pct"])
-                self.assertIn("CPU/GPU hardware differs or varies within a selection.", row["reasons"])
-                primary, details = render_build_comparison(report).split("<details>", 1)
-                self.assertIn("| ⚪ Not comparable | leg | 100 | 110 | — |", primary)
-                self.assertNotIn("+10.00%", primary)
-                self.assertIn("CPU/GPU hardware differs", details)
-
-    def test_hardware_variation_and_heterogeneous_gpu_order_are_not_pooled(self):
-        a = evidence()
-        a.samples["leg"][1]["bundle"]["hardware"]["cpu_count"] = 32
-        row = compare_evidence(a, copy.deepcopy(a))["rows"][0]
-        self.assertEqual(row["status"], "incompatible")
-        self.assertIsNone(row["change_pct"])
-
-        a, b = evidence(), evidence()
-        for samples, models in ((a.samples["leg"], ("A100", "H100")), (b.samples["leg"], ("H100", "A100"))):
-            for sample in samples:
-                sample["bundle"]["hardware"]["gpu_devices"] = [{"name": model} for model in models]
-        row = compare_evidence(a, b)["rows"][0]
-        self.assertEqual(row["status"], "incompatible")
-        self.assertIsNone(row["change_pct"])
-
-    def test_unavailable_hardware_identity_preserves_fps_without_a_delta(self):
-        cases = (
-            ("baseline", None, None, None),
-            ("candidate", None, None, None),
-            ("both", None, None, None),
-            ("baseline", "cpu_name", None, None),
-            ("candidate", "cpu_count", None, None),
-            ("both", "gpu_devices", None, None),
-            ("candidate", "cpu_name", " unknown ", None),
-            ("baseline", "cpu_name", 7, None),
-            ("baseline", "cpu_count", True, None),
-            ("candidate", "cpu_count", 0, None),
-            ("candidate", "gpu_devices", [], None),
-            ("baseline", "gpu_devices", "GPU", None),
-            ("both", "gpu_devices", [{"name": "unknown"}], None),
-            ("candidate", "gpu_devices", [None], None),
-            ("baseline", "cpu_count", None, 1),
-            ("candidate", "gpu_devices", [], 1),
-        )
-        for side, field, value, sample_index in cases:
-            with self.subTest(side=side, field=field, value=value, sample_index=sample_index):
-                a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
-                for selection in [a, b] if side == "both" else [a if side == "baseline" else b]:
-                    samples = selection.samples["leg"]
-                    for sample in samples if sample_index is None else [samples[sample_index]]:
-                        raw = sample["bundle"]
-                        if field is None:
-                            raw.pop("hardware")
-                        elif value is None:
-                            raw["hardware"].pop(field)
-                        else:
-                            raw["hardware"][field] = value
-                report = compare_evidence(a, b)
-                row = report["rows"][0]
-                self.assertEqual(row["status"], "unknown")
-                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, 110))
-                self.assertIsNone(row["absolute_change"])
-                self.assertIsNone(row["change_pct"])
-                self.assertTrue(any("hardware" in reason for reason in row["reasons"]))
-                primary = render_build_comparison(report).split("<details>", 1)[0]
-                self.assertIn("| ⚪ Not comparable | leg | 100 | 110 | — |", primary)
-
-    def test_unavailable_hardware_preserves_missing_and_partial_sample_status(self):
-        for missing in (True, False):
-            with self.subTest(missing=missing):
-                b = evidence({"leg": [] if missing else [bundle(110)]})
-                for sample in b.samples["leg"]:
-                    sample["bundle"].pop("hardware")
-                row = compare_evidence(evidence(), b)["rows"][0]
-                self.assertEqual(row["status"], "missing" if missing else "partial")
-                self.assertEqual(row["candidate"]["median"], None if missing else 110)
-                self.assertIsNone(row["change_pct"])
-
-    def test_presets_and_environment_count_use_validated_workload_identity(self):
-        for field, value in (("num_envs", 1024), ("presets", ["new_preset"])):
-            b = evidence()
-            for sample in b.samples["leg"]:
-                run = sample["bundle"]["run"]
-                (run if field == "num_envs" else run["config"])[field] = value
-            rows = compare_evidence(evidence(), b)["rows"]
-            self.assertEqual(len(rows), 2)
-            self.assertTrue(all(row["status"] == "missing" for row in rows))
-
-    def test_solver_and_coupling_changes_preserve_fps_without_comparing_workloads(self):
-        config = {"physics_solvers": ["newton_mjwarp", "newton_vbd"], "physics_coupling": "proxy"}
-        for field, value in (
-            ("physics_solvers", ["newton_mjwarp"]),
-            ("physics_solvers", None),
-            ("physics_solvers", ["newton_vbd"]),
-            ("physics_coupling", "admm"),
-            ("physics_coupling", None),
-        ):
-            with self.subTest(field=field, value=value):
-                a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
-                for selection in (a, b):
-                    for sample in selection.samples["leg"]:
-                        sample["bundle"]["run"]["config"].update(config)
-                for sample in b.samples["leg"]:
-                    candidate_config = sample["bundle"]["run"]["config"]
-                    if value is None:
-                        candidate_config.pop(field)
-                    else:
-                        candidate_config[field] = value
-                report = compare_evidence(a, b)
-                self.assertTrue(all(row["change_pct"] is None for row in report["rows"]))
-                for side in ("baseline", "candidate"):
-                    self.assertEqual(sum(row[side]["count"] for row in report["rows"]), 3)
-                primary, details = render_build_comparison(report).split("<details>", 1)
-                self.assertIn("⚪ Not comparable", primary)
-                self.assertNotIn("+10.00%", primary)
-                self.assertIn("solvers: newton_mjwarp, newton_vbd · coupling: proxy", details)
-
-    def test_coupling_variation_within_repeats_is_not_pooled_into_a_delta(self):
-        a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
-        for selection in (a, b):
-            for sample in selection.samples["leg"]:
-                sample["bundle"]["run"]["config"].update(
-                    physics_solvers=["newton_mjwarp", "newton_vbd"], physics_coupling="proxy"
-                )
-        b.samples["leg"][1]["bundle"]["run"]["config"]["physics_coupling"] = "admm"
-        rows = compare_evidence(a, b)["rows"]
-        self.assertEqual(len(rows), 2)
-        self.assertTrue(all(row["change_pct"] is None for row in rows))
-        self.assertEqual(sum(row["candidate"]["count"] for row in rows), 3)
-        shared = next(row for row in rows if row["baseline"]["count"])
-        self.assertEqual(shared["status"], "unknown")
-        self.assertTrue(any("different workload identities" in reason for reason in shared["reasons"]))
+def report_client():
+    client = FixtureClient()
+    samples = [bundle(80) for _ in range(3)]
+    for sample in samples:
+        sample["run"].update(start_time_utc=stamp(12, 1), end_time_utc=stamp(12, 5))
+    client.add(20, HEAD, start=stamp(12), samples={"leg": samples}, event="pull_request")
+    return client
 
 
-class AutomaticReportTests(unittest.TestCase):
-    def setUp(self):
-        self.client = FixtureClient()
-        samples = [bundle(80) for _ in range(3)]
-        for sample in samples:
-            sample["run"].update(start_time_utc=stamp(12, 1), end_time_utc=stamp(12, 5))
-        self.client.add(20, HEAD, start=stamp(12), samples={"leg": samples}, event="pull_request")
-
-    def run_report(self, output, attempt=1):
-        with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
-            result = build_compare.main(
-                [
-                    "--repository",
-                    self.client.repository,
-                    "--run_id",
-                    "20",
-                    "--run_attempt",
-                    str(attempt),
-                    "--output_dir",
-                    str(output),
-                ]
-            )
-        return (
-            result,
-            json.loads((output / "build-comparison.json").read_text()),
-            (output / "build-comparison.md").read_text(),
-        )
-
-    def test_capture_failure_explains_missing_results_before_pin_identity_error(self):
-        self.client.attempts[20, 1]["event"] = "pull_request"
-        self.client.run_artifacts[20] = []
+def check_reports(tmp_path, subtests):
+    with subtests.test(msg="capture failure explains missing results before pin identity error"):
+        client = report_client()
+        client.run_artifacts[20] = []
         reason = "The tested merge checkout has a different first parent than the requested base."
         failure = {
             "schema_version": 1,
@@ -601,7 +518,7 @@ class AutomaticReportTests(unittest.TestCase):
             },
             "execution": {"run_id": 20, "run_attempt": 1},
         }
-        self.client.add_artifact(
+        client.add_artifact(
             20,
             "performance-smoke-20-1",
             {
@@ -610,31 +527,30 @@ class AutomaticReportTests(unittest.TestCase):
                 "leg/status": "error",
             },
         )
-        with tempfile.TemporaryDirectory() as directory:
-            status, result, markdown = self.run_report(Path(directory))
+        status, result, markdown = run_report(
+            client, tmp_path / "test_capture_failure_explains_missing_results_before_pin_identity_error"
+        )
         primary, details = markdown.split("<details>", 1)
-        self.assertEqual(status, 0)
-        self.assertEqual(result["selection"]["reason"], reason)
-        self.assertEqual(result["selection"]["paired_failure"], failure)
-        self.assertIn(reason, primary)
-        self.assertNotIn("pinned comparison", primary)
-        self.assertNotIn("| Status |", primary)
-        self.assertNotIn("| ⚪ Not comparable |", primary)
-        self.assertEqual(primary.count(reason), 1)
-        self.assertIn("⚪ Not comparable 1", primary)
-        self.assertEqual(len(result["rows"]), 1)
-        self.assertIsNone(result["rows"][0]["change_pct"])
-        self.assertIsNone(result["candidate_kind"])
-        self.assertNotIn("PR merge result", details)
-        self.assertIn("PR revision (not verified)", details)
+        assert status == 0
+        assert_fields(result["selection"], reason=reason, paired_failure=failure)
+        assert reason in primary
+        assert "pinned comparison" not in primary
+        assert "| Status |" not in primary
+        assert "| ⚪ Not comparable |" not in primary
+        assert primary.count(reason) == 1
+        assert "⚪ Not comparable 1" in primary
+        assert len(result["rows"]) == 1
+        assert result["rows"][0]["change_pct"] is None
+        assert result["candidate_kind"] is None
+        assert "PR merge result" not in details
+        assert "PR revision (not verified)" in details
         for commit in (HEAD, PARENT, "c" * 40, "d" * 40):
-            self.assertIn(commit, details)
-        self.assertIn("Actual checkout", details)
-        self.assertIn("Intended checkout", details)
-
-    def test_baseline_failure_keeps_available_current_fps_and_partial_workloads(self):
-        self.client.attempts[20, 1]["event"] = "pull_request"
-        candidate = build_compare.baseline_mod.resolve_candidate(self.client, 20, 1)
+            assert commit in details
+        assert "Actual checkout" in details
+        assert "Intended checkout" in details
+    with subtests.test(msg="baseline failure keeps available current fps and partial workloads"):
+        client = report_client()
+        candidate = build_compare.baseline_mod.resolve_candidate(client, 20, 1)
         files = candidate.files
         reason = "The base dependency image could not be pulled; baseline samples were not produced."
         files["paired-failure.json"] = json.dumps(
@@ -647,28 +563,26 @@ class AutomaticReportTests(unittest.TestCase):
             }
         ).encode()
         files["another-workload/status"] = b"error"
-        self.client.run_artifacts[20] = []
-        self.client.add_artifact(20, "performance-smoke-20-1", files)
-        with tempfile.TemporaryDirectory() as directory:
-            status, result, markdown = self.run_report(Path(directory))
+        client.run_artifacts[20] = []
+        client.add_artifact(20, "performance-smoke-20-1", files)
+        status, result, markdown = run_report(
+            client, tmp_path / "test_baseline_failure_keeps_available_current_fps_and_partial_workloads"
+        )
         primary = markdown.split("<details>", 1)[0]
-        self.assertEqual(status, 0)
-        self.assertIn(reason, primary)
-        self.assertIn("| Status | Workload | Baseline FPS | PR FPS | Change % |", primary)
-        self.assertEqual(len(result["rows"]), 2)
-        self.assertEqual({row["candidate"]["median"] for row in result["rows"]}, {80, None})
-        self.assertTrue(all(row["change_pct"] is None for row in result["rows"]))
-        self.assertIn("another-workload", primary)
-
-    def test_new_benchmark_attempt_without_artifact_is_not_old_measurements(self):
-        self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
-        with tempfile.TemporaryDirectory() as directory:
-            status, result, markdown = self.run_report(Path(directory), attempt=2)
-        self.assertEqual(status, 0)
-        self.assertIsNone(result["candidate"])
-        self.assertEqual(result["selection"]["reason_code"], "missing_candidate")
-        self.assertIn("Candidate evidence is unavailable", markdown)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert status == 0
+        assert reason in primary
+        assert "| Status | Workload | Baseline FPS | PR FPS | Change % |" in primary
+        assert len(result["rows"]) == 2
+        assert {row["candidate"]["median"] for row in result["rows"]} == {80, None}
+        assert all(row["change_pct"] is None for row in result["rows"])
+        assert "another-workload" in primary
+    with subtests.test(msg="new benchmark attempt without artifact is not old measurements"):
+        client = report_client()
+        client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
+        status, result, markdown = run_report(
+            client, tmp_path / "test_new_benchmark_attempt_without_artifact_is_not_old_measurements", attempt=2
+        )
+        assert status == 0
+        assert result["candidate"] is None
+        assert result["selection"]["reason_code"] == "missing_candidate"
+        assert "Candidate evidence is unavailable" in markdown

@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import math
 import os
 import re
 import urllib.error
@@ -23,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from .contract import workload_identity
-from .metrics import PerfSmokeError
+from .metrics import PerfSmokeError, nested_number
 
 _REQUEST_TIMEOUT_SECONDS = 60
 
@@ -83,14 +82,7 @@ class GitHubClient:
             raise EvidenceError("inaccessible", f"GitHub evidence request failed ({type(exc).__name__})") from None
 
     def get(self, path: str) -> dict:
-        data = self._request(path)
-        try:
-            value = json.loads(data)
-        except (UnicodeError, ValueError):
-            raise EvidenceError("invalid_api_response", "GitHub response was not JSON") from None
-        if not isinstance(value, dict):
-            raise EvidenceError("invalid_api_response", "GitHub response was not an object")
-        return value
+        return _object(self._request(path), "GitHub response", code="invalid_api_response")
 
     def paginate(self, path: str, key: str, **params: Any) -> list[dict]:
         """Read every API page; detect an incomplete API result instead of truncating."""
@@ -124,10 +116,7 @@ class GitHubClient:
     def download(self, artifact: dict) -> bytes:
         if artifact.get("expired"):
             raise EvidenceError("expired", "Selected GitHub artifact has expired", {"artifact_id": artifact.get("id")})
-        return self._request(
-            f"/repos/{self.repository}/actions/artifacts/{artifact['id']}/zip",
-            download=True,
-        )
+        return self._request(f"/repos/{self.repository}/actions/artifacts/{artifact['id']}/zip", download=True)
 
 
 @dataclass
@@ -154,20 +143,15 @@ def parse_timestamp(value: Any) -> datetime | None:
 
 
 def is_commit_sha(value: Any) -> bool:
-    """Whether the value identifies a full Git commit SHA."""
     return isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{40}", value) is not None
 
 
 def runtime_fps(bundle: dict) -> float | None:
     """Read a sample's finite, nonnegative numeric FPS value, excluding booleans."""
-    runtime = bundle.get("runtime")
-    fps = runtime.get("total_fps") if isinstance(runtime, dict) else None
-    value = fps.get("mean") if isinstance(fps, dict) else None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
     try:
-        return float(value) if math.isfinite(value) and value >= 0 else None
-    except OverflowError:
+        value = nested_number(bundle, ("runtime", "total_fps", "mean"))
+        return value if value is not None and value >= 0 else None
+    except PerfSmokeError:
         return None
 
 
@@ -212,21 +196,20 @@ def download_artifact(
         raise EvidenceError("corrupt", f"Artifact ZIP could not be read ({type(exc).__name__})") from None
 
 
-def _object(data: bytes, name: str) -> dict:
+def _object(data: bytes, description: str, code: str = "corrupt") -> dict:
     try:
         value = json.loads(data)
     except (UnicodeError, ValueError):
-        raise EvidenceError("corrupt", f"Artifact {name} is not valid JSON") from None
+        raise EvidenceError(code, f"{description} is not valid JSON") from None
     if not isinstance(value, dict):
-        raise EvidenceError("corrupt", f"Artifact {name} is not an object")
+        raise EvidenceError(code, f"{description} is not an object")
     return value
 
 
 def artifact_json(files: dict[str, bytes], name: str) -> dict:
-    """Read a named JSON object from the validated artifact contents."""
     if name not in files:
         raise EvidenceError("missing_source_evidence", f"The artifact has no {name}.")
-    return _object(files[name], name)
+    return _object(files[name], f"Artifact {name}")
 
 
 def _github_links(identity: dict) -> dict[str, str]:
@@ -271,7 +254,7 @@ def read_evidence(
     except EvidenceError as exc:
         identity.update(_github_links(identity))
         raise EvidenceError(exc.code, str(exc), identity) from None
-    context = _object(files["build-context.json"], "build-context.json") if "build-context.json" in files else {}
+    context = artifact_json(files, "build-context.json") if "build-context.json" in files else {}
     execution = context.get("execution", {})
     source = context.get("source", {})
     if not isinstance(execution, dict) or not isinstance(source, dict):
@@ -299,7 +282,7 @@ def read_evidence(
         elif len(parts) >= 2 and parts[-1].startswith("benchmark_runtime_") and parts[-1].endswith(".json"):
             samples.setdefault(parts[0], [])
             try:
-                bundle = _object(content, "runtime bundle")
+                bundle = _object(content, "Artifact runtime bundle")
                 if not isinstance(bundle.get("run"), dict) or not isinstance(bundle.get("runtime"), dict):
                     raise EvidenceError("corrupt", "Runtime bundle run/runtime is not an object")
             except EvidenceError as exc:
@@ -322,7 +305,7 @@ def read_evidence(
             else:
                 missing_end = True
                 issues.append(f"{path}: runtime has no valid end timestamp")
-            if bundle["run"].get("status") == "completed" and not has_usable_runtime(bundle):
+            if bundle["run"].get("status") == "completed" and runtime_fps(bundle) is None:
                 issues.append(f"{path}: completed runtime has no finite nonnegative FPS value")
     if not context:
         issues.append("Build context and FPS formula provenance are unavailable in this artifact")
@@ -367,21 +350,17 @@ def read_evidence(
     )
 
 
-def _exact_artifact(artifacts: list[dict], name: str) -> dict | None:
-    matches = [artifact for artifact in artifacts if artifact.get("name") == name]
-    if len(matches) > 1:
-        raise EvidenceError("ambiguous", f"More than one GitHub artifact has the exact name {name}")
-    return matches[0] if matches else None
-
-
 def resolve_candidate_artifact(client: GitHubClient, run_id: int, report_attempt: int) -> tuple[dict, dict, int]:
     """Locate the measured attempt's artifact, including summary-only reruns."""
     artifacts = client.artifacts(run_id)
     for attempt in range(report_attempt, 0, -1):
         run = client.run_attempt(run_id, attempt)
-        artifact = _exact_artifact(artifacts, f"performance-smoke-{run_id}-{attempt}")
-        if artifact:
-            return run, artifact, attempt
+        name = f"performance-smoke-{run_id}-{attempt}"
+        matches = [artifact for artifact in artifacts if artifact.get("name") == name]
+        if len(matches) > 1:
+            raise EvidenceError("ambiguous", f"More than one GitHub artifact has the exact name {name}")
+        if matches:
+            return run, matches[0], attempt
         started = parse_timestamp(run.get("run_started_at"))
         jobs = [job for job in client.jobs(run_id, attempt) if job.get("name") == "performance-smoke-benchmarks"]
         for job in jobs:

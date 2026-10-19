@@ -6,16 +6,18 @@
 """Paired PR evidence reuse and selection using immutable local source fixtures."""
 
 import contextlib
+import copy
 import hashlib
 import io
 import json
 import os
+import runpy
 import subprocess
 import sys
-import tempfile
-import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from . import baseline, build_compare, cli, paired, source_revision
 from .test_baseline import HEAD, REPO, FixtureClient, bundle, stamp
@@ -55,11 +57,14 @@ class PairedFixtureClient(FixtureClient):
         return matches[0]
 
 
-class PairedTests(unittest.TestCase):
-    def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name).resolve()
+from .test_build_compare import check_comparisons, check_reports, run_report
+from .test_compare import check_rolling_history
+
+
+class PairedFixture:
+    def __init__(self, root, stack):
+        self.root = root.resolve()
+        self.root.mkdir(parents=True)
         self.checkout = self.root / "base checkout"
         self.checkout.mkdir()
         self._git("init", "--quiet")
@@ -68,13 +73,10 @@ class PairedTests(unittest.TestCase):
         source.write_text('def run(argv):\n    """Selected base runtime."""\n    return argv\n')
         (self.checkout / "source/isaaclab/isaaclab/__init__.py").write_text("")
         self._git("add", ".")
-        self._git(
-            "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "Base"
-        )
+        self._git("commit", "--quiet", "-m", "Base")
         self.commit = self._git("rev-parse", "HEAD")
         environment = patch.dict(os.environ, {"PERF_BASE_COMMIT": self.commit})
-        environment.start()
-        self.addCleanup(environment.stop)
+        stack.enter_context(environment)
         self.manifest = source_revision.prepare_manifest(self.checkout)
         measurement_files = {RUNTIME: hashlib.sha256(b"def run(argv): return 'PR measurement'\n").hexdigest()}
         self.measurement = {
@@ -100,8 +102,7 @@ class PairedTests(unittest.TestCase):
             "source_launcher_sha256": hashlib.sha256((self.controller / "source_revision.py").read_bytes()).hexdigest(),
         }
         controller = patch.object(paired, "__file__", str(self.controller / "paired.py"))
-        controller.start()
-        self.addCleanup(controller.stop)
+        stack.enter_context(controller)
         self.event = {
             "number": 42,
             "pull_request": {
@@ -112,14 +113,13 @@ class PairedTests(unittest.TestCase):
         }
 
     def _git(self, *args):
-        return subprocess.check_output(["git", "-C", str(self.checkout), *args], text=True).strip()
+        identity = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid"]
+        return subprocess.check_output(["git", "-C", str(self.checkout), *identity, *args], text=True).strip()
 
     def _commit_file(self, name, content):
         (self.checkout / name).write_text(content)
         self._git("add", ".")
-        self._git(
-            "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", name
-        )
+        self._git("commit", "--quiet", "-m", name)
         return self._git("rev-parse", "HEAD")
 
     def _moving_merge(self):
@@ -127,43 +127,40 @@ class PairedTests(unittest.TestCase):
         head = self._commit_file("source/isaaclab/isaaclab/pr.py", "VALUE = 'PR'\n")
         self._git("checkout", "--quiet", "-b", "fixture-target", self.commit)
         base = self._commit_file("source/isaaclab/isaaclab/base.py", "VALUE = 'Advanced base'\n")
-        self._git(
-            "-c",
-            "user.name=Fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "merge",
-            "--quiet",
-            "--no-ff",
-            "-m",
-            "Tested merge",
-            head,
-        )
+        self._git("merge", "--quiet", "--no-ff", "-m", "Tested merge", head)
         merge = self._git("rev-parse", "HEAD")
         latest = self._commit_file("source/isaaclab/isaaclab/later.py", "VALUE = 'Later target'\n")
         self._git("checkout", "--quiet", "--detach", merge)
         self.event["pull_request"]["head"]["sha"] = head
-        return base, head, merge, latest
+        return (base, head, merge, latest)
 
-    def _cli(self, args, **environment):
+    @contextlib.contextmanager
+    def _workflow(self, **environment):
         event_path = self.root / "event.json"
         event_path.write_bytes(encoded(self.event))
-        env = {
-            **os.environ,
-            "GITHUB_EVENT_PATH": str(event_path),
-            "GITHUB_OUTPUT": str(self.root / "github-output"),
-            "GITHUB_RUN_ID": "20",
-            "GITHUB_RUN_ATTEMPT": "1",
-            "GITHUB_REPOSITORY": REPO,
-            **environment,
-        }
-        return subprocess.run(
-            [sys.executable, "-m", "tools.perf_smoke.paired", *args],
-            cwd=Path(__file__).resolve().parents[2],
-            env=env,
-            text=True,
-            capture_output=True,
-        )
+        with patch.dict(
+            os.environ,
+            {
+                "GITHUB_EVENT_PATH": str(event_path),
+                "GITHUB_OUTPUT": str(self.root / "github-output"),
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_RUN_ID": "20",
+                "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_JOB": "performance-smoke-benchmarks",
+                "GITHUB_REPOSITORY": REPO,
+                **environment,
+            },
+        ):
+            yield
+
+    def _cli(self, args, **environment):
+        with self._workflow(**environment):
+            return subprocess.run(
+                [sys.executable, "-m", "tools.perf_smoke.paired", *args],
+                cwd=Path(__file__).resolve().parents[2],
+                text=True,
+                capture_output=True,
+            )
 
     def _capture_args(self, output, role="current", image="same-image", legs=None):
         return [
@@ -180,255 +177,10 @@ class PairedTests(unittest.TestCase):
             str(self.legs if legs is None else legs),
         ]
 
-    def test_resolve_immutable_merge_first_parent_despite_stale_event_and_moving_target(self):
-        base, _, merge, latest = self._moving_merge()
-        self.assertNotEqual(base, self.event["pull_request"]["base"]["sha"])
-        self.assertNotEqual(base, latest)
-        result = self._cli(["resolve", "--checkout-root", str(self.checkout)], GITHUB_SHA=merge)
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        outputs = dict(line.split("=", 1) for line in (self.root / "github-output").read_text().splitlines())
-        self.assertEqual(outputs, {"base_commit": base})
-
-    def test_resolve_rejects_wrong_checkout_head_or_nonmerge_and_emits_reason(self):
-        base, _, merge, _ = self._moving_merge()
-        for mismatch in ("checkout", "head", "nonmerge"):
-            with self.subTest(mismatch=mismatch):
-                self._git("checkout", "--quiet", "--detach", base if mismatch == "nonmerge" else merge)
-                event = json.loads(encoded(self.event))
-                if mismatch == "head":
-                    self.event["pull_request"]["head"]["sha"] = HEAD
-                result = self._cli(
-                    ["resolve", "--checkout-root", str(self.checkout)],
-                    GITHUB_SHA=base if mismatch in ("checkout", "nonmerge") else merge,
-                )
-                self.event = event
-                self.assertNotEqual(result.returncode, 0)
-                outputs = (self.root / "github-output").read_text()
-                self.assertIn("reason=", outputs)
-                self.assertNotIn("base_commit=", outputs)
-
-    def test_capture_preserves_resolved_parent_and_tolerates_optional_metadata_failures(self):
-        base, head, merge, _ = self._moving_merge()
-        original_run = subprocess.run
-        original_write = paired._write
-        failure = None
-        event_path = self.root / "event.json"
-        event_path.write_text(json.dumps(self.event))
-
-        def inspect_or_run(command, **kwargs):
-            if command[:3] == ["docker", "image", "inspect"]:
-                if failure in ("image", "image_shape"):
-                    return subprocess.CompletedProcess(command, 0, "not JSON" if failure == "image" else "{}", "")
-                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
-            return original_run(command, **kwargs)
-
-        def write_context(path, value):
-            if failure == "context_write" and path.name == "build-context.json":
-                raise OSError("fixture context write failed")
-            original_write(path, value)
-
-        with (
-            patch.dict(
-                os.environ,
-                {
-                    "PERF_BASE_COMMIT": base,
-                    "GITHUB_EVENT_PATH": str(event_path),
-                    "GITHUB_SHA": merge,
-                    "GITHUB_EVENT_NAME": "pull_request",
-                    "GITHUB_RUN_ID": "20",
-                    "GITHUB_RUN_ATTEMPT": "1",
-                    "GITHUB_JOB": "performance-smoke-benchmarks",
-                },
-            ),
-            patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
-            patch.object(paired, "_write", side_effect=write_context),
-            patch.object(paired.socket, "gethostname", return_value="fixture-gpu-host"),
-        ):
-            for role, commit in (("baseline", base), ("current", merge)):
-                self._git("checkout", "--quiet", "--detach", commit)
-                output = self.root / role
-                context = paired.capture_context(self.checkout, output, "same-image", role, self.event, self.legs)
-                source = context["source"]
-                self.assertEqual(source["commit"], commit)
-                self.assertEqual(source["reference_commit"], base)
-                self.assertEqual(source["event_base_commit"], self.commit)
-                self.assertEqual(source["requested_head_commit"], head)
-                self.assertEqual(json.loads((output / "source-manifest.json").read_text())["commit"], commit)
-                self.assertEqual(context["execution"]["benchmark_protocol"], self.protocol)
-                saved = json.loads((output / "build-context.json").read_text())
-                self.assertEqual(saved["execution"]["benchmark_protocol"], self.protocol)
-                if role == "current":
-                    self.assertEqual(source["commit_parents"], [base, head])
-
-            for failure in ("image", "image_shape", "context_write"):
-                with self.subTest(optional_failure=failure):
-                    output = self.root / failure
-                    result = paired.main(self._capture_args(output))
-                    self.assertEqual(result, 0)
-                    manifest = json.loads((output / "source-manifest.json").read_text())
-                    self.assertEqual(manifest["commit"], merge)
-                    self.assertEqual(
-                        manifest["files"][RUNTIME], hashlib.sha256((self.checkout / RUNTIME).read_bytes()).hexdigest()
-                    )
-                    self.assertFalse((output / "paired-failure.json").exists())
-                    if failure != "context_write":
-                        context = json.loads((output / "build-context.json").read_text())
-                        self.assertEqual(context["execution"]["hostname"], "fixture-gpu-host")
-                        self.assertEqual(context["execution"]["benchmark_protocol"], self.protocol)
-                        self.assertIsNone(context["metric_definition"]["total_fps"])
-                        self.assertIn("provenance capture failed", context["metric_definition"]["reason"])
-                    else:
-                        self.assertFalse((output / "build-context.json").exists())
-
-            failure = None
-            snapshot = self.root / "measurement"
-            measurement = source_revision.snapshot_measurement(self.checkout, snapshot)
-            with patch.dict(os.environ, {"PERF_MEASUREMENT_MANIFEST": str(snapshot / "measurement-manifest.json")}):
-                for role, commit in (("baseline", base), ("current", merge)):
-                    self._git("checkout", "--quiet", "--detach", commit)
-                    output = self.root / role
-                    args = self._capture_args(output, role=role, image="fixture")
-                    self.assertEqual(paired.main(args), 0)
-                    manifest = json.loads((output / "source-manifest.json").read_text())
-                    context = json.loads((output / "build-context.json").read_text())
-                    self.assertEqual(manifest["commit"], commit)
-                    self.assertEqual(manifest["measurement"], measurement)
-                    self.assertEqual(context["source"]["commit"], commit)
-                    self.assertEqual(context["measurement"], {"commit": merge, "digest": measurement["digest"]})
-                    self.assertEqual(
-                        context["metric_definition"]["total_fps"], f"measurement-v1:{measurement['digest']}"
-                    )
-                    self.assertEqual(
-                        context["execution"]["benchmark_protocol"]["measurement_sha256"], measurement["digest"]
-                    )
-                (snapshot / "measurement-manifest.json").write_bytes(encoded({**measurement, "commit": base}))
-                self.assertEqual(paired.main(args), 1)
-                self.assertIn(
-                    "Measurement source does not identify",
-                    json.loads((output / "paired-failure.json").read_text())["reason"],
-                )
-                (output / "paired-failure.json").unlink()
-                (snapshot / "measurement-manifest.json").unlink()
-                self.assertEqual(paired.main(args), 1)
-                self.assertIn(
-                    "measurement-manifest.json", json.loads((output / "paired-failure.json").read_text())["reason"]
-                )
-
-    def test_non_pr_capture_source_evidence_without_build_comparison(self):
-        with patch.object(paired.subprocess, "run", wraps=subprocess.run) as commands:
-            context = paired.capture_context(self.checkout, self.output, "same-image", "current", {}, self.legs)
-            self.assertEqual(context, {})
-            self.assertEqual(json.loads((self.output / "source-manifest.json").read_text()), self.manifest)
-            self.assertFalse((self.output / "build-context.json").exists())
-            self.assertFalse(any(call.args[0][0] == "docker" for call in commands.call_args_list))
-
-    def test_capture_rejects_invalid_current_source_even_without_base_metadata(self):
-        base, head, merge, _ = self._moving_merge()
-        for mismatch in ("checkout", "head", "nonmerge", "invalid_sha"):
-            with self.subTest(mismatch=mismatch):
-                commit = base if mismatch == "nonmerge" else merge
-                tested = base if mismatch in ("checkout", "nonmerge") else merge
-                if mismatch == "invalid_sha":
-                    tested = "invalid"
-                self._git("checkout", "--quiet", "--detach", commit)
-                self.event["pull_request"]["head"]["sha"] = HEAD if mismatch == "head" else head
-                output = self.root / mismatch
-                result = self._cli(
-                    self._capture_args(output, image="unused", legs=self.root / "unused.tsv"),
-                    GITHUB_SHA=tested,
-                    PERF_BASE_COMMIT="",
-                )
-                self.assertNotEqual(result.returncode, 0)
-                failure_path = output / "paired-failure.json"
-                failure = json.loads(failure_path.read_text())
-                self.assertEqual(failure["stage"], "capture_current")
-                expected_reason = "GITHUB_SHA" if mismatch in ("checkout", "invalid_sha") else "second parent"
-                self.assertIn(expected_reason, failure["reason"])
-                self.assertEqual(failure["source"]["commit"], commit)
-                self.assertEqual(failure["source"]["intended_commit"], tested)
-                self.assertEqual(failure["source"]["tested_commit"], tested)
-                self.assertEqual(failure["source"]["commit_parents"], [self.commit] if commit == base else [base, head])
-                self.assertEqual(failure["source"]["event_base_commit"], self.commit)
-                self.assertEqual(failure["execution"], {"run_id": 20, "run_attempt": 1})
-                self.assertFalse((output / "source-manifest.json").exists())
-                previous = failure_path.read_bytes()
-                self._cli(
-                    ["bind", "--selection", str(self.selection_path), "--output-dir", str(output)],
-                    GITHUB_SHA=tested,
-                    PERF_BASE_COMMIT="",
-                )
-                self.assertEqual(failure_path.read_bytes(), previous)
-
-    def test_current_capture_survives_missing_or_stale_base_metadata_and_keeps_bind_failure(self):
-        base, head, merge, _ = self._moving_merge()
-        reason = "CPU could not resolve the tested PR merge."
-        env = {"GITHUB_SHA": merge, "PERF_BASE_COMMIT": "", "PERF_PAIR_ERROR": reason}
-        bound = self._cli(["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)], **env)
-        self.assertNotEqual(bound.returncode, 0)
-        path = self.output / "paired-failure.json"
-        original = json.loads(path.read_text())
-        self.assertEqual(original["stage"], "bind")
-        self.assertEqual(original["reason"], reason)
-        self.assertIsNone(original["source"]["commit"])
-        original_run = subprocess.run
-
-        def inspect_or_run(command, **kwargs):
-            if command[:3] == ["docker", "image", "inspect"]:
-                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
-            return original_run(command, **kwargs)
-
-        with (
-            patch.dict(
-                os.environ,
-                {
-                    **env,
-                    "GITHUB_EVENT_PATH": str(self.root / "event.json"),
-                    "GITHUB_EVENT_NAME": "pull_request",
-                    "GITHUB_RUN_ID": "20",
-                    "GITHUB_RUN_ATTEMPT": "1",
-                    "GITHUB_JOB": "performance-smoke-benchmarks",
-                },
-            ),
-            patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
-        ):
-            for resolved in ("", self.commit):
-                with self.subTest(resolved=resolved), patch.dict(os.environ, {"PERF_BASE_COMMIT": resolved}):
-                    context = paired.capture_context(
-                        self.checkout, self.output, "same-image", "current", self.event, self.legs
-                    )
-                    self.assertEqual(context["source"]["commit"], merge)
-                    self.assertEqual(context["source"]["reference_commit"], base)
-                    self.assertEqual(context["source"]["commit_parents"], [base, head])
-                    self.assertEqual(context["source"]["event_base_commit"], self.commit)
-                    manifest = json.loads((self.output / "source-manifest.json").read_text())
-                    self.assertEqual(manifest["commit"], merge)
-                    for name, content in (("pr.py", b"VALUE = 'PR'\n"), ("base.py", b"VALUE = 'Advanced base'\n")):
-                        self.assertEqual(
-                            manifest["files"][f"source/isaaclab/isaaclab/{name}"], hashlib.sha256(content).hexdigest()
-                        )
-                    self.assertEqual(json.loads(path.read_text()), original)
-                    self.assertFalse((self.output / "pr-comparison.json").exists())
-                    with self.assertRaises(ValueError):
-                        paired.capture_context(
-                            self.checkout, self.output, "same-image", "baseline", self.event, self.legs
-                        )
-            (self.checkout / RUNTIME).write_text("def run(argv): return 'modified'\n")
-            invalid = self.root / "modified-source"
-            with self.assertRaisesRegex(ValueError, "Checked-out Python source differs"):
-                paired.capture_context(self.checkout, invalid, "same-image", "current", self.event, self.legs)
-            self.assertFalse((invalid / "source-manifest.json").exists())
-            captured = paired.main(self._capture_args(self.output))
-            self.assertNotEqual(captured, 0)
-            expected = json.loads(encoded(original))
-            expected["source"].update(commit=merge, commit_parents=[base, head])
-            self.assertEqual(json.loads(path.read_text()), expected)
-
     def _files(self, run_id=10, attempt=1, measurement=None):
-        manifest = (
-            {**self.manifest, "schema_version": 2, "measurement": measurement}
-            if measurement is not None
-            else self.manifest
-        )
+        manifest = dict(self.manifest)
+        if measurement is not None:
+            manifest.update(schema_version=2, measurement=measurement)
         context = {
             "source": {
                 "commit": self.commit,
@@ -456,7 +208,7 @@ class PairedTests(unittest.TestCase):
             context["measurement"] = {key: measurement[key] for key in ("commit", "digest")}
             context["metric_definition"] = {"total_fps": f"measurement-v1:{measurement['digest']}"}
             context["execution"]["benchmark_protocol"]["measurement_sha256"] = measurement["digest"]
-        files = {"source-manifest.json": encoded(manifest), "build-context.json": encoded(context)}
+        files = {"source-manifest.json": manifest, "build-context.json": context}
         measured_files = measurement["files"] if measurement is not None else {}
         modules = [
             {
@@ -474,43 +226,31 @@ class PairedTests(unittest.TestCase):
             for sample in range(1, 4):
                 path = f"{leg}/sample-{sample}/benchmark_runtime_fixture.json"
                 value = bundle(start=stamp(9, sample), end=stamp(9, sample + 1), task=leg)
-                value["run"]["seed"] = 42
-                value["runtime"].update(
-                    iterations_completed=200,
-                    steps_per_iteration=512,
-                    environment_step_timing={"warmup_steps": 100, "measurement_mode": "host_return"},
-                )
-                value["hardware"] = {
-                    "cpu_name": "Intel(R) Xeon(R) 6975P-C",
-                    "cpu_count": 16,
-                    "gpu_devices": [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}],
-                }
                 data = encoded(value)
-                files[path] = data
-                files[f"{leg}/sample-{sample}/source-revision.json"] = encoded(
-                    {
-                        "schema_version": manifest["schema_version"],
-                        **({"measurement": {**measurement, "status": "verified"}} if measurement else {}),
-                        "status": "verified",
-                        "bytecode_policy": "fresh_process_cache",
-                        "commit": self.commit,
-                        "benchmark_exit_code": 0,
-                        "modules": modules,
-                        "runtime_entrypoint": {
-                            "module": "isaaclab.benchmark.entrypoints.runtime",
-                            **({"origin": "measurement"} if measurement else {}),
-                        },
-                        "outputs": [
-                            {
-                                "path": "benchmark_runtime_fixture.json",
-                                "sha256": hashlib.sha256(data).hexdigest(),
-                                "bytes": len(data),
-                            }
-                        ],
-                        "mismatches": [],
-                    }
-                )
-        return files
+                files[path] = value
+                files[f"{leg}/sample-{sample}/source-revision.json"] = {
+                    "schema_version": manifest["schema_version"],
+                    **({"measurement": {**measurement, "status": "verified"}} if measurement else {}),
+                    "status": "verified",
+                    "bytecode_policy": "fresh_process_cache",
+                    "commit": self.commit,
+                    "benchmark_exit_code": 0,
+                    "modules": modules,
+                    "runtime_entrypoint": {
+                        "module": "isaaclab.benchmark.entrypoints.runtime",
+                        **({"origin": "measurement"} if measurement else {}),
+                    },
+                    "outputs": [
+                        {
+                            "path": "benchmark_runtime_fixture.json",
+                            "sha256": hashlib.sha256(data).hexdigest(),
+                            "bytes": len(data),
+                        }
+                    ],
+                    "mismatches": [],
+                }
+        # Keep artifact documents independent before serialization.
+        return {name: copy.deepcopy(value) for name, value in files.items()}
 
     def _add_baseline(self, files=None, *, run_id=10, attempt=1):
         self.client.add(run_id, HEAD, event="pull_request", branch="feature", attempt=attempt, artifact=False)
@@ -535,288 +275,6 @@ class PairedTests(unittest.TestCase):
             measurement_manifest=measurement,
         )
 
-    def test_restore_unchanged_base_for_new_pr_head_reuses_exact_baseline(self):
-        files = self._files()
-        artifact = self._add_baseline(files)
-        self.event["pull_request"]["head"]["sha"] = "d" * 40
-        selection = self._restore()
-        self.assertTrue(selection["baseline_reused"])
-        self.assertEqual(selection["requested_head_commit"], "d" * 40)
-        self.assertEqual(selection["baseline_origin"]["artifact_id"], artifact["id"])
-        self.assertEqual(selection["baseline_origin"]["source_commit"], self.commit)
-        self.assertEqual(json.loads(self.selection_path.read_text()), selection)
-
-    def test_restore_requests_fresh_baseline_when_matrix_or_launcher_changes(self):
-        self._add_baseline()
-        for path in (self.legs, self.controller / "run_benchmarks.sh", self.controller / "source_revision.py"):
-            with self.subTest(protocol_file=path.name):
-                original = path.read_bytes()
-                try:
-                    path.write_bytes(
-                        original.replace(b"physics=newton_mjwarp", b"physics=ovphysx")
-                        if path == self.legs
-                        else original + b"\n# Changed controller launcher\n"
-                    )
-                    selection = self._restore()
-                    self.assertFalse(selection["baseline_reused"])
-                    self.assertIn("protocol", " ".join(selection["issues"]))
-                finally:
-                    path.write_bytes(original)
-
-    def test_restore_requests_fresh_baseline_when_protocol_identity_is_missing(self):
-        files = self._files()
-        context = json.loads(files["build-context.json"])
-        del context["execution"]["benchmark_protocol"]
-        files["build-context.json"] = encoded(context)
-        self._add_baseline(files)
-        selection = self._restore()
-        self.assertFalse(selection["baseline_reused"])
-        self.assertIn("protocol", " ".join(selection["issues"]))
-
-    def test_shared_measurement_reuses_matching_bytes_across_commits_and_remeasures_old_or_changed_bytes(self):
-        self._add_baseline(run_id=9)
-        self.assertFalse(self._restore(measurement=self.measurement)["baseline_reused"])
-        artifact = self._add_baseline(self._files(measurement=self.measurement))
-        original = self.client.contents[artifact["id"]]
-        measurement = {**self.measurement, "commit": "d" * 40}
-        restored = self._restore(measurement=measurement)
-        self.assertTrue(restored["baseline_reused"])
-        self.assertEqual(restored["baseline_origin"]["artifact_id"], artifact["id"])
-        candidate = self._candidate(
-            restored["baseline_origin"], reused=True, selection=restored, measurement=measurement
-        )
-        evidence, _ = paired.select_pr_baseline(self.client, candidate)
-        self.assertEqual(evidence.issues, [])
-        self.assertEqual(evidence.identity["sha256"], hashlib.sha256(original).hexdigest())
-        self.assertEqual(candidate.issues, [])
-        report = build_compare.compare_evidence(evidence, candidate)
-        self.assertTrue(all(row["status"] == "compared" for row in report["rows"]))
-        self.assertTrue(all(row["change_pct"] == 0 for row in report["rows"]))
-        self.assertEqual(self.client.contents[artifact["id"]], original)
-        changed_files = {**self.measurement["files"], RUNTIME: "0" * 64}
-        changed = {
-            **self.measurement,
-            "files": changed_files,
-            "digest": source_revision.measurement_digest(changed_files),
-        }
-        selection = self._restore(measurement=changed)
-        self.assertFalse(selection["baseline_reused"])
-        self.assertIn("measurement code", str(selection["issues"]))
-
-    def test_restore_and_selection_use_resolved_reference_not_recorded_event_base(self):
-        event_base = "f" * 40
-        files = self._files()
-        context = json.loads(files["build-context.json"])
-        context["source"]["event_base_commit"] = event_base
-        files["build-context.json"] = encoded(context)
-        artifact = self._add_baseline(files)
-        self.event["pull_request"]["base"]["sha"] = event_base
-        restored = self._restore()
-        self.assertTrue(restored["baseline_reused"])
-        self.assertEqual(restored["reference_commit"], self.commit)
-        self.assertEqual(restored["event_base_commit"], event_base)
-        candidate = self._candidate(self._origin(artifact, run_id=10), reused=True, hostname="different-gpu-host")
-        candidate.context["source"]["event_base_commit"] = event_base
-        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
-        self.assertEqual(evidence.identity["source_commit"], self.commit)
-        self.assertEqual(evidence.identity["run_id"], 10)
-        self.assertTrue(metadata["baseline_reused"])
-
-    def test_restore_requires_resolved_commit_even_when_event_base_matches_checkout(self):
-        with patch.dict(os.environ, {"PERF_BASE_COMMIT": ""}):
-            with self.assertRaisesRegex(ValueError, "first parent was not resolved"):
-                paired.restore_baseline(
-                    self.client, self.checkout, self.selection_path, self.event, 20, 1, legs=self.legs
-                )
-        self.assertFalse(self.selection_path.exists())
-        self.assertEqual(self.client.pages_requested, [])
-
-    def test_restore_uses_current_numeric_workflow_registration_and_excludes_others(self):
-        workflow_id = 812345
-        self.client.add(20, HEAD, event="pull_request", branch="feature", artifact=False)["workflow_id"] = workflow_id
-        expected = self._add_baseline(run_id=10)
-        self.client.attempts[10, 1]["workflow_id"] = workflow_id
-        obsolete = self._add_baseline(run_id=11)
-        self.client.attempts[11, 1]["workflow_id"] = 700000
-        selected = self._restore()
-        self.assertTrue(selected["baseline_reused"])
-        self.assertEqual(selected["baseline_origin"]["artifact_id"], expected["id"])
-        self.assertEqual(self.client.attempts_requested[0], (20, 1))
-        self.assertIn(
-            (
-                f"/repos/{REPO}/actions/workflows/{workflow_id}/runs",
-                "workflow_runs",
-                {"event": "pull_request", "branch": "feature"},
-            ),
-            self.client.pages_requested,
-        )
-        self.assertFalse(any("build.yaml" in path for path, _, _ in self.client.pages_requested))
-        self.assertTrue(any(f"Artifact {obsolete['id']}" in issue for issue in selected["issues"]))
-
-    def test_changed_base_commit_requests_fresh_measurement(self):
-        self._add_baseline()
-        source = self.checkout / RUNTIME
-        source.write_text(source.read_text().replace("Selected base", "Changed base"))
-        self._git("add", ".")
-        self._git(
-            "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "Next"
-        )
-        new_commit = self._git("rev-parse", "HEAD")
-        self.event["pull_request"]["base"]["sha"] = new_commit
-        selection = self._restore()
-        self.assertFalse(selection["baseline_reused"])
-        self.assertEqual(selection["reference_commit"], new_commit)
-        self.assertEqual(self.client.downloaded, [])
-
-    def test_different_pr_does_not_reuse_another_pr_baseline(self):
-        self._add_baseline()
-        self.event["number"] = self.event["pull_request"]["number"] = 43
-        selection = self._restore()
-        self.assertFalse(selection["baseline_reused"])
-        self.assertEqual(self.client.downloaded, [])
-
-    def test_current_measurements_are_never_restored_as_baseline(self):
-        files = self._files()
-        context = json.loads(files["build-context.json"])
-        context["source"]["benchmark_role"] = "current"
-        files["build-context.json"] = encoded(context)
-        artifact = self._add_baseline(files)
-        selection = self._restore()
-        self.assertFalse(selection["baseline_reused"])
-        self.assertEqual(self.client.downloaded, [artifact["id"]])
-        self.assertIn("does not belong to this PR and exact base commit", str(selection["issues"]))
-
-    def test_interrupted_lookup_leaves_a_persisted_fresh_selection(self):
-        self._add_baseline()
-        with patch.object(self.client, "run_attempt", side_effect=TimeoutError("lookup interrupted")):
-            with self.assertRaises(TimeoutError):
-                self._restore()
-        selection = json.loads(self.selection_path.read_text())
-        self.assertFalse(selection["baseline_reused"])
-        self.assertIsNone(selection["baseline_origin"])
-        self.assertEqual(selection["reference_commit"], self.commit)
-
-    def test_invalid_source_proof_blocks_reuse_and_identifies_the_affected_sample(self):
-        for mutation, sample, reason in (
-            ("missing", "second/sample-3", "source-revision.json"),
-            ("result", "first/sample-1", "Result bytes do not match their source verification"),
-            ("module", "first/sample-1", "Loaded source does not match its manifest"),
-        ):
-            with self.subTest(mutation=mutation):
-                self.client = PairedFixtureClient()
-                files = self._files()
-                path = f"{sample}/source-revision.json"
-                if mutation == "missing":
-                    del files[path]
-                elif mutation == "result":
-                    path = f"{sample}/benchmark_runtime_fixture.json"
-                    changed = json.loads(files[path])
-                    changed["runtime"]["total_fps"]["mean"] = 900
-                    files[path] = encoded(changed)
-                else:
-                    proof = json.loads(files[path])
-                    proof["modules"][0]["sha256"] = "0" * 64
-                    files[path] = encoded(proof)
-                artifact = self._add_baseline(files)
-                candidate = self._candidate(self._origin(artifact, run_id=10), reused=True)
-                evidence, _ = paired.select_pr_baseline(self.client, candidate)
-                self.assertIn(sample, str(evidence.issues))
-                self.assertIn(reason, str(evidence.issues))
-                selection = self._restore()
-                self.assertFalse(selection["baseline_reused"])
-                self.assertIn("Baseline is incomplete or its source proof is invalid.", str(selection["issues"]))
-
-    def test_shared_measurement_proof_rejects_mixed_origins_and_changed_identity(self):
-        for mutation in (
-            "workload_origin",
-            "measurement_origin",
-            "native_runtime",
-            "runtime_origin",
-            "proof_commit",
-            "digest",
-            "context",
-            "missing_manifest",
-            "missing_proof",
-        ):
-            with self.subTest(mutation=mutation):
-                self.client = PairedFixtureClient()
-                files = self._files(measurement=self.measurement)
-                path = "first/sample-1/source-revision.json"
-                proof = json.loads(files[path])
-                runtime = next(item for item in proof["modules"] if item["relative_path"] == RUNTIME)
-                workload = next(item for item in proof["modules"] if item["relative_path"] != RUNTIME)
-                if mutation == "workload_origin":
-                    workload["origin"] = "measurement"
-                elif mutation == "measurement_origin":
-                    runtime["origin"] = "workload"
-                elif mutation == "native_runtime":
-                    runtime.update(
-                        sha256=self.manifest["files"][RUNTIME], expected_sha256=self.manifest["files"][RUNTIME]
-                    )
-                elif mutation == "runtime_origin":
-                    proof["runtime_entrypoint"]["origin"] = "workload"
-                elif mutation == "proof_commit":
-                    proof["measurement"]["commit"] = self.commit
-                elif mutation in ("digest", "missing_manifest"):
-                    manifest = json.loads(files["source-manifest.json"])
-                    if mutation == "digest":
-                        manifest["measurement"]["digest"] = "0" * 64
-                    else:
-                        del manifest["measurement"]
-                    files["source-manifest.json"] = encoded(manifest)
-                elif mutation == "missing_proof":
-                    del proof["measurement"]
-                else:
-                    context = json.loads(files["build-context.json"])
-                    context["metric_definition"]["total_fps"] = "measurement-v1:" + "0" * 64
-                    files["build-context.json"] = encoded(context)
-                files[path] = encoded(proof)
-                artifact = self._add_baseline(files)
-                candidate = self._candidate(
-                    self._origin(artifact, run_id=10), reused=True, measurement=self.measurement
-                )
-                evidence, _ = paired.select_pr_baseline(self.client, candidate)
-                self.assertTrue(evidence.issues)
-                report = build_compare.compare_evidence(evidence, candidate)
-                self.assertTrue(all("Baseline: " + issue in report["notes"] for issue in evidence.issues))
-                first = next(row for row in report["rows"] if "first" in row["legs"]["baseline"])
-                self.assertIsNone(first["change_pct"])
-                self.assertFalse(self._restore(measurement=self.measurement)["baseline_reused"])
-
-    def test_incomplete_or_failed_workload_requests_fresh_measurement(self):
-        for mutation in ("missing-sample", "failed-leg", "missing-workload"):
-            with self.subTest(mutation=mutation):
-                self.client = PairedFixtureClient()
-                files = self._files()
-                if mutation == "missing-sample":
-                    del files["second/sample-3/benchmark_runtime_fixture.json"]
-                elif mutation == "failed-leg":
-                    files["second/status"] = b"failed"
-                else:
-                    files = {name: data for name, data in files.items() if not name.startswith("second/")}
-                self._add_baseline(files)
-                selection = self._restore()
-                self.assertFalse(selection["baseline_reused"])
-                self.assertTrue(selection["issues"])
-
-    def test_baseline_reruns_remeasure_invalid_evidence_reuse_valid_results_and_refresh_after_expiry(self):
-        incomplete = self._files()
-        del incomplete["second/sample-3/source-revision.json"]
-        first = self._add_baseline(incomplete)
-        first_bytes = self.client.contents[first["id"]]
-        self.assertFalse(self._restore(run_id=10, attempt=2)["baseline_reused"])
-        second = self._add_baseline(run_id=10, attempt=2)
-        self.assertNotEqual(first["name"], second["name"])
-        with self.subTest(stage="valid_attempt_cannot_reuse_itself"):
-            self.assertFalse(self._restore(run_id=10, attempt=2)["baseline_reused"])
-        selection = self._restore(run_id=10, attempt=3)
-        self.assertTrue(selection["baseline_reused"])
-        self.assertEqual(selection["baseline_origin"]["artifact_id"], second["id"])
-        self.assertEqual(selection["baseline_origin"]["run_attempt"], 2)
-        self.assertEqual(self.client.contents[first["id"]], first_bytes)
-        second["expired"] = True
-        self.assertFalse(self._restore(run_id=10, attempt=3)["baseline_reused"])
-
     def _candidate(
         self,
         origin,
@@ -830,39 +288,33 @@ class PairedTests(unittest.TestCase):
         measurement=None,
     ):
         files = self._files(run_id=20, measurement=measurement)
-        manifest = json.loads(files["source-manifest.json"])
-        manifest["commit"] = HEAD
-        files["source-manifest.json"] = encoded(manifest)
-        context = json.loads(files["build-context.json"])
+        files["source-manifest.json"]["commit"] = HEAD
+        context = files["build-context.json"]
         context["source"].update(commit=HEAD, benchmark_role="current", commit_parents=[self.commit, HEAD])
         context["execution"].update(hostname=hostname, measurement_not_before=start)
         if definition is not None:
             context["metric_definition"] = definition
-        files["build-context.json"] = encoded(context)
         for name in list(files):
             if name.endswith("source-revision.json"):
-                proof = json.loads(files[name])
+                proof = files[name]
                 proof["commit"] = HEAD
                 path = name.rsplit("/", 1)[0] + "/benchmark_runtime_fixture.json"
-                data = json.loads(files[path])
+                data = files[path]
                 data["run"].update(start_time_utc=start, end_time_utc=stamp(11))
                 data["runtime"]["total_fps"]["mean"] = fps
-                files[path] = encoded(data)
-                proof["outputs"][0].update(sha256=hashlib.sha256(files[path]).hexdigest(), bytes=len(files[path]))
-                files[name] = encoded(proof)
-        files["pr-comparison.json"] = encoded(
-            {
-                "schema_version": 1,
-                "comparison_mode": "paired_pr",
-                "pull_request_number": 42,
-                "reference_commit": self.commit,
-                "requested_head_commit": HEAD,
-                "tested_commit": HEAD,
-                "baseline_reused": reused,
-                "baseline_origin": origin,
-                **(selection or {}),
-            }
-        )
+                content = encoded(data)
+                proof["outputs"][0].update(sha256=hashlib.sha256(content).hexdigest(), bytes=len(content))
+        files["pr-comparison.json"] = {
+            "schema_version": 1,
+            "comparison_mode": "paired_pr",
+            "pull_request_number": 42,
+            "reference_commit": self.commit,
+            "requested_head_commit": HEAD,
+            "tested_commit": HEAD,
+            "baseline_reused": reused,
+            "baseline_origin": origin,
+            **(selection or {}),
+        }
         run = self.client.add(20, HEAD, event="pull_request", branch="feature", artifact=False)
         artifact = self.client.add_artifact(20, "performance-smoke-20-1", files)
         return baseline.read_evidence(self.client, run, artifact, 1)
@@ -877,126 +329,566 @@ class PairedTests(unittest.TestCase):
         }
 
     def _run_report(self, attempt=1, *, gate_only=False):
-        output = self.root / ("gate-only" if gate_only else "report")
-        with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
-            status = build_compare.main(
-                [
-                    "--repository",
-                    REPO,
-                    "--run_id",
-                    "20",
-                    "--run_attempt",
-                    str(attempt),
-                    "--output_dir",
-                    str(output),
-                    "--comparison_dir",
-                    str(self.root / "comparisons"),
-                    *(["--gate-only"] if gate_only else []),
-                ]
-            )
-        if gate_only:
-            self.assertFalse(output.exists())
-            return status, None, None
-        return (
-            status,
-            json.loads((output / "build-comparison.json").read_text()),
-            (output / "build-comparison.md").read_text(),
+        return run_report(
+            self.client,
+            self.root / ("gate-only" if gate_only else "report"),
+            attempt=attempt,
+            comparison_dir=self.root / "comparisons",
+            gate_only=gate_only,
         )
 
-    def test_automatic_report_is_advisory_and_preserves_existing_gate_failure(self):
-        artifact = self._add_baseline(self._files(measurement=self.measurement))
-        candidate = self._candidate(
-            self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80
+
+@contextlib.contextmanager
+def paired_fixture(root, subtests, name):
+    with subtests.test(msg=name), contextlib.ExitStack() as stack:
+        yield PairedFixture(root / name.replace(" ", "-"), stack)
+
+
+def check_capture(tmp_path, subtests):
+    with paired_fixture(tmp_path, subtests, "merge first parent") as pair:
+        base, _, merge, latest = pair._moving_merge()
+        assert base != pair.event["pull_request"]["base"]["sha"]
+        assert base != latest
+        result = pair._cli(["resolve", "--checkout-root", str(pair.checkout)], GITHUB_SHA=merge)
+        assert result.returncode == 0, result.stderr + result.stdout
+        outputs = dict(line.split("=", 1) for line in (pair.root / "github-output").read_text().splitlines())
+        assert outputs == {"base_commit": base}
+    with paired_fixture(tmp_path, subtests, "capture optional metadata") as pair:
+        base, head, merge, _ = pair._moving_merge()
+        original_run = subprocess.run
+        original_write = paired._write
+        failure = None
+
+        def inspect_or_run(command, **kwargs):
+            if command[:3] == ["docker", "image", "inspect"]:
+                if failure in ("image", "image_shape"):
+                    return subprocess.CompletedProcess(command, 0, "not JSON" if failure == "image" else "{}", "")
+                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
+            return original_run(command, **kwargs)
+
+        def write_context(path, value):
+            if failure == "context_write" and path.name == "build-context.json":
+                raise OSError("fixture context write failed")
+            original_write(path, value)
+
+        with (
+            pair._workflow(PERF_BASE_COMMIT=base, GITHUB_SHA=merge),
+            patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
+            patch.object(paired, "_write", side_effect=write_context),
+            patch.object(paired.socket, "gethostname", return_value="fixture-gpu-host"),
+        ):
+            for role, commit in (("baseline", base), ("current", merge)):
+                pair._git("checkout", "--quiet", "--detach", commit)
+                output = pair.root / role
+                context = paired.capture_context(pair.checkout, output, "same-image", role, pair.event, pair.legs)
+                source = context["source"]
+                assert source["commit"] == commit
+                assert source["reference_commit"] == base
+                assert source["event_base_commit"] == pair.commit
+                assert source["requested_head_commit"] == head
+                assert json.loads((output / "source-manifest.json").read_text())["commit"] == commit
+                assert context["execution"]["benchmark_protocol"] == pair.protocol
+                saved = json.loads((output / "build-context.json").read_text())
+                assert saved["execution"]["benchmark_protocol"] == pair.protocol
+                if role == "current":
+                    assert source["commit_parents"] == [base, head]
+            for failure in ("image", "image_shape", "context_write"):
+                with subtests.test(optional_failure=failure):
+                    output = pair.root / failure
+                    result = paired.main(pair._capture_args(output))
+                    assert result == 0
+                    manifest = json.loads((output / "source-manifest.json").read_text())
+                    assert manifest["commit"] == merge
+                    assert (
+                        manifest["files"][RUNTIME] == hashlib.sha256((pair.checkout / RUNTIME).read_bytes()).hexdigest()
+                    )
+                    assert not (output / "paired-failure.json").exists()
+                    if failure != "context_write":
+                        context = json.loads((output / "build-context.json").read_text())
+                        assert context["execution"]["hostname"] == "fixture-gpu-host"
+                        assert context["execution"]["benchmark_protocol"] == pair.protocol
+                        assert context["metric_definition"]["total_fps"] is None
+                        assert "provenance capture failed" in context["metric_definition"]["reason"]
+                    else:
+                        assert not (output / "build-context.json").exists()
+            failure = None
+            snapshot = pair.root / "measurement"
+            measurement = source_revision.snapshot_measurement(pair.checkout, snapshot)
+            with patch.dict(os.environ, {"PERF_MEASUREMENT_MANIFEST": str(snapshot / "measurement-manifest.json")}):
+                for role, commit in (("baseline", base), ("current", merge)):
+                    pair._git("checkout", "--quiet", "--detach", commit)
+                    output = pair.root / role
+                    args = pair._capture_args(output, role=role, image="fixture")
+                    assert paired.main(args) == 0
+                    manifest = json.loads((output / "source-manifest.json").read_text())
+                    context = json.loads((output / "build-context.json").read_text())
+                    assert manifest["commit"] == commit
+                    assert manifest["measurement"] == measurement
+                    assert context["source"]["commit"] == commit
+                    assert context["measurement"] == {"commit": merge, "digest": measurement["digest"]}
+                    assert context["metric_definition"]["total_fps"] == f"measurement-v1:{measurement['digest']}"
+                    assert context["execution"]["benchmark_protocol"]["measurement_sha256"] == measurement["digest"]
+                (snapshot / "measurement-manifest.json").write_bytes(encoded({**measurement, "commit": base}))
+                assert paired.main(args) == 1
+                assert (
+                    "Measurement source does not identify"
+                    in json.loads((output / "paired-failure.json").read_text())["reason"]
+                )
+                (output / "paired-failure.json").unlink()
+                (snapshot / "measurement-manifest.json").unlink()
+                assert paired.main(args) == 1
+                assert "measurement-manifest.json" in json.loads((output / "paired-failure.json").read_text())["reason"]
+    with paired_fixture(tmp_path, subtests, "non-PR capture") as pair:
+        with patch.object(paired.subprocess, "run", wraps=subprocess.run) as commands:
+            context = paired.capture_context(pair.checkout, pair.output, "same-image", "current", {}, pair.legs)
+            assert context == {}
+            assert json.loads((pair.output / "source-manifest.json").read_text()) == pair.manifest
+            assert not (pair.output / "build-context.json").exists()
+            assert not any(call.args[0][0] == "docker" for call in commands.call_args_list)
+    with paired_fixture(tmp_path, subtests, "invalid source") as pair:
+        base, head, merge, _ = pair._moving_merge()
+        for mismatch in ("checkout", "head", "nonmerge", "invalid_sha"):
+            with subtests.test(mismatch=mismatch):
+                commit = base if mismatch == "nonmerge" else merge
+                tested = base if mismatch in ("checkout", "nonmerge") else merge
+                if mismatch == "invalid_sha":
+                    tested = "invalid"
+                pair._git("checkout", "--quiet", "--detach", commit)
+                pair.event["pull_request"]["head"]["sha"] = HEAD if mismatch == "head" else head
+                resolved = pair._cli(["resolve", "--checkout-root", str(pair.checkout)], GITHUB_SHA=tested)
+                assert resolved.returncode != 0
+                outputs = (pair.root / "github-output").read_text()
+                assert "reason=" in outputs
+                assert "base_commit=" not in outputs
+                output = pair.root / mismatch
+                result = pair._cli(
+                    pair._capture_args(output, image="unused", legs=pair.root / "unused.tsv"),
+                    GITHUB_SHA=tested,
+                    PERF_BASE_COMMIT="",
+                )
+                assert result.returncode != 0
+                failure_path = output / "paired-failure.json"
+                failure = json.loads(failure_path.read_text())
+                assert failure["stage"] == "capture_current"
+                expected_reason = "GITHUB_SHA" if mismatch in ("checkout", "invalid_sha") else "second parent"
+                assert expected_reason in failure["reason"]
+                assert failure["source"]["commit"] == commit
+                assert failure["source"]["intended_commit"] == tested
+                assert failure["source"]["tested_commit"] == tested
+                assert failure["source"]["commit_parents"] == ([pair.commit] if commit == base else [base, head])
+                assert failure["source"]["event_base_commit"] == pair.commit
+                assert failure["execution"] == {"run_id": 20, "run_attempt": 1}
+                assert not (output / "source-manifest.json").exists()
+                previous = failure_path.read_bytes()
+                pair._cli(
+                    ["bind", "--selection", str(pair.selection_path), "--output-dir", str(output)],
+                    GITHUB_SHA=tested,
+                    PERF_BASE_COMMIT="",
+                )
+                assert failure_path.read_bytes() == previous
+    with paired_fixture(tmp_path, subtests, "stale baseline metadata") as pair:
+        base, head, merge, _ = pair._moving_merge()
+        reason = "CPU could not resolve the tested PR merge."
+        env = {"GITHUB_SHA": merge, "PERF_BASE_COMMIT": "", "PERF_PAIR_ERROR": reason}
+        bound = pair._cli(["bind", "--selection", str(pair.selection_path), "--output-dir", str(pair.output)], **env)
+        assert bound.returncode != 0
+        path = pair.output / "paired-failure.json"
+        original = json.loads(path.read_text())
+        assert original["stage"] == "bind"
+        assert original["reason"] == reason
+        assert original["source"]["commit"] is None
+        original_run = subprocess.run
+
+        def inspect_or_run(command, **kwargs):
+            if command[:3] == ["docker", "image", "inspect"]:
+                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
+            return original_run(command, **kwargs)
+
+        with pair._workflow(**env), patch.object(paired.subprocess, "run", side_effect=inspect_or_run):
+            for resolved in ("", pair.commit):
+                with subtests.test(resolved=resolved), patch.dict(os.environ, {"PERF_BASE_COMMIT": resolved}):
+                    context = paired.capture_context(
+                        pair.checkout, pair.output, "same-image", "current", pair.event, pair.legs
+                    )
+                    assert context["source"]["commit"] == merge
+                    assert context["source"]["reference_commit"] == base
+                    assert context["source"]["commit_parents"] == [base, head]
+                    assert context["source"]["event_base_commit"] == pair.commit
+                    manifest = json.loads((pair.output / "source-manifest.json").read_text())
+                    assert manifest["commit"] == merge
+                    for name, content in (("pr.py", b"VALUE = 'PR'\n"), ("base.py", b"VALUE = 'Advanced base'\n")):
+                        assert (
+                            manifest["files"][f"source/isaaclab/isaaclab/{name}"] == hashlib.sha256(content).hexdigest()
+                        )
+                    assert json.loads(path.read_text()) == original
+                    assert not (pair.output / "pr-comparison.json").exists()
+                    with pytest.raises(ValueError):
+                        paired.capture_context(
+                            pair.checkout, pair.output, "same-image", "baseline", pair.event, pair.legs
+                        )
+            (pair.checkout / RUNTIME).write_text("def run(argv): return 'modified'\n")
+            invalid = pair.root / "modified-source"
+            with pytest.raises(ValueError, match="Checked-out Python source differs"):
+                paired.capture_context(pair.checkout, invalid, "same-image", "current", pair.event, pair.legs)
+            assert not (invalid / "source-manifest.json").exists()
+            captured = paired.main(pair._capture_args(pair.output))
+            assert captured != 0
+            expected = copy.deepcopy(original)
+            expected["source"].update(commit=merge, commit_parents=[base, head])
+            assert json.loads(path.read_text()) == expected
+
+
+def check_reuse(tmp_path, subtests):
+    with paired_fixture(tmp_path, subtests, "unchanged base reuse") as pair:
+        artifact = pair._add_baseline()
+        pair.event["pull_request"]["head"]["sha"] = "d" * 40
+        selection = pair._restore()
+        assert selection["baseline_reused"]
+        assert selection["requested_head_commit"] == "d" * 40
+        assert selection["baseline_origin"]["artifact_id"] == artifact["id"]
+        assert selection["baseline_origin"]["source_commit"] == pair.commit
+        assert json.loads(pair.selection_path.read_text()) == selection
+    with paired_fixture(tmp_path, subtests, "changed protocol") as pair:
+        pair._add_baseline()
+        for path in (pair.legs, pair.controller / "run_benchmarks.sh", pair.controller / "source_revision.py"):
+            with subtests.test(protocol_file=path.name):
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(
+                        original.replace(b"physics=newton_mjwarp", b"physics=ovphysx")
+                        if path == pair.legs
+                        else original + b"\n# Changed controller launcher\n"
+                    )
+                    selection = pair._restore()
+                    assert not selection["baseline_reused"]
+                    assert "protocol" in " ".join(selection["issues"])
+                finally:
+                    path.write_bytes(original)
+    with paired_fixture(tmp_path, subtests, "measurement snapshot reuse") as pair:
+        pair._add_baseline(run_id=9)
+        assert not pair._restore(measurement=pair.measurement)["baseline_reused"]
+        artifact = pair._add_baseline(pair._files(measurement=pair.measurement))
+        original = pair.client.contents[artifact["id"]]
+        measurement = {**pair.measurement, "commit": "d" * 40}
+        restored = pair._restore(measurement=measurement)
+        assert restored["baseline_reused"]
+        assert restored["baseline_origin"]["artifact_id"] == artifact["id"]
+        candidate = pair._candidate(
+            restored["baseline_origin"], reused=True, selection=restored, measurement=measurement
+        )
+        evidence, _ = paired.select_pr_baseline(pair.client, candidate)
+        assert evidence.issues == []
+        assert evidence.identity["sha256"] == hashlib.sha256(original).hexdigest()
+        assert candidate.issues == []
+        report = build_compare.compare_evidence(evidence, candidate)
+        assert all(row["status"] == "compared" for row in report["rows"])
+        assert all(row["change_pct"] == 0 for row in report["rows"])
+        assert pair.client.contents[artifact["id"]] == original
+        changed_files = {**pair.measurement["files"], RUNTIME: "0" * 64}
+        changed = {
+            **pair.measurement,
+            "files": changed_files,
+            "digest": source_revision.measurement_digest(changed_files),
+        }
+        selection = pair._restore(measurement=changed)
+        assert not selection["baseline_reused"]
+        assert "measurement code" in str(selection["issues"])
+    with paired_fixture(tmp_path, subtests, "resolved reference") as pair:
+        event_base = "f" * 40
+        files = pair._files()
+        files["build-context.json"]["source"]["event_base_commit"] = event_base
+        artifact = pair._add_baseline(files)
+        pair.event["pull_request"]["base"]["sha"] = event_base
+        restored = pair._restore()
+        assert restored["baseline_reused"]
+        assert restored["reference_commit"] == pair.commit
+        assert restored["event_base_commit"] == event_base
+        candidate = pair._candidate(pair._origin(artifact, run_id=10), reused=True, hostname="different-gpu-host")
+        candidate.context["source"]["event_base_commit"] = event_base
+        evidence, metadata = paired.select_pr_baseline(pair.client, candidate)
+        assert evidence.identity["source_commit"] == pair.commit
+        assert evidence.identity["run_id"] == 10
+        assert metadata["baseline_reused"]
+    with paired_fixture(tmp_path, subtests, "unresolved reference") as pair:
+        with patch.dict(os.environ, {"PERF_BASE_COMMIT": ""}):
+            with pytest.raises(ValueError, match="first parent was not resolved"):
+                paired.restore_baseline(
+                    pair.client, pair.checkout, pair.selection_path, pair.event, 20, 1, legs=pair.legs
+                )
+        assert not pair.selection_path.exists()
+        assert pair.client.pages_requested == []
+    with paired_fixture(tmp_path, subtests, "workflow registration") as pair:
+        workflow_id = 812345
+        pair.client.add(20, HEAD, event="pull_request", branch="feature", artifact=False)["workflow_id"] = workflow_id
+        expected = pair._add_baseline(run_id=10)
+        pair.client.attempts[10, 1]["workflow_id"] = workflow_id
+        obsolete = pair._add_baseline(run_id=11)
+        pair.client.attempts[11, 1]["workflow_id"] = 700000
+        selected = pair._restore()
+        assert selected["baseline_reused"]
+        assert selected["baseline_origin"]["artifact_id"] == expected["id"]
+        assert pair.client.attempts_requested[0] == (20, 1)
+        assert (
+            f"/repos/{REPO}/actions/workflows/{workflow_id}/runs",
+            "workflow_runs",
+            {"event": "pull_request", "branch": "feature"},
+        ) in pair.client.pages_requested
+        assert not any("build.yaml" in path for path, _, _ in pair.client.pages_requested)
+        assert any(f"Artifact {obsolete['id']}" in issue for issue in selected["issues"])
+    with paired_fixture(tmp_path, subtests, "changed base") as pair:
+        pair._add_baseline()
+        source = pair.checkout / RUNTIME
+        new_commit = pair._commit_file(RUNTIME, source.read_text().replace("Selected base", "Changed base"))
+        pair.event["pull_request"]["base"]["sha"] = new_commit
+        selection = pair._restore()
+        assert not selection["baseline_reused"]
+        assert selection["reference_commit"] == new_commit
+        assert pair.client.downloaded == []
+    with paired_fixture(tmp_path, subtests, "inaccessible historical run") as pair:
+        pair._add_baseline(run_id=10)
+        expected = pair._add_baseline(run_id=11)
+        pair.client.add(9, HEAD, event="pull_request", branch="feature", artifact=False)
+        artifacts = pair.client.artifacts
+
+        def artifacts_or_error(run_id):
+            if run_id == 9:
+                raise baseline.EvidenceError("inaccessible", "GitHub evidence request failed (HTTP 404)")
+            return artifacts(run_id)
+
+        with patch.object(pair.client, "artifacts", side_effect=artifacts_or_error):
+            selection = pair._restore()
+        assert selection["baseline_reused"]
+        assert selection["baseline_origin"]["artifact_id"] == expected["id"]
+        assert pair.client.downloaded == [expected["id"]]
+        assert any("Run 9" in issue and "HTTP 404" in issue for issue in selection["issues"])
+        assert json.loads(pair.selection_path.read_text()) == selection
+    with paired_fixture(tmp_path, subtests, "different PR") as pair:
+        pair._add_baseline()
+        pair.event["number"] = pair.event["pull_request"]["number"] = 43
+        selection = pair._restore()
+        assert not selection["baseline_reused"]
+        assert pair.client.downloaded == []
+    with paired_fixture(tmp_path, subtests, "interrupted lookup") as pair:
+        pair._add_baseline()
+        with patch.object(pair.client, "run_attempt", side_effect=TimeoutError("lookup interrupted")):
+            with pytest.raises(TimeoutError):
+                pair._restore()
+        selection = json.loads(pair.selection_path.read_text())
+        assert not selection["baseline_reused"]
+        assert selection["baseline_origin"] is None
+        assert selection["reference_commit"] == pair.commit
+    with paired_fixture(tmp_path, subtests, "invalid source proof") as pair:
+        for mutation, sample, reason in (
+            ("missing", "second/sample-3", "source-revision.json"),
+            ("result", "first/sample-1", "Result bytes do not match their source verification"),
+            ("module", "first/sample-1", "Loaded source does not match its manifest"),
+        ):
+            with subtests.test(mutation=mutation):
+                pair.client = PairedFixtureClient()
+                files = pair._files()
+                path = f"{sample}/source-revision.json"
+                if mutation == "missing":
+                    del files[path]
+                elif mutation == "result":
+                    path = f"{sample}/benchmark_runtime_fixture.json"
+                    files[path]["runtime"]["total_fps"]["mean"] = 900
+                else:
+                    files[path]["modules"][0]["sha256"] = "0" * 64
+                artifact = pair._add_baseline(files)
+                candidate = pair._candidate(pair._origin(artifact, run_id=10), reused=True)
+                evidence, _ = paired.select_pr_baseline(pair.client, candidate)
+                assert sample in str(evidence.issues)
+                assert reason in str(evidence.issues)
+                selection = pair._restore()
+                assert not selection["baseline_reused"]
+                assert "Baseline is incomplete or its source proof is invalid." in str(selection["issues"])
+    with paired_fixture(tmp_path, subtests, "mixed measurement proof") as pair:
+        for mutation in (
+            "workload_origin",
+            "measurement_origin",
+            "native_runtime",
+            "runtime_origin",
+            "proof_commit",
+            "digest",
+            "context",
+            "missing_manifest",
+            "missing_proof",
+        ):
+            with subtests.test(mutation=mutation):
+                pair.client = PairedFixtureClient()
+                files = pair._files(measurement=pair.measurement)
+                path = "first/sample-1/source-revision.json"
+                proof = files[path]
+                runtime = next(item for item in proof["modules"] if item["relative_path"] == RUNTIME)
+                workload = next(item for item in proof["modules"] if item["relative_path"] != RUNTIME)
+                if mutation == "workload_origin":
+                    workload["origin"] = "measurement"
+                elif mutation == "measurement_origin":
+                    runtime["origin"] = "workload"
+                elif mutation == "native_runtime":
+                    runtime.update(
+                        sha256=pair.manifest["files"][RUNTIME], expected_sha256=pair.manifest["files"][RUNTIME]
+                    )
+                elif mutation == "runtime_origin":
+                    proof["runtime_entrypoint"]["origin"] = "workload"
+                elif mutation == "proof_commit":
+                    proof["measurement"]["commit"] = pair.commit
+                elif mutation in ("digest", "missing_manifest"):
+                    manifest = files["source-manifest.json"]
+                    if mutation == "digest":
+                        manifest["measurement"]["digest"] = "0" * 64
+                    else:
+                        del manifest["measurement"]
+                elif mutation == "missing_proof":
+                    del proof["measurement"]
+                else:
+                    context = files["build-context.json"]
+                    context["metric_definition"]["total_fps"] = "measurement-v1:" + "0" * 64
+                artifact = pair._add_baseline(files)
+                candidate = pair._candidate(
+                    pair._origin(artifact, run_id=10), reused=True, measurement=pair.measurement
+                )
+                evidence, _ = paired.select_pr_baseline(pair.client, candidate)
+                assert evidence.issues
+                report = build_compare.compare_evidence(evidence, candidate)
+                assert all("Baseline: " + issue in report["notes"] for issue in evidence.issues)
+                first = next(row for row in report["rows"] if "first" in row["legs"]["baseline"])
+                assert first["change_pct"] is None
+                assert not pair._restore(measurement=pair.measurement)["baseline_reused"]
+    with paired_fixture(tmp_path, subtests, "unusable baseline") as pair:
+        for mutation, reason in (
+            ("missing-sample", ""),
+            ("failed-leg", ""),
+            ("missing-workload", ""),
+            ("missing-protocol", "protocol"),
+            ("current-role", "does not belong to this PR and exact base commit"),
+        ):
+            with subtests.test(mutation=mutation):
+                pair.client = PairedFixtureClient()
+                files = pair._files()
+                if mutation == "missing-sample":
+                    del files["second/sample-3/benchmark_runtime_fixture.json"]
+                elif mutation == "failed-leg":
+                    files["second/status"] = b"failed"
+                elif mutation == "missing-workload":
+                    files = {name: data for name, data in files.items() if not name.startswith("second/")}
+                elif mutation == "missing-protocol":
+                    del files["build-context.json"]["execution"]["benchmark_protocol"]
+                else:
+                    files["build-context.json"]["source"]["benchmark_role"] = "current"
+                artifact = pair._add_baseline(files)
+                selection = pair._restore()
+                assert not selection["baseline_reused"]
+                assert selection["issues"]
+                if reason:
+                    assert reason in " ".join(selection["issues"])
+                if mutation == "current-role":
+                    assert pair.client.downloaded == [artifact["id"]]
+    with paired_fixture(tmp_path, subtests, "baseline retry lifecycle") as pair:
+        incomplete = pair._files()
+        del incomplete["second/sample-3/source-revision.json"]
+        first = pair._add_baseline(incomplete)
+        first_bytes = pair.client.contents[first["id"]]
+        assert not pair._restore(run_id=10, attempt=2)["baseline_reused"]
+        second = pair._add_baseline(run_id=10, attempt=2)
+        assert first["name"] != second["name"]
+        with subtests.test(stage="valid_attempt_cannot_reuse_itself"):
+            assert not pair._restore(run_id=10, attempt=2)["baseline_reused"]
+        selection = pair._restore(run_id=10, attempt=3)
+        assert selection["baseline_reused"]
+        assert selection["baseline_origin"]["artifact_id"] == second["id"]
+        assert selection["baseline_origin"]["run_attempt"] == 2
+        assert pair.client.contents[first["id"]] == first_bytes
+        second["expired"] = True
+        assert not pair._restore(run_id=10, attempt=3)["baseline_reused"]
+
+
+def check_pair_reports(tmp_path, subtests):
+    with paired_fixture(tmp_path, subtests, "report lifecycle and gate") as pair:
+        artifact = pair._add_baseline(pair._files(measurement=pair.measurement))
+        candidate = pair._candidate(
+            pair._origin(artifact, run_id=10), reused=True, measurement=pair.measurement, fps=80
         )
         files = {**candidate.files, "first/comparison.json": encoded({"verdict": "FAIL", "label": "first"})}
-        self.client.run_artifacts[20] = []
-        current = self.client.add_artifact(20, "performance-smoke-20-1", files)
-        self.client.downloaded.clear()
+        pair.client.run_artifacts[20] = []
+        current = pair.client.add_artifact(20, "performance-smoke-20-1", files)
+        pair.client.downloaded.clear()
         with contextlib.redirect_stdout(io.StringIO()):
-            status, report, markdown = self._run_report()
-            gate_exit = cli.main(["aggregate", "--comparison_dir", str(self.root / "comparisons")])
-        self.assertEqual((gate_exit, status), (1, 0))
-        self.assertEqual(self.client.downloaded, [current["id"], artifact["id"]])
-        self.assertEqual(report["baseline"]["run_id"], 10)
-        self.assertEqual(report["candidate"]["run_id"], 20)
-        self.assertEqual(report["candidate_kind"], "merge")
-        self.assertEqual(len(report["rows"]), 2)
-        self.assertTrue(all(row["change_pct"] == -20 for row in report["rows"]))
-        self.assertIn("-20.00%", markdown)
-        self.assertNotIn("Comparison unavailable", markdown)
-        self.assertIn("/actions/runs/10/attempts/1", markdown)
-        self.assertIn("/actions/runs/20/attempts/1", markdown)
-        self.assertIn("3/3 / 3/3", markdown)
-        self.assertEqual(self.client.pages_requested, [])
-
-        # Gate results remain available even when the advisory comparison cannot parse its context.
+            status, report, markdown = pair._run_report()
+            gate_exit = cli.main(["aggregate", "--comparison_dir", str(pair.root / "comparisons")])
+        assert (gate_exit, status) == (1, 0)
+        assert pair.client.downloaded == [current["id"], artifact["id"]]
+        assert report["baseline"]["run_id"] == 10
+        assert report["candidate"]["run_id"] == 20
+        assert report["candidate_kind"] == "merge"
+        assert len(report["rows"]) == 2
+        assert all(row["change_pct"] == -20 for row in report["rows"])
+        assert "-20.00%" in markdown
+        assert "Comparison unavailable" not in markdown
+        assert "/actions/runs/10/attempts/1" in markdown
+        assert "/actions/runs/20/attempts/1" in markdown
+        assert "3/3 / 3/3" in markdown
+        assert pair.client.pages_requested == []
+        with subtests.test(msg="report retry and expiry"):
+            first = report
+            gate = files["first/comparison.json"]
+            (pair.root / "comparisons/first/comparison.json").unlink()
+            pair.client.add(20, HEAD, attempt=2, start=stamp(13), event="pull_request", artifact=False)
+            pair.client.run_jobs[20, 2][0].update(started_at=stamp(12), id=999)
+            _, second, rerun_markdown = pair._run_report(attempt=2)
+            assert (pair.root / "comparisons/first/comparison.json").read_bytes() == gate
+            assert second["baseline"] == first["baseline"]
+            assert second["candidate"]["run_attempt"] == 1
+            assert second["candidate"]["report_attempt"] == 2
+            assert "Measurements: attempt 1; report: attempt 2" in rerun_markdown
+            artifact["expired"] = True
+            _, result, markdown = pair._run_report(attempt=2)
+            assert result["baseline"] is None
+            assert result["selection"]["reason_code"] == "expired"
+            assert result["selection"]["unavailable_evidence"]["artifact_id"] == artifact["id"]
+            assert all(row["candidate"]["median"] == 80 for row in result["rows"])
+            assert all(row["change_pct"] is None for row in result["rows"])
+            assert "PR base (evidence unavailable)" in markdown
+            assert "/actions/runs/10/attempts/1" in markdown
+            assert "expired" in markdown
+            pair._add_baseline(pair._files(run_id=11, measurement=pair.measurement), run_id=11)
+            pair.client.add(20, HEAD, attempt=3, start=stamp(14), event="pull_request", artifact=False)
+            pair.client.run_jobs[20, 3][0]["started_at"] = stamp(12)
+            _, third, third_markdown = pair._run_report(attempt=3)
+            assert third["selection"]["unavailable_evidence"] == result["selection"]["unavailable_evidence"]
+            assert third["selection"]["reason_code"] == "expired"
+            assert "/actions/runs/10/attempts/1" in third_markdown
+            assert pair.client.pages_requested == []
         files["build-context.json"] = b"{invalid JSON"
-        self.client.run_artifacts[20] = []
-        current = self.client.add_artifact(20, "performance-smoke-20-1", files)
+        pair.client.run_artifacts[20] = []
+        current = pair.client.add_artifact(20, "performance-smoke-20-1", files)
         for gate_only in (False, True):
-            with self.subTest(gate_only=gate_only), contextlib.redirect_stdout(io.StringIO()):
-                (self.root / "comparisons/first/comparison.json").unlink()
-                self.client.downloaded.clear()
-                status, report, _ = self._run_report(gate_only=gate_only)
-                gate_exit = cli.main(["aggregate", "--comparison_dir", str(self.root / "comparisons")])
-                self.assertEqual((gate_exit, status), (1, 0))
-                self.assertEqual(self.client.downloaded, [current["id"]])
+            with subtests.test(gate_only=gate_only), contextlib.redirect_stdout(io.StringIO()):
+                (pair.root / "comparisons/first/comparison.json").unlink()
+                pair.client.downloaded.clear()
+                status, report, _ = pair._run_report(gate_only=gate_only)
+                gate_exit = cli.main(["aggregate", "--comparison_dir", str(pair.root / "comparisons")])
+                assert (gate_exit, status) == (1, 0)
+                assert pair.client.downloaded == [current["id"]]
                 if not gate_only:
-                    self.assertEqual(report["selection"]["reason_code"], "corrupt")
+                    assert report["selection"]["reason_code"] == "corrupt"
 
-    def test_report_only_reruns_preserve_the_pin_when_its_baseline_expires(self):
-        artifact = self._add_baseline(self._files(measurement=self.measurement))
-        candidate = self._candidate(
-            self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80
-        )
-        gate = encoded({"verdict": "FAIL", "label": "first"})
-        self.client.run_artifacts[20] = []
-        self.client.add_artifact(20, "performance-smoke-20-1", {**candidate.files, "first/comparison.json": gate})
-        _, first, _ = self._run_report()
-        (self.root / "comparisons/first/comparison.json").unlink()
-        self.client.add(20, HEAD, attempt=2, start=stamp(13), event="pull_request", artifact=False)
-        self.client.run_jobs[20, 2][0].update(started_at=stamp(12), id=999)
-        _, second, rerun_markdown = self._run_report(attempt=2)
-        self.assertEqual((self.root / "comparisons/first/comparison.json").read_bytes(), gate)
-        self.assertEqual(second["baseline"], first["baseline"])
-        self.assertEqual(second["candidate"]["run_attempt"], 1)
-        self.assertEqual(second["candidate"]["report_attempt"], 2)
-        self.assertIn("Measurements: attempt 1; report: attempt 2", rerun_markdown)
-        artifact["expired"] = True
-        _, result, markdown = self._run_report(attempt=2)
-        self.assertIsNone(result["baseline"])
-        self.assertEqual(result["selection"]["reason_code"], "expired")
-        self.assertEqual(result["selection"]["unavailable_evidence"]["artifact_id"], artifact["id"])
-        self.assertTrue(all(row["candidate"]["median"] == 80 for row in result["rows"]))
-        self.assertTrue(all(row["change_pct"] is None for row in result["rows"]))
-        self.assertIn("PR base (evidence unavailable)", markdown)
-        self.assertIn("/actions/runs/10/attempts/1", markdown)
-        self.assertIn("expired", markdown)
-        self._add_baseline(self._files(run_id=11, measurement=self.measurement), run_id=11)
-        self.client.add(20, HEAD, attempt=3, start=stamp(14), event="pull_request", artifact=False)
-        self.client.run_jobs[20, 3][0]["started_at"] = stamp(12)
-        _, third, third_markdown = self._run_report(attempt=3)
-        self.assertEqual(third["selection"]["unavailable_evidence"], result["selection"]["unavailable_evidence"])
-        self.assertEqual(third["selection"]["reason_code"], "expired")
-        self.assertIn("/actions/runs/10/attempts/1", third_markdown)
-        self.assertEqual(self.client.pages_requested, [])
 
-    def test_fresh_pair_uses_exact_pinned_base_from_same_runner_in_order(self):
-        artifact = self._add_baseline(run_id=20)
-        evidence, _ = paired.select_pr_baseline(self.client, self._candidate(self._origin(artifact)))
-        self.assertEqual(evidence.identity["artifact_id"], artifact["id"])
-        self.assertEqual(evidence.identity["source_commit"], self.commit)
-        self.assertEqual(self.client.pages_requested, [])
-
-    def test_selection_rejects_parent_mismatch_before_retrieving_baseline(self):
-        candidate = self._candidate({"artifact_id": 123})
-        downloaded = list(self.client.downloaded)
+def check_binding(tmp_path, subtests):
+    with paired_fixture(tmp_path, subtests, "fresh pair pin") as pair:
+        artifact = pair._add_baseline(run_id=20)
+        evidence, _ = paired.select_pr_baseline(pair.client, pair._candidate(pair._origin(artifact)))
+        assert evidence.identity["artifact_id"] == artifact["id"]
+        assert evidence.identity["source_commit"] == pair.commit
+        assert pair.client.pages_requested == []
+    with paired_fixture(tmp_path, subtests, "parent mismatch") as pair:
+        candidate = pair._candidate({"artifact_id": 123})
+        downloaded = list(pair.client.downloaded)
         candidate.context["source"]["commit_parents"] = ["f" * 40, HEAD]
-        with self.assertRaisesRegex(baseline.EvidenceError, "does not identify this tested PR revision"):
-            paired.select_pr_baseline(self.client, candidate)
-        self.assertEqual(self.client.downloaded, downloaded)
-
-    def test_fresh_pair_rejects_runner_or_measurement_order_mismatch(self):
+        with pytest.raises(baseline.EvidenceError, match="does not identify this tested PR revision"):
+            paired.select_pr_baseline(pair.client, candidate)
+        assert pair.client.downloaded == downloaded
+    with paired_fixture(tmp_path, subtests, "fresh runner and ordering") as pair:
         for case, arguments, reason in (
             ("different_runner", {"hostname": "different-gpu-host"}, "runner_mismatch"),
             ("overlap", {"start": stamp(9)}, "measurement_order"),
@@ -1006,24 +898,23 @@ class PairedTests(unittest.TestCase):
                 "measurement_order",
             ),
         ):
-            with self.subTest(case=case):
-                self.client = PairedFixtureClient()
-                artifact = self._add_baseline(run_id=20)
-                candidate = self._candidate(self._origin(artifact), **arguments)
-                evidence, metadata = paired.select_pr_baseline(self.client, candidate)
-                self.assertIsNone(evidence)
-                self.assertEqual(metadata["reason_code"], reason)
-
-    def test_partial_fresh_baseline_preserves_healthy_workload_comparison(self):
+            with subtests.test(case=case):
+                pair.client = PairedFixtureClient()
+                artifact = pair._add_baseline(run_id=20)
+                candidate = pair._candidate(pair._origin(artifact), **arguments)
+                evidence, metadata = paired.select_pr_baseline(pair.client, candidate)
+                assert evidence is None
+                assert metadata["reason_code"] == reason
+    with paired_fixture(tmp_path, subtests, "partial baseline") as pair:
         issue = "The baseline benchmark step failed after producing partial evidence."
-        files = self._files(run_id=20)
+        files = pair._files(run_id=20)
         files["second/sample-3/benchmark_runtime_fixture.json"] = b"{invalid JSON"
-        artifact = self._add_baseline(files, run_id=20)
-        origin = self._origin(artifact)
-        self.selection_path.write_bytes(
+        artifact = pair._add_baseline(files, run_id=20)
+        origin = pair._origin(artifact)
+        pair.selection_path.write_bytes(
             encoded(
                 {
-                    "reference_commit": self.commit,
+                    "reference_commit": pair.commit,
                     "pull_request_number": 42,
                     "requested_head_commit": HEAD,
                     "baseline_reused": False,
@@ -1037,106 +928,102 @@ class PairedTests(unittest.TestCase):
             patch.object(paired, "datetime") as clock,
         ):
             clock.now.return_value.isoformat.return_value = stamp(9, 30)
-            paired.bind_baseline(self.selection_path, str(artifact["id"]), self.output, REPO, issue)
-        pin = json.loads((self.output / "pr-comparison.json").read_text())
-        self.assertEqual(pin["reason"], issue)
-        self.assertIn(issue, pin["issues"])
-        self.assertEqual(pin["baseline_origin"]["artifact_id"], artifact["id"])
-        candidate = self._candidate(origin, selection=pin)
-        # The job ends after the PR run, so it cannot establish when the baseline measurement ended.
-        self.client.run_jobs[20, 1][0]["completed_at"] = stamp(12)
-        evidence, _ = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNotNone(evidence)
+            paired.bind_baseline(pair.selection_path, str(artifact["id"]), pair.output, REPO, issue)
+        pin = json.loads((pair.output / "pr-comparison.json").read_text())
+        assert pin["reason"] == issue
+        assert issue in pin["issues"]
+        assert pin["baseline_origin"]["artifact_id"] == artifact["id"]
+        candidate = pair._candidate(origin, selection=pin)
+        pair.client.run_jobs[20, 1][0]["completed_at"] = stamp(12)
+        evidence, _ = paired.select_pr_baseline(pair.client, candidate)
+        assert evidence is not None
         report = build_compare.compare_evidence(evidence, candidate)
         by_leg = {row["legs"]["baseline"][0]: row for row in report["rows"]}
-        self.assertEqual(by_leg["first"]["status"], "compared")
-        self.assertEqual(by_leg["first"]["change_pct"], 0)
-        self.assertEqual(by_leg["second"]["status"], "partial")
-        self.assertIsNone(by_leg["second"]["change_pct"])
-
-    def test_bind_rejects_selection_for_another_resolved_base(self):
-        self._restore()
+        assert by_leg["first"]["status"] == "compared"
+        assert by_leg["first"]["change_pct"] == 0
+        assert by_leg["second"]["status"] == "partial"
+        assert by_leg["second"]["change_pct"] is None
+    with paired_fixture(tmp_path, subtests, "bind wrong base") as pair:
+        pair._restore()
         with patch.dict(os.environ, {"PERF_BASE_COMMIT": "f" * 40, "GITHUB_SHA": HEAD}):
-            with self.assertRaisesRegex(ValueError, "selection does not match"):
-                paired.bind_baseline(self.selection_path, None, self.output, REPO)
-        self.assertFalse((self.output / "pr-comparison.json").exists())
-
-    def test_bind_keeps_valid_reused_baseline_despite_unneeded_setup_issue(self):
-        self._add_baseline()
-        restored = self._restore()
+            with pytest.raises(ValueError, match="selection does not match"):
+                paired.bind_baseline(pair.selection_path, None, pair.output, REPO)
+        assert not (pair.output / "pr-comparison.json").exists()
+    with paired_fixture(tmp_path, subtests, "bind reused baseline") as pair:
+        pair._add_baseline()
+        restored = pair._restore()
         with patch.dict(os.environ, {"GITHUB_SHA": HEAD}):
-            paired.bind_baseline(self.selection_path, None, self.output, REPO, "Base image config failed.")
-        selection = json.loads((self.output / "pr-comparison.json").read_text())
-        self.assertEqual(selection["baseline_origin"], restored["baseline_origin"])
-        self.assertEqual(selection["reason"], restored["reason"])
-        self.assertEqual(selection["issues"], restored["issues"])
-
-    def test_unconfirmed_reuse_handoff_cannot_override_fresh_or_missing_upload(self):
-        self._add_baseline(run_id=10)
-        self._restore()
-        requested = list(self.client.pages_requested)
-        fresh = self._add_baseline(run_id=20)
-        event_path = self.root / "event.json"
-        event_path.write_bytes(encoded(self.event))
+            paired.bind_baseline(pair.selection_path, None, pair.output, REPO, "Base image config failed.")
+        selection = json.loads((pair.output / "pr-comparison.json").read_text())
+        assert selection["baseline_origin"] == restored["baseline_origin"]
+        assert selection["reason"] == restored["reason"]
+        assert selection["issues"] == restored["issues"]
+    with paired_fixture(tmp_path, subtests, "unconfirmed handoff") as pair:
+        pair._add_baseline(run_id=10)
+        pair._restore()
+        requested = list(pair.client.pages_requested)
+        fresh = pair._add_baseline(run_id=20)
         for uploaded in (True, False):
-            with self.subTest(fresh_upload_succeeded=uploaded):
+            with subtests.test(fresh_upload_succeeded=uploaded):
                 with (
-                    patch.dict(
-                        os.environ,
-                        {
-                            "GITHUB_SHA": HEAD,
-                            "GITHUB_RUN_ID": "20",
-                            "GITHUB_RUN_ATTEMPT": "1",
-                            "GITHUB_REPOSITORY": REPO,
-                            "GITHUB_EVENT_PATH": str(event_path),
-                            "PERF_BASELINE_REUSED": "",
-                        },
-                    ),
+                    pair._workflow(GITHUB_SHA=HEAD, PERF_BASELINE_REUSED=""),
                     patch.object(paired, "datetime") as clock,
                 ):
                     clock.now.return_value.isoformat.return_value = stamp(9, 30)
-                    arguments = ["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)]
+                    arguments = ["bind", "--selection", str(pair.selection_path), "--output-dir", str(pair.output)]
                     if uploaded:
                         arguments.extend(["--artifact-id", str(fresh["id"])])
-                    self.assertEqual(paired.main(arguments), 0)
-                pin = json.loads((self.output / "pr-comparison.json").read_text())
-                candidate = self._candidate(pin["baseline_origin"], selection=pin)
-                evidence, metadata = paired.select_pr_baseline(self.client, candidate)
+                    assert paired.main(arguments) == 0
+                pin = json.loads((pair.output / "pr-comparison.json").read_text())
+                candidate = pair._candidate(pin["baseline_origin"], selection=pin)
+                evidence, metadata = paired.select_pr_baseline(pair.client, candidate)
                 if uploaded:
-                    self.assertEqual(evidence.identity["artifact_id"], fresh["id"])
-                    self.assertEqual(evidence.identity["run_id"], 20)
+                    assert evidence.identity["artifact_id"] == fresh["id"]
+                    assert evidence.identity["run_id"] == 20
                 else:
-                    self.assertIsNone(evidence)
-                    self.assertIsNone(metadata["baseline_origin"])
-                    self.assertEqual(
-                        metadata["reason"], "The base benchmark artifact was not produced; baseline FPS is unavailable."
+                    assert evidence is None
+                    assert metadata["baseline_origin"] is None
+                    assert (
+                        metadata["reason"]
+                        == "The base benchmark artifact was not produced; baseline FPS is unavailable."
                     )
-                    self.assertEqual(self.client.pages_requested, requested)
-                self.assertFalse(metadata["baseline_reused"])
-
-    def test_bind_cli_recovers_missing_selection_with_or_without_failure_detail(self):
+                    assert pair.client.pages_requested == requested
+                assert not metadata["baseline_reused"]
+    with paired_fixture(tmp_path, subtests, "missing selection") as pair:
         tested_merge = "e" * 40
         for issue in ("The PR base checkout failed; no baseline was measured.", None):
-            with self.subTest(failure_detail=issue):
-                self.selection_path.unlink(missing_ok=True)
-                arguments = ["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)]
+            with subtests.test(failure_detail=issue):
+                pair.selection_path.unlink(missing_ok=True)
+                arguments = ["bind", "--selection", str(pair.selection_path), "--output-dir", str(pair.output)]
                 if issue:
                     arguments.extend(["--baseline-issue", issue])
-                result = self._cli(arguments, GITHUB_SHA=tested_merge)
-                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-                selection = json.loads((self.output / "pr-comparison.json").read_text())
+                result = pair._cli(arguments, GITHUB_SHA=tested_merge)
+                assert result.returncode == 0, result.stderr + result.stdout
+                selection = json.loads((pair.output / "pr-comparison.json").read_text())
                 if issue:
-                    self.assertEqual(selection["reason"], issue)
-                    self.assertIn(issue, selection["issues"])
+                    assert selection["reason"] == issue
+                    assert issue in selection["issues"]
                 else:
-                    self.assertIn("Baseline selection metadata was not produced", selection["reason"])
-                self.assertEqual(selection["pull_request_number"], 42)
-                self.assertEqual(selection["reference_commit"], self.commit)
-                self.assertEqual(selection["requested_head_commit"], HEAD)
-                self.assertEqual(selection["tested_commit"], tested_merge)
-                self.assertFalse(selection["baseline_reused"])
-                self.assertIsNone(selection["baseline_origin"])
+                    assert "Baseline selection metadata was not produced" in selection["reason"]
+                assert selection["pull_request_number"] == 42
+                assert selection["reference_commit"] == pair.commit
+                assert selection["requested_head_commit"] == HEAD
+                assert selection["tested_commit"] == tested_merge
+                assert not selection["baseline_reused"]
+                assert selection["baseline_origin"] is None
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_pr_comparison(tmp_path, subtests):
+    from .test_baseline import check_evidence, check_transport
+
+    check_rolling_history(tmp_path, subtests)
+    registry = Path(__file__).resolve().parents[2] / ".github/actions/_lib/test_registry_credential_fallback.py"
+    runpy.run_path(str(registry))["check_dependency_cache"](tmp_path / "cache", subtests)
+    check_evidence(subtests)
+    check_transport(tmp_path, subtests)
+    check_comparisons(subtests)
+    check_reports(tmp_path, subtests)
+    check_capture(tmp_path, subtests)
+    check_reuse(tmp_path, subtests)
+    check_pair_reports(tmp_path, subtests)
+    check_binding(tmp_path, subtests)
