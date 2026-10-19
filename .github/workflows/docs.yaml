@@ -110,10 +110,10 @@ jobs:
       working-directory: ./docs
       env:
         # "deploy" branches build the full set of versions so every page
-        # has a complete version dropdown: main, develop, release/3.0.0, and
-        # tags >= v2.0.0 (including pre-release suffixes like -beta, -rc1, or -EA).
-        # v1.x tags and other release branches are excluded.
-        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0)$'
+        # has a complete version dropdown: main, develop, and tags >= v2.0.0
+        # (including pre-release suffixes like -beta, -rc1, or -EA).
+        # v1.x tags and release branches are excluded.
+        SMV_BRANCH_WHITELIST: '^(main|develop)$'
         SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
         git fetch --prune --unshallow --tags
