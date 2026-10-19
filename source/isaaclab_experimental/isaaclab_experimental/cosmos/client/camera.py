@@ -81,21 +81,18 @@ def cosmos_camera(
     )
 
 
-def service_capabilities(
-    endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0, *, require_idle: bool = False
-) -> dict[str, Any]:
-    """Return the running Cosmos service's capabilities, such as its independent reset support.
+def service_capabilities(endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0) -> dict[str, Any]:
+    """Return the capabilities of a running, idle Cosmos service, such as its independent reset support.
 
     Args:
         endpoint: Cosmos service endpoint.
         timeout: Connection and response timeout [s].
-        require_idle: Reject a busy service before configuring a new camera session.
 
     Returns:
         The capabilities reported by ``isaaclab cosmos status``.
 
     Raises:
-        RuntimeError: If the service is unavailable, or busy when require_idle is True.
+        RuntimeError: If the service is unavailable or already has a camera session.
     """
     try:
         reply, _ = request(endpoint, {"op": "status"}, timeout=timeout)
@@ -104,7 +101,7 @@ def service_capabilities(
             f"Cosmos service at {endpoint} is unavailable or still starting; wait for its ready message, "
             "or start isaaclab-cosmos-server as described in cosmos_service.md."
         ) from error
-    if require_idle and reply.get("session_active", False):
+    if reply.get("session_active", False):
         raise RuntimeError(
             f"Cosmos service at {endpoint} already has an active camera session; close the other training/play "
             "process or choose another service with the `endpoint` argument."
@@ -155,7 +152,7 @@ def apply_cosmos(
     camera_cfg = getattr(env_cfg.scene, name, None)
     if not isinstance(camera_cfg, CameraCfg):
         raise ValueError(f"Scene entity {name!r} is not a camera.")
-    capabilities = service_capabilities(endpoint, require_idle=True)
+    capabilities = service_capabilities(endpoint)
     if num_envs > 1 and not capabilities.get("partial_resets", False):
         raise ValueError(
             "Several Cosmos environments need a Framework runtime with per-view caches and compiled inference "
