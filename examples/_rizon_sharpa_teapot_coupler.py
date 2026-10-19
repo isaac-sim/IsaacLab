@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Runtime-only coupled solvers for the Rizon–Sharpa teapot example."""
+"""Private runtime-only coupled solvers for the Rizon–Sharpa teapot example."""
 
 from __future__ import annotations
 
@@ -23,7 +23,27 @@ if TYPE_CHECKING:
     from newton import ModelBuilder
 
 
-class NewtonTeapotCouplerManager(NewtonCouplerManager):
+@wp.kernel
+def _sync_teapot_collider(
+    source_start: wp.array[wp.transform],
+    source_end: wp.array[wp.transform],
+    source_com: wp.array[wp.vec3],
+    source: int,
+    dt: float,
+    fluid_pose: wp.array[wp.transform],
+    fluid_velocity: wp.array[wp.spatial_vector],
+    destination: int,
+):
+    start = source_start[source]
+    end = source_end[source]
+    linear = (wp.transform_point(end, source_com[source]) - wp.transform_point(start, source_com[source])) / dt
+    rotation = wp.normalize(wp.transform_get_rotation(end) * wp.quat_inverse(wp.transform_get_rotation(start)))
+    axis, angle = wp.quat_to_axis_angle(rotation)
+    fluid_pose[destination] = start
+    fluid_velocity[destination] = wp.spatial_vector(linear, axis * (angle / dt))
+
+
+class _NewtonTeapotCouplerManager(NewtonCouplerManager):
     """Couple the dynamic grasped pot to its exact MPM collision shell."""
 
     def _prepare_builder_for_finalize(self, builder: ModelBuilder) -> None:
@@ -73,26 +93,6 @@ class NewtonTeapotCouplerManager(NewtonCouplerManager):
 
     def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
         return _TeapotColliderSyncSolver(model=model, entries=entries)
-
-
-@wp.kernel
-def _sync_teapot_collider(
-    source_start: wp.array[wp.transform],
-    source_end: wp.array[wp.transform],
-    source_com: wp.array[wp.vec3],
-    source: int,
-    dt: float,
-    fluid_pose: wp.array[wp.transform],
-    fluid_velocity: wp.array[wp.spatial_vector],
-    destination: int,
-):
-    start = source_start[source]
-    end = source_end[source]
-    linear = (wp.transform_point(end, source_com[source]) - wp.transform_point(start, source_com[source])) / dt
-    rotation = wp.normalize(wp.transform_get_rotation(end) * wp.quat_inverse(wp.transform_get_rotation(start)))
-    axis, angle = wp.quat_to_axis_angle(rotation)
-    fluid_pose[destination] = start
-    fluid_velocity[destination] = wp.spatial_vector(linear, axis * (angle / dt))
 
 
 class _TeapotColliderSyncSolver(SolverCoupled):

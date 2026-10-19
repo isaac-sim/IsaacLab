@@ -50,7 +50,7 @@ from isaaclab.utils import configclass
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
 if TYPE_CHECKING:
-    from rizon_sharpa_teapot_coupler import NewtonTeapotCouplerManager
+    from _rizon_sharpa_teapot_coupler import _NewtonTeapotCouplerManager
 
     from isaaclab.assets import Articulation, ArticulationCfg, RigidObject
 
@@ -927,7 +927,7 @@ def _interpolate_joints(
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: type[NewtonTeapotCouplerManager] | str = "rizon_sharpa_teapot_coupler:NewtonTeapotCouplerManager"
+    class_type: type[_NewtonTeapotCouplerManager] | str = "_rizon_sharpa_teapot_coupler:_NewtonTeapotCouplerManager"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
