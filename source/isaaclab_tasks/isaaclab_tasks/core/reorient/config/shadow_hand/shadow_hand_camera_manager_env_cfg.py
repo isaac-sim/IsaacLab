@@ -23,6 +23,7 @@ from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_direct_camera_env_cfg import (
     SHADOW_HAND_COSMOS_CAMERA_CFG,
     ShadowHandTiledCameraCfg,
+    set_shadow_hand_cosmos_settings,
     shadow_hand_cosmos_settings,
     validate_shadow_hand_camera_settings,
     validate_shadow_hand_cosmos_preset,
@@ -155,6 +156,11 @@ class ShadowHandCameraManagerCosmosEnvCfg(ShadowHandCameraManagerEnvCfg):
     def cosmos(self) -> CosmosModelCfg:
         """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
         return shadow_hand_cosmos_settings(self)
+
+    @cosmos.setter
+    def cosmos(self, settings: CosmosModelCfg):
+        # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
+        set_shadow_hand_cosmos_settings(self, settings)
 
     def validate_config(self):
         """Check the scene and episode fit the Cosmos service's stream limits."""

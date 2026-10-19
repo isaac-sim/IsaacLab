@@ -102,7 +102,7 @@ def test_several_services_split_the_environments_and_each_is_checked(monkeypatch
     checked = []
 
     def capabilities(endpoint, **kwargs):
-        checked.append((endpoint, kwargs.get("require_idle")))
+        checked.append(endpoint)
         return {"partial_resets": endpoint == "tcp://127.0.0.1:5556"}
 
     monkeypatch.setattr(cosmos_camera_module, "service_capabilities", capabilities)
@@ -112,7 +112,7 @@ def test_several_services_split_the_environments_and_each_is_checked(monkeypatch
     apply_cosmos(env_cfg, num_envs=3, endpoint=[compiled, eager])
     backend = env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend
     assert backend.endpoint == ["tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"]
-    assert checked == [("tcp://127.0.0.1:5556", True), ("tcp://127.0.0.1:5557", True)]
+    assert checked == ["tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"]
 
     # In the other order, the eager service would get two of the three environments.
     with pytest.raises(ValueError, match="at tcp://127.0.0.1:5557 without --no-compile"):
@@ -173,3 +173,25 @@ def test_separate_shadow_hand_configs_do_not_share_cosmos_settings():
     first = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos", "env.cosmos.prompt=A kitchen."))
     second = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos",))
     assert first.cosmos.prompt == "A kitchen." and second.cosmos.prompt != "A kitchen."
+
+
+def test_a_subclass_of_the_shadow_hand_preset_keeps_env_cosmos_on_its_camera():
+    """Deriving a configuration from the preset copies its fields; ``env.cosmos`` still names the camera's settings."""
+    from isaaclab.utils import configclass
+
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
+        ShadowHandCameraCosmosEnvCfg,
+    )
+
+    @configclass
+    class ShorterEpisodeCfg(ShadowHandCameraCosmosEnvCfg):
+        episode_length_s: float = 5.0
+
+    env_cfg = ShorterEpisodeCfg()
+    assert env_cfg.cosmos is env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][1].backend
+
+
+def test_the_shadow_hand_preset_rejects_a_control_other_than_depth():
+    env_cfg = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos", "env.cosmos.modality=edge"))
+    with pytest.raises(ValueError, match="modality must be depth"):
+        env_cfg.validate()

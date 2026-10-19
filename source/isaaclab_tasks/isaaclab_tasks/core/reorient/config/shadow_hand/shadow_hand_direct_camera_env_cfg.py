@@ -231,6 +231,11 @@ def shadow_hand_cosmos_settings(env_cfg) -> CosmosModelCfg:
     return _cosmos_transfer(env_cfg).backend
 
 
+def set_shadow_hand_cosmos_settings(env_cfg, settings: CosmosModelCfg) -> None:
+    """Make the camera's Cosmos step use ``settings``."""
+    _cosmos_transfer(env_cfg).backend = settings
+
+
 def _cosmos_transfer(env_cfg) -> CosmosTransferModifierCfg:
     """Return the camera's only Cosmos step."""
     transfers = [
@@ -267,6 +272,11 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
             "(env.scene.tiled_camera.renderer_cfg.async_rendering=False on the command line)."
         )
     transfer = _cosmos_transfer(env_cfg)
+    if transfer.backend.modality != "depth":
+        raise ValueError(
+            "The Shadow Hand Cosmos preset prepares depth controls; env.cosmos.modality must be depth, "
+            f"got {transfer.backend.modality!r}."
+        )
     if env_cfg.feature_extractor.image_update_frames != transfer.update_frames:
         raise ValueError(
             "The Shadow Hand Cosmos preset requires feature_extractor.image_update_frames "
@@ -301,6 +311,11 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
     def cosmos(self) -> CosmosModelCfg:
         """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
         return shadow_hand_cosmos_settings(self)
+
+    @cosmos.setter
+    def cosmos(self, settings: CosmosModelCfg):
+        # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
+        set_shadow_hand_cosmos_settings(self, settings)
 
     def validate_config(self):
         """Check the scene and episode fit the Cosmos service's stream limits."""
