@@ -284,9 +284,9 @@ OVERRIDES = {
         visualizers=("newton_gl",),
     ),
     "examples/tablecloth.py": ScriptOverride(
-        args=("--speeds", "4.0", "0.5", "--max_steps", "2", "--viz", "none"),
+        args=("--speeds", "4.0", "0.5", "--max_steps", "2"),
         fixed_physics_backend="newton_vbd",
-        visualizers=(None,),
+        visualizers=("newton_gl", "kit", "newton_rtx"),
     ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
