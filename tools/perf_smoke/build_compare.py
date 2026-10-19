@@ -190,7 +190,7 @@ def _hardware(bundle: dict) -> dict:
     if isinstance(devices, list) and devices:
         models = [normalize_gpu_model(_object(device).get("name")) for device in devices]
         if all(model not in ("unknown", "unknown-gpu") for model in models):
-            # GPU order matters: the command defaults to cuda:0, but results do not name the selected device.
+            # Preserve device order because benchmarks use cuda:0.
             identity["gpu_devices"] = models
     return identity
 
@@ -380,7 +380,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.gate_only:
         if selection.get("reason"):
             print(f"::warning::{selection['reason']}")
-        # The existing aggregate command evaluates the collected gate reports.
         return 0
 
     if paired_failure:

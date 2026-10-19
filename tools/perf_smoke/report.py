@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Markdown and JSON rendering for the per-combination and aggregate reports.
-
-Kept separate from :mod:`compare` because presentation churns far more often than
-verdict logic, and both the per-job summary and the aggregate job render from the
-same data.
-"""
+"""Markdown and JSON rendering for individual and aggregate performance reports."""
 
 from __future__ import annotations
 
@@ -39,11 +34,7 @@ def _icon(verdict: str) -> str:
 
 
 def render(report: Report) -> str:
-    """Render one combination's comparison as Markdown.
-
-    Advisory (non-gating) metrics are shown with the same detail as gating ones so
-    the evidence to promote them accumulates in plain sight.
-    """
+    """Render measured values, baselines and thresholds as Markdown."""
     lines = [
         f"## Performance smoke: {_icon(report.verdict)}",
         "",
@@ -75,14 +66,7 @@ def render(report: Report) -> str:
 
 
 def render_aggregate(reports: list[tuple[str, Report]]) -> str:
-    """Render one table covering every combination that reported.
-
-    Args:
-        reports: ``(combination name, report)`` pairs.
-
-    Returns:
-        Markdown for the aggregate job summary.
-    """
+    """Render every workload's rolling-history result in one Markdown table."""
     if not reports:
         return "### Rolling-history CI gate: no results\n\nNo comparison artifacts were produced.\n"
 
@@ -96,11 +80,12 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     ]
     for message in dict.fromkeys(report.message for _, report in reports if report.message):
         lines += [_build_text(message), ""]
+    reports = sorted(reports, key=lambda item: item[0])
     lines += [
         "| Combination | Total FPS | Baseline | FPS regression % | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
-    for name, report in sorted(reports, key=lambda item: item[0]):
+    for name, report in reports:
         by_name = {metric.name: metric for metric in report.metrics}
         fps = by_name.get("total_fps")
         lines.append(
@@ -112,7 +97,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
             f"{_icon(report.verdict)} |"
         )
     lines += ["", "For the rolling-history gate, positive FPS regression % means lower FPS.", ""]
-    for name, report in sorted(reports, key=lambda item: item[0]):
+    for name, report in reports:
         reasons = [report.message] if report.message else []
         reasons.extend(f"{metric.label}: {metric.note}" for metric in report.metrics if metric.note)
         if not reasons and report.verdict in (SKIP, ERROR):
@@ -133,7 +118,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
 
 
 def write_json(report: Report, path: Path) -> None:
-    """Write the machine-readable comparison to ``path``. The Markdown form goes to stdout."""
+    """Write the comparison as JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.as_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -255,18 +240,6 @@ def _build_source_diagnostics(report: dict) -> list[str]:
     return lines
 
 
-def _build_candidate_label(report: dict, identity: dict | None) -> str:
-    if (identity or {}).get("source_provenance") == "github_run_metadata":
-        return "B — PR revision (not verified)"
-    return "B — PR merge result" if report.get("candidate_kind") == "merge" else "B — PR benchmark"
-
-
-def _build_primary_rows(rows: list[dict], failure: dict | None) -> list[dict]:
-    if failure and not any(row[side]["median"] is not None for row in rows for side in ("baseline", "candidate")):
-        return []
-    return rows
-
-
 def render_build_comparison(report: dict) -> str:
     """Render exact-build FPS observations within the existing Performance smoke summary."""
     selection = report.get("selection", {})
@@ -275,7 +248,9 @@ def render_build_comparison(report: dict) -> str:
     if unavailable_side in identities and not identities[unavailable_side]:
         identities[unavailable_side] = selection.get("unavailable_evidence")
     a_label = "A — PR base"
-    b_label = _build_candidate_label(report, identities["candidate"])
+    b_label = "B — PR merge result" if report.get("candidate_kind") == "merge" else "B — PR benchmark"
+    if (identities["candidate"] or {}).get("source_provenance") == "github_run_metadata":
+        b_label = "B — PR revision (not verified)"
     a_label += " (evidence unavailable)" if unavailable_side == "baseline" else ""
     b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
     rows = report.get("rows", [])
@@ -298,21 +273,22 @@ def render_build_comparison(report: dict) -> str:
             "Comparison unavailable: " + _build_text(selection.get("reason", missing_reason)),
             "",
         ]
-    primary_rows = _build_primary_rows(rows, selection.get("paired_failure"))
-    if primary_rows:
+    if rows and (
+        not selection.get("paired_failure")
+        or any(row[side]["median"] is not None for row in rows for side in ("baseline", "candidate"))
+    ):
         lines += [
             "| Status | Workload | Baseline FPS | PR FPS | Change % |",
             "| --- | --- | ---: | ---: | ---: |",
         ]
-    for label, row in zip(labels, primary_rows):
-        percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
-        if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
-            percent = "N/A (baseline is zero)"
-        lines.append(
-            f"| {_build_result(row)} | {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
-            f"{_build_fps(row['candidate']['median'])} | {percent} |"
-        )
-    if primary_rows:
+        for label, row in zip(labels, rows):
+            percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
+            if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
+                percent = "N/A (baseline is zero)"
+            lines.append(
+                f"| {_build_result(row)} | {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
+                f"{_build_fps(row['candidate']['median'])} | {percent} |"
+            )
         lines += [
             "",
             "FPS is the median of recorded samples. Improved and regressed describe observed FPS changes; "
