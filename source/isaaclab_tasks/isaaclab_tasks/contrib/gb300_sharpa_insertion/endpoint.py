@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warp as wp
-from isaaclab_newton.physics import NewtonManager, VBDSolverCfg
+from isaaclab_newton.physics import VBDSolverCfg
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import BodyFlags, CollisionPipeline, Contacts, Control, Model, State, StateFlags
 from newton.solvers import SolverVBD
@@ -19,15 +19,14 @@ from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 class NewtonEndpointCouplerManager(NewtonCouplerManager):
     """Detect rigid contacts once; the cable has its own post-transfer pipeline."""
 
-    @classmethod
-    def _initialize_contacts(cls) -> None:
-        if cls._needs_collision_pipeline and cls._collision_pipeline is None:
-            options = cls._collision_cfg.to_pipeline_args() if cls._collision_cfg is not None else {}
-            options["shape_pairs_filtered"] = cls._solver.view("rigid").shape_contact_pairs
-            options["deterministic"] = cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
+    def _initialize_contacts(self) -> None:
+        if self._needs_collision_pipeline and self._collision_pipeline is None:
+            options = self._collision_cfg.to_pipeline_args() if self._collision_cfg is not None else {}
+            options["shape_pairs_filtered"] = self._solver.view("rigid").shape_contact_pairs
+            options["deterministic"] = self._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
             # Shape IDs remain global; use the full model's body bindings, not
             # the compact rigid view, when colliding the shared state.
-            NewtonManager._collision_pipeline = CollisionPipeline(cls.backend.model, **options)
+            self._collision_pipeline = CollisionPipeline(self.backend.model, **options)
         super()._initialize_contacts()
 
 
@@ -35,8 +34,13 @@ class NewtonEndpointVBDManager(NewtonVBDManager):
     """Use the existing proxy lifecycle to prescribe the loose cable endpoint."""
 
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
-        return _EndpointVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
+    def _create_solver(
+        cls,
+        model: Model,
+        solver_cfg: VBDSolverCfg,
+        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+    ) -> SolverVBD:
+        return _EndpointVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg, deterministic_mode))
 
 
 class _EndpointVBD(SolverVBD):
