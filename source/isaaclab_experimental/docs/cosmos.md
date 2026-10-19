@@ -89,6 +89,9 @@ guidance 1.0, a 30-latent history window with three attention sinks, and one con
 | `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
 | `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
 
+The current Cosmos3-Nano-Sim-Transfer checkpoint is trained on depth, so `depth` is the supported control; `edge`
+and `seg` need a checkpoint trained for them.
+
 Other control recipes are `edge_processor`, `regional_edge_processor`, and
 `segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
 extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
@@ -408,15 +411,8 @@ falling back. `status` lists the service's transports. With the defaults on one 
 shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket
 transport's 16-view protocol limit; available GPU memory still limits the batch size.
 
-Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process. CUDA IPC does not remove that copy
-or its synchronization cost; it avoids CPU staging when exchanging images between the two processes.
-The camera-side IPC handoff orders GPU work with events. The service synchronizes its CUDA stream before
-replying so GPU faults reach the client as errors; a complete inference step is not free of host synchronization.
-
-Each process allocates the buffer it writes: the camera its controls, the service its generated images. CUDA
-leaves freeing memory that the other process still has open undefined, so each side releases the other's buffer
-first. After a failed session the service frees its buffer once the camera disconnects, and the camera keeps its
-controls until it exits, because the service may still be reading them.
+CUDA IPC only avoids host copies between the two processes; edge extraction still runs on the CPU in the camera
+process. Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
