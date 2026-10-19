@@ -20,51 +20,36 @@ from pathlib import Path, PurePosixPath
 RUNTIME_MODULE = "isaaclab.benchmark.entrypoints.runtime"
 
 
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def _git(root: Path, *args: str, data: bytes | None = None) -> bytes:
-    result = subprocess.run(["git", "-C", str(root), *args], input=data, capture_output=True, check=False)
+def _git(root: Path, *args: str) -> bytes:
+    result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=False)
     if result.returncode:
         raise ValueError(f"Git source inspection failed: {result.stderr.decode(errors='replace').strip()}")
     return result.stdout
 
 
-def prepare_manifest(root: Path) -> dict:
-    """Hash immutable Python blobs and verify their checked-out contents."""
+def _git_digest(data: bytes, object_format: str) -> str:
+    return hashlib.new(object_format, b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+
+
+def prepare_manifest(root: Path, expected_commit: str | None = None) -> dict:
+    """Check tracked Python source with Git and record its immutable blob identities."""
     root = root.resolve()
     commit = _git(root, "rev-parse", "HEAD").decode().strip()
-    entries = []
-    for entry in _git(root, "ls-tree", "-rz", "--full-tree", commit, "--", "source", "scripts").split(b"\0"):
-        if not entry:
-            continue
+    if expected_commit is not None and commit != expected_commit:
+        raise ValueError(f"Checked-out revision {commit} differs from expected commit {expected_commit}.")
+    changed = _git(root, "diff", "--name-only", "-z", "--no-renames", commit, "--", "source", "scripts")
+    for path in changed.decode().split("\0"):
+        if path.endswith((".py", ".pyi")):
+            raise ValueError(f"Checked-out Python source differs from commit {commit}: {path}")
+    files = {}
+    for entry in _git(root, "ls-tree", "-rz", "--full-tree", commit, "--", "source", "scripts").split(b"\0")[:-1]:
         metadata, path_bytes = entry.split(b"\t", 1)
         _, kind, oid = metadata.decode().split()
         path = path_bytes.decode()
         if kind == "blob" and path.endswith((".py", ".pyi")):
-            entries.append((oid, path))
-    if not entries:
+            files[path] = oid
+    if not files:
         raise ValueError("The selected commit contains no Python source under source/ or scripts/.")
-    batch = _git(root, "cat-file", "--batch", data="".join(f"{oid}\n" for oid, _ in entries).encode())
-    files = {}
-    cursor = 0
-    for oid, path in entries:
-        header_end = batch.index(b"\n", cursor)
-        actual_oid, kind, size = batch[cursor:header_end].decode().split()
-        if actual_oid != oid or kind != "blob":
-            raise ValueError(f"Unexpected Git object for {path}.")
-        cursor = header_end + 1
-        blob = batch[cursor : cursor + int(size)]
-        cursor += int(size) + 1
-        expected = _sha256(blob)
-        try:
-            actual = (root / path).read_bytes()
-        except OSError as exc:
-            raise ValueError(f"Cannot read checked-out Python source {path}: {exc.strerror}") from exc
-        if _sha256(actual) != expected:
-            raise ValueError(f"Checked-out Python source differs from commit {commit}: {path}")
-        files[path] = expected
     namespaces = {}
     for path in files:
         parts = PurePosixPath(path).parts
@@ -73,8 +58,9 @@ def prepare_manifest(root: Path) -> dict:
             prefix = "/".join(parts[:3])
             namespaces.setdefault(parts[2], set()).add(prefix)
     return {
-        "schema_version": 1,
+        "schema_version": 3,
         "commit": commit,
+        "git_object_format": _git(root, "rev-parse", "--show-object-format").decode().strip(),
         "files": files,
         "namespaces": {name: sorted(paths) for name, paths in sorted(namespaces.items())},
     }
@@ -87,17 +73,6 @@ def _expected_paths(name: str, namespaces: dict) -> list[str]:
         stem = prefix + ("/" + suffix.replace(".", "/") if suffix else "")
         paths.extend((stem + ".py", stem + "/__init__.py"))
     return paths
-
-
-def _inspect_files(files: dict, root: Path, description: str) -> list[dict]:
-    mismatches = []
-    for relative, expected in files.items():
-        try:
-            if _sha256((root / relative).read_bytes()) != expected:
-                mismatches.append({"path": relative, "reason": f"{description} differs from the selected manifest."})
-        except OSError as exc:
-            mismatches.append({"path": relative, "reason": f"{description} could not be read: {exc.strerror}."})
-    return mismatches
 
 
 def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]]:
@@ -120,8 +95,7 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
             "name": name,
             "path": str(path),
             "relative_path": relative,
-            "sha256": None,
-            "expected_sha256": expected,
+            "digest": None,
             "status": "verified",
         }
         reasons = []
@@ -130,18 +104,23 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
         if expected is None:
             reasons.append("Imported Python source is absent from the selected commit manifest.")
         try:
-            record["sha256"] = _sha256(path.read_bytes())
+            record["digest"] = _git_digest(path.read_bytes(), manifest["git_object_format"])
         except OSError as exc:
             reasons.append(f"Imported module source could not be read: {exc.strerror}.")
-        if expected is not None and record["sha256"] != expected:
+        if expected is not None and record["digest"] != expected:
             reasons.append("Imported Python source bytes differ from the selected commit.")
         if reasons:
             record["status"] = "failed"
             mismatches.extend({"module": name, "path": str(path), "reason": reason} for reason in reasons)
         records.append(record)
     # lazy_export reads these import maps at runtime; they are not Python modules.
-    import_maps = {path: digest for path, digest in manifest["files"].items() if path.endswith(".pyi")}
-    mismatches.extend(_inspect_files(import_maps, root, "Import map"))
+    for relative, expected in manifest["files"].items():
+        if relative.endswith(".pyi"):
+            try:
+                if _git_digest((root / relative).read_bytes(), manifest["git_object_format"]) != expected:
+                    mismatches.append({"path": relative, "reason": "Import map differs from the selected manifest."})
+            except OSError as exc:
+                mismatches.append({"path": relative, "reason": f"Import map could not be read: {exc.strerror}."})
     return records, mismatches
 
 
@@ -192,13 +171,17 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
                 continue
             data = path.read_bytes()
             outputs.append(
-                {"path": path.relative_to(output_dir).as_posix(), "sha256": _sha256(data), "bytes": len(data)}
+                {
+                    "path": path.relative_to(output_dir).as_posix(),
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "bytes": len(data),
+                }
             )
         if not outputs:
             mismatches.append({"reason": "The benchmark invocation produced no runtime JSON output."})
         verified = exit_code == 0 and not mismatches
         sidecar = {
-            "schema_version": 1,
+            "schema_version": 3,
             "status": "verified" if verified else "failed",
             "commit": manifest["commit"],
             "pid": os.getpid(),
@@ -224,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--checkout-root", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
+    prepare.add_argument("--commit")
     run = commands.add_parser("run")
     run.add_argument("--manifest", type=Path, required=True)
     run.add_argument("--checkout-root", type=Path, required=True)
@@ -232,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "prepare":
-            manifest = prepare_manifest(args.checkout_root)
+            manifest = prepare_manifest(args.checkout_root, args.commit)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
             print(f"Prepared source revision {manifest['commit']} ({len(manifest['files'])} Python files)")
