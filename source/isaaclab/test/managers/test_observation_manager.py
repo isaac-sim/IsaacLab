@@ -1134,8 +1134,14 @@ def test_dictionary_term_without_processors(setup_env):
     ManagerBasedRLEnv._configure_gym_env_spaces(env)
     assert env.single_observation_space.contains({"policy": {"camera": {"rgb": first[0].numpy()}}})
     data["extra"] = pixels
-    with pytest.raises(ValueError, match="changed its output keys"):
-        manager.compute()
+    for _ in range(2):
+        with pytest.raises(ValueError, match="changed its output keys"):
+            manager.compute()
+    del data["extra"]
+    recovered = manager.compute()["policy"]["camera"]
+    assert env.single_observation_space.contains(
+        {"policy": {"camera": {name: value[0].numpy() for name, value in recovered.items()}}}
+    )
     manager.close()
 
 

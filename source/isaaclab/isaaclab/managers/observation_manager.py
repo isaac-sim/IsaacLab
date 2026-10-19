@@ -466,10 +466,10 @@ class ObservationManager(ManagerBase):
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
         term_cfgs = self._group_obs_term_cfgs[group_name]
-        obs_terms = zip(group_term_names, term_cfgs)
+        obs_terms = zip(group_term_names, term_cfgs, self._group_obs_term_dim[group_name])
 
         # evaluate terms: compute, add noise, clip, scale, custom tensor_processors
-        for term_name, term_cfg in obs_terms:
+        for term_name, term_cfg, term_dims in obs_terms:
             output_spec = self._term_output_specs.get((group_name, term_name))
             owned = output_spec is not None
             if output_spec is not None:
@@ -481,9 +481,9 @@ class ObservationManager(ManagerBase):
                     )
             else:
                 obs = term_cfg.func(self._env, **term_cfg.params)
-            pipeline = self._term_pipelines.get((group_name, term_name))
-            if pipeline is not None:
-                group_obs[term_name] = self._compute_dict_term(group_name, term_name, pipeline, obs)
+            if isinstance(term_dims, dict):
+                pipeline = self._term_pipelines[group_name, term_name]
+                group_obs[term_name] = self._compute_dict_term(group_name, term_name, pipeline, obs, term_dims)
                 continue
             # apply post-processing
             if term_cfg.tensor_processors is not None:
@@ -876,11 +876,11 @@ class ObservationManager(ManagerBase):
         term_name: str,
         pipeline: _DictTensorProcessorPipeline,
         data: dict[str, torch.Tensor | ProxyArray],
+        expected_dims: dict[str, tuple[int, ...]],
     ) -> dict[str, torch.Tensor]:
         stream = wp.ScopedStream(wp.stream_from_torch(self.device)) if "cuda" in self.device else nullcontext()
         with stream:
-            expected_keys = pipeline.outputs.keys()
             result = pipeline(self._dict_arrays(data))
-            if result.keys() != expected_keys:
+            if result.keys() != expected_dims.keys():
                 raise ValueError(f"Dictionary observation term '{group_name}/{term_name}' changed its output keys.")
             return {name: value.torch.clone() for name, value in result.items()}
