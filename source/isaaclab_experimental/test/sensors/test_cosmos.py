@@ -248,7 +248,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     assert resident_stream.settings["height"] == 2 and resident_stream.settings["width"] == 3
     assert resident_stream.settings["seeds"] == (7,)
     with pytest.raises(RuntimeError, match="active camera session"):
-        service_capabilities(cosmos_service.endpoint, require_idle=True)
+        service_capabilities(cosmos_service.endpoint)
 
     cosmos_service.resource.step_entered.clear()
     cosmos_service.resource.resume_step.clear()
@@ -268,7 +268,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     client.close()
     assert resident_stream.closed.wait(2)
     assert not cosmos_service.resource.closed.is_set()
-    assert service_capabilities(cosmos_service.endpoint, require_idle=True)["modalities"]
+    assert service_capabilities(cosmos_service.endpoint)["modalities"]
 
     replacement = _client(cosmos_service.endpoint)
     try:
