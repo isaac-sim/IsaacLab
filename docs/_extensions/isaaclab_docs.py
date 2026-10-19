@@ -60,7 +60,7 @@ def _source_branch(config) -> str:
     branch = _branch(config)
     if _UPSTREAM_SOURCE_REF_PATTERN.match(branch):
         return branch
-    return getattr(config, "isaaclab_latest_branch", "develop")
+    return getattr(config, "isaaclab_latest_branch", "main")
 
 
 def _configure_source_links(app: Sphinx, config: Config) -> None:
@@ -351,7 +351,7 @@ def setup(app):
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
     app.connect("config-inited", _configure_source_links)
-    app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaaclab_latest_branch", "main", "env")
     app.add_config_value("isaaclab_wheel_version", "", "env")
     app.add_config_value("isaaclab_wheel_source_tag", "", "env")
     app.add_config_value("isaacsim_version", "", "env")
