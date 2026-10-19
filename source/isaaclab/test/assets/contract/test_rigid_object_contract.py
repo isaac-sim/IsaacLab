@@ -233,10 +233,6 @@ def test_writes_invalidate_dependent_caches(monkeypatch, backend, asset, trigger
     else:
         layout = (3,) if backend == "newton" else (7,)
         coms = _payload((_NUM_INSTANCES, num_bodies), layout)
-        if backend == "newton":
-            from isaaclab_newton.physics import NewtonManager
-
-            monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
         getattr(obj, f"set_{trigger}")(coms=coms)
 
     for name, buffer in buffers.items():

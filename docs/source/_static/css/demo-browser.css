@@ -6,29 +6,34 @@
  */
 
 .demo-command-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    flex-wrap: wrap;
+}
+
+.demo-command-row .environment-command-prefix {
+    white-space: normal;
 }
 
 .demo-command-selection {
     min-width: 0;
     color: var(--pst-color-text-base);
+    font-family: var(--pst-font-family-monospace);
     font-size: 1.05rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
-.demo-command-row .environment-selector select {
+.demo-command-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    margin-top: 1rem;
+}
+
+.demo-command-options .environment-selector {
+    display: flex;
+}
+
+.demo-command-options select {
     min-width: 0;
-}
-
-.demo-command-row .environment-selector-physics select {
-    width: 10.5rem;
-}
-
-.demo-command-row .environment-selector-renderer select {
-    width: 8.5rem;
+    width: 100%;
 }
 
 .demo-command-description {
@@ -90,15 +95,6 @@
 }
 
 @media (max-width: 640px) {
-    .demo-command-row {
-        grid-template-columns: auto minmax(0, 1fr);
-    }
-
-    .demo-command-row .environment-selector {
-        grid-column: 1 / -1;
-        justify-content: space-between;
-    }
-
     .demo-card-grid {
         grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
         gap: 0.7rem;
