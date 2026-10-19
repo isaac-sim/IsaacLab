@@ -167,11 +167,9 @@ Isaac Lab overrides:
 | Prompt per environment | `env.cosmos.prompt="['<text>', '<text>']"` |
 | Service endpoint | `env.cosmos.endpoint=<url>` |
 | Transport | `env.cosmos.transport=socket` |
-| Depth range [m] | `env.scene.tiled_camera.modifiers.distance_to_image_plane.0.params.near=0.2` (and `far`) |
 
 For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct presets=cosmos
-env.cosmos.prompt="A Shadow Hand turning a red cube."`. The depth range belongs to the step that prepares the
-control, item `0` of the camera's depth chain. Omitted options preserve the preset's values, and the overrides keep its
+env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options preserve the preset's values, and the overrides keep its
 image size, modifier chain, and feature-extractor supervision.
 
 ## Client and server packages
