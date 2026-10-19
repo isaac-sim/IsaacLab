@@ -185,7 +185,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        self._backend_manager._mark_particles_dirty()
+        self._backend_manager.mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_index(
@@ -300,7 +300,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        self._backend_manager._mark_particles_dirty()
+        self._backend_manager.mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
         self._invalidate_nodal_vel_cache()
 
@@ -333,7 +333,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        self._backend_manager._mark_particles_dirty()
+        self._backend_manager.mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_mask(
@@ -422,7 +422,7 @@ class DeformableObject(BaseDeformableObject):
 
     def _iter_particle_states(self):
         """Yield active Newton states."""
-        for state in (self._backend_manager.backend.state_0, self._backend_manager.backend.state_1):
+        for state in dict.fromkeys((self._backend_manager.backend.state_0, self._backend_manager.backend.state_1)):
             if state is None:
                 continue
             yield state

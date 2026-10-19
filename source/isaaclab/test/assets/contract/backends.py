@@ -189,6 +189,8 @@ def newton_manager(num_instances: int, device: str) -> MagicMock:
     model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
     manager = MagicMock()
     manager.backend.solver = None
+    manager.backend.transforms_may_change_on_graph_replay = False
+    manager.backend.device = wp.get_device(device)
     manager.backend.model = model
     manager.backend.state_0 = manager.backend.state_1 = MagicMock()
     return manager

@@ -100,7 +100,12 @@ def test_joint_commands_preserve_coordinate_layout(ball_joint):
     assert control.joint_target_q.shape == state.joint_q.shape
     backend_manager = NewtonManager()
     backend_manager.backend = SimpleNamespace(
-        model=model, state_0=state, control=control, solver=None, actuators=None, kinematics_dirty=False
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        transforms_may_change_on_graph_replay=False,
+        device=model.device,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[newton.JointType.FREE])
     data = ArticulationData(view, "cpu", backend_manager=backend_manager)

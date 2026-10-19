@@ -54,6 +54,16 @@ Physics Manager
 .. autoclass:: NewtonCloneRecord
   :members:
 
+Backend Functions
+-----------------
+
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: init_solver, forward, invalidate_fk, invalidate_body_state, mark_model_changed, notify_model_changes,
+    activate_actuators, add_contact_sensor, add_imu_sensor, handles_decimation, set_decimation, invalidate_graph,
+    step, capture_graph, run_query, refit_bvh
+
+.. currentmodule:: isaaclab_newton.physics
+
 Actuator Solver Access
 ----------------------
 

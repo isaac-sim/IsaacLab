@@ -41,11 +41,12 @@ custom force, impulse, or state transfer.
 Responsibilities and Boundaries
 -------------------------------
 
-:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model, and the
-:class:`~isaaclab_newton.physics.NewtonManager` drives it. Newton's solver object
-(:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is the only solver instance. The spec's
-functions take it and its configuration explicitly (:func:`~isaaclab_newton.physics.solver_spec` resolves the spec of
-a configuration), so a coupled solver calls the specs of its entries with each entry's solver and configuration.
+Data and behavior are split. :class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized
+model, and the functions in :mod:`isaaclab_newton.physics.newton_backend` operate on it explicitly, in the style of
+``mj_step(m, d)``. Newton's solver object (:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is
+the only solver instance. The spec's functions take it and its configuration explicitly
+(:func:`~isaaclab_newton.physics.solver_spec` resolves the spec of a configuration), so a coupled solver calls the
+specs of its entries with each entry's solver and configuration.
 
 .. list-table::
    :header-rows: 1
@@ -58,12 +59,12 @@ a configuration), so a coupled solver calls the specs of its entries with each e
        drives the public lifecycle calls, and owns the shared builder and backend in its registry.
    * - :class:`~isaaclab_newton.physics.NewtonManager`
      - What must survive a hard reset: site requests, the replication outputs
-       (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), and the decimation setting. It finalizes the
-       :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry, closes it on a hard reset, and runs
-       the step, holding the step callbacks and the captured step.
+       (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), the decimation setting, and the state-force callbacks.
+       It finalizes the :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry and closes it on a
+       hard reset.
    * - :class:`~isaaclab_newton.physics.NewtonBackend`
-     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, and reset masks.
-       A hard reset or close discards it.
+     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, step callbacks,
+       reset masks, and the captured step. A hard reset or close discards it.
    * - Solver spec (``<SOLVER>_SPEC``)
      - Solver construction, capabilities, stepping, per-world reset of solver-owned buffers, forward kinematics, and
        builder attributes, as functions over an explicit solver, configuration, state, or builder.
@@ -108,7 +109,7 @@ Lifecycle
      - ``prepare_builder``, ``resolve_cfg``, ``validate``, ``build``, ``init_state``, ``external_contacts``,
        ``create_collision_pipeline``, ``create_contacts``, ``prepare_contacts``, ``eval_fk``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.step`
-     - Runs :meth:`~isaaclab_newton.physics.NewtonManager.forward` for authored state, runs the first step after a
+     - Runs :func:`~isaaclab_newton.physics.newton_backend.forward` for authored state, runs the first step after a
        structural change eagerly, and captures it as a CUDA graph for later steps.
      - ``reset``, ``eval_fk``, ``prepare_step``, ``step``, ``finish_step``, ``check_status``, ``log_debug``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.close`
@@ -136,7 +137,31 @@ records the callbacks, so they must be graph-safe. Consumers register them with
 :meth:`~isaaclab_newton.physics.NewtonManager.register_post_step_callback` and its siblings while ``PHYSICS_READY``
 dispatches.
 
-Property writers call :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`; the manager commits the queued
+The backend functions read no manager state, so backends with different solvers can be built from their own builders
+and stepped side by side:
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBackend, NewtonBackendCfg, NewtonCfg, VBDSolverCfg
+   from isaaclab_newton.physics import newton_backend as nb
+
+   def backend_cfg(solver_cfg):
+       return NewtonBackendCfg(physics_cfg=NewtonCfg(solver_cfg=solver_cfg), device="cuda:0")
+
+   rigid = NewtonBackend(backend_cfg(MJWarpSolverCfg()), rigid_builder, dt=0.01)
+   cloth = NewtonBackend(backend_cfg(VBDSolverCfg()), cloth_builder, dt=0.01)
+   for backend in (rigid, cloth):
+       nb.init_solver(backend)
+
+   for _ in range(100):
+       nb.step(rigid)
+       nb.step(cloth)
+
+:func:`~isaaclab_newton.physics.newton_backend.step` runs the first step after
+:func:`~isaaclab_newton.physics.newton_backend.invalidate_graph` eagerly, then captures it for later steps when the
+backend's device and solver allow it.
+
+Property writers call ``mark_model_changed(backend, flags)``; ``notify_model_changes`` commits the queued
 categories once at the next step.
 
 

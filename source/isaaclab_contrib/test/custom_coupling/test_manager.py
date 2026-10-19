@@ -12,11 +12,11 @@ import pytest
 import warp as wp
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
-    NewtonManager,
     SolverSpec,
     VBDSolverCfg,
     usd_schema_resolvers,
 )
+from isaaclab_newton.physics import newton_backend as nb
 from isaaclab_newton.physics.solver_specs import register_builder_attributes
 from newton import ModelBuilder
 
@@ -123,12 +123,10 @@ def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBD
 
 
 def test_add_contact_sensor_rejects_coupled_solver() -> None:
-    solver_cfg = CoupledMJWarpVBDSolverCfg()
-    manager = NewtonManager()
-    manager.backend = backend = SimpleNamespace(solver_cfg=solver_cfg, contact_sensors={})
+    backend = SimpleNamespace(solver_cfg=CoupledMJWarpVBDSolverCfg(), contact_sensors={})
 
     with pytest.raises(NotImplementedError, match="contact sensors are not yet supported"):
-        manager.add_contact_sensor(body_names_expr="body")
+        nb.add_contact_sensor(backend, body_names_expr="body")
     assert backend.contact_sensors == {}
 
 

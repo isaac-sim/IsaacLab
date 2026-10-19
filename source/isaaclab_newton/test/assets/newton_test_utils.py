@@ -155,3 +155,14 @@ def world_gravity(gravity: Vec3) -> Iterator[None]:
     finally:
         world_gravity_view.copy_(previous)
         backend_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+
+
+def step_callback_count(backend) -> int:
+    """Return the number of step callbacks registered on a Newton backend."""
+    callback_lists = (
+        backend.pre_actuator_callbacks,
+        backend.post_actuator_callbacks,
+        backend.state_force_callbacks,
+        backend.post_step_callbacks,
+    )
+    return sum(map(len, callback_lists))

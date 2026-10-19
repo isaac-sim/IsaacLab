@@ -283,12 +283,7 @@ def _run(
 
     if use_newton_actuators and decimation > 1:
         sim.backend_manager.set_decimation(decimation)
-    handles_dec = (
-        use_newton_actuators
-        and decimation > 1
-        and sim.backend_manager._is_all_graphable()
-        and sim.backend_manager._decimation > 1
-    )
+    handles_dec = use_newton_actuators and decimation > 1 and sim.backend_manager.handles_decimation()
 
     results = {}
     for name, island in islands.items():
@@ -969,14 +964,15 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
 
     articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
 
-    # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
-    # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
-    # stride.
+    # Map each entry of ``act.indices`` to its env via the model's per-world DOF count (worlds here share a layout,
+    # including free-joint DOFs on floating-base articulations).
+    model = newton_run.sim.backend_manager.backend.model
+    dofs_per_world = model.joint_dof_count // model.world_count
     for act, state in stateful_pairs:
         pushes_after = state.delay_state.num_pushes.numpy()
         indices_np = act.indices.numpy()
         for i, global_dof in enumerate(indices_np):
-            env = int(global_dof) // adapter.num_joints
+            env = int(global_dof) // dofs_per_world
             if env == 0:
                 assert int(pushes_after[i]) == 0, f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}"
             else:

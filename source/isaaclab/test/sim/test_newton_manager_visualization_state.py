@@ -128,7 +128,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     )
     owner = NewtonManager()
     owner._device = "cpu"
-    backend = NewtonSceneDataBackend(owner)
+    backend = NewtonSceneDataBackend(lambda: owner.backend)
     provider = SceneDataProvider(backend)
     from isaaclab_newton.physics import SolverSpec
 
@@ -136,11 +136,14 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     newton_backend = SimpleNamespace(
         model=SimpleNamespace(body_count=1, world_count=1),
         state_0=state,
+        device=wp.get_device("cpu"),
+        cfg=SimpleNamespace(),
         solver=None,
         solver_cfg=SimpleNamespace(class_type=SolverSpec(reset=Mock(), eval_fk=eval_fk)),
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
     monkeypatch.setattr(owner, "backend", newton_backend)
     monkeypatch.setattr(owner, "_scene_data_backend", backend)

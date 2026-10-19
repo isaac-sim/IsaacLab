@@ -27,13 +27,13 @@ from isaaclab_newton.physics import (
     MPMSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
-    NewtonManager,
     SolverSpec,
     VBDSolverCfg,
     XPBDSolverCfg,
     register_builder_attributes,
     usd_schema_resolvers,
 )
+from isaaclab_newton.physics import newton_backend as nb
 from isaaclab_newton.physics.solver_specs import create_builder
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
@@ -723,11 +723,10 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
 def test_contact_sensor_guard_rejects_coupler():
     """Adding a contact sensor to a coupler backend fails before any sensor is created."""
     solver_cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())])
-    manager = NewtonManager()
-    manager.backend = backend = SimpleNamespace(solver_cfg=solver_cfg, contact_sensors={})
+    backend = SimpleNamespace(solver_cfg=solver_cfg, contact_sensors={})
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
-        manager.add_contact_sensor(body_names_expr="body")
+        nb.add_contact_sensor(backend, body_names_expr="body")
 
     assert backend.contact_sensors == {}
 

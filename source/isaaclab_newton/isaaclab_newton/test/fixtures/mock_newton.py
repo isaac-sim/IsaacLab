@@ -77,6 +77,7 @@ def create_mock_newton_manager(
         solver=None,
         actuators=None,
         dt=0.01,
+        live=False,
     )
     manager.transforms_may_change_on_graph_replay = False
     return manager

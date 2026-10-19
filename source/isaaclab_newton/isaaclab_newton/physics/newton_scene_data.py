@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 import numpy as np
 import warp as wp
@@ -15,8 +15,8 @@ from newton import Model, State
 
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
-if TYPE_CHECKING:
-    from .newton_manager import NewtonManager
+from . import newton_backend as nb
+from .newton_backend import NewtonBackend
 
 
 class NewtonSceneDataBackend(SceneDataBackend):
@@ -26,13 +26,13 @@ class NewtonSceneDataBackend(SceneDataBackend):
     :class:`SceneDataFormat.Transform`. Body paths come from the model's ``body_label`` attribute.
     """
 
-    def __init__(self, manager: NewtonManager):
+    def __init__(self, backend: Callable[[], NewtonBackend | None]):
         """Initialize the scene data backend.
 
         Args:
-            manager: Newton manager whose backend state to publish; the backend changes on every hard reset.
+            backend: Returns the Newton backend whose state to publish; it changes on every hard reset.
         """
-        self._manager = manager
+        self._backend = backend
         self._transforms = SceneDataFormat.Transform()
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
@@ -61,7 +61,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         if endpoints:
             model = self.model
             source = SceneDataFormat.CapsuleEndpoints()
-            source.transforms = self._manager.backend.state_0.body_q
+            source.transforms = self._backend().state_0.body_q
             source.shape_body = model.shape_body
             source.shape_transform = model.shape_transform
             source.shape_scale = model.shape_scale
@@ -106,20 +106,19 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     @property
     def model(self) -> Model | None:
-        backend = self._manager.backend
+        backend = self._backend()
         return None if backend is None else backend.model
 
     @property
     def state(self) -> State | None:
         """Return native physics state, consistent with authored state, without entering the rendering path."""
-        manager = self._manager
-        backend = manager.backend
+        backend = self._backend()
         if backend is None:
             return None
-        if manager.transforms_may_change_on_graph_replay:
+        if backend.transforms_may_change_on_graph_replay:
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
             self.transforms_timestamp += 1
             self.geometry_timestamp += 1
         if backend.solver is not None:
-            manager.forward()
+            nb.forward(backend)
         return backend.state_0

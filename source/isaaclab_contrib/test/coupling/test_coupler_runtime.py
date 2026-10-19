@@ -16,10 +16,10 @@ from isaaclab_newton.physics import (
     NewtonBackend,
     NewtonBackendCfg,
     NewtonCfg,
-    NewtonManager,
     XPBDSolverCfg,
     solver_spec,
 )
+from isaaclab_newton.physics import newton_backend as nb
 from newton import CollisionPipeline, Mesh, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
@@ -33,15 +33,13 @@ from isaaclab_contrib.coupling import (
 )
 
 
-def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonManager:
-    """Build a manager over a backend finalized from ``builder`` whose coupler solver and contacts are constructed."""
-    cfg = NewtonCfg(solver_cfg=solver_cfg)
-    manager = NewtonManager()
-    manager._cfg, manager._device = cfg, "cpu"
-    manager.backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=1.0 / 60.0)
-    assert solver_spec(manager.backend.solver_cfg) is COUPLER_SPEC
-    manager.initialize_solver()
-    return manager
+def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonBackend:
+    """Build a backend finalized from ``builder`` whose coupler solver and contacts are constructed."""
+    cfg = NewtonBackendCfg(physics_cfg=NewtonCfg(solver_cfg=solver_cfg), device="cpu")
+    backend = NewtonBackend(cfg, builder, dt=1.0 / 60.0)
+    assert solver_spec(backend.solver_cfg) is COUPLER_SPEC
+    nb.init_solver(backend)
+    return backend
 
 
 def _build_overlapping_bodies(*, mesh_contact: bool = False) -> ModelBuilder:
@@ -108,7 +106,7 @@ def test_proxy_destination_can_receive_only_proxy_bodies():
         ],
     )
 
-    backend = _bind_coupler(builder, solver_cfg).backend
+    backend = _bind_coupler(builder, solver_cfg)
 
     assert backend.solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
 
@@ -154,8 +152,7 @@ def test_real_coupler_constructs_resets_and_steps(
         with pytest.raises(RuntimeError, match=r"Newton.*does not support contact_max_triangle_pairs"):
             _bind_coupler(builder, solver_cfg)
         return
-    manager = _bind_coupler(builder, solver_cfg)
-    backend = manager.backend
+    backend = _bind_coupler(builder, solver_cfg)
     model = backend.model
     solver = backend.solver
 
@@ -200,7 +197,7 @@ def test_real_coupler_constructs_resets_and_steps(
     backend.state_0 = state_0
     backend.state_1 = state_1
     backend.control = control
-    manager._run_solver_substeps(contacts)
+    nb.step(backend)
     state_1 = backend.state_0
 
     body_q_after = state_1.body_q.numpy()

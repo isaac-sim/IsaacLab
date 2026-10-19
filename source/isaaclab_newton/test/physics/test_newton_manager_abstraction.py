@@ -24,6 +24,7 @@ from dataclasses import replace
 from functools import partial as P
 from types import SimpleNamespace
 
+import isaaclab_newton.physics.newton_backend as nb
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
@@ -61,6 +62,7 @@ from isaaclab_newton.physics.mpm_solver import (
     implicit_mpm_solvers,
     mpm_supports_graph_capture,
 )
+from isaaclab_newton.physics.newton_backend import resolve_deterministic_mode
 from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.solver_specs import (
     register_builder_attributes,
@@ -79,8 +81,6 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import test_devices
-
-resolve_deterministic_mode = NewtonManager._resolve_deterministic_mode
 
 # ---------------------------------------------------------------------------
 # Lightweight (no sim) parametrisation
@@ -164,11 +164,9 @@ def _validate(backend: SimpleNamespace) -> None:
 )
 def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
     """Unsupported solvers should not silently ignore a determinism guarantee."""
-    manager = NewtonManager()
-    manager._cfg = NewtonCfg(solver_cfg=solver_cfg, deterministic_mode="gpu_to_gpu")
-    manager.backend = _validation_backend(solver_cfg, wp.DeterministicMode.GPU_TO_GPU)
+    backend = _validation_backend(solver_cfg, wp.DeterministicMode.GPU_TO_GPU)
     with pytest.raises(ValueError, match="not supported"):
-        manager.initialize_solver()
+        nb.init_solver(backend)
 
 
 @pytest.mark.parametrize("solver_cfg_cls", [FeatherstoneSolverCfg, MJWarpSolverCfg, XPBDSolverCfg])
@@ -195,6 +193,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
         def contacts(self):
             return SimpleNamespace(rigid_contact_max=self._rigid_contact_max)
 
+    monkeypatch.setattr(nb, "CollisionPipeline", FakeCollisionPipeline)
     prepared = []
     spec = SolverSpec(
         create_collision_pipeline=lambda model, solver, cfg, **kwargs: FakeCollisionPipeline(model, **kwargs),
@@ -202,16 +201,15 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     )
     backend = SimpleNamespace(
         model=SimpleNamespace(),
+        cfg=SimpleNamespace(collision_cfg=None),
+        deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
         solver=SimpleNamespace(get_max_contact_count=lambda: 2),
         solver_cfg=SimpleNamespace(class_type=spec),
         collision_pipeline=None,
+        capture=None,
     )
-    manager = NewtonManager()
-    manager._cfg, manager._device = NewtonCfg(), "cpu"
-    manager.backend = backend
-    manager._deterministic_mode = wp.DeterministicMode.GPU_TO_GPU
 
-    manager._initialize_contacts()
+    nb._allocate_contacts(backend)
 
     assert pipeline_calls == [
         {"broad_phase": "explicit", "deterministic": True},
@@ -756,18 +754,17 @@ def test_nested_mpm_solver_discovery_selects_implicit_mpm_entries():
 def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     """The first step runs eagerly; later steps replay a graph only when the solver can be captured."""
     events = []
-    manager = _recording_manager(events, single_state=True, num_substeps=1, device="cuda:0")
-    spec = replace(manager.backend.solver_cfg.class_type, supports_capture=lambda solver, cfg: supported)
-    manager.backend.solver_cfg = SimpleNamespace(class_type=spec)
+    backend = _recording_backend(events, single_state=True, num_substeps=1)
     replays = []
-    monkeypatch.setattr(manager, "_capture_graph", lambda segment: segment)
+    # init_solver resolves the capture function only for solvers that support capture.
+    backend.capture = (lambda segment: segment) if supported else None
     monkeypatch.setattr(wp, "capture_launch", lambda segment: (replays.append(segment), segment()))
-    manager._invalidate_graph()
+    nb.invalidate_graph(backend)
 
     for _ in range(2):
-        manager.step()
+        nb.step(backend)
 
-    assert (manager._graph is not None) is supported
+    assert (backend.graph is not None) is supported
     assert len(replays) == int(supported)
     # The capturing step ran eagerly first, so both steps advanced physics exactly once.
     assert events.count(("step", "state_0", "state_0")) == 2
@@ -874,11 +871,10 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
             raise AssertionError("automatic resets must not clear implicit-MPM history")
 
     spec = replace(MPM_SPEC, eval_fk=lambda *args: None)
-    manager = NewtonManager()
-    manager.backend = _backend_with_masks(world_mask, fk_mask, spec)
-    manager.backend.solver = _RejectingSolver()
+    backend = _backend_with_masks(world_mask, fk_mask, spec)
+    backend.solver = _RejectingSolver()
 
-    manager.forward()
+    nb.forward(backend)
 
     assert world_mask.numpy().tolist() == [False, False]
 
@@ -1084,7 +1080,7 @@ def test_step_combines_pending_model_changes(monkeypatch, caplog):
             sim.backend_manager.add_model_change(flag)
         assert calls == []
 
-        with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager"):
+        with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_backend"):
             sim.step(render=False)
             sim.step(render=False)
             assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES]
@@ -1201,8 +1197,8 @@ class _State:
         self._events.append(("assign", self.name, other.name))
 
 
-def _recording_manager(events, *, single_state, num_substeps, device="cpu"):
-    """Build a manager over a backend stand-in whose solver hooks and states record every operation of a step."""
+def _recording_backend(events, *, single_state, num_substeps):
+    """Build a backend stand-in whose solver hooks and states record every operation of a step."""
     spec = SolverSpec(
         single_state=single_state,
         external_contacts=lambda solver, cfg: False,
@@ -1210,38 +1206,48 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu"):
         reset=lambda solver, cfg, state, worlds: events.append("reset"),
         eval_fk=lambda solver, cfg, state, worlds, articulations: events.append("fk"),
     )
-    manager = NewtonManager()
-    manager._cfg, manager._device = NewtonCfg(num_substeps=num_substeps), device
-    manager._sim = SimpleNamespace(is_playing=lambda: True, has_gui=False, has_offscreen_render=False)
-    manager.backend = SimpleNamespace(
+    return SimpleNamespace(
         solver_cfg=SimpleNamespace(class_type=spec),
         solver=object(),
+        device="cpu",
         state_0=_State("state_0", events),
         state_1=_State("state_1", events),
         control=object(),
         collision_pipeline=None,
         contacts=None,
+        cfg=SimpleNamespace(collision_decimation=0),
         dt=0.002,
         num_substeps=num_substeps,
         solver_dt=0.002 / num_substeps,
+        pre_actuator_callbacks=[],
+        post_actuator_callbacks=[],
+        state_force_callbacks=[],
+        post_step_callbacks=[],
         actuators=None,
+        actuators_active=False,
+        decimation=1,
+        staged_body_f=None,
         contact_sensors={},
         imu_sensors=[],
-        world_mask=wp.zeros(2, dtype=wp.bool, device=device),
-        fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
+        graph=None,
+        graph_capture_pending=False,
+        capture=None,
+        model_changes=set(),
+        world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
+        fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
-    return manager
 
 
 @pytest.mark.parametrize("use_single_state", [True, False], ids=["single_state", "double_state"])
 def test_state_force_callback_runs_before_every_solver_substep(use_single_state):
     """Viewer forces are applied to each current input state before solver stepping."""
     events = []
-    manager = _recording_manager(events, single_state=use_single_state, num_substeps=2)
-    manager.register_state_force_callback(lambda state: events.append(("force", state.name)))
+    backend = _recording_backend(events, single_state=use_single_state, num_substeps=2)
+    backend.state_force_callbacks.append(lambda state: events.append(("force", state.name)))
 
-    manager._run_solver_substeps(contacts=None)
+    nb._run_solver_substeps(backend, contacts=None)
 
     if use_single_state:
         assert events == [
@@ -1267,12 +1273,12 @@ def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0(
     """Each physics step runs pre-actuator callbacks before substeps and ends in the canonical state; post-step runs
     once."""
     events = []
-    manager = _recording_manager(events, single_state=False, num_substeps=1)
-    manager.register_pre_actuator_callback(lambda: events.append(("pre",)))
-    manager.register_post_step_callback(lambda: events.append(("post",)))
-    manager._decimation = 2
+    backend = _recording_backend(events, single_state=False, num_substeps=1)
+    backend.pre_actuator_callbacks.append(lambda: events.append(("pre",)))
+    backend.post_step_callbacks.append(lambda: events.append(("post",)))
+    backend.decimation = 2
 
-    manager._simulate_full()
+    nb._simulate_full(backend)
 
     step = [("pre",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1"), ("clear", "state_0")]
     assert events == step * 2 + [("post",)]
@@ -1320,7 +1326,7 @@ def test_graph_capture_preserves_first_step_and_recapture(
                 sim.backend_manager.set_decimation(decimation)
             sim.backend_manager.backend.state_0.body_f.assign(wrench)
             sim.step(render=False)
-            assert sim.backend_manager._graph is not None
+            assert sim.backend_manager.backend.graph is not None
             np.testing.assert_allclose(sim.backend_manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 

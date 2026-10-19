@@ -16,6 +16,7 @@ newton = pytest.importorskip("newton")
 from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
+from newton_test_utils import step_callback_count
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -55,12 +56,12 @@ def test_mpm_object_initializes_from_interactive_scene():
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
         assert not sim.get_scene_data_provider().get_geometry_points()
 
-        callback_count = len(sim.backend_manager._callbacks)
+        callback_count = step_callback_count(sim.backend_manager.backend)
         for _ in range(2):
             old_data = media.data
             sim.reset()
             assert media.data is not old_data
-            assert len(sim.backend_manager._callbacks) == callback_count
+            assert step_callback_count(sim.backend_manager.backend) == callback_count
 
             default_state = media.data.default_particle_state_w.torch.clone()
             shifted_state = default_state[0:1].clone()
