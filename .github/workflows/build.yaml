@@ -484,6 +484,8 @@ jobs:
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
 
+  # Share runner/image startup across the short package suites. Keep per-file
+  # process isolation and the same four-slot budget within each combined job.
   test-isaaclab-rl:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
@@ -502,82 +504,11 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_rl"
+        filter-pattern: "isaaclab_rl,isaaclab_mimic,isaaclab_experimental"
         extra-pip-packages: "leapp==0.7.2 torchrl>=0.13"
         warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-rl-test
-
-  test-isaaclab-mimic:
-    name: isaaclab_mimic
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_mimic"
-        warp-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-mimic-test
-
-  test-isaaclab-contrib:
-    name: isaaclab_contrib
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_contrib"
-        warp-cache: restore
-        ovrtx-shader-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-contrib-test
-
-  test-isaaclab-teleop:
-    name: isaaclab_teleop
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_teleop"
-        warp-cache: restore
-        ovrtx-shader-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
     name: isaaclab_visualizers
@@ -621,33 +552,46 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_assets"
+        filter-pattern: "isaaclab_assets,isaaclab_contrib,isaaclab_teleop"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-assets-test
 
-  test-isaaclab-experimental:
-    name: isaaclab_experimental
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+  # Preserve the required package check names without provisioning GPU runners.
+  # A failed or cancelled combined suite must fail each dependent check too.
+  test-isaaclab-mimic:
+    name: isaaclab_mimic
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-rl]
+    if: always() && needs.test-isaaclab-rl.result != 'skipped'
     steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_experimental"
-        warp-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-experimental-test
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-rl.result }}
+      run: test "$RESULT" = success
+
+  test-isaaclab-contrib:
+    name: isaaclab_contrib
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
+
+  test-isaaclab-teleop:
+    name: isaaclab_teleop
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
 
   test-isaaclab-newton:
     name: isaaclab_newton
