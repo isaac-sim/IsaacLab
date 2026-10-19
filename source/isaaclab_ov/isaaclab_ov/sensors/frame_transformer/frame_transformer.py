@@ -245,7 +245,7 @@ class FrameTransformer(BaseFrameTransformer):
         self._body_dst_flat_indices = []  # (num_envs,) int32 destination slots per body
 
         num_unique_bodies = len(tracked_body_names)
-        plan = SimulationManager._sim.get_clone_plan()
+        plan = self._backend_manager._sim.get_clone_plan()
 
         for body_slot, tracked_path in enumerate(tracked_prim_paths):
             pattern = self._env_wildcardify(tracked_path)

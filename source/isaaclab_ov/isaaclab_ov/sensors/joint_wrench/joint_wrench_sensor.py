@@ -142,7 +142,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         # Without a clone plan, the binding defines the environments.
         binding_num_envs = self._wrench_binding.count
-        if OvPhysxManager._sim.get_clone_plan() is not None:
+        if self._backend_manager._sim.get_clone_plan() is not None:
             self._check_env_count(binding_num_envs, pattern)
         elif binding_num_envs != self._num_envs:
             self._num_envs = binding_num_envs
