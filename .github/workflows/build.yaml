@@ -103,21 +103,16 @@ jobs:
             core.setOutput('activated', 'true');
             return;
           }
-          try {
-            for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
-              ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
-              request: {timeout: 60000},
-            })) {
-              // GITHUB_TOKEN labeler events cannot trigger another workflow.
-              if (response.data.some(event => event.event === 'labeled'
-                  && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
-                core.setOutput('activated', 'true');
-                return;
-              }
+          for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
+            ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
+            request: {timeout: 60000},
+          })) {
+            // GITHUB_TOKEN labeler events cannot trigger another workflow.
+            if (response.data.some(event => event.event === 'labeled'
+                && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
+              core.setOutput('activated', 'true');
+              return;
             }
-            core.notice('Docker CI has not been activated for this PR. Apply a label or use the existing run-ci command.');
-          } catch (error) {
-            core.warning(`Could not verify prior PR activation (HTTP ${error.status || 'unavailable'}). Apply a label or use run-ci to start CI explicitly.`);
           }
     - uses: actions/checkout@v6
       with:
