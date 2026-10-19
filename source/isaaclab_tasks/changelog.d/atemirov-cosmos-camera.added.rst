@@ -7,3 +7,5 @@
 * Added list indexes to configuration override paths, so a command-line override reaches an item of a list, for
   example ``env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt`` for the Cosmos step of a
   camera's modifier chain.
+* Added ``env.cosmos`` to both Shadow Hand ``cosmos`` presets: the camera's own Cosmos settings, so overrides such
+  as ``env.cosmos.prompt=...`` set the prompt, endpoint, and transport.
