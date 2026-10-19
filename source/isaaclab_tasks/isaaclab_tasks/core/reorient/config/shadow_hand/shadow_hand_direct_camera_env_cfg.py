@@ -206,7 +206,6 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
 
 _COSMOS_MODEL_CFG = CosmosModelCfg(
-    modality="depth",
     prompt=(
         "A close-up overhead view of a robotic Shadow Hand reorienting a small colored cube, "
         "with realistic metallic fingers, natural lighting, and a dark background."
@@ -272,11 +271,6 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
             "(env.scene.tiled_camera.renderer_cfg.async_rendering=False on the command line)."
         )
     transfer = _cosmos_transfer(env_cfg)
-    if transfer.backend.modality != "depth":
-        raise ValueError(
-            "The Shadow Hand Cosmos preset prepares depth controls; env.cosmos.modality must be depth, "
-            f"got {transfer.backend.modality!r}."
-        )
     if env_cfg.feature_extractor.image_update_frames != transfer.update_frames:
         raise ValueError(
             "The Shadow Hand Cosmos preset requires feature_extractor.image_update_frames "

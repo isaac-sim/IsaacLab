@@ -45,9 +45,9 @@ def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, 
 class CosmosModelCfg(BackendCfg):
     """Settings for a camera's resident Cosmos service connection.
 
-    Use with :class:`~isaaclab_experimental.image_transfer.ImageTransferModifierCfg` after a control
-    preparation modifier. Cosmos generates an initial one-frame chunk, then four-frame chunks.
-    Configure that modifier with ``initial_frames=1`` and ``update_frames=4``.
+    Use with :class:`~isaaclab_experimental.image_transfer.ImageTransferModifierCfg` after a depth control
+    modifier, as :func:`~isaaclab_experimental.cosmos.depth_processor` arranges. Cosmos generates an initial
+    one-frame chunk, then four-frame chunks. Configure that modifier with ``initial_frames=1`` and ``update_frames=4``.
     """
 
     class_type: type[CosmosModel] | str = "{DIR}.cosmos_model:CosmosModel"
@@ -69,9 +69,6 @@ class CosmosModelCfg(BackendCfg):
     capture) keeps the current prompt. With several views (environments), view ``v`` uses
     ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
     resets. None omits an appearance description."""
-
-    modality: Literal["edge", "depth", "seg"] = "depth"
-    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls."""
 
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. ``apply_cosmos`` and the

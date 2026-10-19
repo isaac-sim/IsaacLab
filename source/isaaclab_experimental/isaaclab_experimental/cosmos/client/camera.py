@@ -47,7 +47,7 @@ def cosmos_camera(
 
     Args:
         camera: Pinhole camera publishing only ``rgb``, for example a task's policy camera.
-        model: Cosmos service connection and prompt, with depth control.
+        model: Cosmos service connection and prompt.
         near: Depth rendered white [m].
         far: Depth rendered black [m].
 
@@ -55,11 +55,9 @@ def cosmos_camera(
         The Cosmos camera configuration.
 
     Raises:
-        ValueError: If the camera publishes outputs other than ``rgb``, already has modifiers, uses a fisheye lens,
-            or the model's control is not depth.
+        ValueError: If the camera publishes outputs other than ``rgb``, already has modifiers, or uses a fisheye
+            lens.
     """
-    if model.modality != "depth":
-        raise ValueError(f"Cosmos cameras use depth control, got {model.modality!r}.")
     if list(camera.data_types) != ["rgb"]:
         raise ValueError(
             f"A Cosmos camera publishes only 'rgb'; this camera requests {camera.data_types}. "
