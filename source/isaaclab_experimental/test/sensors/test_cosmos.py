@@ -478,6 +478,19 @@ def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu
         assert ("CUDA IPC" if expected == "cuda_ipc" else "through the socket") in caplog.text
 
 
+def test_transport_identifies_this_machine_by_boot_id_not_by_address(monkeypatch):
+    """A TCP address naming this machine (not a loopback name) still uses CUDA IPC when the boot ID matches."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    monkeypatch.setattr(_cuda_ipc, "available", lambda: True)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: "0000:01:00.0")
+    cfg = CosmosModelCfg(max_episode_frames=13, endpoint="tcp://10.0.0.5:5555")
+    stream = CosmosModel(cfg).open_stream(num_views=1, seeds=(1,))
+    stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": _SAME_GPU}, [])
+    assert stream._select_transport(torch.device("cuda:0")) == "cuda_ipc"
+
+
 @pytest.mark.parametrize("case", [None, "created", "opened", "unconfirmed"])
 def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_its_own_only_once_released(monkeypatch, case):
     """Freeing memory another process still has open is undefined in CUDA, so each side releases the other's first."""
@@ -652,9 +665,13 @@ def test_explicit_cuda_ipc_fails_clearly_when_unavailable_and_remote_services_us
     stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": {"transports": ["socket"]}}, [])
     with pytest.raises(RuntimeError, match="cuda_ipc is unavailable"):
         stream._select_transport(torch.device("cuda:0"))
+    # A service on another machine reports another boot ID, so auto uses the socket whatever its address.
+    monkeypatch.setattr(_cuda_ipc, "available", lambda: True)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
     remote = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint="tcp://10.1.2.3:5555")).open_stream(
         num_views=1, seeds=(1,)
     )
+    remote._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": {**_SAME_GPU, "host_id": "other"}}, [])
     assert remote._select_transport(torch.device("cuda:0")) == "socket"
 
 
