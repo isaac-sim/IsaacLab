@@ -600,8 +600,6 @@ class ObservationManager(ManagerBase):
             raise ValueError(f"Observation term '{group_name}/{term_name}' must declare keyword-only 'out=None'.")
         sample = term_cfg.func(self._env, **term_cfg.params)
         if isinstance(sample, dict):
-            if writes_output:
-                raise ValueError("Dictionary observation terms cannot declare an 'out' parameter.")
             return sample
         shape = tuple(sample.shape)
         if writes_output:

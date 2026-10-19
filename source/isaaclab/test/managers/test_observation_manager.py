@@ -1125,8 +1125,13 @@ def test_dictionary_term_without_processors(setup_env):
 
     pixels = torch.full((20, 2, 3), 255, dtype=torch.uint8)
     data = {"rgb": pixels}
+
+    def camera_data(env, *, out=None):
+        assert out is None
+        return data
+
     cfg = ObservationGroupCfg(concatenate_terms=False)
-    cfg.camera = ObservationTermCfg(func=lambda env: data)
+    cfg.camera = ObservationTermCfg(func=camera_data)
     manager = ObservationManager({"policy": cfg}, setup_env)
     first = manager.compute()["policy"]["camera"]["rgb"]
     pixels.zero_()
