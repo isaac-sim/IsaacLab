@@ -34,30 +34,37 @@ For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoin
 ## Run a compatible camera task with Cosmos
 
 Compatible camera tasks can use Cosmos without a task-specific preset: add `--cosmos` to `isaaclab train` or
-`isaaclab play`. Isaac Lab finds the task's camera that publishes only `rgb`, renders it at a Cosmos canvas
+`isaaclab play`, and set the Cosmos options in a YAML file with `--cosmos_config`. Isaac Lab finds the task's camera that publishes only `rgb`, renders it at a Cosmos canvas
 with the same aspect ratio and view, generates with Cosmos, and scales the result back to the camera's size,
 so the policy's observation keeps its shape. It uses one environment unless `--num_envs` asks for more (see
 "Several environments"). The task's episode length and capture rate determine the requested frame budget;
 capture timing is preserved. Start the service first: Isaac Lab checks that it is running and idle before
 creating the simulation.
 
+```yaml
+# cosmos.yaml
+prompt: A KUKA arm with an Allegro hand turning a cube in a bright lab.
+near: 0.6
+far: 1.9
+```
+
 ```bash
 uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl \
-  --cosmos --cosmos_prompt "A KUKA arm with an Allegro hand turning a cube in a bright lab." \
-  --cosmos_near 0.6 --cosmos_far 1.9 presets=cube,single_camera,rgb64
+  --cosmos_config cosmos.yaml presets=cube,single_camera,rgb64
 ```
+
+`--cosmos` alone uses the defaults below; `--cosmos_config FILE` implies `--cosmos`. The file may set:
 
 | Option | Meaning |
 |---|---|
-| `--cosmos` | Put Cosmos on the task's rgb camera |
-| `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
-| `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras |
-| `--cosmos_control depth\|edge` | Control prepared from the render (default `depth`); see "Controls and prompts" |
-| `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
-| `--cosmos_endpoint URL` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
-| `--cosmos_transport auto\|cuda_ipc\|socket` | How images move to the service; see "Endpoints and transports" (default `auto`) |
+| `prompt` | Scene description: text, or a list for a different prompt per episode (one environment) or per environment (several) |
+| `camera` | Scene camera to use, when the task has several rgb cameras |
+| `control` | `depth` or `edge`: control prepared from the render (default `depth`); see "Controls and prompts" |
+| `near`, `far` | Depth shown white and black [m] (defaults 0.1 and 2.0) |
+| `endpoint` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
+| `transport` | `auto`, `cuda_ipc` or `socket`: how images move to the service; see "Endpoints and transports" (default `auto`) |
 
-Choose `--cosmos_near` and `--cosmos_far` to cover the scene: the Kuka Allegro base camera sees the cube,
+Choose `near` and `far` to cover the scene: the Kuka Allegro base camera sees the cube,
 hand and table between about 0.7 m and 1.8 m.
 
 Limits of `--cosmos`:
@@ -70,7 +77,7 @@ Limits of `--cosmos`:
 - The camera renders at the Cosmos canvas, so its `image_shape` and intrinsics describe the canvas, while its `rgb`
   output keeps the original size. Direct tasks that size their observation space from the camera configuration,
   such as `Isaac-Cartpole-Camera-Direct`, are not supported; Isaac Lab warns for Direct tasks.
-- Without `--cosmos_prompt`, Cosmos runs without a scene description and Isaac Lab warns.
+- Without a `prompt`, Cosmos runs without a scene description and Isaac Lab warns.
 
 In code, `apply_cosmos(env_cfg, prompt=...)` does the same, and `cosmos_camera(camera_cfg, CosmosModelCfg(...))`
 returns a Cosmos version of one camera (supply its episode frame budget explicitly). Tasks that train an image encoder from a pretrained checkpoint may need
@@ -169,10 +176,10 @@ uv run isaaclab play \
 
 Without a Cosmos preset, the task uses its existing camera configuration.
 
-The `--cosmos_prompt`, `--cosmos_endpoint`, `--cosmos_transport`, and depth-bound options also work with
-`presets=cosmos`; `--cosmos` is optional in that case. Omitted options preserve the preset's values. These
-overrides keep its image size, modifier chain, and feature-extractor supervision. Changing a preset's control
-type is unsupported; use an ordinary RGB task with `--cosmos_control` for another control type.
+The `prompt`, `endpoint`, `transport`, and depth-bound options of a `--cosmos_config` file also work with
+`presets=cosmos`. Omitted options preserve the preset's values. These overrides keep its image size, modifier
+chain, and feature-extractor supervision. Changing a preset's control type is unsupported; use an ordinary RGB task
+with the `control` option for another control type.
 
 ## Client and server packages
 
@@ -314,22 +321,34 @@ the server when the number of views changes. Available GPU memory
 limits the batch: allocation can fail during generation as history grows, so a successful connection alone does
 not establish that a full episode fits.
 
-With `--cosmos`, ask for the environments:
+With `--cosmos`, ask for the environments and give one prompt per environment in the config:
+
+```yaml
+# cosmos.yaml
+prompt:
+  - A KUKA arm with an Allegro hand in a bright lab.
+  - A KUKA arm with an Allegro hand in a wooden workshop.
+near: 0.6
+far: 1.9
+```
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl --num_envs 2 \
-  --cosmos --cosmos_prompt "A KUKA arm with an Allegro hand in a bright lab." \
-  --cosmos_prompt "A KUKA arm with an Allegro hand in a wooden workshop." \
-  --cosmos_near 0.6 --cosmos_far 1.9 presets=cube,single_camera,rgb64
+  --cosmos_config cosmos.yaml presets=cube,single_camera,rgb64
 ```
 
 The Shadow Hand presets take the same options:
 
+```yaml
+# shadow_hand_cosmos.yaml
+prompt:
+  - A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.
+  - A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.
+```
+
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
-  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
-  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
-  presets=cosmos
+  --cosmos_config shadow_hand_cosmos.yaml presets=cosmos
 ```
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
@@ -356,9 +375,7 @@ output, the generated images, across environments; record it to see every enviro
 
 ```bash
 uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
-  --max_iterations 20 \
-  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
-  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
+  --max_iterations 20 --cosmos_config shadow_hand_cosmos.yaml \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
   presets=cosmos
 ```
@@ -428,7 +445,7 @@ cd "$COSMOS_FRAMEWORK_ROOT"
 uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --device cuda:1
 ```
 
-Isaac Lab keeps its own device, `cuda:0` by default. Add `--cosmos_transport cuda_ipc` to the training command to
+Isaac Lab keeps its own device, `cuda:0` by default. Set `transport: cuda_ipc` in the Cosmos config to
 require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA context on the other GPU,
 which takes some memory there.
 
@@ -443,13 +460,20 @@ uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --devi
   --endpoint unix:///tmp/isaaclab-cosmos-gpu1.sock
 ```
 
-Start the second with `--device cuda:2 --endpoint unix:///tmp/isaaclab-cosmos-gpu2.sock`. Then repeat
-`--cosmos_endpoint` in the training command:
+Start the second with `--device cuda:2 --endpoint unix:///tmp/isaaclab-cosmos-gpu2.sock`. Then list
+both in the Cosmos config:
+
+```yaml
+# cosmos_gpus.yaml
+endpoint:
+  - unix:///tmp/isaaclab-cosmos-gpu1.sock
+  - unix:///tmp/isaaclab-cosmos-gpu2.sock
+transport: cuda_ipc
+```
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 4 \
-  --cosmos_endpoint unix:///tmp/isaaclab-cosmos-gpu1.sock --cosmos_endpoint unix:///tmp/isaaclab-cosmos-gpu2.sock \
-  --cosmos_transport cuda_ipc presets=cosmos
+  --cosmos_config cosmos_gpus.yaml presets=cosmos
 ```
 
 The environments are split into contiguous shares of near-equal size, one per service in the order given:
