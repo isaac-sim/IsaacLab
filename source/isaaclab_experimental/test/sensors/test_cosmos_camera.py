@@ -73,7 +73,7 @@ def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
         cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosModelCfg(modality="depth"))
     with pytest.raises(ValueError, match="already has modifiers"):
         cosmos_camera(_camera(64, 64, modifiers={"rgb": []}), CosmosModelCfg(modality="depth"))
-    with pytest.raises(ValueError, match="depth or edge"):
+    with pytest.raises(ValueError, match="use depth control"):
         cosmos_camera(_camera(64, 64), CosmosModelCfg(modality="seg"))
     with pytest.raises(ValueError, match="fisheye"):
         cosmos_camera(_camera(64, 64, spawn=sim_utils.FisheyeCameraCfg()), CosmosModelCfg(modality="depth"))
