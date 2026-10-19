@@ -63,16 +63,27 @@ def make_valid_clone_combinations(
         raise ValueError("Each asset requires one positive variant count.")
     known = set(asset_names if all_asset_names is None else all_asset_names)
     combinations = clone_combinations or (InclusionSet(assets=list(dict.fromkeys(asset_names))),)
-    claimed = set().union(*(combination.assets for combination in combinations))
+    selections = [
+        [(asset, None) if isinstance(asset, str) else asset for asset in combination.assets]
+        for combination in combinations
+    ]
+    claimed = {name for selection in selections for name, _ in selection}
     offsets = np.cumsum([0, *variant_counts])
     worlds, weights = [], []
-    for combination in combinations:
-        if unknown := set(combination.assets) - known:
+    for combination, selection in zip(combinations, selections, strict=True):
+        if unknown := {name for name, _ in selection} - known:
             raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
+        if any(variant is not None and name not in asset_names for name, variant in selection):
+            raise ValueError("Variant selection requires an environment-scoped spawned asset.")
         choices = []
         for index, name in enumerate(asset_names):
-            count = combination.assets.count(name) if name in claimed else 1
-            choices.extend([range(*offsets[index : index + 2])] * count)
+            members = [variant for selected, variant in selection if selected == name] if name in claimed else [None]
+            for variant in members:
+                if variant is not None and (
+                    not isinstance(variant, (int, np.integer)) or not 0 <= variant < variant_counts[index]
+                ):
+                    raise ValueError(f"Invalid variant {variant!r} for asset {name!r}.")
+                choices.append(range(*offsets[index : index + 2]) if variant is None else (offsets[index] + variant,))
         variants = tuple(itertools.product(*choices))
         worlds.extend(variants)
         weights.extend([combination.weight / len(variants)] * len(variants))
