@@ -9,10 +9,9 @@ import gc
 import logging
 import re
 import traceback
+import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from copy import deepcopy
-from dataclasses import fields
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
@@ -20,6 +19,7 @@ import warp as wp
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
+from .. import cloner
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
 from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
@@ -37,9 +37,9 @@ from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
-    VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
+    _apply_visualizer_defaults,
 )
 from .utils import create_new_stage
 from .utils import stage as stage_utils
@@ -130,7 +130,7 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
         self._backend_registry: list[tuple[Any, Any]] = []
-        self.clone_contexts: dict[type, Any] = {}
+        self.clone_contexts: dict[type[cloner.ReplicateContext], cloner.ReplicateContext] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()
@@ -168,22 +168,8 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Bare-physics launches defer their CLI selection until this SimulationCfg exists.
         if not isinstance(self.cfg.visualizer_cfgs, list):
             self.cfg.visualizer_cfgs = [] if self.cfg.visualizer_cfgs is None else [self.cfg.visualizer_cfgs]
-        pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
-        if pending_visualizers:
-            names = pending_visualizers.split(",")
-            self.cfg.visualizer_cfgs = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type in names]
-            for name in names:
-                if not any(cfg.visualizer_type == name for cfg in self.cfg.visualizer_cfgs):
-                    self.cfg.visualizer_cfgs.append(
-                        string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")()
-                    )
-        max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        if max_visible_envs is not None and max_visible_envs >= 0:
-            for visualizer in self.cfg.visualizer_cfgs:
-                visualizer.max_visible_envs = int(max_visible_envs)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -204,14 +190,15 @@ class SimulationContext:
         # TODO: Remove this workaround once the CUDA driver bug in isaac-sim/IsaacLab#8342 is fixed.
         reserve_cuda_graph_memory(self.cfg.device)
 
-        self.physics_manager: type[PhysicsManager] = self._physics.class_type
-        # Must be set before physics_manager.initialize() so that any render callbacks
+        self.backend_manager: PhysicsManager = self._physics.class_type()
+        """Physics backend manager selected by ``cfg.physics``, owned by this context."""
+        # Must be set before backend_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
-        self.physics_manager.initialize(self)
+        self.backend_manager.initialize(self)
 
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
-        self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
+        self._scene_data_provider = SceneDataProvider(self.backend_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizers: list[BaseVisualizer] = []
         self._visualizers_started = False
@@ -258,12 +245,12 @@ class SimulationContext:
         self._render_context = RenderContext(self._backend_registry)
 
         # Run renderer post-physics setup.
-        self.physics_manager.register_callback(
+        self.backend_manager.register_callback(
             lambda _payload: self._render_context.ensure_initialize(),
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-        self.physics_manager.register_callback(
+        self.backend_manager.register_callback(
             lambda _payload: self._render_context.close(), PhysicsEvent.STOP, order=100
         )
 
@@ -310,19 +297,29 @@ class SimulationContext:
             physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
 
     @property
+    def physics_manager(self) -> PhysicsManager:
+        """Deprecated alias of :attr:`backend_manager`."""
+        warnings.warn(
+            "SimulationContext.physics_manager is deprecated; use SimulationContext.backend_manager.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.backend_manager
+
+    @property
     def physics_sim_view(self):
         """Returns the physics simulation view."""
-        return self.physics_manager.get_physics_sim_view()
+        return self.backend_manager.get_physics_sim_view()
 
     @property
     def device(self) -> str:
         """Returns the device on which the simulation is running."""
-        return self.physics_manager.get_device()
+        return self.backend_manager.get_device()
 
     @property
     def backend(self) -> str:
         """Returns the tensor backend being used ("numpy" or "torch")."""
-        return self.physics_manager.get_backend()
+        return self.backend_manager.get_backend()
 
     @property
     def has_gui(self) -> bool:
@@ -399,33 +396,11 @@ class SimulationContext:
         """Returns a monotonic counter for render() executions."""
         return self._render_generation
 
-    def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
-        """Apply shared default visualizer settings to a backend-specific config.
-
-        Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
-        (i.e. differ from its own class defaults) and are still at the target cfg's
-        class defaults. Backend-specific defaults, such as the streaming renderer,
-        do not transfer between visualizer types.
-        """
-        default_cfg = self.cfg.default_visualizer_cfg
-        if default_cfg is None:
-            return
-        for source, target in ((default_cfg, cfg), (default_cfg.window, cfg.window)):
-            source_defaults, target_defaults = type(source)(), type(target)()
-            for field in fields(source):
-                if field.name in ("class_type", "visualizer_type", "window") or not hasattr(target, field.name):
-                    continue
-                default_val = getattr(source, field.name)
-                if default_val == getattr(source_defaults, field.name):
-                    continue
-                if getattr(target, field.name) == getattr(target_defaults, field.name):
-                    setattr(target, field.name, deepcopy(default_val))
-
     def _create_visualizers(self) -> None:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""
         resolved = list(self.cfg.visualizer_cfgs)
         for cfg in resolved:
-            self._apply_default_visualizer_cfg(cfg)
+            _apply_visualizer_defaults(cfg, self.cfg.default_visualizer_cfg)
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if (
@@ -569,7 +544,7 @@ class SimulationContext:
 
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
-        self.physics_manager.forward()
+        self.backend_manager.forward()
 
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""
@@ -590,7 +565,15 @@ class SimulationContext:
         Args:
             soft: If True, skip full reinitialization.
         """
-        self.physics_manager.reset(soft)
+        # Standalone cameras may register after scene construction but before the first reset.
+        routing = {
+            string_to_callable(context) if isinstance(context, str) else context: set()
+            for context in self._render_context.clone_contexts
+        }
+        for context in tuple(routing):
+            if context in routing:
+                context.prepare(self, routing)
+        self.backend_manager.reset(soft)
         for _, resource in self._backend_registry:
             if isinstance(resource, ImageView):
                 resource.invalidate()
@@ -600,7 +583,7 @@ class SimulationContext:
         self.initialize_visualizers()
         self._render_context.finalize_consumers(self._visualizers, rebuild=not soft)
         # Start the timeline so the play button is pressed
-        self.physics_manager.play()
+        self.backend_manager.play()
         self._is_playing = True
         self._is_stopped = False
         for callback in tuple(self._reset_callbacks.values()):
@@ -617,7 +600,7 @@ class SimulationContext:
         """
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
-        self.physics_manager.wait_for_playing()
+        self.backend_manager.wait_for_playing()
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
@@ -628,7 +611,7 @@ class SimulationContext:
                 visualizers_to_remove.append(viz)
         self._remove_visualizers(visualizers_to_remove)
         self._physics_step_count += 1
-        self.physics_manager.step()
+        self.backend_manager.step()
         if render and self.is_rendering:
             self.render()
 
@@ -655,9 +638,9 @@ class SimulationContext:
                 updates while still stepping standalone visualizers (Newton, Rerun, Viser).
                 Used by environment ``step()`` when ``render_enabled`` is False.
         """
-        self.physics_manager.pre_render()
+        self.backend_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
-        self.physics_manager.after_visualizers_render()
+        self.backend_manager.after_visualizers_render()
         for _, callback in sorted(self._render_callbacks.values(), key=lambda x: x[0]):
             callback(None)
         self._render_generation += 1
@@ -679,7 +662,7 @@ class SimulationContext:
             viz.flush_startup_messages()
 
         if any(viz.requires_forward_before_step() for viz in self._visualizers):
-            self.physics_manager.forward()
+            self.backend_manager.forward()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
         # consumes that state later in this method. Live-plot panels register in the same
@@ -730,7 +713,7 @@ class SimulationContext:
 
     def play(self) -> None:
         """Start or resume the simulation."""
-        self.physics_manager.play()
+        self.backend_manager.play()
         for viz in self._visualizers:
             viz.play()
         self._is_playing = True
@@ -738,14 +721,14 @@ class SimulationContext:
 
     def pause(self) -> None:
         """Pause the simulation (can be resumed with play)."""
-        self.physics_manager.pause()
+        self.backend_manager.pause()
         for viz in self._visualizers:
             viz.pause()
         self._is_playing = False
 
     def stop(self) -> None:
         """Stop the simulation completely."""
-        self.physics_manager.stop()
+        self.backend_manager.stop()
         for viz in self._visualizers:
             viz.stop()
         self._is_playing = False
@@ -790,6 +773,17 @@ class SimulationContext:
         """Get a setting value."""
         return self.settings.get(name)
 
+    def get_backends(self, cfg_type: type) -> tuple[Any, ...]:
+        """Return registered resources whose configurations have the requested type.
+
+        Args:
+            cfg_type: Configuration class, including its subclasses.
+
+        Returns:
+            A snapshot of matching resources in registration order.
+        """
+        return tuple(resource for cfg, resource in self._backend_registry if isinstance(cfg, cfg_type))
+
     def get_or_create_backend(self, cfg: Any, **kwargs: Any) -> Any:
         """Return the simulation-owned object for a construction configuration.
 
@@ -809,6 +803,7 @@ class SimulationContext:
                 return resource
         if isinstance(cfg, RendererCfg):
             self._render_context.validate_renderer_cfg(cfg)
+            kwargs["sim"] = self
         resource = instantiate(cfg, **kwargs)
         self._backend_registry.append((cfg, resource))
         if isinstance(cfg, RendererCfg):
@@ -854,7 +849,7 @@ class SimulationContext:
                 # Stop task producers and deliver STOP before releasing their resources.
                 run_cleanup(instance.stop)
                 # Detach PhysX before any stage-bound resource or prim is deleted.
-                run_cleanup(instance.physics_manager.close)
+                run_cleanup(instance.backend_manager.close)
 
                 # Close camera renderers after STOP invalidates camera-owned render data and
                 # before the stage is closed so stage-bound renderer resources remain valid.

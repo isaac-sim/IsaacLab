@@ -375,7 +375,7 @@ class LeappDeploymentEnv:
                 self.sim.render()
 
         if getattr(self.cfg, "wait_for_textures", False) and self.has_rtx_sensors:
-            assets_loading = getattr(self.sim.physics_manager, "assets_loading", None)
+            assets_loading = getattr(self.sim.backend_manager, "assets_loading", None)
             if callable(assets_loading):
                 while assets_loading():
                     self.sim.render()

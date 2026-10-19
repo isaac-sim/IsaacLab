@@ -16,6 +16,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import subprocess
 import sys
 
 import tomllib
@@ -89,6 +90,8 @@ ovphysx_version = _pinned_versions["ovphysx"]
 # Short version strings used in external documentation URLs and badges.
 torch_docs_version = ".".join(torch_version.split(".")[:2])  # e.g. "2.11"
 isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.2.0"
+# The rendered OVRTX docs are unversioned, so link its docs sources at the pinned release tag, e.g. "v0.5.1".
+ovrtx_docs_ref = f"v{'.'.join(ovrtx_version.split('.')[:3])}" if ovrtx_version[0].isdigit() else "main"
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
@@ -100,6 +103,7 @@ rst_prolog = f"""
 .. |torch_version| replace:: {torch_version}
 .. |torchvision_version| replace:: {torchvision_version}
 .. |ovrtx_spec| replace:: {ovrtx_spec}
+.. |ovrtx_docs_ref| replace:: {ovrtx_docs_ref}
 .. |ovphysx_version| replace:: {ovphysx_version}
 """
 
@@ -115,6 +119,7 @@ extensions = [
     "sphinxemoji.sphinxemoji",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
+    "sphinx.ext.extlinks",
     "sphinx.ext.githubpages",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
@@ -202,6 +207,11 @@ intersphinx_mapping = {
     "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
+# Usage: :ovrtx-docs:`Minimal mode <sensors/cameras/render_modes/minimal.rst>`
+extlinks = {
+    "ovrtx-docs": (f"https://github.com/NVIDIA-Omniverse/ovrtx/blob/{ovrtx_docs_ref}/docs/%s", None),
+}
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = []
 
@@ -218,7 +228,6 @@ exclude_patterns = [
     "licenses/*",
     "plans",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
-    "source/migration/include/*",
 ]
 
 # Mock out modules that are not available on RTD
@@ -403,6 +412,16 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/schema_fragments": "source/concepts/schema_cfgs",
+    "source/migration/migrating_to_isaaclab_3-0": "source/isaaclab/migrating",
+    "source/setup/ecosystem": "source/isaaclab/ecosystem",
+    "source/setup/environments": "source/isaaclab/environments",
+    "source/setup/quickstart": "source/isaaclab/quickstart",
+    "source/setup/tutorial": "source/isaaclab/tutorial",
+    "source/setup/demos": "source/isaaclab/demos",
+    "source/setup/interactive_demos": "source/isaaclab/interactive_demos",
+    "source/setup/installation/index": "source/isaaclab/installation",
+    "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
     "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
     "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
@@ -415,10 +434,16 @@ isaaclab_doc_redirects = {
     "source/concepts/solver-tuning/tune_mpm": "source/how-to/solver_tuning_mpm",
     "source/concepts/solver-tuning/tune_physx": "source/how-to/solver_tuning_physx",
     "source/concepts/solver-tuning/tune_vbd": "source/how-to/solver_tuning_vbd",
-    "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/features/docker_cloud": "source/isaaclab/installation",
+    "source/workflows/index": "source/isaaclab/installation",
+    "source/workflows/docker/index": "source/isaaclab/installation",
+    "source/workflows/docker/images": "source/isaaclab/installation",
+    "source/workflows/docker/cluster": "source/features/hpc_clusters",
+    "source/workflows/docker/cloud": "source/features/cloud_deployment",
     "source/features/reproducibility": "source/how-to/reproducibility",
-    "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
-    "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
+    "source/concepts/native-physics-api/index": "source/concepts/physics_backends",
+    "source/concepts/native-physics-api/scene_data_providers": "source/concepts/scene_data_providers",
+    "source/developer-tools/scene_data_providers": "source/concepts/scene_data_providers",
     "source/features/draw_markers": "source/how-to/create_visualization_markers",
     "source/features/record_video": "source/how-to/record_video",
     "source/features/visualizer_tiled_camera": "source/how-to/visualizer_streaming_camera_view",
@@ -450,6 +475,16 @@ _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 
 # Sections of moved or consolidated pages and where they live now.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/schema_fragments": {
+        "the-fragment-model": "source/concepts/schema_cfgs#add-backend-specific-settings",
+        "targeting-expressions": "source/concepts/schema_cfgs#configure-an-existing-robot",
+        "configuring-fragments-on-spawners": "source/concepts/schema_cfgs#add-backend-specific-settings",
+        "creating-missing-apis": "source/concepts/schema_cfgs#when-a-setting-does-not-apply",
+        "see-also": "source/concepts/schema_cfgs#schema-reference-and-implementation",
+    },
+    "source/concepts/backend_architecture": {
+        "overview": "source/concepts/backends_and_presets#backend-architecture",
+    },
     "source/concepts/joint_and_body_ordering": {
         "": "source/how-to/transfer_policies_between_physx_and_newton#joint-and-body-ordering",
         **{
@@ -500,11 +535,22 @@ isaaclab_doc_redirect_fragments = {
             )
         },
     },
+    "source/workflows/index": {
+        "": "source/isaaclab/installation#installation-method-container",
+    },
+    "source/workflows/docker/index": {
+        "": "source/isaaclab/installation#installation-method-container",
+        "running-isaac-lab-in-docker": "source/isaaclab/installation#installation-method-container",
+    },
+    "source/workflows/docker/images": {
+        "": "source/isaaclab/installation#docker-images",
+    },
     "source/features/docker_cloud": {
-        "clusters": "source/workflows/docker/cluster#deployment-cluster",
-        "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
-        "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
-        "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
+        "": "source/isaaclab/installation#installation-method-container",
+        "clusters": "source/features/hpc_clusters#deployment-cluster",
+        "deployment-cluster": "source/features/hpc_clusters#deployment-cluster",
+        "cloud-workstations": "source/features/cloud_deployment#docker-cloud-cloud",
+        "docker-cloud-cloud": "source/features/cloud_deployment#docker-cloud-cloud",
     },
     "source/features/record_video": {
         "overview": "source/concepts/visualization#video-recording",
@@ -533,5 +579,12 @@ def skip_member(app, what, name, obj, skip, options):
     return None
 
 
+def update_environment_browser(app):
+    """Regenerate the environment browser's task rows from the task registry, so they cannot go stale."""
+    tool = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools", "update_environments_rst.py")
+    subprocess.run([sys.executable, tool], check=True)
+
+
 def setup(app):
     app.connect("autodoc-skip-member", skip_member)
+    app.connect("builder-inited", update_environment_browser)

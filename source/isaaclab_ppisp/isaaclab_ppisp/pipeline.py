@@ -61,54 +61,27 @@ class PpispPipeline:
             raise ValueError("PpispPipeline requires a concrete PpispCfg.")
         self.cfg = normalized_cfg
         self._controller_weights_by_device: dict[str, wp.array] = {}
-        self._controller_buffers_by_shape: dict[tuple[str, int, int, int], tuple[wp.array, ...]] = {}
+        self._controller_buffers_by_shape: dict[tuple[str, int], tuple[wp.array, wp.array]] = {}
 
     def apply(self, hdr: wp.array, rgba: wp.array) -> None:
         """Run the PPISP kernel: HDR scene-linear → LDR RGBA, in place on ``rgba``."""
         if self.cfg.controller_weights is None:
             apply_ppisp_to_rgba(hdr, rgba, self.cfg)
             return
-        controller_params = self._compute_controller_params(hdr)
-        apply_ppisp_to_rgba_with_controller_params(hdr, rgba, self.cfg, controller_params)
-
-    def _compute_controller_params(self, hdr: wp.array) -> wp.array:
-        """Run the exported PPISP controller and return a Warp view of ``(N, 9)`` params."""
-        controller_weights = self.cfg.controller_weights
-        assert controller_weights is not None
-
         device = str(hdr.device)
-        weights = self._controller_weights_by_device.get(device)
-        if weights is None:
-            weights = wp.array(controller_weights, dtype=wp.float32, device=device)
-            self._controller_weights_by_device[device] = weights
-
-        features, controller_params = self._controller_buffers(hdr)
+        if device not in self._controller_weights_by_device:
+            self._controller_weights_by_device[device] = wp.array(
+                self.cfg.controller_weights, dtype=wp.float32, device=device
+            )
+        key = (device, hdr.shape[0])
+        if key not in self._controller_buffers_by_shape:
+            self._controller_buffers_by_shape[key] = (
+                wp.empty((hdr.shape[0], PPISP_CONTROLLER_FEATURE_LEN), dtype=wp.float32, device=device),
+                wp.empty((hdr.shape[0], PPISP_CONTROLLER_PARAM_COUNT), dtype=wp.float32, device=device),
+            )
+        features, controller_params = self._controller_buffers_by_shape[key]
         compute_ppisp_controller_params(
-            hdr,
-            weights,
-            features,
-            controller_params,
-            self.cfg.controller_prior_exposure,
-            float(self.cfg.controller_responsivity),
-        )
-        return controller_params
-
-    def _controller_buffers(self, hdr: wp.array) -> tuple[wp.array, ...]:
-        """Return cached controller scratch buffers matching ``hdr`` shape/device."""
-        num_cameras = int(hdr.shape[0])
-        image_height = int(hdr.shape[1])
-        image_width = int(hdr.shape[2])
-        device = str(hdr.device)
-        key = (device, num_cameras, image_height, image_width)
-        buffers = self._controller_buffers_by_shape.get(key)
-        if buffers is not None:
-            return buffers
-
-        # Camera output shape is fixed for a pipeline lifetime; cache buffers so
-        # controller execution does not allocate every frame.
-        buffers = (
-            wp.empty((num_cameras, PPISP_CONTROLLER_FEATURE_LEN), dtype=wp.float32, device=device),
-            wp.empty((num_cameras, PPISP_CONTROLLER_PARAM_COUNT), dtype=wp.float32, device=device),
-        )
-        self._controller_buffers_by_shape[key] = buffers
-        return buffers
+            hdr, self._controller_weights_by_device[device], features, controller_params,
+            self.cfg.controller_prior_exposure, self.cfg.controller_responsivity,
+        )  # fmt: skip
+        apply_ppisp_to_rgba_with_controller_params(hdr, rgba, self.cfg, controller_params)

@@ -38,7 +38,6 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import JointTargetMode, JointType, ModelBuilder
 from newton.solvers import SolverMuJoCo
 from newton_test_utils import NUM_ENVS, local_usd, newton_sim_cfg, spawn_assets
@@ -283,12 +282,12 @@ def _run(
         articulation.reset()
 
     if use_newton_actuators and decimation > 1:
-        SimulationManager.set_decimation(decimation)
+        sim.backend_manager.set_decimation(decimation)
     handles_dec = (
         use_newton_actuators
         and decimation > 1
-        and SimulationManager._is_all_graphable()
-        and SimulationManager._decimation > 1
+        and sim.backend_manager._is_all_graphable()
+        and sim.backend_manager._decimation > 1
     )
 
     results = {}
@@ -375,7 +374,7 @@ def _run(
                     actuator_info.append(
                         {
                             "group": group_name,
-                            "controller_type": type(act.controller).__name__,
+                            "drive_type": type(act.drive).__name__,
                             "clamping_types": sorted(type(c).__name__ for c in (act.clamping or [])),
                             "has_delay": act.delay is not None,
                         }
@@ -549,8 +548,10 @@ def test_prepare_native_actuators_activates_only_explicit_groups(monkeypatch, ac
         find_joints=lambda _: ([0], ["joint"]),
         write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
         write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+        _backend_manager=SimpleNamespace(
+            backend=None, activate_newton_actuator_path=lambda: activation_calls.append(True)
+        ),
     )
-    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: activation_calls.append(True))
 
     control = NewtonActuatorControl(articulation)
     group_name = "explicit" if expected_native_groups else "implicit"
@@ -791,7 +792,7 @@ def test_dc_motor_clamp_binds(lab_run: dict, newton_run: _Run) -> None:
 
 
 @pytest.mark.parametrize(
-    "island, group_names, controller_type, clamping, has_delay",
+    "island, group_names, drive_type, clamping, has_delay",
     [
         ("delayed", ("legs",), "DrivePD", None, True),
         ("remotized", ("knees",), "DrivePD", "ClampingPositionBased", True),
@@ -801,13 +802,13 @@ def test_dc_motor_clamp_binds(lab_run: dict, newton_run: _Run) -> None:
     ids=["delayed_pd", "remotized_pd", "mlp", "lstm"],
 )
 def test_newton_actuator_authoring(
-    newton_run: _Run, island: str, group_names: tuple[str, ...], controller_type: str, clamping: str | None, has_delay
+    newton_run: _Run, island: str, group_names: tuple[str, ...], drive_type: str, clamping: str | None, has_delay
 ) -> None:
     """Lab actuator configurations are authored as the matching Newton controller, clamping, and delay."""
     info = [entry for entry in newton_run.results[island]["actuator_info"] if entry["group"] in group_names]
     assert info, f"no Newton actuators were created for {group_names}"
     for entry in info:
-        assert entry["controller_type"] == controller_type
+        assert entry["drive_type"] == drive_type
         assert clamping is None or clamping in entry["clamping_types"]
         assert entry["has_delay"] is has_delay
     if island == "neural":
@@ -869,10 +870,8 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(n
     def gather_stiffness() -> torch.Tensor:
         stiffness = torch.zeros((articulation.num_instances, articulation.num_joints), device=articulation.device)
         for actuator in articulation.newton_actuator_adapter.actuators:
-            if hasattr(actuator.controller, "kp"):
-                stiffness += wp.to_torch(
-                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, "kp")
-                )
+            if hasattr(actuator.drive, "kp"):
+                stiffness += wp.to_torch(articulation.root_view.get_actuator_parameter(actuator, actuator.drive, "kp"))
         return stiffness
 
     stiffness_before = gather_stiffness()
@@ -908,12 +907,12 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
     }
     legs = groups["legs"][0]
-    assert SimulationManager._adapter is not None
+    assert newton_run.sim.backend_manager._adapter is not None
 
     def gains(name: str) -> torch.Tensor:
         """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
         articulation, group = groups[name]
-        return torch.stack([read_group_parameter(articulation.actuators, group, "controller", p) for p in ("kp", "kd")])
+        return torch.stack([read_group_parameter(articulation.actuators, group, "drive", p) for p in ("kp", "kd")])
 
     # Every environment reads the configured gains. On the floating leg this pins the env-major DOF stride
     # decoding (6 free-root DOFs + leg joints): a wrong stride corrupts every environment past the first.
@@ -951,7 +950,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     islands' actuators share its state buffers; their state is not part of this articulation's contract.
     """
     articulation = newton_run.articulations["delayed"]
-    adapter = SimulationManager._adapter
+    adapter = newton_run.sim.backend_manager._adapter
     assert adapter is not None
     own_actuators = []
     for group_name in articulation.actuators._native_group_names:

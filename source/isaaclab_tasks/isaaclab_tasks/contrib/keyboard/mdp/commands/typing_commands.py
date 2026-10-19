@@ -188,6 +188,8 @@ class LetterTypingCommand(CommandTerm):
                 joint_col[env_id, slot] = col
                 body_col[env_id, slot] = body_col_of_local[local]
         self._inst_idx = torch.as_tensor(inst, device=self.device)
+        # Each partition occupies one block of dof key slots in the existing per-env instance map.
+        self.keyboard_instance_ids = self._inst_idx[:, ::dof]
         self._col_idx = torch.as_tensor(joint_col, device=self.device)
         self._body_col_idx = torch.as_tensor(body_col, device=self.device)
 
