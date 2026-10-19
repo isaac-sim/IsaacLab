@@ -27,12 +27,10 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
-from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import launch_simulation
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+from isaaclab_tasks.utils import setup_preset_cli
 
 logger = logging.getLogger("isaaclab.examples.mpm.g1_coupling")
 
@@ -158,7 +156,7 @@ parser.add_argument(
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable Newton CUDA graphs for debugging.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
-args_cli = parser.parse_args()
+args_cli, overrides = setup_preset_cli(parser)
 
 if not np.isfinite(args_cli.command_speed) or args_cli.command_speed <= 0.0:
     parser.error("--command_speed must be finite and positive")
@@ -295,12 +293,10 @@ def _configure_common_environment(env_cfg: Any) -> None:
     env_cfg.rewards.feet_air_time = None
     env_cfg.rewards.feet_slide = None
 
-    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
-        eye=CAMERA_EYE,
-        lookat=CAMERA_TARGET,
-        focal_length=CAMERA_FOCAL_LENGTH,
-        backend=MultiBackendVisualizerCfg(),
-    )
+    for visualizer in env_cfg.sim.visualizer_cfgs:
+        visualizer.eye = CAMERA_EYE
+        visualizer.lookat = CAMERA_TARGET
+        visualizer.focal_length = CAMERA_FOCAL_LENGTH
     env_cfg.scene.backdrop = AssetBaseCfg(
         prim_path="/World/PresentationGround",
         spawn=sim_utils.GroundPlaneCfg(size=(20.0, 16.0)),
@@ -481,7 +477,7 @@ def main() -> None:
         TASK,
         "rsl_rl_cfg_entry_point",
         play_mode=True,
-        overrides=("physics=newton_mjwarp",),
+        overrides=("physics=newton_mjwarp", *overrides),
     )
 
     checkpoint = Path(args_cli.checkpoint).expanduser().resolve() if args_cli.checkpoint else None

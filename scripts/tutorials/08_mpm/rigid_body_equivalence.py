@@ -27,12 +27,12 @@ from typing import NamedTuple
 
 import numpy as np
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.utils import instantiate
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import launch_simulation
+from isaaclab_tasks.utils import resolve_presets
 from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 logger = logging.getLogger("isaaclab.tutorials.mpm.rigid_body_equivalence")
@@ -433,7 +433,7 @@ def run_simulator(sim, scene) -> None:
 def main() -> None:
     """Launch the rigid-body versus nearly rigid MPM comparison."""
     configure_console_logging(vars(args_cli))
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     scene_cfg = create_scene_cfg()
     with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         import isaaclab.sim as sim_utils

@@ -24,10 +24,10 @@ from typing import NamedTuple
 import numpy as np
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import launch_simulation
+from isaaclab_tasks.utils import resolve_presets
 from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 
@@ -340,7 +340,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Set up and run the Newton MPM snowball-smash demo."""
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene

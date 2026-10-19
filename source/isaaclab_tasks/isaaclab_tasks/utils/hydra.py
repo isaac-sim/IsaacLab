@@ -32,7 +32,6 @@ import enum
 import sys
 import warnings
 from collections.abc import Callable, Mapping, Sequence
-from contextlib import AbstractContextManager
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 from typing import ClassVar
@@ -41,7 +40,7 @@ import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
-from isaaclab import app
+from isaaclab.app import validate_launch
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -449,37 +448,6 @@ def resolve_presets(
 # ============================================================================
 # CLI / Hydra integration
 # ============================================================================
-
-
-def launch_simulation(
-    cfg: object, launcher_args: argparse.Namespace | dict | None = None
-) -> AbstractContextManager[PhysicsCfg | None]:
-    """Compose declared preset alternatives before launching a standalone simulation.
-
-    Args:
-        cfg: Script configuration containing physics, scene, and visualizer declarations.
-        launcher_args: Parsed launcher options. Typed selections choose declared presets;
-            unconsumed options go to the core launcher. The caller's arguments are unchanged.
-
-    Returns:
-        Core simulation launch context with concrete configurations and no remaining presets.
-    """
-    arguments = dict(vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args or {})
-    selectors = {}
-    for target in PresetTarget:
-        selection = arguments.get(target.value)
-        if target.base_classes and selection is not None:
-            selectors[target.matches] = selection.split(",") if isinstance(selection, str) else selection
-    consumed = set()
-    cfg = _resolve_active_presets(cfg, selectors=selectors, consumed_selectors=consumed)
-    for target in PresetTarget:
-        if target.matches in consumed:
-            # Keep explicit disabling visible to the launcher's livestream policy.
-            if target is PresetTarget.VISUALIZER and selectors[target.matches] in ([], ["none"]):
-                arguments["visualizer"] = []
-            else:
-                arguments.pop(target.value)
-    return app.launch_simulation(cfg, arguments)
 
 
 def resolve_task_config(
@@ -909,7 +877,7 @@ def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str |
     try:
         env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
         validate(env_cfg)
-        app.validate_launch(env_cfg, {"livestream": 0})
+        validate_launch(env_cfg, {"livestream": 0})
     except ValueError:
         return None
     return env_cfg

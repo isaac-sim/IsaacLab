@@ -11,14 +11,13 @@ __all__ = [
     "PresetCfg",
     "preset",
     "resolve_task_config",
-    "launch_simulation",
     "resolve_presets",
     "setup_preset_cli",
     "SuccessMonitor",
     "SuccessMonitorCfg",
 ]
 
-from .hydra import PresetCfg, preset, resolve_task_config, resolve_presets, setup_preset_cli, launch_simulation
+from .hydra import PresetCfg, preset, resolve_task_config, resolve_presets, setup_preset_cli
 from .importer import import_packages
 from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from .success_monitor import SuccessMonitor, SuccessMonitorCfg

@@ -156,15 +156,15 @@ composition, before choosing process runtimes or creating the scene.
 Task scripts can declare alternatives with ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``.
 Keep view, window, and scene settings on ``VisualizerCfg``. Its ``backend`` selects the implementation;
 ``MultiBackendVisualizerCfg()`` supplies the built-in choices without repeating those common settings.
-Standalone scripts use the task-owned ``launch_simulation`` entry point to select these alternatives
-from parsed launcher arguments before core launch:
+Compose standalone declarations during initial configuration, then call the core launcher directly:
 
 .. code-block:: python
 
+   from isaaclab.app import launch_simulation
    from isaaclab.sim import SimulationCfg
    from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
-   from isaaclab_tasks.utils import launch_simulation
+   from isaaclab_tasks.utils import resolve_presets
    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
    sim_cfg = SimulationCfg(
@@ -176,6 +176,7 @@ from parsed launcher arguments before core launch:
        ),
    )
 
+   sim_cfg = resolve_presets(sim_cfg, overrides={"visualizer_cfgs.backend": args_cli.visualizer or "default"})
    with launch_simulation(sim_cfg, args_cli):
        # Construct the simulation and scene here.
        ...

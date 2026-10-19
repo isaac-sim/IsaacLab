@@ -137,13 +137,16 @@ import sys
 import isaaclab.app
 from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
+from isaaclab_tasks.utils.hydra import collect_presets
 
 def check_launch(cfg, args):
+    assert not collect_presets(cfg), "Preset composition must finish before core launch"
     simulation = cfg if isinstance(cfg, SimulationCfg) else cfg.sim
     shared = simulation.visualizer_cfgs
+    if isinstance(shared, list):
+        shared, = shared
     assert isinstance(shared, VisualizerCfg)
     assert [backend.visualizer_type for backend in shared.backend] == ['newton_gl', 'newton_rtx']
-    assert 'visualizer' not in args
     configs, _ = isaaclab.app.validate_launch(cfg, args)
     viewers = [cfg for cfg in configs if isinstance(cfg, VisualizerCfg)]
     assert [cfg.backend.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']

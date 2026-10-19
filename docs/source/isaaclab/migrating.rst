@@ -2608,9 +2608,10 @@ There is no defaults-merging pass.
 Select several backends with ``visualizer=rerun,newton_gl``; they share this single
 ``VisualizerCfg`` declaration. Without a selection, ``MultiBackendVisualizerCfg()`` leaves viewers inactive.
 ``VisualizerCfg.backend`` accepts one backend or a list; use ``[]`` instead of ``None`` for no selection.
-In standalone scripts, pass this declaration and ``args_cli`` to
-``isaaclab_tasks.utils.launch_simulation``. It selects ``--viz`` alternatives while preserving
-declared backend-specific options, then passes concrete configurations to core launch.
+In standalone scripts, compose the declaration with ``isaaclab_tasks.utils.resolve_presets``
+during initial configuration, then call ``isaaclab.app.launch_simulation`` directly. For the example
+above, use ``resolve_presets(sim_cfg, overrides={"visualizer_cfgs.backend": args_cli.visualizer or "default"})``.
+Registered tasks already complete preset composition in ``resolve_task_config``; do not reintroduce presets afterward.
 
 Backend configs now contain only implementation-specific options. For example, move ``eye``,
 ``max_visible_envs``, ``window``, and ``streaming_view`` from ``NewtonGLVisualizerCfg`` to its
