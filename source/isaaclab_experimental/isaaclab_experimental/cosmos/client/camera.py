@@ -20,7 +20,7 @@ from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab_experimental.image_transfer import center_crop_resize, depth_to_control
 
 from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
-from .control_profiles import blur_processor, depth_processor, edge_processor
+from .control_profiles import depth_processor, edge_processor
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg
 
@@ -42,14 +42,14 @@ def cosmos_camera(
 
     The copy renders the control input at the Cosmos canvas closest to the camera's aspect ratio, widening the lens
     aperture so the camera's original view is the canvas's center crop. Its chain prepares controls with
-    :func:`depth_processor`, :func:`edge_processor`, or :func:`blur_processor` (``model.modality``), generates with
+    :func:`depth_processor` or :func:`edge_processor` (``model.modality``), generates with
     Cosmos, and scales the result
     back to the camera's width and height. Observation terms that read ``rgb`` keep their image shape; the camera's
     ``image_shape`` and intrinsics describe the canvas.
 
     Args:
         camera: Pinhole camera publishing only ``rgb``, for example a task's policy camera.
-        model: Cosmos service connection, prompt and control type (``"depth"``, ``"edge"``, or ``"blur"``).
+        model: Cosmos service connection, prompt and control type (``"depth"`` or ``"edge"``).
         near: Depth rendered white [m], for depth control.
         far: Depth rendered black [m], for depth control.
         edge_thresholds: Lower and upper Canny thresholds, for edge control.
@@ -61,8 +61,8 @@ def cosmos_camera(
         ValueError: If the camera publishes outputs other than ``rgb``, already has modifiers, uses a fisheye lens,
             or the control type is unsupported.
     """
-    if model.modality not in ("depth", "edge", "blur"):
-        raise ValueError(f"Cosmos cameras support depth, edge, or blur control, got {model.modality!r}.")
+    if model.modality not in ("depth", "edge"):
+        raise ValueError(f"Cosmos cameras support depth or edge control, got {model.modality!r}.")
     if list(camera.data_types) != ["rgb"]:
         raise ValueError(
             f"A Cosmos camera publishes only 'rgb'; this camera requests {camera.data_types}. "
@@ -75,10 +75,8 @@ def cosmos_camera(
     )
     if model.modality == "depth":
         input_name, chain = depth_processor(model, near=near, far=far)
-    elif model.modality == "edge":
-        input_name, chain = edge_processor(model, lower=edge_thresholds[0], upper=edge_thresholds[1])
     else:
-        input_name, chain = blur_processor(model)
+        input_name, chain = edge_processor(model, lower=edge_thresholds[0], upper=edge_thresholds[1])
     if (camera.height, camera.width) != (canvas_height, canvas_width):
         chain.append(ModifierCfg(func=center_crop_resize, params={"width": camera.width, "height": camera.height}))
     return replace(
@@ -126,7 +124,7 @@ def apply_cosmos(
     *,
     prompt: str | list[str] | None = None,
     camera: str | None = None,
-    control: Literal["depth", "edge", "blur"] | None = None,
+    control: Literal["depth", "edge"] | None = None,
     near: float | None = None,
     far: float | None = None,
     endpoint: str | None = None,
@@ -147,7 +145,7 @@ def apply_cosmos(
         prompt: Appearance prompt, or a list: cycled per episode for one environment, one per environment for
             several (see :attr:`CosmosModelCfg.prompt`). None preserves an existing camera's prompt.
         camera: Scene camera name. Defaults to None, which selects the only rgb camera.
-        control: Control type: ``"depth"``, ``"edge"``, or ``"blur"``. None preserves a preset or uses depth.
+        control: Control type: ``"depth"`` or ``"edge"``. None preserves a preset or uses depth.
             An existing preset's control type cannot be changed here.
         near: Depth rendered white [m]. None preserves a preset or uses 0.1.
         far: Depth rendered black [m]. None preserves a preset or uses 2.0.
