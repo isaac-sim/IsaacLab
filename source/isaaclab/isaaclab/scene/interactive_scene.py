@@ -449,7 +449,7 @@ class InteractiveScene:
         Returns:
             The destination path.
         """
-        from isaaclab.sim.usd_export import UsdExporter
+        from ..sim.usd_export import UsdExporter
 
         return UsdExporter(self, env_id).export(path)
 

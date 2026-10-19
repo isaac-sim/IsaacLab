@@ -5,8 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_usd_exporter import BaseUsdExporter
 
 

@@ -1308,6 +1308,7 @@ class NewtonManager(PhysicsManager):
         """
         ignore_paths: list[str] = []
         xform_cache = UsdGeom.XformCache()
+        device = str(PhysicsManager._device) if device is None else device
         for prim in (prim for root_path in root_paths for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path))):
             attr = prim.GetAttribute("newton:heightfield:resolution")
             if not attr or not attr.HasAuthoredValue():
@@ -1326,10 +1327,9 @@ class NewtonManager(PhysicsManager):
             # Transform vertices into world frame (USD uses row-vector convention).
             mat = np.array(xform_cache.GetLocalToWorldTransform(mesh_prim), dtype=np.float64).reshape(4, 4)
             world = (points @ mat[:3, :3] + mat[3, :3]).astype(np.float32)
-            mesh_device = str(PhysicsManager._device) if device is None else device
             wp_mesh = wp.Mesh(
-                points=wp.array(world, dtype=wp.vec3, device=mesh_device),
-                indices=wp.array(faces, dtype=wp.int32, device=mesh_device),
+                points=wp.array(world, dtype=wp.vec3, device=device),
+                indices=wp.array(faces, dtype=wp.int32, device=device),
             )
             heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
             # The mesh path identifies the collider that the heightfield replaces.
