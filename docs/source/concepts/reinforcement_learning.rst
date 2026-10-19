@@ -31,10 +31,14 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 
-Try pretrained Cartpole, G1, and ANYmal-D controllers in the
-:ref:`interactive demo gallery <interactive-browser-demos>` without installing
-Isaac Lab. These compact browser scenes illustrate policy control; use native
-playback for full task evaluation.
+Try pretrained controllers directly below: perturb Cartpole or command G1,
+ANYmal-D, and MicroDuck with travel and yaw controls. These compact browser
+scenes illustrate policy control; use native playback for full task evaluation.
+
+.. isaaclab-demos:: cartpole, g1, anymal, microduck
+   :title: Try pretrained controllers
+   :physics: rigid
+   :activity: policy
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_learning_progression_anymald.gif
    :width: 100%

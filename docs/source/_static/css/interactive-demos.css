@@ -1,0 +1,52 @@
+/*
+ * Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+.isaaclab-demos {
+    margin-block: 1.5rem;
+    border: 1px solid var(--pst-color-border, #d6dfe3);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: var(--pst-color-background, #fff);
+    scroll-margin-top: 5rem;
+}
+
+.isaaclab-demos-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding: 1rem 1.1rem 0;
+}
+
+.isaaclab-demos-heading a {
+    font-size: 0.85rem;
+}
+
+.isaaclab-demos .isaaclab-demos-status {
+    margin: 0;
+    padding: 0.4rem 1.1rem 0.85rem;
+    color: var(--pst-color-text-muted, #5b6d75);
+    font-size: 0.85rem;
+}
+
+.isaaclab-demos[data-state="error"] .isaaclab-demos-status {
+    color: var(--pst-color-warning, #996000);
+}
+
+.isaaclab-demos-frame {
+    display: block;
+    width: 100%;
+    min-height: 400px;
+    border: 0;
+    background: var(--pst-color-background, #fff);
+    color-scheme: inherit;
+}
+
+.isaaclab-demos noscript p {
+    padding: 1rem;
+}
