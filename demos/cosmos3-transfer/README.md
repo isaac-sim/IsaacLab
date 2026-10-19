@@ -31,24 +31,30 @@ The first three commands are one-time setup. Wait for `Cosmos ready at ...`.
 
 ## 2. Train with Cosmos on the camera
 
-In a second terminal:
+In a second terminal, put the scene descriptions in a config file (one prompt per environment) and train:
 
 ```bash
 cd "$ISAAC_LAB_ROOT"
 uv run isaaclab cosmos status      # expect "ready": true and "session_active": false
 
+cat > shadow_hand_cosmos.yaml <<'YAML'
+prompt:
+  - A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.
+  - A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.
+YAML
+
 uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
-  --max_iterations 20 \
-  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
-  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
+  --max_iterations 20 --cosmos_config shadow_hand_cosmos.yaml \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
   presets=cosmos
 ```
 
 - `presets=cosmos` selects the task's Cosmos camera: depth goes to the service and the generated image replaces the
   camera's `rgb`.
-- Each `--cosmos_prompt` describes the scene of one environment; with `--num_envs 2` the first prompt is environment 0
-  and the second is environment 1.
+- `--cosmos_config` points to the Cosmos options. `prompt` describes the scene of each environment: with
+  `--num_envs 2` the first prompt is environment 0 and the second is environment 1. Other options (`endpoint`,
+  `transport`, `near`, `far`, ...) are listed in the
+  [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
 - `--viz newton_gl --video viz:newton_gl:streaming_view --video_length 600` records 600 steps (one episode) of the
   generated images of both environments side by side. The run prints the folder with the clip.
 - `--kv-window 4` on the service lets two environments fit on a 48 GB GPU that Isaac Sim shares; omit it on a larger GPU.
