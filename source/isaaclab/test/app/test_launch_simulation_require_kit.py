@@ -31,13 +31,6 @@ from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
 
 
-@pytest.fixture(autouse=True)
-def fake_kit_runtime(monkeypatch: pytest.MonkeyPatch):
-    """Keep provider selection and Kit bootstrap out of this runtime-free launcher suite."""
-    monkeypatch.setattr(sim_launcher, "_prepare_kit_usd", lambda: None)
-    monkeypatch.setitem(physx_app.__dict__, "KitLauncher", SimulationLauncher)
-
-
 @pytest.fixture
 def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
     """Report whether ``launch_simulation`` entered its Kit branch, without starting Kit."""

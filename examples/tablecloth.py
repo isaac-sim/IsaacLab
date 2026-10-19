@@ -54,15 +54,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import newton
 import warp as wp
-from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.controllers.ik import (
-    NewtonIKJointLimitObjectiveCfg,
-    NewtonIKPoseObjectiveCfg,
-    NewtonIKSolver,
-    NewtonIKSolverCfg,
-)
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -81,8 +73,8 @@ from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg, NewtonSurf
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
@@ -91,9 +83,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
+    import newton
     from newton import Mesh, ModelBuilder
 
     from pxr import Usd
+
+    from isaaclab.assets import Articulation
 
 
 # Scene configuration and native contact preparation.
@@ -937,6 +932,14 @@ class _Controller:
         control: newton.Control,
         substeps: int,
     ) -> None:
+        import newton  # noqa: PLC0415
+        from isaaclab_newton.controllers.ik import (  # noqa: PLC0415
+            NewtonIKJointLimitObjectiveCfg,
+            NewtonIKPoseObjectiveCfg,
+            NewtonIKSolver,
+            NewtonIKSolverCfg,
+        )
+
         from pxr import Gf, Usd, UsdPhysics  # noqa: PLC0415
 
         self.robot = robot
@@ -1321,7 +1324,12 @@ def main() -> None:
     )
     viewer_scene_cfg = InteractiveSceneCfg(num_envs=len(speeds), env_spacing=1.5)
     with launch_simulation(cfg={"sim": sim_cfg, "scene": viewer_scene_cfg}, launcher_args=args_cli):
+        # Kit must select its OpenUSD runtime before importing native scene and Newton code.
+        from isaaclab_newton.cloner import newton_builder_world_hook  # noqa: PLC0415
+
         from pxr import UsdGeom  # noqa: PLC0415
+
+        from isaaclab.scene import InteractiveScene  # noqa: PLC0415
 
         usd_path = retrieve_file_path(H2_PLUS_USD)
         sim = sim_utils.SimulationContext(sim_cfg)

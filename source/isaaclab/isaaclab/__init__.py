@@ -10,11 +10,6 @@ import importlib.util
 import os
 import sys
 
-from ._usd_runtime import _kit_requested, _prepare_kit_usd
-
-if _kit_requested(sys.argv[1:]):
-    _prepare_kit_usd()
-
 
 def _deprioritize_prebundle_paths():
     """Move Isaac Sim ``pip_prebundle`` and known conflicting extension directories to the end of ``sys.path``.
