@@ -12,9 +12,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import convert_to_warp_mesh
-
-from isaaclab_tasks.contrib.nist.utils.rigid_object_hasher import RigidObjectHasher
+from .rigid_object_hasher import RigidObjectHasher
 
 if TYPE_CHECKING:
     import trimesh
@@ -175,52 +173,122 @@ def sample_object_point_cloud(
     device: str = "cuda",
     rigid_object_hasher: RigidObjectHasher | None = None,
     seed: int = 42,
+    *,
+    include_boundary_points: bool = False,
 ) -> torch.Tensor | None:
     """Sample a point cloud on the collision geometry of an asset.
 
     Robust to heterogeneous collider counts across envs. Uses
-    ``RigidObjectHasher`` to deduplicate identical colliders.
-    """
-    hasher = rigid_object_hasher if rigid_object_hasher is not None else RigidObjectHasher(num_envs, prim_path_pattern)
+    ``RigidObjectHasher`` to reuse identical ordered geometry batches and sampling modes.
 
-    if hasher.num_root == 0:
+    Args:
+        num_envs: Number of environments to sample.
+        num_points: Number of points per asset root.
+        prim_path_pattern: Asset root path expression.
+        device: Device on which to sample.
+        rigid_object_hasher: Existing geometry index, or ``None`` to construct one.
+        seed: Seed for surface sampling.
+        include_boundary_points: Include a regular boundary grid for single-cube bodies when the
+            budget permits eight points. Single-mesh bodies reserve at most half the budget for
+            unique surface vertices, spread out when they do not all fit. Collision checks can opt
+            in to retain these boundaries; the default preserves observation surface sampling.
+
+    Returns:
+        Root-frame surface points [m], shape ``(num_envs, num_points, 3)``, or ``None`` without geometry.
+    """
+    hasher = (
+        rigid_object_hasher
+        if rigid_object_hasher is not None
+        else RigidObjectHasher(num_envs, prim_path_pattern, device=device)
+    )
+
+    if hasher.num_root == 0 or not hasher.collider_prims:
         return None
 
     replicated_env = torch.all(hasher.root_prim_hashes == hasher.root_prim_hashes[0])
+    hashes = hasher.root_prim_hashes[:1] if replicated_env else hasher.root_prim_hashes
+    cache_device = str(torch.empty(0, device=device).device)
+    cache_key = (tuple(hashes.tolist()), seed, num_points, cache_device, include_boundary_points)
+    point_cloud_store = hasher.point_cloud_cache
+    root_scales = hasher.root_prim_scales.to(device)[:, None]
+    if cache_key in point_cloud_store:
+        merged = point_cloud_store[cache_key]
+        return merged.expand(num_envs if replicated_env else hasher.num_root, -1, -1) * root_scales
+
     if replicated_env:
         mask_env0 = hasher.collider_prim_env_ids == 0
-        mesh_tensors = [_load_mesh_tensors(p) for p, m in zip(hasher.collider_prims, mask_env0) if m]
+        prims = [p for p, m in zip(hasher.collider_prims, mask_env0) if m]
+        env_ids = hasher.collider_prim_env_ids[mask_env0]
         rel_pos = hasher.collider_rel_pos[mask_env0]
         rel_mat = hasher.collider_rel_mat[mask_env0]
     else:
-        mesh_tensors = [_load_mesh_tensors(p) for p in hasher.collider_prims]
+        prims = hasher.collider_prims
+        env_ids = hasher.collider_prim_env_ids
         rel_pos = hasher.collider_rel_pos
         rel_mat = hasher.collider_rel_mat
+    mesh_tensors = [_load_mesh_tensors(p) for p in prims]
 
     # oversample each collider, then thin to ``num_points`` so the kept points spread over
     # the whole collider rather than clustering on its largest faces
     surface = sample_triangle_mesh_surface(mesh_tensors, num_points * 2, device=device, seed=seed)
     local = _gather_farthest_points(surface, num_points)
+    boundary_colliders = []
+    if include_boundary_points and num_points >= 2:
+        counts = torch.bincount(env_ids, minlength=hasher.num_root).tolist()
+        rows = env_ids.tolist()
+        singles = [i for i, row in enumerate(rows) if counts[row] == 1]
+        cubes = [i for i in singles if prims[i].GetTypeName() == "Cube" and num_points >= 8]
+        if cubes:
+            from pxr import UsdGeom
+
+            resolution = 2
+            while (resolution + 1) ** 3 - (resolution - 1) ** 3 <= num_points:
+                resolution += 1
+            axis = torch.linspace(-1.0, 1.0, resolution, device=device)
+            grid = torch.cartesian_prod(axis, axis, axis)
+            grid = grid[(grid.abs() == 1.0).any(dim=1)]
+            for i in cubes:
+                local[i, : len(grid)] = grid * (0.5 * UsdGeom.Cube(prims[i]).GetSizeAttr().Get())
+            boundary_colliders.extend(cubes)
+        for i in singles:
+            if prims[i].GetTypeName() == "Mesh":
+                vertices, faces = mesh_tensors[i]
+                # Ignore unused vertices: they are not part of the collision surface.
+                vertices = torch.unique(vertices[torch.unique(faces)], dim=0).to(device)
+                if len(vertices) > num_points // 2:
+                    vertices = _gather_farthest_points(vertices.unsqueeze(0), num_points // 2)[0]
+                local[i, : len(vertices)] = vertices
+                boundary_colliders.append(i)
     root = torch.einsum("nij,npj->npi", rel_mat.to(device), local) + rel_pos.to(device).unsqueeze(1)
 
-    if replicated_env:
+    if len(boundary_colliders) == len(prims) == len(hashes):
+        merged = torch.empty_like(root)
+        merged[env_ids.to(device)] = root
+    elif replicated_env:
         merged = _gather_farthest_points(root.reshape(1, -1, 3), num_points)
-        result = merged.expand(num_envs, -1, -1) * hasher.root_prim_scales.to(device).unsqueeze(1)
     else:
         env_ids = hasher.collider_prim_env_ids.to(device)
         counts = torch.bincount(env_ids, minlength=hasher.num_root)
+        if (counts == 0).any():
+            raise ValueError("Every heterogeneous asset root must contain collision geometry.")
         max_c = int(counts.max().item())
-        buf = torch.zeros((hasher.num_root, max_c * num_points, 3), device=device, dtype=root.dtype)
+        buf = torch.empty((hasher.num_root, max_c * num_points, 3), device=device, dtype=root.dtype)
         placed = torch.zeros_like(counts)
         for i in range(len(hasher.collider_prims)):
             r = int(env_ids[i].item())
             start = placed[r].item() * num_points
+            if start == 0:
+                # Padding must duplicate a surface point, not introduce the asset origin.
+                buf[r] = root[i, 0]
             buf[r, start : start + num_points] = root[i]
             placed[r] += 1
         merged = _gather_farthest_points(buf, num_points)
-        result = merged * hasher.root_prim_scales.to(device).unsqueeze(1)
+        if boundary_colliders:
+            # Compound-body thinning must not discard a neighboring single body's boundary samples.
+            merged[env_ids[boundary_colliders]] = root[boundary_colliders]
 
-    return result
+    point_cloud_store[cache_key] = merged
+    return merged.expand(num_envs if replicated_env else hasher.num_root, -1, -1) * root_scales
 
 
 def _triangulate_faces(prim) -> np.ndarray:
@@ -295,21 +363,64 @@ def prim_to_trimesh(prim, relative_to_world=False) -> trimesh.Trimesh:
     return mesh_tm
 
 
-def prim_to_warp_mesh(prim, device, relative_to_world=False) -> wp.Mesh:
+def prim_to_warp_mesh(
+    prim,
+    device,
+    relative_to_world=False,
+    merge_prims: Sequence | None = None,
+    linear_transform: np.ndarray | None = None,
+) -> wp.Mesh:
+    """Build a winding-enabled mesh, optionally merging parts and baking a local linear transform.
+
+    Args:
+        prim: Source USD geometry prim, also defining the local frame for merged parts.
+        device: Device on which to create the mesh.
+        relative_to_world: Whether to apply the prim's world transform after local geometry transforms.
+        merge_prims: Parts to merge in ``prim`` coordinates, or ``None`` to use only ``prim``.
+        linear_transform: Static matrix of shape ``(3, 3)`` applied after merging. Reflections
+            preserve outward winding by reversing triangle order.
+
+    Returns:
+        Mesh whose nearest-point queries use the metric of the transformed vertices.
+    """
     from pxr import Usd, UsdGeom
 
-    if prim.GetTypeName() == "Mesh":
-        mesh_prim = UsdGeom.Mesh(prim)
-        points = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
-        indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32)
-    else:
-        mesh = create_primitive_mesh(prim)
-        points = mesh.vertices.astype(np.float32)
-        indices = mesh.faces.astype(np.int32)
+    source_prims = (prim,) if merge_prims is None else merge_prims
+    if not source_prims:
+        raise ValueError("At least one source prim is required to construct a collision mesh.")
+    xform_cache = UsdGeom.XformCache() if merge_prims is not None else None
+    target_inv = xform_cache.GetLocalToWorldTransform(prim).GetInverse() if xform_cache is not None else None
+    point_sets, triangle_sets = [], []
+    vertex_offset = 0
+    for source_prim in source_prims:
+        if source_prim.GetTypeName() == "Mesh":
+            points = np.asarray(UsdGeom.Mesh(source_prim).GetPointsAttr().Get(), dtype=np.float32)
+            indices = _triangulate_faces(source_prim).astype(np.int32)
+        else:
+            mesh = create_primitive_mesh(source_prim)
+            points = mesh.vertices.astype(np.float32)
+            indices = mesh.faces.astype(np.int32)
+        if xform_cache is not None and source_prim != prim:
+            transform = np.array(xform_cache.GetLocalToWorldTransform(source_prim) * target_inv).T
+            points = (points @ transform[:3, :3].T) + transform[:3, 3]
+            if np.linalg.det(transform[:3, :3]) < 0.0:
+                indices = indices[:, [0, 2, 1]]
+        point_sets.append(points)
+        triangle_sets.append(indices + vertex_offset)
+        vertex_offset += len(points)
+    points = np.concatenate(point_sets)
+    indices = np.concatenate(triangle_sets)
+    if linear_transform is not None:
+        points = points @ linear_transform.T
+        if np.linalg.det(linear_transform) < 0.0:
+            indices = indices[:, [0, 2, 1]]
 
     if relative_to_world:
         tf = np.array(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())).T
         points = (points @ tf[:3, :3].T) + tf[:3, 3]
 
-    wp_mesh = convert_to_warp_mesh(points, indices, device=device)
-    return wp_mesh
+    return wp.Mesh(
+        points=wp.array(points, dtype=wp.vec3, device=device),
+        indices=wp.array(indices.flatten(), dtype=wp.int32, device=device),
+        support_winding_number=True,
+    )
