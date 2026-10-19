@@ -240,7 +240,9 @@ def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
         "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow": False,
         "IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel": False,
         "IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel": False,
-        "IsaacContrib-Stack-Cube-SO101-v0": True,
+        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0": False,
+        "IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0": False,
+        "IsaacContrib-Stack-Cube-SO101-v0": False,
         "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel": False,
     }
 
