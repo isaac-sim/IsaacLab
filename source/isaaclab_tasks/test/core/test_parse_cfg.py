@@ -99,6 +99,6 @@ def test_override_paths_reject_a_misspelled_field():
     from isaaclab_tasks.utils.hydra import _setattr
 
     cfg = SimpleNamespace(backend=SimpleNamespace(prompt="A lab."))
-    with pytest.raises(AttributeError, match="has no field 'promt'"):
-        _setattr(cfg, "backend.promt", "x")
-    assert cfg.backend.prompt == "A lab." and not hasattr(cfg.backend, "promt")
+    with pytest.raises(AttributeError, match="has no field 'prompts'"):
+        _setattr(cfg, "backend.prompts", "x")
+    assert cfg.backend.prompt == "A lab." and not hasattr(cfg.backend, "prompts")
