@@ -40,11 +40,10 @@ guidance 1.0, a 30-latent history window with three attention sinks, and one con
 |---|---|---|
 | `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
 | `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
-| `blur` | The service | The camera's RGB, blurred by the Framework's own filter with the recipe's medium preset |
 | `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
 
-Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
+Other control recipes are `edge_processor`, `regional_edge_processor`, and
+`segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
 extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
 recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
 palette, while regional edges also require the camera's segmentation output and
@@ -280,9 +279,8 @@ falling back. `status` lists the service's transports. With the defaults on one 
 shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket
 transport's 16-view protocol limit; the available GPU memory still limits the batch size.
 
-Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process, and
-blur filtering copies RGB from GPU to CPU and back inside the service. CUDA IPC does not remove those copies
-or their synchronization costs; it avoids CPU staging when exchanging images between the two processes.
+Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process. CUDA IPC does not remove that copy
+or its synchronization cost; it avoids CPU staging when exchanging images between the two processes.
 The camera-side IPC handoff orders GPU work with events. The service synchronizes its CUDA stream before
 replying so GPU faults reach the client as errors; a complete inference step is not free of host synchronization.
 
