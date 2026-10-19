@@ -5,6 +5,8 @@
 
 """Manager-based counterpart of the Shadow Hand camera reorientation task."""
 
+from isaaclab_experimental.cosmos import CosmosModelCfg
+
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
@@ -21,6 +23,7 @@ from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_direct_camera_env_cfg import (
     SHADOW_HAND_COSMOS_CAMERA_CFG,
     ShadowHandTiledCameraCfg,
+    shadow_hand_cosmos_settings,
     validate_shadow_hand_camera_settings,
     validate_shadow_hand_cosmos_preset,
 )
@@ -147,6 +150,11 @@ class ShadowHandCameraManagerCosmosEnvCfg(ShadowHandCameraManagerEnvCfg):
         num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG
     )
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, image_update_frames=4)
+
+    @property
+    def cosmos(self) -> CosmosModelCfg:
+        """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
+        return shadow_hand_cosmos_settings(self)
 
     def validate_config(self):
         """Check the scene and episode fit the Cosmos service's stream limits."""

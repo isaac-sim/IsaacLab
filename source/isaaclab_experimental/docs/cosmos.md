@@ -34,7 +34,7 @@ For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoin
 ## Put Cosmos on a camera task
 
 Cosmos goes on a camera through the task's configuration. The Shadow Hand tasks have a `cosmos` preset (see
-"Run the Shadow Hand camera task"), and its options are ordinary Isaac Lab overrides of the camera's modifier chain.
+"Run the Shadow Hand camera task"), and its options are ordinary Isaac Lab overrides of `env.cosmos`.
 For any other compatible camera task, call `apply_cosmos(env_cfg, prompt=...)` on its configuration in code, or build a
 preset with `cosmos_camera` (see "Configure another camera task").
 
@@ -158,21 +158,21 @@ uv run isaaclab play \
 
 Without a Cosmos preset, the task uses its existing camera configuration.
 
-The preset's Cosmos options are overrides of its camera's modifier chain, with the same dotted paths as any other
-Isaac Lab configuration value. In the chain, item `0` prepares the depth control and item `1` is the Cosmos step:
+The preset's Cosmos settings are `env.cosmos`, the camera's own `CosmosModelCfg`, and they are set with ordinary
+Isaac Lab overrides:
 
 | Option | Override |
 |---|---|
-| Prompt | `env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt=<text>` |
-| Prompt per environment | the same path with a Python list, `...backend.prompt="['<text>', '<text>']"` |
-| Service endpoint | `env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.endpoint=<url>` |
-| Transport | `env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.transport=socket` |
+| Prompt | `env.cosmos.prompt=<text>` |
+| Prompt per environment | `env.cosmos.prompt="['<text>', '<text>']"` |
+| Service endpoint | `env.cosmos.endpoint=<url>` |
+| Transport | `env.cosmos.transport=socket` |
 | Depth range [m] | `env.scene.tiled_camera.modifiers.distance_to_image_plane.0.params.near=0.2` (and `far`) |
 
 For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct presets=cosmos
-env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="A Shadow Hand turning a red cube."`.
-Omitted options preserve the preset's values, and the overrides keep its image size, modifier chain, and
-feature-extractor supervision.
+env.cosmos.prompt="A Shadow Hand turning a red cube."`. The depth range belongs to the step that prepares the
+control, item `0` of the camera's depth chain. Omitted options preserve the preset's values, and the overrides keep its
+image size, modifier chain, and feature-extractor supervision.
 
 ## Client and server packages
 
@@ -324,7 +324,7 @@ Ask for the environments with `--num_envs`, and give one prompt per environment 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
   presets=cosmos \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
+  env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
 For a task without a preset, call `apply_cosmos(env_cfg, prompt=[...], num_envs=2)`.
@@ -357,7 +357,7 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   --max_iterations 20 \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
   presets=cosmos \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
+  env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
 `--video_length 600` records 600 steps, one 10-second episode. The run prints the clip directory when it starts.
@@ -449,8 +449,7 @@ cd "$COSMOS_FRAMEWORK_ROOT"
 uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --device cuda:1
 ```
 
-Isaac Lab keeps its own device, `cuda:0` by default. Override the camera's transport with
-`env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.transport=cuda_ipc` (or set `transport="cuda_ipc"`
+Isaac Lab keeps its own device, `cuda:0` by default. Set `env.cosmos.transport=cuda_ipc` (or `transport="cuda_ipc"`
 in `apply_cosmos`) to require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA
 context on the other GPU, which takes some memory there.
 
@@ -471,8 +470,8 @@ endpoint with the list of both:
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 4 \
   presets=cosmos \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']" \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.transport=cuda_ipc
+  env.cosmos.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']" \
+  env.cosmos.transport=cuda_ipc
 ```
 
 The environments are split into contiguous shares of near-equal size, one per service in the order given:
