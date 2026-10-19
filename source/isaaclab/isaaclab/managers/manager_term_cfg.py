@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from importlib import import_module
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
@@ -235,20 +234,12 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     Defaults to True."""
 
     modifiers: list[TensorProcessorCfg] | None = None
-    """Deprecated alias for :attr:`tensor_processors`; use only one of these fields."""
-
-    def _migrate_modifiers(self) -> None:
-        """Resolve the deprecated field after user configuration edits, before manager preparation."""
-        if self.modifiers is None:
-            return
-        if self.tensor_processors is not None:
-            raise ValueError("Set only one of 'modifiers' and 'tensor_processors'.")
-        import_module("isaaclab.utils.modifiers")
-        self.tensor_processors = self.modifiers
-        self.modifiers = None
+    """Removed field, rejected during validation. Use :attr:`tensor_processors`."""
 
     def validate_config(self):
-        """Validate observation delay bounds."""
+        """Reject removed fields and validate observation delay bounds."""
+        if self.modifiers is not None:
+            raise ValueError("ObservationTermCfg.modifiers was removed. Use 'tensor_processors' instead.")
         if type(self.delay_min_lag) is not int or type(self.delay_max_lag) is not int:
             raise TypeError("Observation delay bounds must be integers.")
         if not 0 <= self.delay_min_lag <= self.delay_max_lag:

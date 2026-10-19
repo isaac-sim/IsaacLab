@@ -3,12 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated import path for Warp-native tensor processors."""
+"""Migration error for the removed Warp-native modifiers API."""
 
-from isaaclab.utils.modifiers import _install_aliases
-
-from .. import tensor_processors
-
-__all__ = ["ModifierBase", "ModifierCfg", "bias", "clip", "scale"]
-
-_install_aliases(__name__, tensor_processors)
+raise ValueError(
+    "isaaclab_experimental.utils.modifiers was removed. Use isaaclab_experimental.utils.tensor_processors instead:"
+    " ModifierBase is now TensorProcessor, and ModifierCfg is now TensorProcessorCfg."
+)

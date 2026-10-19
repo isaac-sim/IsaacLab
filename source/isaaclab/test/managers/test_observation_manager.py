@@ -8,9 +8,6 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
-import subprocess
-import sys
-
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 from collections import namedtuple
@@ -28,6 +25,7 @@ from isaaclab.managers import (
     RewardTermCfg,
 )
 from isaaclab.utils import DelayBuffer, configclass, noise, tensor_processors, to_dict, update_from_dict, validate
+from isaaclab.utils.string import string_to_callable
 
 pytestmark = pytest.mark.unit
 
@@ -870,85 +868,47 @@ def test_class_modifier_roundtrip_preserves_func_and_params():
     assert prepared_tensor_processor_cfg.func.reset_count == 1
 
 
-def _warp_observation(env, out, out_dim=1):
-    out.assign(env.observation.numpy())
-
-
-@pytest.mark.parametrize("api", ["current", "legacy", "legacy_warp"])
-def test_stateless_tensor_processor_cfg_roundtrip_preserves_signature_validation(api):
-    """Current and legacy configs compute observations; core configs also retain serialized callables."""
+def test_stateless_tensor_processor_cfg_roundtrip_preserves_signature_validation():
+    """Serialized function processors retain their parameters and compute observations."""
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
-    manager_type = ObservationManager
-    if api == "current":
-        cfg.policy.dummy.tensor_processors = [
-            tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 2.0})
-        ]
-    else:
-        package = "isaaclab_experimental" if api == "legacy_warp" else "isaaclab"
-        legacy_cfg = import_module(f"{package}.utils.modifiers.modifier_cfg").ModifierCfg
-        bias = f"{package}.utils.modifiers.modifier:bias"
-        if api == "legacy_warp":
-            manager_type = import_module(f"{package}.managers").ObservationManager
-            cfg.policy.dummy.func = _warp_observation
-            cfg.policy.dummy.params = {"out_dim": 1}
-            bias = import_module(f"{package}.utils.modifiers.modifier").bias
-        cfg.policy.dummy.modifiers = [legacy_cfg(func=bias, params={"value": 2.0})]
-    if api != "legacy_warp":
-        update_from_dict(cfg, to_dict(cfg))
+    cfg.policy.dummy.tensor_processors = [
+        tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 2.0})
+    ]
+    update_from_dict(cfg, to_dict(cfg))
 
     env = DummyEnv()
-    manager = manager_type(cfg, cast("ManagerBasedEnv", env))
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
     observations = manager.compute()["policy"]
     torch.testing.assert_close(observations, env.observation + 2.0)
 
 
-def test_legacy_modifiers_share_one_migration_warning():
-    """Legacy fields and imports share one warning, regardless of repeated manager construction."""
-    # A fresh interpreter keeps the first-use warning independent of test collection and ordering.
-    script = """
-import warnings
-from importlib import import_module
-from types import SimpleNamespace
-
-with warnings.catch_warnings(record=True) as caught:
-    warnings.simplefilter("always")
-    import torch
-    from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-    from isaaclab.utils.tensor_processors import TensorProcessorCfg, bias
-
-    env = SimpleNamespace(num_envs=1, device="cpu", sim=SimpleNamespace(is_playing=lambda: True))
-    group = ObservationGroupCfg()
-    group.value = ObservationTermCfg(
-        func=lambda env: torch.ones((1, 1)),
-        tensor_processors=[TensorProcessorCfg(func=bias, params={"value": 2.0})],
-    )
-    ObservationManager({"policy": group}, env).compute()
-    assert not [warning for warning in caught if "modifiers" in str(warning.message)]
-
-    group.value.modifiers = group.value.tensor_processors
-    group.value.tensor_processors = None
-    for _ in range(2):
-        result = ObservationManager({"policy": group}, env).compute()["policy"]
-        torch.testing.assert_close(result, torch.full((1, 1), 3.0))
-    for package in ("isaaclab", "isaaclab_experimental"):
-        import_module(f"{package}.utils.modifiers.modifier_cfg")
-
-    migration_warnings = [warning for warning in caught if "modifiers" in str(warning.message)]
-    assert len(migration_warnings) == 1, migration_warnings
-    assert migration_warnings[0].category is FutureWarning
-"""
-    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
+@pytest.mark.parametrize(
+    "path",
+    [
+        "isaaclab.utils:ModifierBase",
+        "isaaclab.utils.modifiers:ModifierCfg",
+        "isaaclab_experimental.utils.modifiers.modifier_base:ModifierBase",
+    ],
+)
+def test_removed_modifier_imports_report_replacements(path):
+    """Old class imports and serialized paths fail with the replacement API."""
+    with pytest.raises(ValueError, match="TensorProcessor.*TensorProcessorCfg"):
+        string_to_callable(path)
 
 
-def test_observation_rejects_conflicting_processor_fields():
-    """The old and new field names cannot silently override one another, including empty lists."""
+@pytest.mark.parametrize("package", ["isaaclab", "isaaclab_experimental"])
+def test_observation_rejects_removed_modifiers(package):
+    """Both managers reject the removed field, including edits that set an empty list."""
     cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
     cfg.policy.dummy.modifiers = []
-    cfg.policy.dummy.tensor_processors = []
-    with pytest.raises(ValueError, match="Set only one"):
-        ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))
+    if package == "isaaclab_experimental":
+        cfg.policy.dummy.func = lambda env, out, out_dim: out.zero_()
+        cfg.policy.dummy.params = {"out_dim": 1}
+    manager_type = import_module(f"{package}.managers").ObservationManager
+    with pytest.raises(ValueError, match="modifiers.*tensor_processors"):
+        manager_type(cfg, cast("ManagerBasedEnv", DummyEnv()))
 
 
 def test_class_modifier_validates_constructed_instance():
