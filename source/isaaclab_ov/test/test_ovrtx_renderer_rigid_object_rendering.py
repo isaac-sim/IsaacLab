@@ -25,7 +25,6 @@ from rigid_object_rendering_contract import (  # noqa: E402
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "ovphysx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
-_OVSTAGE_AVAILABLE = importlib.util.find_spec("ovstage") is not None
 
 pytestmark = [
     pytest.mark.integration,
@@ -43,54 +42,31 @@ else:
 
 
 def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.MonkeyPatch) -> None:
-    """One opted-in OVStage clone supplies physics and rendered poses, scale and calibration."""
-    import ovphysx
+    """OVPhysX and native OVRTX copies preserve rendered pose, scale, and calibration."""
     import ovrtx
-    import ovstage
-    from isaaclab_ov.renderers import ovrtx_renderer
 
-    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
-    monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
-    copies, attached = [], []
-    clone = ovstage.Stage.clone
-    attach_physics = ovphysx.PhysX.attach_ovstage
-    attach_renderer = ovrtx.Renderer.attach_ovstage
+    copies = []
+    clone = ovrtx.Renderer.clone_usd
 
-    def record_clone(stage, source, targets, **kwargs):
+    def record_clone(renderer, source, targets, **kwargs):
         copies.extend((source, target) for target in targets)
-        return clone(stage, source, targets, **kwargs)
+        return clone(renderer, source, targets, **kwargs)
 
-    def attach_physx(physics, stage, **kwargs):
-        attached.append(stage)
-        return attach_physics(physics, stage, **kwargs)
-
-    def attach_rtx(renderer, stage):
-        assert attached == [stage]
-        return attach_renderer(renderer, stage)
-
-    def reject_duplicate_scene(*args, **kwargs):
-        pytest.fail("The shared scene must be exported and cloned only once")
-
-    monkeypatch.setattr(ovstage.Stage, "clone", record_clone)
-    monkeypatch.setattr(ovphysx.PhysX, "clone", reject_duplicate_scene)
-    monkeypatch.setattr(ovrtx.Renderer, "clone_usd", reject_duplicate_scene)
-    monkeypatch.setattr(ovrtx_renderer, "export_stage_to_string", reject_duplicate_scene)
-    monkeypatch.setattr(ovphysx.PhysX, "attach_ovstage", attach_physx)
-    monkeypatch.setattr(ovrtx.Renderer, "attach_ovstage", attach_rtx)
+    monkeypatch.setattr(ovrtx.Renderer, "clone_usd", record_clone)
+    monkeypatch.setattr(ovrtx.Renderer, "attach_ovstage", lambda *args: pytest.fail("OVRTX must own its scene"))
     sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
 
     @contextmanager
     def simulation():
         with build_simulation_context(sim_cfg=sim_cfg) as sim:
             yield sim
-            from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext, OvstageReplicateContext
+            from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext
 
-            assert OvstageReplicateContext in sim.clone_contexts
-            assert not {OvPhysxReplicateContext, OvrtxReplicateContext}.intersection(sim.clone_contexts)
+            assert {OvPhysxReplicateContext, OvrtxReplicateContext} <= set(sim.clone_contexts)
 
     run_rigid_object_scale_and_pose_rendering_contract(
         RigidObjectRenderingBackend(
-            name="OVPhysX + OVRTX shared stage",
+            name="OVPhysX + native OVRTX",
             simulation_context_factory=simulation,
             renderer_cfg=OVRTXRendererCfg(),
             with_articulation=True,
@@ -99,8 +75,8 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
     assert copies and len(copies) == len(set(copies))
 
 
-def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(monkeypatch, tmp_path):
-    """Overlapping worlds retain distinct contacts and images across shared-stage control writes."""
+def test_native_rendering_interleaves_with_physics_gravity(monkeypatch, tmp_path):
+    """Overlapping worlds retain distinct contacts and images across physics control writes."""
     import ovrtx
     import torch
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
@@ -113,9 +89,6 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass, instantiate, replace
-
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
 
     @configclass
     class SceneCfg(InteractiveSceneCfg):
@@ -166,20 +139,14 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=0.0, filter_collisions=True))
         sim.register_interactive_scene(scene)
         try:
-            # PPISP owns exposure before physics imports the camera into the shared scene.
+            # PPISP owns exposure before scene export.
             for prim in sim_utils.find_matching_prims(scene["other_camera"].cfg.prim_path, sim.stage):
                 assert prim.GetAttribute("exposure:iso").Get() == 0.0
                 assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
-            # Full-stage consumers need authored copies, which prototype-only sharing cannot preserve.
-            with monkeypatch.context() as full_stage:
-                full_stage.setattr(OvPhysxManager, "_requires_full_stage", True)
-                with pytest.raises(ValueError, match="full-stage"):
-                    sim.reset()
             sim.reset()
             scene.reset()
             camera, other = scene["camera"], scene["other_camera"]
-            assert camera._renderer.backend is other._renderer.backend
-            assert sim.physics_manager.backend.stage is camera._renderer.scene.stage
+            assert camera._renderer.backend is not other._renderer.backend
             floor_pose = scene["floor"].data.root_link_pose_w.torch.clone()
             floor_pose[1, 2] += 1.0
             scene["floor"].write_root_pose_to_sim_index(root_pose=floor_pose)
@@ -203,7 +170,8 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             expected = torch.tensor([[0.0, 0.0, 1.5], [0.0, 0.0, 2.5]], device="cuda:0")
             torch.testing.assert_close(scene["body"].data.root_link_pos_w.torch, expected, atol=0.02, rtol=0.0)
             products = {sensor._render_data.render_product_path for sensor in (camera, other)}
-            assert submissions and all(submitted == products for submitted in submissions)
+            assert submissions and all(len(submitted) == 1 and submitted <= products for submitted in submissions)
+            assert set.union(*submissions) == products
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]
                 torch.testing.assert_close(depth, 6.0 - expected[:, 2] - 0.5, atol=0.02, rtol=0.0)

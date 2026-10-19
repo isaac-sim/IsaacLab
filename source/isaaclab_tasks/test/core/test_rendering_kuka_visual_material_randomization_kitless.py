@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 from rendering_test_utils import (
+    VISUAL_MATERIAL_KITLESS_COMBINATIONS,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
-    make_kitless_visual_material_rendering_params,
     make_require_ovlibs_install_fixture,
     rendering_test_kuka_visual_material_randomization,
 )
@@ -23,7 +23,7 @@ pytestmark = [
     pytest.mark.kitless,
 ]
 
-_RENDERING_PARAMS = make_kitless_visual_material_rendering_params()
+_RENDERING_PARAMS = VISUAL_MATERIAL_KITLESS_COMBINATIONS
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -32,7 +32,7 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize("ovstage_variant,physics_backend,renderer", _RENDERING_PARAMS, indirect=["ovstage_variant"])
-def test_rendering_kuka_visual_material_randomization_kitless(ovstage_variant, physics_backend, renderer):
+@pytest.mark.parametrize("physics_backend,renderer", _RENDERING_PARAMS)
+def test_rendering_kuka_visual_material_randomization_kitless(physics_backend, renderer):
     """Runtime writes must reach Newton and both OVRTX stage implementations."""
     rendering_test_kuka_visual_material_randomization(physics_backend, renderer, _COMPARISON_SCORES)

@@ -27,9 +27,7 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize(
-    "ovstage_variant,physics_backend,renderer,data_types", _RENDERING_PARAMS, indirect=["ovstage_variant"]
-)
-def test_rendering_franka_cable_kitless(ovstage_variant, physics_backend, renderer, data_types):
+@pytest.mark.parametrize("physics_backend,renderer,data_types", _RENDERING_PARAMS)
+def test_rendering_franka_cable_kitless(physics_backend, renderer, data_types):
     """Camera output must match golden images for the Franka cable test setup."""
     rendering_test_franka_cable(physics_backend, renderer, data_types, _COMPARISON_SCORES)

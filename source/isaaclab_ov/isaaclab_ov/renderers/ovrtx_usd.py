@@ -8,11 +8,11 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, UsdRender
 
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
@@ -20,6 +20,84 @@ if TYPE_CHECKING:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
 
 logger = logging.getLogger(__name__)
+
+
+def export_stage_to_string(
+    stage: Usd.Stage,
+    num_envs: int,
+    source_paths: tuple[str, ...],
+    keep_env_roots: bool = True,
+    *,
+    env_paths: Sequence[str] = (),
+) -> str:
+    """Export routed prototypes without mutating the simulation's authored USD stage.
+
+    An anonymous session layer hides non-source subtrees, including copies already authored
+    by USD replication. Native clone contexts recreate environment frames from the clone plan;
+    callers preserving authored frames can retain them with ``keep_env_roots``.
+
+    Args:
+        stage: USD stage to export.
+        num_envs: Number of parallel environments. Source filtering is skipped for one environment.
+        source_paths: Prototype subtrees retained with their materials and descendants.
+        keep_env_roots: Whether to retain non-source environment roots and their transforms.
+        env_paths: Environment frames to create in the private export before native cloning.
+
+    Returns:
+        USDA text containing the selected prototypes.
+    """
+    export_session = Sdf.Layer.CreateAnonymous()
+    export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
+    export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
+    export_stage.SetEditTarget(export_session)
+    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
+    settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
+    settings = UsdRender.Settings.Define(export_stage, settings_path)
+    settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
+    settings.GetPrim().CreateAttribute(
+        "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
+    ).Set(True)
+    export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
+    if num_envs > 1:
+        envs_path = Sdf.Path("/World/envs")
+        envs_prim = export_stage.GetPrimAtPath(envs_path)
+
+        source_path_set = frozenset(map(Sdf.Path, source_paths))
+        retained_env_paths = frozenset(map(Sdf.Path, env_paths))
+        ancestors = {prefix for source in source_path_set for prefix in source.GetPrefixes()}
+        prim_paths = []
+        prims = iter(Usd.PrimRange(envs_prim))
+        next(prims, None)
+        for prim in prims:
+            path = prim.GetPath()
+            if path in source_path_set:
+                prims.PruneChildren()
+            elif (
+                path not in ancestors
+                and path not in retained_env_paths
+                and not (keep_env_roots and path.GetParentPath() == envs_path)
+            ):
+                # Kit may already have USD copies; explicit routing may also exclude a prototype.
+                prim_paths.append(path)
+                prims.PruneChildren()
+
+        with Sdf.ChangeBlock():
+            for prim_path in prim_paths:
+                Sdf.CreatePrimInLayer(export_session, prim_path).active = False
+                logger.debug("Deactivated prim: %s", prim_path)
+        logger.info("Deactivated %d prims in total", len(prim_paths))
+    # CPU hierarchy propagation requires USD-populated frames, including clone ancestors.
+    # Author them only in the export; native cloning writes their poses from the plan.
+    layer = export_stage.Flatten()
+    with Sdf.ChangeBlock():
+        for path in env_paths:
+            prim = Sdf.CreatePrimInLayer(layer, path)
+            if not prim.typeName:
+                prim.typeName = "Xform"
+            while prim and prim.specifier == Sdf.SpecifierOver:
+                prim.specifier = Sdf.SpecifierDef
+                prim = prim.nameParent
+    return layer.ExportToString()
 
 
 # Maps camera data types to (prim name, source name). Shared sources use one config.

@@ -30,7 +30,6 @@ def _native_backend(monkeypatch):
     backend = OvPhysxBackend.__new__(OvPhysxBackend)
     backend.physx = None
     backend.stage = backend.scene = None
-    backend.owns_scene = True
     backend.rigid_body_view = None
     monkeypatch.setattr(OvPhysxManager, "backend", backend)
     monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
@@ -193,7 +192,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
     )
 
     class FakeStage:
-        def __init__(self, name):
+        def __init__(self, name, config):
             stages.append(self)
             events.append(("stage", name))
 
@@ -240,11 +239,14 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
             ("populate", stage, usda, ordinal, domains)
         )
     )
-    from isaaclab_ov import stage as stage_module
+    from isaaclab_ov.physics import ovphysx_stage as stage_module
 
+    fake_ovstage.PopulationDomain = stage_module.ovstage.PopulationDomain
+    fake_ovstage.HierarchyComputationModel = stage_module.ovstage.HierarchyComputationModel
+    fake_ovstage.StageConfig = lambda **kwargs: object()
+    fake_ovstage.Stage = FakeStage
     fake_ovstage.PathDictionary = lambda stage: nullcontext(object())
     monkeypatch.setattr(stage_module, "ovstage", fake_ovstage)
-    monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
 
     physx = FakePhysX()
     OvPhysxManager.backend.physx = physx
@@ -267,7 +269,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
     # The seal must land between population and attach: ovphysx reads sealed data
     # only, so attaching at an unsealed ordinal silently yields an empty scene.
     assert events == [
-        ("stage", "isaaclab.scene"),
+        ("stage", "isaaclab.physics"),
         ("populate", stage, "#usda 1.0", 1, om_mod.ovstage.PopulationDomain.ALL),
         ("seal", 1),
         ("attach", stage, 1),
@@ -390,13 +392,13 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
 
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     """A failed in-memory population does not leak its OVStage allocation."""
-    from isaaclab_ov import stage as stage_module
     from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import ovphysx_stage as stage_module
 
     destroyed = []
 
     class FakeStage:
-        def __init__(self, name):
+        def __init__(self, name, config):
             self.name = name
 
         def __enter__(self):
@@ -410,15 +412,18 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.population = SimpleNamespace(open_usd_from_string=fail_population)
+    fake_ovstage.PopulationDomain = stage_module.ovstage.PopulationDomain
+    fake_ovstage.HierarchyComputationModel = stage_module.ovstage.HierarchyComputationModel
+    fake_ovstage.StageConfig = lambda **kwargs: object()
+    fake_ovstage.Stage = FakeStage
     fake_ovstage.PathDictionary = lambda stage: nullcontext(object())
     monkeypatch.setattr(stage_module, "ovstage", fake_ovstage)
-    monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
 
     with pytest.raises(RuntimeError, match="population failed"):
         OvPhysxManager.backend.load("#usda 1.0")
     assert OvPhysxManager.backend.stage is None
 
-    assert destroyed == ["isaaclab.scene"]
+    assert destroyed == ["isaaclab.physics"]
 
 
 def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):

@@ -2663,8 +2663,6 @@ references before initialization. Code that initializes a visualizer directly mu
 ``PerspectiveCameraCfg`` objects and existing ``Camera`` sensors through ``cameras``.
 Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
 GL and RTX image capture both require an initialized visualizer; capture after ``sim.reset()``.
-Downstream ``OvstageBackend.populate(stage, plan)`` calls must supply the declared ``ClonePlan``.
-Standalone scenes can obtain it with ``sim.get_clone_plan()`` after entering ``ReplicateSession``.
 The base ``initialize()`` also selects visible environments once. Pass ``get_visualized_env_ids()``
 to the viewer instead of calling ``newton_adapter.resolve_visible_env_indices`` or
 ``apply_viewer_visible_worlds``; both helpers have been removed. The returned selection already

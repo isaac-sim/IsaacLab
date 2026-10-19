@@ -37,18 +37,17 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.sim.schemas.schemas import _setup_omniphysics_deformable_body
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils import instantiate
 from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov.cloner import OvPhysxReplicateContext
-from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
+from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, export_stage_to_string
 
 from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
+from .ovphysx_stage import OvstageBackend
 
 if TYPE_CHECKING:
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
@@ -301,9 +300,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
 
 class OvPhysxBackend:
-    """Own the native OVPhysX runtime and either own or borrow its stage."""
+    """Own the native OVPhysX runtime and its physics stage."""
 
-    def __init__(self, cfg: OvPhysxBackendCfg, *, scene: OvstageBackend | None = None):
+    def __init__(self, cfg: OvPhysxBackendCfg):
         ovphysx.bootstrap()
         is_gpu = cfg.device.startswith("cuda:")
         cache_dir = cfg.cooked_collider_cache_dir
@@ -326,8 +325,7 @@ class OvPhysxBackend:
             ),
             active_cuda_gpus=cfg.device.removeprefix("cuda:") if is_gpu else None,
         )
-        self.scene = scene
-        self.owns_scene = scene is None
+        self.scene: OvstageBackend | None = None
         self.stage: Any = None
         self.rigid_body_view: Any = None
 
@@ -347,14 +345,13 @@ class OvPhysxBackend:
             self.stage = None
         if self.scene is None:
             # PHYSICS population currently omits native-instance collider dependencies.
-            self.scene = instantiate(OvstageBackendCfg(population_domains=ovstage.PopulationDomain.ALL))
+            self.scene = OvstageBackend()
         try:
             self.scene.populate(stage_usda)
             operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
         except Exception:
-            if self.owns_scene:
-                self.scene.close()
-                self.scene = None
+            self.scene.close()
+            self.scene = None
             raise
         self.stage = self.scene.stage
         # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
@@ -364,7 +361,7 @@ class OvPhysxBackend:
         """Release bindings, the runtime, and its stage in native teardown order."""
         physx = self.physx
         if physx is None:
-            if self.owns_scene and self.scene is not None:
+            if self.scene is not None:
                 self.scene.close()
             self.stage = None
             return
@@ -399,7 +396,7 @@ class OvPhysxBackend:
         finally:
             if release_owners:
                 self.physx = None
-                if self.owns_scene and self.scene is not None:
+                if self.scene is not None:
                     self.scene.close()
                 self.stage = None
 
@@ -706,14 +703,6 @@ class OvPhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
-        shared_scene = next(
-            (scene for scene in sim.get_backends(OvstageBackendCfg) if scene.cfg.scene_key is None), None
-        )
-        if shared_scene is not None and cls._requires_full_stage:
-            raise ValueError(
-                "Shared OVStage cloning does not support full-stage physics imports. "
-                "Disable ISAAC_LAB_SHARE_OVSTAGE for this scene."
-            )
         plan = sim.get_clone_plan()
         entries = None
         if plan is not None:
@@ -727,29 +716,14 @@ class OvPhysxManager(PhysicsManager):
             scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
         cls._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, PhysicsManager._cfg, ovphysx_device)
 
-        if shared_scene is not None:
-            stage_usda = export_stage_to_string(
-                sim.stage,
-                len(shared_scene.clone_env_paths),
-                source_paths=tuple(source for source, _ in shared_scene.clone_copies),
-                keep_env_roots=False,
-                env_paths=shared_scene.population_env_paths,
-            )
-            if ovphysx_compat.OVPHYSX_USES_TASKS:
-                layer = Sdf.Layer.CreateAnonymous()
-                layer.ImportFromString(stage_usda)
-                _convert_legacy_joint_properties(layer, sim.cfg.physics.legacy_joint_friction_replacements)
-                stage_usda = layer.ExportToString()
-            native_clones = ()
-        else:
-            full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
-            stage_usda, native_clones = _serialize_stage(
-                sim.stage,
-                cls._clone_recipes,
-                full_stage,
-                plan,
-                friction_replacements=sim.cfg.physics.legacy_joint_friction_replacements,
-            )
+        full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
+        stage_usda, native_clones = _serialize_stage(
+            sim.stage,
+            cls._clone_recipes,
+            full_stage,
+            plan,
+            friction_replacements=sim.cfg.physics.legacy_joint_friction_replacements,
+        )
         cls._stage_usda = stage_usda
 
         cls.backend = sim.get_or_create_backend(
@@ -757,7 +731,6 @@ class OvPhysxManager(PhysicsManager):
                 device=PhysicsManager._device,
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
             ),
-            scene=shared_scene,
         )
         if not cls._atexit_registered:
             atexit.register(cls._close_at_exit)

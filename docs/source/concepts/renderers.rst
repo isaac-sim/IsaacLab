@@ -375,7 +375,7 @@ Asynchronous Rendering
 
 :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` returns a camera's previous capture
 while rendering its next image. This allows rendering to overlap simulation and Python work.
-The first capture, including after reset, waits for a fresh image. The ovstage path stays synchronous.
+The first capture, including after reset, waits for a fresh image.
 
 Latency is one capture, not necessarily one physics or control step. State observations remain
 current, so enabling this option changes the policy's observation timing; training may need to

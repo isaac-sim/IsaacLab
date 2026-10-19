@@ -59,8 +59,6 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
 
     def _update_geometry(self, renderer) -> None:
         if self.rendering is not None:
-            import ovstage
-            from isaaclab_ov.stage import OVSTAGE_POINT_DTYPE
             from ovrtx import DataAccess
 
             from pxr import Usd, UsdGeom, UsdShade
@@ -103,32 +101,15 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                     UsdShade.MaterialBindingAPI.Apply(water.GetPrim()).Bind(material)
                 usd = stage.GetRootLayer().ExportToString()
                 renderer.geometry_resources.callback(self._geometry_queries.pop, renderer, None)
-                if renderer._use_ovstage:
-                    reference = ovstage.population.add_usd_reference_from_string(renderer.scene.stage, usd, root)
-                    renderer.geometry_resources.callback(renderer._remove_usd_reference, reference)
-                    ovstage.population.apply_usd_changes(renderer.scene.stage, ordinal=renderer.scene.ordinal)
-                    for path in attributes:
-                        queries[path] = renderer.geometry_resources.enter_context(renderer.scene.query([path]))
-                else:
-                    reference = renderer.backend.renderer.add_usd_reference_from_string(usd, root)
-                    renderer.geometry_resources.callback(renderer.backend.renderer.remove_usd, reference)
-                    queries.update(dict.fromkeys(attributes))
+                reference = renderer.backend.renderer.add_usd_reference_from_string(usd, root)
+                renderer.geometry_resources.callback(renderer.backend.renderer.remove_usd, reference)
+                queries.update(dict.fromkeys(attributes))
             stream = wp.get_stream(self.rendering._model.device).cuda_stream or 1
-            semantics = {"points": ovstage.AttributeSemantic.POINT, "normals": ovstage.AttributeSemantic.NORMAL}
             for path, values in attributes.items():
                 for name, array in values.items():
-                    if renderer._use_ovstage:
-                        renderer.scene.stage.write_attribute(
-                            queries[path], name, ordinal=renderer.scene.ordinal,
-                            tensors=[ovstage.make_dltensor(array, dtype=OVSTAGE_POINT_DTYPE)
-                                     if name in ("points", "normals", "primvars:displayColor") else array],
-                            is_array=True, semantic=semantics.get(name, ovstage.AttributeSemantic.NONE),
-                            cuda_stream=stream,
-                        ).wait()  # fmt: skip
-                    else:
-                        renderer.backend.renderer.write_array_attribute(
-                            [path], name, [array], data_access=DataAccess.ASYNC, cuda_stream=stream
-                        )
+                    renderer.backend.renderer.write_array_attribute(
+                        [path], name, [array], data_access=DataAccess.ASYNC, cuda_stream=stream
+                    )
 
 
 class CoffeeRendering:

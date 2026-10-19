@@ -350,10 +350,10 @@ Exposing native handles does not replace SDP transport.
 
 Clone preparation resolves the contexts requested by consumer configurations before native
 initialization. Contexts derive from :class:`~isaaclab.cloner.ReplicateContext`; its default
-``prepare(sim, routing)`` keeps the declared routes. Overrides can merge routes for a shared
-representation and acquire resources through the simulation registry. For example, the OV package
-can replace native OVPhysX and OVRTX routes with one OVStage route. Renderer constructors declare
-requirements; they must not select another consumer's cloning path. Preparation also runs before
+``prepare(sim, routing)`` keeps the declared routes. Overrides can acquire resources through the
+simulation registry. The OV package keeps OVPhysX physics clones and OVRTX rendering clones with
+their respective native engines. Renderer constructors declare requirements; they must not select
+another consumer's cloning path. Preparation also runs before
 reset for standalone consumers registered after scene construction.
 Consumers registered after physics is ready use the same preparation before their initialization.
 

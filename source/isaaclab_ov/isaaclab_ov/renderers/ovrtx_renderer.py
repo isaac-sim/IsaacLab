@@ -22,7 +22,6 @@ How it fits together
 from __future__ import annotations
 
 import contextlib
-import ctypes
 import logging
 import math
 import os
@@ -38,7 +37,6 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import ovstage
 import torch
 import warp as wp
 
@@ -67,6 +65,7 @@ from PIL import Image
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.physics import PhysicsEvent
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera.camera_data import CameraData
@@ -94,15 +93,10 @@ from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
+    export_stage_to_string,
     render_var_prim_names_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
-from isaaclab_ov.stage import (
-    export_stage_to_string,
-    points_tensor_from_warp,
-    xform_tensor_from_numpy,
-    xform_tensor_from_warp,
-)
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -110,7 +104,6 @@ if TYPE_CHECKING:
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
-    from isaaclab_ov.stage import OvstageBackend
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
@@ -187,17 +180,11 @@ def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
 
 
 class OVRTXBackend:
-    """Own one native renderer, independently of its camera products and optional OVStage."""
+    """Own one native renderer and its scene."""
 
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
-        self.attached = False
         self.render_products: set[str] = set()
-        # Resolve the wheel's native dependency here, including callers without a viewer.
-        dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
-        if dependency.exists():
-            with contextlib.suppress(OSError):
-                ctypes.CDLL(str(dependency))
         # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
         sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
@@ -212,27 +199,24 @@ class OVRTXBackend:
         # Redirection may initialize the native library and must use the same settings.
         redirect_shader_cache(native_cfg)
         self.next_camera_id = 0
-        if not cfg.use_ovstage:
-            # Prepared by clone dispatch, consumed after camera overrides are authored.
-            self.clone_copies: list[tuple[str, list[str]]] = []
-            self.clone_env_paths: list[str] = []
-            self.population_env_paths: list[str] = []
-            self.clone_positions: np.ndarray | None = None
+        # Prepared by clone dispatch, consumed after camera overrides are authored.
+        self.clone_copies: list[tuple[str, list[str]]] = []
+        self.clone_env_paths: list[str] = []
+        self.population_env_paths: list[str] = []
+        self.clone_positions: np.ndarray | None = None
         self.renderer = Renderer(native_cfg)
 
-    def detach(self) -> None:
-        """Release the borrowed stage before it is rebuilt or destroyed."""
-        if self.attached:
-            self.renderer.detach_ovstage()
-            self.attached = False
+    def reset_scene(self) -> None:
+        """Discard the old native scene after its renderers release their bindings."""
+        self.renderer.reset_stage()
+        self.next_camera_id = 0
+        self.render_products.clear()
 
     def close(self) -> None:
-        """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
+        """Destroy the engine and its scene."""
         if self.renderer is not None:
-            # The SDK destroys bindings and detaches only if attached, including partial initialization.
             self.renderer.destroy()
             self.renderer = None
-            self.attached = False
 
 
 class OVRTXCameraRenderData:
@@ -258,7 +242,7 @@ class OVRTXCameraRenderData:
         self.render_var_keys = {
             source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()
         }
-        self.camera_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
+        self.camera_xform_binding: AttributeBinding[wp.array] | None = None
         self.resources = contextlib.ExitStack()
         self.width = spec.cfg.width
         self.height = spec.cfg.height
@@ -338,15 +322,26 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = False
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
+        self._stop_handle = None
 
-        # Clone preparation resolves scene ownership before acquiring native resources.
-        self._use_ovstage = False
-        self.scene: OvstageBackend | OVRTXBackend | None = None
         self.backend: OVRTXBackend | None = None
         """Native engine borrowed from the simulation registry after clone preparation."""
-        self._object_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
-        self._geometry_points_binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
+        self._object_xform_binding: AttributeBinding[wp.array] | None = None
+        self._geometry_points_binding: AttributeBinding[list[wp.array]] | None = None
         self._bindings = contextlib.ExitStack()
+
+    def initialize(self) -> None:
+        """Release the native scene after cameras and material writers respond to physics STOP."""
+        if self._stop_handle is None:
+            self._stop_handle = self._sim.physics_manager.register_callback(
+                self._on_physics_stop, PhysicsEvent.STOP, order=110
+            )
+
+    def _on_physics_stop(self, _payload: Any) -> None:
+        if self.backend is not None and self.backend.renderer is not None:
+            self._release_scene()
+            self.backend.reset_scene()
+            self._sim.render_context.reset_stage_prepare_flag()
 
     @property
     def visual_material_writer(self):
@@ -360,47 +355,27 @@ class OVRTXRenderer(BaseRenderer):
         return writer
 
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
-        """Load, clone, and bind the shared scene before any camera products are registered."""
+        """Load, clone, and bind the native scene before camera products are registered."""
         logger.info("Preparing stage (%d envs)...", num_envs)
-        env_paths = self.scene.clone_env_paths
-        if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
-            if self.cfg.temp_usd_dir is not None:
-                _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
-            usd = export_stage_to_string(
-                stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
-                keep_env_roots=False, env_paths=self.scene.population_env_paths,
-            )  # fmt: skip
-            if self.cfg.temp_usd_dir is not None:
-                _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
-            if self._use_ovstage:
-                self.scene.populate(usd)
-            else:
-                self.backend.renderer.open_usd_from_string(usd)
-                ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
+        env_paths = self.backend.clone_env_paths
+        if self.cfg.temp_usd_dir is not None:
+            _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
+        usd = export_stage_to_string(
+            stage, num_envs, source_paths=tuple(source for source, _ in self.backend.clone_copies),
+            keep_env_roots=False, env_paths=self.backend.population_env_paths,
+        )  # fmt: skip
+        if self.cfg.temp_usd_dir is not None:
+            _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
+        self.backend.renderer.open_usd_from_string(usd)
+        ovrtx_replicate(self.backend.renderer, self.backend.clone_copies, env_paths, self.backend.clone_positions)
         tokens = [f"env_{i}" for i in range(len(env_paths))]
         if env_paths:
-            if self._use_ovstage:
-                with self.scene.query(env_paths) as query:
-                    self.scene.stage.write_attribute(
-                        query, "primvars:omni:scenePartition", ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_token(token) for token in tokens], np.uint64),
-                        is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
-                    ).wait()  # fmt: skip
-            else:
-                self.backend.renderer.write_attribute(
-                    env_paths, "primvars:omni:scenePartition", tokens,
-                    semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
-                )  # fmt: skip
+            self.backend.renderer.write_attribute(
+                env_paths, "primvars:omni:scenePartition", tokens,
+                semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
+            )  # fmt: skip
         self._setup_xform_bindings(stage)
         self._setup_geometry_bindings()
-        if self._use_ovstage:
-            self.scene.commit()
-            if not self.backend.attached:
-                self.backend.renderer.attach_ovstage(self.scene.stage)
-                self.backend.attached = True
-                self.scene.resources.callback(self.backend.detach)
-            self.scene.resources.callback(self._sim.render_context.reset_stage_prepare_flag)
-            self.scene.resources.callback(self.close)
         self._initialized_scene = True
 
     def _setup_xform_bindings(self, stage: Usd.Stage) -> None:
@@ -411,7 +386,7 @@ class OVRTXRenderer(BaseRenderer):
         # SDP poses omit scale. Include native copies that do not exist on the authored USD stage.
         scales_by_path = {}
         xform_cache = UsdGeom.XformCache()
-        for root, targets in self.scene.clone_copies:
+        for root, targets in self.backend.clone_copies:
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
                 if not prim.IsA(UsdGeom.Xformable):
                     continue
@@ -426,28 +401,18 @@ class OVRTXRenderer(BaseRenderer):
             scales = [scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
             self._object_scales = wp.array(scales, dtype=wp.vec3f, device=self._device)
         reset_xforms = np.ones(len(object_paths), dtype=np.bool_)
-        if self._use_ovstage:
-            self._object_xform_binding = self._bindings.enter_context(self.scene.query(object_paths))
-            self.scene.stage.write_attribute(
-                self._object_xform_binding,
-                "omni:resetXformStack",
-                ordinal=self.scene.ordinal,
-                tensors=reset_xforms,
-                is_array=False,
-            ).wait()
-        else:
-            self._object_xform_binding = self.backend.renderer.bind_attribute(
-                prim_paths=object_paths,
-                attribute_name="omni:xform",
-                semantic=Semantic.XFORM_MAT4x4,
-                prim_mode=PrimMode.EXISTING_ONLY,
-            )
-            if self._object_xform_binding is None:
-                raise RuntimeError("Failed to create OVRTX object bindings")
-            self._bindings.callback(self._object_xform_binding.unbind)
-            self.backend.renderer.write_attribute(
-                prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
-            )
+        self._object_xform_binding = self.backend.renderer.bind_attribute(
+            prim_paths=object_paths,
+            attribute_name="omni:xform",
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.EXISTING_ONLY,
+        )
+        if self._object_xform_binding is None:
+            raise RuntimeError("Failed to create OVRTX object bindings")
+        self._bindings.callback(self._object_xform_binding.unbind)
+        self.backend.renderer.write_attribute(
+            prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
+        )
 
     def _setup_geometry_bindings(self) -> None:
         """Bind SDP's world-space point prims without applying inherited transforms again."""
@@ -458,64 +423,44 @@ class OVRTXRenderer(BaseRenderer):
         prim_count = len(self._geometry_paths)
         reset_xforms = np.ones(prim_count, dtype=np.bool_)
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        if self._use_ovstage:
-            self._geometry_points_binding = self._bindings.enter_context(self.scene.query(self._geometry_paths))
-            self.scene.stage.write_attribute(
-                self._geometry_points_binding,
-                "omni:resetXformStack",
-                ordinal=self.scene.ordinal,
-                tensors=reset_xforms,
-                is_array=False,
-            ).wait()
-            self.scene.stage.write_attribute(
-                self._geometry_points_binding,
-                "omni:xform",
-                ordinal=self.scene.ordinal,
-                tensors=xform_tensor_from_numpy(identity_xforms),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-            ).wait()
-        else:
-            if self.cfg.async_rendering:
-                count = 0
-                for path, array in points.items():
-                    self._geometry_offsets[path] = count
-                    count += len(array)
-                self._geometry_writes = _AsyncWriteBuffers(
-                    wp.empty(count, wp.vec3f, device=self._device) for _ in range(2)
-                )
-            self.backend.renderer.write_attribute(
-                prim_paths=self._geometry_paths,
-                attribute_name="omni:resetXformStack",
-                tensor=reset_xforms,
-                prim_mode=PrimMode.MUST_EXIST,
-            )
-            self.backend.renderer.write_attribute(
-                prim_paths=self._geometry_paths,
-                attribute_name="omni:xform",
-                tensor=identity_xforms,
-                semantic=Semantic.XFORM_MAT4x4,
-                prim_mode=PrimMode.MUST_EXIST,
-            )
-            self._geometry_points_binding = self.backend.renderer.bind_array_attribute(
-                prim_paths=self._geometry_paths,
-                attribute_name="points",
-                dtype=np.float32,
-                shape=(3,),
-                prim_mode=PrimMode.MUST_EXIST,
-                flags=BindingFlag.OPTIMIZE,
-            )
-            if self._geometry_points_binding is None:
-                raise RuntimeError("Failed to create OVRTX geometry point bindings")
-            self._bindings.callback(self._geometry_points_binding.unbind)
+        if self.cfg.async_rendering:
+            count = 0
+            for path, array in points.items():
+                self._geometry_offsets[path] = count
+                count += len(array)
+            self._geometry_writes = _AsyncWriteBuffers(wp.empty(count, wp.vec3f, device=self._device) for _ in range(2))
+        self.backend.renderer.write_attribute(
+            prim_paths=self._geometry_paths,
+            attribute_name="omni:resetXformStack",
+            tensor=reset_xforms,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+        self.backend.renderer.write_attribute(
+            prim_paths=self._geometry_paths,
+            attribute_name="omni:xform",
+            tensor=identity_xforms,
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+        self._geometry_points_binding = self.backend.renderer.bind_array_attribute(
+            prim_paths=self._geometry_paths,
+            attribute_name="points",
+            dtype=np.float32,
+            shape=(3,),
+            prim_mode=PrimMode.MUST_EXIST,
+            flags=BindingFlag.OPTIMIZE,
+        )
+        if self._geometry_points_binding is None:
+            raise RuntimeError("Failed to create OVRTX geometry point bindings")
+        self._bindings.callback(self._geometry_points_binding.unbind)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Register a camera's product and bindings in the prepared scene."""
         if str(wp.get_device(spec.device)) != self._device:
             raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
-        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}")
+        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.backend.next_camera_id}")
         camera_paths = render_data.camera_paths
-        env_camera = any(camera_paths[0].startswith(path + "/") for path in self.scene.clone_env_paths)
+        env_camera = any(camera_paths[0].startswith(path + "/") for path in self.backend.clone_env_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
         usd = build_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
@@ -527,83 +472,47 @@ class OVRTXRenderer(BaseRenderer):
                 raise ExceptionGroup("OVRTX renders failed before camera registration", errors)
             if self.cfg.temp_usd_dir is not None:
                 _write_combined_stage(Path(self.cfg.temp_usd_dir), usd)
-            if self._use_ovstage:
-                reference = ovstage.population.add_usd_reference_from_string(self.scene.stage, usd, f"/{scope}")
-                render_data.resources.callback(self._remove_usd_reference, reference)
-                ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
-                with self.scene.query([product_path]) as query:
-                    # USD references drop external camera targets; author the relationship in Fabric.
-                    self.scene.stage.write_attribute(
-                        query,
-                        "camera",
-                        ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
-                        is_array=True,
-                        semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
-                    ).wait()
-                render_data.camera_xform_binding = render_data.resources.enter_context(self.scene.query(camera_paths))
-                self.scene.stage.write_attribute(
-                    render_data.camera_xform_binding,
-                    "omni:resetXformStack",
-                    ordinal=self.scene.ordinal,
-                    tensors=np.full(spec.num_instances, True, dtype=np.bool_),
-                    is_array=False,
-                ).wait()
-                if env_camera:
-                    self.scene.stage.write_attribute(
-                        render_data.camera_xform_binding,
-                        "omni:scenePartition",
-                        ordinal=self.scene.ordinal,
-                        tensors=np.array(
-                            [self.scene.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)],
-                            dtype=np.uint64,
-                        ),
-                        is_array=False,
-                        semantic=ovstage.AttributeSemantic.TOKEN_ID,
-                    ).wait()
-            else:
-                reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
-                render_data.resources.callback(self.backend.renderer.remove_usd, reference)
-                self.backend.renderer.write_array_attribute(
-                    prim_paths=[product_path],
-                    attribute_name="camera",
-                    tensors=[camera_paths],
-                )
-                render_data.camera_xform_binding = self.backend.renderer.bind_attribute(
-                    prim_paths=camera_paths,
-                    attribute_name="omni:xform",
-                    semantic=Semantic.XFORM_MAT4x4,
-                    prim_mode=PrimMode.EXISTING_ONLY,
-                )
-                render_data.resources.callback(render_data.camera_xform_binding.unbind)
+            reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
+            render_data.resources.callback(self.backend.renderer.remove_usd, reference)
+            self.backend.renderer.write_array_attribute(
+                prim_paths=[product_path],
+                attribute_name="camera",
+                tensors=[camera_paths],
+            )
+            render_data.camera_xform_binding = self.backend.renderer.bind_attribute(
+                prim_paths=camera_paths,
+                attribute_name="omni:xform",
+                semantic=Semantic.XFORM_MAT4x4,
+                prim_mode=PrimMode.EXISTING_ONLY,
+            )
+            render_data.resources.callback(render_data.camera_xform_binding.unbind)
+            self.backend.renderer.write_attribute(
+                prim_paths=camera_paths,
+                attribute_name="omni:resetXformStack",
+                tensor=np.full(spec.num_instances, True, dtype=np.bool_),
+            )
+            if env_camera:
                 self.backend.renderer.write_attribute(
-                    prim_paths=camera_paths,
-                    attribute_name="omni:resetXformStack",
-                    tensor=np.full(spec.num_instances, True, dtype=np.bool_),
+                    camera_paths,
+                    "omni:scenePartition",
+                    [f"env_{i}" for i in range(spec.num_instances)],
+                    semantic=Semantic.TOKEN_STRING,
                 )
-                if env_camera:
-                    self.backend.renderer.write_attribute(
-                        camera_paths,
-                        "omni:scenePartition",
-                        [f"env_{i}" for i in range(spec.num_instances)],
-                        semantic=Semantic.TOKEN_STRING,
-                    )
             render_data.camera_writes = _AsyncWriteBuffers(
                 wp.empty(spec.num_instances, wp.mat44d, device=self._device)
-                for _ in range(2 if self.cfg.async_rendering and not self._use_ovstage else 1)
+                for _ in range(2 if self.cfg.async_rendering else 1)
             )
-            if not self._use_ovstage:
-                for name in _CAMERA_INTRINSIC_ATTRIBUTES:
-                    binding = self.backend.renderer.bind_attribute(
-                        prim_paths=camera_paths, attribute_name=name, dtype="float32",
-                        prim_mode=PrimMode.EXISTING_ONLY, flags=BindingFlag.OPTIMIZE,
-                    )  # fmt: skip
-                    render_data.resources.callback(binding.unbind)
-                    render_data.intrinsic_bindings.append(binding)
+            for name in _CAMERA_INTRINSIC_ATTRIBUTES:
+                binding = self.backend.renderer.bind_attribute(
+                    prim_paths=camera_paths, attribute_name=name, dtype="float32",
+                    prim_mode=PrimMode.EXISTING_ONLY, flags=BindingFlag.OPTIMIZE,
+                )  # fmt: skip
+                render_data.resources.callback(binding.unbind)
+                render_data.intrinsic_bindings.append(binding)
         except Exception:
             render_data.cleanup()
             raise
-        self.scene.next_camera_id += 1
+        self.backend.next_camera_id += 1
         self._camera_render_data.append(render_data)
         self.backend.render_products.add(render_data.render_product_path)
         render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
@@ -642,7 +551,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def prepare_capture(self, render_data: OVRTXCameraRenderData, camera_data: CameraData, frame: ProxyArray) -> None:
         """Snapshot delayed-image metadata without changing live camera state."""
-        if self.cfg.async_rendering and not self._use_ovstage:
+        if self.cfg.async_rendering:
             render_data.capture = {
                 name: ProxyArray(wp.clone(value.warp))
                 for name, value in (
@@ -659,7 +568,7 @@ class OVRTXRenderer(BaseRenderer):
         camera_data: CameraData | None = None,
     ) -> None:
         """Publish this product's pixels, and copy matching metadata when a sensor requests it."""
-        if self.cfg.async_rendering and not self._use_ovstage and render_data.ready is None:
+        if self.cfg.async_rendering and render_data.ready is None:
             return
         capture = {}
         if render_data.ready is not None:
@@ -937,24 +846,12 @@ class OVRTXRenderer(BaseRenderer):
         if self._transforms_timestamp == timestamp:
             return
         stream = self._warp_device.stream
-        asynchronous = self.cfg.async_rendering and not self._use_ovstage
+        asynchronous = self.cfg.async_rendering
         output = self._transform_writes.acquire(stream)
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
         matrices = output.matrices
-        if self._use_ovstage:
-            # The write waits for consumption; the producing CUDA stream orders access to the
-            # borrowed buffer.
-            self.scene.stage.write_attribute(
-                binding,
-                "omni:xform",
-                ordinal=self.scene.ordinal,
-                tensors=xform_tensor_from_warp(matrices),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        elif asynchronous:
+        if asynchronous:
             self._transform_writes.submit(binding, matrices, stream)
         else:
             binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
@@ -980,7 +877,7 @@ class OVRTXRenderer(BaseRenderer):
         if binding is None:
             return
         stream = self._warp_device.stream
-        asynchronous = self.cfg.async_rendering and not self._use_ovstage
+        asynchronous = self.cfg.async_rendering
         if asynchronous:
             output = self._geometry_writes.acquire(stream)
             self._sdp.get_geometry_points(output=output, offsets=self._geometry_offsets)
@@ -992,17 +889,7 @@ class OVRTXRenderer(BaseRenderer):
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        if self._use_ovstage:
-            self.scene.stage.write_attribute(
-                binding,
-                "points",
-                ordinal=self.scene.ordinal,
-                tensors=[points_tensor_from_warp(array) for array in points],
-                is_array=True,
-                semantic=ovstage.AttributeSemantic.POINT,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        elif asynchronous:
+        if asynchronous:
             self._geometry_writes.submit(binding, points, stream)
         else:
             binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
@@ -1024,20 +911,9 @@ class OVRTXRenderer(BaseRenderer):
         wp.launch(
             create_camera_transforms_kernel, len(matrices), [positions, orientations, matrices], device=self._device
         )
-        if self._use_ovstage:
-            self.scene.stage.write_attribute(
-                binding,
-                "omni:xform",
-                ordinal=self.scene.ordinal,
-                tensors=xform_tensor_from_warp(matrices),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        else:
-            operation = render_data.camera_writes.submit(binding, matrices, stream)
-            if not self.cfg.async_rendering:
-                operation.wait()
+        operation = render_data.camera_writes.submit(binding, matrices, stream)
+        if not self.cfg.async_rendering:
+            operation.wait()
 
     def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
         """Publish calibration columns from GPU memory into the renderer-owned scene."""
@@ -1047,25 +923,15 @@ class OVRTXRenderer(BaseRenderer):
         if errors:
             raise ExceptionGroup("OVRTX renders failed before calibration update", errors)
         stream = wp.get_stream(parameters.device).cuda_stream or 1
-        if self._use_ovstage:
-            self.scene.stage.write_attributes(
-                render_data.camera_xform_binding,
-                [
-                    ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
-                    for row, name in enumerate(_CAMERA_INTRINSIC_ATTRIBUTES)
-                ],
-                ordinal=self.scene.ordinal,
-            ).wait()
-        else:
-            operations = []
-            try:
-                for row, binding in enumerate(render_data.intrinsic_bindings):
-                    operations.append(
-                        binding.write_async(parameters[row], data_access=DataAccess.ASYNC, cuda_stream=stream)
-                    )
-            finally:
-                for operation in operations:
-                    operation.wait()
+        operations = []
+        try:
+            for row, binding in enumerate(render_data.intrinsic_bindings):
+                operations.append(
+                    binding.write_async(parameters[row], data_access=DataAccess.ASYNC, cuda_stream=stream)
+                )
+        finally:
+            for operation in operations:
+                operation.wait()
 
     def render(self, render_data: OVRTXCameraRenderData) -> None:
         """Submit one camera capture; :meth:`read_output` publishes the available image."""
@@ -1103,9 +969,7 @@ class OVRTXRenderer(BaseRenderer):
         try:
             if material_writer is not None:
                 material_writer.publish()
-            if self._use_ovstage:
-                ordinal = self.scene.commit()
-            elif self.cfg.async_rendering:
+            if self.cfg.async_rendering:
                 unread = {data.ready[0] for data in render_data if data.ready is not None}
                 operation = self.backend.renderer.step_async(render_products=products, delta_time=_RENDER_DELTA_TIME)
                 for data in render_data:
@@ -1130,14 +994,6 @@ class OVRTXRenderer(BaseRenderer):
                         raise
                     logger.warning("Error draining material writes after a failed render: %s", e, exc_info=True)
 
-        if self._use_ovstage:
-            # Stage writes and material reads finish before rendering. Consume only after advancing
-            # the ordinal so a failed readback cannot leave later writes at the sealed floor.
-            result = self.backend.renderer.step(
-                render_products=products, delta_time=_RENDER_DELTA_TIME, ordinal=ordinal
-            )
-            self._process_render_products(render_data, result)
-
     def cleanup(self, render_data: OVRTXCameraRenderData | None) -> None:
         """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
 
@@ -1155,13 +1011,15 @@ class OVRTXRenderer(BaseRenderer):
                 if render_data in self._camera_render_data:
                     self._camera_render_data.remove(render_data)
 
-    def _remove_usd_reference(self, reference: int) -> None:
-        """Publish removal of a private USD reference at the shared stage's current ordinal."""
-        ovstage.population.remove_usd(self.scene.stage, reference)
-        ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
-
     def close(self) -> None:
-        """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
+        """Release the renderer's bindings and physics lifecycle subscription."""
+        if self._stop_handle is not None:
+            self._stop_handle.deregister()
+            self._stop_handle = None
+        self._release_scene()
+
+    def _release_scene(self) -> None:
+        """Complete borrowed-buffer reads and release bindings before native scene reset."""
         try:
             with contextlib.ExitStack() as resources:
                 resources.callback(self._bindings.close)
@@ -1300,14 +1158,8 @@ class OVRTXMesh:
                 sampler.CreateInput("scale", Sdf.ValueTypeNames.Float4).Set((*appearance[1], 1.0))
             self._native_resources.close()
             usd = self.stage.GetRootLayer().ExportToString()
-            if self.renderer._use_ovstage:
-                reference = ovstage.population.add_usd_reference_from_string(self.renderer.scene.stage, usd, self.path)
-                self._native_resources.callback(self.renderer._remove_usd_reference, reference)
-                ovstage.population.apply_usd_changes(self.renderer.scene.stage, ordinal=self.renderer.scene.ordinal)
-                self.query = self._native_resources.enter_context(self.renderer.scene.query([self.path]))
-            else:
-                reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self.path)
-                self._native_resources.callback(self.renderer.backend.renderer.remove_usd, reference)
+            reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self.path)
+            self._native_resources.callback(self.renderer.backend.renderer.remove_usd, reference)
         attributes = {"points": points, "normals": normals}
         if uvs is not None:
             attributes["primvars:st"] = uvs
@@ -1315,45 +1167,13 @@ class OVRTXMesh:
             attributes.update(faceVertexIndices=indices, faceVertexCounts=self._face_counts)
         stream = wp.get_stream(points.device).cuda_stream or 1
         for name, values in attributes.items():
-            if self.renderer._use_ovstage:
-                semantic = {
-                    "points": ovstage.AttributeSemantic.POINT,
-                    "normals": ovstage.AttributeSemantic.NORMAL,
-                    "primvars:st": ovstage.AttributeSemantic.TEXTURE_COORDINATE,
-                }.get(name, ovstage.AttributeSemantic.NONE)
-                if name in ("points", "normals"):
-                    values = points_tensor_from_warp(values)
-                elif name == "primvars:st":
-                    values = ovstage.make_dltensor(
-                        values, dtype=ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=2)
-                    )
-                self.renderer.scene.stage.write_attribute(
-                    self.query,
-                    name,
-                    ordinal=self.renderer.scene.ordinal,
-                    tensors=[values],
-                    is_array=True,
-                    semantic=semantic,
-                    cuda_stream=stream,
-                ).wait()
-            else:
-                self.renderer.backend.renderer.write_array_attribute(
-                    [self.path], name, [values], data_access=DataAccess.ASYNC, cuda_stream=stream
-                )
-        token = "invisible" if hidden or not len(points) else "inherited"
-        if self.renderer._use_ovstage:
-            self.renderer.scene.stage.write_attribute(
-                self.query,
-                "visibility",
-                ordinal=self.renderer.scene.ordinal,
-                tensors=np.array([self.renderer.scene.paths.intern_token(token)], np.uint64),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.TOKEN_ID,
-            ).wait()
-        else:
-            self.renderer.backend.renderer.write_attribute(
-                [self.path], "visibility", [token], semantic=Semantic.TOKEN_STRING
+            self.renderer.backend.renderer.write_array_attribute(
+                [self.path], name, [values], data_access=DataAccess.ASYNC, cuda_stream=stream
             )
+        token = "invisible" if hidden or not len(points) else "inherited"
+        self.renderer.backend.renderer.write_attribute(
+            [self.path], "visibility", [token], semantic=Semantic.TOKEN_STRING
+        )
 
     def close(self) -> None:
         """Release the mesh reference while the shared renderer remains alive."""
@@ -1437,39 +1257,20 @@ class OVRTXMarkers:
             if indices:
                 usd = self._stage.GetRootLayer().ExportToString()
                 with self._resources:
-                    if renderer._use_ovstage:
-                        reference = ovstage.population.add_usd_reference_from_string(
-                            renderer.scene.stage, usd, self._path
-                        )
-                        self._resources.callback(renderer._remove_usd_reference, reference)
-                        ovstage.population.apply_usd_changes(renderer.scene.stage, ordinal=renderer.scene.ordinal)
-                        self._root_query = self._resources.enter_context(renderer.scene.query([self._path]))
-                        self._query = self._resources.enter_context(renderer.scene.query(paths))
-                    else:
-                        reference = renderer.backend.renderer.add_usd_reference_from_string(usd, self._path)
-                        self._resources.callback(renderer.backend.renderer.remove_usd, reference)
-                        self._binding = renderer.backend.renderer.bind_attribute(
-                            paths, "omni:xform", semantic=Semantic.XFORM_MAT4x4
-                        )
-                        self._resources.callback(self._binding.unbind)
+                    reference = renderer.backend.renderer.add_usd_reference_from_string(usd, self._path)
+                    self._resources.callback(renderer.backend.renderer.remove_usd, reference)
+                    self._binding = renderer.backend.renderer.bind_attribute(
+                        paths, "omni:xform", semantic=Semantic.XFORM_MAT4x4
+                    )
+                    self._resources.callback(self._binding.unbind)
                     self._resources = self._resources.pop_all()
             self._layout = indices
         if not indices:
             return
         if visible != self._visible:
-            if renderer._use_ovstage:
-                renderer.scene.stage.write_attribute(
-                    self._root_query,
-                    "visibility",
-                    ordinal=renderer.scene.ordinal,
-                    tensors=np.array([renderer.scene.paths.intern_token(token)], dtype=np.uint64),
-                    is_array=False,
-                    semantic=ovstage.AttributeSemantic.TOKEN_ID,
-                ).wait()
-            else:
-                renderer.backend.renderer.write_attribute(
-                    [self._path], "visibility", [token], semantic=Semantic.TOKEN_STRING
-                )
+            renderer.backend.renderer.write_attribute(
+                [self._path], "visibility", [token], semantic=Semantic.TOKEN_STRING
+            )
             self._visible = visible
         stream = wp.stream_from_torch(torch.cuda.current_stream(translations.device))
         wp.launch(
@@ -1486,18 +1287,7 @@ class OVRTXMarkers:
             device=renderer._device,
             stream=stream,
         )
-        if renderer._use_ovstage:
-            renderer.scene.stage.write_attribute(
-                self._query,
-                "omni:xform",
-                ordinal=renderer.scene.ordinal,
-                tensors=xform_tensor_from_warp(self._transforms),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        else:
-            self._binding.write(self._transforms, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
+        self._binding.write(self._transforms, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
 
     def close(self) -> None:
         """Release bindings and geometry before the renderer's native scene closes."""

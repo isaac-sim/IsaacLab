@@ -14,7 +14,6 @@ from rendering_test_utils import (
     attach_comparison_properties,
     generate_html_report,
     group_rendering_params,
-    make_kitless_rendering_params,
     make_skip_rendering_params,
 )
 
@@ -103,36 +102,14 @@ def test_ovrtx_image_difference_threshold_is_capped(
     assert rendering_test_utils._max_different_pixels_percentage(env_name, renderer, data_type) == expected
 
 
-def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
-    """OVStage variants should be emitted only for the OVRTX renderer."""
-    params = [
-        pytest.param("newton", "ovrtx_renderer", "rgb", id="newton-ovrtx-rgb"),
-        pytest.param("newton", "newton_renderer", "rgb", id="newton-newton_warp-rgb"),
-    ]
-
-    expanded = make_kitless_rendering_params(params)
-
-    assert [param.id for param in expanded] == [
-        "legacy-newton-ovrtx-rgb",
-        "ovstage-newton-ovrtx-rgb",
-        "legacy-newton-newton_warp-rgb",
-    ]
-    assert [tuple(param.values) for param in expanded] == [
-        ("legacy", "newton", "ovrtx_renderer", "rgb"),
-        ("ovstage", "newton", "ovrtx_renderer", "rgb"),
-        ("legacy", "newton", "newton_renderer", "rgb"),
-    ]
-
-
 def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
     """Native-crash skips should override inherited retry and xfail marks."""
     params = [
         pytest.param(
-            "legacy",
             "newton",
             "ovrtx_renderer",
             "simple_shading_full_mdl",
-            id="legacy-newton-ovrtx-simple_shading_full_mdl",
+            id="newton-ovrtx-simple_shading_full_mdl",
             marks=[
                 pytest.mark.flaky(max_runs=3, min_passes=1),
                 pytest.mark.xfail(reason="Known image mismatch.", strict=False),
@@ -142,7 +119,7 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
 
     marked = make_skip_rendering_params(
         params,
-        {("legacy", "newton", "ovrtx_renderer", "simple_shading_full_mdl"): "Native renderer crash."},
+        {("newton", "ovrtx_renderer", "simple_shading_full_mdl"): "Native renderer crash."},
     )
 
     assert [mark.name for mark in marked[0].marks] == ["skip"]
@@ -157,7 +134,6 @@ def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path
             "test": "cartpole",
             "backend": "newton",
             "renderer": "ovrtx_renderer",
-            "ovstage_variant": "Yes",
             "aov": "albedo",
             "diff_pct": 12.5,
             "threshold": 1.5,
@@ -170,7 +146,6 @@ def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path
             "test": "cartpole",
             "backend": "newton",
             "renderer": "ovrtx_renderer",
-            "ovstage_variant": "Yes",
             "aov": "rgb",
             "diff_pct": 0.0,
             "threshold": 1.5,
@@ -191,7 +166,6 @@ def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path
             "test": "shadow_hand",
             "backend": "newton",
             "renderer": "ovrtx_renderer",
-            "ovstage_variant": "Yes",
             "aov": "albedo",
             "diff_pct": 0.0,
             "threshold": 5.0,
@@ -207,7 +181,6 @@ def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path
             "test": "ordinary",
             "backend": "newton",
             "renderer": "ovrtx_renderer",
-            "ovstage_variant": "Yes",
             "aov": "depth",
             "diff_pct": 50.0,
             "threshold": 5.0,

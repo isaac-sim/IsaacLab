@@ -244,8 +244,6 @@ _NEWTON_WARP_DATA_TYPES = (
 # Users should use ``instance_segmentation`` or ``semantic_segmentation`` instead.
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
-_KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
-
 
 def make_skip_rendering_params(
     params: list[pytest.param],
@@ -277,35 +275,6 @@ def make_skip_rendering_params(
             )
         )
     return marked_params
-
-
-def make_kitless_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
-    """Expand kitless rendering parameters across applicable OVRTX stage paths.
-
-    OVRTX runs through both the legacy renderer-owned stage path and the OVStage
-    path. The Newton Warp renderer does not use OVStage, so it is emitted only in
-    the legacy lane.
-
-    Args:
-        params: Rendering parameters containing physics backend, renderer, and data type values.
-
-    Returns:
-        Rendering parameters prefixed with the applicable stage variant.
-    """
-    expanded_params = []
-    for param in params:
-        renderer = param.values[1]
-        variants = _KITLESS_STAGE_VARIANTS if renderer == "ovrtx_renderer" else (_KITLESS_STAGE_VARIANTS[0],)
-        for variant in variants:
-            expanded_params.append(
-                pytest.param(
-                    variant,
-                    *param.values,
-                    id=f"{variant}-{param.id}",
-                    marks=param.marks,
-                )
-            )
-    return expanded_params
 
 
 def group_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
@@ -436,7 +405,7 @@ MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("ovphysx", "ovrtx", _MINIMAL_SENSOR_DATA_TYPES),
 ]
 
-_VISUAL_MATERIAL_KITLESS_COMBINATIONS = [
+VISUAL_MATERIAL_KITLESS_COMBINATIONS = [
     pytest.param("newton", "ovrtx_renderer", id="newton-ovrtx", marks=_FLAKY_MARK),
     pytest.param("newton", "newton_renderer", id="newton-newton_warp"),
 ]
@@ -444,7 +413,7 @@ _VISUAL_MATERIAL_KITLESS_COMBINATIONS = [
 
 def make_kitless_rendering_params_lift() -> list[pytest.param]:
     """Create kitless Lift rendering parameters."""
-    return make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    return list(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
 
 
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
@@ -452,9 +421,7 @@ def make_kitless_rendering_params_franka() -> list[pytest.param]:
 
     The Franka deformable (cloth, soft, cable) configs declare no OVPhysX preset, so OVPhysX is left out.
     """
-    params = make_kitless_rendering_params(
-        [param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS if param.values[0] != "ovphysx"]
-    )
+    params = [param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS if param.values[0] != "ovphysx"]
     params = [
         (
             pytest.param(
@@ -462,7 +429,7 @@ def make_kitless_rendering_params_franka() -> list[pytest.param]:
                 id=param.id,
                 marks=[mark for mark in param.marks if mark.name != "skip"],
             )
-            if tuple(param.values[1:]) == ("newton", "ovrtx_renderer", "motion_vectors")
+            if tuple(param.values) == ("newton", "ovrtx_renderer", "motion_vectors")
             else param
         )
         for param in params
@@ -470,14 +437,9 @@ def make_kitless_rendering_params_franka() -> list[pytest.param]:
     instance_segmentation_skips = {
         tuple(param.values): "instance_segmentation crashes with the OVRTX renderer on Franka tasks (NVBUG#6463802)."
         for param in params
-        if param.values[2] == "ovrtx_renderer" and param.values[3] == "instance_segmentation"
+        if param.values[1] == "ovrtx_renderer" and param.values[2] == "instance_segmentation"
     }
     return make_skip_rendering_params(params, instance_segmentation_skips)
-
-
-def make_kitless_visual_material_rendering_params() -> list[pytest.param]:
-    """Create kitless visual-material parameters, including both OVRTX stage paths."""
-    return make_kitless_rendering_params(_VISUAL_MATERIAL_KITLESS_COMBINATIONS)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
@@ -952,7 +914,6 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f"<td>{entry['test']}</td>"
             f"<td>{entry['backend']}</td>"
             f"<td>{entry['renderer']}</td>"
-            f"<td>{entry.get('ovstage_variant', 'No')}</td>"
             f"<td>{entry['aov']}</td>"
             f"<td>{entry['diff_pct']:.2f}</td>"
             f"<td>{entry['threshold']:.1f}</td>"
@@ -1025,7 +986,6 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>Test</th>"
         "<th>Backend</th>"
         "<th>Renderer</th>"
-        "<th>OVStage</th>"
         "<th>AOV</th>"
         "<th>PixelDiff&nbsp;%</th>"
         "<th>PixelDiff Threshold&nbsp;%</th>"
@@ -1322,7 +1282,6 @@ def validate_camera_outputs(
             "test": test_name,
             "backend": physics_backend,
             "renderer": renderer,
-            "ovstage_variant": "Yes" if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE") == "1" else "No",
             "aov": data_type,
             "diff_pct": diff_pct,
             "ssim": ssim_score,

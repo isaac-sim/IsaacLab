@@ -20,7 +20,7 @@ from rendering_test_utils import (
 
 # OVPhysX heterogeneous rendering goldens are not available yet.
 _RENDERING_PARAMS = group_rendering_params(
-    [param for param in make_kitless_rendering_params_lift() if param.values[1] != "ovphysx"]
+    [param for param in make_kitless_rendering_params_lift() if param.values[0] != "ovphysx"]
 )
 _COMPARISON_SCORES: list[dict] = []
 
@@ -30,9 +30,7 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize(
-    "ovstage_variant,physics_backend,renderer,data_types", _RENDERING_PARAMS, indirect=["ovstage_variant"]
-)
-def test_rendering_lift_kuka_hetero_kitless(ovstage_variant, physics_backend, renderer, data_types):
+@pytest.mark.parametrize("physics_backend,renderer,data_types", _RENDERING_PARAMS)
+def test_rendering_lift_kuka_hetero_kitless(physics_backend, renderer, data_types):
     """Camera output must match golden images (Lift KukaAllegro Lift, single camera)."""
     rendering_test_lift_kuka(physics_backend, renderer, data_types, False, _COMPARISON_SCORES)

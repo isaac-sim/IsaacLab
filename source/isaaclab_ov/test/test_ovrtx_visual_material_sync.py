@@ -5,7 +5,6 @@
 
 """Unit tests for typed visual-material writes into OVRTX-owned scenes."""
 
-import contextlib
 import importlib.util
 from types import SimpleNamespace
 
@@ -73,69 +72,15 @@ class _NativeBinding:
         self.unbound = True
 
 
-class _OvstageRecorder:
-    def __init__(self, events: list[str]):
-        self.events = events
-        self.writes = []
-        self.completions = []
-        self.released = []
-
-    @contextlib.contextmanager
-    def query_from_path_list(self, path_list):
-        query = f"query:{path_list}"
-        try:
-            yield query
-        finally:
-            self.release_query(query).wait()
-
-    def write_attribute(self, query, attribute_name, **kwargs):
-        self.events.append(f"write:{attribute_name}")
-        completion = _Completion(lambda: self.events.append(f"wait:{attribute_name}"))
-        self.writes.append((query, attribute_name, kwargs, completion))
-        self.completions.append(completion)
-        return completion
-
-    def release_query(self, query):
-        self.released.append(query)
-        return _Completion()
-
-    def advance_write_floor(self, **kwargs):
-        self.events.append("floor")
-        return _Completion(lambda: self.events.append("wait:floor"))
-
-
-class _PathRecorder:
-    def __init__(self):
-        self.created = []
-        self.destroyed = []
-
-    def create_path_list_from_strings(self, paths):
-        path_list = tuple(paths)
-        self.created.append(path_list)
-        return path_list
-
-    def destroy_path_list(self, path_list):
-        self.destroyed.append(path_list)
-
-
-def _renderer(*, use_ovstage: bool = False):
+def _renderer():
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.backend = SimpleNamespace(render_products=set())
-    renderer.scene = renderer.backend
     renderer._initialized_scene = True
-    renderer._use_ovstage = use_ovstage
     renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None
     renderer.cfg = OVRTXRendererCfg()
     renderer._camera_render_data = []
-    if use_ovstage:
-        from isaaclab_ov.stage import OvstageBackend
-
-        renderer.scene = OvstageBackend.__new__(OvstageBackend)
-        renderer.scene.stage = _OvstageRecorder(events)
-        renderer.scene.paths = _PathRecorder()
-        renderer.scene.ordinal = 7
     return renderer, events
 
 
@@ -184,41 +129,8 @@ def test_legacy_compiles_typed_bindings_and_publishes_selected_channels_zero_cop
     assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
 
 
-@pytest.mark.skipif(importlib.util.find_spec("ovstage") is None, reason="requires optional module: ovstage")
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
-def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
-    renderer, _events = _renderer(use_ovstage=True)
-    roughness = torch.tensor([0.2, 0.8], device="cuda")
-    writer = renderer.visual_material_writer((_batch("roughness", ("roughness", "roughness"), roughness),))
-    writer(
-        {"roughness": torch.tensor([0], dtype=torch.int32, device="cuda")},
-        torch.tensor([1], dtype=torch.int32, device="cuda"),
-    )
-
-    assert renderer.scene.stage.writes == []
-    writer.publish()
-
-    assert len(renderer.scene.stage.writes) == 1
-    query, attribute_name, kwargs, completion = renderer.scene.stage.writes[0]
-    assert query == f"query:{renderer.scene.paths.created[0]}"
-    assert attribute_name == "inputs:roughness"
-    assert kwargs["tensors"].untyped_storage().data_ptr() == roughness.untyped_storage().data_ptr()
-    assert kwargs["ordinal"] == 7
-    assert kwargs["is_array"] is False
-    assert kwargs["cuda_event"] == writer._event.cuda_event
-    writer.drain()
-    assert completion.wait_count == 1
-
-
-@pytest.mark.parametrize(
-    ("use_ovstage", "expected_events"),
-    (
-        (False, ["publish", "step", "drain"]),
-        (True, ["publish", "floor", "wait:floor", "drain", "step"]),
-    ),
-)
-def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovstage, expected_events):
-    renderer, events = _renderer(use_ovstage=use_ovstage)
+def test_render_publishes_and_drains_material_writes_at_backend_boundary():
+    renderer, events = _renderer()
     renderer._camera_render_data = [
         SimpleNamespace(render_product_path=path, ppisp_pipeline=None, warp_buffers={})
         for path in ("/Render/Product0", "/Render/Product1")
@@ -237,22 +149,17 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
     renderer._visual_material_writer_ref = lambda: writer
     renderer.render_batch(renderer._camera_render_data)
 
-    assert events == expected_events
+    assert events == ["publish", "step", "drain"]
 
 
-@pytest.mark.parametrize(
-    ("failure", "expected_events"),
-    (("publish", ["publish", "drain"]), ("floor", ["publish", "floor", "drain"])),
-)
-def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_events):
-    renderer, events = _renderer(use_ovstage=True)
+def test_drain_does_not_mask_publish_failure():
+    renderer, events = _renderer()
     renderer._camera_render_data = [SimpleNamespace(render_product_path="/RenderCamera_0/Product", ppisp_pipeline=None)]
 
     class Writer:
         def publish(self):
             events.append("publish")
-            if failure == "publish":
-                raise ValueError("publish failed")
+            raise ValueError("publish failed")
 
         def drain(self):
             events.append("drain")
@@ -261,34 +168,23 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
     writer = Writer()
     renderer._visual_material_writer_ref = lambda: writer
 
-    def advance_write_floor(**_kwargs):
-        events.append("floor")
-        raise ValueError("floor failed")
-
-    renderer.scene.stage.advance_write_floor = advance_write_floor
-    with pytest.raises(ValueError, match=failure):
+    with pytest.raises(ValueError, match="publish failed"):
         renderer.render(renderer._camera_render_data[0])
 
-    assert events == expected_events
+    assert events == ["publish", "drain"]
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_writer_close_drains_and_releases_compiled_addresses(use_ovstage):
-    renderer, _events = _renderer(use_ovstage=use_ovstage)
+def test_writer_close_drains_and_releases_compiled_addresses():
+    renderer, _events = _renderer()
     writer = renderer.visual_material_writer((_batch("roughness", ("roughness",), torch.zeros(1, device="cuda")),))
     writer(None)
     writer.publish()
     writer.close()
 
     writer.close()
-    if use_ovstage:
-        assert renderer.scene.stage.released == [f"query:{paths}" for paths in renderer.scene.paths.created]
-        assert renderer.scene.paths.destroyed == renderer.scene.paths.created
-        assert all(op.wait_count == 1 for op in renderer.scene.stage.completions)
-    else:
-        assert all(binding.unbound for binding in renderer.backend.renderer.bindings)
-        assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
+    assert all(binding.unbound for binding in renderer.backend.renderer.bindings)
+    assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
 
 
 @pytest.mark.parametrize("values", [torch.zeros(1, dtype=torch.float64), torch.zeros(1, 4)])

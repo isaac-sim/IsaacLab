@@ -265,12 +265,11 @@
             "OVRTXRenderer.render_batch",
             "OVRTXRenderer.read_output",
             {"module": "isaaclab_ov.cloner.replicate", "function": "ovrtx_replicate"},
-            {"module": "isaaclab_ov.stage", "function": "ovstage_replicate"},
-            {"module": "isaaclab_ov.stage", "function": "export_stage_to_string"}
+            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"}
         ]
     },
     {
-        "_comment": "=== OVRTX: renderer-side calls made from ovrtx_renderer.py. Renderer.step is the actual submit -- everything else is setup (bind_*, clone_usd, open_usd_from_string, attach/detach_ovstage) or per-frame data movement (write_*). Only Renderer is traced: the other ovrtx imports (BindingFlag, DataAccess, Device, PrimMode, Semantic, RendererConfig) are enum/config classes, and replacing a class with a wrapper function breaks isinstance/type dispatch -- the same failure mode documented on the USD block above. ===",
+        "_comment": "=== OVRTX: renderer-side calls made from ovrtx_renderer.py. Renderer.step is the actual submit -- everything else is setup (bind_*, clone_usd, open_usd_from_string) or per-frame data movement (write_*). Only Renderer is traced: the other ovrtx imports (BindingFlag, DataAccess, Device, PrimMode, Semantic, RendererConfig) are enum/config classes, and replacing a class with a wrapper function breaks isinstance/type dispatch -- the same failure mode documented on the USD block above. ===",
         "domain": "ovrtx",
         "color": "0x87CEEB",
         "module": "ovrtx",
@@ -278,8 +277,6 @@
             {"function": "Renderer.open_usd_from_string", "color": "0x87CEEB"},
             {"function": "Renderer.clone_usd", "color": "0x9FD8F0"},
             {"function": "Renderer.reset_stage", "color": "0x9FD8F0"},
-            {"function": "Renderer.attach_ovstage", "color": "0x9FD8F0"},
-            {"function": "Renderer.detach_ovstage", "color": "0x9FD8F0"},
             {"function": "Renderer.bind_attribute", "color": "0xB8E4F5"},
             {"function": "Renderer.bind_array_attribute", "color": "0xB8E4F5"},
             {"function": "Renderer.read_attribute", "color": "0xB8E4F5"},
@@ -289,19 +286,17 @@
         ]
     },
     {
-        "_comment": "=== OVSTAGE: stage-side calls made from ovrtx_renderer.py. Operation.wait and advance_write_floor are the blocking barriers -- time there is a stall, not work. Only functions the renderer actually calls are listed: Stage.query and Stage.release_op exist in ovstage but are never called by IsaacLab (the renderer uses query_from_path_list; release_op appears only in a comment), so tracing them would add empty rows. The ovstage enum/type classes (AttributeSemantic, DLTensor, DLDataType, DLDataTypeCode, PathDictionary) are deliberately omitted -- replacing a class with a wrapper function breaks isinstance/type dispatch, per the USD block above. ===",
+        "_comment": "=== OVSTAGE: physics-stage calls made by the OVPhysX backend. Operation.wait and advance_write_floor are blocking barriers. OVRTX does not use this stage. ===",
         "domain": "ovstage",
         "color": "0x26A69A",
         "module": "ovstage",
         "functions": [
             {"function": "population.open_usd_from_string", "color": "0x00897B"},
-            {"function": "Stage.clone", "color": "0x00897B"},
             {"function": "Stage.query_from_path_list", "color": "0x80CBC4"},
             {"function": "Stage.release_query", "color": "0x80CBC4"},
             {"function": "Stage.write_attribute", "color": "0x4DB6AC"},
             {"function": "Stage.advance_write_floor", "color": "0xFF7043"},
-            {"function": "Operation.wait", "color": "0xFF7043"},
-            {"function": "make_dltensor", "color": "0xB2DFDB"}
+            {"function": "Operation.wait", "color": "0xFF7043"}
         ]
     }
 ]

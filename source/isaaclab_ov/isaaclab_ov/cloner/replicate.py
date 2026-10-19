@@ -15,7 +15,6 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
-import ovstage
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -25,8 +24,6 @@ from isaaclab.physics import PhysicsManager
 from isaaclab_ov._clone import CloneRecipe
 from isaaclab_ov.physics import ovphysx_compat
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
-from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
-from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
 
 if TYPE_CHECKING:
     import ovrtx
@@ -167,41 +164,11 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
 
     @staticmethod
     def prepare(sim: SimulationContext, routing: dict[type[cloner.ReplicateContext], set[int]]) -> None:
-        """Resolve OVRTX's clone route and acquire resources before replication begins.
-
-        Select runtime settings here without importing renderer implementations.
-
-        Args:
-            sim: Simulation that owns the configured consumers and native resources.
-            routing: Asset routes to merge when physics and rendering share one stage.
-        """
+        """Acquire native OVRTX engines before replication begins."""
+        del routing
         renderers = sim.get_backends(OVRTXRendererCfg)
         if not renderers:
             return
-        initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
-        if initialized is not None:
-            use_ovstage = initialized._use_ovstage
-            share_ovstage = initialized.backend.cfg.scene_key is None
-        else:
-            # Defaults: independent OVStage rendering with OVPhysX; native OVRTX cloning with Newton.
-            # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
-            with_ovphysx = sim.physics_manager.clone_context_type is OvPhysxReplicateContext
-            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if with_ovphysx else "0").strip()
-            if value not in {"0", "1"}:
-                raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
-            share_ovstage = os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1"
-            use_ovstage = share_ovstage or value == "1"
-            if share_ovstage and not with_ovphysx:
-                raise ValueError("Shared OVStage cloning requires OVPhysX.")
-        if share_ovstage and sim.physics_manager.backend is not None and sim.physics_manager.backend.owns_scene:
-            raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
-        if use_ovstage:
-            replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if share_ovstage else (OvrtxReplicateContext,)
-            for context in replaced:
-                routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(context, ()))
-                sim.clone_contexts.pop(context, None)
-
-        # Stage ownership is settled before native construction. Register the stage before its borrowers.
         for renderer in renderers:
             if renderer.backend is not None:
                 continue
@@ -211,59 +178,26 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
                     f"Invalid ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS: {read_gpu_transforms!r}. Expected 0 or 1."
                 )
             backend_cfg = OVRTXBackendCfg(
-                scene_key=None if share_ovstage else renderer.cfg,
+                scene_key=renderer.cfg,
                 log_file_path=renderer.cfg.log_file_path,
                 log_level=renderer.cfg.log_level,
-                use_ovstage=use_ovstage,
                 read_gpu_transforms=read_gpu_transforms == "1",
                 device=sim.device,
             )
-            if share_ovstage and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
-                raise ValueError(
-                    "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
-                )
-            scene = None
-            if use_ovstage:
-                domains = ovstage.PopulationDomain.ALL if share_ovstage else ovstage.PopulationDomain.RENDERING
-                scene = sim.get_or_create_backend(
-                    OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, population_domains=domains)
-                )
             renderer.backend = sim.get_or_create_backend(backend_cfg)
-            renderer.scene = scene if use_ovstage else renderer.backend
-            renderer._use_ovstage = use_ovstage
-            if renderer.cfg.async_rendering and use_ovstage:
-                logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Publish routed copies, environment paths and positions to native OVRTX scene owners.
-
-        Engines borrowing an OVStage receive their copies through that stage's context.
 
         Args:
             plan: Replication layout shared by every clone backend.
             asset_prototype_ids: Asset definitions routed to native OVRTX scenes.
         """
-        backends = [backend for backend in self._sim.get_backends(OVRTXBackendCfg) if not backend.cfg.use_ovstage]
-        _prepare_scene_copies(plan, asset_prototype_ids, backends)
-
-
-class OvstageReplicateContext(cloner.ReplicateContext):
-    """Prepare routed copies for simulation-owned stages, independently of their consumers."""
-
-    replicate_priority = 100
-
-    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
-        """Publish routed copies, environment paths and positions to simulation-owned stages.
-
-        Args:
-            plan: Replication layout shared by every clone backend.
-            asset_prototype_ids: Asset definitions routed to OVStage resources.
-        """
-        _prepare_scene_copies(plan, asset_prototype_ids, self._sim.get_backends(OvstageBackendCfg))
+        _prepare_scene_copies(plan, asset_prototype_ids, self._sim.get_backends(OVRTXBackendCfg))
 
 
 def _prepare_scene_copies(
-    plan: ClonePlan, asset_prototype_ids: tuple[int, ...], backends: Sequence[OVRTXBackend | OvstageBackend]
+    plan: ClonePlan, asset_prototype_ids: tuple[int, ...], backends: Sequence[OVRTXBackend]
 ) -> None:
     """Store prepared subtree copies on their owners; consumers never reinterpret the clone plan."""
     if not backends:

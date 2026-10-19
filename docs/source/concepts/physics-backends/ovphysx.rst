@@ -224,7 +224,7 @@ plan's world layout and environment template, not from native clone order.
 
 Configured scenes author only prototypes before replication. Environment poses come from the clone plan:
 USD replication creates frames for Kit, and OVPhysX places originals in its private import before native cloning.
-OVRTX and OVStage populate their required environment frames in private USD exports, then apply the planned poses.
+OVRTX and OVPhysX populate their required environment frames in private USD exports, then apply the planned poses.
 The SDK's CPU hierarchy computation requires USD-populated frames. Export filtering still excludes unrouted
 prototypes and any destinations already materialized by USD replication.
 
@@ -237,9 +237,7 @@ Only declared asset subtrees are copied; unrelated authored assets are retained.
 
 Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
 isolate original worlds with USD collision groups. Native GPU physics copies additionally use
-native environment-ID filtering. When :ref:`shared OVStage cloning <ov-clone-routing>` is enabled,
-both backends attach to one OVStage and clone it once; these copies use the authored USD collision groups.
-Native physics cloning remains the default while shared-stage cold binding lookup is slow in OVPhysX 0.6.3.
+native environment-ID filtering. Rendering uses OVRTX-native clones in an independent scene.
 CPU has no native environment-ID filtering
 in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
 Large overlapping original layouts can still exhaust broadphase pair capacity;

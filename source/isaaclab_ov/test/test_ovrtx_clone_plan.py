@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import ast
-import contextlib
 import importlib.util
 from dataclasses import replace
 from pathlib import Path
@@ -35,12 +34,7 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.cloner import (  # noqa: E402
-        OvrtxReplicateContext,
-        OvstageReplicateContext,
-        ovrtx_replicate,
-        ovstage_replicate,
-    )
+    from isaaclab_ov.cloner import OvrtxReplicateContext, ovrtx_replicate  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
@@ -90,7 +84,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend = SimpleNamespace(
         clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None, render_products=set()
     )
-    renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
         open_usd_from_string=Mock(),
         add_usd_reference_from_string=lambda *args, **kwargs: 1,
@@ -100,7 +93,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_attribute=lambda *args, **kwargs: None,
     )
     renderer._warp_device = SimpleNamespace(ordinal=0)
-    renderer.scene.next_camera_id = 0
+    renderer.backend.next_camera_id = 0
     return renderer
 
 
@@ -127,25 +120,19 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
 def _prepare_clones(renderer, plan, routed=None):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
-    cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
-    if renderer._use_ovstage:
-        from isaaclab_ov.stage import OvstageBackendCfg
-
-        cfg = OvstageBackendCfg(scene_key=cfg)
-    renderer.scene.cfg = cfg
-    sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)])
+    cfg = OVRTXBackendCfg(scene_key=renderer.cfg, read_gpu_transforms=True)
+    renderer.backend.cfg = cfg
+    sim = SimpleNamespace(_backend_registry=[(cfg, renderer.backend)])
     sim.get_backends = SimulationContext.get_backends.__get__(sim)
     routed = tuple(range(len(plan.asset_cfgs))) if routed is None else routed
-    context = OvstageReplicateContext if renderer._use_ovstage else OvrtxReplicateContext
-    context(sim).replicate(plan, routed)
+    OvrtxReplicateContext(sim).replicate(plan, routed)
 
 
 @pytest.mark.parametrize(
-    "use_ovstage, names, worlds, weights, copies",
+    "names, worlds, weights, copies",
     [
-        (False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])]),
+        (("",), ((0,),), (1,), [(0, "", [1, 2, 3])]),
         (
-            True,
             ("/Robot", "/Object", "/Light", "/Robot/Camera"),
             ((3, 0, 2), (3, 0, 1)),
             (1, 3),
@@ -154,48 +141,29 @@ def _prepare_clones(renderer, plan, routed=None):
     ],
     ids=["environment-roots", "nested-assets"],
 )
-def test_native_replication_applies_compositions_then_positions(
-    monkeypatch, use_ovstage, names, worlds, weights, copies
-):
-    """Both native APIs consume the same prepared copies without consulting the clone plan."""
+def test_native_replication_applies_compositions_then_positions(names, worlds, weights, copies):
+    """OVRTX consumes prepared copies without consulting the clone plan."""
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = use_ovstage
     positions = np.array([[0, 0, 0], [2, -1, 0.5], [-3, 4, 1.5], [5, 2, 0]], dtype=np.float32)
     assets = tuple(AssetBaseCfg(prim_path="/World/envs/env_[^/]+" + name) for name in names)
     plan = make_clone_plan(assets, worlds, 4, weights=weights, positions=positions)
     _prepare_clones(renderer, plan)
     native = Mock()
     backend = renderer.backend
-    if use_ovstage:
-        paths = Mock()
-        paths.create_path_list_from_strings.return_value = "env_paths"
-        native.query_from_path_list.return_value = contextlib.nullcontext("env_query")
-        monkeypatch.setattr("isaaclab_ov.stage.xform_tensor_from_numpy", lambda value: value)
-        ovstage_replicate(
-            native, paths, backend.clone_copies, backend.clone_env_paths, backend.clone_positions, ordinal=3
-        )
-        paths.create_path_list_from_strings.assert_called_once_with(backend.clone_env_paths)
-        paths.destroy_path_list.assert_called_once_with("env_paths")
-        actual = native.write_attribute.call_args.kwargs["tensors"]
-        assert native.write_attribute.call_args.args == ("env_query", "omni:xform")
-        assert native.write_attribute.call_args.kwargs["ordinal"] == 3
-        clone_calls = native.clone.call_args_list
-    else:
-        ovrtx_replicate(native, backend.clone_copies, backend.clone_env_paths, backend.clone_positions)
-        actual_paths, attribute, actual = native.write_attribute.call_args.args
-        assert actual_paths == backend.clone_env_paths
-        assert attribute == "omni:xform"
-        clone_calls = native.clone_usd.call_args_list
+    ovrtx_replicate(native, backend.clone_copies, backend.clone_env_paths, backend.clone_positions)
+    actual_paths, attribute, actual = native.write_attribute.call_args.args
+    assert actual_paths == backend.clone_env_paths
+    assert attribute == "omni:xform"
+    clone_calls = native.clone_usd.call_args_list
     assert clone_calls == [
         call(
             f"/World/envs/env_{world}{suffix}",
             [f"/World/envs/env_{target}{suffix}" for target in targets],
-            **({"ordinal": 3} if use_ovstage else {}),
         )
         for world, suffix, targets in copies
     ]
-    calls = [method[0] for method in native.method_calls if method[0] in {"clone", "clone_usd", "write_attribute"}]
-    assert calls == ["clone" if use_ovstage else "clone_usd"] * len(copies) + ["write_attribute"]
+    calls = [method[0] for method in native.method_calls if method[0] in {"clone_usd", "write_attribute"}]
+    assert calls == ["clone_usd"] * len(copies) + ["write_attribute"]
     assert backend.clone_env_paths == [f"/World/envs/env_{world}" for world in range(4)]
     expected = np.tile(np.eye(4, dtype=np.float64), (4, 1, 1))
     expected[:, 3, :3] = positions
@@ -340,10 +308,8 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
 
     renderer.backend.renderer.write_array_attribute = _write_array_attribute
     renderer.backend.renderer.bind_attribute = lambda **_kwargs: SimpleNamespace(unbind=lambda: None)
-    renderer.backend.renderer.write_attribute = (
-        lambda prim_paths=None, attribute_name=None, *args, **kwargs: call_order.append("partitions")
-        if attribute_name == "primvars:omni:scenePartition"
-        else None
+    renderer.backend.renderer.write_attribute = lambda prim_paths=None, attribute_name=None, *args, **kwargs: (
+        call_order.append("partitions") if attribute_name == "primvars:omni:scenePartition" else None
     )
     renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
     spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)
@@ -386,28 +352,6 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     authored_stage = stage.ExportToString()
     renderer.prepare_stage(stage, 3)
     assert stage.ExportToString() == authored_stage
-    if suffix:
-        import ovstage
-        from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
-
-        native, paths = Mock(), Mock()
-        native.query_from_path_list.return_value = contextlib.nullcontext("env_query")
-        monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: contextlib.nullcontext(native))
-        monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
-        imported = Mock()
-        monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
-        cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
-        backend = OvstageBackend(cfg)
-        sim = SimpleNamespace(_backend_registry=[(cfg, backend)])
-        sim.get_backends = SimulationContext.get_backends.__get__(sim)
-        OvstageReplicateContext(sim).replicate(plan, (0,))
-        exported_usd = renderer.backend.renderer.open_usd_from_string.call_args.args[0]
-        backend.populate(exported_usd)
-        assert imported.call_args.args == (native, exported_usd)
-        assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.ALL
-        native.clone.assert_called_once_with(source, [f"/World/envs/env_{i}{suffix}" for i in (1, 2)], ordinal=1)
-        native.advance_write_floor.assert_called_once_with(ordinal=1)
-        backend.close()
     exported = Usd.Stage.CreateInMemory()
     assert exported.GetRootLayer().ImportFromString(renderer.backend.renderer.open_usd_from_string.call_args.args[0])
     settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
@@ -433,11 +377,23 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
 
 
 def test_clone_dependency_boundaries():
-    """Contexts select routes without importing consumers; consumers do not reinterpret topology."""
+    """Contexts select native routes without importing consumers or OVStage rendering."""
     import isaaclab_ov.cloner.replicate as clone_module
-    import isaaclab_ov.stage as stage_module
+    import isaaclab_ov.physics.ovphysx_stage as stage_module
 
     renderer_tree = ast.parse(Path(ovrtx_renderer_module.__file__).read_text())
+    forbidden = {"ovstage", "OvstageBackend", "_use_ovstage", "attach_ovstage"}
+    assert not any(
+        isinstance(node, ast.Name)
+        and node.id in forbidden
+        or isinstance(node, ast.Attribute)
+        and node.attr in forbidden
+        or isinstance(node, ast.Import)
+        and any(alias.name == "ovstage" for alias in node.names)
+        or isinstance(node, ast.ImportFrom)
+        and node.module == "isaaclab_ov.physics.ovphysx_stage"
+        for node in ast.walk(renderer_tree)
+    )
     assert not any(
         isinstance(node, ast.Name)
         and node.id in {"ClonePlan", "OvPhysxReplicateContext"}
@@ -446,11 +402,23 @@ def test_clone_dependency_boundaries():
         for node in ast.walk(renderer_tree)
     )
     stage_tree = ast.parse(Path(stage_module.__file__).read_text())
+    assert not (Path(stage_module.__file__).parents[1] / "stage.py").exists()
+    assert not any(
+        isinstance(node, ast.FunctionDef) and node.name == "export_stage_to_string" for node in ast.walk(stage_tree)
+    )
+    assert not any(isinstance(node, ast.ClassDef) and node.name == "OvstageBackendCfg" for node in ast.walk(stage_tree))
     assert not any(
         isinstance(node, ast.ImportFrom) and node.module.startswith("isaaclab_ov.renderers")
         for node in ast.walk(stage_tree)
     )
     clone_tree = ast.parse(Path(clone_module.__file__).read_text())
+    assert not any(
+        isinstance(node, ast.Name)
+        and node.id in {"OvstageReplicateContext", "ovstage_replicate"}
+        or isinstance(node, ast.Constant)
+        and node.value in {"ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"}
+        for node in ast.walk(clone_tree)
+    )
     for function in (node for node in ast.walk(clone_tree) if isinstance(node, ast.FunctionDef)):
         assert not any(
             isinstance(node, ast.ImportFrom) and node.module == "isaaclab_ov.renderers.ovrtx_renderer"
@@ -489,7 +457,6 @@ def test_clone_dependency_boundaries():
 def test_clone_context_omits_covered_children_and_honors_routing(child_source, routed, expected):
     """Each context prepares only its own backend; routed parents carry their covered children."""
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
-    from isaaclab_ov.stage import OvstageBackendCfg
 
     cfgs = (
         AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Camera", spawn=SpawnerCfg(spawn_path=child_source)),
@@ -498,20 +465,10 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
     plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2, positions=np.zeros((2, 3), dtype=np.float32))
 
     renderer_cfg = OVRTXRendererCfg()
-    configs = (
-        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
-        OvstageBackendCfg(scene_key=renderer_cfg),
-        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
-    )
-    for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
-        backends = [SimpleNamespace() for _ in configs]
-        sim = SimpleNamespace(_backend_registry=list(zip(configs, backends)), physics_manager=SimpleNamespace())
-        sim.get_backends = SimulationContext.get_backends.__get__(sim)
-        for cfg, backend in sim._backend_registry:
-            backend.cfg = cfg
-        context(sim).replicate(plan, routed)
-        assert backends[selected].clone_copies == expected
-        assert not vars(sim.physics_manager)
-        assert all(
-            vars(backend) == {"cfg": configs[index]} for index, backend in enumerate(backends) if index != selected
-        )
+    config = OVRTXBackendCfg(scene_key=renderer_cfg, read_gpu_transforms=True)
+    backend = SimpleNamespace(cfg=config)
+    sim = SimpleNamespace(_backend_registry=[(config, backend)], physics_manager=SimpleNamespace())
+    sim.get_backends = SimulationContext.get_backends.__get__(sim)
+    OvrtxReplicateContext(sim).replicate(plan, routed)
+    assert backend.clone_copies == expected
+    assert not vars(sim.physics_manager)

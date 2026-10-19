@@ -28,14 +28,12 @@ class OVRTXBackendCfg(BackendCfg):
     """Native engine settings and the configuration identifying its scene resource."""
 
     class_type: type[OVRTXBackend] | str = "{DIR}.ovrtx_renderer:OVRTXBackend"
-    scene_key: OVRTXRendererCfg | None = None
-    """None shares the simulation scene; standalone renderers retain their own scene policy."""
+    scene_key: OVRTXRendererCfg = MISSING
+    """Renderer configuration identifying the native scene."""
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Native renderer log destination."""
     log_level: str = "verbose"
     """Native renderer log level."""
-    use_ovstage: bool = MISSING
-    """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
     read_gpu_transforms: bool = MISSING
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
@@ -63,7 +61,7 @@ class OVRTXRendererCfg(RendererCfg):
     """The launcher that registers the OVRTX runtime before the stage is created."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
-    """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""
+    """Request native OVRTX copies."""
 
     async_rendering: bool = False
     """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).
@@ -72,7 +70,6 @@ class OVRTXRendererCfg(RendererCfg):
     and the first capture after reset wait for a fresh image. Live pose and calibration fields
     stay current. ``camera.data.info[output_name]["capture"]`` carries the image's matching
     ``pos_w``, ``quat_w_world``, ``intrinsic_matrices``, and per-environment ``frame`` indices.
-    The ovstage path does not support pipelining and renders synchronously.
     """
 
     temp_usd_dir: str | None = None

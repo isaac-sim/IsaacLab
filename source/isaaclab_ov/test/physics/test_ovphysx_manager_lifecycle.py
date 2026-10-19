@@ -319,7 +319,7 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
 )
 def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager_module, modern, failure):
     """Scene gravity updates must seal their ordinal and release resources on every path."""
-    from isaaclab_ov.stage import OvstageBackend
+    from isaaclab_ov.physics.ovphysx_stage import OvstageBackend
 
     monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
     manager = manager_module.OvPhysxManager
@@ -720,7 +720,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
         enable_scene_query_support=False,
     )
     sim.get_clone_plan = lambda: None
-    sim.get_or_create_backend = lambda cfg, *, scene: backend
+    sim.get_or_create_backend = lambda cfg: backend
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
     monkeypatch.setattr(PhysicsManager, "_cfg", None)
     monkeypatch.setattr(manager, "_clone_recipes", clones)

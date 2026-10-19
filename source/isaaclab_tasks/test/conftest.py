@@ -13,18 +13,8 @@ that live at the test-suite root.
 import os
 import sys
 
-import pytest
 import warp as wp
 
 wp.config.enable_backward = False
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-
-@pytest.fixture()
-def ovstage_variant(request, monkeypatch):
-    """Select the indirectly parametrized OVRTX stage path."""
-    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
-    # Pin both variants: an unset flag selects the physics backend's preferred rendering path.
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(request.param == "ovstage")))
-    return request.param

@@ -25,11 +25,11 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
         build_render_product_as_string,
+        export_stage_to_string,
         get_render_var_configs,
         render_var_prim_names_by_source,
         render_var_prim_paths_by_source,
     )
-    from isaaclab_ov.stage import export_stage_to_string  # noqa: E402
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
 

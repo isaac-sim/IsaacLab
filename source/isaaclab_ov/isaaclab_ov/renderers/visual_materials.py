@@ -33,7 +33,7 @@ class OVRTXVisualMaterialWriter:
         self._buffers: dict[str, torch.Tensor] = {}
         self._dirty_channels: set[str] = set()
         self._operations: tuple[Any, ...] = ()
-        self._addresses: list[tuple[str, Any, str, slice]] = []
+        self._addresses: list[tuple[str, Any, slice]] = []
 
         groups = []
         device = None
@@ -64,19 +64,16 @@ class OVRTXVisualMaterialWriter:
         self._event = wp.Event(device=self._device)
         with contextlib.ExitStack() as resources:
             for channel, attribute_name, shader_paths, rows, dtype, shape in groups:
-                if renderer._use_ovstage:
-                    address = resources.enter_context(renderer.scene.query(shader_paths))
-                else:
-                    address = renderer.backend.renderer.bind_attribute(
-                        prim_paths=shader_paths,
-                        attribute_name=attribute_name,
-                        dtype=dtype,
-                        shape=shape,
-                        prim_mode=PrimMode.EXISTING_ONLY,
-                        flags=BindingFlag.OPTIMIZE,
-                    )
-                    resources.callback(address.unbind)
-                self._addresses.append((channel, address, attribute_name, rows))
+                address = renderer.backend.renderer.bind_attribute(
+                    prim_paths=shader_paths,
+                    attribute_name=attribute_name,
+                    dtype=dtype,
+                    shape=shape,
+                    prim_mode=PrimMode.EXISTING_ONLY,
+                    flags=BindingFlag.OPTIMIZE,
+                )
+                resources.callback(address.unbind)
+                self._addresses.append((channel, address, rows))
             self._resources = resources.pop_all()
 
     def __call__(self, material_offsets: dict[str, Any] | None = None, env_ids: Any | None = None) -> None:
@@ -91,32 +88,20 @@ class OVRTXVisualMaterialWriter:
         channels = self._dirty_channels
         if not channels:
             return
-        renderer = self._renderer_ref()
         operations = []
         try:
-            for channel, address, attribute_name, rows in self._addresses:
+            for channel, address, rows in self._addresses:
                 if channel not in channels:
                     continue
-                if renderer._use_ovstage:
-                    operation = renderer.scene.stage.write_attribute(
-                        address,
-                        attribute_name,
-                        ordinal=renderer.scene.ordinal,
-                        tensors=self._buffers[channel][rows],
-                        is_array=False,
-                        cuda_event=self._event.cuda_event,
-                    )
-                else:
-                    # The event orders the read after the producers (access sync). The stream
-                    # receives the done fence: work later enqueued on it waits for the read, so
-                    # the next refill of these zero-copy buffers cannot race it. Fills and
-                    # refills run on this device's current Warp stream.
-                    operation = address.write_async(
-                        self._buffers[channel][rows],
-                        data_access=DataAccess.ASYNC,
-                        cuda_event=self._event.cuda_event,
-                        cuda_stream=wp.get_stream(self._device).cuda_stream or 1,
-                    )
+                # The event orders the read after the producers (access sync). The stream
+                # receives the done fence: work later enqueued on it waits for the read, so
+                # the next refill of these zero-copy buffers cannot race it.
+                operation = address.write_async(
+                    self._buffers[channel][rows],
+                    data_access=DataAccess.ASYNC,
+                    cuda_event=self._event.cuda_event,
+                    cuda_stream=wp.get_stream(self._device).cuda_stream or 1,
+                )
                 operations.append(operation)
         finally:
             self._operations = tuple(operations)
