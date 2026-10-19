@@ -14,7 +14,7 @@ import pytest
 from pxr import Usd, UsdGeom
 
 import isaaclab.cloner.replicate_session as replicate_session
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import (
     CloneCfg,
     ReplicateContext,
@@ -25,7 +25,7 @@ from isaaclab.cloner import (
 )
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
@@ -244,6 +244,27 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
         assert object_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_2/Object"]
         np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0, 1])
         np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 1, 1])
+
+
+def test_scene_explicit_variant_rows_preserve_pairing():
+    """Paired choices follow declaration order even when cameras initialize after rigid objects."""
+    scene = object.__new__(InteractiveScene)
+    scene.cloner_cfg = CloneCfg(valid_set=[[0, 1, 1], [-1, 0, 0]])
+    scene._env_fmt = scene.cloner_cfg.clone_template
+    assets = {"camera": CameraCfg(prim_path="{ENV_REGEX_NS}/Camera", spawn=PinholeCameraCfg())}
+    for name in ("fixed", "held"):
+        assets[name] = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/" + name,
+            spawn=MultiAssetSpawnerCfg(assets_cfg=[CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]),
+        )
+    scene.cfg = SimpleNamespace(num_envs=2, **assets)
+    _, world_prototypes, weights = scene._collect_asset_cfgs()
+    assert world_prototypes == ((1, 3, 4), (0, 2))
+    np.testing.assert_array_equal(weights, [1.0, 1.0])
+    for rows in ([[0]], [[0, 0, 2]], [[0, 0, 0.5]], []):
+        scene.cloner_cfg.valid_set = rows
+        with pytest.raises(ValueError, match="valid_set"):
+            scene._collect_asset_cfgs()
 
 
 def test_replicate_session_clears_plan_when_asset_init_fails(simulation):
