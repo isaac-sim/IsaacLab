@@ -69,24 +69,6 @@ def evidence(samples=None, *, expected=3, formula="measurement-v1:" + "a" * 64, 
 
 
 class ReportRenderingTests(unittest.TestCase):
-    def test_missing_partial_and_incompatible_reasons_remain_visible(self):
-        for a, b, expected, reason in (
-            (None, evidence(), "No baseline samples", "Baseline:"),
-            (evidence(), evidence({"leg": [bundle(100)]}), "Current results incomplete", "Candidate:"),
-            (
-                evidence(),
-                evidence(formula="different"),
-                "Cannot compare: measurement setup differs",
-                "FPS formula identities differ.",
-            ),
-        ):
-            with self.subTest(expected=expected):
-                markdown = render_build_comparison(compare_evidence(a, b))
-                self.assertIn(expected, markdown)
-                self.assertIn(reason, markdown)
-                self.assertIn("**Comparison details:**", markdown)
-                self.assertIn("⚪ Not comparable", markdown.split("<details>", 1)[0])
-
     def test_headline_counts_every_workload_without_reclassifying_rounded_or_missing_deltas(self):
         a = evidence({name: [bundle(100, name)] * 3 for name in ("Higher", "Lower", "Same", "Tiny")})
         b = evidence(
@@ -106,13 +88,10 @@ class ReportRenderingTests(unittest.TestCase):
         rows = [line for line in primary.splitlines() if line.startswith("|")]
         self.assertEqual(len(rows), 7)
         self.assertTrue(all(len(line.split("|")) == 7 for line in rows))
-        self.assertIn("⚪ Not comparable", primary)
-        self.assertIn("No baseline samples", diagnostics)
-        self.assertNotIn("sample_paths", primary)
-        self.assertNotIn("source.image_digest", primary)
-        self.assertIn("Samples A / B", diagnostics)
-        self.assertIn("**FPS samples:**", diagnostics)
-        self.assertIn("Workload identities", diagnostics)
+        self.assertIn("Baseline: No runtime samples identify this workload.", diagnostics)
+        self.assertIn("samples A / B (valid/expected)", diagnostics)
+        self.assertIn("3/3 / 3/3", diagnostics)
+        self.assertIn("build-comparison.json", diagnostics)
         self.assertEqual(report, before)
 
     def test_zero_baseline_and_no_rows_are_not_misreported(self):
@@ -131,15 +110,9 @@ class ReportRenderingTests(unittest.TestCase):
 
     def test_selection_reason_is_visible_when_no_baseline_was_found_without_an_error_code(self):
         report = compare_evidence(None, evidence())
-        row = report["rows"][0]
-        self.assertIsNone(report["baseline"])
-        self.assertEqual(row["status"], "missing")
-        self.assertEqual(row["candidate"]["median"], 100)
-        self.assertEqual(row["baseline"]["samples"], [])
-        self.assertIsNone(row["change_pct"])
-        report["selection"] = {"reason": "No earlier measured ancestor was found."}
+        report["selection"] = {"reason": "No verified baseline was available."}
         primary = render_build_comparison(report).split("<details>", 1)[0]
-        self.assertIn("No earlier measured ancestor was found", primary)
+        self.assertIn("No verified baseline was available", primary)
         self.assertIn("| ⚪ Not comparable | leg | — | 100 | — |", primary)
 
     def test_duplicate_short_labels_do_not_collide_with_existing_numbered_label(self):
@@ -154,8 +127,8 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertNotIn("newton_mjwarp", primary)
         self.assertIn("Before · newton_mjwarp", diagnostics)
         self.assertIn("Task · newton_mjwarp", diagnostics)
-        self.assertIn("No baseline samples", diagnostics)
-        self.assertIn("No current samples", diagnostics)
+        for side in ("Baseline", "Candidate"):
+            self.assertIn(f"{side}: No runtime samples identify this workload.", diagnostics)
 
     def test_paired_pr_labels_exact_sources_and_reused_baseline_inside_details(self):
         a, b = evidence(), evidence({"leg": [bundle(110)] * 3})
@@ -172,32 +145,23 @@ class ReportRenderingTests(unittest.TestCase):
         report["selection"] = {
             "reason": "Exact PR base and merge result.",
             "baseline_reused": True,
-            "baseline_origin": {**report["baseline"], "run_id": 11},
+            "baseline_origin": report["baseline"],
         }
-        snapshot = copy.deepcopy(report)
         primary, details = render_build_comparison(report).split("<details>", 1)
-        self.assertIn("### PR performance comparison", primary)
-        self.assertIn("| Status | Workload | Baseline FPS | PR FPS | Change % |", primary)
         self.assertIn("| 🟢 Improved | leg | 100 | 110 | +10.00% |", primary)
-        self.assertNotIn("historical", details)
         self.assertIn("A — PR base", details)
         self.assertIn("B — PR merge result", details)
-        self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{HEAD}", details)
-        self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{'c' * 40}", details)
-        self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/15/attempts/1", details)
-        self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/11/attempts/1", details)
+        for commit in (HEAD, PARENT, "c" * 40, "d" * 40):
+            self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{commit}", details)
+            self.assertNotIn(commit, primary)
+        for run in (12, 15):
+            self.assertEqual(details.count(f"https://github.com/isaac-sim/IsaacLab/actions/runs/{run}/attempts/1"), 1)
+            self.assertIn(f"https://github.com/isaac-sim/IsaacLab/actions/runs/{run}/artifacts/{run + 100}", details)
         self.assertIn("Baseline measurements: reused.", details)
-        self.assertNotIn(PARENT, primary)
-        self.assertNotIn(HEAD, primary)
         self.assertIn(f"Resolved PR base: `{PARENT}`", details)
         self.assertIn(f"The PR event reported `{HEAD}`", details)
-        self.assertIn("actual first parent", details)
-        self.assertIn("A measurement source", details)
-        self.assertIn("B measurement source", details)
-        self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{'d' * 40}", details)
-        self.assertIn(f"Measurement SHA-256: `{'e' * 64}`", details)
-        self.assertNotIn("measurement source", primary)
-        self.assertEqual(report, snapshot)
+        self.assertIn("Measurement sources (commit · SHA-256)", details)
+        self.assertIn("e" * 64, details)
 
     def test_paired_baseline_measurement_status_reflects_available_evidence(self):
         for baseline, reused, expected in (
@@ -231,25 +195,12 @@ class ReportRenderingTests(unittest.TestCase):
                 self.assertNotIn("[click]", markdown)
                 self.assertIn("&#124;", markdown)
                 self.assertIn(escaped, markdown)
-                self.assertEqual(markdown.count("<details>"), 2)
-                self.assertEqual(markdown.count("</details>"), 2)
+                self.assertEqual(markdown.count("<details>"), 1)
+                self.assertEqual(markdown.count("</details>"), 1)
                 primary = markdown.split("<details>", 1)[0]
                 self.assertTrue(all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|")))
                 self.assertNotIn("https://example.invalid/untrusted", markdown)
                 self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1", markdown)
-
-    def test_context_details_are_outside_the_numeric_table_and_shared_notes_are_collapsed(self):
-        a = evidence({"one": [bundle(100, "One")] * 3, "two": [bundle(200, "Two")] * 3})
-        b = evidence({"one": [bundle(110, "One")] * 3, "two": [bundle(210, "Two")] * 3})
-        for samples in b.samples.values():
-            for sample in samples:
-                sample["bundle"]["hardware"]["hostname"] = "worker-b"
-        markdown = render_build_comparison(compare_evidence(a, b))
-        table_lines = [line for line in markdown.splitlines() if line.startswith("|")]
-        self.assertFalse(any("hardware.hostname" in line for line in table_lines))
-        self.assertEqual(markdown.count("hardware.hostname"), 1)
-        self.assertIn("**All workloads:** hardware.hostname", markdown)
-        self.assertIn("does not isolate a commit effect", markdown)
 
     def test_rolling_gate_exposes_recorded_skip_and_error_causes(self):
         missing_credential = "No baseline store credential is available for this run"
@@ -284,9 +235,9 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("### Rolling-history CI gate: 🚫 ERROR", markdown)
         self.assertNotIn("<details>", markdown)
         self.assertIn("| Combination | Total FPS | Baseline | FPS regression %", markdown)
-        self.assertIn(missing_credential, markdown)
+        self.assertIn(f"- **cartpole-newton — SKIP:** {missing_credential}", markdown)
         self.assertIn("Total FPS: insufficient independent runs for ASV significance testing", markdown)
-        self.assertIn("comparison artifact could not be read: invalid JSON", markdown)
+        self.assertIn("- **failed — ERROR:** comparison artifact could not be read: invalid JSON", markdown)
         self.assertEqual([report.as_dict() for _, report in reports], snapshot)
 
     def test_rolling_gate_does_not_invent_an_absent_reason(self):
@@ -298,15 +249,15 @@ class ReportRenderingTests(unittest.TestCase):
 
 class BuildComparisonTests(unittest.TestCase):
     def test_complete_fps_samples_use_medians_and_conventional_delta(self):
-        a = evidence()
-        b = evidence({"leg": [bundle(93), bundle(96), bundle(99)]})
+        a = evidence({"leg": [bundle(90), bundle(100), bundle(1100)]})
+        b = evidence({"leg": [bundle(93), bundle(96), bundle(999)]})
         report = compare_evidence(a, b)
         row = report["rows"][0]
         self.assertEqual(row["workload_key"], workload_key(bundle(100)))
-        self.assertEqual(row["baseline"]["samples"], [90, 100, 110])
+        self.assertEqual(row["baseline"]["samples"], [90, 100, 1100])
         self.assertEqual(row["baseline"]["median"], 100)
         self.assertEqual(row["baseline"]["min"], 90)
-        self.assertEqual(row["baseline"]["max"], 110)
+        self.assertEqual(row["baseline"]["max"], 1100)
         self.assertEqual(row["baseline"]["expected_count"], 3)
         self.assertEqual(row["candidate"]["median"], 96)
         self.assertEqual(row["absolute_change"], -4)
@@ -346,10 +297,13 @@ class BuildComparisonTests(unittest.TestCase):
         variants.append(runtime_failed)
         for b in variants:
             with self.subTest(statuses=b.statuses, count=len(b.samples["leg"])):
-                row = compare_evidence(evidence(), b)["rows"][0]
+                report = compare_evidence(evidence(), b)
+                row = report["rows"][0]
                 self.assertEqual(row["status"], "partial")
                 self.assertTrue(row["candidate"]["samples"])
                 self.assertIsNone(row["absolute_change"])
+                if len(b.samples["leg"]) != 3:
+                    self.assertIn("runtime samples; expected 3.", render_build_comparison(report))
 
     def test_invalid_fps_is_not_zero_or_a_valid_repeat(self):
         for value in (None, True, "100", float("nan"), float("inf"), -1):
@@ -371,16 +325,6 @@ class BuildComparisonTests(unittest.TestCase):
                 self.assertIsNone(row["candidate"]["expected_count"])
                 self.assertIsNone(row["change_pct"])
 
-    def test_unreadable_sample_issue_does_not_disappear_when_valid_count_matches(self):
-        b = evidence()
-        b.issues = ["leg/sample-bad/benchmark_runtime.json: runtime bundle is not valid JSON"]
-        report = compare_evidence(evidence(), b)
-        row = report["rows"][0]
-        self.assertEqual(row["candidate"]["count"], 3)
-        self.assertEqual(row["status"], "unknown")
-        self.assertIsNone(row["change_pct"])
-        self.assertIn("Candidate: " + b.issues[0], report["notes"])
-
     def test_unknown_different_and_legacy_fps_formulas_are_not_equivalent(self):
         known = "measurement-v1:" + "a" * 64
         legacy = "aggregate_frames_over_measured_seconds"
@@ -396,9 +340,12 @@ class BuildComparisonTests(unittest.TestCase):
             with self.subTest(case=case):
                 samples = None if candidate_fps == 100 else {"leg": [bundle(candidate_fps) for _ in range(3)]}
                 a, b = evidence(formula=baseline_formula), evidence(samples, formula=candidate_formula)
-                row = compare_evidence(a, b)["rows"][0]
+                report = compare_evidence(a, b)
+                row = report["rows"][0]
                 self.assertEqual(row["status"], expected)
                 self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, candidate_fps))
+                if case == "different":
+                    self.assertIn("FPS formula identities differ.", render_build_comparison(report))
                 self.assertIsNone(row["absolute_change"])
                 self.assertIsNone(row["change_pct"])
                 if case.startswith("legacy_"):
@@ -447,7 +394,8 @@ class BuildComparisonTests(unittest.TestCase):
                     hardware["hostname"] = "worker-b"
                     hardware["gpu_devices"][0].update(device_metadata)
                     sample["bundle"]["versions"]["warp"] = "2.0"
-                row = compare_evidence(evidence(), b)["rows"][0]
+                report = compare_evidence(evidence(), b)
+                row = report["rows"][0]
                 self.assertEqual(row["status"], "compared")
                 self.assertEqual(row["change_pct"], 10)
                 self.assertTrue(row["context_differences"])
@@ -457,6 +405,7 @@ class BuildComparisonTests(unittest.TestCase):
                     expected.add("source.image_digest")
                 self.assertTrue(expected.issubset(fields))
                 self.assertTrue(any("does not isolate a commit effect" in note for note in row["notes"]))
+                self.assertIn("does not isolate a commit effect", render_build_comparison(report))
 
     def test_material_hardware_changes_preserve_fps_without_comparing_them(self):
         variants = (

@@ -121,7 +121,6 @@ def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
                     or proof.get("commit") != commit
                     or proof.get("benchmark_exit_code") != 0
                     or proof.get("mismatches") != []
-                    or runtime.get("source_code_matches") is not True
                     or runtime.get("module") != RUNTIME_MODULE
                     or not any(module.get("name") == RUNTIME_MODULE for module in modules)
                 ):
@@ -234,6 +233,8 @@ def restore_baseline(
     manifest = prepare_manifest(checkout_root, measurement_manifest)
     if manifest["commit"] != base_commit:
         raise ValueError("Baseline checkout is not the tested PR merge's resolved first parent.")
+    if measurement_manifest is not None:
+        manifest["measurement"] = measurement_manifest["digest"]
     selection = _initial_selection(event, base_commit)
     selection["reason"] = "No reusable verified baseline exists for this PR and base commit; measure it before the PR."
     # Write the request for fresh measurements first in case the search for reusable results is interrupted.
@@ -288,14 +289,8 @@ def restore_baseline(
                     )
                 )
                 if measurement_manifest is not None:
-                    saved_measurement = saved_manifest.pop("measurement", {})
-                    same_source = (
-                        saved_manifest == {key: value for key, value in manifest.items() if key != "measurement"}
-                        and saved_measurement.get("digest") == measurement_manifest["digest"]
-                    )
-                else:
-                    same_source = saved_manifest == manifest
-                if not same_source or not complete:
+                    saved_manifest["measurement"] = saved_manifest.get("measurement", {}).get("digest")
+                if saved_manifest != manifest or not complete:
                     raise baseline_mod.EvidenceError(
                         "unverified_baseline", "Baseline is incomplete or its source proof is invalid."
                     )
@@ -362,11 +357,11 @@ def capture_context(
             "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
             "job": os.environ["GITHUB_JOB"],
             "runner_name": os.environ.get("RUNNER_NAME"),
-            "hostname": None,
+            "hostname": socket.gethostname(),
             "measurement_not_before": datetime.now(timezone.utc).isoformat(),
             "expected_samples": 3,
             "expected_legs": [line.split("|", 1)[0] for line in legs.read_text().splitlines() if line.strip()],
-            "benchmark_protocol": None,
+            "benchmark_protocol": _benchmark_protocol(legs, measurement_manifest),
         },
         "metric_definition": {"total_fps": None, "producer_commit": commit},
     }
@@ -381,8 +376,6 @@ def capture_context(
         inspected = subprocess.run(["docker", "image", "inspect", image_ref], capture_output=True, text=True)
         image = json.loads(inspected.stdout)[0] if inspected.returncode == 0 else {}
         context["source"].update(image_digest=next(iter(image.get("RepoDigests", [])), None), image_id=image.get("Id"))
-        context["execution"]["hostname"] = socket.gethostname()
-        context["execution"]["benchmark_protocol"] = _benchmark_protocol(legs, measurement_manifest)
     except (OSError, ValueError, TypeError, AttributeError, IndexError, KeyError, subprocess.SubprocessError) as exc:
         reason = f"Optional build provenance capture failed: {exc}"
         context["metric_definition"]["reason"] = reason

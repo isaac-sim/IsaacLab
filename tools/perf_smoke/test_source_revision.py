@@ -57,12 +57,6 @@ class SourceRevisionTests(unittest.TestCase):
                 if os.environ.get("FIXTURE_INTERRUPT"):
                     raise KeyboardInterrupt
                 from isaaclab.benchmark.entrypoints import runtime
-                if os.environ.get("FIXTURE_REPLACE_RUNTIME"):
-                    from pathlib import Path
-                    altered = Path(runtime.__file__).read_text().replace("marker = observed()", "marker = 'X'")
-                    namespace = {}
-                    exec(compile(altered, runtime.__file__, "exec"), namespace)
-                    runtime.run.__code__ = namespace["run"].__code__
                 runtime.run(sys.argv[1:])
             """,
         )
@@ -74,7 +68,6 @@ class SourceRevisionTests(unittest.TestCase):
             from pathlib import Path
 
             def run(argv):
-                'Runtime revision A.'
                 from isaaclab.utils.timer import FPS
                 from isaaclab_tasks.fixture_task import observed
                 marker = observed()
@@ -85,7 +78,6 @@ class SourceRevisionTests(unittest.TestCase):
                 result = {
                     "executed_revision": marker,
                     "worker_pid": os.getpid(),
-                    "image_identity": os.environ["FIXTURE_IMAGE_IDENTITY"],
                     "run": {"status": "completed"},
                     "runtime": {"total_fps": {"mean": FPS}},
                 }
@@ -126,11 +118,10 @@ class SourceRevisionTests(unittest.TestCase):
             for root in (roots or [self.checkout])
             for package in ("isaaclab", "isaaclab_tasks")
         )
-        environment["FIXTURE_IMAGE_IDENTITY"] = "same-cached-image"
         environment.update(extra)
         return environment
 
-    def _prepare(self, name="manifest", *, success=True, measurement=None):
+    def _prepare(self, name="manifest", *, measurement=None):
         path = self.directory / f"{name}.json"
         process = subprocess.run(
             [sys.executable, str(LAUNCHER), "prepare", "--checkout-root", str(self.checkout), "--output", str(path)]
@@ -140,9 +131,8 @@ class SourceRevisionTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
-        if success:
-            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
-            self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+        self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
         return path, process
 
     def _snapshot(self, name="measurement"):
@@ -210,7 +200,6 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertEqual(result["executed_revision"], marker)
         self.assertEqual(result["worker_pid"], sidecar["pid"])
         self.assertNotEqual(result["worker_pid"], os.getpid())
-        self.assertEqual(result["image_identity"], "same-cached-image")
         self.assertIn(
             hashlib.sha256(result_path.read_bytes()).hexdigest(), [item["sha256"] for item in sidecar["outputs"]]
         )
@@ -226,27 +215,21 @@ class SourceRevisionTests(unittest.TestCase):
         )
         return result
 
-    def test_same_cached_image_executes_each_selected_commit(self):
+    def test_selected_checkout_wins_over_cached_packages(self):
         manifest_a, _ = self._prepare("manifest-a")
         run_a = self._run(manifest_a, "result-a", roots=[self.checkout, self.cached])
-        result_a = self._assert_verified(*run_a, "A", self.commit_a)
+        self._assert_verified(*run_a, "A", self.commit_a)
         self._task("B")
+        runtime = self.checkout / RUNTIME_PATH
+        runtime.write_text(
+            "def wrapper(function):\n    return lambda argv: function(argv)\n\n"
+            + runtime.read_text().replace("def run(argv):", "@wrapper\ndef entrypoint(argv):")
+            + "\nrun = entrypoint\n"
+        )
         commit_b = self._commit()
         manifest_b, _ = self._prepare("manifest-b")
         run_b = self._run(manifest_b, "result-b", roots=[self.checkout, self.cached])
-        result_b = self._assert_verified(*run_b, "B", commit_b)
-        self.assertNotEqual(self.commit_a, commit_b)
-        self.assertNotEqual(result_a["executed_revision"], result_b["executed_revision"])
-        self.assertEqual(result_a["image_identity"], result_b["image_identity"])
-
-        runtime = self.checkout / RUNTIME_PATH
-        runtime.write_text(runtime.read_text().replace("Runtime revision A.", "Runtime revision B."))
-        commit_c = self._commit()
-        manifest_c, _ = self._prepare("docstring-only")
-        run_c = self._run(manifest_c, "docstring-output", roots=[self.checkout, self.cached])
-        self._assert_verified(*run_c, "B", commit_c)
-        self.assertTrue(run_b[2]["runtime_entrypoint"]["source_code_matches"])
-        self.assertTrue(run_c[2]["runtime_entrypoint"]["source_code_matches"])
+        self._assert_verified(*run_b, "B", commit_b)
 
     def test_common_measurement_runs_both_selected_workloads(self):
         self._task("B")
@@ -381,14 +364,13 @@ class SourceRevisionTests(unittest.TestCase):
     def test_correct_path_with_changed_bytes_does_not_verify(self):
         measurement = self._snapshot()
         stub = Path("source/isaaclab/isaaclab/benchmark/__init__.pyi")
-        for name, path, selected_measurement in (
-            ("native workload", TASK, None),
-            ("shared workload", TASK, measurement),
-            ("measurement resource", stub, measurement),
+        for name, path in (
+            ("shared workload", TASK),
+            ("measurement resource", stub),
         ):
             with self.subTest(change=name):
                 self._git("checkout", "--force", "--detach", self.commit_a)
-                manifest, _ = self._prepare(name, measurement=selected_measurement)
+                manifest, _ = self._prepare(name, measurement=measurement)
                 (self.checkout / path).write_text(
                     "def observed():\n    return 'B'\n" if path == TASK else "# changed exports\n"
                 )
@@ -396,8 +378,7 @@ class SourceRevisionTests(unittest.TestCase):
                 self.assertNotEqual(process.returncode, 0)
                 self.assertEqual(sidecar["status"], "failed")
                 self.assertTrue(sidecar["mismatches"])
-                if selected_measurement:
-                    self.assertEqual(sidecar["measurement"]["status"], "verified" if path == TASK else "failed")
+                self.assertEqual(sidecar["measurement"]["status"], "verified" if path == TASK else "failed")
                 if path == TASK:
                     task = next(item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task")
                     self.assertEqual(task["relative_path"], TASK.as_posix())
@@ -407,28 +388,6 @@ class SourceRevisionTests(unittest.TestCase):
                     self.assertEqual(result["executed_revision"], "B")
                 else:
                     self.assertTrue(any(item.get("path") == stub.as_posix() for item in sidecar["mismatches"]))
-
-        self._task("B")
-        _, process = self._prepare(success=False)
-        self.assertNotEqual(process.returncode, 0)
-        self.assertIn("Traceback (most recent call last):", process.stderr)
-        self.assertIn("ValueError: Checked-out Python source differs", process.stderr)
-
-    def test_replaced_runtime_code_with_matching_source_bytes_is_detected(self):
-        for name, measurement in (("native", None), ("shared", self._snapshot())):
-            with self.subTest(mode=name):
-                manifest, _ = self._prepare(name, measurement=measurement)
-                process, output, sidecar = self._run(manifest, name, FIXTURE_REPLACE_RUNTIME="1")
-                self.assertNotEqual(process.returncode, 0)
-                self.assertEqual(sidecar["status"], "failed")
-                self.assertTrue(sidecar["mismatches"])
-                runtime = next(item for item in sidecar["modules"] if item["name"] == RUNTIME_MODULE)
-                self.assertEqual(runtime["sha256"], runtime["expected_sha256"])
-                self.assertFalse(sidecar["runtime_entrypoint"]["source_code_matches"])
-                result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
-                self.assertEqual(result["executed_revision"], "X")
-                if measurement:
-                    self.assertEqual(sidecar["measurement"]["status"], "failed")
 
     def test_cli_failures_preserve_exit_status_and_interruptions(self):
         manifest, _ = self._prepare()

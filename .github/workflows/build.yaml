@@ -61,21 +61,16 @@ jobs:
             core.setOutput('activated', 'true');
             return;
           }
-          try {
-            for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
-              ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
-              request: {timeout: 60000},
-            })) {
-              // GITHUB_TOKEN labeler events cannot trigger another workflow.
-              if (response.data.some(event => event.event === 'labeled'
-                  && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
-                core.setOutput('activated', 'true');
-                return;
-              }
+          for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
+            ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
+            request: {timeout: 60000},
+          })) {
+            // GITHUB_TOKEN labeler events cannot trigger another workflow.
+            if (response.data.some(event => event.event === 'labeled'
+                && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
+              core.setOutput('activated', 'true');
+              return;
             }
-            core.notice('Docker CI has not been activated for this PR. Apply a label or use the existing run-ci command.');
-          } catch (error) {
-            core.warning(`Could not verify prior PR activation (HTTP ${error.status || 'unavailable'}). Apply a label or use run-ci to start CI explicitly.`);
           }
     - uses: actions/checkout@v6
       with:
@@ -1311,38 +1306,18 @@ jobs:
     - uses: astral-sh/setup-uv@v6
       with:
         enable-cache: false
-    - name: Locate the producing benchmark artifact
-      id: benchmark_artifact
+    - name: Collect performance results and compare PR builds
+      if: always()
       continue-on-error: true
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        uv run --no-project python - <<'PY'
-        import os
-        from tools.perf_smoke.baseline import GitHubClient, resolve_candidate_artifact
-
-        _, artifact, attempt = resolve_candidate_artifact(
-            GitHubClient(os.environ["GITHUB_REPOSITORY"]),
-            int(os.environ["GITHUB_RUN_ID"]),
-            int(os.environ["GITHUB_RUN_ATTEMPT"]),
-        )
-        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-            print(f"artifact_id={artifact['id']}", file=output)
-        print(f"Using benchmark results from attempt {attempt}.")
-        PY
-    - uses: actions/download-artifact@v7
-      if: steps.benchmark_artifact.outputs.artifact_id != ''
-      with:
-        artifact-ids: ${{ steps.benchmark_artifact.outputs.artifact_id }}
-        path: comparisons
-      continue-on-error: true
-    - name: Compare the tested build with its selected baseline
-      if: always() && github.event_name == 'pull_request'
-      continue-on-error: true
-      timeout-minutes: 5
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      run: uv run --no-project python -m tools.perf_smoke.build_compare --output_dir build-comparison
+        args=()
+        if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          args+=(--gate-only)
+        fi
+        uv run --no-project python -m tools.perf_smoke.build_compare \
+          --comparison_dir comparisons --output_dir build-comparison "${args[@]}"
 
     - name: Upload the automatic build comparison
       id: build_comparison_artifact
@@ -1373,7 +1348,7 @@ jobs:
             cat build-comparison/build-comparison.md
           else
             printf '### Automatic build comparison\n\n'
-            printf '**Build comparison: SKIPPED.** The comparison report was not produced; baseline selection and A/B results are unavailable. See the "Compare the tested build with its selected baseline" step for the error.\n\n'
+            printf '**Build comparison: SKIPPED.** The comparison report was not produced; baseline selection and A/B results are unavailable. See the "Collect performance results and compare PR builds" step for the error.\n\n'
             printf '**B — current build:** [%s](%s/%s/commit/%s) · [run %s, attempt %s](%s/%s/actions/runs/%s/attempts/%s).\n\n' \
               "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_SHA" \
               "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from . import baseline as baseline_mod
-from .baseline import Evidence, valid_fps, workload_key
+from .baseline import Evidence, runtime_fps, workload_key
 from .contract import normalize_gpu_model
 from .paired import select_pr_baseline
 from .report import render_build_comparison
@@ -24,11 +24,6 @@ from .report import render_build_comparison
 
 def _object(value: Any) -> dict:
     return value if isinstance(value, dict) else {}
-
-
-def _fps(bundle: dict) -> float | None:
-    value = _object(_object(bundle.get("runtime")).get("total_fps")).get("mean")
-    return valid_fps(value)
 
 
 def _formula(evidence: Evidence | None) -> str | None:
@@ -65,53 +60,46 @@ def _groups(evidence: Evidence | None, aliases: dict[str, set[str]]) -> dict:
 
 def _summary(evidence: Evidence | None, group: dict | None) -> tuple[dict, list[str]]:
     items = group["samples"] if group else []
-    measured = [(item["path"], value) for item in items if (value := _fps(item["bundle"])) is not None]
+    measured = [(item["path"], value) for item in items if (value := runtime_fps(item["bundle"])) is not None]
     values = [value for _, value in measured]
     expected = _object(evidence.context.get("execution")).get("expected_samples") if evidence else None
     known_expected = isinstance(expected, int) and not isinstance(expected, bool) and expected > 0
     reasons = []
-    status = "complete"
+    unknown, partial = not known_expected, False
     if not group or not items:
-        status = "missing"
         reasons.append("No runtime samples identify this workload.")
-    elif not known_expected:
-        status = "unknown"
+    elif unknown:
         reasons.append("The expected per-leg sample count is not recorded.")
     if group and evidence:
         if group["unknown_identity"]:
             reasons.append(
                 "Workload identity is unavailable for some output; the leg name is only a display association."
             )
-            if status == "complete":
-                status = "unknown"
+            unknown = True
         for leg in sorted(group["legs"]):
             leg_status = evidence.statuses.get(leg)
             leg_items = evidence.samples.get(leg, [])
             if any(issue.startswith(leg + "/") for issue in evidence.issues):
                 reasons.append(f"Leg {leg} has unresolved sample evidence issues; see the evidence notes.")
-                if status == "complete":
-                    status = "unknown"
+                unknown = True
             if leg_status != "ok":
                 reasons.append(f"Leg {leg} status is {leg_status or 'not recorded'}.")
-                if items:
-                    status = "partial"
+                partial = True
             if known_expected and len(leg_items) != expected:
                 reasons.append(f"Leg {leg} has {len(leg_items)} runtime samples; expected {expected}.")
-                if items:
-                    status = "partial"
+                partial = True
             identities = {workload_key(item["bundle"]) for item in leg_items}
             if len(identities) > 1:
                 reasons.append(
                     f"Leg {leg} contains different workload identities; per-workload completeness is unknown."
                 )
-                if status == "complete":
-                    status = "unknown"
+                unknown = True
         if any(_object(item["bundle"].get("run")).get("status") != "completed" for item in items):
             reasons.append("Some runtime samples did not complete.")
-            status = "partial"
+            partial = True
         if len(values) != len(items):
             reasons.append("Some FPS values are missing, non-numeric, non-finite or negative.")
-            status = "partial"
+            partial = True
     return {
         "count": len(values),
         "observed_count": len(items),
@@ -121,7 +109,7 @@ def _summary(evidence: Evidence | None, group: dict | None) -> tuple[dict, list[
         "max": max(values) if values else None,
         "samples": values,
         "sample_paths": [path for path, _ in measured],
-        "status": status,
+        "status": "missing" if not items else "partial" if partial else "unknown" if unknown else "complete",
     }, reasons
 
 
@@ -239,13 +227,10 @@ def _row(
     context_differences = _differences(_context(a, left), _context(b, right))
     ha, hb = _observations(left, _hardware), _observations(right, _hardware)
     hardware_differences = _differences(ha, hb, missing=True)
-    status = "compared"
-    if "missing" in (before["status"], after["status"]):
-        status = "missing"
-    elif "partial" in (before["status"], after["status"]):
-        status = "partial"
-    elif "unknown" in (before["status"], after["status"]):
-        status = "unknown"
+    status = next(
+        (value for value in ("missing", "partial", "unknown") if value in (before["status"], after["status"])),
+        "compared",
+    )
     if not all(formulas.values()):
         reasons.append("FPS formula identity is unknown for one or both selections.")
         if status == "compared":
@@ -367,6 +352,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run_id", type=int, default=os.environ.get("GITHUB_RUN_ID"))
     parser.add_argument("--run_attempt", type=int, default=os.environ.get("GITHUB_RUN_ATTEMPT"))
     parser.add_argument("--output_dir", type=Path, default=Path("build-comparison"))
+    parser.add_argument("--comparison_dir", type=Path, help="Save rolling-history reports from the same artifact")
+    parser.add_argument(
+        "--gate-only", action="store_true", help="Collect rolling-history reports without a PR comparison"
+    )
     args = parser.parse_args(argv)
     if not args.repository or not args.run_id or not args.run_attempt or min(args.run_id, args.run_attempt) < 1:
         parser.error("Repository, run ID and report attempt are needed to resolve current benchmark evidence")
@@ -375,9 +364,11 @@ def main(argv: list[str] | None = None) -> int:
     selection = {}
     try:
         client = baseline_mod.GitHubClient(args.repository)
-        candidate = baseline_mod.resolve_candidate(client, args.run_id, args.run_attempt)
-        paired_failure = _paired_failure(candidate)
-        selected, selection = select_pr_baseline(client, candidate)
+        candidate = baseline_mod.resolve_candidate(client, args.run_id, args.run_attempt, args.comparison_dir)
+        print(f"Using benchmark results from attempt {candidate.identity['run_attempt']}.")
+        if not args.gate_only:
+            paired_failure = _paired_failure(candidate)
+            selected, selection = select_pr_baseline(client, candidate)
     except baseline_mod.EvidenceError as exc:
         selection = {
             "reason": str(exc),
@@ -385,6 +376,12 @@ def main(argv: list[str] | None = None) -> int:
             "unavailable_evidence": exc.identity,
             "unavailable_side": "candidate" if candidate is None else "baseline",
         }
+
+    if args.gate_only:
+        if selection.get("reason"):
+            print(f"::warning::{selection['reason']}")
+        # The existing aggregate command evaluates the collected gate reports.
+        return 0
 
     if paired_failure:
         selection.update(reason=paired_failure["reason"], reason_code="paired_failure", paired_failure=paired_failure)
