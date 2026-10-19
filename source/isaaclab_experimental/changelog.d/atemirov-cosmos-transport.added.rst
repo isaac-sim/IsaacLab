@@ -1,8 +1,7 @@
 * Added a CUDA IPC transport to the Cosmos service: on the same Linux machine and GPU, controls and generated images
   move between the camera and service through shared GPU memory, ordered by interprocess CUDA events, without
   host copies for that transfer. The camera-side IPC handoff uses events; the service synchronizes its CUDA
-  stream before replying to report GPU faults. Control preprocessing can still use the CPU: edge
-  extraction runs on the CPU in the camera process.
+  stream before replying to report GPU faults.
   :attr:`~isaaclab_experimental.cosmos.CosmosModelCfg.transport` selects ``auto`` (default), ``cuda_ipc`` or
   ``socket``; ``auto`` uses CUDA IPC only when the service's ``status`` reports this machine's boot ID and the
   camera's GPU. Each process allocates the buffer it writes and frees it only after the other process released
