@@ -134,7 +134,8 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
 
     eval_fk = Mock()
     newton_backend = SimpleNamespace(
-        model=SimpleNamespace(body_count=1, world_count=1),
+        model_changes=set(),
+        model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
         state_0=state,
         device=wp.get_device("cpu"),
         cfg=SimpleNamespace(),
@@ -142,6 +143,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         solver_cfg=SimpleNamespace(class_type=SolverSpec(reset=Mock(), eval_fk=eval_fk)),
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
+        world_ids=wp.zeros(1, dtype=wp.int32, device="cpu"),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
     )

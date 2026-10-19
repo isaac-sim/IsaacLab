@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 import warp as wp
 from newton import CollisionPipeline, Contacts, ModelBuilder, ModelFlags, State
@@ -56,48 +57,65 @@ SiteEntry = tuple[int, None] | tuple[None, list[list[int]]]
 
 
 @wp.kernel(enable_backward=False)
-def _or_reset_masks_from_mask(
+def _mark_model_changes(mask: wp.array(dtype=wp.bool), dirty: wp.array(dtype=wp.int32)):
+    if mask[wp.tid()]:
+        wp.atomic_max(dirty, 0, 1)
+
+
+@wp.kernel(enable_backward=False)
+def _mark_fk_from_mask(
     env_mask: wp.array(dtype=wp.bool),
     articulation_ids: wp.array2d(dtype=int),
+    articulation_world: wp.array(dtype=wp.int32),
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
-    world, arti = wp.tid()
-    if env_mask[world]:
-        world_mask[world] = True
-        fk_mask[articulation_ids[world, arti]] = True
+    """Flag the articulations of masked view rows and the local worlds that contain them."""
+    row, arti = wp.tid()
+    if env_mask[row]:
+        articulation = articulation_ids[row, arti]
+        fk_mask[articulation] = True
+        world = articulation_world[articulation]
+        if world >= 0:
+            world_mask[world] = True
 
 
 @wp.kernel(enable_backward=False)
-def _scatter_reset_masks_from_ids(
+def _mark_fk_from_ids(
     env_ids: wp.array(dtype=Any),
     articulation_ids: wp.array2d(dtype=int),
+    articulation_world: wp.array(dtype=wp.int32),
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """Scatter-set world_mask and fk_mask from sparse env_ids."""
+    """Flag the articulations of selected view rows and the local worlds that contain them."""
     i, arti = wp.tid()
-    world = wp.int32(env_ids[i])
-    world_mask[world] = True
-    fk_mask[articulation_ids[world, arti]] = True
-
-
-_SCATTER_RESET_MASKS_FROM_IDS = IndexKernelDispatcher(_scatter_reset_masks_from_ids, ("env_ids",))
-
-
-@wp.kernel(enable_backward=False)
-def _or_world_reset_mask_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
-    """Mark masked worlds for solver reset without requesting FK."""
-    world = wp.tid()
-    if env_mask[world]:
+    articulation = articulation_ids[wp.int32(env_ids[i]), arti]
+    fk_mask[articulation] = True
+    world = articulation_world[articulation]
+    if world >= 0:
         world_mask[world] = True
 
 
+_MARK_FK_FROM_IDS = IndexKernelDispatcher(_mark_fk_from_ids, ("env_ids",))
+
+
 @wp.kernel(enable_backward=False)
-def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
-    """Mark selected worlds for solver reset without requesting FK."""
-    world_mask[env_ids[wp.tid()]] = True
+def _mark_worlds_from_mask(
+    env_mask: wp.array(dtype=wp.bool), row_worlds: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)
+):
+    """Flag the worlds of masked view rows for a solver reset without requesting FK."""
+    row = wp.tid()
+    if env_mask[row]:
+        world_mask[row_worlds[row]] = True
+
+
+@wp.kernel(enable_backward=False)
+def _mark_worlds_from_ids(
+    env_ids: wp.array(dtype=wp.int32), row_worlds: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)
+):
+    """Flag the worlds of selected view rows for a solver reset without requesting FK."""
+    world_mask[row_worlds[env_ids[wp.tid()]]] = True
 
 
 # ----- Replication outputs ------------------------------------------------------
@@ -139,6 +157,7 @@ class NewtonBackend:
             builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         model = self.model = builder.finalize(device=cfg.device)
         model.num_envs = model.world_count
+        self.is_stepping = False
         self.device: wp.Device = model.device
         self.particle_ranges: dict[str, tuple[int, int]] = {}
         self.deformable_ranges = {
@@ -183,11 +202,14 @@ class NewtonBackend:
         # Reset bookkeeping for forward(). Isaac Lab resets local worlds only, so the final (global) slot stays false.
         self.world_mask = wp.zeros(model.world_count + 1, dtype=wp.bool, device=self.device)
         self.fk_mask = wp.zeros(model.articulation_count, dtype=wp.bool, device=self.device)
+        self.world_ids = wp.array(np.arange(model.world_count, dtype=np.int32), device=self.device)
         self.kinematics_dirty = False
         # Sticky: outer graph replays author state without passing through Python invalidation.
         self.transforms_may_change_on_graph_replay = False
         self.model_changes: set[int] = set()
         self.warned_model_changes: set[int] = set()
+        self.model_dirty = wp.zeros(1, dtype=wp.int32, device=self.device)
+        self.model_change_graphs: dict[int, CapturedGraph] = {}
 
         # Consumers and the step. Callbacks run at fixed points of :func:`step`; see :func:`_simulate_full`.
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
@@ -200,9 +222,18 @@ class NewtonBackend:
         self.actuators_active = False  # set once an articulation runs its Newton actuators in the step
         self.decimation = 1
         self.staged_body_f: wp.array | None = None  # allocated by init_solver
-        self.graph: wp.Graph | None = None
+        self.graph: CapturedGraph | None = None
         self.graph_capture_pending = False
-        self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None  # set by init_solver
+        self.capture: Callable[[Callable[[], None]], CapturedGraph] | None = None  # set by init_solver
+
+    @property
+    def live(self) -> bool:
+        """Whether derived data must be recomputed on read instead of taken from timestamp caches.
+
+        True inside :func:`step`, where callbacks read state between physics steps, and while a CUDA graph is being
+        recorded, whose replays bypass the host-side timestamps.
+        """
+        return self.is_stepping or self.device.is_capturing
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
@@ -219,7 +250,9 @@ class NewtonBackend:
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks = [], []
             self.contact_sensors, self.imu_sensors = {}, []
-            self.world_mask = self.fk_mask = None
+            self.model_change_graphs.clear()
+            self.model_dirty = None
+            self.world_mask = self.fk_mask = self.world_ids = None
 
 
 # ----- Solver ------------------------------------------------------------------------
@@ -327,27 +360,25 @@ def invalidate_fk(
 ) -> None:
     """Flag articulations for forward kinematics and their worlds for a solver reset, without host synchronization.
 
+    View rows map to worlds through the model's articulation-to-world table, so views over a subset of worlds flag the
+    right worlds, and global articulations flag FK only.
+
     Args:
         backend: Simulation backend.
-        env_mask: Mask over environments. Shape ``(num_envs,)``.
-        env_ids: Selected environments.
-        articulation_ids: Model articulation index of each ``(world, articulation)``. Shape
-            ``(world_count, count_per_world)``; ``None`` flags everything.
+        env_mask: Mask over view rows.
+        env_ids: Selected view rows.
+        articulation_ids: Model articulation index of each ``(row, articulation)``; ``None`` flags everything.
     """
     backend.kinematics_dirty = True
     outputs = [backend.world_mask, backend.fk_mask]
+    articulation_world = backend.model.articulation_world
     if articulation_ids is not None and env_mask is not None:
-        wp.launch(
-            _or_reset_masks_from_mask,
-            articulation_ids.shape,
-            [env_mask, articulation_ids],
-            outputs,
-            device=backend.device,
-        )
+        inputs = [env_mask, articulation_ids, articulation_world]
+        wp.launch(_mark_fk_from_mask, articulation_ids.shape, inputs, outputs, device=backend.device)
     elif articulation_ids is not None and env_ids is not None:
         dim = (env_ids.shape[0], articulation_ids.shape[1])
-        kernel = _SCATTER_RESET_MASKS_FROM_IDS.select(env_ids)
-        wp.launch(kernel, dim, [env_ids, articulation_ids], outputs, device=backend.device)
+        inputs = [env_ids, articulation_ids, articulation_world]
+        wp.launch(_MARK_FK_FROM_IDS.select(env_ids), dim, inputs, outputs, device=backend.device)
     else:
         backend.world_mask[: backend.model.world_count].fill_(True)
         backend.fk_mask.fill_(True)
@@ -362,19 +393,17 @@ def invalidate_body_state(
 
     Args:
         backend: Simulation backend.
-        env_ids: Selected environments.
-        env_mask: Mask over environments.
+        env_ids: Selected view rows.
+        env_mask: Mask over view rows, one row per world.
     """
     backend.kinematics_dirty = True
-    if env_mask is not None:
-        wp.launch(
-            _or_world_reset_mask_from_mask, env_mask.shape[0], [env_mask], [backend.world_mask], device=backend.device
-        )
-    elif env_ids is not None:
-        kernel = _scatter_world_reset_mask_from_ids
-        wp.launch(kernel, env_ids.shape[0], [env_ids], [backend.world_mask], device=backend.device)
-    else:
+    selection = env_mask if env_mask is not None else env_ids
+    if selection is None:
         backend.world_mask[: backend.model.world_count].fill_(True)
+        return
+    kernel = _mark_worlds_from_mask if env_mask is not None else _mark_worlds_from_ids
+    inputs = [selection, backend.world_ids]
+    wp.launch(kernel, selection.shape[0], inputs, [backend.world_mask], device=backend.device)
 
 
 def forward(backend: NewtonBackend, *, force: bool = False) -> None:
@@ -406,30 +435,70 @@ def forward(backend: NewtonBackend, *, force: bool = False) -> None:
     backend.kinematics_dirty = False
 
 
-def mark_model_changed(backend: NewtonBackend, change: ModelFlags) -> None:
-    """Queue a model-property change for the solver, notified once at the next step.
+def mark_model_changed(backend: NewtonBackend, change: ModelFlags, env_mask: wp.array | None = None) -> None:
+    """Queue a model-property transaction, selecting affected worlds entirely on the device.
 
     Args:
         backend: Simulation backend.
         change: Property categories the solver must refresh.
+        env_mask: Changed worlds, dtype ``wp.bool``; ``None`` means an unconditional edit.
     """
+    if backend.solver is None:
+        return
     backend.model_changes.add(change)
+    if env_mask is None:
+        backend.model_dirty.fill_(1)
+        return
+    wp.launch(_mark_model_changes, env_mask.shape[0], [env_mask, backend.model_dirty], device=backend.device)
 
 
 def notify_model_changes(backend: NewtonBackend) -> None:
-    """Notify the solver of the queued property changes once, combining their categories."""
+    """Commit queued property edits once, skipping solver work when every edit mask was empty.
+
+    CUDA uses a conditional graph node so deciding whether to rebuild constants never reads a mask back to the host.
+    Multiple property categories are combined before notification, avoiding repeated constant rebuilds.
+    """
     if not backend.model_changes:
         return
     spec = solver_spec(backend.solver_cfg)
     flags = 0
     for change in backend.model_changes:
+        flags |= change
         if change in spec.ignored_model_changes and change not in backend.warned_model_changes:
             logger.warning(spec.ignored_model_changes[change])
             backend.warned_model_changes.add(change)
-        flags |= change
-    with wp.ScopedDevice(backend.device):
-        # Refresh shared solver constants once after applying all pending property changes.
+
+    def refresh():
         backend.solver.notify_model_changed(flags)
+        backend.model_dirty.zero_()
+
+    def conditional_refresh():
+        wp.capture_if(backend.model_dirty, refresh)
+
+    captures = (
+        backend.device.is_cuda
+        and spec.captures_model_changes
+        and spec.supports_capture(backend.solver, backend.solver_cfg)
+    )
+    with wp.ScopedDevice(backend.device):
+        if backend.device.is_capturing:
+            if not captures:
+                raise RuntimeError(
+                    f"{type(backend.solver_cfg).__name__} cannot record model changes into a CUDA graph."
+                )
+            if not isinstance(wp.get_device_allocator(backend.device), _GraphAllocator):
+                raise RuntimeError(
+                    "Record model-property edits with capture_graph() so conditional updates own their scratch storage."
+                )
+            conditional_refresh()
+        elif captures:
+            graph = backend.model_change_graphs.get(flags)
+            if graph is None:
+                graph = backend.model_change_graphs[flags] = capture_graph(backend.device, conditional_refresh)
+            graph.launch()
+        else:
+            # Changes are queued on the host, so notifying without reading the device flag never synchronizes.
+            refresh()
     backend.model_changes.clear()
 
 
@@ -579,27 +648,28 @@ def step(backend: NewtonBackend) -> bool:
     Returns:
         Whether a captured graph ran.
     """
-    notify_model_changes(backend)
-    forward(backend)
-    if handles_decimation(backend):
-        simulate = partial(_simulate_full, backend)
-    else:
-        for callback in backend.pre_actuator_callbacks:
-            callback()
-        if backend.actuators is not None:
-            backend.actuators.step(backend.state_0, backend.control, backend.dt)
-        for callback in backend.post_actuator_callbacks:
-            callback()
-        simulate = partial(_simulate_physics_only, backend)
-    graph = backend.graph
-    if graph is not None:
-        wp.capture_launch(graph)
-        return True
-    with wp.ScopedDevice(backend.device):
-        simulate()
-    if backend.graph_capture_pending:
-        backend.graph = backend.capture(simulate)
-        backend.graph_capture_pending = False
+    with _stepping(backend):
+        notify_model_changes(backend)
+        forward(backend)
+        if handles_decimation(backend):
+            simulate = partial(_simulate_full, backend)
+        else:
+            for callback in backend.pre_actuator_callbacks:
+                callback()
+            if backend.actuators is not None:
+                backend.actuators.step(backend.state_0, backend.control, backend.dt)
+            for callback in backend.post_actuator_callbacks:
+                callback()
+            simulate = partial(_simulate_physics_only, backend)
+        graph = backend.graph
+        if graph is not None:
+            graph.launch()
+            return True
+        with execution_stream(backend.device):
+            simulate()
+        if backend.graph_capture_pending:
+            backend.graph = backend.capture(simulate)
+            backend.graph_capture_pending = False
     return False
 
 
@@ -699,11 +769,86 @@ def _update_sensors(backend: NewtonBackend) -> None:
             sensor.update(backend.state_0, backend.contacts)
 
 
+@contextlib.contextmanager
+def _stepping(backend: NewtonBackend):
+    backend.is_stepping = True
+    try:
+        yield
+    finally:
+        backend.is_stepping = False
+
+
 # ----- CUDA graph capture and scene queries ------------------------------------------
 
 
-def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-    """Record work without an eager warmup or graph replay, using Warp's public capture API.
+class _GraphAllocator:
+    """Keep Warp scratch in Torch's graph pool, including inside CUDA conditional nodes.
+
+    CUDA conditional nodes cannot contain allocation nodes. Torch reserves storage during recording instead,
+    and this graph-owned allocator retains it without reuse until the graph and all bound arrays are released.
+    """
+
+    def __init__(self, device: wp.Device):
+        self.device = wp.device_to_torch(device)
+        self.buffers: list[torch.Tensor] = []
+
+    def allocate(self, size_in_bytes: int) -> int:
+        buffer = torch.empty(size_in_bytes, dtype=torch.uint8, device=self.device)
+        self.buffers.append(buffer)
+        return buffer.data_ptr()
+
+    def deallocate(self, ptr: int, size_in_bytes: int) -> None:
+        # Storage belongs to the recorded graph, not the temporary Warp array that requested it.
+        pass
+
+
+class CapturedGraph:
+    """A graph with both allocators' capture lifetimes retained until its last replay."""
+
+    def __init__(
+        self, torch_graph: torch.cuda.CUDAGraph, warp_graph: wp.Graph, device: wp.Device, allocator: _GraphAllocator
+    ):
+        self.allocator = allocator
+        self.torch_graph = torch_graph
+        self.warp_graph = warp_graph
+        self.device = device
+        self.stream = wp.stream_to_torch(wp.get_stream(device))  # resolved once, not on every replay
+
+    def launch(self) -> None:
+        """Replay on the simulation stream, ordered with the caller's Torch work."""
+        caller = torch.cuda.current_stream(self.stream.device)
+        if caller.cuda_stream == self.stream.cuda_stream:
+            self.torch_graph.replay()
+            return
+        self.stream.wait_stream(caller)
+        with torch.cuda.stream(self.stream):
+            self.torch_graph.replay()
+        caller.wait_stream(self.stream)
+
+
+@contextlib.contextmanager
+def execution_stream(device: wp.DeviceLike):
+    """Order mixed eager Torch/Warp work with the caller, using the simulation's Warp stream."""
+    device = wp.get_device(device)
+    with wp.ScopedDevice(device):
+        if not device.is_cuda:
+            yield
+            return
+        stream = wp.stream_to_torch(wp.get_stream(device))
+        caller = torch.cuda.current_stream(stream.device)
+        stream.wait_stream(caller)
+        try:
+            with torch.cuda.stream(stream):
+                yield
+        finally:
+            caller.wait_stream(stream)
+
+
+def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> CapturedGraph:
+    """Record Torch and Warp work on one stream without advancing the simulation.
+
+    Torch owns capture so temporary controller tensors use its graph memory pool. Warp joins that capture and
+    retains its own allocation lifetimes. Both owners must live as long as the executable graph.
 
     Args:
         device: CUDA device.
@@ -711,23 +856,38 @@ def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: boo
         relaxed: Allow unrelated work on other threads, as required by Kit rendering.
 
     Returns:
-        The captured graph, replayed with :func:`warp.capture_launch`.
+        The captured graph and its allocation owners.
     """
-    stream = wp.get_stream(device)
-    mode = wp.CaptureMode.THREAD_LOCAL
+    device = wp.get_device(device)
+    warp_stream = wp.get_stream(device)
+    stream = wp.stream_to_torch(warp_stream)
     if relaxed:
-        # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
-        mode = wp.CaptureMode.RELAXED
-    with _paused_gc(), wp.ScopedStream(stream):
-        with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
-            fn()
-    return capture.graph
+        stream = torch.cuda.Stream(device=wp.device_to_torch(device))
+        warp_stream = wp.stream_from_torch(stream)
+    caller = torch.cuda.current_stream(stream.device)
+    stream.wait_stream(caller)
+    graph = torch.cuda.CUDAGraph()
+    allocator = _GraphAllocator(device)
+    with _paused_gc(), torch.cuda.stream(stream), wp.ScopedStream(warp_stream), wp.ScopedAllocator(device, allocator):
+        graph.capture_begin(capture_error_mode="relaxed" if relaxed else "thread_local")
+        try:
+            wp.capture_begin(stream=warp_stream, external=True)
+            try:
+                fn()
+            finally:
+                warp_graph = wp.capture_end(stream=warp_stream)
+        finally:
+            graph.capture_end()
+    return CapturedGraph(graph, warp_graph, device, allocator)
 
 
 @contextlib.contextmanager
 def _paused_gc():
-    """Keep collection-driven frees out of CUDA graph capture."""
+    """Keep collection-driven frees out of CUDA graph capture.
+
+    The deferred garbage is left to the next automatic collection: an explicit collection after every capture costs
+    hundreds of milliseconds on a large heap.
+    """
     was_enabled = gc.isenabled()
     gc.disable()
     try:
@@ -735,17 +895,16 @@ def _paused_gc():
     finally:
         if was_enabled:
             gc.enable()
-            gc.collect()
 
 
 def run_query(
     backend: NewtonBackend,
     timestamp: int,
     query: Callable[[], None],
-    graph: tuple[tuple[int, ...], wp.Graph] | None,
+    graph: tuple[tuple[int, ...], CapturedGraph] | None,
     *,
     use_cuda_graph: bool = True,
-) -> tuple[tuple[int, ...], wp.Graph] | None:
+) -> tuple[tuple[int, ...], CapturedGraph] | None:
     """Refresh shared BVHs once per publication and run a consumer-owned query graph.
 
     Args:
@@ -759,14 +918,21 @@ def run_query(
         The consumer's captured query and pointer layout, or None for eager execution.
     """
     model, state = backend.model, backend.state_0
-    pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
     cached = backend.bvh_refit
+    if model.device.is_capturing:
+        # An outer capture records the work itself: graphs cannot be launched inside it, and its replays cannot
+        # consult the publication timestamp, so every replay refits.
+        refit_bvh(backend)
+        cached.timestamp = None
+        query()
+        return graph
+    pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
     if cached.timestamp != timestamp:
         if model.device.is_cuda and use_cuda_graph:
             if cached.data is None or cached.data[0] != pointers:
                 refit = partial(refit_bvh, backend)
                 cached.data = pointers, capture_graph(str(model.device), refit, relaxed=has_kit())
-            wp.capture_launch(cached.data[1])
+            cached.data[1].launch()
         else:
             refit_bvh(backend)
         cached.timestamp = timestamp
@@ -775,7 +941,7 @@ def run_query(
         return None
     if graph is None or graph[0] != pointers:
         graph = pointers, capture_graph(str(model.device), query, relaxed=has_kit())
-    wp.capture_launch(graph[1])
+    graph[1].launch()
     return graph
 
 

@@ -140,6 +140,9 @@ class SolverSpec:
     supports_capture: Callable[[SolverBase, Any], bool] = _true
     """Whether the constructed solver can be recorded into a CUDA graph."""
 
+    captures_model_changes: bool = False
+    """Whether ``notify_model_changed`` can be recorded into a conditional CUDA graph; otherwise it runs eagerly."""
+
     ignored_model_changes: Mapping[int, str] = field(default_factory=lambda: MappingProxyType({}))
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
 

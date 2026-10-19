@@ -757,8 +757,9 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     backend = _recording_backend(events, single_state=True, num_substeps=1)
     replays = []
     # init_solver resolves the capture function only for solvers that support capture.
-    backend.capture = (lambda segment: segment) if supported else None
-    monkeypatch.setattr(wp, "capture_launch", lambda segment: (replays.append(segment), segment()))
+    backend.capture = (
+        (lambda segment: SimpleNamespace(launch=lambda: (replays.append(segment), segment()))) if supported else None
+    )
     nb.invalidate_graph(backend)
 
     for _ in range(2):
@@ -768,6 +769,26 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     assert len(replays) == int(supported)
     # The capturing step ran eagerly first, so both steps advanced physics exactly once.
     assert events.count(("step", "state_0", "state_0")) == 2
+
+
+@pytest.mark.parametrize("relaxed", [False, True])
+def test_cuda_graph_records_torch_work_and_retains_temporary_tensors(relaxed):
+    """Both capture modes record Torch allocations and kernels without advancing during capture."""
+    import torch
+
+    value = torch.zeros(4, device="cuda:0")
+
+    def controller():
+        value.copy_((value + 1.0).square())
+
+    controller()
+    torch.cuda.synchronize()
+    graph = nb.capture_graph("cuda:0", controller, relaxed=relaxed)
+    torch.testing.assert_close(value, torch.ones_like(value))
+    for _ in range(3):
+        graph.launch()
+    torch.cuda.synchronize()
+    torch.testing.assert_close(value, torch.full_like(value, 676.0))
 
 
 # ---------------------------------------------------------------------------
@@ -785,8 +806,8 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
         ("write_root_com_pose_to_sim_mask", "env_mask"),
     ],
 )
-def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
-    """A model-backed root write immediately refreshes MuJoCo's root transform."""
+def test_fixed_root_pose_write_updates_solver(monkeypatch, asset_class, writer, selector):
+    """A model-backed root write refreshes MuJoCo's root transform when the next step notifies the solver."""
     builder = ModelBuilder()
     SolverMuJoCo.register_custom_attributes(builder)
     builder.begin_world()
@@ -815,11 +836,23 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
         assert_shape_and_dtype_mask=lambda *args: None,
     )
     solver = SolverMuJoCo(model)
-    asset._backend_manager = SimpleNamespace(backend=SimpleNamespace(solver=solver))
+    backend = SimpleNamespace(
+        solver_cfg=MJWarpSolverCfg(),
+        solver=solver,
+        device=wp.get_device("cpu"),
+        model_changes=set(),
+        warned_model_changes=set(),
+        model_refresh_graphs={},
+    )
+    asset._backend_manager = NewtonManager()
+    asset._backend_manager._device = "cpu"
+    asset._backend_manager.backend = backend
+    backend.model_dirty = wp.zeros(1, dtype=wp.int32, device="cpu")
     target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
     selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
 
     getattr(asset_class, writer)(asset, root_pose=target, skip_forward=True, **{selector: selection})
+    nb.notify_model_changes(backend)
 
     np.testing.assert_allclose(solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
 
@@ -851,6 +884,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     )
     owner = NewtonManager()
     owner.backend = _backend_with_masks(world_mask, fk_mask, spec)
+    owner.backend.model_changes = set()
 
     owner.forward()
     owner.forward()
@@ -877,6 +911,28 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
     nb.forward(backend)
 
     assert world_mask.numpy().tolist() == [False, False]
+
+
+def test_invalidate_fk_maps_view_rows_to_worlds():
+    """Selected view rows flag their articulations for FK and the worlds that hold them.
+
+    A global articulation (world ``-1``) only requests FK and never flags the global world slot.
+    """
+    articulation_world = wp.array(np.asarray([0, 0, 1, 1, 2, -1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    backend = SimpleNamespace(
+        model=SimpleNamespace(world_count=3, articulation_world=articulation_world),
+        device="cpu",
+        world_mask=wp.zeros(4, dtype=wp.bool, device="cpu"),
+        fk_mask=wp.zeros(6, dtype=wp.bool, device="cpu"),
+        kinematics_dirty=False,
+    )
+    articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
+
+    nb.invalidate_fk(backend, env_ids=wp.array([2, 0], dtype=wp.int64, device="cpu"), articulation_ids=articulation_ids)
+
+    assert backend.kinematics_dirty
+    np.testing.assert_array_equal(backend.world_mask.numpy(), [True, False, True, False])
+    np.testing.assert_array_equal(backend.fk_mask.numpy(), [True, True, False, False, True, True])
 
 
 # ---------------------------------------------------------------------------
@@ -948,15 +1004,13 @@ def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
         builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
-        # Picking registers its forces once the solver exists, before any capture.
-        monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
         sim.backend_manager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY, wrap_weak_ref=False)
 
         sim.reset()
         assert isinstance(sim.backend_manager.backend.solver, SolverMuJoCo)
         sim.reset()
 
-    assert events == ["ready", "prepare"] * 2
+    assert events == ["ready"] * 2
     assert len(allocations) == 2 and allocations[0] is not allocations[1]
 
 

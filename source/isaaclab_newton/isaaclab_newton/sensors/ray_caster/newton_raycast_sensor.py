@@ -20,7 +20,8 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonQueries
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg
+from isaaclab_newton.physics.newton_backend import run_query
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
 from .newton_raycast_sensor_data import NewtonRaycastSensorData
@@ -343,7 +344,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        self._graph = NewtonQueries.run_query(
+        self._graph = run_query(
             self.backend,
             provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             self._launch_raycast,

@@ -104,6 +104,7 @@ def test_joint_commands_preserve_coordinate_layout(ball_joint):
         state_0=state,
         control=control,
         solver=None,
+        is_stepping=False,
         transforms_may_change_on_graph_replay=False,
         device=model.device,
     )

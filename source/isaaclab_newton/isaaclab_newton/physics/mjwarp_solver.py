@@ -119,6 +119,7 @@ MJWARP_SPEC = SolverSpec(
     build=build,
     single_state=True,
     deterministic=True,
+    captures_model_changes=True,
     supports_capture=lambda solver, cfg: not cfg.use_mujoco_cpu,
     coupling_error=coupling_error,
     external_contacts=lambda solver, cfg: not cfg.use_mujoco_contacts,

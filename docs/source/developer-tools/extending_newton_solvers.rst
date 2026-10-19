@@ -159,10 +159,11 @@ and stepped side by side:
 
 :func:`~isaaclab_newton.physics.newton_backend.step` runs the first step after
 :func:`~isaaclab_newton.physics.newton_backend.invalidate_graph` eagerly, then captures it for later steps when the
-backend's device and solver allow it.
+backend's device and solver allow it. :func:`~isaaclab_newton.physics.newton_backend.capture_graph` records Torch and Warp on one stream and keeps
+both libraries' allocations alive; use it rather than a bare capture when Torch work is recorded.
 
 Property writers call ``mark_model_changed(backend, flags)``; ``notify_model_changes`` commits the queued
-categories once at the next step.
+categories once at the next state read or step.
 
 
 Extension Contract
@@ -212,9 +213,10 @@ state: state a solver needs between steps belongs on the Newton solver object.
      - Construct Newton's solver for a model.
    * - ``init_state``
      - Initialize the output state of double-buffered solvers before capture.
-   * - ``single_state``, ``deterministic``, ``contact_sensors``
-     - Constant capabilities: stepping in place on one ``State``, honoring a Warp determinism guarantee, and readable
-       contacts for Newton contact sensors.
+   * - ``single_state``, ``deterministic``, ``contact_sensors``, ``captures_model_changes``
+     - Constant capabilities: stepping in place on one ``State``, honoring a Warp determinism guarantee, readable
+       contacts for Newton contact sensors, and recording ``notify_model_changed()`` into a conditional CUDA graph
+       that skips the refresh when nothing changed.
    * - ``body_forces``, ``supports_capture``
      - Configuration-dependent capabilities: consuming applied body forces, and CUDA graph capture.
    * - ``ignored_model_changes``

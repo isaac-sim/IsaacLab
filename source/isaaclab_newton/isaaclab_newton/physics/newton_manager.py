@@ -65,32 +65,6 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     return ModelBuilder()
 
 
-class NewtonQueries:
-    """Stateless query and capture functions operating on an explicit Newton resource."""
-
-    @staticmethod
-    def run_query(
-        backend: NewtonBackend,
-        timestamp: int,
-        query: Callable[[], None],
-        graph: tuple[tuple[int, ...], wp.Graph] | None,
-        *,
-        use_cuda_graph: bool = True,
-    ) -> tuple[tuple[int, ...], wp.Graph] | None:
-        """Refresh shared BVHs once per publication and run a consumer-owned query graph; see
-        :func:`newton_backend.run_query`."""
-        return nb.run_query(backend, timestamp, query, graph, use_cuda_graph=use_cuda_graph)
-
-    @staticmethod
-    def capture_graph(device: str, capture_target: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-        """Record work without an eager warmup or graph replay; see :func:`newton_backend.capture_graph`."""
-        return nb.capture_graph(device, capture_target, relaxed=relaxed)
-
-    @staticmethod
-    def _refit_bvh(backend: NewtonBackend) -> None:
-        nb.refit_bvh(backend)
-
-
 class NewtonManager(PhysicsManager):
     """Newton physics manager for Isaac Lab.
 
@@ -122,8 +96,6 @@ class NewtonManager(PhysicsManager):
         self._scene_data_backend = NewtonSceneDataBackend(lambda: self.backend)
         self._decimation = 1
         self._solver_init_callbacks: list[Callable[[], None]] = []
-        # Forces applied before every solver substep; unlike the other step callbacks they survive hard resets.
-        self._state_force_callbacks: list[Callable[[State], None]] = []
 
     # ----- Physics manager lifecycle ---------------------------------------------
 
@@ -165,7 +137,6 @@ class NewtonManager(PhysicsManager):
             backend = self.backend = sim.get_or_create_backend(backend_cfg, dt=self.get_physics_dt())
             backend.model.set_gravity(sim.cfg.gravity)
         backend.decimation = self._decimation
-        backend.state_force_callbacks = self._state_force_callbacks
         clone = self._clone
         if clone is not None:
             backend.particle_ranges = clone.particle_ranges
@@ -184,15 +155,13 @@ class NewtonManager(PhysicsManager):
         pending, self._solver_init_callbacks = self._solver_init_callbacks, []
         for callback in pending:
             callback()
-        # Picking callbacks must be registered after the solver exists, but before CUDA graph capture.
-        if solver_spec(backend.solver_cfg).body_forces(backend.solver_cfg):
-            sim._prepare_newton_visualizer_for_capture()
         self._mark_transforms_changed()
 
     def forward(self) -> None:
         """Reset solver internals and recompute body state for worlds whose state was authored."""
         backend = self.backend
         if backend is not None and backend.solver is not None:
+            nb.notify_model_changes(backend)
             nb.forward(backend)
 
     def step(self) -> None:
@@ -224,7 +193,6 @@ class NewtonManager(PhysicsManager):
         self._site_index_map = {}
         self._clone = None
         self._decimation = 1
-        self._state_force_callbacks = []
 
     def _close_backend(self, *, dispatch_stop: bool = True) -> None:
         """Stop consumers, drop their views, and close the backend."""
@@ -339,8 +307,9 @@ class NewtonManager(PhysicsManager):
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
         """
-        if callback not in self._state_force_callbacks:
-            self._state_force_callbacks.append(callback)
+        callbacks = self.backend.state_force_callbacks
+        if callback not in callbacks:
+            callbacks.append(callback)
 
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
@@ -410,14 +379,15 @@ class NewtonManager(PhysicsManager):
         if self.backend is not None:
             nb.invalidate_body_state(self.backend, env_ids, env_mask)
 
-    def add_model_change(self, change: ModelFlags) -> None:
-        """Register a model change to notify the solver at the next step.
+    def add_model_change(self, change: ModelFlags, env_mask: wp.array | None = None) -> None:
+        """Queue a property edit for the next state-read or step boundary.
 
         Args:
             change: Changed model-property categories.
+            env_mask: Selected worlds. An empty mask performs no solver refresh.
         """
         if self.backend is not None:
-            nb.mark_model_changed(self.backend, change)
+            nb.mark_model_changed(self.backend, change, env_mask)
 
     @property
     def transforms_may_change_on_graph_replay(self) -> bool:

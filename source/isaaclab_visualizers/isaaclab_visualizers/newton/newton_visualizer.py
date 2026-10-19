@@ -936,6 +936,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.picking_enabled = self._picking_enabled
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
+            # A hard reset discards the Newton backend and its callbacks, so register picking with the new one.
+            self._sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
 
     def close(self) -> None:
         """Release picking and scene references without destroying Kit's shared GL context."""

@@ -120,5 +120,6 @@ class NewtonSceneDataBackend(SceneDataBackend):
             self.transforms_timestamp += 1
             self.geometry_timestamp += 1
         if backend.solver is not None:
+            nb.notify_model_changes(backend)
             nb.forward(backend)
         return backend.state_0

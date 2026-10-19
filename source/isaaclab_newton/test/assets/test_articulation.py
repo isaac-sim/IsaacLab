@@ -387,9 +387,14 @@ def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffer
 
 @pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
 def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
-    """Set exact world and articulation reset masks from nonidentity environment IDs."""
+    """Set exact world and articulation reset masks from nonidentity environment IDs.
+
+    View rows map to worlds through the model's articulation-to-world table; a global articulation (world -1) only
+    requests FK and never flags the global world slot.
+    """
+    articulation_world = wp.array(np.asarray([0, 0, 1, 1, 2, -1], dtype=np.int32), dtype=wp.int32, device="cpu")
     backend = SimpleNamespace(
-        model=SimpleNamespace(world_count=3),
+        model=SimpleNamespace(world_count=3, articulation_world=articulation_world),
         device="cpu",
         world_mask=wp.zeros(4, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(6, dtype=wp.bool, device="cpu"),
@@ -453,6 +458,7 @@ def test_task_space_allocation_and_capture(device, first_property):
         state_0=state,
         control=control,
         solver=None,
+        is_stepping=False,
         transforms_may_change_on_graph_replay=False,
         device=model.device,
     )
@@ -504,6 +510,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
         state_0=state,
         control=control,
         solver=None,
+        is_stepping=False,
         transforms_may_change_on_graph_replay=False,
         device=model.device,
     )
