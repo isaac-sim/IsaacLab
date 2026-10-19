@@ -326,10 +326,7 @@ def get_robot_cfg(*, base_position: tuple[float, float, float] = (-0.68, 0.0, 0.
             },
         ),
         actuators={
-            **{
-                name: actuator.replace(friction=None, armature=None)
-                for name, actuator in FLEXIV_RIZON4S_CFG.actuators.items()
-            },
+            **FLEXIV_RIZON4S_CFG.actuators,
             "hand": ImplicitActuatorCfg(
                 joint_names_expr=["right_.*"],
                 joint_effort_limit=3.3,
