@@ -3,6 +3,32 @@ Changelog
 
 .. towncrier release notes start
 
+28.2.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``visualizer=NAME[,...]`` alongside physics and renderer selectors. Accepted ``--physics``,
+  ``--renderer``, and ``--visualizer`` (also ``--viz``) as aliases before task composition without
+  forwarding preset names to Kit. Explicit selections took precedence over script defaults;
+  conflicting selections reported an error. Custom visualizers used existing ``PresetCfg`` alternatives.
+* Added ``MultiBackendVisualizerCfg`` in ``isaaclab_tasks.utils.presets`` for configurable viewer alternatives.
+  Completed task selection before passing concrete configs to the runtime launcher.
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to reach the physics manager through ``env.sim.backend_manager``.
+
+Fixed
+^^^^^
+
+* Used the supplied command-line arguments when selecting the task for preset help, including repeated ``--task`` options.
+* Preserved dictionary keys in discovered paths for nested preset alternatives.
+* Preserved multiple configured viewers of one type and kept explicit viewer preset paths ahead of global selectors.
+
+
 28.1.1 (2026-10-18)
 ~~~~~~~~~~~~~~~~~~~
 
