@@ -159,7 +159,7 @@ class _OvPhysxRayCasterMixin:
         if self._ovphysx_body_view is None:
             return self._static_view_transforms_wp
         # Complete pending articulation writes so child links report their current pose.
-        OvPhysxManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         self._ovphysx_body_view.read(self._pose_buf)
         return self._pose_buf_transformf
 
@@ -214,7 +214,7 @@ class _OvPhysxRayCasterMixin:
             return
         # Tracked targets can be articulation links with pending writes.
         if any(target_cfg.track_mesh_transforms for target_cfg in self._raycast_targets_cfg):
-            OvPhysxManager.update_kinematics()
+            self._backend_manager.update_kinematics()
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:

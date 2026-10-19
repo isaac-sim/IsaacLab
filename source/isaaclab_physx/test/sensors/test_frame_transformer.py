@@ -670,6 +670,7 @@ def _make_frame_transformer(use_recorded_launch: bool = True):
     sensor._initialize_handle = None
     sensor._invalidate_initialize_handle = None
     sensor._prim_deletion_handle = None
+    sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)
 
     env_mask = wp.ones(1, dtype=wp.bool, device=device)
     return sensor, transform_view, transforms_torch, env_mask

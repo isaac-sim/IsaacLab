@@ -428,7 +428,7 @@ class FrameTransformer(BaseFrameTransformer):
             )
 
         # Complete pending articulation writes so child links report their current pose.
-        SimulationManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         # Step 1: refresh each per-body RIGID_BODY_POSE view and gather rows into _raw_transforms.
         # read_into fills the structured (num_envs,) wp.transformf buffer directly via a cached
         # float32 reinterpret, so no manual .view(wp.transformf) is needed here.

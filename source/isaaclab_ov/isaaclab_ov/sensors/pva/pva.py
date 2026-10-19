@@ -200,7 +200,7 @@ class Pva(BasePva):
         env_mask = self._resolve_indices_and_mask(None, env_mask)
         self._refresh_gravity_vec()
         # Complete pending articulation writes so child links report their current pose and velocity.
-        SimulationManager.update_kinematics()
+        self._backend_manager.update_kinematics()
 
         # ``OvPhysxView.read_into`` fills the structured-dtype buffer in place via a
         # cached float32 reinterpret; no manual float32 alias is needed.

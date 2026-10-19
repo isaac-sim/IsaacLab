@@ -614,10 +614,8 @@ class VisuoTactileSensor(SensorBase):
             Requires both elastomer and contact object body views to be initialized. Returns
             early if tactile points or body views are not available.
         """
-        from isaaclab_physx.physics import PhysxManager  # noqa: PLC0415
-
         # Complete pending articulation writes so the body views report the current link states.
-        PhysxManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         # Step 1: Get elastomer pose and precompute pose components
         elastomer_pos_w, elastomer_quat_w = wp.to_torch(self._elastomer_body_view.get_transforms()).split(
             [3, 4], dim=-1

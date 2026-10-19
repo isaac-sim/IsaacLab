@@ -193,7 +193,7 @@ class Imu(BaseImu):
         env_mask = self._resolve_indices_and_mask(None, env_mask)
         self._refresh_gravity_bias()
         # Complete pending articulation writes so child links report their current pose and velocity.
-        SimulationManager.update_kinematics()
+        self._backend_manager.update_kinematics()
 
         # ``read_into`` fills the structured-dtype destination in place through a cached
         # float32 reinterpret of the binding's flat shape (no extra copy).
