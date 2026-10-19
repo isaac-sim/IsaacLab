@@ -432,8 +432,8 @@ endpoint with the list of both:
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 4 \
   presets=cosmos \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']" \
-  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.transport=cuda_ipc
+  env.cosmos.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']" \
+  env.cosmos.transport=cuda_ipc
 ```
 
 The environments are split into contiguous shares of near-equal size, one per service in the order given:
