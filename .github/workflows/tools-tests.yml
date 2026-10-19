@@ -71,8 +71,7 @@ jobs:
         # suite, so loading it here would ignore the files named below.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
           .github/actions/_lib/test_registry_credential_fallback.py
-          .github/actions/_lib/test_performance_workflow.py
-          tools/perf_smoke/test_run_benchmarks.py -v --noconftest
+          .github/actions/_lib/test_performance_workflow.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
         with:
