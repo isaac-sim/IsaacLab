@@ -31,6 +31,14 @@ Command Builder
            <span>--task</span>
            <select data-environment-field="task" aria-label="Task"></select>
          </label>
+         <label class="environment-inline-field">
+           <span>--viz</span>
+           <select data-environment-field="visualizer" aria-label="Visualizer">
+             <option value="">None</option>
+             <option value="newton_gl">newton_gl</option>
+             <option value="kit">kit</option>
+           </select>
+         </label>
        </div>
        <div class="environment-command-row environment-command-row-options">
          <label class="environment-selector environment-selector-physics">
