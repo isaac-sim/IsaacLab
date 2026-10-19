@@ -108,6 +108,7 @@ _NEWTON_MJWARP_EXCLUSIONS = frozenset(
         "IsaacContrib-Factory-Franka",
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
         "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
+        "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
         "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel",
         "IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel",
         "IsaacContrib-Stack-Cube-Franka",

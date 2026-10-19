@@ -224,6 +224,7 @@ def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
     expected = {
         "IsaacContrib-Factory-Franka": False,
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic": False,
         "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel": False,
         "IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel": False,
         "IsaacContrib-Stack-Cube-Franka": False,
