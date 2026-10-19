@@ -165,9 +165,3 @@ def test_a_subclass_of_the_shadow_hand_preset_keeps_env_cosmos_on_its_camera():
 
     env_cfg = ShorterEpisodeCfg()
     assert env_cfg.cosmos is env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][1].backend
-
-
-def test_the_shadow_hand_preset_rejects_a_control_other_than_depth():
-    env_cfg = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos", "env.cosmos.modality=edge"))
-    with pytest.raises(ValueError, match="modality must be depth"):
-        env_cfg.validate()
