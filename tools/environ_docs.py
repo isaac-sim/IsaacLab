@@ -102,7 +102,6 @@ _SELECTOR_LABELS = {
 # commands until the corresponding task supports them end to end.
 _NEWTON_MJWARP_EXCLUSIONS = frozenset(
     {
-        "IsaacContrib-Factory-Franka",
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
         "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
         "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
@@ -119,9 +118,6 @@ _NEWTON_MJWARP_EXCLUSIONS = frozenset(
         "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow",
         "IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel",
         "IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel",
-        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
-        "IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0",
-        "IsaacContrib-Stack-Cube-SO101-v0",
         "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
         "IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel",
     }
