@@ -207,7 +207,7 @@ def settle_held_asset(
 
     # A solver that decimates internally advances a full environment step per call; one that does
     # not needs the substeps run out, so that ``num_steps`` means the same span either way.
-    substeps = 1 if env.sim.physics_manager.handles_decimation() else env.cfg.decimation
+    substeps = 1 if env.sim.backend_manager.handles_decimation() else env.cfg.decimation
     for _ in range(num_steps * substeps):
         env.sim.step(render=False)
     env.scene.update(dt=env.step_dt)
@@ -320,7 +320,7 @@ class reset_end_effector_around_asset(ManagerTermBase):
         )
         self.solver: DifferentialInverseKinematicsAction = None  # type: ignore
         self.grasp_angle_range = (0.3, 0.7)
-        self.is_physx = "physx" in env.sim.physics_manager.__name__.lower()
+        self.is_physx = env.sim.backend_manager.backend_name == "physx"
         self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
         """Whether the last solve for each env reached its target within ``pose_tolerance``."""
 

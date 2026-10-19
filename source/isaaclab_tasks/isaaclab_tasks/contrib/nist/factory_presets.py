@@ -19,6 +19,7 @@ Robot presets default to the Franka Panda and select backend-specific asset sett
 """
 
 import math
+from dataclasses import fields
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import SceneEntityCfg
@@ -648,7 +649,7 @@ class _GraspHeightCfg(PresetCfg):
 
 
 _GRASP_HEIGHTS = _GraspHeightCfg()
-_VARIANTS = _GRASP_HEIGHTS.__dataclass_fields__
+_VARIANTS = tuple(field.name for field in fields(_GRASP_HEIGHTS))
 
 GRASPED_POSE_RANGE = preset(
     **{name: _end_effector_pose_range(getattr(_GRASP_HEIGHTS, name), **_WIDE_RANGE) for name in _VARIANTS}

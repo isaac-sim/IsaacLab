@@ -217,7 +217,7 @@ class sample_settled_asset_pose(ManagerTermBase):
                 root_velocity=torch.zeros_like(asset.data.root_com_vel_w.torch), env_ids=all_env_ids
             )
 
-        substeps = 1 if env.sim.physics_manager.handles_decimation() else env.cfg.decimation
+        substeps = 1 if env.sim.backend_manager.handles_decimation() else env.cfg.decimation
         for start in range(0, num_poses, env.num_envs):
             variant_ids = (torch.arange(env.num_envs, device=env.device) + start).remainder(num_variants)
             self._held_asset.write_mesh_variant_to_sim(variant_ids.to(torch.int32), all_env_ids)
@@ -335,7 +335,7 @@ class reset_variant_end_effector_around_asset(ManagerTermBase):
         )
         self.solver: DifferentialInverseKinematicsAction = None  # type: ignore
         self.grasp_angle_range = (0.3, 0.7)
-        self.is_physx = "physx" in env.sim.physics_manager.__name__.lower()
+        self.is_physx = env.sim.backend_manager.backend_name == "physx"
         self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
         """Whether the last solve for each env reached its target within ``pose_tolerance``."""
 
