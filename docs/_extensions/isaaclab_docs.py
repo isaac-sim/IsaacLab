@@ -184,6 +184,28 @@ class IsaacLabCloneHttps(SphinxDirective):
         return _parse_rst(self, content)
 
 
+class IsaacLabIsaacSimInstall(SphinxDirective):
+    """Render the Isaac Sim install command used by historical documentation versions."""
+
+    optional_arguments = 1  # installer: "pip" (default is "uv pip")
+
+    def run(self) -> list[nodes.Node]:
+        version = self.config.isaacsim_version
+        if self.arguments and self.arguments[0] == "pip":
+            content = f"""\
+.. code-block:: bash
+
+   python -m pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com
+"""
+        else:
+            content = f"""\
+.. code-block:: bash
+
+   uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+"""
+        return _parse_rst(self, content)
+
+
 class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
     """Render the Isaac Lab wheel command for the current Isaac Sim version."""
 
@@ -237,18 +259,21 @@ class IsaacLabTorchInstall(SphinxDirective):
     Usage::
 
         .. isaaclab-torch-install:: cu130
+        .. isaaclab-torch-install:: cu130 pip
     """
 
     required_arguments = 1  # CUDA build tag, e.g. "cu128"
+    optional_arguments = 1  # installer: "pip" (default is "uv pip")
 
     def run(self) -> list[nodes.Node]:
         cuda_tag = self.arguments[0]
+        installer = "python -m pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
         torch_version = self.config.torch_version
         torchvision_version = self.config.torchvision_version
         content = f"""\
 .. code-block:: bash
 
-   uv pip install -U torch=={torch_version} torchvision=={torchvision_version} --index-url https://download.pytorch.org/whl/{cuda_tag}
+   {installer} install -U torch=={torch_version} torchvision=={torchvision_version} --index-url https://download.pytorch.org/whl/{cuda_tag}
 """
         return _parse_rst(self, content)
 
@@ -328,6 +353,7 @@ def setup(app):
     app.add_directive("isaaclab-benchmark-data", IsaacLabBenchmarkData)
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
+    app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
     app.add_directive("isaaclab-uv-isaacsim-wheel-install", IsaacLabUvIsaacSimWheelInstall)
     app.add_directive("isaaclab-uv-importers-wheel-install", IsaacLabUvImportersWheelInstall)
     app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)
