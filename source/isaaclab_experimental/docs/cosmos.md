@@ -423,7 +423,8 @@ The service can run on another GPU of the same machine, which leaves the model's
 CUDA IPC then works when the two GPUs can access each other's memory directly, over NVLink or PCIe;
 `nvidia-smi topo -m` shows how they connect. Each process creates the buffer it writes on its own GPU, and the
 other process copies it between the GPUs without host memory. Without direct access, `auto` uses the socket and
-`cuda_ipc` fails. MIG instances have no direct access to each other.
+`cuda_ipc` fails. MIG instances have no direct access to each other. If the service cannot see the camera's GPU,
+the session is rejected even with `auto`; keep both GPUs visible to both processes.
 
 Both processes must see both GPUs, so do not narrow `CUDA_VISIBLE_DEVICES` to one GPU; select the model's GPU with
 `--device` instead:
