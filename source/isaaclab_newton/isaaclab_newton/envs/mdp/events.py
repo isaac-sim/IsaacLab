@@ -57,7 +57,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._static_friction_range = cfg.params["static_friction_range"]
         self._restitution_range = cfg.params["restitution_range"]
 
-        model = self._newton_manager.get_model()
+        model = self._newton_manager.backend.model
         self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
         self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
 
@@ -109,7 +109,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         restitution_view = wp.to_torch(self._restitution_binding)
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if isinstance(self._newton_manager._solver, SolverKamino):
+        if isinstance(self._newton_manager.backend.solver, SolverKamino):
             # Kamino shares each material group across all environments.
             if self._kamino_group_inverse is None:
                 build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)
@@ -165,7 +165,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         self.asset = asset
         self._newton_manager = env.sim.backend_manager
 
-        model = self._newton_manager.get_model()
+        model = self._newton_manager.backend.model
         self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
         self._sim_bind_shape_gap = asset._root_view.get_attribute("shape_gap", model)[:, 0]  # type: ignore
 
@@ -261,7 +261,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             operation: Apply absolute values, add to current gravity, or scale current gravity.
             distribution: Sampling distribution; gravity terms cache this at construction.
         """
-        model = self._manager.get_model()
+        model = self._manager.backend.model
         if model is None or model.gravity is None:
             raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")
         # The trailing global-world row is not an environment.
@@ -305,7 +305,7 @@ class randomize_visual_shape(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
         selected = self._all_env_ids[env_ids] if isinstance(env_ids, slice) else env_ids.to(dtype=torch.int32)
-        model = env.sim.backend_manager.get_model()
+        model = env.sim.backend_manager.backend.model
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)

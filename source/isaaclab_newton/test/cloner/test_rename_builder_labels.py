@@ -16,7 +16,7 @@ from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import NewtonCloneRecord, NewtonXPBDManager, get_newton_backend
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -109,7 +109,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
     def setUp(self):
         self.sim = object.__new__(SimulationContext)
         self.sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-        self.sim.backend_manager = SimpleNamespace(get_device=lambda: "cpu")
+        self.sim.backend_manager = NewtonXPBDManager(device="cpu")
         self.sim.stage, self.sim._backend_registry = None, []
         patch = mock.patch.object(SimulationContext, "instance", return_value=self.sim)
         patch.start()
@@ -231,9 +231,16 @@ class TestVisualizationClonePlan(unittest.TestCase):
         assets += tuple(AssetBaseCfg(prim_path=path) for path in shared)
         plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=range(2, len(assets)), env_template="/Scene/copy_{}")
         bindings = {"/PhysicsOwned": [0]}
-        with mock.patch.object(self.sim.backend_manager, "_cable_bindings", bindings, create=True):
+        clone = NewtonCloneRecord(
+            world_xforms=None,
+            source_builders={},
+            particle_ranges={},
+            cable_bindings=bindings,
+            geometry_batches=[],
+        )
+        with mock.patch.object(self.sim.backend_manager, "_clone", clone):
             builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
-            self.assertIs(self.sim.backend_manager._cable_bindings, bindings)
+            self.assertIs(self.sim.backend_manager.get_clone_record().cable_bindings, bindings)
         for path in ("/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"):
             self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
         self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
@@ -393,8 +400,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     options = dict(plan=plan, asset_prototype_ids=range(5))
                     options.update(positions=positions, quaternions=quaternions)
                     builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
-                cfg = NewtonBackendCfg(physics_cfg=self.sim.cfg.physics, device=self.sim.device)
-                backend = self.sim.get_or_create_backend(cfg)
+                backend = get_newton_backend(self.sim)
                 offsets = backend.geometry_offsets
                 self.assertEqual(add_cloth.call_count, 4)  # One copy for each source builder that needs the cloth.
                 np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 19, 3])

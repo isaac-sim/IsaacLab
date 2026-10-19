@@ -13,11 +13,18 @@ from types import SimpleNamespace
 
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
+from isaaclab_newton.physics import (
+    NewtonCfg,
+    NewtonManager,
+    NewtonSoftContactCfg,
+    NewtonVBDManager,
+    get_newton_backend,
+    get_newton_builder,
+)
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
-from isaaclab.sim import BackendCfg, SimulationContext
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import replace
 
 
@@ -42,8 +49,14 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
         soft_contact_ke = 7.0
         soft_contact_kd = 8.0
         soft_contact_mu = 9.0
+        device = "cpu"
         world_count = 0
         articulation_count = 0
+        body_count = 0
+        particle_count = 0
+
+        def set_gravity(self, gravity):
+            pass
 
         def state(self):
             state_values.append((self.soft_contact_ke, self.soft_contact_kd, self.soft_contact_mu))
@@ -55,29 +68,36 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     model = Model()
     monkeypatch.setattr(ModelBuilder, "finalize", lambda self, device: model)
     physics_cfg = NewtonCfg(soft_contact_cfg=soft_contact_cfg) if simulation else object()
-    builder_cfg = NewtonBuilderCfg(physics_cfg=physics_cfg)
-    assert not isinstance(builder_cfg, BackendCfg)
-    assert not hasattr(builder_cfg, "close")
-    cfg = NewtonBackendCfg(physics_cfg=physics_cfg, device="cpu")
+    manager = NewtonVBDManager(cfg=physics_cfg if simulation else None, device="cpu", dt=0.01)
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
+    sim.backend_manager = manager
+    manager._sim = sim
+    sim.cfg = SimpleNamespace(dt=0.01, gravity=(0.0, 0.0, -9.81), physics=physics_cfg, device="cpu")
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    builder = sim.get_or_create_backend(builder_cfg)
-    backend = sim.get_or_create_backend(cfg)
-    assert not {"_builder", "set_builder", "_model", "_state_0", "_state_1"}.intersection(vars(NewtonManager))
-    assert not {"sync_transforms_to_fabric", "sync_transforms_to_usd"}.intersection(vars(NewtonManager))
-    assert cfg.physics_cfg is physics_cfg
-    assert backend is sim.get_or_create_backend(replace(cfg))
-    assert builder is sim.get_or_create_backend(builder_cfg)
+    builder = get_newton_builder(sim)
+    assert builder is get_newton_builder(sim)
+    if simulation:
+        # Newton physics owns its builder and backend outside the simulation registry.
+        assert builder is manager.builder
+        backend = manager.finalize_backend()
+        assert sim._backend_registry == []
+    else:
+        backend = get_newton_backend(sim)
+        assert backend is get_newton_backend(sim)
+    assert backend.cfg is (physics_cfg if simulation else None)
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
     assert state_values == [expected] * (2 if simulation else 1)
     assert (backend.state_1 is not None) == simulation
     assert (backend.control is not None) == simulation
-    sim.close_backend(backend)
+    if simulation:
+        backend.close()
+    else:
+        sim.close_backend(backend)
+        assert get_newton_builder(sim) is builder
+        sim.close_backend(builder)
+        assert sim._backend_registry == []
     assert backend.model is backend.state_0 is backend.state_1 is backend.control is None
-    assert sim.get_or_create_backend(builder_cfg) is builder
-    sim.close_backend(builder)
-    assert sim._backend_registry == []
 
 
 def test_vbd_colors_builder_before_finalization():
@@ -110,7 +130,7 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     solver = object()
     manager = physics.NewtonVBDManager()
     monkeypatch.setattr(manager, "_create_solver", lambda model, cfg, deterministic_mode: solver)
-    monkeypatch.setattr(manager, "_solver", None)
+    monkeypatch.setattr(manager, "backend", SimpleNamespace(solver=None))
     monkeypatch.setattr(manager, "_use_single_state", True)
     monkeypatch.setattr(manager, "_needs_collision_pipeline", False)
     monkeypatch.setattr(manager, "_supports_rigid_body_force_input", True)
@@ -118,7 +138,7 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
     manager._build_solver(object(), solver_cfg)
 
-    assert manager._solver is solver
+    assert manager.backend.solver is solver
     assert manager._supports_rigid_body_force_input is False
 
 
@@ -229,8 +249,9 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
 
     manager = physics.NewtonVBDManager()
     monkeypatch.setattr(NewtonManager, "_simulate_physics_only", simulate_physics_only)
-    monkeypatch.setattr(manager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state))
-    monkeypatch.setattr(manager, "_solver", Solver())
+    monkeypatch.setattr(
+        manager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state, solver=Solver())
+    )
 
     manager._simulate_physics_only()
 

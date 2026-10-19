@@ -35,7 +35,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonCloneRecord, NewtonManager, get_newton_builder
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 _PER_WORLD_BUILDER_HOOKS: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -55,7 +55,7 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
     Raises:
         RuntimeError: If Newton replication did not retain the requested source.
     """
-    source = SimulationContext.instance().backend_manager._cl_protos.get(source_path)
+    source = SimulationContext.instance().backend_manager.get_clone_source_builders().get(source_path)
     if source is None:
         raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
     builder = ModelBuilder(up_axis=source.up_axis)
@@ -139,7 +139,7 @@ def _replicate_newton(
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg))
+    builder = get_newton_builder(sim)
     builder.up_axis = Axis.from_string(up_axis)
     import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
     # A parent import owns its whole subtree; reject nested replacements before importing either source.
@@ -213,7 +213,7 @@ def _replicate_newton(
                 raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
             for source in owners:
                 add_deformable_from_usd(source, stage, entry)
-        global_sites, source_sites, root_sites = sim.backend_manager._cl_inject_sites(builder, source_builders)
+        global_sites, source_sites, root_sites = sim.backend_manager.inject_sites(builder, source_builders)
     else:
         add_visual_deformables_to_sources(source_builders, entries)
         # Clear imported filters before merging into a fresh, compact final filter store.
@@ -251,8 +251,6 @@ def _replicate_newton(
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     if simulation:
-        manager = sim.backend_manager
-        manager._cable_bindings = cable_bindings
         geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
         ranges = dict(zip(builder.surface_label, builder._surface_particle_start, strict=True))
         ranges.update(zip(builder.volume_label, builder._volume_particle_start, strict=True))
@@ -260,12 +258,14 @@ def _replicate_newton(
         batches = deformable_geometry_batches(geometry, offsets, device=sim.device)
         if visual_ranges:
             batches.append((SceneDataFormat.Points(), visual_ranges))
-        manager._scene_data_backend._geometry_batches = batches
-        manager._cl_site_index_map = site_index_map
-        manager._world_xforms = world_xforms
-        manager._cl_protos = source_builders
-        manager._particle_ranges = particle_ranges
-        manager._num_envs = len(env_ids)
+        record = NewtonCloneRecord(
+            world_xforms=world_xforms,
+            source_builders=source_builders,
+            particle_ranges=particle_ranges,
+            cable_bindings=cable_bindings,
+            geometry_batches=batches,
+        )
+        sim.backend_manager.record_clone(record, site_index_map)
     return builder, stage_info, site_index_map
 
 

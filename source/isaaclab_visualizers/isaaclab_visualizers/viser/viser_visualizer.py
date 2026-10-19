@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import newton
 import numpy as np
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import get_newton_backend
 from newton.viewer import ViewerViser
 
 from isaaclab.scene_data import SceneDataFormat
@@ -305,8 +305,7 @@ class ViserVisualizer(BaseVisualizer):
         super().initialize(sim, cameras=cameras)
         scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(sim)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._viewer = NewtonViewerViser(
@@ -390,7 +389,7 @@ class ViserVisualizer(BaseVisualizer):
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
                 self._viewer.log_state(self.backend.state_0)
                 if self.cfg.enable_markers:
-                    self._render_markers(self.backend.model.num_envs)
+                    self._render_markers(self.backend.model.world_count)
             self._render_live_plots()
             self._push_streaming_frame()
         finally:
@@ -425,7 +424,7 @@ class ViserVisualizer(BaseVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        backend = self._sim.get_or_create_backend(self.newton_cfg)
+        backend = get_newton_backend(self._sim)
         if backend is self.backend:
             return
         self.backend = backend

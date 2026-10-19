@@ -18,9 +18,11 @@ __all__ = [
     "MPMSolverCfg",
     "MJWarpSolverCfg",
     "MjWarpActuatorBridge",
+    "NewtonBackend",
     "NewtonCfg",
     "NewtonBackendCfg",
     "NewtonBuilderCfg",
+    "NewtonCloneRecord",
     "NewtonCollisionPipelineCfg",
     "NewtonFeatherstoneManager",
     "NewtonKaminoManager",
@@ -36,6 +38,8 @@ __all__ = [
     "NewtonXPBDManager",
     "XPBDSolverCfg",
     "create_newton_builder",
+    "get_newton_backend",
+    "get_newton_builder",
 ]
 
 from .featherstone_manager import NewtonFeatherstoneManager
@@ -57,6 +61,7 @@ from .mjwarp_manager import NewtonMJWarpManager
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mpm_manager import NewtonMPMManager
 from .mpm_manager_cfg import MPMSolverCfg
+from .newton_backend import NewtonBackend, NewtonCloneRecord, get_newton_backend, get_newton_builder
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
 from .newton_manager import NewtonManager, NewtonQueries, create_newton_builder
 from .newton_manager_cfg import (

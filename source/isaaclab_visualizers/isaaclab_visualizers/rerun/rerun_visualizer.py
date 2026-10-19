@@ -21,7 +21,7 @@ import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 import warp as wp
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import get_newton_backend
 from newton.viewer import ViewerRerun
 
 from isaaclab.scene_data import SceneDataFormat
@@ -232,8 +232,7 @@ class RerunVisualizer(BaseVisualizer):
         super().initialize(sim, cameras=cameras)
         scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(sim)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         grpc_port = int(self.cfg.backend.grpc_port)
@@ -328,7 +327,7 @@ class RerunVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        num_envs = self.backend.model.num_envs
+        num_envs = self.backend.model.world_count
 
         if not self._viewer.is_paused():
             backend, provider = self.backend, self._sim.get_scene_data_provider()
@@ -359,7 +358,7 @@ class RerunVisualizer(BaseVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        backend = self._sim.get_or_create_backend(self.newton_cfg)
+        backend = get_newton_backend(self._sim)
         if backend is self.backend:
             return
         self.backend = backend

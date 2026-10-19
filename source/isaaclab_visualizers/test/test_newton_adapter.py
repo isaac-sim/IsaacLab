@@ -98,7 +98,7 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(mo
         particle_world=object(),
     )
     state = SimpleNamespace(particle_q=object())
-    backend_manager = SimpleNamespace(get_model=lambda: model, get_state_0=lambda: state)
+    backend_manager = SimpleNamespace(backend=SimpleNamespace(model=model, state_0=state))
 
     viewer = _Viewer()
     visualizer = _make_newton_visualizer(viewer, cfg=VisualizerCfg(enable_markers=False, backend=NewtonGLBackendCfg()))
@@ -651,7 +651,10 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._viewer = viewer
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
-        model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}
+        model=SimpleNamespace(world_count=1, body_count=len(state.body_q)),
+        state_0=state,
+        geometry_offsets={},
+        contacts=None,
     )
     provider = scene_data_provider or _SceneDataProvider()
     provider.poses = state.body_q
@@ -705,12 +708,13 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
 @pytest.mark.parametrize("picking", [False, True])
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking):
-    from isaaclab_newton.physics import NewtonBackendCfg
+    from isaaclab_newton.physics import NewtonCfg
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
-    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
+    sim = SimpleNamespace(cfg=SimpleNamespace(physics=NewtonCfg()), backend_manager=NewtonMJWarpManager())
+    sim.backend_manager.backend = backend
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
     viewer = _Viewer()
@@ -724,7 +728,6 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     visualizer = _make_newton_visualizer(viewer)
     sim.get_scene_data_provider = visualizer._sim.get_scene_data_provider
     visualizer._sim = sim
-    cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._env_ids = [1, 3]
     visualizer._picking_enabled = picking
     visualizer.cfg.backend.world_spacing = (2.0, 0.0, 0.0)
@@ -734,7 +737,6 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     visualizer.reset(soft=False)
 
     assert visualizer.backend is backend
-    sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
@@ -754,8 +756,7 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
     contacts = object()
     viewer = _Viewer()
     visualizer = _make_newton_visualizer(viewer, state=state)
-
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", lambda: contacts)
+    visualizer.backend.contacts = contacts
 
     visualizer.step(0.1)
 
@@ -776,8 +777,6 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
     visualizer.rendering = SimpleNamespace(draw=lambda viewer: viewer.events.append("coffee"))
     points = wp.zeros(3, dtype=wp.vec3)
     indices = wp.zeros(3, dtype=wp.int32)
-
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", lambda: None)
 
     normals = wp.zeros(3, dtype=wp.vec3)
 
@@ -865,8 +864,8 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     visualizer.current_image_view.read = Mock(return_value=image)
     provider = visualizer._sim.get_scene_data_provider()
     provider.get_transforms = Mock(wraps=provider.get_transforms)
-    contacts, markers = Mock(return_value=None), Mock()
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", contacts)
+    markers = Mock()
+    visualizer.backend.contacts = contacts = object()
     monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
 
     visualizer.step(0.1)
@@ -877,7 +876,7 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     assert name == "Streaming View" and displayed is image and fullscreen
     visualizer.current_image_view.read.assert_called_once()
     provider.get_transforms.assert_not_called()
-    contacts.assert_not_called()
+    assert viewer.logged_contacts is None
     markers.assert_not_called()
 
     viewer.paused = False
@@ -885,7 +884,7 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     visualizer.step(0.1)
     assert viewer.events[-3:] == ["begin_frame", "log_state", "end_frame"]
     provider.get_transforms.assert_called_once()
-    contacts.assert_called_once()
+    assert viewer.logged_contacts[0] is contacts
 
 
 @pytest.mark.rendering
@@ -1190,8 +1189,7 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
         monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "physx"))
     scene_data_provider = _SceneDataProvider({"contact_forces": sensor})
     visualizer = _make_newton_visualizer(viewer, scene_data_provider, state=state)
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", lambda: None)
-    visualizer.backend.model.num_envs = 2
+    visualizer.backend.model.world_count = 2
     visualizer._env_ids = [1]
     visualizer.step(0.1)
     assert viewer.logged_arrows == ("/contacts", None, None, None)

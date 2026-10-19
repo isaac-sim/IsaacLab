@@ -38,7 +38,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import get_newton_backend
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -809,8 +809,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
 
         super().initialize(sim, cameras=cameras)
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(sim)
         self._transform_mapping = sim.get_scene_data_provider().create_mapping(list(self.backend.model.body_label))
         scene_data_provider = self._sim.get_scene_data_provider()
         newton_backend_active = self.physics_backend == "newton"
@@ -879,13 +878,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
+                    contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)
                     else:
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
-                        render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+                        render_newton_visualization_markers(
+                            viewer, self._env_ids, num_envs=self.backend.model.world_count
+                        )
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -915,7 +916,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        backend = self._sim.get_or_create_backend(self.newton_cfg)
+        backend = get_newton_backend(self._sim)
         if backend is self.backend:
             return
         self.backend = backend

@@ -638,8 +638,7 @@ def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, sh
 
     manager = NewtonCouplerManager()
     manager._cfg = SimpleNamespace(solver_cfg=solver_cfg)
-    manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=1), state_0=state_0)
-    manager._solver = solver
+    manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=1), state_0=state_0, solver=solver)
 
     manager._reset_solver_internals(mask)
 
@@ -662,8 +661,7 @@ def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
     manager = NewtonCouplerManager()
     manager._cfg = SimpleNamespace(solver_cfg=solver_cfg)
-    manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=1), state_0=state)
-    manager._solver = solver
+    manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=1), state_0=state, solver=solver)
 
     manager._reset_solver_internals(mask)
 
@@ -682,8 +680,7 @@ def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
 
     manager = NewtonCouplerManager()
     manager._cfg = SimpleNamespace(solver_cfg=solver_cfg)
-    manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=2), state_0=state)
-    manager._solver = solver
+    manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=2), state_0=state, solver=solver)
 
     manager._reset_solver_internals(mask)
 
@@ -723,6 +720,7 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
 
     manager = NewtonCouplerManager()
+    manager.backend = SimpleNamespace(solver=None, contact_sensors={})
 
     monkeypatch.setattr(
         NewtonCouplerManager,
@@ -764,6 +762,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     _, resolved_entries, _ = _valid_proxy_setup()
     cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
     manager = NewtonCouplerManager()
+    manager.backend = SimpleNamespace(solver=None, contact_sensors={})
     monkeypatch.setattr(
         NewtonCouplerManager,
         "_resolve_entry",
@@ -789,17 +788,16 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
 def test_contact_sensor_guard_does_not_mutate_manager_state():
     sentinel_solver = object()
     manager = NewtonCouplerManager()
-    manager._solver = sentinel_solver
+    manager.backend = SimpleNamespace(solver=sentinel_solver, contact_sensors={"key": object()})
     manager._use_single_state = True
     manager._needs_collision_pipeline = True
     manager._supports_contact_sensors = True
     manager._supports_rigid_body_force_input = False
-    manager._report_contacts = True
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
         manager._build_solver(_FakeModel(), CouplerProxyCfg())
 
-    assert manager._solver is sentinel_solver
+    assert manager.backend.solver is sentinel_solver
     assert manager._use_single_state is True
     assert manager._needs_collision_pipeline is True
     assert manager._supports_contact_sensors is True
