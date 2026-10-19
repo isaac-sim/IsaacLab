@@ -13,12 +13,12 @@ from collections.abc import Sequence
 from dataclasses import fields, is_dataclass
 from typing import Any, Literal
 
+import torch
+
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
 from isaaclab.utils.modifiers import ModifierCfg
-
-from isaaclab_experimental.image_transfer import center_crop_resize
 
 from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
 from .control_profiles import depth_processor
@@ -76,7 +76,7 @@ def cosmos_camera(
     canvas_height, canvas_width = tuple(canvas) if canvas is not None else _closest_canvas(camera)
     input_name, chain = depth_processor(model, near=near, far=far)
     if (camera.height, camera.width) != (canvas_height, canvas_width):
-        chain.append(ModifierCfg(func=center_crop_resize, params={"width": camera.width, "height": camera.height}))
+        chain.append(ModifierCfg(func=_center_crop_resize, params={"width": camera.width, "height": camera.height}))
     return replace(
         camera,
         width=canvas_width,
@@ -287,3 +287,16 @@ def _canvas_spawn(camera: CameraCfg, canvas_height: int, canvas_width: int) -> A
     if canvas_width * vertical >= canvas_height * spawn.horizontal_aperture:
         return replace(spawn, horizontal_aperture=vertical * canvas_width / canvas_height, vertical_aperture=vertical)
     return replace(spawn, vertical_aperture=spawn.horizontal_aperture * canvas_height / canvas_width)
+
+
+def _center_crop_resize(data: torch.Tensor, width: int, height: int) -> torch.Tensor:
+    """Cut the camera's original view out of the canvas's center and area-resize it to the camera's size."""
+    _, rows, cols, _ = data.shape
+    if cols * height > rows * width:
+        crop = rows * width // height
+        data = data[:, :, (cols - crop) // 2 : (cols - crop) // 2 + crop]
+    else:
+        crop = cols * height // width
+        data = data[:, (rows - crop) // 2 : (rows - crop) // 2 + crop]
+    pixels = torch.nn.functional.interpolate(data.permute(0, 3, 1, 2).float(), size=(height, width), mode="area")
+    return pixels.round().clamp(0, 255).to(torch.uint8).permute(0, 2, 3, 1).contiguous()
