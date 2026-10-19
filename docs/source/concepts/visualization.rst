@@ -3,18 +3,13 @@ Visualization
 
 .. currentmodule:: isaaclab
 
-Isaac Lab provides 5 visualizers for real-time simulation inspection and debugging. Where
-renderers produce sensor data for training, visualizers give fast, lightweight feedback for
-human monitoring and recording. Visualizers can also stream that same sensor data through the
-streaming camera panel.
+Visualizers let you inspect, debug, and record a running simulation. Isaac Lab
+offers five options, from lightweight viewers to the Isaac Sim viewport. You can
+also view camera-sensor output in the streaming camera panel.
 
-This page covers:
-
-- `Quick Start`_: launch a visualizer with ``--viz``
-- `Visualizer Overview`_: each visualizer in its own section
-- `Shared Features`_: what's common across visualizers
-- `Usage`_: common CLI and config recipes
-- `Limitations`_: per-visualizer differences and troubleshooting
+Try :ref:`Franka cube stacking <interactive-demo-franka-stack>` for a compact simulation
+running directly in the browser. Orbit its camera, watch the scripted grasp, or control
+the end effector in Manual mode.
 
 .. raw:: html
 
@@ -143,7 +138,50 @@ alias.
    add ``--extra isaacsim`` to the ``uv run`` commands above; see
    :ref:`installation-optional-extras` for details.
 
+.. note::
+
+   ``train`` and ``play`` run without a visualizer unless ``--viz`` is passed, while packaged demos and
+   examples open their own default visualizer. ``--viz none`` turns it off.
+
 For combining visualizers, running headless, and other common use cases, see `Usage`_ below.
+
+Visualizer presets
+~~~~~~~~~~~~~~~~~~
+
+Task commands accept ``visualizer=newton_gl``, ``visualizer=kit``, or
+``visualizer=rerun,newton_gl``. ``--viz`` and ``--visualizer`` are aliases for the same
+selection. ``visualizer=none`` disables viewers. Selection happens during configuration
+composition, before choosing process runtimes or creating the scene.
+
+Task scripts can declare alternatives with ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``.
+Customize them with configured instances; no preset subclass is needed. Resolve them in the
+script before calling ``launch_simulation``:
+
+.. code-block:: python
+
+   from isaaclab.sim import SimulationCfg
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   from isaaclab_tasks.utils import resolve_presets
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=MultiBackendVisualizerCfg(
+           newton_gl=NewtonGLVisualizerCfg(max_visible_envs=16)
+       )
+   )
+
+   sim_cfg = resolve_presets(sim_cfg, overrides={"visualizer_cfgs": "newton_gl"})
+
+Task entry points perform this selection through ``resolve_task_config`` when given
+``visualizer=newton_gl`` or ``--viz newton_gl``. The launcher and simulation receive concrete configs.
+
+After task composition, ``visualizer_cfgs`` contains the selected concrete config or list of configs.
+Standalone scripts can supply concrete visualizer configs directly, without task presets.
+Viewer implementations are imported only when constructed.
+
+For ``--video`` without a selected capture-capable viewer, launch selects a headless Newton GL
+producer. ``visualizer=none`` disables windows; recording still runs its producer on demand.
+Use ``--video sensor:<name>`` to record a scene camera without a visualizer producer.
 
 
 Visualizer Overview
@@ -204,17 +242,20 @@ Visualizer Overview
            </div>
          </div>
 
+      Try :ref:`Domino cascade <interactive-demo-dominoes>` for a compact 24-slab version running
+      locally in the browser, with friction and a repeatable toppling pulse.
+
       **Core configuration:**
 
       .. code-block:: python
 
+          from isaaclab.visualizers import WindowCfg
           from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
           visualizer_cfg = NewtonGLVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
-              window_width=1920,
-              window_height=1080,
+              window=WindowCfg(size=(1920, 1080), fps=30.0),
               show_joints=False,
               show_contacts=False,
               enable_live_plots=True,
@@ -229,7 +270,7 @@ Visualizer Overview
             :language: python
             :pyobject: NewtonGLVisualizerCfg
 
-      .. dropdown:: NewtonVisualizerCfg source (shared Newton base class)
+      .. dropdown:: Newton GL model options
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
@@ -327,9 +368,8 @@ Visualizer Overview
       .. note::
 
          The following features are not yet supported and will be added in a future release:
-         visualization markers, live plots, and pause rendering. All are available in the other
-         visualizers. The streaming camera panel's live on-screen preview is also unavailable, but
-         headless streaming capture (e.g. for :class:`~isaaclab.envs.VideoRecorderCfg`) works.
+         live plots and rigid-body dragging. Visualization markers, camera selection, scene-camera
+         display, pause controls, and headless recording are supported.
 
       **Core configuration:**
 
@@ -351,12 +391,12 @@ Visualizer Overview
             :language: python
             :pyobject: NewtonRTXVisualizerCfg
 
-      .. dropdown:: NewtonVisualizerCfg source (shared Newton base class)
+      .. dropdown:: Shared window options
          :icon: code
 
-         .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
+         .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
             :language: python
-            :pyobject: NewtonVisualizerCfg
+            :pyobject: WindowCfg
 
       .. dropdown:: VisualizerCfg source (shared base class)
          :icon: code
@@ -472,13 +512,13 @@ Visualizer Overview
 
       .. code-block:: python
 
+          from isaaclab.visualizers import WindowCfg
           from isaaclab_visualizers.kit import KitVisualizerCfg
 
           visualizer_cfg = KitVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
-              window_width=1280,
-              window_height=720,
+              window=WindowCfg(size=(1280, 720)),
               enable_markers=True,
               enable_live_plots=True,
           )
@@ -502,11 +542,15 @@ Visualizer Overview
 Shared Features
 ---------------
 
+.. _visualization-streaming-camera-view:
+
 Streaming Camera View
 ~~~~~~~~~~~~~~~~~~~~~
 
-The streaming camera view composites per-environment sensor data into a tiled panel that
-updates every step.
+The streaming camera view is a live monitoring and debugging tool. It combines ground-truth camera
+frames from multiple environments (RGB, depth, segmentation, or surface normals) into a single
+panel. Cameras are declared in the scene before cloning; visualizers only read their output.
+Multiple visualizers can display the same sensor with different tile selections.
 
 .. raw:: html
 
@@ -525,15 +569,15 @@ updates every step.
      </div>
    </div>
 
-The streaming panel supports RGB, depth, segmentation, and surface normals, with a configurable
-number of environments shown.
+Attach a camera to a robot body to follow its motion, or select an existing view such as the Galbot
+task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton GL, Newton RTX,
+Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
+sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
+provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
+views.
 
-Streams can come from auto-created cameras that track and follow robot bodies, or from existing
-scene camera sensors, letting you toggle between different views, such as the Galbot task's
-wrist-mounted and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
-supported on Newton RTX (experimental).
-
-See :doc:`/source/features/visualizer_tiled_camera` for the full guide and tutorial.
+See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
+sources, troubleshooting, migration from generated cameras, and step-by-step examples.
 
 
 Visualization Markers
@@ -555,7 +599,7 @@ Visualization markers draw debug geometry over the scene via
      </div>
    </div>
 
-See :doc:`/source/features/draw_markers` for creating and configuring custom markers.
+See :doc:`/source/how-to/create_visualization_markers` for creating and configuring custom markers.
 
 There are 2 types of visualization markers:
 
@@ -637,6 +681,8 @@ streaming views, and renderer-based sensor data capture.
      </div>
    </div>
 
+.. _record_video_cli:
+
 Pass ``--video [SOURCE]`` on the command line for a quick recording, or define multiple
 ``VideoRecorderCfg`` entries to record multiple sources at once. ``--viz`` still decides which
 visualizers open a window; a visualizer that only records runs headless:
@@ -659,10 +705,13 @@ visualizers open a window; a visualizer that only records runs headless:
    * - ``--video sensor:wrist_camera[:rgb|depth|...]``
      - that scene sensor; no visualizer is added
 
+A Hydra override after ``--video`` is never taken as its source: ``--video presets=newton_mjwarp``
+records from ``viz`` and applies the preset.
+
 Kit, Newton GL, and Newton RTX visualizers can be recorded from; the web-based visualizers Viser and
 Rerun cannot.
 
-See :doc:`/source/features/record_video` for the full guide and tutorial.
+See :doc:`/source/how-to/record_video` for the full guide and tutorial.
 
 
 .. _visualization-configuration:
@@ -686,25 +735,15 @@ capture source, e.g. ``--video viz:kit``:
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
 
-See :doc:`/source/features/record_video` for clip length, interval, and multi-source options.
+See :doc:`/source/how-to/record_video` for clip length, interval, and multi-source options.
+
+.. _visualization-recording-angle:
 
 **Combining an interactive view with a headless recording source**
 
-Watch training live in Kit while recording from a separate headless Newton GL angle, running with
-``--viz kit --video viz:newton_gl``:
-
-.. code-block:: python
-
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-    sim_cfg.visualizer_cfgs = [
-        KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0)),  # recorded headless, as --viz does not select it
-    ]
-
-See the "Recording from an independent camera angle" section of
-:doc:`/source/features/record_video` for the full example.
+Watch training live in Kit while recording from a separate headless Newton GL angle by running with
+``--viz kit --video viz:newton_gl`` and giving each visualizer its own camera. See
+:ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
 **Following a moving robot (Kit)**
 
@@ -781,15 +820,16 @@ Resolution Rules
 ~~~~~~~~~~~~~~~~
 
 ``--viz`` (comma-separated, e.g. ``--viz kit,newton_gl``) selects which visualizers run, and
-``SimulationCfg.visualizer_cfgs`` configures them. Exactly the listed types are launched: each uses
-the configured visualizer of its type, with its settings, or else that type's default config. If
-``--viz`` is omitted, no visualizer runs, even if ``visualizer_cfgs`` lists some.
+``SimulationCfg.visualizer_cfgs`` configures them. Each selected type uses its configured settings,
+or else that type's default config. Concrete visualizer configs run as given when no CLI selection
+is supplied. ``SimulationCfg.visualizer_cfgs`` defaults to an empty list.
 
-Isaac Sim opens a window only when ``--viz`` selects ``kit``, and never with ``HEADLESS=1`` or
+Isaac Sim opens a window when CLI or config selects ``kit``, and never with ``HEADLESS=1`` or
 livestreaming. A visualizer a ``--video`` source adds for recording always runs headless.
 
-To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
-``SimulationCfg``; they take effect for the types ``--viz`` selects:
+Task configurations may use ``MultiBackendVisualizerCfg`` to declare inactive alternatives.
+Task composition selects the requested alternative before launch. Standalone scripts can configure
+concrete viewers directly:
 
 .. code-block:: python
 
@@ -827,21 +867,54 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
      - Launch default Kit and custom Newton GL; Rerun is not launched.
    * - no ``--viz``
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - No visualizer launches; the configs only apply when ``--viz`` selects their types.
+     - Launch both configured visualizers.
+   * - no ``--viz``
+     - Task preset: ``MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(...))``
+     - No visualizer launches; the customized choice remains inactive until selected.
    * - ``--viz newton_gl,rerun``
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Launch custom Newton GL and Rerun from config.
 
-For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
+For migration context, see :doc:`/source/isaaclab/migrating`.
 
+
+.. _visualization-partial-visualization:
+
+Partial Visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+Visualizers can be configured to visualize just a subset of environments.
+This is called partial visualization.
+
+There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:
+
+- ``max_visible_envs`` caps how many envs are shown.
+- ``visible_env_indices`` explicitly selects the envs to visualize, in the order given. It takes precedence over
+  ``randomly_sample_visible_envs`` and is also capped by ``max_visible_envs``.
+- ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs``
+  is set, enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
+
+Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
+
+.. note::
+
+   By default, selected envs keep their simulated positions, so a random sample or the first envs of a large grid can lie
+   outside the camera view. Choose indices near the camera target, or move ``eye`` and ``lookat``.
 
 Scene Background
 ~~~~~~~~~~~~~~~~
 
-Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
-``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
-lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
-color directly, or set the field to ``None`` to preserve the backend's native background:
+Kit and Newton RTX use the scene's authored lights and HDR background by default. Configure the
+environment once on the scene, without repeating its HDR path or intensity in the visualizer:
+
+.. code-block:: python
+
+    env_cfg.scene.sky_light.spawn.texture_file = "/path/to/evening.hdr"
+    env_cfg.scene.sky_light.spawn.intensity = 1000.0
+
+``VisualizerCfg.background_color`` defaults to ``None``. An explicit normalized RGB color changes
+only the visible background; the scene lights continue to illuminate objects and contribute
+reflections. Newton GL uses its procedural sky when no color override is supplied:
 
 .. code-block:: python
 
@@ -860,17 +933,18 @@ Performance
    * - Visualizer
      - Tips
    * - Newton GL
-     - Lowest overhead; increase ``update_frequency`` to skip render calls.
+     - Lowest overhead; lower ``window.fps`` to limit wall-clock render frequency.
    * - Viser
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
-       environments.
+       environments (see :ref:`visualization-partial-visualization`).
    * - Newton RTX
-     - Path-traced; highest per-frame cost, use ``--max_visible_envs`` to reduce load.
+     - Native Newton RTX rendering; reduce configured perspective resolution or lower ``window.fps``.
+       Environment selection limits sensor display tiles; the perspective view shows the full scene.
    * - Rerun
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
    * - Kit
-     - Highest overhead of the five visualizers; reduce ``window_width`` / ``window_height``
-       or use ``--max_visible_envs``.
+     - Highest overhead of the five visualizers; reduce ``window.size``
+       or use ``--max_visible_envs`` (see :ref:`visualization-partial-visualization`).
 
 
 Limitations
@@ -931,12 +1005,18 @@ Each backend lights the scene differently, so the same environment can look noti
 different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
-``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX supports
-only 3 lighting-environment presets
-(:attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.rtx_environment`: ``"default"``,
-``"studio"``, ``"none"``) and does not use any scene-authored USD lights. Viser uses a single
-ambient light with no directional key light, so scenes tend to look darker and flatter than
-the other backends. Rerun uses fixed built-in viewer shading with no scene-driven lighting.
+``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX renders the
+authored scene through Isaac Lab's OVRTX renderer, shared with cameras using the same
+``OVRTXRendererCfg``. Newton GL displays the rendered GPU image and handles window controls;
+Newton's ``ViewerRTX`` is not constructed. Scene transforms, deformable geometry, and material
+updates follow the camera renderer's normal synchronization. Perspective resolution stays
+fixed when the window is resized; the window scales the image for presentation.
+Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
+and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
+scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.
+Particle color overrides and rigid-body picking remain GL-only. Viser uses a single ambient light
+with no directional key light, so scenes tend to look darker and flatter than the other backends.
+Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 
 **Kit: incompatible with ovphysx / ovrtx presets**
 
@@ -968,11 +1048,8 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
 
 **Rerun: blank page until the first payload loads**
 
-The Rerun browser tab opens blank and stays that way for several seconds (up to ~10s,
-depending on scene size) before the scene and live plots appear. This is expected -- it's the
-time for the web viewer to connect to the local Rerun server and receive its first batch of
-logged data -- but the page gives no loading indicator in the meantime, so it can look stuck.
-No action is needed; wait for the first frame to arrive.
+Rerun may show a blank browser tab for up to about 10 seconds while it connects
+and receives scene data. Wait for the first frame; no action is needed.
 
 **Newton GL: CUDA/OpenGL interoperability warnings**
 
@@ -995,14 +1072,18 @@ process is running without a GPU-backed display context (for example, in a servi
 a remote desktop without GPU acceleration). Run from a GPU-backed interactive display session,
 or omit ``--viz newton_gl`` for headless execution.
 
-See Also
---------
+.. raw:: html
 
-- :doc:`/source/features/visualizer_tiled_camera`: full streaming camera panel guide and tutorial
-- :doc:`/source/features/record_video`: recording MP4 clips from a visualizer or sensor
-- :doc:`/source/features/draw_markers`: creating and configuring custom visualization markers
+   <span id="see-also"></span>
+
+Where to go next
+----------------
+
+- :doc:`/source/how-to/visualizer_streaming_camera_view`: stream a camera view step by step
+- :doc:`/source/how-to/record_video`: recording MP4 clips from a visualizer or sensor
+- :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
-- :doc:`/source/developer-tools/scene_data_providers`: how scene data flows to visualizers
+- :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
-- :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference
+- :doc:`/source/isaaclab/migrating`: visualizer migration reference

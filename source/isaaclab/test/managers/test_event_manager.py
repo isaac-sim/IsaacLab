@@ -176,7 +176,7 @@ def test_class_terms(env):
 def test_class_terms_are_initialized_with_defaults_and_reset(env, monkeypatch, mode, playing):
     """Both construction paths populate defaults and register class terms for reset."""
     monkeypatch.setattr(env.sim, "is_playing", lambda: playing)
-    env = SimpleNamespace(**env._asdict(), scene=SimpleNamespace(cfg=SimpleNamespace(replicate_physics=False)))
+    env = SimpleNamespace(**env._asdict(), scene=SimpleNamespace(cfg=SimpleNamespace()))
     event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode=mode)}, env)
     assert event_man.get_term_cfg("term").func.initial_value == 0.0
     reset_calls = []
@@ -202,8 +202,10 @@ def test_invalid_event_func_module(env):
         "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
         "term_2": EventTermCfg(func="a:reset_dummy1_to_zero", mode="reset"),
     }
-    with pytest.raises(ValueError):
+    with pytest.raises(ModuleNotFoundError) as error:
         EventManager(cfg, env)
+
+    assert error.value.name == "a"
 
 
 def test_invalid_event_config(env):

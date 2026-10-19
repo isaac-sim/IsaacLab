@@ -1,7 +1,7 @@
 Contribution Guidelines
 =======================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-following-coding-style``,
    ``isaaclab-preparing-pr-workflow``, and ``isaaclab-writing-changelog-fragments`` agent skills
@@ -11,25 +11,13 @@ Contribution Guidelines
    When shared guidance changes, update affected skill workflows and examples without copying the rules. See
    :doc:`/source/developer-tools/agent_skills`.
 
-We wholeheartedly welcome contributions to the project to make the framework more mature
-and useful for everyone. These may happen in forms of:
+Contributions can include bug fixes, features, documentation, and tutorials.
 
-* Bug reports: Please report any bugs you find in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
-* Feature requests: Please suggest new features you would like to see in the `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__.
-* Code contributions: Please submit a `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
-
-  * Bug fixes
-  * New features
-  * Documentation improvements
-  * Tutorials and tutorial improvements
-
-We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
-asking questions, conversations and requests for new features.
-
-Please use the
-`issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
-with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
-
+* Report reproducible bugs in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
+* Use `Discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__ for questions,
+  ideas, and feature proposals.
+* Submit code and documentation changes through a
+  `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
 
 Contributing Code
 -----------------
@@ -50,7 +38,7 @@ follow the following steps to contribute code:
 3. Create a new branch for your changes.
 4. Make your changes and commit them.
 5. Push your changes to your fork.
-6. Submit a pull request to the `develop branch <https://github.com/isaac-sim/IsaacLab/compare/develop...>`__.
+6. Submit a pull request to the `main branch <https://github.com/isaac-sim/IsaacLab/compare/main...>`__.
 7. Ensure all the checks on the pull request template are performed.
 
 After sending a pull request, the maintainers will review your code and provide feedback.
@@ -60,9 +48,8 @@ as described in `Unit Testing`_ and `Tools`_.
 
 .. tip::
 
-   It is important to keep the pull request as small as possible. This makes it easier for the
-   maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
-   Large pull requests are difficult to review and may take a long time to merge.
+   Keep each pull request focused on one change. Submit unrelated changes separately
+   so maintainers can review and test them independently.
 
 
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
@@ -128,7 +115,7 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 for maintaining the documentation.
 
 API ``[source]`` links open the implementation on GitHub, using the published documentation's
-branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+branch or tag (``main`` for a current-checkout build by default). We do not generate local
 Python source pages; viewing the implementation requires internet access.
 
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
@@ -137,6 +124,32 @@ Please follow the steps mentioned in the `Contributing Code`_ section.
 For documentation media, only small ``.jpg`` files should be committed directly to the Isaac Lab repository.
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
+
+Browser-demo bundles and exporter sources are distributed through the permanent
+`interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
+Reuse the ``interactive-releases`` publishing branch and upload commit-named archives to that same release.
+Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
+``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
+The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
+under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
+assets and preserve older links. The development source tree contains the staging script, documentation links,
+and small thumbnails. Run the staging step from the repository root:
+
+.. code-block:: bash
+
+   bash .github/actions/_lib/stage-browser-demos.sh
+
+The staging step also resolves demo links relative to each documentation version. To preview the
+complete site locally, serve ``docs/_build`` over HTTP:
+
+.. code-block:: bash
+
+   uv run --no-project python -m http.server 8000 --directory docs/_build
+
+Open ``http://localhost:8000/current/index.html`` for the docs or
+``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
+``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
+The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
 
 .. caution::
 
@@ -273,12 +286,12 @@ Validate against the PR's base without creating temporary remote-tracking refs:
 
 .. code-block:: bash
 
-   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+   uv run python tools/changelog/cli.py check upstream/main --include-worktree
 
 The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
-``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
-select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
-set, otherwise ``develop``. Fetch the intended base before validation.
+``main`` continues to prefer ``origin/main`` when it exists; use ``refs/heads/main`` to select a
+local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when set,
+otherwise ``main``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -311,25 +324,70 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
   by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
   calls to another object. Preserve established public contracts when simplifying existing designs.
-* Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
+  Use argparse's parsing and formatting for CLI help instead of private argv-scanner or help-builder classes.
+* Place shared operations in the existing module that owns their contract before adding a new file.
+  Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
   shared logic when it has the same contract; keep helpers private unless callers need a public API.
   Prefer direct control flow and early returns when they remove unnecessary nesting.
+* Use predicates or optional lookup results for expected incompatibility, such as filtering available
+  camera channels. Do not raise and catch exceptions for routine selection or capability checks.
+* Let missing optional dependencies raise Python's original ``ModuleNotFoundError``. Do not wrap import
+  failures merely to add installation hints or relabel them as configuration errors.
 * Inline simple expressions and operations when a helper would only add indirection. Do not extract
   a one-line helper merely to rename an obvious operation. Introduce a helper when it removes meaningful
   duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the
   need to jump to another definition to understand the caller.
+  When retiring a workflow, remove its unused helper chains and tests that only preserve those helpers.
+  Name nontrivial predicates when that makes a branch easier to read, keeping the operation inline.
+  Avoid aliases such as ``cfg = visualizer.cfg`` that only shorten direct attribute access.
 * Prefer direct attribute access and assignment (``obj.value`` and ``obj.value = value``). Use ``getattr``
   and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
   determined at runtime. Do not use them for known attributes or use default values to hide a missing
   required attribute; express optional fields explicitly in the interface.
+  Use concrete defaults for known empty selections. Reserve ``None`` for a distinct policy or lifecycle
+  state, such as choosing an environment's frame rate or waiting for a client to connect.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Complete shared resource initialization at its lifecycle boundary; registering the first consumer
+  should not initialize the shared resource or transfer its handles.
+  Resolve selections once at initialization; backends should consume the final selection without a second
+  filtering pass or cache.
+  Keep a single representation of the active selection alongside its available choices. Detach borrowed
+  callbacks when their producer closes; Python-owned arrays do not require a separate backend teardown.
+  Launch owns visualizer selection, including producers retained for recording. Return the final list
+  from the config scan; do not maintain a second producer list for a later resolution pass. Image
+  processing belongs in ``utils.images`` and must not depend on ``envs.utils``. Bind scene references
+  in simulation initialization; core simulation must not depend on environment camera adapters.
+  Before adding a parameter record and preparation helper for one consumer, check which values already
+  exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
+  the buffers or calculations that need reuse.
+* Pass scene dependencies from the composition root into consumers. Do not retrieve the simulation
+  singleton to resolve a dependency the caller already owns. Resolve references at initialization,
+  then retain the resolved objects instead of copying paths between configuration fields. Give consumers
+  resolved resources rather than a broader construction plan used only to discover those resources;
+  visualizers receive bound camera choices, while cloning and renderer scene preparation retain ``ClonePlan``.
+* Put common configuration in the shared owner and document backend capabilities explicitly. Name
+  collections in the plural. Remove empty hooks and expired compatibility aliases during their
+  announced removal release instead of maintaining unused extension points.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
+  Customize existing preset alternatives with configured instances; do not introduce a preset
+  subclass just to change a backend's settings. Preset declarations and selection belong in
+  ``isaaclab_tasks`` and scripts. Complete selection before runtime launch; core simulation and backend
+  packages must not import, declare, or resolve presets.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
-  finalization. See :doc:`/source/developer-tools/scene_data_providers` for geometry ownership and
+  finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
+  not import renderer implementations or manipulate their attachment state.
+  Author camera and ISP settings during camera construction, before scene cloning or native import.
+  Renderer initialization consumes the prepared configuration; do not add feature-specific scene-authoring
+  hooks to ``BaseRenderer``.
+  See :doc:`/source/concepts/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
+* Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
+  clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
+* Keep nested physics bodies in their owning source import. A second declaration only requires a
+  separate native copy when its source-to-destination mapping is not already covered by the parent.
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.
 
@@ -343,6 +401,10 @@ environment. Costs that are small for one environment can dominate a large batch
   them, reusing cached device indices when available. Preserve the selector's ordering and device contract.
 * Allocate arrays directly with the required value, dtype, and device. Prefer ``torch.full`` or ``wp.full``
   over filling through Python lists, arithmetic on temporary arrays, or a round trip through another library.
+* Keep operations on Warp-owned arrays in Warp. Use ``ProxyArray`` when consumers need multiple
+  array interfaces; do not convert to Torch and back merely to mutate a Warp buffer.
+* Keep per-step control flow direct, with one call to each lifecycle operation. Perform optional
+  work only for the active consumer and preserve the configured update cadence.
 * Remove redundant copies and ``contiguous()`` calls only after checking layout and ownership requirements.
   Do not mutate caller-owned inputs unless the API explicitly promises an in-place operation.
 * Batch operations when supported. Avoid Python loops over environments and unnecessary host/device
@@ -413,6 +475,9 @@ See the `Lazy Loading & Module Exports`_ section for details.
 Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
 parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
 ``data``. Use explicit native access only where the receiving API requires it.
+When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
+branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
+the generated kernels against the original path.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
@@ -483,6 +548,12 @@ examples of both patterns.
 
 Configuration Operations
 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keep configuration classes declarative. Cross-config default merging and runtime wiring belong
+in launch preparation or construction code, not methods on config objects. Validation hooks may
+check a configuration's own fields.
+When changing ownership, use explicit declarations; do not add deprecated-selector translation
+or discover unselected scene entities to preserve earlier routing.
 
 Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
 

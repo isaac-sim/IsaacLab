@@ -168,7 +168,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the manager-based Ant walking environment."""
 
     # Scene settings
-    scene: AntSceneCfg = AntSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    scene: AntSceneCfg = AntSceneCfg(num_envs=4096, env_spacing=5.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

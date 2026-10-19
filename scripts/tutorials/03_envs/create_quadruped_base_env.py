@@ -89,7 +89,7 @@ class MySceneCfg(InteractiveSceneCfg):
         terrain_generator=ROUGH_TERRAINS_CFG,
         max_init_terrain_level=5,
         collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
+        physics_material=sim_utils.PhysxRigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,

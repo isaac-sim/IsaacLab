@@ -96,7 +96,8 @@ def test_cloner_imports_without_kit():
         "assert not any(hasattr(query, name) for name in "
         "('get_matched_sources', 'path_to_source', 'path_to_clone', 'path_env_ids', 'iter_clones')); "
         "assert not any(hasattr(path, name) for name in "
-        "('get_instance_paths', 'get_shared_paths', 'iter_subtree_copies', 'under', 'relativize', 'split')); "
+        "('get_asset_copies', 'get_instance_paths', 'get_shared_paths', 'iter_subtree_copies', "
+        "'under', 'relativize', 'split')); "
         "print(any(n == 'isaaclab.cloner.usd' or n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
@@ -106,12 +107,12 @@ def test_cloner_imports_without_kit():
 
     # Only cloning execution and its lifecycle owners may access context instances.
     for path in Path(__file__).resolve().parents[3].glob("*/isaaclab*/**/*.py"):
+        tree = ast.parse(path.read_text())
         if "cloner" in path.parts or path.name in {"simulation_context.py", "render_context.py"}:
             continue
-        assert not any(
-            isinstance(node, ast.Attribute) and node.attr == "clone_contexts"
-            for node in ast.walk(ast.parse(path.read_text()))
-        ), f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
+        assert not any(isinstance(node, ast.Attribute) and node.attr == "clone_contexts" for node in ast.walk(tree)), (
+            f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
+        )
 
 
 @pytest.mark.parametrize("shared_assets", [(), (0,)])

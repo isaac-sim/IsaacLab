@@ -503,7 +503,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
-        extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
+        extra-pip-packages: "leapp==0.7.2 torchrl>=0.13"
         warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-rl-test
@@ -706,7 +706,7 @@ jobs:
       github.event_name != 'push' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -890,7 +890,7 @@ jobs:
     needs: [build, config]
     if: needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -937,7 +937,7 @@ jobs:
       github.event_name != 'pull_request' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -978,10 +978,10 @@ jobs:
     # Four legs x three samples, including one retry each: 372 minutes + setup/comparison buffer.
     timeout-minutes: 450
     needs: [build, config]
-    # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
-    # where it also records a baseline; pushes to main and release/** skip this job.
+    # Pull requests and manual dispatches run in gate mode. A push runs only on the
+    # repository default branch, where it also records a baseline; release pushes skip this job.
     if: >-
-      (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
+      (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -1111,7 +1111,7 @@ jobs:
         fi
 
     - name: Save warm JIT cache
-      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
       uses: actions/cache/save@v4
       with:
         path: ${{ github.workspace }}/jit-cache
@@ -1169,12 +1169,12 @@ jobs:
             | tee -a "$GITHUB_STEP_SUMMARY"
         done < benchmark-legs.tsv
 
-    # Only develop records baselines, so the gate always compares a pull request
+    # Only the default branch records baselines, so the gate always compares a pull request
     # against the branch it will merge into rather than against a stale snapshot.
     # Writes are create-only under a name derived from the commit and run id. Each
     # leg is gated on its own status, so one leg's fault does not skip the rest.
     - name: Record baseline
-      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      if: ${{ always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
       timeout-minutes: 30
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
@@ -1263,9 +1263,9 @@ jobs:
     env:
       # Caches are branch-scoped: publishing only helps from a PR base branch
       # (the on.push.branches list). A dispatch from elsewhere runs as a dry run
-      # instead of burning quota in a scope no PR can read. Not
-      # default_branch - that is a release/* branch upstream, excluding main.
-      PUBLISHES_WARP_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+      # instead of burning quota in a scope no PR can read. The default branch
+      # and active release branches are the scopes that can serve future PRs.
+      PUBLISHES_WARP_CACHE: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -1306,7 +1306,7 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
     env:
-      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
       with:
