@@ -449,11 +449,6 @@ class _ShardedStream:
         self._streams = streams
         self._shares = shares
 
-    @property
-    def transport(self) -> list[str | None]:
-        """Transport of each service's session, in service order; None before the first step."""
-        return [stream.transport for stream in self._streams]
-
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
     ) -> list[torch.Tensor]:
