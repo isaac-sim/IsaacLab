@@ -46,7 +46,7 @@ def zipped(files):
     return output.getvalue()
 
 
-class FixtureClient:
+class FixtureClient(baseline.GitHubClient):
     repository = REPO
 
     def __init__(self):
@@ -141,9 +141,8 @@ class FixtureClient:
 
     def download(self, artifact):
         self.downloaded.append(artifact["id"])
-        if artifact.get("expired"):
-            raise baseline.EvidenceError("expired", "Selected artifact has expired")
-        return self.contents[artifact["id"]]
+        with patch.object(self, "_request", return_value=self.contents[artifact["id"]]):
+            return super().download(artifact)
 
 
 class TestEvidence(unittest.TestCase):

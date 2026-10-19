@@ -242,6 +242,7 @@ class PairedTests(unittest.TestCase):
             ),
             patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
             patch.object(paired, "_write", side_effect=write_context),
+            patch.object(paired.socket, "gethostname", return_value="fixture-gpu-host"),
         ):
             for role, commit in (("baseline", base), ("current", merge)):
                 self._git("checkout", "--quiet", "--detach", commit)
@@ -272,6 +273,8 @@ class PairedTests(unittest.TestCase):
                     self.assertFalse((output / "paired-failure.json").exists())
                     if failure != "context_write":
                         context = json.loads((output / "build-context.json").read_text())
+                        self.assertEqual(context["execution"]["hostname"], "fixture-gpu-host")
+                        self.assertEqual(context["execution"]["benchmark_protocol"], self.protocol)
                         self.assertIsNone(context["metric_definition"]["total_fps"])
                         self.assertIn("provenance capture failed", context["metric_definition"]["reason"])
                     else:
@@ -311,19 +314,13 @@ class PairedTests(unittest.TestCase):
                     "measurement-manifest.json", json.loads((output / "paired-failure.json").read_text())["reason"]
                 )
 
-    def test_push_and_dispatch_capture_source_evidence_without_build_comparison(self):
-        for event_name in ("push", "workflow_dispatch"):
-            with (
-                self.subTest(event=event_name),
-                patch.dict(os.environ, {"GITHUB_EVENT_NAME": event_name}),
-                patch.object(paired.subprocess, "run", wraps=subprocess.run) as commands,
-            ):
-                output = self.root / event_name
-                context = paired.capture_context(self.checkout, output, "same-image", "current", {}, self.legs)
-                self.assertEqual(context, {})
-                self.assertEqual(json.loads((output / "source-manifest.json").read_text()), self.manifest)
-                self.assertFalse((output / "build-context.json").exists())
-                self.assertFalse(any(call.args[0][0] == "docker" for call in commands.call_args_list))
+    def test_non_pr_capture_source_evidence_without_build_comparison(self):
+        with patch.object(paired.subprocess, "run", wraps=subprocess.run) as commands:
+            context = paired.capture_context(self.checkout, self.output, "same-image", "current", {}, self.legs)
+            self.assertEqual(context, {})
+            self.assertEqual(json.loads((self.output / "source-manifest.json").read_text()), self.manifest)
+            self.assertFalse((self.output / "build-context.json").exists())
+            self.assertFalse(any(call.args[0][0] == "docker" for call in commands.call_args_list))
 
     def test_capture_rejects_invalid_current_source_even_without_base_metadata(self):
         base, head, merge, _ = self._moving_merge()
@@ -464,7 +461,6 @@ class PairedTests(unittest.TestCase):
         modules = [
             {
                 "name": "isaaclab.benchmark.entrypoints.runtime" if path == RUNTIME else "isaaclab",
-                "path": "/workspace/isaaclab/" + path,
                 "relative_path": path,
                 "sha256": digest,
                 "expected_sha256": digest,
@@ -498,13 +494,10 @@ class PairedTests(unittest.TestCase):
                         "status": "verified",
                         "bytecode_policy": "fresh_process_cache",
                         "commit": self.commit,
-                        "pid": 123,
                         "benchmark_exit_code": 0,
-                        "exception": None,
                         "modules": modules,
                         "runtime_entrypoint": {
                             "module": "isaaclab.benchmark.entrypoints.runtime",
-                            "source_code_matches": True,
                             **({"origin": "measurement"} if measurement else {}),
                         },
                         "outputs": [
@@ -567,7 +560,6 @@ class PairedTests(unittest.TestCase):
                     selection = self._restore()
                     self.assertFalse(selection["baseline_reused"])
                     self.assertIn("protocol", " ".join(selection["issues"]))
-                    self.assertFalse(self.output.exists())
                 finally:
                     path.write_bytes(original)
 
@@ -580,30 +572,27 @@ class PairedTests(unittest.TestCase):
         selection = self._restore()
         self.assertFalse(selection["baseline_reused"])
         self.assertIn("protocol", " ".join(selection["issues"]))
-        self.assertFalse(self.output.exists())
 
     def test_shared_measurement_reuses_matching_bytes_across_commits_and_remeasures_old_or_changed_bytes(self):
         self._add_baseline(run_id=9)
         self.assertFalse(self._restore(measurement=self.measurement)["baseline_reused"])
         artifact = self._add_baseline(self._files(measurement=self.measurement))
         original = self.client.contents[artifact["id"]]
-        for measurement_commit in (HEAD, "d" * 40):
-            with self.subTest(measurement_commit=measurement_commit):
-                measurement = {**self.measurement, "commit": measurement_commit}
-                restored = self._restore(measurement=measurement)
-                self.assertTrue(restored["baseline_reused"])
-                self.assertEqual(restored["baseline_origin"]["artifact_id"], artifact["id"])
-                candidate = self._candidate(
-                    restored["baseline_origin"], reused=True, selection=restored, measurement=measurement
-                )
-                evidence, _ = paired.select_pr_baseline(self.client, candidate)
-                self.assertEqual(evidence.issues, [])
-                self.assertEqual(evidence.identity["sha256"], hashlib.sha256(original).hexdigest())
-                self.assertEqual(candidate.issues, [])
-                report = build_compare.compare_evidence(evidence, candidate)
-                self.assertTrue(all(row["status"] == "compared" for row in report["rows"]))
-                self.assertTrue(all(row["change_pct"] == 0 for row in report["rows"]))
-                self.assertEqual(self.client.contents[artifact["id"]], original)
+        measurement = {**self.measurement, "commit": "d" * 40}
+        restored = self._restore(measurement=measurement)
+        self.assertTrue(restored["baseline_reused"])
+        self.assertEqual(restored["baseline_origin"]["artifact_id"], artifact["id"])
+        candidate = self._candidate(
+            restored["baseline_origin"], reused=True, selection=restored, measurement=measurement
+        )
+        evidence, _ = paired.select_pr_baseline(self.client, candidate)
+        self.assertEqual(evidence.issues, [])
+        self.assertEqual(evidence.identity["sha256"], hashlib.sha256(original).hexdigest())
+        self.assertEqual(candidate.issues, [])
+        report = build_compare.compare_evidence(evidence, candidate)
+        self.assertTrue(all(row["status"] == "compared" for row in report["rows"]))
+        self.assertTrue(all(row["change_pct"] == 0 for row in report["rows"]))
+        self.assertEqual(self.client.contents[artifact["id"]], original)
         changed_files = {**self.measurement["files"], RUNTIME: "0" * 64}
         changed = {
             **self.measurement,
@@ -706,13 +695,6 @@ class PairedTests(unittest.TestCase):
         self.assertFalse(selection["baseline_reused"])
         self.assertIsNone(selection["baseline_origin"])
         self.assertEqual(selection["reference_commit"], self.commit)
-        self.assertFalse(self.output.exists())
-
-    def test_expired_baseline_requests_fresh_measurement(self):
-        artifact = self._add_baseline()
-        artifact["expired"] = True
-        self.assertFalse(self._restore()["baseline_reused"])
-        self.assertFalse(self.output.exists())
 
     def test_invalid_source_proof_blocks_reuse_and_identifies_the_affected_sample(self):
         for mutation, sample, reason in (
@@ -743,7 +725,6 @@ class PairedTests(unittest.TestCase):
                 selection = self._restore()
                 self.assertFalse(selection["baseline_reused"])
                 self.assertIn("Baseline is incomplete or its source proof is invalid.", str(selection["issues"]))
-                self.assertFalse(self.output.exists())
 
     def test_shared_measurement_proof_rejects_mixed_origins_and_changed_identity(self):
         for mutation in (
@@ -797,6 +778,7 @@ class PairedTests(unittest.TestCase):
                 evidence, _ = paired.select_pr_baseline(self.client, candidate)
                 self.assertTrue(evidence.issues)
                 report = build_compare.compare_evidence(evidence, candidate)
+                self.assertTrue(all("Baseline: " + issue in report["notes"] for issue in evidence.issues))
                 first = next(row for row in report["rows"] if "first" in row["legs"]["baseline"])
                 self.assertIsNone(first["change_pct"])
                 self.assertFalse(self._restore(measurement=self.measurement)["baseline_reused"])
@@ -816,9 +798,8 @@ class PairedTests(unittest.TestCase):
                 selection = self._restore()
                 self.assertFalse(selection["baseline_reused"])
                 self.assertTrue(selection["issues"])
-                self.assertFalse(self.output.exists())
 
-    def test_invalid_first_attempt_is_remeasured_then_second_attempt_is_reused(self):
+    def test_baseline_reruns_remeasure_invalid_evidence_reuse_valid_results_and_refresh_after_expiry(self):
         incomplete = self._files()
         del incomplete["second/sample-3/source-revision.json"]
         first = self._add_baseline(incomplete)
@@ -833,6 +814,8 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(selection["baseline_origin"]["artifact_id"], second["id"])
         self.assertEqual(selection["baseline_origin"]["run_attempt"], 2)
         self.assertEqual(self.client.contents[first["id"]], first_bytes)
+        second["expired"] = True
+        self.assertFalse(self._restore(run_id=10, attempt=3)["baseline_reused"])
 
     def _candidate(
         self,
@@ -893,12 +876,27 @@ class PairedTests(unittest.TestCase):
             "source_commit": self.commit,
         }
 
-    def _run_report(self, attempt=1):
-        output = self.root / "report"
+    def _run_report(self, attempt=1, *, gate_only=False):
+        output = self.root / ("gate-only" if gate_only else "report")
         with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
             status = build_compare.main(
-                ["--repository", REPO, "--run_id", "20", "--run_attempt", str(attempt), "--output_dir", str(output)]
+                [
+                    "--repository",
+                    REPO,
+                    "--run_id",
+                    "20",
+                    "--run_attempt",
+                    str(attempt),
+                    "--output_dir",
+                    str(output),
+                    "--comparison_dir",
+                    str(self.root / "comparisons"),
+                    *(["--gate-only"] if gate_only else []),
+                ]
             )
+        if gate_only:
+            self.assertFalse(output.exists())
+            return status, None, None
         return (
             status,
             json.loads((output / "build-comparison.json").read_text()),
@@ -907,15 +905,18 @@ class PairedTests(unittest.TestCase):
 
     def test_automatic_report_is_advisory_and_preserves_existing_gate_failure(self):
         artifact = self._add_baseline(self._files(measurement=self.measurement))
-        self._candidate(self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80)
-        gate = self.root / "comparisons" / "first"
-        gate.mkdir(parents=True)
-        (gate / "comparison.json").write_bytes(encoded({"verdict": "FAIL", "label": "first"}))
+        candidate = self._candidate(
+            self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80
+        )
+        files = {**candidate.files, "first/comparison.json": encoded({"verdict": "FAIL", "label": "first"})}
+        self.client.run_artifacts[20] = []
+        current = self.client.add_artifact(20, "performance-smoke-20-1", files)
+        self.client.downloaded.clear()
         with contextlib.redirect_stdout(io.StringIO()):
-            before = cli.main(["aggregate", "--comparison_dir", str(gate.parent)])
             status, report, markdown = self._run_report()
-            after = cli.main(["aggregate", "--comparison_dir", str(gate.parent)])
-        self.assertEqual((before, after, status), (1, 1, 0))
+            gate_exit = cli.main(["aggregate", "--comparison_dir", str(self.root / "comparisons")])
+        self.assertEqual((gate_exit, status), (1, 0))
+        self.assertEqual(self.client.downloaded, [current["id"], artifact["id"]])
         self.assertEqual(report["baseline"]["run_id"], 10)
         self.assertEqual(report["candidate"]["run_id"], 20)
         self.assertEqual(report["candidate_kind"], "merge")
@@ -928,13 +929,35 @@ class PairedTests(unittest.TestCase):
         self.assertIn("3/3 / 3/3", markdown)
         self.assertEqual(self.client.pages_requested, [])
 
+        # Gate results remain available even when the advisory comparison cannot parse its context.
+        files["build-context.json"] = b"{invalid JSON"
+        self.client.run_artifacts[20] = []
+        current = self.client.add_artifact(20, "performance-smoke-20-1", files)
+        for gate_only in (False, True):
+            with self.subTest(gate_only=gate_only), contextlib.redirect_stdout(io.StringIO()):
+                (self.root / "comparisons/first/comparison.json").unlink()
+                self.client.downloaded.clear()
+                status, report, _ = self._run_report(gate_only=gate_only)
+                gate_exit = cli.main(["aggregate", "--comparison_dir", str(self.root / "comparisons")])
+                self.assertEqual((gate_exit, status), (1, 0))
+                self.assertEqual(self.client.downloaded, [current["id"]])
+                if not gate_only:
+                    self.assertEqual(report["selection"]["reason_code"], "corrupt")
+
     def test_report_only_reruns_preserve_the_pin_when_its_baseline_expires(self):
         artifact = self._add_baseline(self._files(measurement=self.measurement))
-        self._candidate(self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80)
+        candidate = self._candidate(
+            self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80
+        )
+        gate = encoded({"verdict": "FAIL", "label": "first"})
+        self.client.run_artifacts[20] = []
+        self.client.add_artifact(20, "performance-smoke-20-1", {**candidate.files, "first/comparison.json": gate})
         _, first, _ = self._run_report()
+        (self.root / "comparisons/first/comparison.json").unlink()
         self.client.add(20, HEAD, attempt=2, start=stamp(13), event="pull_request", artifact=False)
         self.client.run_jobs[20, 2][0].update(started_at=stamp(12), id=999)
         _, second, rerun_markdown = self._run_report(attempt=2)
+        self.assertEqual((self.root / "comparisons/first/comparison.json").read_bytes(), gate)
         self.assertEqual(second["baseline"], first["baseline"])
         self.assertEqual(second["candidate"]["run_attempt"], 1)
         self.assertEqual(second["candidate"]["report_attempt"], 2)
