@@ -195,49 +195,13 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("Cosmos", "Generate the policy camera's images with a running Cosmos service.")
     group.add_argument("--cosmos", action="store_true", default=False, help="Put Cosmos on the task's rgb camera.")
     group.add_argument(
-        "--cosmos_prompt",
-        action="append",
-        default=None,
-        help="Repeat for prompts cycled per episode with one environment, or fixed per environment with several.",
-    )
-    group.add_argument(
-        "--cosmos_prompt_file",
-        action="append",
+        "--cosmos_config",
+        metavar="FILE",
         default=None,
         help=(
-            "Prompt file instead of --cosmos_prompt: .txt is used as written, .json keeps its caption structure. Repeat"
-            ' it, or pass a quoted pattern such as "prompts/*.json" or a list such as "[a.json,b.txt]"; one prompt per'
-            " file."
+            "YAML file with the Cosmos options (prompt, camera, control, near, far, endpoint, transport; see"
+            " isaaclab_experimental.cosmos.COSMOS_OPTIONS). Implies --cosmos."
         ),
-    )
-    group.add_argument(
-        "--cosmos_camera",
-        action="append",
-        default=None,
-        help=(
-            "Scene camera name; repeat it, list names separated by commas, or pass all, for cameras sharing one"
-            " session. Defaults to the only rgb camera."
-        ),
-    )
-    group.add_argument(
-        "--cosmos_control",
-        choices=["depth", "edge"],
-        default=None,
-        help="Cosmos control type; defaults to depth or preserves the Cosmos preset.",
-    )
-    group.add_argument("--cosmos_near", type=float, default=None, help="Depth rendered white [m]; preset value or 0.1.")
-    group.add_argument("--cosmos_far", type=float, default=None, help="Depth rendered black [m]; preset value or 2.0.")
-    group.add_argument(
-        "--cosmos_endpoint",
-        action="append",
-        default=None,
-        help="Cosmos service endpoint (unix:///path or tcp://host:port); repeat to split environments across services.",
-    )
-    group.add_argument(
-        "--cosmos_transport",
-        choices=["auto", "cuda_ipc", "socket"],
-        default=None,
-        help="cuda_ipc keeps images on the GPU (same machine, same or peer GPU); socket also works across machines.",
     )
 
 
@@ -417,7 +381,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
     if hasattr(args_cli, "cosmos"):
-        from isaaclab_experimental.cosmos import CosmosTransferModifierCfg, apply_cosmos, read_prompt_files
+        from isaaclab_experimental.cosmos import CosmosTransferModifierCfg, apply_cosmos, read_cosmos_config
 
         preset_cameras = [
             name
@@ -428,31 +392,12 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
                 for item in chain
             )
         ]
-        options = ("prompt", "prompt_file", "camera", "control", "near", "far", "endpoint", "transport")
-        if not args_cli.cosmos and not preset_cameras:
-            if any(getattr(args_cli, f"cosmos_{option}", None) is not None for option in options):
-                raise ValueError("Cosmos options require --cosmos or a task configured with presets=cosmos.")
+        if not (args_cli.cosmos or args_cli.cosmos_config or preset_cameras):
             return
-        prompts = args_cli.cosmos_prompt
-        if args_cli.cosmos_prompt_file is not None:
-            if prompts is not None:
-                raise ValueError("Pass Cosmos prompts with --cosmos_prompt or --cosmos_prompt_file, not both.")
-            prompts = read_prompt_files(args_cli.cosmos_prompt_file)
-        cameras = [name.strip() for value in args_cli.cosmos_camera or () for name in value.split(",")] or (
-            preset_cameras[:1] if len(preset_cameras) == 1 else None
-        )
-        endpoints = args_cli.cosmos_endpoint
-        apply_cosmos(
-            env_cfg,
-            prompt=prompts[0] if prompts and len(prompts) == 1 else prompts,
-            camera=cameras[0] if cameras and len(cameras) == 1 else cameras,
-            control=args_cli.cosmos_control,
-            near=args_cli.cosmos_near,
-            far=args_cli.cosmos_far,
-            endpoint=endpoints[0] if endpoints and len(endpoints) == 1 else endpoints,
-            transport=args_cli.cosmos_transport,
-            num_envs=args_cli.num_envs,
-        )
+        options = read_cosmos_config(args_cli.cosmos_config) if args_cli.cosmos_config else {}
+        if "camera" not in options and len(preset_cameras) == 1:
+            options["camera"] = preset_cameras[0]
+        apply_cosmos(env_cfg, num_envs=args_cli.num_envs, **options)
 
 
 def request_determinism(args_cli: argparse.Namespace, env_cfg: Any) -> None:
@@ -547,7 +492,7 @@ def show_run_summary(
     visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
     # The summary is shown before apply_env_overrides, which gives --cosmos runs one environment unless set.
     num_envs = getattr(args_cli, "num_envs", None) or (
-        1 if getattr(args_cli, "cosmos", False) else env_cfg.scene.num_envs
+        1 if getattr(args_cli, "cosmos", False) or getattr(args_cli, "cosmos_config", None) else env_cfg.scene.num_envs
     )
     screen.summary(
         f"Isaac Lab · {action}",
