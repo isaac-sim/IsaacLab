@@ -27,9 +27,12 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import launch_simulation
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 logger = logging.getLogger("isaaclab.examples.mpm.g1_coupling")
 
@@ -296,6 +299,7 @@ def _configure_common_environment(env_cfg: Any) -> None:
         eye=CAMERA_EYE,
         lookat=CAMERA_TARGET,
         focal_length=CAMERA_FOCAL_LENGTH,
+        backend=MultiBackendVisualizerCfg(),
     )
     env_cfg.scene.backdrop = AssetBaseCfg(
         prim_path="/World/PresentationGround",

@@ -25,10 +25,13 @@ from typing import NamedTuple
 
 import numpy as np
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.utils import instantiate
 from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import launch_simulation
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 logger = logging.getLogger("isaaclab.tutorials.mpm.material_parameters")
 
@@ -321,6 +324,7 @@ def create_sim_cfg():
             eye=CAMERA_EYE,
             lookat=CAMERA_TARGET,
             focal_length=32.0,
+            backend=MultiBackendVisualizerCfg(),
         ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(

@@ -27,9 +27,12 @@ from typing import TYPE_CHECKING
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import launch_simulation
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -141,7 +144,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=VisualizerCfg(backend=NewtonGLVisualizerCfg(particle_color=PARTICLE_COLOR)),
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(particle_color=PARTICLE_COLOR)),
+        ),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )
 

@@ -156,14 +156,15 @@ composition, before choosing process runtimes or creating the scene.
 Task scripts can declare alternatives with ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``.
 Keep view, window, and scene settings on ``VisualizerCfg``. Its ``backend`` selects the implementation;
 ``MultiBackendVisualizerCfg()`` supplies the built-in choices without repeating those common settings.
-Resolve presets in the script before calling ``launch_simulation``:
+Standalone scripts use the task-owned ``launch_simulation`` entry point to select these alternatives
+from parsed launcher arguments before core launch:
 
 .. code-block:: python
 
    from isaaclab.sim import SimulationCfg
    from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
-   from isaaclab_tasks.utils import resolve_presets
+   from isaaclab_tasks.utils import launch_simulation
    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
    sim_cfg = SimulationCfg(
@@ -175,12 +176,17 @@ Resolve presets in the script before calling ``launch_simulation``:
        ),
    )
 
-   sim_cfg = resolve_presets(sim_cfg, overrides={"visualizer_cfgs.backend": ["rerun", "newton_gl"]})
+   with launch_simulation(sim_cfg, args_cli):
+       # Construct the simulation and scene here.
+       ...
 
 One ``VisualizerCfg`` supplies the common settings for every selected backend. Selecting
 ``rerun,newton_gl`` creates both viewers; no outer list or repeated common settings is needed.
 Backend-specific options are available when needed, but ordinary configuration uses the unchanged
 ``MultiBackendVisualizerCfg()`` declaration.
+
+Keep ``MultiBackendVisualizerCfg`` when declaring available alternatives. A list of concrete backend
+configs declares active viewers, so replacing the preset with a list changes the default behavior.
 
 Task entry points perform this selection through ``resolve_task_config``:
 

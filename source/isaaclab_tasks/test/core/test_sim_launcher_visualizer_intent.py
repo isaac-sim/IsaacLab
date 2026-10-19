@@ -21,9 +21,9 @@ from isaaclab.app import SimulationLauncher
 from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import resolve_presets, resolve_task_config, setup_preset_cli
+from isaaclab_tasks.utils import launch_simulation, resolve_presets, resolve_task_config, setup_preset_cli
 from isaaclab_tasks.utils.hydra import register_task
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, MultiBackendVisualizerCfg
 
 
 @pytest.mark.parametrize("selection", ["kit", "newton_gl", "newton_rtx", "rerun", "viser", "none", "kit,newton_gl"])
@@ -66,13 +66,32 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
         visualizer_cfgs=VisualizerCfg(max_visible_envs=16, backend=MultiBackendVisualizerCfg()),
     )
     viewer = cfg.visualizer_cfgs
-    assert resolve_presets(cfg, overrides={"visualizer_cfgs.backend": "newton_gl"}) is cfg
-    assert cfg.visualizer_cfgs is viewer
-    assert isinstance(viewer.backend, NewtonGLVisualizerCfg)
-    assert viewer.max_visible_envs == 16
-    with sim_launcher.launch_simulation(cfg, {"max_visible_envs": 3}):
+    viewer.backend.newton_gl.particle_color = (0.1, 0.2, 0.3)
+    args = argparse.Namespace(visualizer="newton_gl", max_visible_envs=3)
+    with launch_simulation(cfg, args):
         assert cfg.visualizer_cfgs == [viewer]
+        assert isinstance(viewer.backend, NewtonGLVisualizerCfg)
+        assert viewer.backend.particle_color == (0.1, 0.2, 0.3)
         assert viewer.max_visible_envs == 3
+    assert args.visualizer == "newton_gl"
+
+    for selection in ({}, {"visualizer": "none"}, {"visualizer": []}):
+        cfg.visualizer_cfgs = VisualizerCfg(backend=MultiBackendVisualizerCfg())
+        with launch_simulation(cfg, selection):
+            assert cfg.visualizer_cfgs == []
+    cfg.visualizer_cfgs = VisualizerCfg(backend=MultiBackendVisualizerCfg())
+    with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
+        with launch_simulation(cfg, {"visualizer": "none", "livestream": 2}):
+            pass
+
+    # Selectors without a matching preset still reach core launch.
+    cfg = SimpleNamespace(
+        sim=SimulationCfg(physics=NewtonCfg(), device="cpu"),
+        renderer=MultiBackendRendererCfg(),
+    )
+    with launch_simulation(cfg, {"visualizer": "newton_gl", "renderer": "newton_renderer"}):
+        assert cfg.sim.visualizer_cfgs[0].backend.visualizer_type == "newton_gl"
+        assert cfg.renderer.renderer_type == "newton_warp"
     with pytest.raises(ValueError, match="Unknown preset"):
         resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "missing"})
     with pytest.warns(FutureWarning, match="newton_gl"):

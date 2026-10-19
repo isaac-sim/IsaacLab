@@ -24,8 +24,11 @@ from typing import NamedTuple
 import numpy as np
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import launch_simulation
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 
 class SnowballSpec(NamedTuple):
@@ -189,7 +192,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=VisualizerCfg(backend=NewtonGLVisualizerCfg(particle_color=SNOW_COLOR)),
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(particle_color=SNOW_COLOR)),
+        ),
         physics=NewtonCfg(
             solver_cfg=solver_cfg,
             num_substeps=1,

@@ -2565,8 +2565,9 @@ The details below describe how CLI visualizer arguments resolve together with
 - Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
   in ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``; pass configured instances instead
   of subclassing it. ``resolve_task_config`` selects these alternatives before launch.
-  Standalone scripts pass concrete configurations and parsed arguments to ``launch_simulation``;
-  they do not need task presets to select visualizers.
+  Standalone scripts declaring preset alternatives import ``launch_simulation`` from
+  ``isaaclab_tasks.utils`` and pass their config and parsed launcher arguments. This entry point
+  composes presets before calling core launch; scripts do not need path-specific ``resolve_presets`` calls.
 
 ``launch_simulation`` now owns the runtime decisions previously exposed through ``scan`` and ``Scan``.
 Read physics, renderer, and visualizer choices directly from the config inside the launch context.
@@ -2606,8 +2607,9 @@ There is no defaults-merging pass.
 
 Select several backends with ``visualizer=rerun,newton_gl``; they share this single
 ``VisualizerCfg`` declaration. Without a selection, ``MultiBackendVisualizerCfg()`` leaves viewers inactive.
-In standalone scripts, use ``VisualizerCfg(...)`` and pass ``args_cli`` to ``launch_simulation``.
-It applies ``--viz`` directly, preserving any declared backend-specific options.
+In standalone scripts, pass this declaration and ``args_cli`` to
+``isaaclab_tasks.utils.launch_simulation``. It selects ``--viz`` alternatives while preserving
+declared backend-specific options, then passes concrete configurations to core launch.
 
 Backend configs now contain only implementation-specific options. For example, move ``eye``,
 ``max_visible_envs``, ``window``, and ``streaming_view`` from ``NewtonGLVisualizerCfg`` to its

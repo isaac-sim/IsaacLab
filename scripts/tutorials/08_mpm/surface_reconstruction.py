@@ -29,10 +29,13 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.utils import instantiate
 from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import launch_simulation
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
@@ -237,16 +240,16 @@ def create_sim_cfg():
             lookat=CAMERA_TARGET,
             focal_length=30.0,
             enable_live_plots=False,
-            backend=[
-                NewtonGLVisualizerCfg(show_particles=SHOW_PARTICLES, particle_color=WATER_COLOR),
-                NewtonRTXVisualizerCfg(
+            backend=MultiBackendVisualizerCfg(
+                newton_gl=NewtonGLVisualizerCfg(show_particles=SHOW_PARTICLES, particle_color=WATER_COLOR),
+                newton_rtx=NewtonRTXVisualizerCfg(
                     render_settings={
                         "omni:rtx:quality": ("Int", args_cli.rtx_quality),
                         "omni:rtx:rt:reflections:enabled": ("Bool", True),
                         "omni:rtx:rt:reflections:maxBounces": ("Int", 2),
                     }
                 ),
-            ],
+            ),
         ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
