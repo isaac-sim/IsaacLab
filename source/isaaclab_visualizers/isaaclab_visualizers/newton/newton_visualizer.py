@@ -137,6 +137,17 @@ class NewtonViewerGL(ViewerGL):
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
         self._fullscreen_image_active = False
+        self.image_matches_camera = False
+        """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
+        draw_texture = self.renderer.render_texture
+
+        def render_texture(texture_id, texture_width=0, texture_height=0, **kwargs):
+            screen = self.renderer._screen_width / max(self.renderer._screen_height, 1)
+            if self.image_matches_camera and texture_height and abs(texture_width / texture_height / screen - 1) < 0.1:
+                texture_width = texture_height = 0  # Stretch a nearly matching aspect instead of drawing black bars.
+            draw_texture(texture_id, texture_width, texture_height, **kwargs)
+
+        self.renderer.render_texture = render_texture
         self._implot = self._implot_ctx = None
         if self.gui is not None:
             from imgui_bundle import implot
@@ -347,7 +358,7 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                if viewer.picking_enabled and not viewer._fullscreen_image_active:
+                if viewer.picking_enabled and (not viewer._fullscreen_image_active or viewer.image_matches_camera):
                     imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
@@ -453,8 +464,8 @@ class NewtonViewerGL(ViewerGL):
             self._fullscreen_image_active = True
 
     def on_mouse_press(self, x, y, button, modifiers):
-        """Image coordinates must not pick objects in the hidden perspective scene."""
-        if not self._fullscreen_image_active:
+        """Image coordinates must not pick objects in the hidden perspective scene, unless it is the image's camera."""
+        if not self._fullscreen_image_active or self.image_matches_camera:
             super().on_mouse_press(x, y, button, modifiers)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
@@ -925,6 +936,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._configure_viewer()
 
         self._select_camera(0)
+        if self.cfg.enable_markers and self.rtx_view_index is not None:
+            # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
+            renderer_cfg = self._image_views[self.rtx_view_index].camera.cfg.renderer_cfg
+            sim.get_or_create_backend(renderer_cfg).marker_groups = sim.vis_marker_registry.get_groups().values()
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
@@ -967,8 +982,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._policy_ghost_panel.apply_materials(viewer)
         viewer.begin_frame(self._sim_time)
         try:
+            viewer.image_matches_camera = self.rtx_rendering
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
+                if viewer.image_matches_camera and viewer.picking_enabled and not viewer.is_paused():
+                    viewer._last_state = self._update_state()  # Picking casts against the latest body poses.
                 self._log_streaming_image()
             elif not viewer.is_paused():
                 state = self._update_state()
