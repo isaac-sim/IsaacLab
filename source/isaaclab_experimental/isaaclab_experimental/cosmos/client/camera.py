@@ -16,6 +16,7 @@ from typing import Any, Literal
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
+from isaaclab.utils.io import load_yaml
 from isaaclab.utils.modifiers import ModifierCfg
 
 from isaaclab_experimental.image_transfer import center_crop_resize, depth_to_control
@@ -30,6 +31,31 @@ logger = logging.getLogger(__name__)
 
 COSMOS_CANVASES = tuple(CANVAS_ASPECT_RATIOS)
 """Image sizes ``(height, width)`` the Cosmos service accepts."""
+
+COSMOS_OPTIONS = ("prompt", "camera", "control", "near", "far", "endpoint", "transport")
+"""Options a Cosmos config file may set; each is an argument of :func:`apply_cosmos`."""
+
+
+def read_cosmos_config(path: str) -> dict[str, Any]:
+    """Read the Cosmos options of a task from a YAML file.
+
+    Args:
+        path: YAML file mapping option names (:data:`COSMOS_OPTIONS`) to values, for example
+            ``prompt: A kitchen.`` or ``endpoint: unix:///tmp/cosmos.sock``. Omitted options keep their defaults.
+
+    Returns:
+        The options, to pass to :func:`apply_cosmos`.
+
+    Raises:
+        ValueError: If the file is not a mapping or sets an option that does not exist.
+    """
+    options = load_yaml(path) or {}
+    if not isinstance(options, dict):
+        raise ValueError(f"The Cosmos config {path} must map option names to values.")
+    unknown = sorted(set(options) - set(COSMOS_OPTIONS))
+    if unknown:
+        raise ValueError(f"Unknown Cosmos option(s) {unknown} in {path}; the options are {list(COSMOS_OPTIONS)}.")
+    return options
 
 
 def cosmos_camera(
@@ -118,7 +144,7 @@ def service_capabilities(
     if require_idle and reply.get("session_active", False):
         raise RuntimeError(
             f"Cosmos service at {endpoint} already has an active camera session; close the other training/play "
-            "process or choose another service with --cosmos_endpoint."
+            "process or choose another service with the Cosmos config option `endpoint`."
         )
     return reply["capabilities"]
 
@@ -195,15 +221,15 @@ def apply_cosmos(
     existing = transfers[0].backend if transfers else None
     if existing is not None and control is not None and control != existing.modality:
         raise ValueError(
-            f"This Cosmos preset prepares {existing.modality} controls; omit --cosmos_control or select "
-            "an ordinary RGB camera task with --cosmos to use another control."
+            f"This Cosmos preset prepares {existing.modality} controls; omit the Cosmos config option `control` "
+            "or select an ordinary RGB camera task with --cosmos to use another control."
         )
     control = control or (existing.modality if existing is not None else "depth")
     endpoint = endpoint or (existing.endpoint if existing is not None else DEFAULT_ENDPOINT)
     transport = transport or (existing.transport if existing is not None else "auto")
     prompt = existing.prompt if prompt is None and existing is not None else prompt
     if control != "depth" and (near is not None or far is not None):
-        raise ValueError("--cosmos_near and --cosmos_far apply only to depth control.")
+        raise ValueError("The Cosmos options `near` and `far` apply only to depth control.")
     endpoints = service_endpoints(endpoint)
     endpoint = endpoints[0] if len(endpoints) == 1 else endpoints
     shares = split_views(num_envs * len(names), len(endpoints))
@@ -216,7 +242,7 @@ def apply_cosmos(
                 f"for independent resets; start isaaclab-cosmos-server at {address} without --no-compile."
             )
     if prompt is None:
-        logger.warning("Cosmos runs without a prompt; pass --cosmos_prompt to describe the scene.")
+        logger.warning("Cosmos runs without a prompt; set `prompt` in the Cosmos config to describe the scene.")
     if env_cfg.scene.num_envs != num_envs:
         logger.info("Cosmos generates %d environment(s); the task default was %d.", num_envs, env_cfg.scene.num_envs)
         env_cfg.scene.num_envs = num_envs
@@ -332,7 +358,9 @@ def _select_camera(scene: Any) -> str:
     """Return the name of the scene's only camera that publishes only rgb."""
     names = _rgb_cameras(scene, only_rgb=True)
     if len(names) != 1:
-        raise ValueError(f"Choose the Cosmos camera with --cosmos_camera; rgb cameras in this scene: {names}.")
+        raise ValueError(
+            f"Choose the Cosmos camera with the Cosmos config option `camera`; rgb cameras in this scene: {names}."
+        )
     return names[0]
 
 
