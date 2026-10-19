@@ -433,9 +433,10 @@ cd "$COSMOS_FRAMEWORK_ROOT"
 uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --device cuda:1
 ```
 
-Isaac Lab keeps its own device, `cuda:0` by default. Set `transport: cuda_ipc` in the Cosmos config to
-require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA context on the other GPU,
-which takes some memory there.
+Isaac Lab keeps its own device, `cuda:0` by default. Override the camera's transport with
+`env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.transport=cuda_ipc` (or set `transport="cuda_ipc"`
+in `apply_cosmos`) to require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA
+context on the other GPU, which takes some memory there.
 
 ## Episode frame budget
 
