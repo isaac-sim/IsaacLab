@@ -152,6 +152,28 @@ Other backends and catalogs can still use their initial clone assignments withou
 ``write_mesh_variant_to_sim`` raises ``NotImplementedError`` when the backend or catalog does not support selection;
 static multi-asset spawning does not require the narrower reset-time compatibility contract.
 
+Paired variant assignments
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, clone planning considers every combination of the declared assets' variants.
+Use :attr:`~cloner.CloneCfg.valid_set` when variants must be paired, such as matching a peg
+to its corresponding socket:
+
+.. code-block:: python
+
+   # A scene with two environment-scoped spawned assets, declared as socket then peg.
+   scene_cfg.clone_cfg.valid_set = [[0, 0], [1, 1]]
+
+Each row is one allowed combination. Columns follow scene declaration order and include
+every environment-scoped spawned asset, even those with a single variant. Shared assets
+and sensors without a spawner do not occupy columns; cameras with a spawner do. Rigid
+object collections contribute one column per member in collection order.
+
+Variant indices follow each spawner's catalog order. Use ``-1`` to omit an asset from a row.
+Rows receive equal weight and :attr:`~cloner.CloneCfg.clone_strategy` assigns them to environments.
+When set, ``valid_set`` takes precedence over :attr:`~cloner.CloneCfg.clone_combinations`;
+leave it as ``None`` to retain the usual Cartesian expansion.
+
 Run the example
 ---------------
 
