@@ -1,0 +1,13 @@
+# Cosmos options for the Shadow Hand camera task; pass with --cosmos_config.
+# The options are listed in source/isaaclab_experimental/docs/cosmos.md.
+
+# One scene description per environment (--num_envs 2: the first is environment 0, the second environment 1).
+prompt:
+  - A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.
+  - A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.
+
+# Optional; omitted options keep the preset's values.
+# endpoint: unix:///tmp/isaaclab-cosmos.sock   # or tcp://host:port; a list splits environments across services
+# transport: auto                              # auto, cuda_ipc or socket
+# near: 0.1                                    # depth shown white [m]
+# far: 1.5                                     # depth shown black [m]
