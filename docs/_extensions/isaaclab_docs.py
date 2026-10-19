@@ -11,9 +11,9 @@ import csv
 import inspect
 import json
 import posixpath
-from html import escape
 import re
 import sys
+from html import escape
 from pathlib import Path
 
 from docutils import nodes
@@ -91,7 +91,9 @@ def _configure_source_links(app: Sphinx, config: Config) -> None:
         except (AttributeError, KeyError, OSError, TypeError, ValueError):
             # External, mocked, or generated objects may have no repository source.
             return None
-        return f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{path.as_posix()}#L{start}-L{start + len(lines) - 1}"
+        return (
+            f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{path.as_posix()}#L{start}-L{start + len(lines) - 1}"
+        )
 
     config.linkcode_resolve = resolve
 
@@ -303,14 +305,17 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
         return
     is_multiversion_build = bool(getattr(app.config, "smv_current_version", ""))
     for old, new in app.config.isaaclab_doc_redirects.items():
-        destination = Path(app.builder.get_outfilename(new))
-        if not destination.is_file():
-            # The current config is also used to build tags that predate these redirect targets.
-            if is_multiversion_build:
-                continue
-            raise ValueError(f"Documentation redirect target was not built: {new}")
         output = Path(app.builder.get_outfilename(old))
-        target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
+        if new.startswith(("https://", "http://")):
+            target = new
+        else:
+            destination = Path(app.builder.get_outfilename(new))
+            if not destination.is_file():
+                # The current config is also used to build tags that predate these redirect targets.
+                if is_multiversion_build:
+                    continue
+                raise ValueError(f"Documentation redirect target was not built: {new}")
+            target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
         sections = {}
         for fragment, route in getattr(app.config, "isaaclab_doc_redirect_fragments", {}).get(old, {}).items():
             doc, separator, anchor = route.partition("#")
@@ -320,16 +325,17 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
                     continue
                 raise ValueError(f"Documentation redirect target was not built: {doc}")
             sections[f"#{fragment}" if fragment else ""] = [
-                posixpath.relpath(page.as_posix(), output.parent.as_posix()), separator + anchor
+                posixpath.relpath(page.as_posix(), output.parent.as_posix()),
+                separator + anchor,
             ]
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
             '<!doctype html><meta charset="utf-8"><title>Page moved</title>'
             f'<noscript><meta http-equiv="refresh" content="0; url={escape(target, quote=True)}"></noscript>'
             f'<link rel="canonical" href="{escape(target, quote=True)}">'
-            f'<script>const sections = {json.dumps(sections)};\n'
-            f'const target = sections[location.hash] || [{json.dumps(target)}, location.hash];\n'
-            'location.replace(target[0] + location.search + target[1]);</script>'
+            f"<script>const sections = {json.dumps(sections)};\n"
+            f"const target = sections[location.hash] || [{json.dumps(target)}, location.hash];\n"
+            "location.replace(target[0] + location.search + target[1]);</script>"
             f'<p>This page moved to <a href="{escape(target, quote=True)}">{escape(new)}</a>.</p>',
             encoding="utf-8",
         )
