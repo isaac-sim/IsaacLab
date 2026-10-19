@@ -6,9 +6,10 @@
 
 set -euo pipefail
 
-# Keep the archive and checksum pinned together; retain published version directories in each release.
-readonly archive_url="https://github.com/isaac-sim/IsaacLab/releases/download/browser-demos-v3/isaaclab-browser-demos-v3.tar.gz"
-readonly archive_sha256="a860b7e59793d553545b76abf2b09d15ff20685972ec803c6c07163e6678f64a"
+# Append reviewed snapshots to the permanent interactive-demos release; retain earlier assets.
+readonly archive_commit="897b81dd82115d319fbfc56c02f33f936f22ab72"
+readonly archive_url="https://github.com/isaac-sim/IsaacLab/releases/download/interactive-demos/isaaclab-browser-demos-${archive_commit}.tar.gz"
+readonly archive_sha256="08f27711b72fa8b1fffd8fb7f433fbd34775e2e526f0bc94da7f487458b5100a"
 
 archive=$(mktemp)
 trap 'rm -f "$archive"' EXIT
@@ -18,7 +19,8 @@ curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 --ma
 printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum --check
 
 mkdir -p docs/_build/demos
-tar --extract --gzip --file "$archive" --directory docs/_build/demos --no-same-owner
+tar --extract --gzip --file "$archive" --directory docs/_build/demos --no-same-owner \
+  --strip-components=2 "IsaacLab-${archive_commit}/site/"
 
 # Resolve links per version so local artifacts and nested release branches use the same files.
 uv run --no-sync python - <<'PY'
@@ -26,7 +28,9 @@ import os
 from pathlib import Path
 
 build = Path("docs/_build")
-for page in build.glob("**/source/setup/interactive_demos.html"):
+pages = list(build.glob("**/source/isaaclab/interactive_demos.html"))
+pages.extend(build.glob("**/source/setup/interactive_demos.html"))
+for page in pages:
     relative = Path(os.path.relpath(build / "demos", page.parent)).as_posix()
     content = page.read_text()
     page.write_text(content.replace('href="../../../demos/', f'href="{relative}/'))
@@ -39,7 +43,7 @@ Extract the complete docs-html artifact, then run this command in its root direc
     python -m http.server 8000
 
 Documentation: http://localhost:8000/current/index.html
-Interactive demos: http://localhost:8000/demos/v3/
+Interactive demos: http://localhost:8000/demos/interactive/
 
 Use HTTP to preview the demos; opening the HTML files directly does not allow
 the browser to load their WebAssembly modules and data through fetch().

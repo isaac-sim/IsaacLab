@@ -181,7 +181,7 @@ class VisuoTactileSensor(SensorBase):
         super()._initialize_impl()
 
         # Obtain global simulation view
-        self._physics_sim_view = SimulationContext.instance().physics_manager.get_physics_sim_view()
+        self._physics_sim_view = SimulationContext.instance().backend_manager.get_physics_sim_view()
 
         # Initialize camera-based tactile sensing
         if self.cfg.enable_camera_tactile:

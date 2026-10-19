@@ -203,18 +203,27 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
         # override actions
         self.actions.arm_action = FrankaArmActionCfg()
-        # Native SE(3) devices match the 6D relative differential and Newton IK actions.
-        relative_ik_teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(gripper_term=False, sim_device=self.sim.device),
-                "gamepad": Se3GamepadCfg(gripper_term=False, sim_device=self.sim.device),
-                "spacemouse": Se3SpaceMouseCfg(gripper_term=False, sim_device=self.sim.device),
-            }
-        )
+
+        # Native SE(3) devices match the 6D relative differential and Newton IK actions. Sensitivities
+        # offset each action's scale so full device input commands 0.025 m and 0.025 rad per step.
+        def relative_ik_teleop_devices(rot_sensitivity: float) -> DevicesCfg:
+            device_cfgs = {"keyboard": Se3KeyboardCfg, "gamepad": Se3GamepadCfg, "spacemouse": Se3SpaceMouseCfg}
+            return DevicesCfg(
+                devices={
+                    name: device_cfg(
+                        gripper_term=False,
+                        pos_sensitivity=0.5,
+                        rot_sensitivity=rot_sensitivity,
+                        sim_device=self.sim.device,
+                    )
+                    for name, device_cfg in device_cfgs.items()
+                }
+            )
+
         self.teleop_devices = preset(
             default=DevicesCfg(),
-            diffik=relative_ik_teleop_devices,
-            newton_ik=relative_ik_teleop_devices,
+            diffik=relative_ik_teleop_devices(rot_sensitivity=0.05),
+            newton_ik=relative_ik_teleop_devices(rot_sensitivity=0.1),
         )
         # override command generator body
         # end-effector is along z-direction
