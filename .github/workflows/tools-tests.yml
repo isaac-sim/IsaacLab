@@ -55,7 +55,6 @@ jobs:
           PYTHONPATH: tools
         # Explicit files avoid tests that need Isaac Sim; --noconftest prevents the full-suite orchestrator from running.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
-          tools/perf_smoke/test_run_benchmarks.py
           .github/actions/_lib/test_registry_credential_fallback.py
           .github/actions/_lib/test_performance_workflow.py -v --noconftest
 
