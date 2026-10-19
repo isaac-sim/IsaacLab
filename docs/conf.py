@@ -60,8 +60,8 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
     full_version = f.read().strip()
     version = ".".join(full_version.split(".")[:3])
 
-# Latest release branch referenced by installation documentation.
-isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "develop")
+# Default development branch referenced by installation documentation.
+isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "main")
 isaaclab_wheel_version = "3.0.0rc1"
 isaaclab_wheel_source_tag = "v3.0.0-EA"
 

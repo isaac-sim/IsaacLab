@@ -4,11 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # Resolve the moving Isaac Sim ``latest-release-6-3`` tag to its immutable
-# manifest digest and open (or refresh) a draft PR against ``develop``.
+# manifest digest and open (or refresh) a draft PR against the default branch.
 #
 # Scheduled workflows register only from the default branch, so this file
-# must remain on ``develop`` while it is the repository default. The job also
-# checks out ``develop`` because that is where the CI image pin is maintained.
+# must remain there. The job also checks out the default branch because that is
+# where the CI image pin is maintained.
 #
 # The isaaclab-bot GitHub App token is used instead of GITHUB_TOKEN so the
 # branch push and PR events trigger the normal CI workflows. The App must have
@@ -41,7 +41,7 @@ env:
   CONFIG_PATH: .github/workflows/config.yaml
   SOURCE_IMAGE: nvcr.io/0947644777160149/internal/isaac-sim
   SOURCE_TAG: latest-release-6-3
-  TARGET_BRANCH: develop
+  TARGET_BRANCH: ${{ github.event.repository.default_branch }}
   UPDATE_BRANCH: ci/nightly-isaacsim-image-update
 
 jobs:
@@ -208,7 +208,7 @@ jobs:
             echo
             echo "## Release backport"
             echo
-            echo '- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `develop`'
+            echo '- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `main`'
             echo
             echo "## Screenshots"
             echo
