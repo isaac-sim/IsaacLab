@@ -45,7 +45,6 @@ from environ_docs import (  # noqa: E402
     ENVIRONMENT_BROWSER_TASKS_END_MARKER,
     ENVIRONMENT_BROWSER_TASKS_START_MARKER,
     EnvironmentDocRow,
-    _apply_preset_exclusions,
     _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_browser_preview_images,
@@ -220,43 +219,26 @@ def test_physics_names_for_docs_infers_physx_from_default():
     assert names == ["newton_mjwarp", "physx"]
 
 
-@pytest.mark.parametrize(
-    "task_name",
-    [
-        "IsaacContrib-Factory-Franka",
-        "IsaacContrib-Stack-Cube-Franka",
-        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
-        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
-        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
-        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
-    ],
-)
-def test_preset_exclusions_remove_runtime_disabled_task_combinations(task_name: str):
-    presets = {
-        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
-        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
-        PresetTarget.DOMAIN: ["rgb"],
+def test_collect_environment_doc_rows_reports_validated_mjwarp_support():
+    # One representative per task-owned physics declaration or compatibility guard.
+    expected = {
+        "IsaacContrib-Factory-Franka": True,
+        "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-Franka": True,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor": True,
+        "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-SO101-v0": True,
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel": False,
     }
 
-    excluded = _apply_preset_exclusions(task_name, presets)
-
-    assert excluded == {
-        PresetTarget.PHYSICS: ["isaacsim_physx"],
-        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
-        PresetTarget.DOMAIN: ["rgb"],
+    rows = collect_environment_doc_rows([gym.spec(task_name) for task_name in expected])
+    actual = {
+        row.task_name: "newton_mjwarp" in row.presets.get(PresetTarget.PHYSICS, [])
+        for row in rows
+        if row.presets is not None
     }
 
-
-def test_preset_exclusions_keep_supported_task_combinations():
-    presets = {
-        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
-        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
-        PresetTarget.DOMAIN: ["rgb"],
-    }
-
-    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
-
-    assert unchanged == presets
+    assert actual == expected
 
 
 def test_collect_environment_doc_rows_from_mock_specs():
