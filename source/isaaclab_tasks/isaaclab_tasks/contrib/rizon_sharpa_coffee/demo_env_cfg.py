@@ -122,6 +122,14 @@ class CoffeeKitVisualizerCfg(KitVisualizerCfg):
 
 
 @configclass
+class CoffeePresentationCfg(sim_utils.SpawnerCfg):
+    """Author the coffee backdrop as ordinary scene content."""
+
+    func: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:spawn_presentation"
+    backdrop: Literal["kitchen", "studio"] = "kitchen"
+
+
+@configclass
 class CoffeeSceneCfg(InteractiveSceneCfg):
     """Reusable robot, hosted props and optional MPM fill volumes."""
 
@@ -141,6 +149,8 @@ class CoffeeSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DistantLightCfg(intensity=2500.0, color=(1.0, 0.86, 0.69), angle=12.0),
         init_state=AssetBaseCfg.InitialStateCfg(rot=(0.239, -0.370, -0.099, 0.892)),
     )
+
+    presentation: AssetBaseCfg | None = None
 
 
 @configclass
@@ -238,6 +248,17 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         raise ValueError("min_delivered_fraction must be in (0, 1].")
     if not math.isfinite(cfg.min_delivered_mass) or cfg.min_delivered_mass <= 0.0:
         raise ValueError("min_delivered_mass must be finite and positive.")
+    backdrops = {
+        visualizer.backdrop
+        for visualizer in cfg.sim.visualizer_cfgs
+        if isinstance(visualizer, (CoffeeKitVisualizerCfg, CoffeeRTXVisualizerCfg))
+    }
+    if len(backdrops) > 1:
+        raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")
+    for backdrop in backdrops:
+        cfg.scene.presentation = AssetBaseCfg(
+            prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop)
+        )
     cfg.scene.robot = get_robot_cfg()
     cfg.scene.table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",

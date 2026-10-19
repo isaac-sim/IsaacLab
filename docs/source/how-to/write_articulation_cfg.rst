@@ -62,7 +62,7 @@ For common USD properties, use the solver-common fragments from ``isaaclab.sim.s
 :class:`~sim.schemas.UsdPhysicsRigidBodyCfg` and :class:`~sim.schemas.UsdPhysicsDriveCfg`. Pass
 a backend's fragments from ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
-settings alongside them in the same spawner field. See :doc:`../concepts/schema_fragments` for
+settings alongside them in the same spawner field. See :ref:`schema-fragments` for
 the fragment API. The Cartpole below already has both PhysX and Newton articulation fragments;
 its PhysX solver settings do not configure Newton's solver. To change Newton's self-collision setting:
 

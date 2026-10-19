@@ -14,12 +14,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonManager, NewtonVBDManager, XPBDSolverCfg
+from isaaclab_newton.physics import XPBDSolverCfg
 from newton import CollisionPipeline, Mesh, Model, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
-
-from isaaclab.physics import PhysicsManager
 
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
@@ -31,8 +29,9 @@ from isaaclab_contrib.coupling import (
 
 
 @pytest.fixture
-def isolated_newton_manager(monkeypatch: pytest.MonkeyPatch):
-    """Isolate every global manager slot touched by coupler construction."""
+def isolated_newton_manager() -> NewtonCouplerManager:
+    """Return a coupler manager with every slot touched by coupler construction set explicitly."""
+    manager = NewtonCouplerManager()
     clean_values = {
         "backend": SimpleNamespace(model=None, state_0=None, state_1=None, control=None),
         "_solver": None,
@@ -50,10 +49,10 @@ def isolated_newton_manager(monkeypatch: pytest.MonkeyPatch):
         "_state_force_callbacks": [],
     }
     for name, value in clean_values.items():
-        monkeypatch.setattr(NewtonManager, name, value)
-    monkeypatch.setattr(NewtonVBDManager, "_update_joint_state", True)
-    monkeypatch.setattr(PhysicsManager, "_cfg", None)
-    yield
+        setattr(manager, name, value)
+    manager._update_joint_state = True
+    manager._cfg = None
+    return manager
 
 
 def _build_overlapping_body_model(*, mesh_contact: bool = False) -> Model:
@@ -120,10 +119,11 @@ def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager
         ],
     )
 
-    NewtonManager.backend.model = model
-    NewtonCouplerManager._build_solver(model, solver_cfg)
+    manager = isolated_newton_manager
+    manager.backend.model = model
+    manager._build_solver(model, solver_cfg)
 
-    assert NewtonManager._solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
+    assert manager._solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
 
 
 @pytest.mark.parametrize(
@@ -164,13 +164,14 @@ def test_real_coupler_constructs_resets_and_steps(
             solver_cfg.contact_matching_pos_threshold = 0.001
             solver_cfg.contact_matching_normal_dot_threshold = 0.9
 
-    NewtonManager.backend.model = model
+    manager = isolated_newton_manager
+    manager.backend.model = model
     if algorithm == "admm_capacity" and not hasattr(SolverCoupledADMM.Config, "contact_max_triangle_pairs"):
         with pytest.raises(RuntimeError, match=r"Newton.*does not support contact_max_triangle_pairs"):
-            NewtonCouplerManager._build_solver(model, solver_cfg)
+            manager._build_solver(model, solver_cfg)
         return
-    NewtonCouplerManager._build_solver(model, solver_cfg)
-    solver = NewtonManager._solver
+    manager._build_solver(model, solver_cfg)
+    solver = manager._solver
 
     assert isinstance(solver, expected_solver_type)
     if algorithm == "admm_capacity":
@@ -189,9 +190,9 @@ def test_real_coupler_constructs_resets_and_steps(
         assert isinstance(nested_solver, SolverXPBD)
         assert nested_solver.model is solver.view(name)
 
-    NewtonCouplerManager._initialize_contacts()
-    collision_pipeline = NewtonManager._collision_pipeline
-    contacts = NewtonManager._contacts
+    manager._initialize_contacts()
+    collision_pipeline = manager._collision_pipeline
+    contacts = manager._contacts
     assert isinstance(collision_pipeline, CollisionPipeline)
     assert contacts is not None
     assert set(solver._entry_contact_buffers) == {"source", "destination"}
@@ -211,11 +212,11 @@ def test_real_coupler_constructs_resets_and_steps(
     control = model.control()
     solver.step(state_0, native_output, control, contacts, 1.0 / 60.0)
     solver.reset(state_0, flags=0)
-    NewtonManager.backend.state_0 = state_0
-    NewtonManager.backend.state_1 = state_1
-    NewtonManager.backend.control = control
-    NewtonCouplerManager._run_solver_substeps(contacts)
-    state_1 = NewtonManager.backend.state_0
+    manager.backend.state_0 = state_0
+    manager.backend.state_1 = state_1
+    manager.backend.control = control
+    manager._run_solver_substeps(contacts)
+    state_1 = manager.backend.state_0
 
     body_q_after = state_1.body_q.numpy()
     assert solver.entry_output_state_valid() is True

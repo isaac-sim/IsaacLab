@@ -3,6 +3,95 @@ Changelog
 
 .. towncrier release notes start
 
+6.1.0 (2026-10-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added opt-in OVStage sharing between OVPhysX and OVRTX through ``ISAAC_LAB_SHARE_OVSTAGE=1``. Clone preparation combined
+  their asset routes and populated both USD domains before either consumer attached. Without flags, OVPhysX
+  retained native physics cloning with independent OVStage rendering, and Newton retained native OVRTX cloning.
+  Sharing remained opt-in pending OVPhysX binding improvements.
+* Shared one OVRTX engine across camera configurations on a shared physics stage and submitted all its active
+  products. Cameras must agree on native logging and transform-cache settings and precede the first reset.
+* Coordinated gravity control ordinals with rendering writes and rebuilt the shared stage from current USD
+  during forced physics initialization after releasing bindings and detaching consumers.
+  Private physics stages reused the same stage owner for population, queries, and write ordinals.
+* Rejected full-stage physics imports in shared mode instead of dropping authored environment overrides.
+  Those scenes must leave ``ISAAC_LAB_SHARE_OVSTAGE`` disabled.
+* Removed custom import-error wrappers and redundant schema-registration fallbacks. Missing dependencies
+  retained Python's original import errors; renderer cleanup propagated binding failures after releasing resources.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.sensors.ContactSensor` returning pre-reset contact forces, force histories and contact
+  points when its data was read after :meth:`~isaaclab.scene.InteractiveScene.reset` and before the next physics
+  step, as the observation that follows an environment reset does. These buffers now keep their reset values until
+  the sensor's next update.
+
+
+6.0.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_ov.cloner.ovrtx_replicate` and :func:`~isaaclab_ov.cloner.ovstage_replicate` to apply
+  prepared subtree copies and environment positions to either native scene without interpreting a clone plan.
+* Added :class:`~isaaclab_ov.cloner.OvrtxReplicateContext` and :class:`~isaaclab_ov.cloner.OvstageReplicateContext`
+  with shared subtree preparation and separate routing to internal OVRTX scenes and simulation-owned stages.
+* Added :class:`~isaaclab_ov.stage.OvstageBackend` to own detached stages, path dictionaries, population domains,
+  stage cloning, and write ordinals independently of consumers. OVRTX borrowed an isolated rendering
+  stage by default with OVPhysX, which retained native cloning. Newton retained native OVRTX cloning;
+  ``ISAAC_LAB_OVRTX_USE_OVSTAGE=0`` or ``1`` explicitly selected either rendering path.
+* Added explicit joint-friction replacements for private OVPhysX 0.7 exports, preserving source assets and older runtime behavior.
+* Corrected runtime friction documentation to describe force/torque efforts and added native physical-unit validation.
+* Preserved individually authored per-axis friction efforts while filling missing values
+  from OVPhysX 0.7 legacy joint friction replacement profiles.
+* Added opt-in OVPhysX 0.7 support while retaining the pinned and legacy runtime paths,
+  including task completion, stage ownership, external schema discovery and renderer scene reads.
+* Preserved legacy joint velocity and armature settings in private OVPhysX 0.7 exports.
+  Unsupported nonzero legacy joint friction now reports a migration error instead of being silently ignored.
+
+Changed
+^^^^^^^
+
+* Moved clone-plan interpretation out of OVRTX camera initialization and into its clone context. Both scene
+  paths consumed the same prepared copies after camera overrides were authored. The renderer cloned and
+  exported only assets routed to OVRTX, including spawned and shared assets.
+* Unified first and subsequent OVRTX camera registration, and propagated object scales from the prepared
+  clone copies instead of traversing the clone plan again.
+* Consolidated scene binding setup, camera pose updates, and render submission across OVRTX scene paths.
+  Converted camera poses directly into retained matrix buffers and shared unscaled SDP publications between renderers.
+  Paired query and path-list lifetimes on the stage backend, including material updates, and decoded segmentation
+  labels once per frame. Removed duplicate USD scene-partition authoring; camera registration authored
+  the runtime attributes. Created missing environment partition attributes during native setup so sensor cameras
+  continued to exclude neighboring environments.
+* Created native environment frames only in private USD exports and placed OVPhysX originals from the clone plan.
+  Replaced recursive export filtering with a pruned USD traversal while retaining routed prototype selection.
+* Moved scene selection from renderer construction into clone preparation. OVRTX configurations
+  requested native cloning by default; preparation selected isolated OVStage rendering with OVPhysX
+  and native OVRTX cloning with Newton. ``ISAAC_LAB_OVRTX_USE_OVSTAGE=0|1`` overrode that selection.
+  Resources were acquired only after deciding scene ownership.
+* **Breaking:** Removed the OVStage 0.1 and OVRTX 0.4 compatibility modules and their version fallbacks.
+  Used the pinned SDKs' GPU hierarchy model and RenderVar prim-path keys directly. Code importing
+  ``ovstage_compat`` or ``renderers.ovrtx_compat`` must use OVStage 0.2 and OVRTX 0.5 APIs directly.
+* Used ordinary camera sensors for interactive RTX views, including global cameras declared through ``ReplicateSession`` in standalone scenes. Removed the separate perspective creation, capture, and resize paths; camera buffers retained their fixed resolution. Unified camera registration so each product owned its resources from creation, removing the separate first-camera setup and handle transfers.
+* Preserved runtime mesh and marker projection through the shared renderer and retained the reusable ``OvstageBackend`` for downstream scene consumers. RTX windows no longer created their own stages; ``populate`` required the declared ``ClonePlan``.
+* Completed scene import, cloning, and bindings during stage preparation, before registering camera products. Selected the rendering device from the simulation and accumulated all camera products in the optional USD debug dump.
+* Shared runtime geometry across camera products and published it during sensor capture. Removed duplicate marker projections when switching cameras and applied subsequent runtime mesh appearance updates.
+
+Fixed
+^^^^^
+
+* Preserved environment-root transforms and partition metadata for asset-level OVStage rendering clones,
+  fixing geometry leaking between camera views and misplaced static geometry in repeated environments.
+* Ignored ineffective fixed-joint legacy properties and rejected invalid merged friction efforts before OVPhysX 0.7 attachment.
+* Consolidated migration and renderer compatibility code and refined lifecycle, schema, and native joint coverage.
+
+
 5.0.1 (2026-10-13)
 ~~~~~~~~~~~~~~~~~~
 
