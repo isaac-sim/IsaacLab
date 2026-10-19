@@ -414,88 +414,72 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         scene_cfg.contact_sensor_b = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/BoxB", update_period=0.0, history_length=1
         )
+        # Same expression as sensor A; differs only in settings Isaac Lab applies itself.
+        scene_cfg.contact_sensor_c = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/BoxA", update_period=4 * SIM_DT, history_length=3
+        )
 
         scene = InteractiveScene(scene_cfg)
-        sim.reset()
-        scene.reset()
-
         sensor_a: ContactSensor = scene["contact_sensor_a"]
         sensor_b: ContactSensor = scene["contact_sensor_b"]
+        sensor_c: ContactSensor = scene["contact_sensor_c"]
 
-        # Average contact force over the last `avg_window` ticks of the settle period to reject
-        # per-step solver oscillation around the resting force.
-        avg_window = 20
-        force_a_samples: list[torch.Tensor] = []
-        force_b_samples: list[torch.Tensor] = []
-        for step in range(settle_steps):
-            perform_sim_step(sim, scene, SIM_DT)
-            if step >= settle_steps - avg_window:
-                force_a_samples.append(sensor_a.data.net_normal_forces_w.torch.clone())
-                force_b_samples.append(sensor_b.data.net_normal_forces_w.torch.clone())
-
-        forces_a = torch.stack(force_a_samples).mean(dim=0)
-        forces_b = torch.stack(force_b_samples).mean(dim=0)
-        force_mags_a = torch.norm(forces_a, dim=-1)
-        force_mags_b = torch.norm(forces_b, dim=-1)
-
-        errs: list[str] = []
-        for env_idx in range(num_envs):
-            fa = force_mags_a[env_idx].max().item()
-            fb = force_mags_b[env_idx].max().item()
-
-            if abs(fa - expected_force_a) >= 0.02 * expected_force_a:
-                errs.append(
-                    f"Env {env_idx}: BoxA ({mass_a}kg) force should be ~{expected_force_a:.2f} N. Got {fa:.2f} N"
-                )
-            if abs(fb - expected_force_b) >= 0.02 * expected_force_b:
-                errs.append(
-                    f"Env {env_idx}: BoxB ({mass_b}kg) force should be ~{expected_force_b:.2f} N. Got {fb:.2f} N"
-                )
-            if fb <= fa:
-                errs.append(f"Env {env_idx}: Heavier BoxB should have larger force. A: {fa:.2f}, B: {fb:.2f}")
-            if forces_a[env_idx, 0, 2].item() <= 0.1:
-                errs.append(f"Env {env_idx}: BoxA Z force should be positive")
-            if forces_b[env_idx, 0, 2].item() <= 0.1:
-                errs.append(f"Env {env_idx}: BoxB Z force should be positive")
-        assert not errs, "\n".join(errs)
-
-
-# Sensor registration is host-side bookkeeping, identical on every device.
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_sensors_with_identical_expressions(device: str):
-    """Sensors with the same body expression all report contacts, also after a hard reset.
-
-    The sensors differ only in the update period and history length, which Isaac Lab applies itself.
-    """
-    gravity_magnitude = 9.81
-    sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -gravity_magnitude))
-
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-
-        scene_cfg = ContactSensorTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=False)
-        scene_cfg.object_a = create_shape_cfg(
-            ShapeType.BOX,
-            "{ENV_REGEX_NS}/Object",
-            pos=(0.0, 0.0, get_shape_height(ShapeType.BOX) / 2),
-            disable_gravity=False,
-        )
-        scene_cfg.contact_sensor_a = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Object", history_length=1)
-        scene_cfg.contact_sensor_b = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Object", update_period=4 * SIM_DT, history_length=3
-        )
-        scene = InteractiveScene(scene_cfg)
-        sensors: list[ContactSensor] = [scene["contact_sensor_a"], scene["contact_sensor_b"]]
-
-        # The second reset finalizes a new Newton model, for which the sensors register again.
-        for _ in range(2):
+        # The second sim.reset() is a hard reset: it finalizes a new model, for which the sensors register again.
+        for reset_pass in range(2):
             sim.reset()
             scene.reset()
-            for _ in range(40):
+
+            # Average contact force over the last `avg_window` ticks of the settle period to reject
+            # per-step solver oscillation around the resting force.
+            avg_window = 20
+            force_a_samples: list[torch.Tensor] = []
+            force_b_samples: list[torch.Tensor] = []
+            force_c_samples: list[torch.Tensor] = []
+            for step in range(settle_steps):
                 perform_sim_step(sim, scene, SIM_DT)
-            # One row per sensor: the 1 kg box rests on the ground.
-            force_z = torch.stack([sensor.data.net_normal_forces_w.torch[..., 2] for sensor in sensors])
-            torch.testing.assert_close(force_z, torch.full_like(force_z, gravity_magnitude), rtol=0.02, atol=0.0)
+                if step >= settle_steps - avg_window:
+                    force_a_samples.append(sensor_a.data.net_normal_forces_w.torch.clone())
+                    force_b_samples.append(sensor_b.data.net_normal_forces_w.torch.clone())
+                    force_c_samples.append(sensor_c.data.net_normal_forces_w.torch.clone())
+
+            forces_a = torch.stack(force_a_samples).mean(dim=0)
+            forces_b = torch.stack(force_b_samples).mean(dim=0)
+            forces_c = torch.stack(force_c_samples).mean(dim=0)
+            force_mags_a = torch.norm(forces_a, dim=-1)
+            force_mags_b = torch.norm(forces_b, dim=-1)
+            force_mags_c = torch.norm(forces_c, dim=-1)
+
+            errs: list[str] = []
+            for env_idx in range(num_envs):
+                fa = force_mags_a[env_idx].max().item()
+                fb = force_mags_b[env_idx].max().item()
+                fc = force_mags_c[env_idx].max().item()
+
+                if abs(fa - expected_force_a) >= 0.02 * expected_force_a:
+                    errs.append(
+                        f"Pass {reset_pass}, env {env_idx}: BoxA ({mass_a}kg) force should be"
+                        f" ~{expected_force_a:.2f} N. Got {fa:.2f} N"
+                    )
+                if abs(fb - expected_force_b) >= 0.02 * expected_force_b:
+                    errs.append(
+                        f"Pass {reset_pass}, env {env_idx}: BoxB ({mass_b}kg) force should be"
+                        f" ~{expected_force_b:.2f} N. Got {fb:.2f} N"
+                    )
+                if fb <= fa:
+                    errs.append(
+                        f"Pass {reset_pass}, env {env_idx}: Heavier BoxB should have larger force."
+                        f" A: {fa:.2f}, B: {fb:.2f}"
+                    )
+                if forces_a[env_idx, 0, 2].item() <= 0.1:
+                    errs.append(f"Pass {reset_pass}, env {env_idx}: BoxA Z force should be positive")
+                if forces_b[env_idx, 0, 2].item() <= 0.1:
+                    errs.append(f"Pass {reset_pass}, env {env_idx}: BoxB Z force should be positive")
+                if abs(fc - expected_force_a) >= 0.02 * expected_force_a:
+                    errs.append(
+                        f"Pass {reset_pass}, env {env_idx}: second BoxA sensor should read"
+                        f" ~{expected_force_a:.2f} N. Got {fc:.2f} N"
+                    )
+            assert not errs, "\n".join(errs)
 
 
 # ===================================================================
