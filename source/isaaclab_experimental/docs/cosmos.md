@@ -54,7 +54,6 @@ apply_cosmos(env_cfg, prompt="A KUKA arm with an Allegro hand turning a cube in 
 |---|---|
 | `prompt` | Scene description: text, or a list for a different prompt per episode (one environment) or per environment (several) |
 | `camera` | Scene camera to use, when the task has several rgb cameras |
-| `control` | `"depth"` or `"edge"`: control prepared from the render (default `"depth"`); see "Controls and prompts" |
 | `near`, `far` | Depth shown white and black [m] (defaults 0.1 and 2.0) |
 | `endpoint` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
 | `transport` | `"auto"`, `"cuda_ipc"` or `"socket"`: how images move to the service; see "Endpoints and transports" (default `"auto"`) |
@@ -78,26 +77,11 @@ Limits of `apply_cosmos`:
 Tasks that train an image encoder from a pretrained checkpoint may need their own preset, as the Shadow Hand tasks
 below do, because the encoder sees new images.
 
-## Controls and prompts
+## Depth control and prompts
 
 The service follows the Sim-Transfer recipe of the Cosmos cookbook: 480p canvases, four distilled denoising steps,
-guidance 1.0, a 30-latent history window with three attention sinks, and one control per stream:
-
-| Control | Prepared by | How |
-|---|---|---|
-| `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
-| `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
-| `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
-
-The current Cosmos3-Nano-Sim-Transfer checkpoint is trained on depth, so `depth` is the supported control; `edge`
-and `seg` need a checkpoint trained for them.
-
-Other control recipes are `edge_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
-extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
-recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
-palette, while regional edges also require the camera's segmentation output and
-explicit foreground IDs. See the helper docstrings for their camera requirements.
+guidance 1.0, and a 30-latent history window with three attention sinks. Isaac Lab sends the camera's depth as the
+control, mapped to white (near) through black (far).
 
 The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
 uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
@@ -188,8 +172,7 @@ Isaac Lab configuration value. In the chain, item `0` prepares the depth control
 For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct presets=cosmos
 env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="A Shadow Hand turning a red cube."`.
 Omitted options preserve the preset's values, and the overrides keep its image size, modifier chain, and
-feature-extractor supervision. Changing a preset's control type is not supported by overrides; configure an ordinary
-RGB task with `apply_cosmos(env_cfg, control="edge")`.
+feature-extractor supervision.
 
 ## Client and server packages
 
@@ -223,7 +206,6 @@ from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
 
 input_name, modifiers = depth_processor(
     CosmosModelCfg(
-        modality="depth",
         prompt="A robot arm manipulating an object on a workbench.",
         # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
         max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
@@ -267,7 +249,6 @@ prompt's first use can trigger compilation, so prefer a short list of prompts.
 
 ```python
 CosmosModelCfg(
-    modality="depth",
     prompt=[
         "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
         "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
@@ -404,8 +385,7 @@ falling back. `status` lists the service's transports. With the defaults on one 
 shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket
 transport's 16-view protocol limit; available GPU memory still limits the batch size.
 
-CUDA IPC only avoids host copies between the two processes; edge extraction still runs on the CPU in the camera
-process. Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
+Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
