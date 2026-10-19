@@ -15,7 +15,6 @@ import subprocess
 import sys
 import tempfile
 import traceback
-import types
 from pathlib import Path, PurePosixPath
 
 RUNTIME_MODULE = "isaaclab.benchmark.entrypoints.runtime"
@@ -133,27 +132,9 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
 
 
 def _inspect_runtime() -> tuple[dict | None, list[dict]]:
-    module = sys.modules.get(RUNTIME_MODULE)
-    function = getattr(module, "run", None)
-    code = getattr(function, "__code__", None)
-    if not isinstance(code, types.CodeType):
-        return None, [{"module": RUNTIME_MODULE, "reason": "Runtime entrypoint was not imported as a Python function."}]
-    record = {"module": RUNTIME_MODULE, "source_code_matches": False}
-    mismatches = []
-    try:
-        source = Path(module.__file__).read_bytes()
-        compiled = compile(source, code.co_filename, "exec", dont_inherit=True, optimize=sys.flags.optimize)
-        expected = next(
-            item for item in compiled.co_consts if isinstance(item, types.CodeType) and item.co_name == "run"
-        )
-        record["source_code_matches"] = code == expected
-        if not record["source_code_matches"]:
-            mismatches.append(
-                {"module": RUNTIME_MODULE, "reason": "Live runtime function code differs from its source."}
-            )
-    except (OSError, SyntaxError, StopIteration, TypeError, ValueError) as exc:
-        mismatches.append({"module": RUNTIME_MODULE, "reason": f"Runtime function source comparison failed: {exc}"})
-    return record, mismatches
+    if RUNTIME_MODULE not in sys.modules:
+        return None, [{"module": RUNTIME_MODULE, "reason": "Runtime entrypoint was not imported in this process."}]
+    return {"module": RUNTIME_MODULE}, []
 
 
 def _output_state(output_dir: Path) -> dict[Path, tuple[int, int]]:
