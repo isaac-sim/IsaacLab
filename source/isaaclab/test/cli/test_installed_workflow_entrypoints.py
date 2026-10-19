@@ -196,6 +196,7 @@ def test_newton_gl_selector_omits_incompatible_programs():
     assert "Zoo##demo:zoo" in labels
     assert "Cables##example:cables" in labels
     assert "Camera##example:camera" in labels
+    assert "G1 Terrain##example:g1-terrain" in labels
     assert "Newton Dominoes##example:newton-dominoes" in labels
     assert "Newton Dominoes##demo:newton-dominoes" not in labels
     assert "H1 Locomotion##demo:h1-locomotion" in labels

@@ -230,12 +230,13 @@ OVERRIDES = {
     "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "examples/demos/sonic.py": ScriptOverride(
         skip_reason="downloads released ONNX policy models and builds the full granular scene",
-        visualizers=("kit",),
+        visualizers=(None, "kit", "newton_gl", "newton_rtx", "rerun", "viser"),
     ),
     "examples/g1_terrain.py": ScriptOverride(
         args=("--task", "platforms"),
         skip_reason="downloads a published depth policy",
-        visualizers=("kit",),
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=(None, "kit", "newton_gl", "newton_rtx", "rerun", "viser"),
     ),
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"

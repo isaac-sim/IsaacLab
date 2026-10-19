@@ -11,8 +11,7 @@ Deformables
 A deformable is an asset whose shape changes during simulation. Unlike a rigid body, it has no
 rigid root frame: its state is the position and velocity of every node of its simulation mesh.
 
-Isaac Lab models three kinds of deformable, distinguished by the dimensionality of the simulated
-geometry:
+Isaac Lab supports three kinds of deformable:
 
 .. list-table::
     :header-rows: 1
@@ -67,20 +66,19 @@ Backend support
     * - Volume
       - Yes
       - Yes, VBD solver only
-      - Experimental, CUDA devices only
+      - Yes, CUDA devices only
     * - Surface
       - Yes
       - Yes, VBD solver only
-      - Experimental, CUDA devices only
+      - Yes, CUDA devices only
     * - Cable
       - No
       - Yes, VBD solver only
       - No
 
-On Newton, deformables of every kind are simulated by the VBD solver, so a scene containing them
-must select a physics cfg whose solver is VBD. For the solver parameters, for running a rigid robot
-and a deformable in one scene, and for the tuning workflow, see
-:doc:`/source/how-to/solver_tuning_vbd` and :doc:`/source/concepts/coupled_solvers`.
+Newton deformables require the VBD solver. See :doc:`/source/how-to/solver_tuning_vbd`
+for configuration and tuning, and :doc:`/source/concepts/coupled_solvers` for scenes
+that combine a rigid robot with deformables.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
 :doc:`/source/concepts/physics-backends/ovphysx`.
@@ -628,8 +626,10 @@ move the target, or switch to keyboard end-effector control in Manual mode.
 scripted state machine, which is a useful starting point for a deformable manipulation task.
 
 
-Related
--------
+.. _related:
+
+Where to go next
+----------------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
 * :doc:`/source/how-to/solver_tuning_vbd` covers the VBD solver parameters, the Newton

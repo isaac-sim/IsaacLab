@@ -174,8 +174,8 @@ def test_stage_in_memory_with_usds(sim):
     assert len(prims) == num_robot_prototypes
 
 
-def test_stage_in_memory_with_clone_in_fabric(sim):
-    """Test cloning in fabric with stage in memory."""
+def test_stage_in_memory_with_usd_cloning(sim):
+    """Test USD cloning with a stage in memory."""
 
     # skip test if stage in memory is not supported
     if get_isaac_sim_version().major < 5:

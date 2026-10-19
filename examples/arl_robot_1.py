@@ -38,7 +38,6 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
@@ -63,14 +62,9 @@ class ARLSceneCfg(InteractiveSceneCfg):
 
 def main():
     """Main function to spawn arl_robot_1."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # Create simulation context
-        sim_cfg = sim_utils.SimulationCfg(
-            dt=0.01,
-            device=args_cli.device,
-            physics=physics_cfg,
-            use_newton_actuators=False,
-        )
+    # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_newton_actuators=False)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
 
         scene_cfg = ARLSceneCfg(num_envs=1, env_spacing=2.0)

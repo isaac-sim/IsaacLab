@@ -47,6 +47,7 @@ def unpack_contact_buffer_data(
     contact_starts: wp.array2d(dtype=wp.uint32),
     mask: wp.array(dtype=wp.bool),
     num_envs: wp.int32,
+    timestamp: wp.array(dtype=wp.float32),
     contact_pos_w: wp.array3d(dtype=wp.vec3f),
 ):
     """Average contact positions for each (env, body, filter) group.
@@ -59,12 +60,18 @@ def unpack_contact_buffer_data(
         contact_starts: Contact-point start indices per (body*env, filter). Shape is (B*N, M).
         mask: Boolean mask for which environments to update. Shape is (N,).
         num_envs: Number of environments.
+        timestamp: Timestamp array. Shape is (N,).
         contact_pos_w: Mean contact positions [m], or NaN without contacts. Shape is (N, B, M) vec3f.
     """
     env, sensor, contact = wp.tid()
     if mask:
         if not mask[env]:
             return
+
+    # Skip envs that have not been stepped since their last reset: the OVPhysX contact buffers
+    # still hold pre-reset values, so reading them now would inject stale data (#4970).
+    if timestamp[env] == 0.0:
+        return
 
     flat_idx = sensor * num_envs + env
     # OVPhysX can report full counts even when the flat buffers were truncated.
@@ -290,6 +297,11 @@ def update_net_forces_ovphysx_kernel(
     if mask:
         if not mask[env]:
             return
+
+    # Skip envs that have not been stepped since their last reset: the OVPhysX contact buffers
+    # still hold pre-reset values, so reading them now would inject stale data (#4970).
+    if timestamp[env] == 0.0:
+        return
 
     src_idx = sensor * num_envs + env
 

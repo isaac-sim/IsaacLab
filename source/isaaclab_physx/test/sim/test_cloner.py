@@ -203,7 +203,7 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim):
 
     sim.reset()
 
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Sphere")
     assert physx_view is not None and physx_view.count == 1, (
         f"Expected 1 rigid body at /World/envs/env_0/Sphere, got {'None' if physx_view is None else physx_view.count}."
@@ -318,7 +318,7 @@ def test_direct_clone_plan_multi_asset(sim):
             assert primitive_prim.GetTypeName() == "Sphere"
 
     sim.reset()
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
     assert physx_view.count == num_clones
 
@@ -359,7 +359,7 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
         assert primitive_prim.GetTypeName() == expected_types[i % len(expected_types)]
 
     sim.reset()
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
     for _ in range(100):
         sim.step()
@@ -434,7 +434,7 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
 
     sim.reset()
 
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
     assert ball_view.count == num_envs, f"Expected {num_envs} balls, got {ball_view.count}"
 

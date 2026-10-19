@@ -852,6 +852,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/wrench")
     def body_joint_wrench(self) -> ProxyArray:
         """Incoming joint reaction wrench ``[force, torque]`` for each body.
 
@@ -899,6 +900,7 @@ class BaseArticulationData(ABC):
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/link_jacobian")
     def body_link_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
@@ -927,6 +929,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/body/com_jacobian")
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
@@ -945,6 +948,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_com_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/mass_matrix")
     def mass_matrix(self) -> ProxyArray:
         """Per-env generalized mass matrix ``M(q)`` in joint space.
 
@@ -959,6 +963,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/gravity_compensation")
     def gravity_compensation_forces(self) -> ProxyArray:
         """Per-env gravity compensation torques ``g(q)`` in joint space.
 
