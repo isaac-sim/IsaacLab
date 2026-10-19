@@ -5,9 +5,6 @@ image. Run the Cosmos service in one terminal and `isaaclab train` in another. T
 [Serving Cosmos](../../source/isaaclab_experimental/docs/cosmos_service.md) and
 [Cosmos camera integration](../../source/isaaclab_experimental/docs/cosmos.md); see those pages for every option.
 
-Requires Linux, two GPUs (or MIG slices) of about 48 GB, and access to the
-[Cosmos3-Nano-Sim-Transfer](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer) checkpoint.
-
 ## 1. Start the Cosmos service
 
 In its own terminal, with the paths of your Isaac Lab checkout, the
