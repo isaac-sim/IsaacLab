@@ -487,6 +487,12 @@
     const incompatibleBackends = () => !isLaunchable(selectedTask(), selectorValues());
 
     const updateCommand = () => {
+        const kitOption = fields.visualizer.querySelector('option[value="kit"]');
+        kitOption.disabled = fields.physics.value === "ovphysx" || fields.renderer.value === "ovrtx";
+        kitOption.title = kitOption.disabled ? "Kit cannot share a process with OVPhysX or OVRTX" : "";
+        if (kitOption.disabled && fields.visualizer.value === "kit") {
+            fields.visualizer.value = "";
+        }
         const incompatible = incompatibleBackends();
         commandOutput.textContent = currentCommand();
         commandOutput.closest(".environment-command-output").classList.toggle("is-disabled", incompatible);
@@ -512,7 +518,11 @@
         if (fields.renderer.value === "newton_optix") {
             extras.push("optix");
         }
-        if (fields.physics.value === "isaacsim_physx" || fields.renderer.value === "isaacsim_rtx") {
+        if (
+            fields.physics.value === "isaacsim_physx"
+            || fields.renderer.value === "isaacsim_rtx"
+            || fields.visualizer.value === "kit"
+        ) {
             extras.push("isaacsim");
         }
         if (rlLibraryExtras[fields.rl.value]) {
@@ -543,6 +553,9 @@
         }
         if (supportsRl && fields.checkpoint.checked) {
             parts.push("--checkpoint", "pretrained");
+        }
+        if (fields.visualizer.value) {
+            parts.push("--viz", fields.visualizer.value);
         }
         return parts.join(" ");
     };
@@ -1013,7 +1026,7 @@
     for (const selector of selectors) {
         fields[selector].addEventListener("change", () => settleSelectors(selector));
     }
-    for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint]) {
+    for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint, fields.visualizer]) {
         field.addEventListener("change", () => {
             updateModeControls();
             updateCommand();
