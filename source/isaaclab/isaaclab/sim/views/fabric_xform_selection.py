@@ -138,6 +138,11 @@ class FabricXformSelection:
                 group_prims.append(rt_prim)
             self._tagged_prims.append((index_attr, group_prims))
 
+        # usdrt's *XformFromUsd helpers write legacy transform attributes. Only the host Fabric Hierarchy
+        # update turns them into the omni:fabric matrices, and Kit runs it per frame only with FSD.
+        if self.fabric_hierarchy is not None:
+            self.fabric_hierarchy.update_world_xforms()
+
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
         uint_type = usdrt.Sdf.ValueTypeNames.UInt
         read = usdrt.Usd.Access.Read

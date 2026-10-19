@@ -540,19 +540,12 @@ class PhysxManager(PhysicsManager):
 
     def play(self) -> None:
         """Start or resume the timeline."""
-        # Pause/resume still needs Fabric's stage reattach to unfreeze visuals (#4279).
-        # Reattaching on initial play hides GPU tensor reset poses until a physics step,
-        # so the first camera frame shows the spawn pose. A zero-step reset immediately
-        # after resume remains affected by the same Fabric limitation.
-        starting = self._timeline.is_stopped()
-        resuming = not self._timeline.is_playing() and not starting
+        # Resuming still needs Fabric's stage reattach to unfreeze visuals (#4279). A zero-step reset
+        # immediately after resume keeps the pose from before the reset until the next physics step.
+        resuming = not self._timeline.is_playing() and not self._timeline.is_stopped()
         self._timeline.play()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
-        if starting:
-            # Let the initial Fabric stage sync settle before callers write camera poses;
-            # otherwise the first physics step can restore a cloned camera's authored pose.
-            omni.kit.app.get_app().update()
         if resuming:
             self._sync_fabric_after_resume()
 
