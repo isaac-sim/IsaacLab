@@ -66,7 +66,6 @@ from isaaclab_newton.controllers.ik import (
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
-    NewtonManager,
     NewtonShapeCfg,
     NewtonSoftContactCfg,
     VBDSolverCfg,
@@ -1357,16 +1356,16 @@ def main() -> None:
             usd_path,
             step_dt,
             speeds,
-            state=NewtonManager.get_state_0(),
-            control=NewtonManager.get_control(),
+            state=sim.backend_manager.get_state_0(),
+            control=sim.backend_manager.get_control(),
             substeps=substeps,
         )
-        NewtonManager.activate_newton_actuator_path()
-        NewtonManager.register_post_actuator_callback(controller.interpolate_arm_targets)
-        NewtonManager.set_decimation(substeps)
-        NewtonManager.register_post_step_callback(controller.compute)
-        grasp = _GraspMonitor(NewtonManager.get_model(), NewtonManager.get_state_0(), controller)
-        NewtonManager.register_post_step_callback(grasp.compute)
+        sim.backend_manager.activate_newton_actuator_path()
+        sim.backend_manager.register_post_actuator_callback(controller.interpolate_arm_targets)
+        sim.backend_manager.set_decimation(substeps)
+        sim.backend_manager.register_post_step_callback(controller.compute)
+        grasp = _GraspMonitor(sim.backend_manager.get_model(), sim.backend_manager.get_state_0(), controller)
+        sim.backend_manager.register_post_step_callback(grasp.compute)
         # Include per-phase frame rounding, the slowest pull and a one-second hold.
         duration = sum(H2_PHASE_DURATIONS) + len(H2_PHASE_DURATIONS) * step_dt
         duration += PULL_TIME_FACTOR * H2_PULL_DISTANCE / min(speeds)
@@ -1386,8 +1385,8 @@ def main() -> None:
                 if not all(report["retained"] for report in reports):
                     raise RuntimeError("A robot lost its physical cloth grasp; see the material-point gaps above.")
         finally:
-            NewtonManager.unregister_post_step_callback(grasp.compute)
-            NewtonManager.unregister_post_step_callback(controller.compute)
+            sim.backend_manager.unregister_post_step_callback(grasp.compute)
+            sim.backend_manager.unregister_post_step_callback(controller.compute)
 
 
 if __name__ == "__main__":

@@ -351,7 +351,8 @@ class SensorBase(ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = sim_utils.SimulationContext.instance().physics_manager
+        self._sim = sim_utils.SimulationContext.instance()
+        physics_mgr = self._backend_manager = self._sim.backend_manager
 
         obj_ref = weakref.proxy(self)
 
@@ -359,30 +360,29 @@ class SensorBase(ABC):
             getattr(obj_ref, callback_name)(event)
 
         # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
-        self._initialize_handle = physics_mgr_cls.register_callback(
+        self._initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
+                _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
-        self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
+        self._invalidate_initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr_cls
+                _invoke, "_invalidate_initialize_callback", payload, backend_manager=physics_mgr
             ),
             PhysicsEvent.STOP,
             order=10,
         )
-        # Optional: prim deletion (only supported by PhysX backend; the substring
-        # check would also match ``OvPhysxManager``, which does not expose
-        # ``IsaacEvents``, so use an exact class-name match).
+        # Optional: prim deletion (only supported by the Kit PhysX backend; OVPhysX does not expose
+        # ``IsaacEvents``).
         self._prim_deletion_handle = None
-        if physics_mgr_cls.__name__ == "PhysxManager":
+        if physics_mgr.backend_name == "physx":
             from isaaclab_physx.physics import IsaacEvents  # noqa: PLC0415
 
-            self._prim_deletion_handle = physics_mgr_cls.register_callback(
+            self._prim_deletion_handle = physics_mgr.register_callback(
                 lambda event: PhysicsManager.safe_callback_invoke(
-                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr_cls
+                    _invoke, "_on_prim_deletion", event, backend_manager=physics_mgr
                 ),
                 IsaacEvents.PRIM_DELETION,
             )

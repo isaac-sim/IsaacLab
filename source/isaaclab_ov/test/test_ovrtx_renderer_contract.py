@@ -110,7 +110,7 @@ def _simulation_registry(monkeypatch):
         device="cpu",
         _backend_registry=registry,
         _render_context=RenderContext(registry),
-        physics_manager=types.SimpleNamespace(clone_context_type=None, backend=None, _clone_recipes=[]),
+        backend_manager=types.SimpleNamespace(clone_context_type=None, backend=None, _clone_recipes=[]),
         clone_contexts={},
         stage=Usd.Stage.CreateInMemory(),
         plan=None,
@@ -196,7 +196,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
 
     sim = SimulationContext.instance()
     if with_physics:
-        sim.physics_manager.clone_context_type = OvPhysxReplicateContext
+        sim.backend_manager.clone_context_type = OvPhysxReplicateContext
     if use_ovstage and with_physics:
         # An asset route alone does not configure a renderer or authorize changing physics ownership.
         routes = {OvPhysxReplicateContext: {0}, OvrtxReplicateContext: {1}}
@@ -237,7 +237,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
         "/World/envs/env_0/Visual",
         *(["/World/envs/env_0/Body"] if shared_physics else []),
     }
-    assert bool(sim.physics_manager._clone_recipes) is (with_physics and not shared_physics)
+    assert bool(sim.backend_manager._clone_recipes) is (with_physics and not shared_physics)
     # Repeated preparation retains the selected resource identity.
     resources = tuple(sim._backend_registry)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))

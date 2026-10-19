@@ -505,13 +505,13 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
     )
     for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
         backends = [SimpleNamespace() for _ in configs]
-        sim = SimpleNamespace(_backend_registry=list(zip(configs, backends)), physics_manager=SimpleNamespace())
+        sim = SimpleNamespace(_backend_registry=list(zip(configs, backends)), backend_manager=SimpleNamespace())
         sim.get_backends = SimulationContext.get_backends.__get__(sim)
         for cfg, backend in sim._backend_registry:
             backend.cfg = cfg
         context(sim).replicate(plan, routed)
         assert backends[selected].clone_copies == expected
-        assert not vars(sim.physics_manager)
+        assert not vars(sim.backend_manager)
         assert all(
             vars(backend) == {"cfg": configs[index]} for index, backend in enumerate(backends) if index != selected
         )

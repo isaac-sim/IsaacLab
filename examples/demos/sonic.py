@@ -90,9 +90,9 @@ def main() -> None:
     overrides.insert(0, "presets=granular")
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     is_physx = isinstance(cfg.sim.physics, PhysxCfg)
-    offline_default = not is_physx and args.visualizer is None
-    if args.visualizer is None:
-        args.visualizer = ["kit"] if is_physx else []
+    offline_default = not is_physx and not any(arg.startswith("visualizer=") for arg in overrides)
+    if not any(arg.startswith("visualizer=") for arg in overrides):
+        cfg.sim.visualizer_cfgs = [KitVisualizerCfg()] if is_physx else []
     args.video = args.video or offline_default
     duration = args.seconds or cfg.duration
     step_dt = cfg.sim.dt * cfg.decimation
@@ -138,13 +138,11 @@ def main() -> None:
         enable_markers=False,
         enable_live_plots=False,
     )
-    cfg.sim.visualizer_cfgs = [
-        NewtonGLVisualizerCfg(show_particles=True, window=WindowCfg(size=(args.width, args.height))),
-        KitVisualizerCfg(
-            window=WindowCfg(size=(args.width, args.height)),
-            streaming_view=False,
-        ),
-    ]
+    if not isinstance(cfg.sim.visualizer_cfgs, list):
+        cfg.sim.visualizer_cfgs = [cfg.sim.visualizer_cfgs]
+    for viewer in cfg.sim.visualizer_cfgs:
+        if isinstance(viewer, NewtonGLVisualizerCfg):
+            viewer.show_particles = True
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped
