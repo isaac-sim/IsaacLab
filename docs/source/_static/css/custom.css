@@ -174,10 +174,10 @@ figure.nurec-gif-contain img {
     white-space: nowrap;
 }
 
-/* Allow long renderer preset names to wrap without changing their copied text. */
-.renderer-preset-grid figcaption span.pre {
-    overflow-wrap: anywhere;
-    white-space: normal;
+/* Center renderer output-matrix row labels on their images. */
+.renderer-matrix th,
+.renderer-matrix td {
+    vertical-align: middle;
 }
 
 /* Keep sphinx-copybutton visible on code blocks (not only on hover). */
