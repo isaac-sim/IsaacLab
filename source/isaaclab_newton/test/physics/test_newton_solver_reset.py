@@ -17,6 +17,7 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, newton_backend
+from isaaclab_newton.physics.newton_backend import StepGraph
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
@@ -125,13 +126,9 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         warm_start[1].fill_(29.0)
         wp.synchronize_device(device)
 
-        # Step eagerly without simulating, so only the step boundary's forward touches the solver.
-        backend = sim.backend_manager.backend
-        backend.graph, backend.graph_capture_pending = None, False
-        with (
-            patch.object(newton_backend, "_simulate_full", lambda backend: None),
-            patch.object(newton_backend, "_simulate_physics_only", lambda backend: None),
-        ):
+        # Build an empty step graph so only the step boundary's forward touches the solver.
+        sim.backend_manager.backend.step_graph = None
+        with patch.object(newton_backend, "build_step_graph", lambda backend, steps: StepGraph((), steps)):
             sim.step(render=False)
         wp.synchronize_device(device)
 

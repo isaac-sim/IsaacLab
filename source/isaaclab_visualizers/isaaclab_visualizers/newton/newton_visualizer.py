@@ -860,7 +860,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         )
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
+            sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply, name="viewer.picking")
         if self.cfg.backend.enable_picking and not picking_supported:
             logger.info(
                 "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
@@ -937,7 +937,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
             # A hard reset discards the Newton backend and its callbacks, so register picking with the new one.
-            self._sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
+            self._sim.backend_manager.register_state_force_callback(
+                self._viewer_picking_binding.apply, name="viewer.picking"
+            )
 
     def close(self) -> None:
         """Release picking and scene references without destroying Kit's shared GL context."""

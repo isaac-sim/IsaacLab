@@ -12,6 +12,9 @@
     CapturedGraph
     NewtonBackend
     NewtonCloneRecord
+    StepCallbacks
+    StepCallback
+    StepGraph
     MjWarpActuatorBridge
     NewtonCfg
     NewtonBackendCfg
@@ -57,14 +60,29 @@ Physics Manager
 
 .. autoclass:: NewtonCloneRecord
   :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: StepCallbacks
+  :members:
+  :show-inheritance:
+
+.. autoclass:: StepCallback
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: StepGraph
+  :members:
+  :show-inheritance:
 
 Backend Functions
 -----------------
 
 .. automodule:: isaaclab_newton.physics.newton_backend
   :members: init_solver, forward, invalidate_fk, invalidate_body_state, mark_model_changed, notify_model_changes,
-    activate_actuators, add_contact_sensor, add_imu_sensor, handles_decimation, set_decimation, invalidate_graph,
-    step, capture_graph, run_query, refit_bvh
+    register_step_callback, unregister_step_callback, activate_actuators, add_contact_sensor, add_imu_sensor,
+    build_step_graph, prepare, step, capture_graph, run_query, refit_bvh
 
 .. currentmodule:: isaaclab_newton.physics
 

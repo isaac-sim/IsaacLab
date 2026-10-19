@@ -64,7 +64,7 @@ specs of its entries with each entry's solver and configuration.
        hard reset.
    * - :class:`~isaaclab_newton.physics.NewtonBackend`
      - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, step callbacks,
-       reset masks, and the captured step. A hard reset or close discards it.
+       reset masks, and the compiled :class:`~isaaclab_newton.physics.StepGraph`. A hard reset or close discards it.
    * - Solver spec (``<SOLVER>_SPEC``)
      - Solver construction, capabilities, stepping, per-world reset of solver-owned buffers, forward kinematics, and
        builder attributes, as functions over an explicit solver, configuration, state, or builder.
@@ -109,8 +109,8 @@ Lifecycle
      - ``prepare_builder``, ``resolve_cfg``, ``validate``, ``build``, ``init_state``, ``external_contacts``,
        ``create_collision_pipeline``, ``create_contacts``, ``prepare_contacts``, ``eval_fk``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.step`
-     - Runs :func:`~isaaclab_newton.physics.newton_backend.forward` for authored state, runs the first step after a
-       structural change eagerly, and captures it as a CUDA graph for later steps.
+     - Runs :func:`~isaaclab_newton.physics.newton_backend.forward` for authored state, builds the step graph on the
+       first step after a structural change, runs that step eagerly, and captures the graph for later steps.
      - ``reset``, ``eval_fk``, ``prepare_step``, ``step``, ``finish_step``, ``check_status``, ``log_debug``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.close`
      - Closes the backend and clears the session state.
@@ -124,18 +124,18 @@ that consumers author while binding.
 The Step
 --------
 
-Each :meth:`~isaaclab_newton.physics.NewtonManager.step` covers the whole decimation loop when the manager handles
-decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: an articulation runs its Newton
-actuators in the step and all of them are CUDA-graph-safe), and one physics step otherwise. In the first case every
-physics step runs ``collide -> pre-actuator callbacks -> Newton actuators -> post-actuator callbacks -> substeps``,
-and post-step callbacks and sensors run once at the end. Otherwise the actuators and their callbacks run eagerly once,
-followed by ``collide -> substeps -> post-step callbacks -> sensors``. Every substep runs ``staged body forces ->
-state-force callbacks -> step``, and ``prepare_step`` and ``finish_step`` run around each physics step's substeps.
+Each :meth:`~isaaclab_newton.physics.NewtonManager.step` launches one :class:`~isaaclab_newton.physics.StepGraph`. It
+covers the whole decimation loop when the manager handles decimation
+(:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`) and one physics step otherwise. Pre-step
+callbacks run once first. Every physics step then runs ``collide -> control callbacks -> Newton actuators ->
+substeps -> finish_step -> post-step callbacks -> sensors``, where every substep runs ``staged forces -> state-force
+callbacks -> step``, and post-actuator callbacks run after the actuators of the last physics step. Each list of
+:class:`~isaaclab_newton.physics.StepCallbacks` has one cadence.
 
-Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
-records the callbacks, so they must be graph-safe. Consumers register them with
-:meth:`~isaaclab_newton.physics.NewtonManager.register_post_step_callback` and its siblings while ``PHYSICS_READY``
-dispatches.
+The graph binds every buffer when it is built. Double-buffered solvers alternate input and output states at build
+time, and each physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object.
+Consecutive graphable operations are captured together; operations that cannot be captured, such as actuators with Python history indices or eager callbacks, run in place between captured segments. Consumers add operations with
+:meth:`~isaaclab_newton.physics.NewtonManager.register_control_callback` and its siblings while ``PHYSICS_READY`` dispatches.
 
 The backend functions read no manager state, so backends with different solvers can be built from their own builders
 and stepped side by side:
@@ -152,14 +152,16 @@ and stepped side by side:
    cloth = NewtonBackend(backend_cfg(VBDSolverCfg()), cloth_builder, dt=0.01)
    for backend in (rigid, cloth):
        nb.init_solver(backend)
+       backend.steps_per_call = 2
 
    for _ in range(100):
        nb.step(rigid)
        nb.step(cloth)
 
-:func:`~isaaclab_newton.physics.newton_backend.step` runs the first step after
-:func:`~isaaclab_newton.physics.newton_backend.invalidate_graph` eagerly, then captures it for later steps when the
-backend's device and solver allow it. :func:`~isaaclab_newton.physics.newton_backend.capture_graph` records Torch and Warp on one stream and keeps
+:func:`~isaaclab_newton.physics.newton_backend.step` runs the first launch after the step graph is built eagerly,
+then captures the graph for later launches when the backend's device and solver allow it.
+:func:`~isaaclab_newton.physics.newton_backend.prepare` builds the step graph and allocates scratch without advancing
+physics. :func:`~isaaclab_newton.physics.newton_backend.capture_graph` records Torch and Warp on one stream and keeps
 both libraries' allocations alive; use it rather than a bare capture when Torch work is recorded.
 
 Property writers call ``mark_model_changed(backend, flags)``; ``notify_model_changes`` commits the queued
@@ -258,7 +260,7 @@ The four architectures differ in what drives the substep loop:
    * - Path
      - Structure
    * - Standalone solver
-     - One manager, one solver, one model. The captured step owns the substep loop.
+     - One manager, one solver, one model. The step graph owns the substep loop.
    * - Proxy coupling
      - :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` partitions the model
        into named entries.

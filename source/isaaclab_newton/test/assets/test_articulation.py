@@ -59,7 +59,6 @@ from newton_test_utils import (
     local_usd,
     newton_sim_cfg,
     spawn_assets,
-    step_callback_count,
     world_gravity,
 )
 
@@ -636,7 +635,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         sim.reset()
         callback_counts = (
             len(sim.backend_manager._callbacks),
-            step_callback_count(sim.backend_manager.backend),
+            sum(map(len, sim.backend_manager.backend.callbacks.lists())),
         )
         for reset_index in range(3):
             if reset_index:
@@ -645,7 +644,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
                 assert callback_counts == (
                     len(sim.backend_manager._callbacks),
-                    step_callback_count(sim.backend_manager.backend),
+                    sum(map(len, sim.backend_manager.backend.callbacks.lists())),
                 )
 
             positions = []
@@ -700,7 +699,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.reset()
         # the first step captures the graph that later steps replay
         sim.step()
-        assert sim.backend_manager.backend.graph is not None
+        assert sim.backend_manager.backend.step_graph.captured
         data = articulation.data
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
@@ -2073,11 +2072,10 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
             captured["jq_root"] = wp.to_torch(state.joint_q)[jc0 : jc0 + 3].clone()
         original_collide(state, contacts, *args, **kwargs)
 
-    # Step eagerly so the patched collide runs, then recapture with the original one.
-    backend.graph, backend.graph_capture_pending = None, False
+    backend.step_graph = None
     with patch.object(pipeline, "collide", _capturing_collide):
         scene.sim.step()
-    newton_backend.invalidate_graph(backend)
+    backend.step_graph = None
     articulation.update(scene.sim.cfg.dt)
 
     assert captured, "collision pipeline did not run in the step"

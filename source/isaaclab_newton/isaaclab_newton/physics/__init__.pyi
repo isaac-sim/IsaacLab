@@ -43,6 +43,9 @@ __all__ = [
     "usd_schema_resolvers",
     "VBD_SPEC",
     "XPBD_SPEC",
+    "StepCallback",
+    "StepGraph",
+    "StepCallbacks",
     "VBDSolverCfg",
     "XPBDSolverCfg",
 ]
@@ -66,7 +69,7 @@ from .mjwarp_solver import MJWARP_SPEC
 from .mjwarp_solver_cfg import MJWarpSolverCfg
 from .mpm_solver import MPM_SPEC, reset_mpm_solver_state
 from .mpm_solver_cfg import MPMSolverCfg
-from .newton_backend import CapturedGraph, NewtonBackend, NewtonCloneRecord
+from .newton_backend import CapturedGraph, NewtonBackend, NewtonCloneRecord, StepCallback, StepCallbacks, StepGraph
 from .newton_backend_cfg import NewtonBackendCfg
 from .newton_builder_cfg import NewtonBuilderCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg

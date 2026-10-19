@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 from collections.abc import Callable
@@ -38,7 +37,7 @@ from isaaclab_newton.renderers.visual_material import (
 )
 
 from . import newton_backend as nb
-from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
+from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, StepCallback
 from .newton_scene_data import NewtonSceneDataBackend
 from .solver_specs import create_builder, solver_spec
 
@@ -79,8 +78,7 @@ class NewtonManager(PhysicsManager):
         PHYSICS_READY           consumers bind views, sensors, step callbacks, and actuators to the backend
         init_solver             solver, contacts, and body state from the initial joint state
 
-    The step is captured as a CUDA graph right after the first :meth:`step` that follows any structural change runs
-    eagerly.
+    The step graph is built and captured on the first :meth:`step` after any structural change.
     """
 
     backend_name = "newton"
@@ -95,6 +93,7 @@ class NewtonManager(PhysicsManager):
         self._clone: NewtonCloneRecord | None = None
         self._scene_data_backend = NewtonSceneDataBackend(lambda: self.backend)
         self._decimation = 1
+        self._actuators_in_step = False
         self._solver_init_callbacks: list[Callable[[], None]] = []
 
     # ----- Physics manager lifecycle ---------------------------------------------
@@ -136,7 +135,6 @@ class NewtonManager(PhysicsManager):
             backend_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
             backend = self.backend = sim.get_or_create_backend(backend_cfg, dt=self.get_physics_dt())
             backend.model.set_gravity(sim.cfg.gravity)
-        backend.decimation = self._decimation
         clone = self._clone
         if clone is not None:
             backend.particle_ranges = clone.particle_ranges
@@ -155,6 +153,7 @@ class NewtonManager(PhysicsManager):
         pending, self._solver_init_callbacks = self._solver_init_callbacks, []
         for callback in pending:
             callback()
+        self._resolve_steps_per_call()
         self._mark_transforms_changed()
 
     def forward(self) -> None:
@@ -170,13 +169,12 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
         backend = self.backend
-        physics_steps = backend.decimation if nb.handles_decimation(backend) else 1
-        captured = nb.step(backend)
+        graph = nb.step(backend)
         spec = solver_spec(backend.solver_cfg)
-        spec.check_status(backend.solver, backend.solver_cfg, captured)
+        spec.check_status(backend.solver, backend.solver_cfg, graph.captured)
         if self._cfg.debug_mode:
             spec.log_debug(backend.solver, backend.solver_cfg)
-        self._sim_time += backend.dt * physics_steps
+        self._sim_time += backend.dt * backend.steps_per_call
         scene_data = self._scene_data_backend
         scene_data.transforms_timestamp += 1
         scene_data.geometry_timestamp += 1
@@ -202,6 +200,7 @@ class NewtonManager(PhysicsManager):
         if dispatch_stop:
             self.dispatch_event(PhysicsEvent.STOP)
         self.views.clear()
+        self._actuators_in_step = False
         self._solver_init_callbacks = []
         self.backend = None
         SimulationContext.instance().close_backend(backend)
@@ -261,77 +260,98 @@ class NewtonManager(PhysicsManager):
     # ----- Decimation --------------------------------------------------------------
 
     def set_decimation(self, decimation: int) -> None:
-        """Set the physics steps of one environment step, and recapture the step when it runs them all.
-
-        When every Newton actuator is CUDA-graph-safe, the entire decimation loop (actuators and solver substeps,
-        repeated ``decimation`` times) is captured as one CUDA graph, captured right after the next step runs eagerly.
+        """Set the physics steps of one environment step.
 
         Args:
             decimation: Physics steps per environment step.
         """
         self._decimation = max(1, decimation)
         if self.backend is not None:
-            nb.set_decimation(self.backend, self._decimation)
+            self._resolve_steps_per_call()
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` executes the full decimation loop.
+        """Whether one :meth:`step` advances the whole decimation loop.
 
-        This is the case once an articulation runs its Newton actuators in the step
-        (:meth:`activate_newton_actuator_path`) and all of them are CUDA-graph-safe.
+        This is the case once an articulation runs its actuators inside the step (:meth:`activate_actuators`).
+        Functions that cannot be captured run eagerly inside the step.
         """
-        return self.backend is not None and nb.handles_decimation(self.backend)
+        return self.backend is not None and self._actuators_in_step
+
+    def _resolve_steps_per_call(self) -> None:
+        """Set the physics steps of one :meth:`step` once the backend's consumers and the decimation are known."""
+        self.backend.steps_per_call = self._decimation if self.handles_decimation() else 1
 
     # ----- Step callbacks and actuators -----------------------------------------------
 
-    def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked before the actuator step.
+    def register_pre_step_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` once per :meth:`step`, before the first physics step.
 
-        Each callback runs inside the captured CUDA graph once per decimation iteration when
-        :meth:`handles_decimation` is ``True``, and eagerly once per step otherwise. Consumers register on
-        ``PHYSICS_READY``; a hard reset discards callbacks together with the buffers they bind.
-        """
-        self.backend.pre_actuator_callbacks.append(callback)
-
-    def register_post_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked after the actuator step on every iteration.
-
-        Each callback runs inside the captured CUDA graph (when :meth:`handles_decimation` is ``True``) right after
-        the Newton actuators and before the solver substeps, so its writes to ``state``/``control`` are visible to the
-        integrator on the same iteration. Callbacks fire in registration order.
-        """
-        self.backend.post_actuator_callbacks.append(callback)
-
-    def register_state_force_callback(self, callback: Callable[[State], None]) -> None:
-        """Register a graph-safe callback that applies forces before every solver substep.
+        Consumers register on ``PHYSICS_READY``; a hard reset discards callbacks together with the buffers they bind.
+        The other ``register_*_callback`` methods take the same arguments.
 
         Args:
-            callback: Function that adds forces [N, N·m] to the provided state.
-        """
-        callbacks = self.backend.state_force_callbacks
-        if callback not in callbacks:
-            callbacks.append(callback)
-
-    def register_post_step_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
-
-        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe (fixed
-        shapes, no host branching on device data) because they are recorded into the captured step.
-        """
-        self.backend.post_step_callbacks.append(callback)
-
-    def unregister_post_step_callback(self, callback: Callable[[], None]) -> None:
-        """Remove a post-step callback; removing an absent callback is a no-op."""
-        if self.backend is not None:
-            with contextlib.suppress(ValueError):
-                self.backend.post_step_callbacks.remove(callback)
-
-    def activate_newton_actuator_path(self) -> NewtonActuatorAdapter | None:
-        """Run the model's Newton actuators inside the step. Idempotent; see :func:`newton_backend.activate_actuators`.
+            fn: Function to run, e.g. an action that holds its command for the whole environment step.
+            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
+            name: Label used in errors and profiles.
 
         Returns:
-            The adapter, or ``None`` when the model has no Newton actuators.
+            The callback, for :meth:`unregister_step_callback`.
         """
-        return nb.activate_actuators(self.backend)
+        return self._register(self.backend.callbacks.pre_step, fn, graphable, name)
+
+    def register_control_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` before the Newton actuators of every physics step, like MuJoCo's ``mjcb_control``."""
+        return self._register(self.backend.callbacks.control, fn, graphable, name)
+
+    def register_post_actuator_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` after the Newton actuators of the last physics step of every :meth:`step`."""
+        return self._register(self.backend.callbacks.post_actuator, fn, graphable, name)
+
+    def register_state_force_callback(
+        self, fn: Callable[[State], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` before every solver substep with the substep's input :class:`newton.State`."""
+        return self._register(self.backend.callbacks.state_force, fn, graphable, name)
+
+    def register_post_step_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` after every physics step, before sensors update."""
+        return self._register(self.backend.callbacks.post_step, fn, graphable, name)
+
+    def _register(self, callbacks: list[StepCallback], fn: Callable, graphable: bool, name: str) -> StepCallback:
+        return nb.register_step_callback(self.backend, callbacks, fn, graphable=graphable, name=name)
+
+    def invalidate_step_graph(self) -> None:
+        """Rebuild the step graph before the next step; see :func:`newton_backend.invalidate_step_graph`."""
+        if self.backend is not None:
+            nb.invalidate_step_graph(self.backend)
+
+    def unregister_step_callback(self, callback: StepCallback) -> None:
+        """Stop running a callback; a no-op after the model is rebuilt.
+
+        Args:
+            callback: Callback returned by one of the ``register_*_callback`` methods.
+        """
+        if self.backend is not None:
+            nb.unregister_step_callback(self.backend, callback)
+
+    def activate_actuators(self) -> NewtonActuatorAdapter | None:
+        """Run the model's Newton actuators inside the step. Idempotent.
+
+        Returns:
+            The adapter, or ``None`` when no articulation has explicit Newton actuators.
+        """
+        adapter = nb.activate_actuators(self.backend)
+        self._actuators_in_step = True
+        self._resolve_steps_per_call()
+        return adapter
 
     def register_solver_init_callback(self, fn: Callable[[], None]) -> None:
         """Run ``fn`` once the solver exists, before the first step; consumers register on ``PHYSICS_READY``.

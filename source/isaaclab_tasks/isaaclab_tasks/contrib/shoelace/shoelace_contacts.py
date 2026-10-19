@@ -89,6 +89,7 @@ class FingerTailContacts:
         self, model: Model, body_chains: list[tuple[list[int], list[int]]], backend_manager: NewtonManager
     ) -> None:
         self._backend_manager = backend_manager
+        self._callback = None
         # Columns are finger slot, environment index, and matching tail arm; -1 means unused.
         self._shape_slots = np.full((len(model.shape_label), 3), -1, dtype=np.int32)
         self._num_envs = len(body_chains)
@@ -123,8 +124,14 @@ class FingerTailContacts:
         self._device_slots = wp.array(self._shape_slots, dtype=wp.int32, device=device)
         self._distance = wp.full((self._num_envs, 4), physics.CONTACT_DISTANCE_CAP, device=device)
         self.signed_distance = wp.to_torch(self._distance)
-        self._backend_manager.unregister_post_step_callback(self.update)
-        self._backend_manager.register_post_step_callback(self.update)
+        self.unregister()
+        self._callback = self._backend_manager.register_post_step_callback(self.update)
+
+    def unregister(self) -> None:
+        """Stop the post-step observer, if registered."""
+        if self._callback is not None:
+            self._backend_manager.unregister_step_callback(self._callback)
+            self._callback = None
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
         """Invalidate cached distances [m] for selected environments, or all when ``None``."""
@@ -194,12 +201,12 @@ class FingerTailContactSensor(SensorBase):
 
     def _invalidate_initialize_callback(self, event: object) -> None:
         if hasattr(self, "_contacts"):
-            self._backend_manager.unregister_post_step_callback(self._contacts.update)
+            self._contacts.unregister()
         super()._invalidate_initialize_callback(event)
 
     def _clear_callbacks(self) -> None:
         if hasattr(self, "_contacts"):
-            self._backend_manager.unregister_post_step_callback(self._contacts.update)
+            self._contacts.unregister()
         super()._clear_callbacks()
 
 

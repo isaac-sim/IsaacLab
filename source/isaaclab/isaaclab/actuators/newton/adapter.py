@@ -35,6 +35,7 @@ from ...utils import index_fill_
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
+    gather_dof_mask_kernel,
     set_mask_kernel,
     zero_at_indices_kernel,
 )
@@ -80,6 +81,17 @@ class NewtonActuatorAdapter:
         dof_offset: int,
         device: str,
     ):
+        """Initialize the adapter.
+
+        Args:
+            actuators: Actuators to step.
+            num_envs: Number of environments.
+            num_joints: Per-environment DOF stride of the actuator index arrays. A model whose worlds hold different
+                robots passes ``num_envs=1`` and its total DOF count, and binds articulations with explicit views
+                (see :meth:`bind_articulation`).
+            dof_offset: Offset of the first DOF in the actuator index arrays.
+            device: Warp device.
+        """
         self.actuators = actuators
         self.num_joints = num_joints
 
@@ -106,6 +118,8 @@ class NewtonActuatorAdapter:
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
+        # Per-DOF reset masks for :meth:`reset_dofs`, rewritten by every call so a reset does not allocate.
+        self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
 
         # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
         # its raw drive output to ``sim_control.joint_computed_f`` when
@@ -151,14 +165,7 @@ class NewtonActuatorAdapter:
                 of an odd-length graph to copy the output back into the input buffers instead,
                 keeping their addresses stable across replays.
         """
-        # Zero before scatter-add (actuators accumulate into this buffer).
-        self._computed_effort.zero_()
-        for act in self.actuators:
-            wp.launch(
-                zero_at_indices_kernel,
-                dim=act.indices.shape[0],
-                inputs=[sim_control.joint_f, act.indices],
-            )
+        self.zero_outputs(sim_control)
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
         if swap_state:
@@ -167,6 +174,27 @@ class NewtonActuatorAdapter:
             for sa, sb in zip(self._states_a, self._states_b):
                 if sa is not None:
                     sa.assign(sb)
+
+    @property
+    def state_buffers(self) -> tuple[list[Any], list[Any]]:
+        """The current and next actuator history buffers, one entry per actuator (``None`` when stateless)."""
+        return self._states_a, self._states_b
+
+    @property
+    def computed_effort(self) -> wp.array:
+        """Flat pre-clamp computed effort, indexed by the actuators' DOF indices [N or N*m]."""
+        return self._computed_effort
+
+    def zero_outputs(self, sim_control: Any) -> None:
+        """Zero the computed-effort buffer and the actuated DOFs of ``sim_control.joint_f`` before scatter-adds."""
+        # Zero before scatter-add (actuators accumulate into this buffer).
+        self._computed_effort.zero_()
+        for act in self.actuators:
+            wp.launch(
+                zero_at_indices_kernel,
+                dim=act.indices.shape[0],
+                inputs=[sim_control.joint_f, act.indices],
+            )
 
     def _swap_state_buffers(self) -> None:
         """Advance the actuator state ping-pong after an eager step or graph replay."""
@@ -224,12 +252,33 @@ class NewtonActuatorAdapter:
             if sb is not None:
                 sb.reset(per_dof_mask)
 
+    def reset_dofs(self, dof_mask: wp.array) -> None:
+        """Reset actuator history for selected DOFs of the flat DOF space, for worlds with different layouts.
+
+        Args:
+            dof_mask: Per-DOF selection over the flat DOF space the actuator indices address.
+        """
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
+            if sa is None and sb is None:
+                continue
+            wp.launch(
+                gather_dof_mask_kernel,
+                dim=act.indices.shape[0],
+                inputs=[act.indices, dof_mask, per_dof_mask],
+                device=self._device,
+            )
+            if sa is not None:
+                sa.reset(per_dof_mask)
+            if sb is not None:
+                sb.reset(per_dof_mask)
+
     def bind_articulation(
         self,
         *,
         implicit_joint_indices: Sequence[slice | torch.Tensor | None],
-        dof_offset: int,
         num_joints: int,
+        dof_offset: int = 0,
+        computed_effort_view: wp.array | None = None,
     ) -> ArticulationBinding:
         """Assemble the Newton fast-path init state for one articulation.
 
@@ -240,12 +289,14 @@ class NewtonActuatorAdapter:
             implicit_joint_indices: Joint selectors of the articulation's implicit
                 actuator groups in public joint order; they define
                 :attr:`ArticulationBinding.implicit_dof_mask`.
-            dof_offset: Offset of this articulation's DOFs in the adapter's
-                env-major global index space (``0`` on PhysX, view-dependent
-                on Newton).
             num_joints: Articulation-local joint count. Distinct from
                 :attr:`num_joints`, which is the whole-model per-env DOF
                 stride used to lay out the actuator index arrays.
+            dof_offset: Offset of this articulation's DOFs in the adapter's
+                env-major global index space. Unused with :paramref:`computed_effort_view`.
+            computed_effort_view: This articulation's ``(num_instances, num_joints)`` view of
+                :attr:`computed_effort`. Required when the DOF space is not a uniform per-environment layout;
+                defaults to the uniform slice at :paramref:`dof_offset`.
 
         Returns:
             The bundled :class:`ArticulationBinding` for this articulation.
@@ -253,7 +304,8 @@ class NewtonActuatorAdapter:
         implicit_dof_mask, implicit_dof_mask_owner = build_implicit_dof_mask(
             implicit_joint_indices, num_joints, self._device
         )
-        computed_effort_view = self.computed_effort_2d[:, dof_offset : dof_offset + num_joints]
+        if computed_effort_view is None:
+            computed_effort_view = self.computed_effort_2d[:, dof_offset : dof_offset + num_joints]
         return self.ArticulationBinding(
             implicit_dof_mask=implicit_dof_mask,
             implicit_dof_mask_owner=implicit_dof_mask_owner,

@@ -53,6 +53,8 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonShapeCfg,
     SolverSpec,
+    StepCallback,
+    StepCallbacks,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
@@ -206,7 +208,6 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
         solver=SimpleNamespace(get_max_contact_count=lambda: 2),
         solver_cfg=SimpleNamespace(class_type=spec),
         collision_pipeline=None,
-        capture=None,
     )
 
     nb._allocate_contacts(backend)
@@ -760,12 +761,11 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     backend.capture = (
         (lambda segment: SimpleNamespace(launch=lambda: (replays.append(segment), segment()))) if supported else None
     )
-    nb.invalidate_graph(backend)
 
     for _ in range(2):
         nb.step(backend)
 
-    assert (backend.graph is not None) is supported
+    assert backend.step_graph.captured is supported
     assert len(replays) == int(supported)
     # The capturing step ran eagerly first, so both steps advanced physics exactly once.
     assert events.count(("step", "state_0", "state_0")) == 2
@@ -1251,8 +1251,8 @@ class _State:
         self._events.append(("assign", self.name, other.name))
 
 
-def _recording_backend(events, *, single_state, num_substeps):
-    """Build a backend stand-in whose solver hooks and states record every operation of a step."""
+def _recording_backend(events, *, single_state, num_substeps, callbacks=None):
+    """Build a backend stand-in whose solver hooks and states record every operation of a step graph."""
     spec = SolverSpec(
         single_state=single_state,
         external_contacts=lambda solver, cfg: False,
@@ -1273,18 +1273,13 @@ def _recording_backend(events, *, single_state, num_substeps):
         dt=0.002,
         num_substeps=num_substeps,
         solver_dt=0.002 / num_substeps,
-        pre_actuator_callbacks=[],
-        post_actuator_callbacks=[],
-        state_force_callbacks=[],
-        post_step_callbacks=[],
+        callbacks=callbacks if callbacks is not None else StepCallbacks(),
         actuators=None,
-        actuators_active=False,
-        decimation=1,
-        staged_body_f=None,
+        staged_forces={},
         contact_sensors={},
         imu_sensors=[],
-        graph=None,
-        graph_capture_pending=False,
+        step_graph=None,
+        steps_per_call=1,
         capture=None,
         model_changes=set(),
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
@@ -1298,16 +1293,17 @@ def _recording_backend(events, *, single_state, num_substeps):
 def test_state_force_callback_runs_before_every_solver_substep(use_single_state):
     """Viewer forces are applied to each current input state before solver stepping."""
     events = []
-    backend = _recording_backend(events, single_state=use_single_state, num_substeps=2)
-    backend.state_force_callbacks.append(lambda state: events.append(("force", state.name)))
+    callback = StepCallback(lambda state: events.append(("force", state.name)))
+    backend = _recording_backend(
+        events, single_state=use_single_state, num_substeps=2, callbacks=StepCallbacks(state_force=[callback])
+    )
 
-    nb._run_solver_substeps(backend, contacts=None)
+    nb.build_step_graph(backend, steps=1).launch()
 
     if use_single_state:
         assert events == [
             ("force", "state_0"),
             ("step", "state_0", "state_0"),
-            ("clear", "state_0"),
             ("force", "state_0"),
             ("step", "state_0", "state_0"),
             ("clear", "state_0"),
@@ -1316,26 +1312,51 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
         assert events == [
             ("force", "state_0"),
             ("step", "state_0", "state_1"),
-            ("clear", "state_1"),
             ("force", "state_1"),
             ("step", "state_1", "state_0"),
             ("clear", "state_0"),
         ]
 
 
-def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0():
-    """Each physics step runs pre-actuator callbacks before substeps and ends in the canonical state; post-step runs
-    once."""
+def test_step_graph_orders_callbacks_and_ends_each_physics_step_in_state_0():
+    """Each physics step runs control before substeps and ends in the canonical state; post-step runs once."""
     events = []
-    backend = _recording_backend(events, single_state=False, num_substeps=1)
-    backend.pre_actuator_callbacks.append(lambda: events.append(("pre",)))
-    backend.post_step_callbacks.append(lambda: events.append(("post",)))
-    backend.decimation = 2
+    callbacks = StepCallbacks(
+        post_step=[StepCallback(lambda: events.append(("post",)))],
+        control=[StepCallback(lambda: events.append(("control",)))],
+    )
+    backend = _recording_backend(events, single_state=False, num_substeps=1, callbacks=callbacks)
 
-    nb._simulate_full(backend)
+    graph = nb.build_step_graph(backend, steps=2)
+    graph.launch()
 
-    step = [("pre",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1"), ("clear", "state_0")]
-    assert events == step * 2 + [("post",)]
+    step = [("control",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1")]
+    assert events == (step + [("post",)]) * 2 + [("clear", "state_0")]
+    assert graph.steps == 2
+
+
+def test_step_graph_captures_graphable_runs_and_keeps_other_callbacks_eager(monkeypatch):
+    """Operations that cannot be captured run eagerly between captured segments of one step graph."""
+    events = []
+    callbacks = StepCallbacks(
+        control=[
+            StepCallback(lambda: events.append("safe")),
+            StepCallback(lambda: events.append("eager"), graphable=False),
+        ]
+    )
+    backend = _recording_backend(events, single_state=True, num_substeps=1, callbacks=callbacks)
+    graph = nb.build_step_graph(backend, steps=2)
+    launched = []
+
+    graph.capture(lambda segment: SimpleNamespace(launch=lambda: (launched.append(segment), segment())))
+    events.clear()
+    graph.launch()
+
+    assert graph.captured and not graph.graphable
+    # Three captured segments surround the eager callback of each of the two physics steps.
+    assert len(launched) == 3
+    assert events.count("eager") == 2 and events.count("safe") == 2
+    assert events.index("safe") < events.index("eager")
 
 
 @wp.kernel
@@ -1371,16 +1392,16 @@ def test_graph_capture_preserves_first_step_and_recapture(
         if rtx_capture:
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-        sim.backend_manager.activate_newton_actuator_path()
+        sim.backend_manager.activate_actuators()
         counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
-        sim.backend_manager.register_post_step_callback(lambda: wp.launch(_count_steps, 1, inputs=[counter]))
+        sim.backend_manager.register_pre_step_callback(lambda: wp.launch(_count_steps, 1, inputs=[counter]))
         wrench = wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         for step in range(3):
             if step != 1:
                 sim.backend_manager.set_decimation(decimation)
             sim.backend_manager.backend.state_0.body_f.assign(wrench)
             sim.step(render=False)
-            assert sim.backend_manager.backend.graph is not None
+            assert sim.backend_manager.backend.step_graph.captured
             np.testing.assert_allclose(sim.backend_manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
@@ -1408,7 +1429,7 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             sim.reset()
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-            sim.backend_manager.activate_newton_actuator_path()
+            sim.backend_manager.activate_actuators()
             samples = []
             for decimation in (1, 2, 3):
                 sim.backend_manager.set_decimation(decimation)

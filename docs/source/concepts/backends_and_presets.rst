@@ -367,8 +367,8 @@ Newton has two resources with different lifetimes, not two interchangeable backe
   requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
   is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
 * ``NewtonBackend`` owns the finalized model and native buffers and, under Newton physics, the
-  solver, contacts, and sensors. Physics and render consumers borrow those handles. Closing it
-  releases runtime allocations without closing the builder.
+  solver, contacts, step callbacks, and compiled step graph. Physics and render consumers borrow
+  those handles. Closing it releases runtime allocations without closing the builder.
 
 Both resources use the same registry:
 

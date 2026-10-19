@@ -33,11 +33,9 @@ def _pendulums(physics_cfg: NewtonCfg, steps: int, *, captured=False) -> NewtonB
     solver_spec(physics_cfg.solver_cfg).prepare_builder(builder, physics_cfg.solver_cfg)
     backend = NewtonBackend(NewtonBackendCfg(physics_cfg=physics_cfg, device=DEVICE), builder, dt=DT)
     nb.init_solver(backend)
+    backend.steps_per_call = steps
     if not captured:
         backend.capture = None
-    # Without Newton actuators, an active actuator path lets one step run the whole decimation loop.
-    backend.actuators_active = True
-    nb.set_decimation(backend, steps)
     return backend
 
 
@@ -90,6 +88,6 @@ def test_backends_with_different_solvers_step_side_by_side(captured):
 
     assert type(pair[0].solver) is not type(pair[1].solver)
     for backend, reference, initial in zip(pair, alone, start, strict=True):
-        assert (backend.graph is not None) is captured
+        assert backend.step_graph.captured is captured
         assert np.all(np.abs(_angles(backend) - initial) > 1e-3)
         np.testing.assert_allclose(_angles(backend), _angles(reference), atol=1e-5)

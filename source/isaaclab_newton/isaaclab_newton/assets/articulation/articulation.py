@@ -3435,12 +3435,11 @@ class Articulation(BaseArticulation):
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
             self._model_init_handle = None
-        # Remove the post-step republish hook registered in ``_create_buffers`` so the
-        # bound method does not linger on the backend's post-step callbacks after
-        # this articulation is gone (registered only for non-identity ordering).
+        # Unregister the post-step republish callback registered in ``_create_buffers`` so it does not
+        # outlive this articulation (registered only for non-identity ordering).
         post_step_callback = getattr(self, "_post_step_callback", None)
         if post_step_callback is not None:
-            self._backend_manager.unregister_post_step_callback(post_step_callback)
+            self._backend_manager.unregister_step_callback(post_step_callback)
             self._post_step_callback = None
 
     def _create_buffers(self):
@@ -3481,14 +3480,14 @@ class Articulation(BaseArticulation):
         # gather keeps a plain identity-ordering, non-ball-joint scene at zero
         # overhead (empty callback list). The reorders are then recorded into
         # every captured graph, so passthrough state getters never replay stale.
-        # The stored handle is the exact bound method ``_clear_callbacks`` later
-        # deregisters.
+        # ``_clear_callbacks`` later unregisters the stored handle.
         # A ball-jointed articulation also needs the slot: its DOF-space joint_pos is derived, not
         # sim-bound, so it has to be republished after every step just like the ordering shadows.
         self._post_step_callback = None
         if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
-            self._post_step_callback = self._data._refresh_user_order_state
-            self._backend_manager.register_post_step_callback(self._post_step_callback)
+            self._post_step_callback = self._backend_manager.register_post_step_callback(
+                self._data._refresh_user_order_state, name="articulation.republish_state"
+            )
         # tendon names are set in _process_tendons function
 
         # soft joint position limits (recommended not to be too close to limits).

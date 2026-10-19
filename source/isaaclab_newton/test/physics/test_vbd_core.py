@@ -252,13 +252,13 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         dt=0.01,
         num_substeps=1,
         solver_dt=0.01,
-        staged_body_f=None,
-        state_force_callbacks=[],
-        post_step_callbacks=[],
+        callbacks=newton_backend.StepCallbacks(),
+        actuators=None,
+        staged_forces={},
         contact_sensors={},
         imu_sensors=[],
     )
 
-    newton_backend._simulate_physics_only(backend)
+    newton_backend.build_step_graph(backend, 1).launch()
 
     assert events == [("rebuild", state_0), ("step", state_0)]
