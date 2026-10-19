@@ -367,7 +367,9 @@ does not end the episode. Training also starts environments at random points of 
 ## Several cameras
 
 Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
-environments as one batch. Pass the cameras to `apply_cosmos` as a list of names:
+environments as one batch. This is set up in a task's configuration code; no registered preset provides it yet. Pass
+the cameras to `apply_cosmos` as a list of names, and set the shared prompt, endpoint, and transport there: each
+camera receives its own copy of these settings, and the cameras share a session only while the copies match.
 
 ```python
 from isaaclab_experimental.cosmos import apply_cosmos
