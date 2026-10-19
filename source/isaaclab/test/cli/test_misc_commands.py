@@ -166,10 +166,17 @@ def test_build_docs_multi_redirects_to_selected_ref(tmp_path, monkeypatch):
         '<meta http-equiv="refresh" content="0; url=./develop/index.html">'
     )
     assert (output_dir / "develop" / "index.html").read_text(encoding="utf-8") == "built docs"
-    run_command.assert_called_once_with(
-        ["/usr/bin/uv", "run", "--extra", "dev", "--", "sphinx-multiversion", ".", str(output_dir), "--jobs=auto"],
-        cwd=docs_dir,
-    )
+    uv_command = ["/usr/bin/uv", "run", "--extra", "dev", "--"]
+    assert run_command.call_args_list == [
+        mock.call(
+            uv_command + ["sphinx-multiversion", ".", str(output_dir), "--jobs=auto"],
+            cwd=docs_dir,
+        ),
+        mock.call(
+            uv_command + ["python", str(tmp_path / "tools" / "docs" / "pin_historical_versions.py"), str(output_dir)],
+            cwd=docs_dir,
+        ),
+    ]
 
 
 def test_build_docs_multi_rejects_missing_default_ref(tmp_path, monkeypatch):
