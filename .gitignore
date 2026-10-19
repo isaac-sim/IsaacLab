@@ -97,3 +97,8 @@ benchmark_*.json
 # Superpowers (Claude Code plugin artifacts)
 docs/superpowers/
 checkpoints
+
+# Downloaded Cosmos demo weights
+/models/Cosmos3-Nano-Sim-Transfer-*/
+
+/demos/cosmos3-transfer/.local/

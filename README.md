@@ -4,6 +4,7 @@
 
 # Isaac Lab 3.0.0
 
+[Cosmos 3 Transfer quick start](demos/cosmos3-transfer/README.md): run the Shadow Hand camera task with Cosmos on its camera in a few commands.
 [![IsaacSim](https://img.shields.io/badge/IsaacSim-6.1.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://docs.python.org/3/whatsnew/3.12.html)
 [![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
