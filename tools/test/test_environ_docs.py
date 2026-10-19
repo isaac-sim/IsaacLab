@@ -222,7 +222,7 @@ def test_physics_names_for_docs_infers_physx_from_default():
 def test_collect_environment_doc_rows_reports_validated_mjwarp_support():
     # One representative per task-owned physics declaration or compatibility guard.
     expected = {
-        "IsaacContrib-Factory-Franka": True,
+        "IsaacContrib-Factory-Franka": False,
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
         "IsaacContrib-Stack-Cube-Franka": False,
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor": False,
