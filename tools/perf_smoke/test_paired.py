@@ -181,7 +181,7 @@ class PairedFixture:
         commit = self.commit if commit is None else commit
         manifest = dict(self.manifest, commit=commit)
         if measurement is not None:
-            manifest.update(schema_version=2, measurement=measurement)
+            manifest["measurement"] = measurement
         context = {
             "source": {
                 "commit": commit,
@@ -215,8 +215,7 @@ class PairedFixture:
             {
                 "name": "isaaclab.benchmark.entrypoints.runtime" if path == RUNTIME else "isaaclab",
                 "relative_path": path,
-                "sha256": digest,
-                "expected_sha256": digest,
+                "digest": digest,
                 "status": "verified",
                 **({"origin": "measurement" if path in measured_files else "workload"} if measurement else {}),
             }
@@ -389,9 +388,7 @@ def check_capture(tmp_path, subtests):
                     assert result == 0
                     manifest = json.loads((output / "source-manifest.json").read_text())
                     assert manifest["commit"] == merge
-                    assert (
-                        manifest["files"][RUNTIME] == hashlib.sha256((pair.checkout / RUNTIME).read_bytes()).hexdigest()
-                    )
+                    assert manifest["files"][RUNTIME] == pair._git("rev-parse", f"{merge}:{RUNTIME}")
                     assert not (output / "paired-failure.json").exists()
                     if failure != "context_write":
                         context = json.loads((output / "build-context.json").read_text())
@@ -429,12 +426,17 @@ def check_capture(tmp_path, subtests):
                 assert paired.main(args) == 1
                 assert "measurement-manifest.json" in json.loads((output / "paired-failure.json").read_text())["reason"]
     with paired_fixture(tmp_path, subtests, "non-PR capture") as pair:
-        with patch.object(paired.subprocess, "run", wraps=subprocess.run) as commands:
+        with (
+            patch.dict(os.environ, {"GITHUB_SHA": pair.commit}),
+            patch.object(paired.subprocess, "run", wraps=subprocess.run) as commands,
+        ):
             context = paired.capture_context(pair.checkout, pair.output, "same-image", "current", {}, pair.legs)
             assert context == {}
             assert json.loads((pair.output / "source-manifest.json").read_text()) == pair.manifest
             assert not (pair.output / "build-context.json").exists()
             assert not any(call.args[0][0] == "docker" for call in commands.call_args_list)
+            with patch.dict(os.environ, {"GITHUB_SHA": HEAD}), pytest.raises(ValueError, match="selected commit"):
+                paired.capture_context(pair.checkout, pair.output, "same-image", "current", {}, pair.legs)
     with paired_fixture(tmp_path, subtests, "invalid source") as pair:
         base, head, merge, _ = pair._moving_merge()
         for mismatch in ("checkout", "head", "nonmerge", "invalid_sha"):
@@ -506,10 +508,9 @@ def check_capture(tmp_path, subtests):
                     assert context["source"]["event_base_commit"] == pair.commit
                     manifest = json.loads((pair.output / "source-manifest.json").read_text())
                     assert manifest["commit"] == merge
-                    for name, content in (("pr.py", b"VALUE = 'PR'\n"), ("base.py", b"VALUE = 'Advanced base'\n")):
-                        assert (
-                            manifest["files"][f"source/isaaclab/isaaclab/{name}"] == hashlib.sha256(content).hexdigest()
-                        )
+                    for name in ("pr.py", "base.py"):
+                        source_path = f"source/isaaclab/isaaclab/{name}"
+                        assert manifest["files"][source_path] == pair._git("rev-parse", f"{merge}:{source_path}")
                     assert json.loads(path.read_text()) == original
                     assert not (pair.output / "pr-comparison.json").exists()
                     with pytest.raises(ValueError):
@@ -676,6 +677,7 @@ def check_reuse(tmp_path, subtests):
             ("missing", "second/sample-3", "source-revision.json"),
             ("result", "first/sample-1", "Result bytes do not match their source verification"),
             ("module", "first/sample-1", "Loaded source does not match its manifest"),
+            ("legacy-format", "first/sample-1", "Executing source was not verified for this commit"),
         ):
             with subtests.test(mutation=mutation):
                 pair.client = PairedFixtureClient()
@@ -686,8 +688,10 @@ def check_reuse(tmp_path, subtests):
                 elif mutation == "result":
                     path = f"{sample}/benchmark_runtime_fixture.json"
                     files[path]["runtime"]["total_fps"]["mean"] = 900
+                elif mutation == "legacy-format":
+                    files[path]["schema_version"] = 2
                 else:
-                    files[path]["modules"][0]["sha256"] = "0" * 64
+                    files[path]["modules"][0]["digest"] = "0" * 40
                 artifact = pair._add_baseline(files)
                 candidate = pair._candidate(pair._origin(artifact, run_id=10), reused=True)
                 evidence, _ = paired.select_pr_baseline(pair.client, candidate)
@@ -695,6 +699,7 @@ def check_reuse(tmp_path, subtests):
                 assert reason in str(evidence.issues)
                 selection = pair._restore()
                 assert not selection["baseline_reused"]
+                assert selection["baseline_origin"] is None
                 assert "Baseline is incomplete or its source proof is invalid." in str(selection["issues"])
     with paired_fixture(tmp_path, subtests, "mixed measurement proof") as pair:
         for mutation in (
@@ -720,9 +725,7 @@ def check_reuse(tmp_path, subtests):
                 elif mutation == "measurement_origin":
                     runtime["origin"] = "workload"
                 elif mutation == "native_runtime":
-                    runtime.update(
-                        sha256=pair.manifest["files"][RUNTIME], expected_sha256=pair.manifest["files"][RUNTIME]
-                    )
+                    runtime["digest"] = pair.manifest["files"][RUNTIME]
                 elif mutation == "runtime_origin":
                     proof["runtime_entrypoint"]["origin"] = "workload"
                 elif mutation == "proof_commit":

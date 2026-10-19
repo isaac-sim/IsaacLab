@@ -84,20 +84,23 @@ def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
     files, commit = evidence.files, evidence.identity["source_commit"]
     try:
         manifest = baseline_mod.artifact_json(files, "source-manifest.json")
-        if manifest.get("commit") != commit or not manifest.get("files"):
+        if (
+            manifest.get("schema_version") != 3
+            or manifest.get("git_object_format") not in ("sha1", "sha256")
+            or manifest.get("commit") != commit
+            or not manifest.get("files")
+        ):
             raise baseline_mod.EvidenceError(
                 "source_mismatch", "Source manifest does not identify the selected commit."
             )
         measurement = manifest.get("measurement")
         if measurement is None and (
-            manifest.get("schema_version") == 2
-            or evidence.context.get("measurement") is not None
+            evidence.context.get("measurement") is not None
             or str(evidence.context.get("metric_definition", {}).get("total_fps", "")).startswith("measurement-v1:")
         ):
             raise baseline_mod.EvidenceError("source_mismatch", "Shared measurement source manifest is missing.")
         if measurement is not None and (
-            manifest.get("schema_version") != 2
-            or not measurement.get("files")
+            not measurement.get("files")
             or measurement_digest(measurement["files"]) != measurement.get("digest")
             or evidence.context.get("measurement") != {key: measurement[key] for key in ("commit", "digest")}
             or evidence.context.get("metric_definition", {}).get("total_fps")
@@ -116,7 +119,8 @@ def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
                 runtime = proof.get("runtime_entrypoint") or {}
                 modules = proof.get("modules") or []
                 if (
-                    proof.get("status") != "verified"
+                    proof.get("schema_version") != 3
+                    or proof.get("status") != "verified"
                     or proof.get("bytecode_policy") != "fresh_process_cache"
                     or proof.get("commit") != commit
                     or proof.get("benchmark_exit_code") != 0
@@ -128,8 +132,7 @@ def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
                         "source_mismatch", "Executing source was not verified for this commit."
                     )
                 if measurement is not None and (
-                    proof.get("schema_version") != 2
-                    or proof.get("measurement") != {**measurement, "status": "verified"}
+                    proof.get("measurement") != {**measurement, "status": "verified"}
                     or runtime.get("origin") != "measurement"
                 ):
                     raise baseline_mod.EvidenceError("source_mismatch", "Measurement source proof does not match.")
@@ -141,8 +144,7 @@ def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
                         not expected
                         or (measurement is not None and module.get("origin") != origin)
                         or module.get("status") != "verified"
-                        or module.get("sha256") != expected
-                        or module.get("expected_sha256") != expected
+                        or module.get("digest") != expected
                     ):
                         raise baseline_mod.EvidenceError(
                             "source_mismatch", "Loaded source does not match its manifest."
@@ -230,9 +232,7 @@ def restore_baseline(
     """Select a complete verified measurement for this PR/base, or request a fresh one."""
     pr = event["pull_request"]
     pr_number, base_commit = pr["number"], _resolved_base(base_commit)
-    manifest = prepare_manifest(checkout_root, measurement_manifest)
-    if manifest["commit"] != base_commit:
-        raise ValueError("Baseline checkout is not the tested PR merge's resolved first parent.")
+    manifest = prepare_manifest(checkout_root, measurement_manifest, expected_commit=base_commit)
     if measurement_manifest is not None:
         manifest["measurement"] = measurement_manifest["digest"]
     selection = _initial_selection(event, base_commit)
@@ -285,7 +285,7 @@ def restore_baseline(
                     and all(
                         evidence.statuses.get(leg) == "ok"
                         and len(evidence.samples.get(leg, [])) == expected
-                        and all(baseline_mod.has_usable_runtime(item["bundle"]) for item in evidence.samples[leg])
+                        and all(item["bundle"]["run"].get("status") == "completed" for item in evidence.samples[leg])
                         for leg in evidence.samples.keys() | evidence.statuses.keys()
                     )
                 )
@@ -331,9 +331,9 @@ def capture_context(
         reference_commit = resolve_base(root, event)["base_commit"]
     else:
         reference_commit = _resolved_base() if pr else (parents[0] if parents else None)
-        if pr and commit != reference_commit:
-            raise ValueError("baseline checkout does not match its intended source revision.")
-    _write(output_dir / "source-manifest.json", prepare_manifest(root, measurement_manifest))
+    expected_commit = reference_commit if pr and role == "baseline" else os.environ.get("GITHUB_SHA")
+    manifest = prepare_manifest(root, measurement_manifest, expected_commit=expected_commit)
+    _write(output_dir / "source-manifest.json", manifest)
     if not pr:
         return {}
     context = {
