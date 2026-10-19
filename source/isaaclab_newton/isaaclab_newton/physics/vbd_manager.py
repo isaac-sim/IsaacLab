@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+import warp as wp
 from newton import Model, ModelBuilder, eval_ik
 from newton.solvers import SolverVBD
 
@@ -27,47 +28,49 @@ class NewtonVBDManager(NewtonManager):
         builder.color(include_bending=True, balance_colors=False)
 
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
+    def _create_solver(
+        cls,
+        model: Model,
+        solver_cfg: VBDSolverCfg,
+        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+    ) -> SolverVBD:
         """Construct the configured VBD solver."""
-        return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
+        return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg, deterministic_mode))
 
-    @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> None:
+    def _build_solver(self, model: Model, solver_cfg: VBDSolverCfg) -> None:
         """Construct VBD and configure its base-manager state."""
-        NewtonManager._needs_collision_pipeline = True
+        self._needs_collision_pipeline = True
         if (
             solver_cfg.rigid_contact_history
             and model.body_count > 0
             and not solver_cfg.integrate_with_external_rigid_solver
         ):
-            if cls._collision_cfg is None or cls._collision_cfg.contact_matching == "disabled":
+            if self._collision_cfg is None or self._collision_cfg.contact_matching == "disabled":
                 raise ValueError(
                     "VBDSolverCfg.rigid_contact_history requires NewtonCfg.collision_cfg with "
                     "contact_matching='latest' or 'sticky'."
                 )
             # Newton sizes persistent history from the pipeline before VBD construction.
-            cls._initialize_contacts()
-        NewtonManager._solver = cls._create_solver(model, solver_cfg)
-        NewtonManager._use_single_state = False
-        NewtonManager._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
-        cls._update_joint_state = solver_cfg.update_joint_state and not solver_cfg.integrate_with_external_rigid_solver
+            self._initialize_contacts()
+        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self._use_single_state = False
+        self._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
+        self._update_joint_state = solver_cfg.update_joint_state and not solver_cfg.integrate_with_external_rigid_solver
 
-    @classmethod
-    def _run_solver_substeps(cls, contacts) -> None:
+    def _run_solver_substeps(self, contacts) -> None:
         """Publish standalone VBD joint state without changing coupled-solver ownership."""
         super()._run_solver_substeps(contacts)
         if (
-            isinstance(cls._solver, SolverVBD)
-            and cls._update_joint_state
-            and cls.backend.model.articulation_count > 0
-            and cls.backend.model.joint_coord_count > 0
+            isinstance(self._solver, SolverVBD)
+            and self._update_joint_state
+            and self.backend.model.articulation_count > 0
+            and self.backend.model.joint_coord_count > 0
         ):
-            state = cls.backend.state_0
-            eval_ik(cls.backend.model, state, state.joint_q, state.joint_qd)
+            state = self.backend.state_0
+            eval_ik(self.backend.model, state, state.joint_q, state.joint_qd)
 
-    @classmethod
-    def _simulate_physics_only(cls) -> None:
+    def _simulate_physics_only(self) -> None:
         """Rebuild the VBD particle BVH before stepping physics."""
-        if cls.backend.model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
-            cls._solver.rebuild_bvh(cls.backend.state_0)
+        if self.backend.model.particle_count > 0 and hasattr(self._solver, "rebuild_bvh"):
+            self._solver.rebuild_bvh(self.backend.state_0)
         super()._simulate_physics_only()

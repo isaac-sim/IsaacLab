@@ -299,7 +299,7 @@ def test_terms_resolve_when_physics_is_ready_if_created_before_play(env):
     # class terms are not instantiated until the physics-ready callback fires
     term_cfg = manager._term_cfgs[0][1]
     assert term_cfg.func is reset_dummy2_to_zero_class
-    callback, event = env.sim.physics_manager.register_callback.call_args.args
+    callback, event = env.sim.backend_manager.register_callback.call_args.args
     assert event == PhysicsEvent.PHYSICS_READY
 
     callback(None)
@@ -317,7 +317,7 @@ def test_scene_entities_finalize_after_class_terms_are_constructed(env, playing)
     cfg = {"term": ManagerTermBaseCfg(func=record_joint_selection_class)}
     manager = SimpleManager(cfg, env)
     if not playing:
-        callback, _ = env.sim.physics_manager.register_callback.call_args.args
+        callback, _ = env.sim.backend_manager.register_callback.call_args.args
         callback(None)
 
     term_cfg = manager._term_cfgs[0][1]

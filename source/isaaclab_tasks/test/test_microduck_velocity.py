@@ -198,9 +198,9 @@ def test_microduck_backlash_preset_reads_output_side_encoders(device):
         # One physics step, not a decimated env step, keeps the first-step effort analytic.
         robot.actuators.target_command.set_position_index(value=robot.data.default_joint_pos.torch)
         robot.write_data_to_sim()
-        env.sim.physics_manager.set_decimation(1)
+        env.sim.backend_manager.set_decimation(1)
         env.sim.step(render=False)
-        env.sim.physics_manager.set_decimation(env.cfg.decimation)
+        env.sim.backend_manager.set_decimation(env.cfg.decimation)
         robot.update(env.physics_dt)
         servos = robot.cfg.actuators["servos"]
         vin = read_group_parameter(robot.actuators, "servos", "drive", "vin")[:, :1]

@@ -366,7 +366,7 @@ def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
         patch.object(rtx_renderer, "apply_isaac_rtx_global_settings", side_effect=_record_global_settings),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg(), sim=MagicMock())
 
     assert call_order == ["enable", "global_settings"]
 
@@ -395,7 +395,7 @@ def test_init_applies_only_explicit_global_spectator_view_setting(monkeypatch, c
         patch.object(rtx_renderer, "enable_extension"),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(cfg)
+        rtx_renderer.IsaacRtxRenderer(cfg, sim=MagicMock())
 
     spectator_calls = [
         setting_call
@@ -438,7 +438,7 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
         patch.object(rtx_renderer, "apply_isaac_rtx_determinism_settings", determinism_mock),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg(), sim=MagicMock())
 
     assert determinism_mock.called is expected_called
     if expected_called:

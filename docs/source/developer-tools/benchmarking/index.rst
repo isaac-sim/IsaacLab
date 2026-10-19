@@ -8,8 +8,7 @@
 Benchmarking
 ============
 
-Measure Isaac Lab workloads, compare changes, and catch performance
-regressions with the benchmark CLI and Python API.
+Measure workload performance and compare changes with the benchmark CLI or Python API.
 
 Run a benchmark
 ---------------
@@ -68,8 +67,10 @@ Use the same workload, hardware, software revision, and measurement mode on
 both sides of a comparison. The detailed guides define each timing boundary
 and the provenance required for a valid result.
 
-Guides
-------
+.. _guides:
+
+Where to go next
+----------------
 
 .. grid:: 1 1 3 3
    :gutter: 2

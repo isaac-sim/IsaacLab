@@ -36,9 +36,8 @@ Then run the same task on every visible GPU:
 
    uv run isaaclab train_multigpu --task Isaac-Cartpole
 
-That is the complete transition from a single-GPU run. ``train_multigpu`` adds
-``--distributed`` and selects the distributed launcher automatically. All other
-arguments are the same arguments accepted by ``train``:
+``train_multigpu`` adds ``--distributed`` and chooses the launcher. Other arguments
+work as they do with ``train``:
 
 .. code-block:: bash
 
