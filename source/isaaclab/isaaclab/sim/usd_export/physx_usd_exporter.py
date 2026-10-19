@@ -18,7 +18,7 @@ import numpy as np
 from pxr import Usd, UsdPhysics
 
 from ..utils.queries import find_matching_prim_paths
-from .base_usd_exporter import BaseUsdExporter, UsdEdit
+from .base_usd_exporter import USD_PHYSICS_JOINT_ATTRIBUTES, USD_PHYSICS_MATERIAL_ATTRIBUTES, BaseUsdExporter, UsdEdit
 
 logger = logging.getLogger(__name__)
 
@@ -31,30 +31,22 @@ also hold the per-shape ``contact_offset`` and ``rest_offset`` [m] and ``materia
 dynamic friction, restitution).
 """
 
-_DEGREES = 180.0 / math.pi
-_PER_DEGREE = math.pi / 180.0
-
 JOINT_ATTRIBUTES = {
-    "stiffness": ("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", _PER_DEGREE),
-    "damping": ("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", _PER_DEGREE),
-    "max_force": ("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
-    "lower_limit": ("physics:lowerLimit", None, _DEGREES),
-    "upper_limit": ("physics:upperLimit", None, _DEGREES),
+    **USD_PHYSICS_JOINT_ATTRIBUTES,
     "armature": ("physxJoint:armature", "PhysxJointAPI", 1.0),
-    "max_velocity": ("physxJoint:maxJointVelocity", "PhysxJointAPI", _DEGREES),
+    "max_velocity": ("physxJoint:maxJointVelocity", "PhysxJointAPI", math.degrees(1.0)),
     "static_friction": ("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
     "dynamic_friction": ("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
-    "viscous_friction": ("physxJointAxis:{axis}:viscousFrictionCoefficient", "PhysxJointAxisAPI:{axis}", _PER_DEGREE),
+    "viscous_friction": (
+        "physxJointAxis:{axis}:viscousFrictionCoefficient",
+        "PhysxJointAxisAPI:{axis}",
+        math.radians(1.0),
+    ),
 }
 """Joint property -> USD attribute, required API schema, and scale to USD units for angular DOFs."""
 
-_DRIVE = ("stiffness", "damping", "max_force")
-
 COLLIDER_ATTRIBUTES = {"contact_offset": "physxCollision:contactOffset", "rest_offset": "physxCollision:restOffset"}
 """Per-shape property -> USD attribute on the body's colliders."""
-
-MATERIAL_ATTRIBUTES = ("physics:staticFriction", "physics:dynamicFriction", "physics:restitution")
-"""USD attributes of the per-shape ``material`` components, on the colliders' physics material."""
 
 
 class PhysxUsdExporter(BaseUsdExporter):
@@ -80,7 +72,7 @@ class PhysxUsdExporter(BaseUsdExporter):
                 # A joint without a USD drive and without gains is not driven; writing gains would add a drive.
                 driven = prim.HasAPI(UsdPhysics.DriveAPI, axis) or values["stiffness"] or values["damping"]
                 for name, (attribute, schema, angular_scale) in JOINT_ATTRIBUTES.items():
-                    if name in _DRIVE and not driven:
+                    if attribute.startswith("drive:") and not driven:
                         continue
                     scale = angular_scale if axis == "angular" else 1.0
                     schema = schema and schema.format(axis=axis)
@@ -100,7 +92,10 @@ class PhysxUsdExporter(BaseUsdExporter):
             if "material" in values:
                 material = self._uniform(values["material"], path, "material")
                 materials.update(
-                    {collider: dict(zip(MATERIAL_ATTRIBUTES, material.tolist())) for collider in colliders}
+                    {
+                        collider: dict(zip(USD_PHYSICS_MATERIAL_ATTRIBUTES.values(), material.tolist()))
+                        for collider in colliders
+                    }
                 )
         edits = [edit for edit in edits if edit is not None] + self._material_edits(stage, materials)
         return edits + self._gravity_edits(stage, self.scene.sim.physics_manager.get_gravity())

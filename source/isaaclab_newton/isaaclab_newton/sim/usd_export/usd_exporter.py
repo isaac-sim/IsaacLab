@@ -17,7 +17,12 @@ from newton.usd import PrimType, SchemaResolverNewton
 
 from pxr import Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.usd_export.base_usd_exporter import BaseUsdExporter, UsdEdit
+from isaaclab.sim.usd_export.base_usd_exporter import (
+    USD_PHYSICS_JOINT_ATTRIBUTES,
+    USD_PHYSICS_MATERIAL_ATTRIBUTES,
+    BaseUsdExporter,
+    UsdEdit,
+)
 from isaaclab.utils.string import string_to_callable
 
 from isaaclab_newton.physics import NewtonManager
@@ -30,21 +35,19 @@ SETTINGS_KEY = "isaaclab:newton"
 _JOINT = SchemaResolverNewton.mapping[PrimType.JOINT]
 _SHAPE = SchemaResolverNewton.mapping[PrimType.SHAPE]
 _MATERIAL = SchemaResolverNewton.mapping[PrimType.MATERIAL]
-_DEGREES = 180.0 / math.pi
-_PER_DEGREE = math.pi / 180.0
 
 DOF_ATTRIBUTES = {
-    "joint_target_ke": ("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", _PER_DEGREE),
-    "joint_target_kd": ("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", _PER_DEGREE),
-    "joint_effort_limit": ("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
-    "joint_limit_lower": ("physics:lowerLimit", None, _DEGREES),
-    "joint_limit_upper": ("physics:upperLimit", None, _DEGREES),
+    "joint_target_ke": USD_PHYSICS_JOINT_ATTRIBUTES["stiffness"],
+    "joint_target_kd": USD_PHYSICS_JOINT_ATTRIBUTES["damping"],
+    "joint_effort_limit": USD_PHYSICS_JOINT_ATTRIBUTES["max_force"],
+    "joint_limit_lower": USD_PHYSICS_JOINT_ATTRIBUTES["lower_limit"],
+    "joint_limit_upper": USD_PHYSICS_JOINT_ATTRIBUTES["upper_limit"],
     "joint_armature": (_JOINT["armature"].name, None, 1.0),
     "joint_friction": (_JOINT["friction"].name, None, 1.0),
-    "joint_damping": (_JOINT["damping"].name, None, _PER_DEGREE),
-    "joint_velocity_limit": (_JOINT["velocity_limit"].name, None, _DEGREES),
-    "joint_limit_ke": (_JOINT["limit_ke"].name, None, _PER_DEGREE),
-    "joint_limit_kd": (_JOINT["limit_kd"].name, None, _PER_DEGREE),
+    "joint_damping": (_JOINT["damping"].name, None, math.radians(1.0)),
+    "joint_velocity_limit": (_JOINT["velocity_limit"].name, None, math.degrees(1.0)),
+    "joint_limit_ke": (_JOINT["limit_ke"].name, None, math.radians(1.0)),
+    "joint_limit_kd": (_JOINT["limit_kd"].name, None, math.radians(1.0)),
 }
 """Model DOF array -> USD joint attribute, required API schema, and scale to USD units for angular DOFs."""
 
@@ -55,8 +58,8 @@ SHAPE_ATTRIBUTES = {
 """Model shape array -> USD attribute on the collider."""
 
 MATERIAL_ATTRIBUTES = {
-    "shape_material_mu": "physics:dynamicFriction",
-    "shape_material_restitution": "physics:restitution",
+    "shape_material_mu": USD_PHYSICS_MATERIAL_ATTRIBUTES["dynamic_friction"],
+    "shape_material_restitution": USD_PHYSICS_MATERIAL_ATTRIBUTES["restitution"],
     "shape_material_mu_torsional": _MATERIAL["mu_torsional"].name,
     "shape_material_mu_rolling": _MATERIAL["mu_rolling"].name,
     "shape_material_ke": _MATERIAL["ke"].name,
@@ -68,8 +71,6 @@ MATERIAL_ATTRIBUTES = {
 
 SHAPE_CONTACT_ATTRIBUTES = {_MATERIAL[key].name: _SHAPE[key].name for key in ("ke", "kd", "kf", "ka")}
 """Material contact gain -> collider attribute, used by colliders without a physics material."""
-
-_SHAPE_CONTACT_ARRAYS = {f"shape_material_{key}": _SHAPE[key].name for key in ("ke", "kd", "kf", "ka")}
 
 
 class UsdExporter(BaseUsdExporter):
@@ -247,7 +248,12 @@ class UsdExporter(BaseUsdExporter):
     def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
         """Apply the contact values authored on a collider, or its physics material, to a builder shape."""
         material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
-        sources = [(prim, SHAPE_ATTRIBUTES), (prim, _SHAPE_CONTACT_ARRAYS)]
+        contacts = {
+            array: SHAPE_CONTACT_ATTRIBUTES[attribute]
+            for array, attribute in MATERIAL_ATTRIBUTES.items()
+            if attribute in SHAPE_CONTACT_ATTRIBUTES
+        }
+        sources = [(prim, SHAPE_ATTRIBUTES), (prim, contacts)]
         if material:
             sources.append((material.GetPrim(), MATERIAL_ATTRIBUTES))
         for owner, table in sources:

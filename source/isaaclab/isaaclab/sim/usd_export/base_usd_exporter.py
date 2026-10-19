@@ -19,15 +19,15 @@ import numpy as np
 
 from pxr import Gf, Plug, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
-from isaaclab import cloner
-from isaaclab.utils.assets import check_file_path, retrieve_file_path, unmirror_file_path
+from ... import cloner
+from ...utils.assets import check_file_path, retrieve_file_path, unmirror_file_path
 
 if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveScene
+    from ...scene import InteractiveScene
 
 logger = logging.getLogger(__name__)
 
-WORLD_POSE = "isaaclab:worldPose"
+_WORLD_POSE = "isaaclab:worldPose"
 """Pseudo attribute of a :class:`UsdEdit` that places a prim at a world transform."""
 
 UNLIMITED = 1e10
@@ -39,6 +39,25 @@ Newton's ``MAXVAL`` sentinel is 1e10; PhysX uses the float maximum.
 _PD_ACTUATOR_SCHEMAS = {"NewtonPDControlAPI", "NewtonMaxEffortClampingAPI"}
 """API schemas of a Newton actuator that a USD joint drive expresses exactly: a PD law with an effort clamp."""
 
+USD_PHYSICS_JOINT_ATTRIBUTES = {
+    "stiffness": ("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "damping": ("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "max_force": ("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
+    "lower_limit": ("physics:lowerLimit", None, math.degrees(1.0)),
+    "upper_limit": ("physics:upperLimit", None, math.degrees(1.0)),
+}
+"""UsdPhysics joint property -> USD attribute, required API schema, and scale to USD units for angular DOFs.
+
+Every backend's importer reads these attributes.
+"""
+
+USD_PHYSICS_MATERIAL_ATTRIBUTES = {
+    "static_friction": "physics:staticFriction",
+    "dynamic_friction": "physics:dynamicFriction",
+    "restitution": "physics:restitution",
+}
+"""UsdPhysics material property -> USD attribute, read by every backend's importer."""
+
 
 class UsdEdit(NamedTuple):
     """One value the exported USD must author so that an import reproduces the engine."""
@@ -47,7 +66,7 @@ class UsdEdit(NamedTuple):
     """Prim path in the exported stage."""
 
     attribute: str
-    """Attribute name, or :data:`WORLD_POSE` for a world transform given as a :class:`Gf.Matrix4d`."""
+    """Attribute name, or ``_WORLD_POSE`` for a world transform given as a :class:`Gf.Matrix4d`."""
 
     value: Any
     """Value in USD units."""
@@ -69,7 +88,7 @@ class UsdEdit(NamedTuple):
                 instance = instance.GetParent()
             instance.SetInstanceable(False)
             prim = stage.GetPrimAtPath(self.path)
-        if self.attribute == WORLD_POSE:
+        if self.attribute == _WORLD_POSE:
             # Replace the local transform, keeping the prim's scale.
             cache = UsdGeom.XformCache()
             scale = Gf.Transform(cache.GetLocalToWorldTransform(prim)).GetScale()
@@ -340,7 +359,7 @@ class BaseUsdExporter(ABC):
             return None
         x, y, z, w = pose[3:7].tolist()
         matrix = Gf.Matrix4d().SetRotate(Gf.Quatd(w, Gf.Vec3d(x, y, z))).SetTranslateOnly(Gf.Vec3d(*pose[:3].tolist()))
-        return UsdEdit(str(prim.GetPath()), WORLD_POSE, matrix)
+        return UsdEdit(str(prim.GetPath()), _WORLD_POSE, matrix)
 
     def _gravity_edits(self, stage: Usd.Stage, gravity) -> list[UsdEdit]:
         """Edits making the physics scene's USD gravity equal ``gravity`` [m/s^2]."""
