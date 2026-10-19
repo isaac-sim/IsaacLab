@@ -149,3 +149,25 @@ def test_separate_shadow_hand_configs_do_not_share_cosmos_settings():
     first = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos", "env.cosmos.prompt=A kitchen."))
     second = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos",))
     assert first.cosmos.prompt == "A kitchen." and second.cosmos.prompt != "A kitchen."
+
+
+def test_a_subclass_of_the_shadow_hand_preset_keeps_env_cosmos_on_its_camera():
+    """Deriving a configuration from the preset copies its fields; ``env.cosmos`` still names the camera's settings."""
+    from isaaclab.utils import configclass
+
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
+        ShadowHandCameraCosmosEnvCfg,
+    )
+
+    @configclass
+    class ShorterEpisodeCfg(ShadowHandCameraCosmosEnvCfg):
+        episode_length_s: float = 5.0
+
+    env_cfg = ShorterEpisodeCfg()
+    assert env_cfg.cosmos is env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][1].backend
+
+
+def test_the_shadow_hand_preset_rejects_a_control_other_than_depth():
+    env_cfg = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos", "env.cosmos.modality=edge"))
+    with pytest.raises(ValueError, match="modality must be depth"):
+        env_cfg.validate()
