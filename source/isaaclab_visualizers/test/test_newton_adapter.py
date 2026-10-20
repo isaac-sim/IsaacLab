@@ -696,9 +696,11 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking):
     from isaaclab_newton.physics import NewtonBackendCfg
 
-    new_model = SimpleNamespace(body_label=["/Object"])
+    new_model = SimpleNamespace(body_label=["/Object"], world_count=4, device="cpu")
     new_state = object()
-    backend = SimpleNamespace(model=new_model, state_0=new_state)
+    bank = SimpleNamespace(render_model=object(), body_indices=(2, 3), variant_ids=ProxyArray(wp.zeros(2, dtype=int)))
+    banks = {"hidden": SimpleNamespace(render_model=None), "visible": bank} if picking else {}
+    backend = SimpleNamespace(model=new_model, state_0=new_state, mesh_variants=banks)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
@@ -724,7 +726,14 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
-    viewer.set_model.assert_called_once_with(new_model)
+    viewer.set_model.assert_called_once()
+    assert viewer.set_model.call_args.args == (new_model,)
+    instances = viewer.set_model.call_args.kwargs["body_instances"]
+    assert len(instances) == int(picking)
+    if picking:
+        assert instances[0].model is bank.render_model
+        assert instances[0].bodies == bank.body_indices
+        assert instances[0].body_indices is bank.variant_ids.warp
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
         call(visualizer._draw_streaming_view_controls, position="side"),

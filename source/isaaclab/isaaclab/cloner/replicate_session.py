@@ -272,6 +272,8 @@ def _prepare_cloning(
             spawn.spawn_path, spawn.spawn_paths = None, paths
             for index, path in zip(indices, paths, strict=True):
                 plan.asset_cfgs[index].spawn.spawn_paths = [path]
+                if len(indices) > 1:
+                    plan.asset_cfgs[index].spawn.spawn_path = path
         else:
             spawn.spawn_path = paths[0]
     sim.set_clone_plan(plan)

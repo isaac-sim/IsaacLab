@@ -121,6 +121,43 @@ variant because their batched Newton views currently require a uniform body layo
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
+Reset-time selection
+~~~~~~~~~~~~~~~~~~~~
+
+The multi-asset spawner's catalog also supplies the alternatives for reset-time selection. There is no separate
+static or dynamic mode: the clone plan assigns the initial variant, which stays unchanged unless the task selects
+another one. For example, a rigid object's spawn configuration can list two USD assets:
+
+.. code-block:: python
+
+   part_cfg = RigidObjectCfg(
+       prim_path="{ENV_REGEX_NS}/Part",
+       spawn=sim_utils.MultiUsdFileCfg(usd_path=["small_part.usd", "large_part.usd"]),
+   )
+
+On a supported backend, clone construction prepares compatible catalog resources and native shape indices once;
+model finalization binds those definitions without rediscovering the scene. A reset event calls
+``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` before writing the episode's initial pose and
+velocity. Indices follow the spawner's list order. Sampling decisions remain with the reset event, not the spawner.
+
+For matching fixed/movable catalogs, the task's startup and reset events select the same index on both objects.
+This relationship belongs to task reset logic, not an additional clone-composition API.
+
+Reset-time selection currently requires Newton MJWarp with external contacts and sleeping disabled. Every
+alternative must have one rigid body, the same fixed/free root-joint type and kinematic flags, and compatible
+ordered mesh colliders and collision filtering. Visual mesh counts may differ. Collision geometry and its
+margin/gap, mass, and inertia follow the selected variant; per-environment contact-material settings are retained.
+Newton GL and Viser display the selection; RTX and MuJoCo's internal collision geometry do not support switching.
+The visualizers bind native Newton geometry catalogs to the bank's selection array and use the normal render
+loop. Catalog instance storage scales with the choices and visible environments; limit visible worlds for large
+training scenes.
+Each switchable binding must own its target bodies independently. When rendering, source geometry shared with
+a non-switchable binding retains its initial assignment rather than enabling selection.
+
+Other backends and catalogs can still use their initial clone assignments without switching. Calling
+``write_mesh_variant_to_sim`` raises ``NotImplementedError`` when the backend or catalog does not support selection;
+static multi-asset spawning does not require the narrower reset-time compatibility contract.
+
 Run the example
 ---------------
 

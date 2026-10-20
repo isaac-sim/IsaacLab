@@ -33,6 +33,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import RigidObject, RigidObjectCollection
+from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import VBDSolverCfg
 from newton import ModelFlags
 from newton_test_utils import env_origins, local_usd, newton_sim_cfg, spawn_assets, world_gravity
@@ -156,25 +157,37 @@ def test_vbd_root_state_tracks_integrated_body(device: str, state_owner: str) ->
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("api", ["none", "articulation"])
+@pytest.mark.parametrize("api", ["none", "articulation", "nested"])
 def test_initialization_rejects_non_rigid_body_prims(api: str) -> None:
     """Initialization fails unless the prim path holds exactly one rigid body.
 
-    A static collider has no rigid body, and an articulation rooted on a rigid body has several.
+    A static collider has no rigid body; an articulation or native child adds extra bodies.
     """
     if api == "none":
         # since no rigid body properties defined, this is just a static collider
         spawn_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), collision_props=sim_utils.UsdPhysicsCollisionCfg())
-    else:
+    elif api == "articulation":
         spawn_cfg = local_usd("rigid_body_with_articulation_root.usda")
+    else:
+        spawn_cfg = _cube_spawn_cfg()
     cube_cfg = RigidObjectCfg(prim_path="/World/Env_[^/]*/Object", spawn=spawn_cfg)
     with build_simulation_context(sim_cfg=newton_sim_cfg("cpu")) as sim:
-        cube_object = spawn_assets({"cube": cube_cfg}, num_envs=1)["cube"]
+        if api == "nested":
+
+            def add_nested_body(builder, world, _position, _orientation):
+                body = builder.add_body(label=f"/World/Env_{world}/Object/Child")
+                builder.add_shape_sphere(body, radius=0.01)
+
+            with newton_builder_world_hook(add_nested_body):
+                cube_object = spawn_assets({"cube": cube_cfg}, num_envs=1)["cube"]
+        else:
+            cube_object = spawn_assets({"cube": cube_cfg}, num_envs=1)["cube"]
 
         # Check that the framework doesn't hold excessive strong references.
         assert sys.getrefcount(cube_object) < 10
 
-        with pytest.raises(RuntimeError, match="Expected 1 prims at"):
+        error = "Multiple rigid objects match" if api == "nested" else "Expected 1 prims at"
+        with pytest.raises(RuntimeError, match=error):
             sim.reset()
 
 
@@ -189,6 +202,11 @@ def test_single_instance_initialization_and_root_state_write(device: str) -> Non
         assert cube_object.data.root_pos_w.torch.shape == (1, 3)
         assert cube_object.data.body_mass.torch.shape == (1, 1)
         assert cube_object.data.body_inertia.torch.shape == (1, 1, 9)
+        assert cube_object.num_mesh_variants == 1
+        with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
+            _ = cube_object.mesh_variant_ids
+        with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
+            cube_object.write_mesh_variant_to_sim(torch.tensor([0], dtype=torch.int32, device=device))
 
         target_pose = torch.cat(
             [torch.tensor([[0.3, -0.2, 1.5]], device=device), random_orientation(1, device)], dim=-1

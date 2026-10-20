@@ -37,7 +37,7 @@ elif sys.platform not in ("win32", "darwin"):
 
 import newton
 from isaaclab_newton.physics import NewtonBackendCfg
-from newton.viewer import ViewerGL
+from newton.viewer import ViewerBase, ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.scene_data import SceneDataFormat
@@ -824,7 +824,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             )
 
         self._picking_enabled = self.cfg.enable_picking and picking_supported and not self._runtime_headless
-        self._viewer.set_model(self.backend.model)
+        self._viewer.set_model(
+            self.backend.model,
+            body_instances=[
+                ViewerBase.BodyInstances(bank.render_model, bank.body_indices, bank.variant_ids.warp)
+                for bank in self.backend.mesh_variants.values()
+                if bank.render_model is not None
+            ],
+        )
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -920,7 +927,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
+        self._viewer.set_model(
+            self.backend.model,
+            body_instances=[
+                ViewerBase.BodyInstances(bank.render_model, bank.body_indices, bank.variant_ids.warp)
+                for bank in self.backend.mesh_variants.values()
+                if bank.render_model is not None
+            ],
+        )
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:

@@ -38,12 +38,14 @@ class NewtonMJWarpManager(NewtonManager):
         model: Model,
         solver_cfg: MJWarpSolverCfg,
         deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+        *,
+        separate_worlds: bool | None = None,
     ) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver."""
         kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg, deterministic_mode)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
-        return SolverMuJoCo(model, **kwargs)
+        return SolverMuJoCo(model, separate_worlds=separate_worlds, **kwargs)
 
     def _build_solver(self, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
         """Construct :class:`SolverMuJoCo` and populate the solver slots.
@@ -54,7 +56,9 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self._solver = self._create_solver(
+            model, solver_cfg, self._deterministic_mode, separate_worlds=True if self.backend.mesh_variants else None
+        )
         self._use_single_state = True
         self._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
         self._supports_rigid_body_force_input = True
@@ -129,9 +133,7 @@ class NewtonMJWarpManager(NewtonManager):
             return
         if self._solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
-        # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
-        # joint_q/joint_qd and has already written the authored reset pose.
-        self._solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
+        super()._reset_solver_internals(world_mask)
 
     def _log_solver_debug(self) -> None:
         """Optionally log MuJoCo solver convergence at the end of step."""

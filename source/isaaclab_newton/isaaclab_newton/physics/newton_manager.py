@@ -54,6 +54,7 @@ from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
+from isaaclab_newton.physics.mesh_variants import MeshVariants, _MeshVariantDefinition
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import (
     NewtonBackendCfg,
@@ -147,9 +148,12 @@ def _or_world_reset_mask_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask
 
 
 @wp.kernel(enable_backward=False)
-def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
+def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=Any), world_mask: wp.array(dtype=wp.bool)):
     """Mark selected worlds for solver reset without requesting FK."""
     world_mask[env_ids[wp.tid()]] = True
+
+
+_SCATTER_WORLD_RESET_MASK_FROM_IDS = IndexKernelDispatcher(_scatter_world_reset_mask_from_ids, ("env_ids",))
 
 
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
@@ -161,9 +165,13 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     Returns:
         An empty builder with the selected solver schemas and shape/BVH defaults.
     """
-    if isinstance(cfg.physics_cfg, NewtonCfg):
-        return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
-    return ModelBuilder()
+    builder = (
+        cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
+        if isinstance(cfg.physics_cfg, NewtonCfg)
+        else ModelBuilder()
+    )
+    builder.mesh_variant_definitions: dict[str, _MeshVariantDefinition] = {}
+    return builder
 
 
 class NewtonBackend:
@@ -196,12 +204,17 @@ class NewtonBackend:
         )
         self.bvh_refit = TimestampedBuffer()
 
+        self.mesh_variants = {
+            name: MeshVariants(self.model, definition) for name, definition in builder.mesh_variant_definitions.items()
+        }
+
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
         return VisualMaterialWriter(self.model, batches)
 
     def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
+        self.mesh_variants.clear()
         self.control = self.state_1 = self.state_0 = self.model = None
         self.deformable_ranges.clear()
         self.particle_ranges = {}
@@ -1107,7 +1120,7 @@ class NewtonManager(PhysicsManager):
             self._fk_reset_mask.fill_(True)
 
     def invalidate_body_state(
-        self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
+        self, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
     ) -> None:
         """Mark selected maximal-coordinate body state as changed without requesting FK.
 
@@ -1129,7 +1142,7 @@ class NewtonManager(PhysicsManager):
             )
         elif env_ids is not None:
             wp.launch(
-                _scatter_world_reset_mask_from_ids,
+                _SCATTER_WORLD_RESET_MASK_FROM_IDS.select(env_ids),
                 dim=env_ids.shape[0],
                 inputs=[env_ids],
                 outputs=[self._world_reset_mask],
@@ -1573,6 +1586,8 @@ class NewtonManager(PhysicsManager):
         if world_mask is None:
             return
         self._solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
+        if self._collision_pipeline is not None:
+            self._collision_pipeline.reset_contact_matching(world_mask)
 
     # ----- Lifecycle orchestration ----------------------------------------
 
