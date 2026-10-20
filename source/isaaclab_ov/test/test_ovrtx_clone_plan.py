@@ -45,7 +45,7 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
 
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade  # noqa: E402
 else:
     OVRTXRenderer = None
     ovrtx_renderer_module = None
@@ -54,6 +54,7 @@ else:
     Sdf = None
     Usd = None
     UsdGeom = None
+    UsdLux = None
     UsdShade = None
 
 
@@ -260,6 +261,83 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     if dump_enabled:
         assert (output_dir / _PRE_OVRTX_STAGE_FILE).read_text(encoding="utf-8") == expected_pre_export
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is dump_enabled
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True], ids=["native", "ovstage"])
+def test_prepare_stage_assigns_environment_lights_to_source_and_clone_partitions(caplog, use_ovstage):
+    """Environment lights receive direct selectors while shared and instanced lights do not."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/envs")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdLux.DomeLight.Define(stage, "/World/envs/env_0/Dome")
+    UsdLux.SphereLight.Define(stage, "/World/envs/env_0/Robot/Lamp")
+    UsdLux.DomeLight.Define(stage, "/World/SharedLight")
+    UsdGeom.Xform.Define(stage, "/LightPrototype")
+    UsdLux.RectLight.Define(stage, "/LightPrototype/Light")
+    fixture = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Fixture").GetPrim()
+    fixture.GetReferences().AddInternalReference("/LightPrototype")
+    fixture.SetInstanceable(True)
+    assert stage.GetPrimAtPath("/World/envs/env_0/Fixture/Light").IsInstanceProxy()
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = use_ovstage
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+        ((0,),),
+        3,
+        positions=np.zeros((3, 3), dtype=np.float32),
+    )
+    _prepare_clones(renderer, plan)
+    writes = []
+
+    if use_ovstage:
+        backend = renderer.backend
+        backend.attached = False
+        backend.detach = Mock()
+        backend.renderer.attach_ovstage = Mock()
+        scene = renderer.scene
+        scene.ordinal = 0
+        scene.paths = SimpleNamespace(intern_token=lambda token: int(token.removeprefix("env_")))
+        scene.resources = contextlib.ExitStack()
+        scene.query = lambda paths: contextlib.nullcontext(tuple(paths))
+
+        def populate(_usd):
+            scene.ordinal = 1
+
+        def write_attribute(query, attribute_name, **kwargs):
+            writes.append((query, attribute_name, kwargs["tensors"].tolist()))
+            return SimpleNamespace(wait=lambda: None)
+
+        scene.populate = populate
+        scene.stage = SimpleNamespace(write_attribute=write_attribute)
+        scene.commit = Mock()
+        renderer._sim.render_context = SimpleNamespace(reset_stage_prepare_flag=Mock())
+    else:
+
+        def write_attribute(prim_paths, attribute_name, values, **_kwargs):
+            writes.append((tuple(prim_paths), attribute_name, list(values)))
+
+        renderer.backend.renderer.write_attribute = write_attribute
+
+    renderer.prepare_stage(stage, 3)
+
+    light_writes = [write for write in writes if write[1] == "omni:scenePartition"]
+    assert len(light_writes) == 1
+    light_paths, _, partition_tokens = light_writes[0]
+    actual = dict(zip(light_paths, partition_tokens, strict=True))
+    expected = {
+        f"/World/envs/env_{env_id}/{light_path}": env_id if use_ovstage else f"env_{env_id}"
+        for light_path in ("Dome", "Robot/Lamp")
+        for env_id in range(3)
+    }
+    assert actual == expected
+    assert "/World/SharedLight" not in actual
+    assert "/World/envs/env_0/Fixture/Light" not in actual
+    assert caplog.messages == [
+        "Lights inside USD instances cannot be assigned to environment scene partitions and may affect other"
+        " environments."
+    ]
 
 
 def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_path: Path, monkeypatch):
