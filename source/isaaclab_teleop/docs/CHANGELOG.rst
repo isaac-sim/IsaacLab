@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+0.10.4 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the XR workstation check to link to the ``main`` documentation after the default-branch rename.
+
+
 0.10.3 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~~
 

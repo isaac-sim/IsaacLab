@@ -263,6 +263,9 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertIn("KeyboardInterrupt", process.stderr)
             self.assertFalse(list(output.glob("benchmark_runtime_*.json")))
         with self.subTest(case="host checkout and measurement content checks"):
+            self._git("config", "diff.autoRefreshIndex", "false")
+            os.utime(self.checkout / TASK, (1700000000, 1700000000))
+            self.assertEqual(self._git("diff", "--name-only", "HEAD", "--", TASK.as_posix()), TASK.as_posix())
             measurement = self._snapshot()
             manifest, _ = self._prepare("measurement-source", measurement=measurement)
             stub = Path("source/isaaclab/isaaclab/benchmark/__init__.pyi")

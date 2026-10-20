@@ -78,8 +78,14 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         f"### Rolling-history CI gate: {_icon(worst)}",
         "",
     ]
-    for message in dict.fromkeys(report.message for _, report in reports if report.message):
-        lines += [_build_text(message), ""]
+    counts = Counter(report.verdict for _, report in reports)
+    labels = {PASS: "passed", WARN: "with warnings", FAIL: "failed", SKIP: "skipped", ERROR: "with errors"}
+    lines += [
+        "Workload checks: "
+        + ", ".join(f"{counts[verdict]} {label}" for verdict, label in labels.items() if counts[verdict])
+        + ".",
+        "",
+    ]
     reports = sorted(reports, key=lambda item: item[0])
     lines += [
         "| Combination | Total FPS | Baseline | FPS regression % | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",

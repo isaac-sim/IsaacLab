@@ -72,10 +72,23 @@ def check_checkout(root: Path, expected_commit: str | None = None) -> str:
     commit = _git(root, "rev-parse", "HEAD").decode().strip()
     if expected_commit is not None and commit != expected_commit:
         raise ValueError(f"Checked-out revision {commit} differs from expected commit {expected_commit}.")
-    changed = _git(root, "diff", "--name-only", "-z", "--no-renames", commit, "--", "source", "scripts")
+    changed = _git(
+        root,
+        "-c",
+        "diff.autoRefreshIndex=true",
+        "diff",
+        "--name-only",
+        "-z",
+        "--no-renames",
+        commit,
+        "--",
+        "source",
+        "scripts",
+    )
     for path in changed.decode().split("\0"):
         if path.endswith((".py", ".pyi")):
-            raise ValueError(f"Checked-out Python source differs from commit {commit}: {path}")
+            details = _git(root, "diff", "--numstat", "--summary", "--no-renames", commit, "--", path).decode().strip()
+            raise ValueError(f"Checked-out Python source differs from commit {commit}: {path}\n{details}")
     return commit
 
 

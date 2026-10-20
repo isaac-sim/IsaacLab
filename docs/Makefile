@@ -8,7 +8,7 @@ SPHINXBUILD   ?= sphinx-build
 PYTHON        ?= python
 SOURCEDIR     = .
 BUILDDIR      = _build
-DOCS_DEFAULT_REF ?= v3.0.0-EA
+DOCS_DEFAULT_REF ?= main
 
 .PHONY: multi-docs
 multi-docs:

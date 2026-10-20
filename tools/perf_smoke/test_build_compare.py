@@ -477,6 +477,17 @@ def check_rendering(subtests):
         assert "Total FPS: insufficient independent runs for ASV significance testing" in markdown
         assert "- **failed — ERROR:** comparison artifact could not be read: invalid JSON" in markdown
         assert [report.as_dict() for _, report in reports] == snapshot
+        mixed = reports[1:2] + [
+            (name, compare.Report(verdict=compare.PASS, message="No performance regression detected"))
+            for name in ("g1", "camera-newton", "camera-ovphysx")
+        ]
+        markdown = render_aggregate(mixed)
+        introduction = markdown.split("| Combination |", 1)[0]
+        assert "### Rolling-history CI gate: ✅ PASS" in introduction
+        assert "Workload checks: 3 passed, 1 skipped." in introduction
+        assert "No gating metric could be compared" not in introduction
+        assert "No performance regression detected" not in introduction
+        assert "- **partial — SKIP:** No gating metric could be compared" in markdown
     with subtests.test(msg="rolling gate does not invent an absent reason"):
         markdown = render_aggregate([("unknown", compare.Report(verdict=compare.SKIP))])
         assert "No reason was recorded in this comparison artifact" in markdown

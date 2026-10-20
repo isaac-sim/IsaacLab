@@ -19,6 +19,8 @@ on:
       - main
       - develop
       - 'release/**'
+      - codex/performance-ci-activation
+      - codex/performance-source-verification
   workflow_dispatch:
 
 concurrency:

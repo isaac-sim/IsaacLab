@@ -196,6 +196,35 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     assert sensor.data.ray_hits_w.shape[0] == 1
 
 
+@configclass
+class StaticTargetSceneCfg(RaycastTestSceneCfg):
+    """Adds a multi-mesh ray caster with one ray straight down onto the box, a static target."""
+
+    scanner = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/SensorBody",
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(3.0, 0.0, -RAY_OFFSET)),
+        mesh_prim_paths=[
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Box", track_mesh_transforms=False)
+        ],
+        pattern_cfg=GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
+        ray_alignment="world",
+    )
+
+
+# The legacy adapter does not use the Newton manager graph.
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_legacy_multi_mesh_hits_static_target_of_each_env(sim):
+    """Each environment's ray hits its own copy of a static environment-local target."""
+    scene = InteractiveScene(StaticTargetSceneCfg(num_envs=4))
+    sim.reset()
+    sim.step()
+    scene.update(sim.get_physics_dt())
+
+    hits = scene["scanner"].data.ray_hits_w.torch[:, 0]
+    box_top = scene["box"].data.root_pos_w.torch + torch.tensor([0.0, 0.0, 0.5], device=sim.device)
+    torch.testing.assert_close(hits, box_top, atol=1e-3, rtol=0)
+
+
 def test_bvh_refit_tracks_moving_geometry(sim):
     """Sliding a box under the sensor changes the hits, proving the BVH refits live.
 
