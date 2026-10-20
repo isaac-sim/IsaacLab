@@ -626,7 +626,10 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         )
         self.in_hand_pos.assign(wp.from_torch(in_hand_pos, dtype=wp.vec3f))
 
-        goal_pos = torch.tensor(self.cfg.goal_marker_position, device=self.device).repeat((self.num_envs, 1))
+        if self.cfg.goal_marker_position is None:
+            goal_pos = in_hand_pos + torch.tensor(self.cfg.goal_marker_offset, device=self.device)
+        else:
+            goal_pos = torch.tensor(self.cfg.goal_marker_position, device=self.device).repeat((self.num_envs, 1))
         self.goal_pos.assign(wp.from_torch(goal_pos, dtype=wp.vec3f))
 
         goal_rot = torch.zeros((self.num_envs, 4), device=self.device, dtype=torch.float32)
