@@ -366,7 +366,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or any(cfg.backend and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
+            or any(not cfg.headless for cfg in self.cfg.visualizer_cfgs)
             or self._xr_enabled
         )
 
@@ -390,7 +390,7 @@ class SimulationContext:
 
     def _create_visualizers(self) -> None:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""
-        resolved = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.backend]
+        resolved = self.cfg.visualizer_cfgs.copy()
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if (

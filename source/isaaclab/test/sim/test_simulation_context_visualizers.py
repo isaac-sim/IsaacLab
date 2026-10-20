@@ -499,29 +499,14 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     cfg_max_visible_envs: int | None,
     expected_visible: list[int] | None,
 ):
-    captured = {}
-
-    class _FakeNewtonViewerRerun:
-        def __init__(self, **kwargs):
-            captured["streaming_view"] = kwargs["streaming_view"]
-
-        def set_model(self, model: Any) -> None:
-            captured["set_model"] = model
-
-        def set_visible_worlds(self, worlds) -> None:
-            captured["visible_worlds"] = worlds
-
-        def set_world_offsets(self, spacing) -> None:
-            captured["set_world_offsets"] = tuple(spacing)
-
-        def close(self) -> None:
-            captured["closed"] = True
-
-    monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
-    monkeypatch.setattr(
-        rerun_visualizer, "_ensure_rerun_server", lambda **kwargs: ("rerun+http://127.0.0.1:9876/proxy", False)
-    )
-    monkeypatch.setattr(rerun_visualizer, "_open_rerun_web_viewer", lambda *args, **kwargs: None)
+    viewer = Mock(_grpc_server_uri="rerun+http://127.0.0.1:9876/proxy")
+    constructor = Mock(return_value=viewer)
+    monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", constructor)
+    # Reuse a listening server in the first case; the other cases start their own.
+    connection = MagicMock()
+    connection.connect_ex.return_value = int(cfg_max_visible_envs is not None)
+    monkeypatch.setattr(rerun_visualizer.socket, "socket", MagicMock(return_value=connection))
+    connection.__enter__.return_value = connection
     apply_pose = Mock()
     monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", apply_pose)
 
@@ -531,20 +516,30 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         backend=RerunBackendCfg(open_browser=False),
     )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
+    if cfg_max_visible_envs == 0:
+        connection.bind.side_effect = OSError("occupied")
+        with pytest.raises(RuntimeError, match="Rerun web port.*in use"):
+            visualizer.initialize(web_backend, cameras=[])
+        constructor.assert_not_called()
+        connection.bind.side_effect = None
     visualizer.initialize(web_backend, cameras=[])
 
+    captured = constructor.call_args.kwargs
+    assert captured["serve_web_viewer"] == (cfg_max_visible_envs is not None)
+    expected_address = None if cfg_max_visible_envs is not None else "rerun+http://127.0.0.1:9876/proxy"
+    assert captured["address"] == expected_address
     assert captured["streaming_view"] is False
-    assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
-    assert captured["visible_worlds"] == expected_visible
-    assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+    viewer.set_model.assert_called_once_with(web_backend.get_or_create_backend.return_value.model)
+    viewer.set_visible_worlds.assert_called_with(expected_visible)
+    viewer.set_world_offsets.assert_called_once_with((0.0, 0.0, 0.0))
     apply_pose.assert_called_once_with((cfg.eye, cfg.lookat))
     replacement = SimpleNamespace(model=SimpleNamespace(body_label=["/Replacement"]))
     web_backend.get_or_create_backend.return_value = replacement
     visualizer.reset()
     assert visualizer.backend is replacement
     web_backend.get_or_create_backend.assert_called_with(visualizer.newton_cfg)
-    assert captured["set_model"] is replacement.model
-    assert captured["visible_worlds"] == expected_visible
+    viewer.set_model.assert_called_with(replacement.model)
+    viewer.set_visible_worlds.assert_called_with(expected_visible)
 
 
 @pytest.mark.parametrize("viewport", ["active", "unnamed", "missing", "headless"])
@@ -805,19 +800,9 @@ def _make_context_with_settings(
     has_offscreen_render: bool = False,
 ):
     """Build a minimal SimulationContext for visualizer construction, initialization, and rendering checks."""
-    cfg = type(
-        "Cfg",
-        (),
-        {
-            "visualizer_cfgs": [] if visualizer_cfgs is None else visualizer_cfgs,
-            "physics": type("PhysicsCfg", (), {"dt": 0.01})(),
-            "dt": 0.01,
-            "render_interval": 1,
-        },
-    )()
     ctx = object.__new__(SimulationContext)
     ctx._backend_registry = []
-    ctx.cfg = cfg
+    ctx.cfg = SimulationCfg(device="cpu", dt=0.01, physics=PhysicsCfg(), visualizer_cfgs=visualizer_cfgs or [])
     ctx._has_gui = has_gui
     ctx._has_offscreen_render = has_offscreen_render
     ctx._xr_enabled = False
@@ -868,23 +853,12 @@ def test_common_visualizer_settings_survive_backend_selection(monkeypatch, backe
     assert cfgs[1].window.fps == cfgs[3].window.fps == other.window.fps == 30
 
 
-def test_is_rendering_true_when_only_cfg_visualizer_is_set():
-    cfg_visualizer = VisualizerCfg(backend=NewtonGLBackendCfg())
-    settings = {
-        "/isaaclab/render/rtx_sensors": False,
-    }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
-    assert ctx.is_rendering is True
-
-
-def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
-    """A capture-only headless visualizer must not trigger continuous rendering."""
-    cfg_visualizer = VisualizerCfg(backend=KitBackendCfg(), headless=True)
-    settings = {
-        "/isaaclab/render/rtx_sensors": False,
-    }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
-    assert ctx.is_rendering is False
+@pytest.mark.parametrize("headless", [False, True])
+def test_only_visible_visualizers_enable_continuous_rendering(headless):
+    """A window enables continuous rendering; a capture-only visualizer does not."""
+    cfg = VisualizerCfg(backend=NewtonGLBackendCfg(), headless=headless)
+    ctx = _make_context_with_settings({"/isaaclab/render/rtx_sensors": False}, visualizer_cfgs=[cfg])
+    assert ctx.is_rendering is not headless
 
 
 def test_visualizer_init_keeps_requirements_published_before_reset():
@@ -972,27 +946,35 @@ def test_missing_visualizer_package_propagates_import_error(monkeypatch: pytest.
 # ---------------------------------------------------------------------------
 
 
-def test_rerun_streaming_blueprint_includes_spatial2d():
-    """The streaming panel uses a 2D blueprint rather than replacing it with a 3D camera."""
+@pytest.mark.parametrize(
+    "streaming,managers,pose",
+    [
+        (True, [], None),
+        (True, ["Rewards"], None),
+        (False, [], None),
+        (False, ["Rewards", "Actions"], ((1, 2, 3), (0, 0, 0))),
+    ],
+)
+def test_rerun_blueprint_preserves_view_and_live_plots(streaming, managers, pose):
+    """Both camera modes keep the requested view and optional live plots in the blueprint."""
     import rerun.blueprint as rrb
 
-    blueprint_viewer = object.__new__(rerun_visualizer.NewtonViewerRerun)
-    blueprint_viewer._streaming_view_active = True
-    blueprint_viewer._live_plot_manager_names = []
-    blueprint_viewer._camera_pose = None
-
-    bp = blueprint_viewer._get_blueprint()
-
-    # The root container wraps a Spatial2DView for the streaming panel.
-    contents = bp.root_container.contents
-    flat = []
-    stack = list(contents)
+    viewer = object.__new__(rerun_visualizer.NewtonViewerRerun)
+    viewer._streaming_view_active = streaming
+    viewer._live_plot_manager_names = managers
+    viewer._camera_pose = pose
+    stack = list(viewer._get_blueprint().root_container.contents)
+    views = []
     while stack:
         item = stack.pop()
-        flat.append(item)
-        sub = getattr(item, "contents", None)
-        if sub:
-            stack.extend(sub)
-    assert any(isinstance(item, rrb.Spatial2DView) for item in flat), (
-        "_get_blueprint with streaming_view_active=True must include a Spatial2DView panel"
-    )
+        if isinstance(item, rrb.Container):
+            stack.extend(item.contents)
+        else:
+            views.append(item)
+    assert sum(isinstance(view, rrb.Spatial2DView) for view in views) == int(streaming)
+    assert sum(isinstance(view, rrb.Spatial3DView) for view in views) == int(not streaming)
+    assert {view.name for view in views if isinstance(view, rrb.TimeSeriesView)} == set(managers)
+    if pose is not None:
+        camera = next(view for view in views if isinstance(view, rrb.Spatial3DView)).properties["EyeControls3D"]
+        assert camera.position.as_arrow_array().to_pylist() == [list(pose[0])]
+        assert camera.look_target.as_arrow_array().to_pylist() == [list(pose[1])]

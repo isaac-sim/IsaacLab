@@ -46,64 +46,6 @@ _BACKEND_DISPLAY_NAMES = {
 }
 
 
-def _is_port_free(port: int, host: str = "127.0.0.1") -> bool:
-    """Return whether a TCP port can be bound on host."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind((host, int(port)))
-            return True
-        except OSError:
-            return False
-
-
-def _is_port_open(port: int, host: str = "127.0.0.1") -> bool:
-    """Return whether a TCP port is currently accepting connections."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(0.2)
-        return sock.connect_ex((host, int(port))) == 0
-
-
-def _normalize_host(addr: str) -> str:
-    """Normalize bind host to loopback-friendly address for client URLs."""
-    if addr in ("0.0.0.0", "127.0.0.1", "localhost"):
-        return "127.0.0.1"
-    return addr
-
-
-def _ensure_rerun_server(app_id: str, bind_address: str, grpc_port: int, web_port: int) -> tuple[str, bool]:
-    """Resolve rerun endpoint and whether viewer should start web/grpc server."""
-    del app_id
-    connect_host = _normalize_host(bind_address)
-    expected_uri = f"rerun+http://{connect_host}:{int(grpc_port)}/proxy"
-
-    if _is_port_open(grpc_port, host=connect_host):
-        # Reuse existing endpoint; do not create a new server here.
-        return expected_uri, False
-
-    if not _is_port_free(web_port, host=connect_host):
-        raise RuntimeError(f"Rerun web port {web_port} is in use. Free the port or choose a different `web_port`.")
-
-    # No existing gRPC server: NewtonViewerRerun should start and own it.
-    return expected_uri, True
-
-
-def _open_rerun_web_viewer(host: str, web_port: int, connect_to: str) -> None:
-    """Open rerun web UI and prefill endpoint connection URL."""
-    url = _rerun_web_viewer_url(host, web_port, connect_to)
-    try:
-        if not webbrowser.open_new_tab(url):
-            logger.info("[RerunVisualizer] Could not auto-open browser tab. Open manually: %s", url)
-    except Exception:
-        logger.info("[RerunVisualizer] Could not auto-open browser tab. Open manually: %s", url)
-
-
-def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
-    """Return rerun web UI URL with prefilled endpoint."""
-    # Keep the nested URL readable while still encoding '+' in the rerun+http scheme.
-    return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe=':/')}"
-
-
 class NewtonViewerRerun(ViewerRerun):
     """Wrapper around Newton's ViewerRerun with rendering pause controls."""
 
@@ -151,59 +93,19 @@ class NewtonViewerRerun(ViewerRerun):
         The stored :attr:`_camera_pose` is forwarded to
         :class:`~rerun.blueprint.EyeControls3D` when the 3D view is included.
         """
-        manager_views = (
-            [rrb.TimeSeriesView(name=name, origin=f"/{name}") for name in self._live_plot_manager_names]
-            if self._live_plot_manager_names
-            else []
-        )
-        # TimePanel is always hidden (this viewer has no scrubbing UI use case).
-        panel_states = [rrb.TimePanel(state="hidden")]
-
-        # Streaming-view blueprint: 2D composite panel is dominant.
         if self._streaming_view_active:
-            streaming_panel = rrb.Spatial2DView(name="Streaming View", origin="streaming/view")
-            if manager_views:
-                return rrb.Blueprint(
-                    rrb.Horizontal(
-                        streaming_panel,
-                        rrb.Vertical(*manager_views),
-                        column_shares=[4, 1],
-                    ),
-                    *panel_states,
-                    collapse_panels=True,
-                )
-            return rrb.Blueprint(
-                streaming_panel,
-                *panel_states,
-                collapse_panels=True,
+            view = rrb.Spatial2DView(name="Streaming View", origin="streaming/view")
+        else:
+            eye_controls = (
+                rrb.EyeControls3D(position=self._camera_pose[0], look_target=self._camera_pose[1])
+                if self._camera_pose is not None
+                else None
             )
-
-        # Standard 3D blueprint (no streaming).
-        eye_controls = (
-            rrb.EyeControls3D(position=self._camera_pose[0], look_target=self._camera_pose[1])
-            if self._camera_pose
-            else None
-        )
-        view_3d = (
-            rrb.Spatial3DView(name="3D View", origin="/", eye_controls=eye_controls)
-            if eye_controls
-            else rrb.Spatial3DView(name="3D View", origin="/")
-        )
-        if manager_views:
-            return rrb.Blueprint(
-                rrb.Horizontal(
-                    view_3d,
-                    rrb.Vertical(*manager_views),
-                    column_shares=[4, 1],
-                ),
-                *panel_states,
-                collapse_panels=True,
-            )
-        return rrb.Blueprint(
-            view_3d,
-            *panel_states,
-            collapse_panels=True,
-        )
+            view = rrb.Spatial3DView(name="3D View", origin="/", eye_controls=eye_controls)
+        if self._live_plot_manager_names:
+            plots = [rrb.TimeSeriesView(name=name, origin=f"/{name}") for name in self._live_plot_manager_names]
+            view = rrb.Horizontal(view, rrb.Vertical(*plots), column_shares=[4, 1])
+        return rrb.Blueprint(view, rrb.TimePanel(state="hidden"), collapse_panels=True)
 
     def is_rendering_paused(self) -> bool:
         """Return whether rendering is paused by viewer controls."""
@@ -337,19 +239,26 @@ class RerunVisualizer(BaseVisualizer):
         grpc_port = int(self.cfg.backend.grpc_port)
         web_port = int(self.cfg.backend.web_port)
         bind_address = self.cfg.backend.bind_address or "0.0.0.0"
-        rerun_address, start_server_in_viewer = _ensure_rerun_server(
-            app_id=self.cfg.backend.app_id,
-            bind_address=bind_address,
-            grpc_port=grpc_port,
-            web_port=web_port,
-        )
-        if not start_server_in_viewer:
+        viewer_host = "127.0.0.1" if bind_address in ("0.0.0.0", "localhost") else bind_address
+        rerun_address = f"rerun+http://{viewer_host}:{grpc_port}/proxy"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.2)
+            start_server_in_viewer = sock.connect_ex((viewer_host, grpc_port)) != 0
+        if start_server_in_viewer:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    sock.bind((viewer_host, web_port))
+                except OSError as error:
+                    raise RuntimeError(
+                        f"Rerun web port {web_port} is in use. Free the port or choose a different `web_port`."
+                    ) from error
+        else:
             logger.info("[RerunVisualizer] Reusing existing rerun server at %s.", rerun_address)
 
-        viewer_address = None if start_server_in_viewer else rerun_address
         self._viewer = NewtonViewerRerun(
             app_id=self.cfg.backend.app_id,
-            address=viewer_address,
+            address=None if start_server_in_viewer else rerun_address,
             serve_web_viewer=start_server_in_viewer,
             web_port=web_port,
             grpc_port=grpc_port,
@@ -361,13 +270,16 @@ class RerunVisualizer(BaseVisualizer):
         )
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         if start_server_in_viewer:
-            rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
-        viewer_host = _normalize_host(bind_address)
-        viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
+            rerun_address = self._viewer._grpc_server_uri
+        viewer_url = f"http://{viewer_host}:{web_port}/?url={quote(rerun_address, safe=':/')}"
         print()
         self._log_viewer_url("RerunVisualizer", viewer_url)
         if self.cfg.backend.open_browser and not start_server_in_viewer:
-            _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
+            try:
+                if not webbrowser.open_new_tab(viewer_url):
+                    logger.info("[RerunVisualizer] Could not auto-open browser tab. Open manually: %s", viewer_url)
+            except Exception:
+                logger.info("[RerunVisualizer] Could not auto-open browser tab. Open manually: %s", viewer_url)
         self._viewer.set_model(self.backend.model)
         self._viewer.show_particles = self.cfg.backend.show_particles
         self._viewer.set_visible_worlds(self._env_ids)

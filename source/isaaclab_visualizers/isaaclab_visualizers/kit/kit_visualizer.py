@@ -152,7 +152,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
-        self._setup_initial_camera_view()
+        self.reapply_origin()
         self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
         if self._controls_kit_timeline:
             self.play()
@@ -438,20 +438,6 @@ class KitVisualizer(BaseVisualizer):
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
-
-    def reapply_origin(self) -> None:
-        """Recompute the camera position from the current :attr:`~KitBackendCfg.origin_type` and push it to
-        the viewport.
-
-        Call this after mutating :attr:`cfg.backend.origin_type`, :attr:`cfg.backend.origin_env_index`, or
-        :attr:`cfg.backend.origin_track_path` so the viewport reflects the new origin immediately rather than
-        waiting for the next :meth:`step` call.
-
-        For ``"asset"`` origins the camera update is deferred to the
-        next :meth:`step` because asset state is not available until after
-        :meth:`~isaaclab.sim.SimulationContext.reset`.
-        """
-        self._setup_initial_camera_view()
 
     @property
     def viewer_origin(self) -> torch.Tensor | None:
@@ -931,12 +917,12 @@ class KitVisualizer(BaseVisualizer):
                 inv_attr.Set(prev)
         self._point_instancer_invisible_ids_backup.clear()
 
-    def _setup_initial_camera_view(self) -> None:
-        """Position the viewport camera according to :attr:`KitBackendCfg.origin_type`.
+    def reapply_origin(self) -> None:
+        """Apply the configured world, environment, or asset origin to the viewport camera.
 
-        Called once at the end of :meth:`initialize`. For ``"world"`` and ``"env"`` origins the
-        camera is positioned immediately. For asset-tracking origins the first update is deferred
-        to :meth:`step` because asset state is not yet available at initialization time.
+        Called during initialization and after changing ``cfg.backend.origin_type``,
+        ``cfg.backend.origin_env_index``, or ``cfg.backend.origin_track_path`` at runtime.
+        Asset tracking waits for the next :meth:`step`, when simulation state is available.
         """
         self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
 

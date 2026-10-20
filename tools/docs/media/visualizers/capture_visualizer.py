@@ -435,7 +435,7 @@ def record_windowed(
 # ===========================================================================
 #
 # Kit/Newton GL/Newton RTX are captured via a step-count-bound VideoRecorderCfg (see
-# _HERO_SOURCE_BY_VISUALIZER), so clip content is always exactly video_length simulated steps
+# AnymalDTileCaptureCfg), so clip content is always exactly video_length simulated steps
 # regardless of wall-clock time. Rerun/Viser are instead a wall-clock-bound screen recording of
 # a fixed real-time duration, so a slow pipeline covers less simulated motion. _main_hero
 # calibrates each browser visualizer's own natural real-time factor, sizes its recording window
@@ -455,18 +455,14 @@ def record_windowed(
 
 _HERO_TASK = "Isaac-Velocity-Flat-AnymalD"
 
-# Kit uses the same follow-camera offset for windowed and offscreen capture.
-_HERO_KIT_EYE_OFFSET = (2.48, 2.48, 2.25)
-# Newton GL uses a closer offset to match Kit's apparent robot size.
-_HERO_FOLLOW_EYE_OFFSET = (1.98, 1.98, 1.8)
-# Newton RTX/Rerun/Viser framed closer than Kit/Newton GL: their panels leave more empty
-# space around the robot at the shared offset above. Newton RTX framed a bit further back
-# than Rerun/Viser, whose tighter framing looked too tight for RTX at the same offset. Newton
-# RTX and Rerun are then pulled back another 25% (~1/0.8) to shrink their apparent robot size by
-# ~20%, matching Newton GL/Viser -- Kit gets the same treatment via _HERO_KIT_EYE_OFFSET above.
-_HERO_RTX_FOLLOW_EYE_OFFSET = (1.75, 1.75, 1.6)
-_HERO_BROWSER_FOLLOW_EYE_OFFSET = (1.25, 1.25, 1.14)
-_HERO_VISER_FOLLOW_EYE_OFFSET = (0.8, 0.8, 0.73)
+# Match the apparent robot size across each backend's viewport framing.
+_HERO_EYE_OFFSETS = {
+    "kit": (2.48, 2.48, 2.25),
+    "newton_gl": (1.98, 1.98, 1.8),
+    "newton_rtx": (1.75, 1.75, 1.6),
+    "rerun": (1.25, 1.25, 1.14),
+    "viser": (0.8, 0.8, 0.73),
+}
 # Narrows Newton GL/RTX's FOV to match Kit's framing at this eye distance;
 # no effect on Rerun (no FOV field) or Viser (already matches at the default 12mm).
 _HERO_NARROW_FOCAL_LENGTH = 20.0
@@ -478,17 +474,6 @@ _HERO_WINDOW_HEIGHT = 600
 # distinct from the neutral default Newton viewer palette.
 _HERO_SKY_UPPER_COLOR = (0.05, 0.55, 0.55)
 _HERO_SKY_LOWER_COLOR = (0.15, 0.80, 0.65)
-
-# Kit/Newton GL/Newton RTX sources for the standard VideoRecorderCfg path (see
-# _hero_configure_capture); Rerun/Viser are captured separately via headless-browser recording.
-_HERO_SOURCE_BY_VISUALIZER = {
-    "kit": "viz:kit",
-    "newton_gl": "viz:newton_gl",
-    "newton_rtx": "viz:newton_rtx",
-}
-
-# Driven by the per-step _follow_camera event.
-_HERO_FOLLOW_CAM_VISUALIZERS = {"kit", "newton_gl", "newton_rtx", "rerun", "viser"}
 
 # Double-exponential (Holt's linear trend) smoothing applied to the robot's raw per-step root
 # position before it drives the follow camera (see _follow_camera): raw position has visible
@@ -547,7 +532,6 @@ _hero_step_pacer = make_step_pacer("HERO_TARGET_STEP_TIME", log_step_time=True)
 def _follow_camera(env, env_ids) -> None:
     """Point every active visualizer's interactive camera at the first env's robot base.
 
-    Fires every simulation step for visualizers in :data:`_HERO_FOLLOW_CAM_VISUALIZERS`.
     Selects the eye offset per visualizer *instance* type
     since combined mode has more than one type active at once. The raw per-step root position
     is smoothed first (see :data:`_HERO_CAMERA_SMOOTHING_ALPHA`/:data:`_HERO_CAMERA_SMOOTHING_BETA`).
@@ -579,91 +563,12 @@ def _follow_camera(env, env_ids) -> None:
     _hero_follow_camera_call_count[0] += 1
     is_rerun_update_step = _hero_follow_camera_call_count[0] % _HERO_RERUN_UPDATE_STRIDE == 0
     for visualizer in env.sim.visualizers:
-        if not hasattr(visualizer, "set_camera_view"):
+        name = visualizer.cfg.backend.visualizer_type
+        if name == "rerun" and not is_rerun_update_step:
             continue
-        is_rerun = type(visualizer).__name__ == "RerunVisualizer"
-        if is_rerun and not is_rerun_update_step:
-            continue
-        visualizer_name = type(visualizer).__name__
-        if is_rerun:
-            offset = _HERO_BROWSER_FOLLOW_EYE_OFFSET
-        elif visualizer_name == "ViserVisualizer":
-            offset = _HERO_VISER_FOLLOW_EYE_OFFSET
-        elif visualizer_name == "NewtonRTXVisualizer":
-            offset = _HERO_RTX_FOLLOW_EYE_OFFSET
-        elif visualizer_name == "KitVisualizer":
-            offset = _HERO_KIT_EYE_OFFSET
-        else:
-            offset = _HERO_FOLLOW_EYE_OFFSET
-        eye = (target[0] + offset[0], target[1] + offset[1], target[2] + offset[2])
+        offset = _HERO_EYE_OFFSETS[name]
+        eye = tuple(target[i] + offset[i] for i in range(3))
         visualizer.set_camera_view(eye, target)
-
-
-def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
-    return VisualizerCfg(
-        headless=headless("HERO_WINDOWED"),
-        window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
-        eye=_HERO_KIT_EYE_OFFSET,
-        lookat=(0.0, 0.0, 0.0),
-        enable_markers=True,
-        backend=KitBackendCfg(),
-    )
-
-
-def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
-    # No streaming_view: markers aren't drawn into that camera sensor (see module docstring).
-    # eye/lookat seed the initial pose before _follow_camera takes over.
-    return VisualizerCfg(
-        headless=headless("HERO_WINDOWED"),
-        window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
-        eye=_HERO_FOLLOW_EYE_OFFSET,
-        lookat=(0.0, 0.0, 0.0),
-        focal_length=_HERO_NARROW_FOCAL_LENGTH,
-        enable_markers=True,
-        backend=NewtonGLBackendCfg(sky_upper_color=_HERO_SKY_UPPER_COLOR, sky_lower_color=_HERO_SKY_LOWER_COLOR),
-    )
-
-
-def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    # The perspective view uses the scene's authored lighting and native debug markers.
-    return VisualizerCfg(
-        headless=headless("HERO_WINDOWED"),
-        window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
-        eye=_HERO_RTX_FOLLOW_EYE_OFFSET,
-        lookat=(0.0, 0.0, 0.0),
-        focal_length=_HERO_NARROW_FOCAL_LENGTH,
-        backend=NewtonRTXBackendCfg(),
-    )
-
-
-def _hero_make_rerun_visualizer_cfg() -> VisualizerCfg:
-    # No streaming_view: captures its own native 3D view (see module docstring).
-    return VisualizerCfg(
-        eye=_HERO_BROWSER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=RerunBackendCfg()
-    )
-
-
-def _hero_make_viser_visualizer_cfg() -> VisualizerCfg:
-    # Same switch to native-view capture as Rerun; see _hero_make_rerun_visualizer_cfg().
-    return VisualizerCfg(
-        eye=_HERO_VISER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=ViserBackendCfg()
-    )
-
-
-_HERO_VISUALIZER_BUILDERS = {
-    "kit": _hero_make_kit_visualizer_cfg,
-    "newton_gl": _hero_make_newton_gl_visualizer_cfg,
-    "newton_rtx": _hero_make_newton_rtx_visualizer_cfg,
-    "rerun": _hero_make_rerun_visualizer_cfg,
-    "viser": _hero_make_viser_visualizer_cfg,
-}
-
-# Attached simultaneously (one physics process, one shared trajectory) when
-# HERO_VISUALIZER=combined, avoiding the per-process browser-settle timing misalignment
-# described in the module docstring. Kit and Newton RTX stay separate: they're already
-# well-aligned via their own step-count-bound VideoRecorderCfg captures, and Kit needs a full
-# Kit app process that can't coexist with Newton's kitless viewers.
-_HERO_COMBINED_VISUALIZERS = ("newton_gl", "rerun", "viser")
 
 
 @configclass
@@ -672,7 +577,80 @@ class AnymalDTileCaptureCfg(AnymalDFlatEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _hero_configure_capture(self)
+        # Read the visualizer selection from HERO_VISUALIZER, not --viz off sys.argv: by the time
+        # __post_init__ runs, rsl_rl has already rewritten sys.argv and the launcher's parser has
+        # consumed --viz.
+        backends = {
+            "kit": KitBackendCfg(),
+            "newton_gl": NewtonGLBackendCfg(
+                sky_upper_color=_HERO_SKY_UPPER_COLOR, sky_lower_color=_HERO_SKY_LOWER_COLOR
+            ),
+            "newton_rtx": NewtonRTXBackendCfg(),
+            "rerun": RerunBackendCfg(),
+            "viser": ViserBackendCfg(),
+        }
+        visualizer = os.environ.get("HERO_VISUALIZER")
+        if visualizer != "combined" and visualizer not in backends:
+            raise ValueError(
+                f"Set HERO_VISUALIZER=<{'|'.join(backends)}|combined> to select the hero capture"
+                f" visualizer, got {visualizer!r}."
+            )
+        # Combined mode shares one trajectory across GL and both browser viewers.
+        names = ("newton_gl", "rerun", "viser") if visualizer == "combined" else (visualizer,)
+        self.sim.visualizer_cfgs = []
+        for name in names:
+            view = VisualizerCfg(eye=_HERO_EYE_OFFSETS[name], backend=backends[name])
+            if name in CAPTURE_VISUALIZER_TYPES:
+                view.headless = headless("HERO_WINDOWED")
+                view.window.size = (_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)
+            if name in ("newton_gl", "newton_rtx"):
+                view.focal_length = _HERO_NARROW_FOCAL_LENGTH
+            self.sim.visualizer_cfgs.append(view)
+
+        # reset_base's default mdp.reset_root_state_uniform samples through PyTorch's *global*
+        # RNG, not a seeded local generator -- same anti-pattern as the velocity command (see
+        # _pin_velocity_command's docstring). Zeroing the range pins every process to the exact
+        # same default root pose regardless of --seed.
+        self.events.reset_base.params["pose_range"] = {}
+        self.events.reset_base.params["velocity_range"] = {}
+
+        # Same anti-pattern, two more places: reset_robot_joints randomizes starting limb
+        # posture/gait phase, and add_base_mass randomizes base mass. Both pinned to identity.
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        self.events.add_base_mass.params["mass_distribution_params"] = (1.0, 1.0)
+
+        self.events.step_pacer = EventTermCfg(
+            func=_hero_step_pacer, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
+        )
+        # See _pin_velocity_command's docstring for why this is needed for cross-process
+        # alignment, not just a nicer-looking constant-turn walk.
+        self.events.pin_velocity_command = EventTermCfg(
+            func=_pin_velocity_command, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
+        )
+
+        self.events.follow_camera = EventTermCfg(
+            func=_follow_camera, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
+        )
+
+        output_dir = os.environ.get("HERO_VIDEO_DIR")
+        if output_dir:
+            # Combined mode records GL here; its browser views are screen-recorded by the driver.
+            recording = "newton_gl" if visualizer == "combined" else visualizer
+            if recording not in CAPTURE_VISUALIZER_TYPES:
+                raise ValueError(
+                    f"'{visualizer}' is captured via a headless-browser recording, not VideoRecorderCfg (see"
+                    " _main_hero); unset HERO_VIDEO_DIR to launch it for that instead."
+                )
+            offset_variable = "HERO_COMBINED_STEP_OFFSET" if visualizer == "combined" else "HERO_STEP_OFFSET"
+            self.video_recorders = [
+                VideoRecorderCfg(
+                    source=f"viz:{recording}",
+                    output_dir=output_dir,
+                    output_filename_prefix=os.environ.get("HERO_VIDEO_PREFIX", "clip"),
+                    fps=50,
+                    step_offset=int(os.environ.get(offset_variable, "0")),
+                )
+            ]
 
 
 def configure_playback_hero() -> list[str]:
@@ -684,82 +662,6 @@ def configure_playback_hero() -> list[str]:
         )
     gym.spec(task).kwargs["env_cfg_entry_point"] = "capture_visualizer:AnymalDTileCaptureCfg"
     return sys.argv[1:]
-
-
-def _hero_configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
-    """Attach the requested visualizer and video recorder to the AnymalD flat config."""
-    # Read the visualizer selection from HERO_VISUALIZER, not --viz off sys.argv: by the time
-    # __post_init__ runs, rsl_rl has already rewritten sys.argv and the launcher's parser has
-    # consumed --viz.
-    visualizer = os.environ.get("HERO_VISUALIZER")
-    if visualizer != "combined" and visualizer not in _HERO_VISUALIZER_BUILDERS:
-        raise ValueError(
-            f"Set HERO_VISUALIZER=<{'|'.join(_HERO_VISUALIZER_BUILDERS)}|combined> to select the hero capture"
-            f" visualizer, got {visualizer!r}."
-        )
-    if visualizer == "combined":
-        env_cfg.sim.visualizer_cfgs = [_HERO_VISUALIZER_BUILDERS[name]() for name in _HERO_COMBINED_VISUALIZERS]
-    else:
-        env_cfg.sim.visualizer_cfgs = [_HERO_VISUALIZER_BUILDERS[visualizer]()]
-
-    # reset_base's default mdp.reset_root_state_uniform samples through PyTorch's *global*
-    # RNG, not a seeded local generator -- same anti-pattern as the velocity command (see
-    # _pin_velocity_command's docstring). Zeroing the range pins every process to the exact
-    # same default root pose regardless of --seed.
-    env_cfg.events.reset_base.params["pose_range"] = {}
-    env_cfg.events.reset_base.params["velocity_range"] = {}
-
-    # Same anti-pattern, two more places: reset_robot_joints randomizes starting limb
-    # posture/gait phase, and add_base_mass randomizes base mass. Both pinned to identity.
-    env_cfg.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-    env_cfg.events.add_base_mass.params["mass_distribution_params"] = (1.0, 1.0)
-
-    env_cfg.events.step_pacer = EventTermCfg(
-        func=_hero_step_pacer, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
-    )
-    # See _pin_velocity_command's docstring for why this is needed for cross-process
-    # alignment, not just a nicer-looking constant-turn walk.
-    env_cfg.events.pin_velocity_command = EventTermCfg(
-        func=_pin_velocity_command, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
-    )
-
-    if visualizer in _HERO_FOLLOW_CAM_VISUALIZERS or visualizer == "combined":
-        env_cfg.events.follow_camera = EventTermCfg(
-            func=_follow_camera, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
-        )
-
-    output_dir = os.environ.get("HERO_VIDEO_DIR")
-    if output_dir:
-        if visualizer == "combined":
-            # Only Newton GL is step-count-recorded here; Rerun/Viser are screen-recorded by
-            # _run_combined_capture from the same process.
-            env_cfg.video_recorders = [
-                VideoRecorderCfg(
-                    source=_HERO_SOURCE_BY_VISUALIZER["newton_gl"],
-                    output_dir=output_dir,
-                    output_filename_prefix=os.environ.get("HERO_VIDEO_PREFIX", "clip"),
-                    fps=50,
-                    step_offset=int(os.environ.get("HERO_COMBINED_STEP_OFFSET", "0")),
-                )
-            ]
-        else:
-            if visualizer not in _HERO_SOURCE_BY_VISUALIZER:
-                raise ValueError(
-                    f"'{visualizer}' is captured via a headless-browser recording, not VideoRecorderCfg (see"
-                    " _main_hero); unset HERO_VIDEO_DIR to launch it for that instead."
-                )
-            env_cfg.video_recorders = [
-                VideoRecorderCfg(
-                    source=_HERO_SOURCE_BY_VISUALIZER[visualizer],
-                    output_dir=output_dir,
-                    output_filename_prefix=os.environ.get("HERO_VIDEO_PREFIX", "clip"),
-                    # Matches the task's control rate (decimation=4, sim.dt=0.005s -> 50 Hz).
-                    fps=50,
-                    # Skips ahead to the same trajectory point a browser-captured visualizer
-                    # starts recording at, so both clip types stay aligned.
-                    step_offset=int(os.environ.get("HERO_STEP_OFFSET", "0")),
-                )
-            ]
 
 
 # ---------------------------------------------------------------------------
@@ -2109,20 +2011,6 @@ _STREAMING_KIT_NUM_ENVS = 128
 _STREAMING_KIT_WINDOW_TITLE = "Isaac Lab"
 
 
-def _streaming_make_kit_visualizer_cfg() -> VisualizerCfg:
-    return VisualizerCfg(
-        headless=headless("STREAMING_WINDOWED"),
-        window=WindowCfg(size=(_STREAMING_WINDOW_WIDTH, _STREAMING_WINDOW_HEIGHT)),
-        eye=_STREAMING_INTERACTIVE_EYE,
-        lookat=_STREAMING_INTERACTIVE_LOOKAT,
-        streaming_view=os.environ.get("STREAMING_KIT_SHOW_PANEL") == "1",
-        streaming_envs=_STREAMING_ENVS,
-        enable_markers=False,
-        streaming_sensor_prim_path=_STREAMING_CAM_PRIM_PATH,
-        backend=KitBackendCfg(),
-    )
-
-
 _streaming_step_pacer = make_step_pacer("STREAMING_TARGET_STEP_TIME")
 
 
@@ -2152,7 +2040,14 @@ class AnymalDStreamingShowcaseCfg(AnymalDRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.sim.visualizer_cfgs = [_streaming_make_kit_visualizer_cfg()]
+        self.sim.visualizer_cfgs = [VisualizerCfg(
+            headless=headless("STREAMING_WINDOWED"),
+            window=WindowCfg(size=(_STREAMING_WINDOW_WIDTH, _STREAMING_WINDOW_HEIGHT)),
+            eye=_STREAMING_INTERACTIVE_EYE, lookat=_STREAMING_INTERACTIVE_LOOKAT,
+            streaming_view=os.environ.get("STREAMING_KIT_SHOW_PANEL") == "1",
+            streaming_envs=_STREAMING_ENVS, enable_markers=False,
+            streaming_sensor_prim_path=_STREAMING_CAM_PRIM_PATH, backend=KitBackendCfg(),
+        )]  # fmt: skip
         self.scene.streaming_camera = CameraCfg(
             prim_path=_STREAMING_CAM_PRIM_PATH, width=320, height=240, data_types=["rgb"],
             spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
@@ -2196,16 +2091,6 @@ _STREAMING_NEWTON_GL_WINDOW_TITLE = "Newton Viewer"
 # The Galbot task's config module imports isaaclab_teleop (stack_joint_pos_env_cfg.py); "mimic"
 # is the lightest extra providing it without the heavier full "teleop" extra's deps.
 _STREAMING_NEWTON_GL_UV_EXTRAS = "isaacsim,rerun,viser,rsl-rl,ov,video,mimic"
-
-
-def _streaming_make_newton_gl_visualizer_cfg(env_cfg):
-    """Matches run_tiled_camera_visualizer.py's _make_newton_visualizer_cfg for this task."""
-    cfg = VisualizerCfg(backend=NewtonGLBackendCfg())
-    cfg.streaming_view = True
-    cfg.streaming_envs = _STREAMING_NEWTON_GL_STREAMING_ENVS
-
-    cfg.cameras = [SceneCameraCfg(prim_path=env_cfg.scene.ego_cam.prim_path)]
-    return cfg
 
 
 def _streaming_step_for(env, seconds: float) -> None:
@@ -2340,7 +2225,10 @@ def _streaming_newton_gl_worker_main(argv: list[str]) -> None:
 
     with launch_simulation(env_cfg, args_cli):
         env_cfg.scene.num_envs = _STREAMING_NEWTON_GL_NUM_ENVS
-        env_cfg.sim.visualizer_cfgs = [_streaming_make_newton_gl_visualizer_cfg(env_cfg)]
+        env_cfg.sim.visualizer_cfgs = [VisualizerCfg(
+            cameras=[SceneCameraCfg(prim_path=env_cfg.scene.ego_cam.prim_path)],
+            streaming_envs=_STREAMING_NEWTON_GL_STREAMING_ENVS, backend=NewtonGLBackendCfg(),
+        )]  # fmt: skip
 
         env = gym.make(_STREAMING_NEWTON_GL_TASK, cfg=env_cfg)
         print("env created, resetting...", flush=True)

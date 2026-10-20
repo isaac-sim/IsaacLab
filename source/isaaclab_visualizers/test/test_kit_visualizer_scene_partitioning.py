@@ -219,7 +219,7 @@ def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend,
     monkeypatch.setattr(visualizer, "_setup_viewport", MagicMock())
     monkeypatch.setattr(visualizer, "_apply_viewport_camera_scene_partition", MagicMock())
     monkeypatch.setattr(visualizer, "_log_initialization_table", MagicMock())
-    monkeypatch.setattr(visualizer, "_setup_initial_camera_view", MagicMock())
+    monkeypatch.setattr(visualizer, "reapply_origin", MagicMock())
     play = MagicMock()
     monkeypatch.setattr(visualizer, "play", play)
 

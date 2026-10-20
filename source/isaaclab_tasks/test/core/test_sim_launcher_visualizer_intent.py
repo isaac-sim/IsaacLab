@@ -44,8 +44,6 @@ def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch):
         args, remaining = setup_preset_cli(parser, option)
         cfg, _ = resolve_task_config("Isaac-Cartpole-Camera-Direct", "", overrides=remaining)
         physics, renderer = cfg.sim.physics, cfg.scene.tiled_camera.renderer_cfg
-        selected = cfg.sim.visualizer_cfgs
-        selected = selected if isinstance(selected, list) else [selected]
         expected = [] if selection == "none" else selection.split(",")
         assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
         with sim_launcher.launch_simulation(cfg, args):
