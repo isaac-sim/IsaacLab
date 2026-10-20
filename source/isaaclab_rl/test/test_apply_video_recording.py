@@ -135,11 +135,11 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
 )
 def test_video_source_resolves_against_the_visualizer_selection(launches, cli, expected):
     """The launch resolves the ``--video`` source and runs a visualizer ``--viz`` did not select headless."""
-    kit_cfg = VisualizerCfg(eye=(1.0, 2.0, 3.0), backend=KitBackendCfg())
+    view_cfg = VisualizerCfg(eye=(1.0, 2.0, 3.0), backend=[KitBackendCfg(), ViserBackendCfg()])
     env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.sim.physics = NewtonCfg()
     env_cfg.sim.device = "cpu"
-    env_cfg.sim.visualizer_cfgs = [kit_cfg, VisualizerCfg(backend=ViserBackendCfg())]
+    env_cfg.sim.visualizer_cfgs = view_cfg
     args = _args(**cli)
     if args.visualizer is None:
         args.visualizer = []
@@ -160,8 +160,8 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
         assert env_cfg.sim.visualizer_cfgs[0].streaming_view
     # a Kit visualizer, selected or added, keeps its configured camera; an added one is a copy, so the
     # configured visualizer stays as configured for a later launch
-    assert all(cfg.eye == kit_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.backend.visualizer_type == "kit")
-    assert not kit_cfg.headless
+    assert all(cfg.eye == view_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.backend.visualizer_type == "kit")
+    assert not view_cfg.headless
     # Kit starts only for a Kit visualizer, with cameras, windowed only when --viz selects it
     kit_args = launches.get(_KIT_LAUNCHER)
     assert (kit_args is not None) == ("kit" in dict(visualizers))
