@@ -150,7 +150,9 @@ def interactive_update_randomizable_params(
         keys = current_path.split(".")
 
         if isinstance(allowed_range, dict):
-            interactive_update_randomizable_params(event_term, event_term_name, allowed_range, current_path, env)
+            inputs.extend(
+                interactive_update_randomizable_params(event_term, event_term_name, allowed_range, current_path, env)
+            )
         else:
             try:
                 current_val = get_nested_value(event_term.params, keys)
