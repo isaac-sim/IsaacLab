@@ -100,8 +100,7 @@ def test_partitioning_cfg_overrides_legacy_environment_variable(
 
 @pytest.mark.isaacsim_ci
 def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
-    """Per-env :class:`~isaaclab.assets.RigidObject` instances at unique world positions render
-    as visibly different per-env tiles when RTX honors ``primvars:omni:scenePartition``."""
+    """Per-env geometry, markers, and lights stay isolated in their camera tiles."""
     monkeypatch.delenv(_ENV_VAR, raising=False)
 
     @configclass
@@ -109,6 +108,10 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
         ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
         light = AssetBaseCfg(
             prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
+        )
+        environment_light = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Light",
+            spawn=sim_utils.DistantLightCfg(intensity=0.0, color=(0.8, 0.8, 0.8)),
         )
         cube = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
@@ -230,6 +233,27 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
         assert torch.all(unexpected_counts < 5), (
             "PointInstancer markers leaked across scene partitions. "
             f"Per-camera color pixel counts:\n{marker_pixel_counts}"
+        )
+
+        def capture() -> torch.Tensor:
+            frames = []
+            for _ in range(12):
+                sim.step()
+                scene.update(sim.cfg.dt)
+                frames.append(scene["camera"].data.output["rgb"].torch.float().clone())
+            return torch.stack(frames)
+
+        baseline = capture()
+        before = baseline[-4:].mean(dim=0)
+        noise = (baseline - before).abs().mean(dim=(2, 3, 4)).amax(dim=0)
+        light = sim.stage.GetPrimAtPath("/World/envs/env_0/Light")
+        light.GetAttribute("inputs:intensity").Set(8000.0)
+        light.GetAttribute("inputs:color").Set((1.0, 0.02, 0.02))
+        changed = capture()
+        delta = (changed - before).abs().mean(dim=(2, 3, 4))
+        assert delta[-4:, 0].mean() > 5.0, f"Selected light update was not rendered: {delta[-4:].mean(dim=0)}"
+        assert torch.all(delta[:, 1:] <= torch.maximum(torch.full_like(noise[1:], 3.0), 4.0 * noise[1:])), (
+            f"Light update changed untouched views: peak={delta.amax(dim=0)}, noise={noise}"
         )
 
 
