@@ -71,8 +71,7 @@ Camera chains process all views of each capture together.
 Controls are prepared by modifiers earlier in the chain. `depth_to_control` maps
 metric depth to fixed near-white, far-black controls; missing, nonfinite, and
 nonpositive depth becomes black. Any function or class modifier that returns
-uint8 `(N, H, W, 3)` controls can take its place, for example one that computes
-edges from `"rgb"` or colors a `"semantic_segmentation"` output.
+uint8 `(N, H, W, 3)` controls can take its place.
 
 ## Optional PPISP
 
