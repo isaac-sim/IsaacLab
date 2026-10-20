@@ -34,7 +34,7 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
 from isaaclab_physx.assets import SurfaceGripperCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -105,7 +105,7 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
         render_interval=decimation,
         use_fabric=True,
         enable_scene_query_support=True,
-        visualizer_cfgs=VisualizerCfg(backend=KitVisualizerCfg(origin_type="env", origin_env_index=0)),
+        visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg(origin_type="env", origin_env_index=0)),
     )
     debug_vis = True
 

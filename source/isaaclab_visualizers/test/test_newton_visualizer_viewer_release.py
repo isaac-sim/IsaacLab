@@ -10,10 +10,10 @@ from unittest.mock import Mock
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.newton import (
+    NewtonGLBackendCfg,
     NewtonGLVisualizer,
-    NewtonGLVisualizerCfg,
+    NewtonRTXBackendCfg,
     NewtonRTXVisualizer,
-    NewtonRTXVisualizerCfg,
 )
 
 from isaaclab.visualizers import VisualizerCfg
@@ -23,7 +23,7 @@ pytestmark = [pytest.mark.unit]
 
 def test_close_does_not_destroy_shared_gl_context() -> None:
     """GL teardown must not prevent another viewer from starting in the same process."""
-    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLVisualizerCfg()))
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
     viewer = visualizer._viewer = Mock()
     visualizer.close()
     viewer.close.assert_not_called()
@@ -51,7 +51,7 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
 @pytest.mark.parametrize("failure", [False, True])
 def test_close_releases_owned_resources_even_on_failure(failure):
     """Teardown is idempotent and leaves borrowed sensor references untouched, even when one release fails."""
-    visualizer = NewtonRTXVisualizer(VisualizerCfg(backend=NewtonRTXVisualizerCfg()))
+    visualizer = NewtonRTXVisualizer(VisualizerCfg(backend=NewtonRTXBackendCfg()))
     viewer = visualizer._viewer = Mock()
     camera = Mock()
     visualizer.current_image_view = Mock(camera=camera)

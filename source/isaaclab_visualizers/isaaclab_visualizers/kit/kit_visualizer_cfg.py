@@ -10,14 +10,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg, WindowCfg
 
 if TYPE_CHECKING:
     from .kit_visualizer import KitVisualizer
 
 
 @configclass
-class KitVisualizerCfg(VisualizerBackendCfg):
+class KitBackendCfg(VisualizerBackendCfg):
     """Configuration for Kit visualizer using Isaac Sim viewport.
 
     .. note::
@@ -82,3 +82,14 @@ class KitVisualizerCfg(VisualizerBackendCfg):
         origin_track_path = "robot"             # track robot root
         origin_track_path = "robot/panda_hand"  # track panda_hand body on robot
     """
+
+
+@configclass
+class KitVisualizerCfg(KitBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=KitBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: KitBackendCfg = KitBackendCfg()
+    window: WindowCfg = WindowCfg(size=(1280, 720))

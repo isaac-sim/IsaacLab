@@ -21,10 +21,10 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
-from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
-from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonGLVisualizerCfg
-from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
-from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitBackendCfg
+from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonGLBackendCfg
+from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunBackendCfg
+from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
@@ -79,13 +79,13 @@ class _FakeMarkerVisualizer:
         (False, False, True, False, [], ["kit"]),
         (False, False, False, True, [], ["kit"]),
         (False, False, False, False, [], []),
-        (False, False, False, False, [KitVisualizer(VisualizerCfg(backend=KitVisualizerCfg()))], ["kit"]),
+        (False, False, False, False, [KitVisualizer(VisualizerCfg(backend=KitBackendCfg()))], ["kit"]),
         (
             False,
             False,
             False,
             False,
-            [newton_visualizer.NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLVisualizerCfg()))],
+            [newton_visualizer.NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))],
             ["newton"],
         ),
         (
@@ -93,7 +93,7 @@ class _FakeMarkerVisualizer:
             False,
             False,
             False,
-            [rerun_visualizer.RerunVisualizer(VisualizerCfg(backend=RerunVisualizerCfg()))],
+            [rerun_visualizer.RerunVisualizer(VisualizerCfg(backend=RerunBackendCfg()))],
             ["newton"],
         ),
         (
@@ -101,7 +101,7 @@ class _FakeMarkerVisualizer:
             False,
             False,
             False,
-            [viser_visualizer.ViserVisualizer(VisualizerCfg(backend=ViserVisualizerCfg()))],
+            [viser_visualizer.ViserVisualizer(VisualizerCfg(backend=ViserBackendCfg()))],
             ["newton"],
         ),
     ],
@@ -378,9 +378,9 @@ def test_newton_marker_backend_registers_and_updates_state_without_frame_capture
 @pytest.mark.parametrize(
     "module, cfg_type, marker_error",
     [
-        (newton_visualizer, NewtonGLVisualizerCfg, False),
-        (viser_visualizer, ViserVisualizerCfg, True),
-        (rerun_visualizer, RerunVisualizerCfg, True),
+        (newton_visualizer, NewtonGLBackendCfg, False),
+        (viser_visualizer, ViserBackendCfg, True),
+        (rerun_visualizer, RerunBackendCfg, True),
     ],
     ids=["newton", "viser", "rerun"],
 )

@@ -11,7 +11,7 @@ from typing import Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
 import torch
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 from ..utils import configclass
 from ..visualizers import VisualizerCfg
@@ -34,10 +34,10 @@ class ViewerCfg:
 
         from isaaclab.sim import SimulationCfg
         from isaaclab.visualizers import VisualizerCfg
-        from isaaclab_visualizers.kit import KitVisualizerCfg
+        from isaaclab_visualizers.kit import KitBackendCfg
 
         sim_cfg = SimulationCfg(
-            visualizer_cfgs=VisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0), backend=KitVisualizerCfg())
+            visualizer_cfgs=VisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0), backend=KitBackendCfg())
         )
     """
 
@@ -93,7 +93,7 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
             continue
         cfg.eye, cfg.lookat = tuple(viewer.eye), tuple(viewer.lookat)
         cfg.window.size = tuple(viewer.resolution)
-        if isinstance(cfg.backend, KitVisualizerCfg):
+        if isinstance(cfg.backend, KitBackendCfg):
             cfg.backend.origin_env_index = viewer.env_index
             cfg.backend.origin_type = viewer.origin_type
             if viewer.origin_type in ("asset_root", "asset_body"):

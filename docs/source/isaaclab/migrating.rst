@@ -2565,9 +2565,8 @@ The details below describe how CLI visualizer arguments resolve together with
 - Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
   in ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``; pass configured instances instead
   of subclassing it. ``resolve_task_config`` selects these alternatives before launch.
-  Standalone scripts declaring preset alternatives import ``launch_simulation`` from
-  ``isaaclab_tasks.utils`` and pass their config and parsed launcher arguments. This entry point
-  composes presets before calling core launch; scripts do not need path-specific ``resolve_presets`` calls.
+  Standalone scripts compose any declared presets during initial configuration, then import
+  ``launch_simulation`` from ``isaaclab.app``. Core launch accepts concrete configurations only.
 
 ``launch_simulation`` now owns the runtime decisions previously exposed through ``scan`` and ``Scan``.
 Read physics, renderer, and visualizer choices directly from the config inside the launch context.
@@ -2579,50 +2578,64 @@ it returns the resolved configuration objects and Kit requirements instead of a 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
 
-**Breaking change — common visualizer settings moved outside backend configurations.**
+**Visualizer configuration migration.**
 
-Replace ``default_visualizer_cfg`` and backend configs containing common settings with one
-``VisualizerCfg`` declaration. Its ``backend`` selects the implementation; its view, window,
-camera pose, and environment visibility remain unchanged when the selected backend changes.
-There is no defaults-merging pass.
+``VisualizerCfg`` now owns common view, window, camera, and environment-selection settings.
+Its ``backend`` contains only implementation-specific options. For example:
 
 .. code-block:: python
 
-   # Before
+   # Deprecated: still accepted and translated before simulation launch.
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
    sim_cfg = SimulationCfg(
        default_visualizer_cfg=VisualizerCfg(max_visible_envs=16),
-       visualizer_cfgs=NewtonGLVisualizerCfg(window=WindowCfg(size=(1280, 720))),
-   )
-
-   # After: select visualizer=newton_gl at the task entry point.
-   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
-
-   sim_cfg = SimulationCfg(
-       visualizer_cfgs=VisualizerCfg(
-           max_visible_envs=16,
-           window=WindowCfg(size=(1280, 720)),
-           backend=MultiBackendVisualizerCfg(),
+       visualizer_cfgs=NewtonGLVisualizerCfg(
+           eye=(4.0, -4.0, 3.0), window=WindowCfg(size=(1280, 720)), enable_shadows=False,
        ),
    )
 
-Select several backends with ``visualizer=rerun,newton_gl``; they share this single
-``VisualizerCfg`` declaration. Without a selection, ``MultiBackendVisualizerCfg()`` leaves viewers inactive.
-``VisualizerCfg.backend`` accepts one backend or a list; use ``[]`` instead of ``None`` for no selection.
-In standalone scripts, compose the declaration with ``isaaclab_tasks.utils.resolve_presets``
-during initial configuration, then call ``isaaclab.app.launch_simulation`` directly. For the example
-above, use ``resolve_presets(sim_cfg, overrides={"visualizer_cfgs.backend": args_cli.visualizer or "default"})``.
-Registered tasks already complete preset composition in ``resolve_task_config``; do not reintroduce presets afterward.
+   # New: common settings outside, backend options inside.
+   from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
-Backend configs now contain only implementation-specific options. For example, move ``eye``,
-``max_visible_envs``, ``window``, and ``streaming_view`` from ``NewtonGLVisualizerCfg`` to its
-containing ``VisualizerCfg``. Custom backend configs inherit ``VisualizerBackendCfg``;
-constructors receive the complete ``VisualizerCfg`` and read implementation options from ``cfg.backend``.
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=VisualizerCfg(
+           eye=(4.0, -4.0, 3.0), max_visible_envs=16, window=WindowCfg(size=(1280, 720)),
+           streaming_view=True, backend=NewtonGLBackendCfg(enable_shadows=False),
+       ),
+   )
 
-All backends use the common ``WindowCfg`` default of 1920 by 1080; set ``window.size=(1280, 720)``
-explicitly to retain Kit's previous default. Automatic scene-camera discovery is now explicitly
-enabled with ``streaming_view=True`` on the common config, including for Newton GL and RTX.
-Explicit ``SceneCameraCfg`` selections continue to enable it automatically.
-Recording with ``--video viz:newton_gl:streaming_view`` also enables the requested camera view,
+The old ``KitVisualizerCfg``, ``NewtonGLVisualizerCfg``, ``NewtonRTXVisualizerCfg``,
+``RerunVisualizerCfg``, and ``ViserVisualizerCfg`` declarations remain available as deprecated
+configuration-only adapters. Launch translates their fields into ``VisualizerCfg`` plus the
+corresponding ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBackendCfg``,
+``RerunBackendCfg``, or ``ViserBackendCfg``. ``default_visualizer_cfg`` is also translated once,
+preserving explicit per-view overrides. Both forms use the same runtime implementation.
+Deprecated declarations emit ``DeprecationWarning``; update the configuration at its declaration site.
+
+Old Kit declarations retain their 1280-by-720 default. New shared declarations use
+``WindowCfg(size=(1920, 1080))`` by default, independent of backend; specify ``window.size`` to
+choose a resolution. Old Newton declarations retain automatic scene-camera discovery. With the new
+form, enable it explicitly using ``streaming_view=True`` or select a ``SceneCameraCfg``.
+
+For registered tasks, no backend declaration is needed unless customizing its options:
+
+.. code-block:: python
+
+   sim_cfg = SimulationCfg(visualizer_cfgs=VisualizerCfg(max_visible_envs=16))
+   # Select with --viz newton_gl or --viz newton_gl,newton_rtx.
+
+Use ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg`` to customize selectable alternatives.
+Registered tasks complete composition in ``resolve_task_config``. Standalone scripts declaring presets
+compose them during initial configuration, then call ``isaaclab.app.launch_simulation`` directly.
+Core launch does not resolve presets. A list of concrete backend configs activates those backends;
+``backend=[]`` leaves the view inactive. Multiple shared declarations retain independent settings.
+
+Custom backend configs inherit ``VisualizerBackendCfg``. Constructors receive the complete
+``VisualizerCfg`` and read implementation options from ``cfg.backend``. ``launcher_type`` and
+``cloning_contexts`` are class-level framework requirements, rather than per-instance user options.
+
+Recording with ``--video viz:newton_gl:streaming_view`` enables the requested camera view,
 with or without a visible ``--viz newton_gl`` window.
 
 **Breaking change — ``--headless`` is removed.**
@@ -2678,7 +2691,7 @@ Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A
 remains so existing imports do not break, but it raises a :class:`DeprecationWarning` at
 construction.  Camera tracking is now handled directly by
 :class:`~isaaclab_visualizers.kit.KitVisualizer` via ``origin_type`` and
-``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitBackendCfg`.
 
 .. code-block:: python
 
@@ -2692,7 +2705,7 @@ construction.  Camera tracking is now handled directly by
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
 
 For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), use
-:class:`~isaaclab_visualizers.kit.KitVisualizerCfg` with ``origin_type="asset"`` and
+:class:`~isaaclab_visualizers.kit.KitBackendCfg` with ``origin_type="asset"`` and
 ``origin_track_path``:
 
 .. code-block:: python
@@ -2704,12 +2717,12 @@ For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body
    env_cfg.viewer.asset_name = "robot"
 
    # After (Isaac Lab 3.x)
-   from isaaclab_visualizers.kit import KitVisualizerCfg
+   from isaaclab_visualizers.kit import KitBackendCfg
 
    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
-       backend=MultiBackendVisualizerCfg(kit=KitVisualizerCfg(origin_type="asset", origin_track_path="robot")),
+       backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="asset", origin_track_path="robot")),
    )  # visualizer=kit
 
 The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
@@ -2774,9 +2787,9 @@ camera, force a capture, or remove camera prims on close. See :ref:`visualizatio
    from isaaclab.visualizers import VisualizerCfg
 
    # Before (Isaac Lab 2.x)
-   from isaaclab_visualizers.newton import NewtonVisualizerCfg
+   from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
-   cfg = NewtonVisualizerCfg(
+   cfg = NewtonGLBackendCfg(
        tiled_cam_view=True,
        tiled_cam_num=16,
        tiled_cam_prim_path="/World/envs/env_.*/Camera",
@@ -2793,14 +2806,14 @@ camera, force a capture, or remove camera prims on close. See :ref:`visualizatio
    )
 
 .. note::
-   :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` is deprecated in this release.
-   Use :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (OpenGL rasterizer) or
-   :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (OVRTX path tracer) instead.
+   :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` is deprecated in this release.
+   Use :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` (OpenGL rasterizer) or
+   :class:`~isaaclab_visualizers.newton.NewtonRTXBackendCfg` (OVRTX path tracer) instead.
 
 
 .. rubric:: Newton Visualizer Type Split (``newton`` → ``newton_gl`` / ``newton_rtx``)
 
-The single ``NewtonVisualizerCfg`` (``visualizer_type="newton"``) has been split into two
+The single ``NewtonGLBackendCfg`` (``visualizer_type="newton"``) has been split into two
 dedicated configs with separate type identifiers:
 
 .. list-table::
@@ -2810,11 +2823,11 @@ dedicated configs with separate type identifiers:
    * - Old (removed / deprecated)
      - New
      - Notes
-   * - ``NewtonVisualizerCfg`` (``visualizer_type="newton"``)
-     - :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (``visualizer_type="newton_gl"``)
+   * - ``NewtonGLBackendCfg`` (``visualizer_type="newton"``)
+     - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` (``visualizer_type="newton_gl"``)
      - OpenGL rasterizer; default Newton visualizer
    * - —
-     - :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (``visualizer_type="newton_rtx"``)
+     - :class:`~isaaclab_visualizers.newton.NewtonRTXBackendCfg` (``visualizer_type="newton_rtx"``)
      - OVRTX path tracer (experimental)
 
 The ``--viz newton`` CLI argument remains as a **deprecated alias** for ``--viz newton_gl``.
@@ -2843,7 +2856,7 @@ Move Newton's ``window_width`` and ``window_height`` into ``WindowCfg.size``. Re
    from isaaclab.visualizers import VisualizerCfg
 
    # Before
-   viewer = NewtonGLVisualizerCfg(window_width=1920, window_height=1080, update_frequency=2)
+   viewer = NewtonGLBackendCfg(window_width=1920, window_height=1080, update_frequency=2)
 
    # After
    from isaaclab.visualizers import WindowCfg

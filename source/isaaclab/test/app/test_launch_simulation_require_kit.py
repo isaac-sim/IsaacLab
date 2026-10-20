@@ -128,7 +128,7 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
 @pytest.mark.parametrize("channels", [("rgb",), ("rgb", "depth")])
 def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     """Launch declares selected cameras without adding unrelated sensors to the window."""
-    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg
@@ -140,9 +140,9 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
             physics=sim_launcher.NewtonCfg(),
             visualizer_cfgs=[
                 VisualizerCfg(
-                    window=WindowCfg(size=(160, 120)), streaming_gt_types=channels, backend=NewtonRTXVisualizerCfg()
+                    window=WindowCfg(size=(160, 120)), streaming_gt_types=channels, backend=NewtonRTXBackendCfg()
                 ),
-                VisualizerCfg(window=WindowCfg(size=(160, 120)), view=view, backend=NewtonRTXVisualizerCfg()),
+                VisualizerCfg(window=WindowCfg(size=(160, 120)), view=view, backend=NewtonRTXBackendCfg()),
             ],
         ),
         scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
@@ -207,7 +207,7 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
     from types import SimpleNamespace
 
     from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
     from isaaclab.sim import SimulationCfg
@@ -215,14 +215,14 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
 
     views = [ImageViewCfg(source=PerspectiveCameraCfg()) for _ in range(producer_count)]
     visualizers = [
-        VisualizerCfg(view=view, window=WindowCfg(size=(128, 96)), backend=NewtonGLVisualizerCfg()) for view in views
+        VisualizerCfg(view=view, window=WindowCfg(size=(128, 96)), backend=NewtonGLBackendCfg()) for view in views
     ]
     if producer_count == 1:
         visualizers = visualizers[0]  # SimulationCfg also accepts a single configuration.
         visualizers.backend = []  # Recording supplies the default producer.
     else:
         visualizers.insert(
-            0, VisualizerCfg(backend=NewtonGLVisualizerCfg())
+            0, VisualizerCfg(backend=NewtonGLBackendCfg())
         )  # An unrelated viewer of the same backend must stay inactive.
     cfg = SimpleNamespace(
         sim=SimulationCfg(device="cpu", physics=NewtonCfg(), visualizer_cfgs=visualizers),

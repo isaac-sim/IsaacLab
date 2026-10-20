@@ -17,7 +17,7 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -620,7 +620,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         visualizer_cfgs=VisualizerCfg(
             eye=(1.7, 1.5, 1.0),
             lookat=(0.55, 0.0, 0.0),
-            backend=MultiBackendVisualizerCfg(kit=KitVisualizerCfg(origin_type="env", origin_env_index=0)),
+            backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
         ),
     )
     actions: ActionsCfg = ActionsCfg()

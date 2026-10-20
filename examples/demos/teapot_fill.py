@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.scene import InteractiveSceneCfg
@@ -501,7 +501,7 @@ def create_sim_cfg():
         visualizer_cfgs=VisualizerCfg(
             eye=CAMERA_EYE,
             lookat=CAMERA_TARGET,
-            backend=NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR),
+            backend=NewtonGLBackendCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR),
         ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(

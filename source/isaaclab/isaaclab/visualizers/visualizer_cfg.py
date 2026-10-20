@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import math
-from dataclasses import MISSING
+import warnings
+from copy import deepcopy
+from dataclasses import MISSING, fields
 from typing import TYPE_CHECKING, ClassVar
 
 from ..utils import configclass
@@ -129,7 +131,7 @@ class VisualizerBackendCfg:
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
-    cloning_contexts: tuple[type[ReplicateContext] | str, ...] = ()
+    cloning_contexts: ClassVar[tuple[type[ReplicateContext] | str, ...]] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
     launcher_type: ClassVar[str | None] = None
@@ -280,3 +282,52 @@ class VisualizerCfg:
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
+
+
+def migrate_visualizer_cfgs(
+    declarations: VisualizerCfg | list[VisualizerCfg] | None, defaults: VisualizerCfg | None = None
+) -> list[VisualizerCfg]:
+    """Translate deprecated combined declarations and shared defaults before launch.
+
+    Args:
+        declarations: Shared visualizer declarations or deprecated combined configurations.
+        defaults: Deprecated simulation-wide defaults; explicit per-view settings take precedence.
+
+    Returns:
+        Shared configurations with backend-only options; current declarations retain their identity.
+    """
+    declarations = declarations if isinstance(declarations, list) else [declarations]
+    if defaults is not None:
+        warnings.warn(
+            "default_visualizer_cfg is deprecated. Put shared settings on each VisualizerCfg instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    viewers = []
+    for cfg in declarations:
+        if cfg is None:
+            cfg = VisualizerCfg()
+        if defaults is not None:
+            for source, target in ((defaults, cfg), (defaults.window, cfg.window)):
+                source_defaults, target_defaults = type(source)(), type(target)()
+                for field in fields(source):
+                    if field.name in ("backend", "window"):
+                        continue
+                    value = getattr(source, field.name)
+                    target_is_default = getattr(target, field.name) == getattr(target_defaults, field.name)
+                    if value != getattr(source_defaults, field.name) and target_is_default:
+                        setattr(target, field.name, deepcopy(value))
+        if isinstance(cfg, VisualizerBackendCfg):
+            warnings.warn(
+                f"{type(cfg).__name__} is deprecated. Use VisualizerCfg(backend={type(cfg.backend).__name__}(), ...) "
+                "with shared camera and window settings on VisualizerCfg.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            backend = type(cfg.backend)(**{field.name: getattr(cfg, field.name) for field in fields(cfg.backend)})
+            cfg = VisualizerCfg(
+                backend=backend,
+                **{field.name: getattr(cfg, field.name) for field in fields(VisualizerCfg) if field.name != "backend"},
+            )
+        viewers.append(cfg)
+    return viewers

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import torch
 import warp as wp
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 from .. import cloner
 from .. import sim as sim_utils
@@ -36,7 +36,7 @@ from ..utils.string import clear_resolve_matching_names_cache, string_to_callabl
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
-from ..visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
+from ..visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, migrate_visualizer_cfgs
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -160,8 +160,13 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        if not isinstance(self.cfg.visualizer_cfgs, list):
-            self.cfg.visualizer_cfgs = [self.cfg.visualizer_cfgs]
+        self.cfg.visualizer_cfgs = migrate_visualizer_cfgs(self.cfg.visualizer_cfgs, self.cfg.default_visualizer_cfg)
+        self.cfg.default_visualizer_cfg = None
+        self.cfg.visualizer_cfgs = [
+            cfg.replace(backend=backend) if isinstance(cfg.backend, list) else cfg
+            for cfg in self.cfg.visualizer_cfgs
+            for backend in (cfg.backend if isinstance(cfg.backend, list) else [cfg.backend])
+        ]
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -393,7 +398,7 @@ class SimulationContext:
             and self.get_setting("/isaaclab/xr/auto_start")
             and not any(cfg.backend.visualizer_type == "kit" for cfg in resolved)
         ):
-            resolved.append(VisualizerCfg(backend=KitVisualizerCfg()))
+            resolved.append(VisualizerCfg(backend=KitBackendCfg()))
             logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
         for cfg in resolved:

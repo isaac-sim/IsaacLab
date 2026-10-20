@@ -21,7 +21,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 from isaaclab.app import SimulationLauncher, launch_simulation, validate_launch
 from isaaclab.physics import PhysxAutoCfg
@@ -197,7 +197,7 @@ def test_auto_physx_configured_kit_visualizer_resolves_to_isaac_sim_backends():
     """Config-declared Kit visualizers should drive automatic PhysX and RTX resolution."""
 
     env_cfg, _ = resolve_task_config(_CAMERA_PRESETS_TASK, None, overrides=["physics=physx", "renderer=rtx"])
-    env_cfg.sim.visualizer_cfgs = VisualizerCfg(backend=KitVisualizerCfg())
+    env_cfg.sim.visualizer_cfgs = VisualizerCfg(backend=KitBackendCfg())
     validate_launch(env_cfg)
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
@@ -319,7 +319,7 @@ def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pyte
     with launch_simulation(env_cfg, launcher_args) as physics_cfg:
         assert type(physics_cfg).__name__ == "NewtonCfg"
 
-    assert isinstance(env_cfg.sim.visualizer_cfgs[0].backend, KitVisualizerCfg)
+    assert isinstance(env_cfg.sim.visualizer_cfgs[0].backend, KitBackendCfg)
     assert received["enable_cameras"] is True
     assert launcher_args.visualizer is None
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)

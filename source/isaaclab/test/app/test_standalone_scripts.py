@@ -180,10 +180,10 @@ import runpy
 import sys
 
 import isaaclab.app
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 def check_launch(cfg, args):
-    assert isinstance(cfg.visualizer_cfgs.backend, NewtonGLVisualizerCfg)
+    assert isinstance(cfg.visualizer_cfgs.backend, NewtonGLBackendCfg)
     assert cfg.visualizer_cfgs.backend.show_particles
     assert 'isaaclab_tasks' not in sys.modules
     isaaclab.app.validate_launch(cfg, args)

@@ -170,7 +170,7 @@ Changing the simulation timestep does not change that limit. Headless on-demand 
 independent of the window update rate; Kit uses its application's update cadence.
 
 Newton RTX displays ordinary camera output in a Newton GL window. Equal ``OVRTXRendererCfg``
-configurations share one renderer and its scene. ``NewtonRTXVisualizerCfg.renderer_cfg`` selects
+configurations share one renderer and its scene. ``NewtonRTXBackendCfg.renderer_cfg`` selects
 the renderer for generated perspective cameras; explicitly selected scene cameras retain their
 own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
 ``isaaclab_ov.stage.OvstageBackend`` remains available for downstream consumers that need an
@@ -194,7 +194,7 @@ spawning assets and cameras, including for a single environment:
    from isaaclab.utils import instantiate
    from isaaclab.visualizers import SceneCameraCfg
    from isaaclab_ov.renderers import OVRTXRendererCfg
-   from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+   from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
    camera_cfg = CameraCfg(
        prim_path="/World/PerspectiveCamera", width=960, height=540,
@@ -203,7 +203,7 @@ spawning assets and cameras, including for a single environment:
        render_settings={"omni:rtx:quality": ("Int", 0)},
    )
    sim_cfg = SimulationCfg(
-       visualizer_cfgs=[NewtonRTXVisualizerCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
+       visualizer_cfgs=[NewtonRTXBackendCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
    )
    target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=CuboidCfg(size=(1.0, 1.0, 1.0)))
    light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=DomeLightCfg(intensity=1000.0))
@@ -312,7 +312,7 @@ Example 2: Streaming from Robot-Mounted Cameras
              --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
 The Galbot cube-stacking environment ships with wrist-mounted cameras giving an egocentric
-view of the gripper, table, and cubes. The script's ``NewtonGLVisualizerCfg`` streams from the
+view of the gripper, table, and cubes. The script's ``NewtonGLBackendCfg`` streams from the
 existing sensor at ``/World/envs/env_.*/Robot/head_camera_sim_view_frame/head_camera``; edit
 ``streaming_sensor_prim_path`` to show a different camera. Of the 25 environments, 12 camera
 feeds are shown by default.

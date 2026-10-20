@@ -20,7 +20,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, Ne
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -536,7 +536,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         visualizer_cfgs=VisualizerCfg(
             eye=(1.4, 1.4, 0.9),
             lookat=(0.5, 0.0, 0.1),
-            backend=MultiBackendVisualizerCfg(kit=KitVisualizerCfg(origin_type="env", origin_env_index=0)),
+            backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
         )
     )
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()

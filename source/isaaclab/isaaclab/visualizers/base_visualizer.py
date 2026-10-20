@@ -22,7 +22,13 @@ import warp as wp
 from ..utils import validate
 from ..utils.backend_utils import FactoryBase
 from .image_view import ImageView
-from .visualizer_cfg import ImageViewCfg, PerspectiveCameraCfg, VisualizerCfg
+from .visualizer_cfg import (
+    ImageViewCfg,
+    PerspectiveCameraCfg,
+    VisualizerBackendCfg,
+    VisualizerCfg,
+    migrate_visualizer_cfgs,
+)
 
 if TYPE_CHECKING:
     from ..managers import ManagerBase
@@ -49,6 +55,8 @@ class BaseVisualizer(ABC):
         Args:
             cfg: Visualizer configuration.
         """
+        if isinstance(cfg, VisualizerBackendCfg):
+            cfg = migrate_visualizer_cfgs(cfg)[0]
         validate(cfg)
         self.cfg = cfg
         self._sim: SimulationContext | None = None

@@ -28,8 +28,8 @@ import gymnasium as gym
 import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab_tasks  # noqa: F401
 
@@ -71,7 +71,7 @@ def main():
     backends = [
         backend for cfg in visualizers for backend in (cfg.backend if isinstance(cfg.backend, list) else [cfg.backend])
     ]
-    if not backends or any(not isinstance(backend, (KitVisualizerCfg, NewtonGLVisualizerCfg)) for backend in backends):
+    if not backends or any(not isinstance(backend, (KitBackendCfg, NewtonGLBackendCfg)) for backend in backends):
         raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
     camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
@@ -87,7 +87,7 @@ def main():
             offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
             renderer_cfg=(
                 IsaacRtxRendererCfg()
-                if any(isinstance(backend, KitVisualizerCfg) for backend in backends)
+                if any(isinstance(backend, KitBackendCfg) for backend in backends)
                 else NewtonWarpRendererCfg()
             ),
         )

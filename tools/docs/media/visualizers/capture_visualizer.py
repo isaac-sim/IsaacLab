@@ -53,10 +53,11 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-from isaaclab_visualizers.rerun import RerunVisualizerCfg
-from isaaclab_visualizers.viser import ViserVisualizerCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.rerun import RerunBackendCfg
+from isaaclab_visualizers.viser import ViserBackendCfg
 from PIL import Image
 
 from pxr import Gf, Sdf, UsdShade
@@ -65,12 +66,14 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES
-from isaaclab.managers import EventTermCfg
+from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.sensors import CameraCfg
+from isaaclab.sim import PinholeCameraCfg
 from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg, WindowCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg, WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import KukaAllegroLiftEnvCfg
@@ -439,17 +442,9 @@ def record_windowed(
 # to cover the same simulated duration as the other 3, then speeds the result back up to a
 # uniform output length via ffmpeg.
 #
-# Kit follows the robot via its streaming/tiled camera (streaming_cam_target_prim_path).
-# Newton GL, Newton RTX, Rerun, and Viser instead drive their *interactive* camera every step
-# via an EventTermCfg calling visualizer.set_camera_view(eye, target):
-#
-# * Newton GL's streaming camera never draws visualization markers into that sensor, so this
-#   uses its interactive view instead, like Kit's.
-# * Newton RTX's streaming camera targets Kit-hosted sensors, which throws in kitless
-#   NewtonRTXVisualizer sessions, so its clip uses render_rgb_array() instead, with
-#   focal_length increased from the 12mm default to match the streaming-camera clips' zoom.
-# * Rerun and Viser both have real set_camera_view implementations, so their clips are a
-#   headless-browser recording of their own native view, not the shared streaming camera sensor.
+# Each hero clip follows the robot through the visualizer's interactive camera. The separate
+# streaming showcase below declares a scene camera and displays that sensor's images.
+# Rerun and Viser clips record their native browser views.
 #
 # _run_combined_capture launches ONE play.py process with HERO_VISUALIZER=combined, attaching
 # Newton GL, Rerun, and Viser to the same simulation so all 3 render the exact same simulated
@@ -460,15 +455,9 @@ def record_windowed(
 
 _HERO_TASK = "Isaac-Velocity-Flat-AnymalD"
 
-# Streaming/tiled follow-camera (Kit): same offset/target as the tiled-camera tutorial
-# (scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py), zoomed in further, then
-# pulled back another 25% (matching the 1/0.8 pull-back below) since Kit's streaming-camera FOV
-# renders the robot noticeably larger than Newton GL/RTX at the same eye distance.
-_HERO_STREAMING_TARGET_PRIM = "/World/envs/*/Robot/base"
+# Kit uses the same follow-camera offset for windowed and offscreen capture.
 _HERO_KIT_EYE_OFFSET = (2.48, 2.48, 2.25)
-# Per-step follow-camera (Newton GL only -- Kit uses _HERO_KIT_EYE_OFFSET for both its headless
-# streaming-view and windowed capture paths, since its streaming-camera FOV needs a different
-# distance than Newton GL to frame the same apparent robot size).
+# Newton GL uses a closer offset to match Kit's apparent robot size.
 _HERO_FOLLOW_EYE_OFFSET = (1.98, 1.98, 1.8)
 # Newton RTX/Rerun/Viser framed closer than Kit/Newton GL: their panels leave more empty
 # space around the robot at the shared offset above. Newton RTX framed a bit further back
@@ -478,7 +467,7 @@ _HERO_FOLLOW_EYE_OFFSET = (1.98, 1.98, 1.8)
 _HERO_RTX_FOLLOW_EYE_OFFSET = (1.75, 1.75, 1.6)
 _HERO_BROWSER_FOLLOW_EYE_OFFSET = (1.25, 1.25, 1.14)
 _HERO_VISER_FOLLOW_EYE_OFFSET = (0.8, 0.8, 0.73)
-# Narrows Newton GL/RTX's FOV to match Kit's streaming-camera framing at this eye distance;
+# Narrows Newton GL/RTX's FOV to match Kit's framing at this eye distance;
 # no effect on Rerun (no FOV field) or Viser (already matches at the default 12mm).
 _HERO_NARROW_FOCAL_LENGTH = 20.0
 
@@ -493,21 +482,20 @@ _HERO_SKY_LOWER_COLOR = (0.15, 0.80, 0.65)
 # Kit/Newton GL/Newton RTX sources for the standard VideoRecorderCfg path (see
 # _hero_configure_capture); Rerun/Viser are captured separately via headless-browser recording.
 _HERO_SOURCE_BY_VISUALIZER = {
-    "kit": "viz:kit:streaming_view",
+    "kit": "viz:kit",
     "newton_gl": "viz:newton_gl",
     "newton_rtx": "viz:newton_rtx",
 }
 
-# Driven by the per-step _follow_camera event rather than streaming_cam_target_prim_path.
-_HERO_FOLLOW_CAM_VISUALIZERS = {"newton_gl", "newton_rtx", "rerun", "viser"}
+# Driven by the per-step _follow_camera event.
+_HERO_FOLLOW_CAM_VISUALIZERS = {"kit", "newton_gl", "newton_rtx", "rerun", "viser"}
 
 # Double-exponential (Holt's linear trend) smoothing applied to the robot's raw per-step root
 # position before it drives the follow camera (see _follow_camera): raw position has visible
 # high-frequency foot-contact noise that otherwise transfers into camera jitter. A trend term
 # is tracked alongside the smoothed position so the filter predicts ahead rather than lagging
 # behind a steadily-moving target. BETA > ALPHA so the trend estimate doesn't lag behind
-# ALPHA's own smoothing. Only applies to Newton GL/RTX/Rerun/Viser -- Kit follows via the
-# native, zero-lag streaming_cam_target_prim_path.
+# ALPHA's own smoothing. All hero views use the same smoothed target.
 _HERO_CAMERA_SMOOTHING_ALPHA = 0.025
 _HERO_CAMERA_SMOOTHING_BETA = 0.15
 _hero_smoothed_follow_target: list[tuple[float, float, float]] = []
@@ -559,9 +547,8 @@ _hero_step_pacer = make_step_pacer("HERO_TARGET_STEP_TIME", log_step_time=True)
 def _follow_camera(env, env_ids) -> None:
     """Point every active visualizer's interactive camera at the first env's robot base.
 
-    Fires every simulation step; only attached for visualizers in
-    :data:`_HERO_FOLLOW_CAM_VISUALIZERS` -- Kit already follows via
-    ``streaming_cam_target_prim_path``. Selects the eye offset per visualizer *instance* type
+    Fires every simulation step for visualizers in :data:`_HERO_FOLLOW_CAM_VISUALIZERS`.
+    Selects the eye offset per visualizer *instance* type
     since combined mode has more than one type active at once. The raw per-step root position
     is smoothed first (see :data:`_HERO_CAMERA_SMOOTHING_ALPHA`/:data:`_HERO_CAMERA_SMOOTHING_BETA`).
     """
@@ -613,29 +600,13 @@ def _follow_camera(env, env_ids) -> None:
 
 
 def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
-    if headless("HERO_WINDOWED"):
-        # streaming_cam_target_prim_path follows the robot via a separate "Streaming View"
-        # panel, captured through the standard VideoRecorderCfg path.
-        return VisualizerCfg(
-            headless=True,
-            window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
-            streaming_view=True,
-            streaming_envs=1,
-            enable_markers=True,
-            backend=KitVisualizerCfg(
-                streaming_cam_target_prim_path=_HERO_STREAMING_TARGET_PRIM, streaming_cam_eye=_HERO_KIT_EYE_OFFSET
-            ),
-        )
-    # Windowed capture records the "Viewport" tab, not "Streaming View", so it follows via
-    # _follow_camera instead, like the other _HERO_FOLLOW_CAM_VISUALIZERS.
     return VisualizerCfg(
-        headless=False,
+        headless=headless("HERO_WINDOWED"),
         window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
-        streaming_view=False,
         eye=_HERO_KIT_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         enable_markers=True,
-        backend=KitVisualizerCfg(),
+        backend=KitBackendCfg(),
     )
 
 
@@ -649,7 +620,7 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
         lookat=(0.0, 0.0, 0.0),
         focal_length=_HERO_NARROW_FOCAL_LENGTH,
         enable_markers=True,
-        backend=NewtonGLVisualizerCfg(sky_upper_color=_HERO_SKY_UPPER_COLOR, sky_lower_color=_HERO_SKY_LOWER_COLOR),
+        backend=NewtonGLBackendCfg(sky_upper_color=_HERO_SKY_UPPER_COLOR, sky_lower_color=_HERO_SKY_LOWER_COLOR),
     )
 
 
@@ -661,21 +632,21 @@ def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
         eye=_HERO_RTX_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         focal_length=_HERO_NARROW_FOCAL_LENGTH,
-        backend=NewtonRTXVisualizerCfg(),
+        backend=NewtonRTXBackendCfg(),
     )
 
 
 def _hero_make_rerun_visualizer_cfg() -> VisualizerCfg:
     # No streaming_view: captures its own native 3D view (see module docstring).
     return VisualizerCfg(
-        eye=_HERO_BROWSER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=RerunVisualizerCfg()
+        eye=_HERO_BROWSER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=RerunBackendCfg()
     )
 
 
 def _hero_make_viser_visualizer_cfg() -> VisualizerCfg:
     # Same switch to native-view capture as Rerun; see _hero_make_rerun_visualizer_cfg().
     return VisualizerCfg(
-        eye=_HERO_VISER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=ViserVisualizerCfg()
+        eye=_HERO_VISER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=ViserBackendCfg()
     )
 
 
@@ -752,11 +723,7 @@ def _hero_configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
         func=_pin_velocity_command, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
     )
 
-    if (
-        visualizer in _HERO_FOLLOW_CAM_VISUALIZERS
-        or visualizer == "combined"
-        or (visualizer == "kit" and not headless("HERO_WINDOWED"))
-    ):
+    if visualizer in _HERO_FOLLOW_CAM_VISUALIZERS or visualizer == "combined":
         env_cfg.events.follow_camera = EventTermCfg(
             func=_follow_camera, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
         )
@@ -1517,7 +1484,7 @@ class AllegroReorientShowcaseCfg(AllegroHandManagerEnvCfg):
             window=WindowCfg(size=(_SHOWCASE_NEWTON_GL_WINDOW_WIDTH, _SHOWCASE_NEWTON_GL_WINDOW_HEIGHT)),
             eye=_SHOWCASE_NEWTON_GL_EYE,
             lookat=_SHOWCASE_NEWTON_GL_LOOKAT,
-            backend=NewtonGLVisualizerCfg(),
+            backend=NewtonGLBackendCfg(),
         )
         _showcase_configure_capture(self)
         # ReorientManagerEnvBaseCfg never overrides GroundPlaneCfg.color, which defaults to
@@ -1537,7 +1504,7 @@ class FrankaReachShowcaseCfg(FrankaReachEnvCfg):
             window=WindowCfg(size=(_SHOWCASE_WINDOW_WIDTH, _SHOWCASE_WINDOW_HEIGHT)),
             eye=_SHOWCASE_REACH_EYE,
             lookat=_SHOWCASE_REACH_LOOKAT,
-            backend=KitVisualizerCfg(),
+            backend=KitBackendCfg(),
         )
         _showcase_configure_capture(self)
         # No _add_floor_overlay: Kit isn't affected by the floor bug, and the task's mounting
@@ -1556,7 +1523,7 @@ class H1RoughShowcaseCfg(H1RoughEnvCfg):
             window=WindowCfg(size=(_SHOWCASE_H1_STAIRS_WINDOW_WIDTH, _SHOWCASE_H1_STAIRS_WINDOW_HEIGHT)),
             eye=_SHOWCASE_H1_STAIRS_EYE_OFFSET,
             lookat=_SHOWCASE_WIDE_LOOKAT,
-            backend=NewtonRTXVisualizerCfg(),
+            backend=NewtonRTXBackendCfg(),
         )
         _showcase_configure_capture(self)
         self.scene.terrain.terrain_generator = _SHOWCASE_STAIRS_TERRAINS_CFG
@@ -1573,7 +1540,7 @@ class ShadowHandReorientShowcaseCfg(ShadowHandEnvCfg):
             eye=_SHOWCASE_SHADOW_HAND_EYE,
             lookat=_SHOWCASE_SHADOW_HAND_LOOKAT,
             enable_live_plots=False,
-            backend=RerunVisualizerCfg(),
+            backend=RerunBackendCfg(),
         )
         _showcase_configure_capture(self)
         self.scene.env_spacing = _SHOWCASE_SHADOW_HAND_ENV_SPACING
@@ -1589,7 +1556,7 @@ class KukaAllegroLiftShowcaseCfg(KukaAllegroLiftEnvCfg):
         self.sim.visualizer_cfgs = VisualizerCfg(
             eye=_SHOWCASE_KUKA_ALLEGRO_LIFT_EYE,
             lookat=_SHOWCASE_KUKA_ALLEGRO_LIFT_LOOKAT,
-            backend=ViserVisualizerCfg(),
+            backend=ViserBackendCfg(),
         )
         _showcase_configure_capture(self)
         self.scene.env_spacing = _SHOWCASE_KUKA_ALLEGRO_LIFT_ENV_SPACING
@@ -2124,11 +2091,10 @@ def _main_showcase(num_envs: int = 512, skip: list[str] | None = None) -> None:
 
 _STREAMING_KIT_TASK = "Isaac-Velocity-Rough-AnymalD"
 
-# Auto-follow camera path (AnymalD has no ego_cam scene camera), matching
-# run_tiled_camera_visualizer.py's _make_kit_visualizer_cfg.
+# A scene camera follows each AnymalD base; the Kit panel only displays its output.
 _STREAMING_ENVS = 36
 _STREAMING_CAM_EYE = (3.0, 3.0, 3.0)
-_STREAMING_CAM_TARGET_PRIM_PATH = "/World/envs/*/Robot/base"
+_STREAMING_CAM_PRIM_PATH = "{ENV_REGEX_NS}/StreamingCamera"
 
 # Pulled back to fit the 128-env clone grid (~28x25m at 2.5m env_spacing) in frame.
 _STREAMING_INTERACTIVE_EYE = (18.0, -18.0, 14.0)
@@ -2152,9 +2118,8 @@ def _streaming_make_kit_visualizer_cfg() -> VisualizerCfg:
         streaming_view=os.environ.get("STREAMING_KIT_SHOW_PANEL") == "1",
         streaming_envs=_STREAMING_ENVS,
         enable_markers=False,
-        backend=KitVisualizerCfg(
-            streaming_cam_eye=_STREAMING_CAM_EYE, streaming_cam_target_prim_path=_STREAMING_CAM_TARGET_PRIM_PATH
-        ),
+        streaming_sensor_prim_path=_STREAMING_CAM_PRIM_PATH,
+        backend=KitBackendCfg(),
     )
 
 
@@ -2174,6 +2139,13 @@ def _focus_streaming_tab(env, env_ids) -> None:
             window.focus()
 
 
+def _track_streaming_cameras(env, env_ids, asset_cfg: SceneEntityCfg) -> None:
+    """Keep the tiled cameras at a fixed world-space offset from each robot base."""
+    targets = env.scene[asset_cfg.name].data.body_pos_w[:, asset_cfg.body_ids[0]]
+    eyes = targets + targets.new_tensor(_STREAMING_CAM_EYE)
+    env.scene["streaming_camera"].set_world_poses_from_view(eyes, targets)
+
+
 @configclass
 class AnymalDStreamingShowcaseCfg(AnymalDRoughEnvCfg):
     """AnymalD rough-terrain locomotion configuration with the Kit streaming-view demo visualizer."""
@@ -2181,6 +2153,15 @@ class AnymalDStreamingShowcaseCfg(AnymalDRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.sim.visualizer_cfgs = [_streaming_make_kit_visualizer_cfg()]
+        self.scene.streaming_camera = CameraCfg(
+            prim_path=_STREAMING_CAM_PRIM_PATH, width=320, height=240, data_types=["rgb"],
+            spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
+            renderer_cfg=IsaacRtxRendererCfg(),
+        )  # fmt: skip
+        self.events.track_streaming_cameras = EventTermCfg(
+            func=_track_streaming_cameras, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True,
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=["base"])},
+        )  # fmt: skip
         if os.environ.get("STREAMING_WINDOWED") == "1":
             self.events.step_pacer = EventTermCfg(
                 func=_streaming_step_pacer, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
@@ -2217,23 +2198,13 @@ _STREAMING_NEWTON_GL_WINDOW_TITLE = "Newton Viewer"
 _STREAMING_NEWTON_GL_UV_EXTRAS = "isaacsim,rerun,viser,rsl-rl,ov,video,mimic"
 
 
-def _streaming_resolve_env_regex_path(prim_path: str) -> str:
-    """Resolve scene config env namespace macros to the cloned-env regex."""
-    return prim_path.format(ENV_REGEX_NS="/World/envs/env_.*")
-
-
 def _streaming_make_newton_gl_visualizer_cfg(env_cfg):
     """Matches run_tiled_camera_visualizer.py's _make_newton_visualizer_cfg for this task."""
-    cfg = VisualizerCfg(backend=NewtonGLVisualizerCfg())
+    cfg = VisualizerCfg(backend=NewtonGLBackendCfg())
     cfg.streaming_view = True
     cfg.streaming_envs = _STREAMING_NEWTON_GL_STREAMING_ENVS
 
-    ego_cam_cfg = getattr(env_cfg.scene, "ego_cam", None)
-    if ego_cam_cfg is not None:
-        cfg.streaming_sensor_prim_path = _streaming_resolve_env_regex_path(ego_cam_cfg.prim_path)
-    else:
-        cfg.streaming_cam_eye = (3.0, 3.0, 3.0)
-        cfg.streaming_cam_target_prim_path = "/World/envs/*/Robot/base"
+    cfg.cameras = [SceneCameraCfg(prim_path=env_cfg.scene.ego_cam.prim_path)]
     return cfg
 
 

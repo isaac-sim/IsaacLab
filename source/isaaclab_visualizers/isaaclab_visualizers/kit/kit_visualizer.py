@@ -440,7 +440,7 @@ class KitVisualizer(BaseVisualizer):
         self._set_viewport_camera(tuple(eye), tuple(target))
 
     def reapply_origin(self) -> None:
-        """Recompute the camera position from the current :attr:`~KitVisualizerCfg.origin_type` and push it to
+        """Recompute the camera position from the current :attr:`~KitBackendCfg.origin_type` and push it to
         the viewport.
 
         Call this after mutating :attr:`cfg.backend.origin_type`, :attr:`cfg.backend.origin_env_index`, or
@@ -455,8 +455,8 @@ class KitVisualizer(BaseVisualizer):
 
     @property
     def viewer_origin(self) -> torch.Tensor | None:
-        """Current world-space origin offset applied to :attr:`~KitVisualizerCfg.eye` and
-        :attr:`~KitVisualizerCfg.lookat` when computing the absolute camera position.
+        """Current world-space origin offset applied to :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+        :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` when computing the absolute camera position.
 
         Returns ``None`` before :meth:`initialize` is called or when no valid origin has been
         established yet (e.g. asset-tracking before the first :meth:`step`).
@@ -932,7 +932,7 @@ class KitVisualizer(BaseVisualizer):
         self._point_instancer_invisible_ids_backup.clear()
 
     def _setup_initial_camera_view(self) -> None:
-        """Position the viewport camera according to :attr:`KitVisualizerCfg.origin_type`.
+        """Position the viewport camera according to :attr:`KitBackendCfg.origin_type`.
 
         Called once at the end of :meth:`initialize`. For ``"world"`` and ``"env"`` origins the
         camera is positioned immediately. For asset-tracking origins the first update is deferred
@@ -971,8 +971,8 @@ class KitVisualizer(BaseVisualizer):
     def _update_asset_tracking_camera(self) -> None:
         """Update the viewport camera to track an asset root or body.
 
-        Called before viewport frames when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
-        Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
+        Called before viewport frames when :attr:`KitBackendCfg.origin_type` is ``"asset"``.
+        Parses :attr:`~KitBackendCfg.origin_track_path`: ``"asset_name"`` tracks the root,
         ``"asset_name/body_name"`` tracks a specific body.
         """
         scene = self._interactive_scene

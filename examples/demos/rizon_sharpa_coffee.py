@@ -154,13 +154,13 @@ def _parse_args():
 
 def _make_env_cfg(args, video_stride):
     from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import (
         CoffeeDemoEnvCfg,
-        CoffeeKitVisualizerCfg,
+        CoffeeKitBackendCfg,
         CoffeeRTXVisualizerCfg,
     )
 
@@ -205,7 +205,7 @@ def _make_env_cfg(args, video_stride):
     )
     cfg.sim.visualizer_cfgs = [
         view.replace(
-            backend=NewtonGLVisualizerCfg(
+            backend=NewtonGLBackendCfg(
                 class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
                 show_particles=args.grains_per_particle == 0,
                 particle_color=(0.095, 0.029, 0.010) if not args.water else None,
@@ -229,7 +229,7 @@ def _make_env_cfg(args, video_stride):
         view.replace(
             enable_markers=False,
             enable_live_plots=False,
-            backend=CoffeeKitVisualizerCfg(
+            backend=CoffeeKitBackendCfg(
                 backdrop=args.backdrop,
                 render_settings=IsaacRtxRendererGlobalSettingsCfg(
                     enable_translucency=True,

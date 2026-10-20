@@ -27,7 +27,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
@@ -241,8 +241,8 @@ def create_sim_cfg():
             focal_length=30.0,
             enable_live_plots=False,
             backend=MultiBackendVisualizerCfg(
-                newton_gl=NewtonGLVisualizerCfg(show_particles=SHOW_PARTICLES, particle_color=WATER_COLOR),
-                newton_rtx=NewtonRTXVisualizerCfg(
+                newton_gl=NewtonGLBackendCfg(show_particles=SHOW_PARTICLES, particle_color=WATER_COLOR),
+                newton_rtx=NewtonRTXBackendCfg(
                     render_settings={
                         "omni:rtx:quality": ("Int", args_cli.rtx_quality),
                         "omni:rtx:rt:reflections:enabled": ("Bool", True),

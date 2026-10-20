@@ -35,7 +35,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -140,7 +140,7 @@ def main() -> None:
         viewer.focal_length = aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2))
         viewer.enable_markers = viewer.enable_live_plots = viewer.streaming_view = False
         if use_default_visualizer and is_physx and not viewer.backend:
-            viewer.backend = KitVisualizerCfg()
+            viewer.backend = KitBackendCfg()
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped

@@ -24,7 +24,7 @@ from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -145,7 +145,7 @@ def create_sim_cfg():
         device=args_cli.device,
         gravity=GRAVITY,
         visualizer_cfgs=VisualizerCfg(
-            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(particle_color=PARTICLE_COLOR)),
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
         ),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )

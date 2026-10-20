@@ -25,10 +25,10 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-from isaaclab_visualizers.rerun import RerunVisualizerCfg
-from isaaclab_visualizers.viser import ViserVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.rerun import RerunBackendCfg
+from isaaclab_visualizers.viser import ViserBackendCfg
 
 from ..envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
@@ -43,7 +43,7 @@ from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
 from ..visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerBackendCfg, VisualizerCfg
-from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES
+from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, migrate_visualizer_cfgs
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -197,11 +197,11 @@ def validate_launch(  # noqa: C901
         }
         physics = physics_options[launcher_args["physics"]]()
     visualizer_types = {
-        "kit": KitVisualizerCfg,
-        "newton_gl": NewtonGLVisualizerCfg,
-        "newton_rtx": NewtonRTXVisualizerCfg,
-        "rerun": RerunVisualizerCfg,
-        "viser": ViserVisualizerCfg,
+        "kit": KitBackendCfg,
+        "newton_gl": NewtonGLBackendCfg,
+        "newton_rtx": NewtonRTXBackendCfg,
+        "rerun": RerunBackendCfg,
+        "viser": ViserBackendCfg,
     }
     selection = launcher_args.get("visualizer")
     if isinstance(selection, str):
@@ -230,8 +230,9 @@ def validate_launch(  # noqa: C901
             node.physics = physics
         if launcher_args.get("device"):
             node.device = launcher_args["device"]
-        if not isinstance(node.visualizer_cfgs, list):
-            node.visualizer_cfgs = [node.visualizer_cfgs]
+        node.visualizer_cfgs = migrate_visualizer_cfgs(node.visualizer_cfgs, node.default_visualizer_cfg)
+        node.default_visualizer_cfg = None
+        declarations = node.visualizer_cfgs or [VisualizerCfg()]
         viewers = []
         for viewer in node.visualizer_cfgs:
             if isinstance(viewer.backend, list) and viewer.backend:
@@ -252,13 +253,13 @@ def validate_launch(  # noqa: C901
                         for viewer in node.visualizer_cfgs
                         if viewer.backend and viewer.backend.visualizer_type == name
                     ]
-                    or [template.replace(backend=visualizer_types[name]())]
+                    or [viewer.replace(backend=visualizer_types[name]()) for viewer in declarations]
                 )
             node.visualizer_cfgs = viewers
         if livestream or launcher_args.get("xr", False):
-            if not any(isinstance(viewer.backend, KitVisualizerCfg) for viewer in node.visualizer_cfgs):
+            if not any(isinstance(viewer.backend, KitBackendCfg) for viewer in node.visualizer_cfgs):
                 node.visualizer_cfgs.append(
-                    template.replace(backend=KitVisualizerCfg(), headless=bool(launcher_args.get("xr", False)))
+                    template.replace(backend=KitBackendCfg(), headless=bool(launcher_args.get("xr", False)))
                 )
         node.visualizer_cfgs = [viewer for viewer in node.visualizer_cfgs if viewer.backend]
 
@@ -272,7 +273,7 @@ def validate_launch(  # noqa: C901
                 raise ValueError("A recorded perspective view requires exactly one configured visualizer.")
             producer = next((viewer for viewer in viewers if viewer.view is recorder.source), owners[0])
             if not producer.backend:
-                producer = producer.replace(backend=NewtonGLVisualizerCfg())
+                producer = producer.replace(backend=NewtonGLBackendCfg())
         else:
             kind, name, channel = parse_video_source(recorder.source)
             if kind == "sensor":
@@ -310,7 +311,7 @@ def validate_launch(  # noqa: C901
     # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
     scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
     for viewer_index, visualizer in enumerate(viewers):
-        if not isinstance(visualizer.backend, NewtonRTXVisualizerCfg) or scene_cfg is None:
+        if not isinstance(visualizer.backend, NewtonRTXBackendCfg) or scene_cfg is None:
             continue
         sources = (
             [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
@@ -364,7 +365,7 @@ def validate_launch(  # noqa: C901
             kit_sources.append("a Kit-based renderer (IsaacRtxRendererCfg)")
         elif isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)) and node.launcher_type == _KIT_LAUNCHER:
             kit_sources.append("the Kit visualizer" if isinstance(node, VisualizerBackendCfg) else type(node).__name__)
-        elif isinstance(node, VisualizerCfg) and isinstance(node.backend, KitVisualizerCfg):
+        elif isinstance(node, VisualizerCfg) and isinstance(node.backend, KitBackendCfg):
             launcher_args["kit_visualizer"] |= not node.headless
             launcher_args["enable_cameras"] |= node.streaming_view or node.headless
     for enabled, source in (
@@ -388,7 +389,7 @@ def validate_launch(  # noqa: C901
         for node in configs:
             if isinstance(node, OvPhysxCfg):
                 conflict = "OvPhysX physics (OvPhysxCfg)"
-            elif isinstance(node, (OVRTXRendererCfg, NewtonRTXVisualizerCfg)):
+            elif isinstance(node, (OVRTXRendererCfg, NewtonRTXBackendCfg)):
                 conflict = "the OVRTX runtime (OVRTXRendererCfg or the newton_rtx visualizer)"
             else:
                 continue

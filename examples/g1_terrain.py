@@ -20,8 +20,8 @@ from isaaclab_physx.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -69,7 +69,7 @@ def main() -> None:
         viewer.enable_markers = viewer.enable_live_plots = False
         if use_default_visualizer and not viewer.backend:
             viewer.backend = (
-                KitVisualizerCfg() if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else NewtonGLVisualizerCfg()
+                KitBackendCfg() if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else NewtonGLBackendCfg()
             )
     duration = args.seconds or cfg.duration
     step_dt = cfg.sim.dt * cfg.decimation

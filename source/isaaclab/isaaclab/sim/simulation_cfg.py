@@ -142,3 +142,6 @@ class SimulationCfg:
 
     Select built-in visualizers with ``--viz`` or supply configured instances directly.
     """
+
+    default_visualizer_cfg: VisualizerCfg | None = None
+    """Deprecated shared defaults, translated once into :attr:`visualizer_cfgs` before launch."""

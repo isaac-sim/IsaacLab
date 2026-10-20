@@ -18,12 +18,12 @@ import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
 import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg
-from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitBackendCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import (
-    NewtonGLVisualizerCfg,
+    NewtonGLBackendCfg,
 )
-from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
-from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
+from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunBackendCfg
+from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserBackendCfg
 
 from isaaclab.app import SimulationLauncher, launch_simulation, validate_launch
 from isaaclab.cloner import ReplicateContext
@@ -44,8 +44,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
 def test_web_visualizer_cfgs_do_not_open_browser_by_default():
-    assert RerunVisualizerCfg().open_browser is False
-    assert ViserVisualizerCfg().open_browser is False
+    assert RerunBackendCfg().open_browser is False
+    assert ViserBackendCfg().open_browser is False
 
 
 class _FakePhysicsManager:
@@ -456,9 +456,7 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(
 
     cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
     visualizer = viser_visualizer.ViserVisualizer(
-        VisualizerCfg(
-            max_visible_envs=max_visible_envs, randomly_sample_visible_envs=False, backend=ViserVisualizerCfg()
-        )
+        VisualizerCfg(max_visible_envs=max_visible_envs, randomly_sample_visible_envs=False, backend=ViserBackendCfg())
     )
     visualizer.initialize(web_backend, cameras=[])
     visualizer.step(0.25)
@@ -530,7 +528,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     cfg = VisualizerCfg(
         max_visible_envs=cfg_max_visible_envs,
         randomly_sample_visible_envs=False,
-        backend=RerunVisualizerCfg(open_browser=False),
+        backend=RerunBackendCfg(open_browser=False),
     )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
     visualizer.initialize(web_backend, cameras=[])
@@ -594,7 +592,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
         lambda self, eye, target: applied_camera_poses.append((tuple(eye), tuple(target))),
     )
 
-    cfg = VisualizerCfg(backend=KitVisualizerCfg())
+    cfg = VisualizerCfg(backend=KitBackendCfg())
     visualizer = kit_visualizer.KitVisualizer(cfg)
     monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(stage=_FakeStage()))
     visualizer._runtime_headless = viewport == "headless"
@@ -660,7 +658,7 @@ def test_kit_visualizer_set_viewport_camera_does_not_require_authored_coi(monkey
     monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility", type(sys)("omni.kit.viewport.utility"))
     monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility.camera_state", camera_state_module)
 
-    cfg = VisualizerCfg(backend=KitVisualizerCfg())
+    cfg = VisualizerCfg(backend=KitBackendCfg())
     visualizer = kit_visualizer.KitVisualizer(cfg)
     visualizer._viewport_api = _FakeViewportApi()
 
@@ -686,19 +684,8 @@ def test_kit_visualizer_set_viewport_camera_does_not_require_authored_coi(monkey
 # ---------------------------------------------------------------------------
 
 
-class _FakeVisualizerCfg(VisualizerCfg):
-    """Minimal visualizer config for testing initialize_visualizers."""
-
-    def __init__(self, visualizer_type: str, *, fail_construct: bool = False, fail_init: bool = False):
-        super().__init__(backend=VisualizerBackendCfg(visualizer_type=visualizer_type))
-        self.backend.class_type = (
-            self._raise_construction_error
-            if fail_construct
-            else (_FailingInitVisualizer if fail_init else _FakeVisualizer)
-        )
-
-    @staticmethod
-    def _raise_construction_error(_cfg):
+class _FailingConstructionVisualizer(_FakeVisualizer):
+    def __init__(self, cfg):
         raise RuntimeError("construction failed")
 
 
@@ -712,8 +699,8 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
     import isaaclab.sim.simulation_context as context_module
 
     seen = []
-    cfg = _FakeVisualizerCfg("kit")
-    cfg.backend.cloning_contexts = (object,)
+    monkeypatch.setattr(VisualizerBackendCfg, "cloning_contexts", (object,))
+    cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type="kit", class_type=_FakeVisualizer))
     cfg.backend.class_type = lambda actual: seen.append(actual) or _FakeVisualizer(actual)
     settings = {}
     physics_cfg = context_module.PhysicsCfg(class_type=Mock())
@@ -724,9 +711,15 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
     )
     monkeypatch.setattr(SimulationContext, "_init_usd_physics_scene", lambda self: None)
     monkeypatch.setattr(SimulationContext, "_instance", None)
-    cfgs = [cfg, _FakeVisualizerCfg("kit", fail_construct=True)] if fail_construct else [cfg]
+    cfgs = [cfg]
+    if fail_construct:
+        cfgs.append(
+            VisualizerCfg(
+                backend=VisualizerBackendCfg(visualizer_type="kit", class_type=_FailingConstructionVisualizer)
+            )
+        )
+    cfg.backend = [cfg.backend]
     sim_cfg = context_module.SimulationCfg(device="cpu", physics=physics_cfg, visualizer_cfgs=cfgs)
-    cfg = sim_cfg.visualizer_cfgs[0]
     if fail_construct:
         with pytest.raises(RuntimeError, match="construction failed"):
             SimulationContext(sim_cfg)
@@ -734,6 +727,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
     else:
         ctx = SimulationContext(sim_cfg)
 
+    cfg = ctx.cfg.visualizer_cfgs[0]
     assert seen == [cfg]
     assert ctx._pending_visualizers[0].cfg is cfg
     assert ctx._render_context.clone_contexts == {object}
@@ -843,7 +837,8 @@ def _make_context_with_settings(
     return ctx
 
 
-def test_common_visualizer_settings_survive_backend_selection(monkeypatch):
+@pytest.mark.parametrize("backend", [[], RerunBackendCfg(), [RerunBackendCfg(), ViserBackendCfg()]])
+def test_common_visualizer_settings_survive_backend_selection(monkeypatch, backend):
     import isaaclab_ov.app as ov_app
 
     monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
@@ -852,7 +847,8 @@ def test_common_visualizer_settings_survive_backend_selection(monkeypatch):
         background_color=(0.1, 0.2, 0.3),
         window=WindowCfg(size=(640, 480), fps=60),
     )
-    assert vars(common).keys().isdisjoint(vars(NewtonGLVisualizerCfg()))
+    assert vars(common).keys().isdisjoint(vars(NewtonGLBackendCfg()))
+    common.backend = backend
     other = common.replace(eye=(8.0, 0.0, 2.0), window=WindowCfg(size=(800, 600), fps=30))
     sim_cfg = SimulationCfg(physics=PhysicsCfg(), device="cpu", visualizer_cfgs=[common, other])
     validate_launch(sim_cfg, {"visualizer": ["newton_gl", "newton_rtx"]})
@@ -873,7 +869,7 @@ def test_common_visualizer_settings_survive_backend_selection(monkeypatch):
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():
-    cfg_visualizer = VisualizerCfg(backend=NewtonGLVisualizerCfg())
+    cfg_visualizer = VisualizerCfg(backend=NewtonGLBackendCfg())
     settings = {
         "/isaaclab/render/rtx_sensors": False,
     }
@@ -883,7 +879,7 @@ def test_is_rendering_true_when_only_cfg_visualizer_is_set():
 
 def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
     """A capture-only headless visualizer must not trigger continuous rendering."""
-    cfg_visualizer = VisualizerCfg(backend=KitVisualizerCfg(), headless=True)
+    cfg_visualizer = VisualizerCfg(backend=KitBackendCfg(), headless=True)
     settings = {
         "/isaaclab/render/rtx_sensors": False,
     }
@@ -900,7 +896,12 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
     """
 
     settings = {}
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[_FakeVisualizerCfg("kit")])
+    ctx = _make_context_with_settings(
+        settings,
+        visualizer_cfgs=[
+            VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type="kit", class_type=_FakeVisualizer))
+        ],
+    )
     ctx.requires_newton_model = True
 
     ctx._create_visualizers()
@@ -913,8 +914,13 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
 @pytest.mark.parametrize("fail_construct", [False, True])
 def test_visualizer_failures_propagate_and_retain_constructed_instances(fail_construct):
     """Cfg-requested failures propagate naturally; completed instances stay owned until explicit teardown."""
-    good_cfg = _FakeVisualizerCfg("kit")
-    failing_cfg = _FakeVisualizerCfg("newton_gl", fail_construct=fail_construct, fail_init=not fail_construct)
+    good_cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type="kit", class_type=_FakeVisualizer))
+    failing_cfg = VisualizerCfg(
+        backend=VisualizerBackendCfg(
+            visualizer_type="newton_gl",
+            class_type=_FailingConstructionVisualizer if fail_construct else _FailingInitVisualizer,
+        )
+    )
     ctx = _make_context_with_settings({}, visualizer_cfgs=[good_cfg, failing_cfg])
 
     with pytest.raises(RuntimeError, match="construction failed" if fail_construct else "init failed"):
@@ -934,8 +940,8 @@ def test_explicit_type_matches_existing_cfg():
         physics=PhysicsCfg(),
         device="cpu",
         visualizer_cfgs=[
-            VisualizerCfg(background_color=(0.4, 0.5, 0.6), backend=NewtonGLVisualizerCfg()),
-            VisualizerCfg(backend=KitVisualizerCfg()),
+            VisualizerCfg(background_color=(0.4, 0.5, 0.6), backend=NewtonGLBackendCfg()),
+            VisualizerCfg(backend=KitBackendCfg()),
         ],
     )
     existing_cfg = sim_cfg.visualizer_cfgs[0]
@@ -944,12 +950,17 @@ def test_explicit_type_matches_existing_cfg():
         assert sim_cfg.visualizer_cfgs[0] is existing_cfg
         assert existing_cfg.background_color == (0.4, 0.5, 0.6)
 
+    sim_cfg.visualizer_cfgs = []
+    validate_launch(sim_cfg, {"visualizer": ["newton_gl"]})
+    assert len(sim_cfg.visualizer_cfgs) == 1
+    assert isinstance(sim_cfg.visualizer_cfgs[0].backend, NewtonGLBackendCfg)
+
 
 def test_missing_visualizer_package_propagates_import_error(monkeypatch: pytest.MonkeyPatch):
     """An unavailable configured runtime propagates its ordinary Python import error."""
-    from isaaclab_visualizers.rerun import RerunVisualizerCfg
+    from isaaclab_visualizers.rerun import RerunBackendCfg
 
-    cfg = VisualizerCfg(backend=RerunVisualizerCfg(class_type="missing_rerun:Viewer"))
+    cfg = VisualizerCfg(backend=RerunBackendCfg(class_type="missing_rerun:Viewer"))
     monkeypatch.setitem(sys.modules, "missing_rerun", None)
     ctx = _make_context_with_settings({}, visualizer_cfgs=[cfg])
     with pytest.raises(ModuleNotFoundError, match="missing_rerun"):

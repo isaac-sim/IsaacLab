@@ -16,8 +16,8 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
 import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
@@ -102,7 +102,7 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
 
 
 @configclass
-class CoffeeRTXVisualizerCfg(NewtonRTXVisualizerCfg):
+class CoffeeRTXVisualizerCfg(NewtonRTXBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
     class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeRTXVisualizer"
@@ -111,7 +111,7 @@ class CoffeeRTXVisualizerCfg(NewtonRTXVisualizerCfg):
 
 
 @configclass
-class CoffeeKitVisualizerCfg(KitVisualizerCfg):
+class CoffeeKitBackendCfg(KitBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
     class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_rendering:CoffeeKitVisualizer"
@@ -251,7 +251,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     backdrops = {
         visualizer.backend.backdrop
         for visualizer in cfg.sim.visualizer_cfgs
-        if isinstance(visualizer.backend, (CoffeeKitVisualizerCfg, CoffeeRTXVisualizerCfg))
+        if isinstance(visualizer.backend, (CoffeeKitBackendCfg, CoffeeRTXVisualizerCfg))
     }
     if len(backdrops) > 1:
         raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")

@@ -37,11 +37,11 @@ import torch
 import warp as wp
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg, KitVisualizer
 from isaaclab_visualizers.newton import (
-    NewtonGLVisualizerCfg,
+    NewtonGLBackendCfg,
+    NewtonRTXBackendCfg,
     NewtonRTXVisualizer,
-    NewtonRTXVisualizerCfg,
     NewtonVisualizer,
 )
 
@@ -113,7 +113,7 @@ _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
 _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
-"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (``window.size``) for ``get_frame()``."""
+"""Newton: ``VisualizerCfg.window.size`` framebuffer dimensions for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
 """Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
@@ -350,9 +350,7 @@ def _declare_streaming_cameras(
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            renderer_cfg=IsaacRtxRendererCfg()
-            if isinstance(cfg.backend, KitVisualizerCfg)
-            else NewtonWarpRendererCfg(),
+            renderer_cfg=IsaacRtxRendererCfg() if isinstance(cfg.backend, KitBackendCfg) else NewtonWarpRendererCfg(),
         )
         setattr(scene_cfg, name, camera)
         cfg.streaming_sensor_prim_path = camera.prim_path
@@ -381,7 +379,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
                 randomly_sample_visible_envs=False,
                 **tiled_cam,
                 **cam,
-                backend=NewtonGLVisualizerCfg(),
+                backend=NewtonGLBackendCfg(),
             ),
             NewtonVisualizer,
         )
@@ -395,32 +393,32 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
                 window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **cam,
-                backend=NewtonRTXVisualizerCfg(),
+                backend=NewtonRTXBackendCfg(),
             ),
             NewtonRTXVisualizer,
         )
     if visualizer_kind == "viser":
         __import__("newton")
         __import__("viser")
-        from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+        from isaaclab_visualizers.viser import ViserBackendCfg, ViserVisualizer
 
         port = _find_free_tcp_port(host="127.0.0.1")
         return (
             VisualizerCfg(
-                randomly_sample_visible_envs=False, **cam, backend=ViserVisualizerCfg(open_browser=False, port=port)
+                randomly_sample_visible_envs=False, **cam, backend=ViserBackendCfg(open_browser=False, port=port)
             ),
             ViserVisualizer,
         )
     if visualizer_kind == "rerun":
         __import__("newton")
-        from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
+        from isaaclab_visualizers.rerun import RerunBackendCfg, RerunVisualizer
 
         web_port, grpc_port = _allocate_rerun_test_ports(host="127.0.0.1")
         return (
             VisualizerCfg(
                 randomly_sample_visible_envs=False,
                 **cam,
-                backend=RerunVisualizerCfg(
+                backend=RerunBackendCfg(
                     bind_address="127.0.0.1", open_browser=False, web_port=web_port, grpc_port=grpc_port
                 ),
             ),
@@ -432,7 +430,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
             randomly_sample_visible_envs=False,
             **tiled_cam,
             **cam,
-            backend=KitVisualizerCfg(),
+            backend=KitBackendCfg(),
         ),
         KitVisualizer,
     )
@@ -1528,7 +1526,7 @@ def _make_shadow_hand_env(
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
-                    backend=NewtonGLVisualizerCfg(),
+                    backend=NewtonGLBackendCfg(),
                 )
             )
         else:
@@ -1538,7 +1536,7 @@ def _make_shadow_hand_env(
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
-                    backend=KitVisualizerCfg(),
+                    backend=KitBackendCfg(),
                 )
             )
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
@@ -1595,7 +1593,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
-                    backend=NewtonGLVisualizerCfg(),
+                    backend=NewtonGLBackendCfg(),
                 )
             )
         else:
@@ -1605,7 +1603,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
-                    backend=KitVisualizerCfg(),
+                    backend=KitBackendCfg(),
                 )
             )
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs

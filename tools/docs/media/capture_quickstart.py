@@ -14,7 +14,7 @@ import sys
 
 import gymnasium as gym
 import torch
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, VideoRecorderCfg
@@ -178,7 +178,7 @@ def _configure_resolved_sim(
             focal_length=focal_length,
             window=WindowCfg(size=(1280, 720)),
             headless=True,
-            backend=NewtonRTXVisualizerCfg(render_settings={"omni:rtx:quality": ("Int", 100)}),
+            backend=NewtonRTXBackendCfg(render_settings={"omni:rtx:quality": ("Int", 100)}),
         )
     ]
 

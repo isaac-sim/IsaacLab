@@ -13,7 +13,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import clone, configclass
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
@@ -97,4 +97,8 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     def play_mode(self) -> None:
         """Frame one hand after applying the shared play-mode scene size."""
         super().play_mode()
-        self.sim.visualizer_cfgs = clone(VISUALIZER_CFG)
+        viewers = self.sim.visualizer_cfgs
+        for viewer in viewers if isinstance(viewers, list) else [viewers]:
+            viewer.eye = VISUALIZER_CFG.eye
+            viewer.lookat = VISUALIZER_CFG.lookat
+            viewer.focal_length = VISUALIZER_CFG.focal_length

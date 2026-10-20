@@ -31,7 +31,7 @@ import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg  # noqa: E402
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg  # noqa: E402
 
 from isaaclab.assets import AssetBaseCfg  # noqa: E402
 from isaaclab.cloner import ReplicateSession  # noqa: E402
@@ -86,7 +86,7 @@ def test_newton_rtx_mpm_points_follow_world_state():
                 headless=True,
                 window=WindowCfg(size=(256, 256)),
                 cameras=[PerspectiveCameraCfg(eye=(0.0, -1.0, 1.1), lookat=(0.0, 0.0, 1.1))],
-                backend=NewtonRTXVisualizerCfg(render_settings={"omni:rtx:quality": ("Int", 0)}),
+                backend=NewtonRTXBackendCfg(render_settings={"omni:rtx:quality": ("Int", 0)}),
             )
         ],
     )
@@ -136,7 +136,7 @@ def test_directly_spawned_camera_drives_rtx_window():
         physics=OvPhysxCfg(),
         visualizer_cfgs=[VisualizerCfg(
             headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64)),
-            backend=NewtonRTXVisualizerCfg(),
+            backend=NewtonRTXBackendCfg(),
         )],
     )  # fmt: skip
     target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0)))
@@ -296,7 +296,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
                 PerspectiveCameraCfg(eye=(0.0, -6.0, 2.0), lookat=(0.0, -2.0, 2.0), focal_length=24.0),
                 SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera"),
             ],
-            backend=NewtonRTXVisualizerCfg(),
+            backend=NewtonRTXBackendCfg(),
         )
     ]
     with launch_simulation(cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):

@@ -14,8 +14,8 @@ import os
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.viser import ViserVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.viser import ViserBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, add_launcher_args
@@ -135,11 +135,11 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
 )
 def test_video_source_resolves_against_the_visualizer_selection(launches, cli, expected):
     """The launch resolves the ``--video`` source and runs a visualizer ``--viz`` did not select headless."""
-    kit_cfg = VisualizerCfg(eye=(1.0, 2.0, 3.0), backend=KitVisualizerCfg())
+    kit_cfg = VisualizerCfg(eye=(1.0, 2.0, 3.0), backend=KitBackendCfg())
     env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.sim.physics = NewtonCfg()
     env_cfg.sim.device = "cpu"
-    env_cfg.sim.visualizer_cfgs = [kit_cfg, VisualizerCfg(backend=ViserVisualizerCfg())]
+    env_cfg.sim.visualizer_cfgs = [kit_cfg, VisualizerCfg(backend=ViserBackendCfg())]
     args = _args(**cli)
     if args.visualizer is None:
         args.visualizer = []

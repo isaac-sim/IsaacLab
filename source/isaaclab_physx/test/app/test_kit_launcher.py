@@ -15,7 +15,7 @@ import isaaclab_physx.app as app_module
 import isaaclab_physx.app.kit_launcher as kit_launcher_module
 import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, add_launcher_args
@@ -394,7 +394,7 @@ def test_livestream_injects_kit_visualizer_when_missing(monkeypatch):
     cfg = SimulationCfg(device="cpu")
     with sim_launcher.launch_simulation(cfg, args):
         pass
-    assert isinstance(cfg.visualizer_cfgs[0].backend, KitVisualizerCfg)
+    assert isinstance(cfg.visualizer_cfgs[0].backend, KitBackendCfg)
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
@@ -428,7 +428,7 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    viewers = [VisualizerCfg(backend=KitVisualizerCfg())] if cfg_has_kit else []
+    viewers = [VisualizerCfg(backend=KitBackendCfg())] if cfg_has_kit else []
     result = []
 
     class KitRuntime(KitLauncher):

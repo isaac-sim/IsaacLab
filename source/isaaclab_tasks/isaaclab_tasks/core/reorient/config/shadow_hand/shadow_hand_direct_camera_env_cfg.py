@@ -10,7 +10,7 @@ from __future__ import annotations
 import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg, JointWrenchSensorCfg
-from isaaclab.utils import clone, configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -198,7 +198,11 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
         # scene
         self.scene.num_envs = 64
-        self.sim.visualizer_cfgs = clone(CAMERA_VISUALIZER_CFG)
+        viewers = self.sim.visualizer_cfgs
+        for viewer in viewers if isinstance(viewers, list) else [viewers]:
+            viewer.eye = CAMERA_VISUALIZER_CFG.eye
+            viewer.lookat = CAMERA_VISUALIZER_CFG.lookat
+            viewer.focal_length = CAMERA_VISUALIZER_CFG.focal_length
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

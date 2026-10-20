@@ -35,11 +35,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 @pytest.mark.parametrize(
     "module_name,cfg_name,implementation",
     [
-        ("isaaclab_visualizers.kit", "KitVisualizerCfg", "KitVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonGLVisualizerCfg", "NewtonGLVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonRTXVisualizerCfg", "NewtonRTXVisualizer"),
-        ("isaaclab_visualizers.rerun", "RerunVisualizerCfg", "RerunVisualizer"),
-        ("isaaclab_visualizers.viser", "ViserVisualizerCfg", "ViserVisualizer"),
+        ("isaaclab_visualizers.kit", "KitBackendCfg", "KitVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonGLBackendCfg", "NewtonGLVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonRTXBackendCfg", "NewtonRTXVisualizer"),
+        ("isaaclab_visualizers.rerun", "RerunBackendCfg", "RerunVisualizer"),
+        ("isaaclab_visualizers.viser", "ViserBackendCfg", "ViserVisualizer"),
     ],
 )
 def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):

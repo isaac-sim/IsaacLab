@@ -13,7 +13,7 @@ launch_test_simulation(enable_cameras=True)
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
-from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg, KitVisualizer
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import (
@@ -48,7 +48,7 @@ def create_manager_based_env(render_interval: int):
         decimation: int = 4
         episode_length_s: float = 100.0
         sim: SimulationCfg = SimulationCfg(
-            dt=0.005, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitVisualizerCfg())
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg())
         )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
@@ -67,7 +67,7 @@ def create_manager_based_rl_env(render_interval: int):
         decimation: int = 4
         episode_length_s: float = 100.0
         sim: SimulationCfg = SimulationCfg(
-            dt=0.005, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitVisualizerCfg())
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg())
         )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
@@ -101,7 +101,7 @@ def create_direct_rl_env(render_interval: int, episode_length_steps: int | None 
         observation_space: int = 0
         episode_length_s: float = _episode_length_s
         sim: SimulationCfg = SimulationCfg(
-            dt=_dt, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitVisualizerCfg())
+            dt=_dt, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg())
         )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 

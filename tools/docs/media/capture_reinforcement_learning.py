@@ -12,7 +12,7 @@ import os
 import sys
 
 import gymnasium as gym
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
@@ -84,7 +84,7 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg):
             focal_length=40.0,
             window=WindowCfg(size=(480, 270)),
             headless=True,
-            backend=NewtonRTXVisualizerCfg(),
+            backend=NewtonRTXBackendCfg(),
         )
     ]
 

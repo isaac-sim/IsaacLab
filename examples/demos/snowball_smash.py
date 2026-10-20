@@ -22,7 +22,7 @@ import argparse
 from typing import NamedTuple
 
 import numpy as np
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.visualizers import VisualizerCfg
@@ -193,7 +193,7 @@ def create_sim_cfg():
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
         visualizer_cfgs=VisualizerCfg(
-            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(particle_color=SNOW_COLOR)),
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=SNOW_COLOR)),
         ),
         physics=NewtonCfg(
             solver_cfg=solver_cfg,

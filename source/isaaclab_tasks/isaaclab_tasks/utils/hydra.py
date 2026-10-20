@@ -54,6 +54,7 @@ from isaaclab.utils import (
     validate,
 )
 from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import migrate_visualizer_cfgs
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
@@ -640,8 +641,11 @@ def register_task(
     if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
         from .presets import MultiBackendVisualizerCfg
 
+        env_cfg.sim.visualizer_cfgs = migrate_visualizer_cfgs(
+            env_cfg.sim.visualizer_cfgs, env_cfg.sim.default_visualizer_cfg
+        )
+        env_cfg.sim.default_visualizer_cfg = None
         viewers = env_cfg.sim.visualizer_cfgs
-        viewers = viewers if isinstance(viewers, list) else [viewers]
         if not viewers:
             viewers = [VisualizerCfg()]
         for viewer in viewers:

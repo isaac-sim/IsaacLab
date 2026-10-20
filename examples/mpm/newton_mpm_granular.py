@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import math
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.visualizers import VisualizerCfg
@@ -92,7 +92,7 @@ def create_sim_cfg():
         device=args_cli.device,
         gravity=GRAVITY,
         visualizer_cfgs=VisualizerCfg(
-            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(particle_color=PARTICLE_COLOR)),
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
         ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
