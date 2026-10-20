@@ -582,6 +582,9 @@ def test_clone_source_builder_has_no_solver_dependency():
     import isaaclab_newton.cloner.newton_clone_utils as clone_utils
 
     assert not hasattr(clone_utils, "solvers")
+    source = NewtonMJWarpManager.create_builder(physics_cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+    assert type(source) is ModelBuilder
+    assert "mesh_variant_definitions" not in vars(source)
 
 
 def test_mpm_prepare_builder_makes_kinematic_bodies_massless():

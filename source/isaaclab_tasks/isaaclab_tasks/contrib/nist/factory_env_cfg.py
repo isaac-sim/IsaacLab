@@ -14,21 +14,22 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.contrib.nist import mdp
-from isaaclab_tasks.contrib.nist.factory_presets import (
-    AssemblyTipCfg,
-    FactoryAssemblyProfileCfg,
-    HeldAssetAlignOffsetCfg,
-)
-from isaaclab_tasks.contrib.nist.factory_scenes_cfg import FactorySceneCfg
-from isaaclab_tasks.contrib.nist.reset_env_cfg import ACCUMULATOR_RESET
 from isaaclab_tasks.contrib.nist.utils import SamplerCfg, UniformSamplingStrategyCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
-_FRANKA_END_EFFECTOR = "panda_fingertip_centered"
+from . import mdp
+from .factory_presets import (
+    EndEffectorBodyCfg,
+    FactoryAssemblyProfileCfg,
+    FixedAssetTipCfg,
+    GripperGraspOffsetCfg,
+    HeldAssetAlignOffsetCfg,
+    JointEffortNamesCfg,
+)
+from .factory_scenes_cfg import FactorySceneCfg
+from .reset_env_cfg import ACCUMULATOR_RESET
 
 
 @configclass
@@ -40,17 +41,18 @@ class FactoryObservationsCfg:
         end_effector_vel_lin_ang_b = ObsTerm(
             func=mdp.asset_link_velocity_in_root_asset_frame,
             params={
-                "target_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
+                "target_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type:ignore
                 "root_asset_cfg": SceneEntityCfg("robot"),
+                "target_asset_offset": GripperGraspOffsetCfg(),
             },
         )
 
         end_effector_pose = ObsTerm(
             func=mdp.target_asset_pose_in_root_asset_frame,
             params={
-                "target_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
+                "target_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type:ignore
                 "root_asset_cfg": SceneEntityCfg("robot"),
-                "target_asset_offset": AssemblyTipCfg(),
+                "target_asset_offset": GripperGraspOffsetCfg(),
             },
         )
 
@@ -59,7 +61,8 @@ class FactoryObservationsCfg:
             params={
                 "target_asset_cfg": SceneEntityCfg("held_asset"),
                 "root_asset_cfg": SceneEntityCfg("fixed_asset"),
-                "root_asset_offset": AssemblyTipCfg(),
+                "target_asset_offset": HeldAssetAlignOffsetCfg(),
+                "root_asset_offset": FixedAssetTipCfg(),
             },
         )
 
@@ -67,8 +70,9 @@ class FactoryObservationsCfg:
             func=mdp.target_asset_pose_in_root_asset_frame,
             params={
                 "target_asset_cfg": SceneEntityCfg("fixed_asset"),
-                "root_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
-                "target_asset_offset": AssemblyTipCfg(),
+                "root_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type:ignore
+                "target_asset_offset": FixedAssetTipCfg(),
+                "root_asset_offset": GripperGraspOffsetCfg(),
             },
         )
 
@@ -85,61 +89,60 @@ class FactoryObservationsCfg:
     critic: PolicyCfg = PolicyCfg()
 
 
+HELD_ASSET_MATERIAL_EVENT = EventTerm(
+    func=mdp.randomize_rigid_body_material,  # type: ignore
+    mode="startup",
+    params={
+        "static_friction_range": (0.4, 1.0),
+        "dynamic_friction_range": (0.4, 1.0),
+        "restitution_range": (0.0, 0.0),
+        "num_buckets": 64,
+        "asset_cfg": SceneEntityCfg("held_asset"),
+    },
+)
+HELD_ASSET_INERTIA_EVENT = EventTerm(
+    func=mdp.randomize_rigid_body_inertia,
+    mode="startup",
+    params={
+        "asset_cfg": SceneEntityCfg("held_asset"),
+        "inertia_distribution_params": [0.00001, 0.00001],
+        "operation": "add",
+        "diagonal_only": True,
+    },
+)
+FIXED_ASSET_MATERIAL_EVENT = EventTerm(
+    func=mdp.randomize_rigid_body_material,  # type: ignore
+    mode="startup",
+    params={
+        "static_friction_range": (0.4, 1.0),
+        "dynamic_friction_range": (0.4, 1.0),
+        "restitution_range": (0.0, 0.0),
+        "num_buckets": 64,
+        "asset_cfg": SceneEntityCfg("fixed_asset"),
+    },
+)
+ROBOT_MATERIAL_EVENT = EventTerm(
+    func=mdp.randomize_rigid_body_material,  # type: ignore
+    mode="startup",
+    params={
+        "static_friction_range": (0.75, 0.75),
+        "dynamic_friction_range": (0.75, 0.75),
+        "restitution_range": (0.0, 0.0),
+        "num_buckets": 64,
+        "asset_cfg": SceneEntityCfg("robot"),
+    },
+)
+
+
 @configclass
 class FactoryEventCfg:
-    """Events specifications for Factory"""
+    """Startup randomization and reset terms for one static assembly."""
 
-    held_asset_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,  # type: ignore
-        mode="startup",
-        params={
-            "static_friction_range": (0.4, 1.0),
-            "dynamic_friction_range": (0.4, 1.0),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-            "asset_cfg": SceneEntityCfg("held_asset"),
-        },
-    )
-
-    # Increase diagonal inertia to prevent contact-induced angular instability.
-    held_asset_inertia = EventTerm(
-        func=mdp.randomize_rigid_body_inertia,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("held_asset"),
-            "inertia_distribution_params": [0.001, 0.001],
-            "operation": "add",
-            "diagonal_only": True,
-        },
-    )
-
-    fixed_asset_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,  # type: ignore
-        mode="startup",
-        params={
-            "static_friction_range": (0.4, 1.0),
-            "dynamic_friction_range": (0.4, 1.0),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-            "asset_cfg": SceneEntityCfg("fixed_asset"),
-        },
-    )
-
-    robot_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,  # type: ignore
-        mode="startup",
-        params={
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
-    )
-
+    held_asset_material = HELD_ASSET_MATERIAL_EVENT
+    held_asset_inertia = HELD_ASSET_INERTIA_EVENT
+    fixed_asset_material = FIXED_ASSET_MATERIAL_EVENT
+    robot_material = ROBOT_MATERIAL_EVENT
     reset_strategies = ACCUMULATOR_RESET
-
-    # The curriculum restores gravity as task difficulty rises.
     variable_gravity: EventTerm | None = EventTerm(
         func=mdp.randomize_physics_scene_gravity,
         mode="reset",
@@ -155,7 +158,7 @@ class FactoryRewardsCfg:
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-1e-4)
     joint_effort = RewTerm(
         func=mdp.joint_torques_l2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names="(?!panda_joint7$|panda_finger_.*$).*")},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointEffortNamesCfg())},  # type:ignore
         weight=-1e-4,
     )
     early_termination = RewTerm(func=mdp.is_terminated_term, params={"term_keys": "abnormal"}, weight=-0.01)
@@ -168,11 +171,16 @@ class FactoryTerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
+    assembly_contact_force = DoneTerm(
+        func=mdp.assembly_contact_force,
+        params={"threshold": 50.0, "sensor_cfg": SceneEntityCfg("assembly_contact")},
+    )
+
     oob = DoneTerm(
         func=mdp.out_of_bound,
         params={
             "asset_cfg": SceneEntityCfg("held_asset"),
-            "in_bound_range": {"x": (-0.0, 1.0), "y": (-0.675, 0.675), "z": (-0.05, 1.0)},
+            "in_bound_range": {"x": (0.0, 1.0), "y": (-0.675, 0.675), "z": (-0.05, 1.0)},
         },
     )
 
@@ -189,15 +197,73 @@ class FactoryTerminationsCfg:
 
     abnormal = DoneTerm(
         func=mdp.joint_vel_out_of_limit,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint[1-6]")},
-    )
-
-    wrist_limit = DoneTerm(
-        func=mdp.joint_vel_out_of_manual_limit,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint7"), "max_velocity": 8.0},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint[1-7]")},
     )
 
     success = DoneTerm(func=mdp.success_termination)
+
+
+##
+# Environment configuration
+##
+
+
+@configclass
+class FactoryPhysicsCfg(PresetCfg):
+    """Physics-backend preset for Factory tasks.
+
+    Selected via ``presets=physx`` (default) or ``presets=newton_mjwarp``. The PhysX
+    variant keeps Factory's contact-rich solver tuning; the Newton variant follows Newton's
+    reference ``example_nut_bolt_sdf`` (MuJoCo/Newton solver path): few constraint iterations
+    with many line-search iterations, ``impratio=1.0``, ``num_substeps=8`` (more than the
+    demo's 5, for a smaller solver ``dt`` and stiffer stable contact), a small global shape
+    gap, and Newton's SDF collision pipeline (rather than MuJoCo's internal contacts).
+    Capacity knobs (``njmax``/``nconmax``) are kept larger than the bare nut/bolt demo since
+    Factory's scene also contains the robot, NIST board, and table.
+    """
+
+    default = PhysxCfg(
+        solver_type=1,
+        max_position_iteration_count=192,
+        max_velocity_iteration_count=1,
+        bounce_threshold_velocity=0.2,
+        friction_offset_threshold=0.01,
+        friction_correlation_distance=0.00625,
+        gpu_max_rigid_contact_count=2**23,
+        gpu_max_rigid_patch_count=2**23,
+        gpu_collision_stack_size=2**32 - 1,
+        gpu_max_num_partitions=1,
+        gpu_found_lost_pairs_capacity=2**22,
+    )
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            # Sized for the most contact-rich scene rather than per assembly. Gear mesh puts
+            # four bodies in contact (three gears plus the base) instead of the pair the rest
+            # of the variants use, and asked for 1928 rows against the previous 1500. Going
+            # over budget is silent: the solver drops constraints and the state diverges to
+            # NaN a few steps later, so the ceiling carries headroom for a trained policy
+            # pressing parts together harder than an untrained one does. ``nconmax`` is left
+            # alone -- no run has reported a contact overflow.
+            njmax=3000,
+            nconmax=600,
+            impratio=1.0,
+            cone="pyramidal",
+            update_data_interval=2,
+            ls_parallel=False,
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(
+            broad_phase="sap",
+            max_triangle_pairs=90_000_000,
+            rigid_contact_max=5_000_000,
+        ),
+        num_substeps=8,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    isaacsim_physx = default
 
 
 @configclass
@@ -230,53 +296,6 @@ class FactoryCurriculumsCfg:
     )
 
 
-##
-# Environment configuration
-##
-
-
-@configclass
-class FactoryPhysicsCfg(PresetCfg):
-    """Factory physics backend presets."""
-
-    isaacsim_physx = PhysxCfg(
-        solver_type=1,
-        max_position_iteration_count=192,
-        max_velocity_iteration_count=1,
-        bounce_threshold_velocity=0.2,
-        friction_offset_threshold=0.01,
-        friction_correlation_distance=0.00625,
-        gpu_max_rigid_contact_count=2**23,
-        gpu_max_rigid_patch_count=2**23,
-        gpu_collision_stack_size=2**32 - 1,
-        gpu_max_num_partitions=1,
-        gpu_found_lost_pairs_capacity=2**22,
-    )
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            solver="newton",
-            integrator="implicitfast",
-            njmax=1500,
-            nconmax=400,
-            impratio=1.0,
-            cone="pyramidal",
-            update_data_interval=2,
-            ls_parallel=False,
-            use_mujoco_contacts=False,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(
-            broad_phase="sap",
-            max_triangle_pairs=60_000_000,
-            rigid_contact_max=5_000_000,
-        ),
-        num_substeps=16,
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
-
-
 @configclass
 class FactoryActionsCfg:
     """Franka joint actions for Factory."""
@@ -297,30 +316,28 @@ class FactoryActionsCfg:
 
 @configclass
 class FactoryEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the Franka Factory environment."""
+    """Configuration for the base Factory environment."""
 
     scene: FactorySceneCfg = FactorySceneCfg()
     observations: FactoryObservationsCfg = FactoryObservationsCfg()
-    events: FactoryEventCfg = FactoryEventCfg()
+    events: FactoryEventCfg = FactoryEventCfg(variable_gravity=None)
     terminations: FactoryTerminationsCfg = FactoryTerminationsCfg()
     rewards: FactoryRewardsCfg = FactoryRewardsCfg()
-    curriculum: FactoryCurriculumsCfg = FactoryCurriculumsCfg()
+
     viewer: ViewerCfg = ViewerCfg(eye=(0.0, 0.8, 0.4), lookat=(0.0, 0.0, 0.4))
     actions: FactoryActionsCfg = FactoryActionsCfg()
 
     # Post initialization
     def __post_init__(self) -> None:
         """Post initialization."""
-        # general settings
-        self.decimation = 8
+        self.decimation = 4
         self.episode_length_s = 14.0
-        # simulation settings
         self.sim.dt = 0.04 / self.decimation
-        self.sim.render_interval = self.decimation
-        self.sim.physics = FactoryPhysicsCfg()
-
         self.sim.physics_material.static_friction = 0.5
         self.sim.physics_material.dynamic_friction = 0.5
+        self.sim.render_interval = self.decimation
+        # Preserve physics selection through the task's preset composition.
+        self.sim.physics = FactoryPhysicsCfg()
 
     def play_mode(self) -> None:
         """Narrow the reset curriculum for evaluation.
@@ -332,11 +349,6 @@ class FactoryEnvCfg(ManagerBasedRLEnvCfg):
         Called by :func:`~isaaclab_tasks.utils.hydra.register_task` after preset resolution,
         so it edits the already-resolved terms.
         """
-        # Training starts at zero gravity and lets the ADR curriculum ramp it to -9.81 as the
-        # difficulty rises. Evaluation is scored at full gravity, so both terms come off and the
-        # sim keeps its configured value.
-        self.events.variable_gravity = None
-        self.curriculum.gravity_adr = None
 
         # ``play`` reads the training default when ``--num_envs`` is omitted, and the training
         # default is sized for throughput, not for watching a policy.
@@ -353,5 +365,5 @@ class FactoryEnvCfg(ManagerBasedRLEnvCfg):
 
         scene_reset = reset.get("reset_term", self.events.reset_strategies)
         choice = scene_reset.params["terms"]["reset_strategies"].params
-        choice["terms"] = {"grasp_asset_in_air": choice["terms"]["grasp_asset_in_air"]}
+        choice["terms"] = {"start_random": choice["terms"]["start_random"]}
         choice["sampling"] = uniform
