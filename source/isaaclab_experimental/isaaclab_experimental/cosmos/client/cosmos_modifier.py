@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from isaaclab_experimental.image_transfer import ImageTransferModifier
 
 if TYPE_CHECKING:
+    from isaaclab.sensors import SensorBase
+
     from .cosmos_modifier_cfg import CosmosTransferModifierCfg
 
 
@@ -37,3 +39,10 @@ class CosmosTransferModifier(ImageTransferModifier):
         if (cfg.initial_frames, cfg.update_frames) != (1, 4):
             raise ValueError("Cosmos requires initial_frames=1 and update_frames=4.")
         super().__init__(cfg, data_dim, device)
+
+    def bind_sensor(self, sensor: SensorBase) -> None:
+        """Queue controls for the views ``sensor`` captures; a camera sharing a session also takes its views there."""
+        super().bind_sensor(sensor)
+        bind = getattr(self._stream, "bind_sensor", None)
+        if bind is not None:
+            bind(sensor)
