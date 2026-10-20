@@ -21,8 +21,6 @@ from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSenso
 from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVisualizer
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager
-
 from .contact_sensor_data import ContactSensorData
 from .contact_sensor_kernels import (
     compute_first_transition_kernel,
@@ -134,7 +132,7 @@ class ContactSensor(BaseContactSensor):
     @property
     def contact_view(self) -> NewtonContactSensor:
         """View for the contact forces captured (Newton)."""
-        return NewtonManager._newton_contact_sensors[self._sensor_key]
+        return self._backend_manager._newton_contact_sensors[self._sensor_key]
 
     """
     Operations
@@ -307,7 +305,7 @@ class ContactSensor(BaseContactSensor):
         self._generate_force_matrix = bool(self.cfg.filter_prim_paths_expr or self.cfg.filter_shape_prim_expr)
 
         try:
-            self._sensor_key = NewtonManager.add_contact_sensor(
+            self._sensor_key = self._backend_manager.add_contact_sensor(
                 body_names_expr=self.cfg.prim_path if not self.cfg.sensor_shape_prim_expr else None,
                 shape_names_expr=self.cfg.sensor_shape_prim_expr or None,
                 contact_partners_body_expr=self.cfg.filter_prim_paths_expr or None,
@@ -458,7 +456,7 @@ class ContactSensor(BaseContactSensor):
 
     def _get_model_labels(self, kind: str) -> list[str]:
         """Return Newton model labels in a version-compatible way."""
-        model = NewtonManager.backend.model
+        model = self._backend_manager.backend.model
         primary = f"{kind}_label"
         fallback = f"{kind}_key"
         labels = getattr(model, primary, None)
@@ -516,8 +514,7 @@ class ContactSensor(BaseContactSensor):
                 self._data._normal_force_matrix_w,
                 self._data._net_friction_forces_w,
                 self._data._friction_force_matrix_w,
-                self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w_history,
                 self._data._net_normal_forces_w_history,
@@ -562,7 +559,7 @@ class ContactSensor(BaseContactSensor):
             return
         self._update_outdated_buffers()
 
-        sensing_transforms = wp.to_torch(self.contact_view.sensing_obj_transforms)
+        sensing_transforms = wp.to_torch(self.contact_view.sensing_transforms)
         positions = sensing_transforms.reshape(self._num_envs, self._num_sensors, 7)[..., :3]
         normal_forces = self._data.net_normal_forces_w.torch
         friction_forces = self._data.net_friction_forces_w

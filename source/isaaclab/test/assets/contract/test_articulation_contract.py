@@ -88,14 +88,6 @@ def _assert_buffers_stale(data, buffers) -> None:
         assert buffer.timestamp < data._sim_timestamp, name
 
 
-def _ignore_newton_model_changes(backend: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The mocked Newton asset has no solver to receive model-change notifications."""
-    if backend == "newton":
-        from isaaclab_newton.physics import NewtonManager
-
-        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
-
-
 # ---------------------------------------------------------------------------
 # Counts, names, finders, and selectors
 # ---------------------------------------------------------------------------
@@ -178,13 +170,13 @@ def test_commanding_a_tendon_target_schedules_the_write(monkeypatch, backend):
 @requires("newton")
 def test_newton_tendon_target_requires_a_tendon_actuator(monkeypatch):
     """Without a MuJoCo tendon actuator Newton cannot command targets, and an untransmitting solver says so."""
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import NewtonXPBDManager
 
     art, _ = _articulation("newton", "cpu", monkeypatch, num_fixed_tendons=2)
     with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
         art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
     with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
-        NewtonManager.create_fixed_tendon_control(art)
+        NewtonXPBDManager().create_fixed_tendon_control(art)
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +374,6 @@ def test_root_writes_invalidate_dependent_caches(monkeypatch, backend, body_orde
 
 @_BODY_ORDERINGS
 def test_set_coms_invalidates_same_timestamp_dependents(monkeypatch, backend, body_ordering):
-    _ignore_newton_model_changes(backend, monkeypatch)
     art, _ = _articulation(backend, "cpu", monkeypatch, num_joints=3, num_bodies=4, body_ordering=body_ordering)
     art.data.update(dt=0.01)
     names = ["_root_com_pose_w", "_root_link_vel_w", "_body_com_pose_w", "_body_link_vel_w"]
@@ -493,7 +484,6 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
     if backend == "newton" and writer == "set_coms":
         # Newton stores the COM as a position only.
         trailing, dtype, getter = 3, wp.vec3f, "data.body_com_pos_b"
-    _ignore_newton_model_changes(backend, monkeypatch)
     art, _ = _articulation(backend, device, monkeypatch)
     art.data.update(dt=0.01)
     method = getattr(art, f"{writer}_{selection}")
@@ -699,7 +689,6 @@ def test_write_tendon_properties_to_sim_selects_envs(monkeypatch, backend, devic
     """Pushing tendon properties writes the selected environments to the backend."""
     if backend == "newton" and kind == "spatial":
         pytest.skip("Newton does not support spatial tendons")
-    _ignore_newton_model_changes(backend, monkeypatch)
     num_instances = 3
     art, raw_backend = _articulation(backend, device, monkeypatch, num_instances=num_instances, num_joints=2)
     art.data.update(dt=0.01)
@@ -1092,7 +1081,6 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
         is_fixed_base=is_fixed_base,
         monkeypatch=monkeypatch,
     )
-    identity_manager = getattr(identity_art, "_test_simulation_manager", None)
     ordered_art, ordered_raw = get_articulation(
         backend,
         num_instances,
@@ -1128,12 +1116,6 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
     joint_user_to_backend, body_user_to_backend = _install_cyclic_ordering(ordered_art)
     identity_art.data.update(dt=0.01)
     ordered_art.data.update(dt=0.01)
-    if backend == "newton":
-        # Both mocks patch the same Newton module; read the shared model through the identity manager.
-        import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
-
-        monkeypatch.setattr(newton_data_module, "SimulationManager", identity_manager)
-
     dofs = np.concatenate((np.arange(num_base_dofs), num_base_dofs + joint_user_to_backend))
     bodies = body_user_to_backend if num_base_dofs else body_user_to_backend[body_user_to_backend != 0] - 1
     for name in ("body_com_jacobian_w", "body_link_jacobian_w"):
@@ -1278,10 +1260,6 @@ def _property_payload(shape: tuple[int, ...], trailing: int, offset: float) -> t
 def test_property_writes_route_to_backend_and_preserve_other_rows(monkeypatch, backend, selection, mode):
     """Partial public property writes reach the matching backend joints and bodies and keep every other entry."""
     num_instances, count = 2, 4
-    if backend == "newton":
-        from isaaclab_newton.physics import NewtonManager
-
-        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
     art, raw_backend = get_articulation(
         backend,
         num_instances,

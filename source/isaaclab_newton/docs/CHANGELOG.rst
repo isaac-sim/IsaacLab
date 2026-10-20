@@ -3,6 +3,188 @@ Changelog
 
 .. towncrier release notes start
 
+10.0.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :class:`~isaaclab_newton.physics.NewtonManager` and its solver managers are used as instances
+  (``sim.backend_manager``); call runtime methods on the instance, for example ``sim.backend_manager.get_model()``
+  instead of ``NewtonManager.get_model()``. Subclasses override runtime hooks as instance methods. Newton asset and
+  sensor data classes take the manager as a keyword-only ``backend_manager`` argument. Solver construction hooks
+  (``_create_solver``, ``_filter_solver_kwargs``) take the determinism mode as an argument instead of reading manager
+  state.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing Newton asset data classes without ``backend_manager``; the active simulation's manager
+  is used with a :class:`DeprecationWarning`.
+
+
+9.4.1 (2026-10-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed duplicated PPISP configuration discovery from renderer initialization. Cameras now resolved
+  ``isp_cfg`` during construction, before scene import; renderer initialization continued to create the
+  image-processing pipeline from the prepared configuration.
+* Consolidated lens-distortion checks into render-data creation and read segmentation labels directly
+  from the simulation-owned stage.
+
+
+9.4.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.actuators.DriveBam`, the Newton-native BAM servo drive, and
+  :class:`~isaaclab_newton.physics.MjWarpActuatorBridge`, which couples it to MJWarp friction and load.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.register_pre_actuator_callback` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_solver_init_callback`.
+* Added MJWarp binding for BAM gearbox-play hinges across replicated articulations,
+  with invalid or missing hinge pairs rejected before stepping.
+* Added a protected implicit MPM solver-construction hook so specialized solvers
+  retain the manager's shared USD configuration preparation.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.step` to combine pending model-change flags into one
+  solver notification, so randomizing several kinds of physics properties refreshed the solver constants once
+  per step instead of once per kind.
+
+Fixed
+^^^^^
+
+* Enabled sparse-grid CUDA graph capture with Newton's quadratic B-spline velocity interpolation.
+* Preserved Newton's native VBD defaults after upgrading to Newton 1.8 development and MuJoCo/MJWarp 3.15.
+  ``rigid_compliant_alm=None`` selected compliant ALM; explicit ``False`` retained Newton's deprecated legacy mode.
+* Captured the authored source environment origin when importing deformables so expanded visual geometry metadata
+  remained correctly placed when the authoring stage contained untransformed prototypes.
+* Used authored source frames instead of planned destination poses when composing Newton worlds, keeping bodies,
+  cameras, and deformables aligned when prototype environments were unplaced or remapped.
+
+
+9.3.1 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton frame views returning cloned frames in prototype-group order instead of environment order,
+  keeping poses, indexed writes, scales, and renderer destinations aligned for interleaved world prototypes.
+
+
+9.3.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added VBD structural joint stiffness and friction-smoothing settings, and optional standalone generalized joint-state synchronization.
+
+Fixed
+^^^^^
+
+* Fixed VBD graph coloring for active cloth bending constraints and stale joint state after rigid-body integration.
+  Coupled and external rigid solvers retained ownership of their generalized joint state.
+* Fixed Newton IK prototype selection for nested articulation roots.
+* Applied explicit camera background colors to HDR output in linear space before ISP processing, without replacing black geometry.
+* Warned when camera lens distortion was authored only in USD and ignored by Newton Warp, while accepting configured OpenCV models.
+
+
+9.2.0 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``ArticulationData.body_joint_wrench`` in public body order,
+  using the child-side joint frame and joint anchor for force and torque.
+  Newton reporting can be requested before startup with ``ArticulationCfg.enable_joint_wrench``.
+
+Changed
+^^^^^^^
+
+* Updated deformable range lookup for Newton's surface and volume records and removed duplicate
+  mesh registration now performed by Newton itself.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`~isaaclab_newton.sim.schemas.NewtonDeformableBodyPropertiesCfg` in favor of
+  an empty deformable slot on the spawner. It now raises a ``DeprecationWarning`` on instantiation
+  and will be removed in 3.2. The class carries no fields: replace
+  ``deformable_props=NewtonDeformableBodyPropertiesCfg()`` with ``surface_deformable_props=[]``
+  when ``physics_material`` is a surface deformable material and with
+  ``volume_deformable_props=[]`` otherwise, which is the type the legacy ``deformable_props`` field
+  derived. The active physics backend now selects Newton's deformable schemas; the legacy cfg
+  selected them itself.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` treating an ``ArticulationRootAPI`` prim that is
+  not a rigid body as the frame's parent body. Frames below such a prim without a rigid-body ancestor, for example a
+  :class:`~isaaclab.sensors.camera.Camera` spawned at an articulation whose root API sits on its root Xform, raised
+  ``matched no Newton bodies``. They now stay static in their environment, as on PhysX.
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` instances created before the Newton model exists
+  not covering the environments they select. A static frame created after the scene was cloned collapsed to one
+  frame without an environment offset, and a view selecting some environments got a frame in every environment.
+  Such views now resolve against the finalized model, as views created after reset do.
+* Fixed :attr:`~isaaclab_newton.assets.Articulation.num_base_dofs` counting six floating-base DoFs for an
+  articulation whose root link is jointed to the world by a non-free joint.
+* Fixed external wrenches acting only on the first solver substep when ``num_substeps > 1``, and only on the first
+  physics step when Newton runs the decimation loop. :class:`~isaaclab_newton.physics.NewtonManager` now re-applies
+  the body forces written before a step on every solver substep of that step.
+* Fixed Windows hangs from lazy MuJoCo-Warp GPU allocations during CUDA graph capture by running
+  the first requested physics step eagerly before recording the graph for subsequent steps.
+* Updated Newton to commit ``5ea82eef6f7911388025a8df6ccdb172e2fed286`` and MuJoCo/MuJoCo Warp to
+  3.14, keeping workspace and wheel dependencies aligned.
+* Updated cable segment reads and writes for Newton's explicit free root joint, preserving masked
+  writes and CUDA graph capture.
+* Fixed asset hard resets by removing redundant callbacks that accessed invalidated views and clearing
+  Newton's old view registry and per-model step hooks before rebuilding. Data and actuator buffers were
+  initialized once per model generation. As before, hard resets recreated asset data; callers must
+  reacquire ``asset.data`` and its arrays after ``sim.reset(soft=False)``.
+* Fixed contact-force debug visualization after Newton removed its deprecated sensor-transform alias.
+* Preserve joints and bodies beneath nested asset declarations in Newton clones without importing an identical child copy twice.
+* Reject independently sourced nested Newton clone declarations that would overlap a parent's imported bodies.
+* Preserve deformable particles and visual bindings when a cloned parent contains a declared deformable child.
+* Preserve nested cloth across parent-only and child-only world compositions, including its configured world position.
+* Rejected shared Newton roots that contain cloned environments; declare individual global asset paths instead.
+* Fixed :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg` with ``actuatorgravcomp=True``
+  overwriting an explicitly authored body ``mjc:gravcomp`` of ``0.0`` with ``1.0``. Body-level
+  gravity compensation is now auto-enabled only when the body has not authored ``mjc:gravcomp``,
+  matching the deprecated :class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg` path.
+* Fixed the air and contact times of :class:`~isaaclab_newton.sensors.ContactSensor` drifting with the age of the
+  sensor clock. Each refresh added the difference of two growing float32 timestamps, which was off by up to 8e-5 s
+  after 40 s of simulated time. It now adds the float64 time since the last refresh kept by the sensor base class.
+* Fixed the deprecation warnings of :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg`
+  and :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg` to say which fragments go in
+  the spawner's ``collision_props`` slot and which in its ``mesh_collision_props`` slot, and corrected the
+  claim that :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg` implies the ``sdf``
+  approximation token: it authors none, since Newton enables SDF generation from ``NewtonSDFCollisionAPI``.
+
+
+9.1.5 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the body-offset Jacobian of
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonDifferentialInverseKinematicsAction` and
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonOperationalSpaceControllerAction`. The translational rows are now
+  shifted by the offset rotated with the body orientation, and the angular rows are no longer rotated by the offset
+  rotation, matching the target frame's pose and velocity.
+
+
 9.1.4 (2026-10-04)
 ~~~~~~~~~~~~~~~~~~
 
