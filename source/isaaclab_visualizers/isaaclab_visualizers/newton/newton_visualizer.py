@@ -894,8 +894,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    if self._mesh_variant_renderer is not None:
-                        self._mesh_variant_renderer.render(viewer, state.body_q)
+                    self._mesh_variant_renderer.render(viewer, state.body_q)
                     contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)

@@ -406,8 +406,7 @@ class ViserVisualizer(BaseVisualizer):
                 if backend.geometry_offsets:
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
                 self._viewer.log_state(self.backend.state_0)
-                if self._mesh_variant_renderer is not None:
-                    self._mesh_variant_renderer.render(self._viewer, self.backend.state_0.body_q)
+                self._mesh_variant_renderer.render(self._viewer, self.backend.state_0.body_q)
                 if self.cfg.enable_markers:
                     self._render_markers(self.backend.model.num_envs)
             self._render_live_plots()

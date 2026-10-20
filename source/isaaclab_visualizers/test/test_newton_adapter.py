@@ -114,7 +114,7 @@ def test_mesh_variant_renderer_updates_visual_collision_and_live_world_visibilit
         MeshVariantRenderShape(int(GeoType.MESH), mesh, (0, 0.25, 0, 0, 0, 0, 1), (scale,) * 3, 0, True, (1, 0, 0))
         for scale in (1, 2)
     )
-    selected = wp.array((0, 1), dtype=wp.int32, device="cpu")
+    selected = ProxyArray(wp.array((0, 1), dtype=wp.int32, device="cpu"))
     bank = SimpleNamespace(
         body_indices=wp.array((0, 1), dtype=wp.int32, device="cpu"),
         model_shape_indices=(0, 1),
@@ -162,7 +162,7 @@ def test_mesh_variant_renderer_updates_visual_collision_and_live_world_visibilit
         np.testing.assert_array_equal(positions[:, :3], ((1, 0.25, 0), (2, 0.25, 0)))
         assert has_color and not hidden
 
-    selected.assign(np.array((1, 0), dtype=np.int32))
+    selected.warp.assign(np.array((1, 0), dtype=np.int32))
     viewer.set_visible_worlds([1])
     viewer.show_visual = False
     calls.clear()
@@ -751,6 +751,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer.cfg.window.fps = 1e9
     visualizer._runtime_headless = False
     visualizer._viewer = viewer
+    visualizer._mesh_variant_renderer = Mock()
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
         model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}

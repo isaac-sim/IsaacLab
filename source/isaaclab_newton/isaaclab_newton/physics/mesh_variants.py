@@ -16,6 +16,7 @@ import warp as wp
 from newton import BodyFlags, Gaussian, GeoType, Heightfield, JointType, Mesh, Model, ModelBuilder, ShapeFlags
 from newton._src.geometry.inertia import verify_and_correct_inertia
 
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 
@@ -224,8 +225,7 @@ class MeshVariants:
         if np.intersect1d(targets, sources).size or np.unique(targets).size != targets.size:
             raise ValueError("Mesh variant resources must be separate from uniquely owned target shapes.")
         self.source_shape_indices = wp.array(sources, dtype=wp.int32, device=model.device)
-        inactive = self.source_shape_indices.flatten()
-        wp.launch(_clear_shape_flags, dim=inactive.size, inputs=[inactive, model.shape_flags], device=model.device)
+        wp.indexedarray(model.shape_flags, self.source_shape_indices.flatten()).zero_()
         types, flags = model.shape_type.numpy(), model.shape_flags.numpy()
         if not np.all(flags[targets] & int(ShapeFlags.COLLIDE_SHAPES)):
             raise ValueError("Mesh variants require colliding target shapes.")
@@ -272,7 +272,7 @@ class MeshVariants:
             raise ValueError("Mesh variants have invalid initial selections.")
         self.shape_indices = wp.array(targets, dtype=wp.int32, device=model.device)
         self.body_properties = wp.array(properties, dtype=_VariantBody, device=model.device)
-        self.variant_ids = wp.array(initial_variant_ids, dtype=wp.int32, device=model.device)
+        self.variant_ids = ProxyArray(wp.array(initial_variant_ids, dtype=wp.int32, device=model.device))
         self.visual_variants = definition.visual_variants
         self.collision_variants = definition.collision_variants
         self.body_indices: wp.array | None = None
@@ -280,11 +280,6 @@ class MeshVariants:
         if definition.visual_variants is not None:
             self.body_indices = wp.array(body_ids, dtype=wp.int32, device=model.device)
             self.model_shape_indices = tuple(shape for body in body_ids for shape in model.body_shapes[body])
-
-
-@wp.kernel(enable_backward=False)
-def _clear_shape_flags(shape_indices: wp.array(dtype=wp.int32), shape_flags: wp.array(dtype=wp.int32)):
-    shape_flags[shape_indices[wp.tid()]] = 0
 
 
 def _render_shapes(builder: ModelBuilder, flag: ShapeFlags) -> tuple[MeshVariantRenderShape, ...]:
@@ -347,15 +342,12 @@ def _prepare_mesh_variant(
                 is_static=True,
                 label=f"mesh_variant/{builder.shape_count}",
             )
-            for field in (
-                "shape_sdf_narrow_band_range",
-                "shape_sdf_target_voxel_size",
-                "shape_sdf_max_resolution",
-                "shape_force_sdf",
-                "shape_sdf_texture_format",
-                "shape_sdf_padding",
-            ):
-                getattr(builder, field)[shape] = getattr(source, field)[source_shape]
+            builder.shape_sdf_narrow_band_range[shape] = source.shape_sdf_narrow_band_range[source_shape]
+            builder.shape_sdf_target_voxel_size[shape] = source.shape_sdf_target_voxel_size[source_shape]
+            builder.shape_sdf_max_resolution[shape] = source.shape_sdf_max_resolution[source_shape]
+            builder.shape_force_sdf[shape] = source.shape_force_sdf[source_shape]
+            builder.shape_sdf_texture_format[shape] = source.shape_sdf_texture_format[source_shape]
+            builder.shape_sdf_padding[shape] = source.shape_sdf_padding[source_shape]
             shapes.append(shape)
         resources.append(shapes)
     return _MeshVariantDefinition(

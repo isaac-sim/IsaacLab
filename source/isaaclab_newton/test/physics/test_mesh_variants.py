@@ -118,7 +118,7 @@ def test_mesh_variant_resources_do_not_add_rigid_bodies() -> None:
     assert definition.source_shape_indices.shape == (2, 1)
     model = builder.finalize(device="cpu")
     variants = MeshVariants(model, definition)
-    np.testing.assert_array_equal(variants.variant_ids.numpy(), (0, 0))
+    np.testing.assert_array_equal(variants.variant_ids.warp.numpy(), (0, 0))
     assert variants.visual_variants is None
     assert variants.body_indices is None
     np.testing.assert_array_equal(model.shape_flags.numpy()[definition.source_shape_indices.flatten()], 0)
@@ -155,12 +155,12 @@ def test_mesh_variant_catalogs_preserve_reused_sources() -> None:
     model = builder.finalize(device="cpu")
     selected = MeshVariants(model, first)
     reused = MeshVariants(model, second)
-    np.testing.assert_array_equal(selected.variant_ids.numpy(), (2, 1))
-    np.testing.assert_array_equal(reused.variant_ids.numpy(), (1, 0))
+    np.testing.assert_array_equal(selected.variant_ids.warp.numpy(), (2, 1))
+    np.testing.assert_array_equal(reused.variant_ids.warp.numpy(), (1, 0))
     untouched = model.shape_source_ptr.numpy()[[1, 3]].copy()
     _select(model, selected, 0, 1)
-    np.testing.assert_array_equal(selected.variant_ids.numpy(), (2, 0))
-    np.testing.assert_array_equal(reused.variant_ids.numpy(), (1, 0))
+    np.testing.assert_array_equal(selected.variant_ids.warp.numpy(), (2, 0))
+    np.testing.assert_array_equal(reused.variant_ids.warp.numpy(), (1, 0))
     np.testing.assert_array_equal(model.shape_source_ptr.numpy()[[1, 3]], untouched)
 
 
@@ -198,7 +198,7 @@ def test_mesh_selection_updates_geometry_and_inertia_without_solver(body_type: s
     model = builder.finalize(device="cpu")
     selected = MeshVariants(model, definition)
     assert selected.visual_variants is not None
-    ids = selected.variant_ids
+    ids = selected.variant_ids.torch
     original_body_flags = model.body_flags.numpy().copy()
     np.testing.assert_array_equal(ids.numpy(), (0, 1))
     np.testing.assert_allclose(model.body_inertia.numpy(), np.tile(np.eye(3), (2, 1, 1)))
@@ -215,7 +215,7 @@ def test_mesh_selection_updates_geometry_and_inertia_without_solver(body_type: s
     expected_inertia = np.asarray(((2.25, 0.5, 0.0), (0.5, 3.25, 0.0), (0.0, 0.0, 4.25)))
     for variant in (2, 1, 2):
         _select(model, selected, variant, 0, wp.int64 if convex else wp.int32)
-        assert ids is selected.variant_ids
+        assert ids is selected.variant_ids.torch
         np.testing.assert_array_equal(ids.numpy(), (variant, 1))
         assert model.shape_source_ptr.numpy()[0] == model.shape_source_ptr.numpy()[resource_shapes[variant][0]]
         np.testing.assert_array_equal(model.body_inertia.numpy()[1], untouched_inertia)
@@ -286,6 +286,7 @@ def test_mesh_variants_do_not_depend_on_fork_solver_banks() -> None:
         for node in ast.walk(ast.parse(path.read_text())):
             if isinstance(node, ast.Attribute):
                 assert node.attr != "mesh_variants_enabled", f"{path.name} gates the spawner catalog behind an opt-in"
+                assert node.attr != "_mesh_variant_ids", f"{path.name} duplicates the bank's selected-ID interface"
             elif isinstance(node, (ast.Name, ast.Constant)):
                 assert (node.id if isinstance(node, ast.Name) else node.value) != "mesh_variants_enabled"
     for path in paths:

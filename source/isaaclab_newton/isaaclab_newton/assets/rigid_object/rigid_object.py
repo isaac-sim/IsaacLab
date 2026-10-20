@@ -87,7 +87,7 @@ class RigidObject(BaseRigidObject):
             raise NotImplementedError(
                 "Reset-time mesh variant selection is unavailable for this catalog and Newton backend configuration."
             )
-        return self._mesh_variant_ids
+        return self._mesh_variants.variant_ids
 
     @property
     def root_view(self) -> ArticulationView:
@@ -1191,8 +1191,6 @@ class RigidObject(BaseRigidObject):
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
         self._mesh_variants = self._backend_manager.backend.mesh_variants.get(self.cfg.prim_path)
-        if self._mesh_variants is not None:
-            self._mesh_variant_ids = ProxyArray(self._mesh_variants.variant_ids)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1258,7 +1256,6 @@ class RigidObject(BaseRigidObject):
         # set all existing views to None to invalidate them
         self._root_view = None
         self._mesh_variants = None
-        self._mesh_variant_ids = None
 
     def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None):
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
