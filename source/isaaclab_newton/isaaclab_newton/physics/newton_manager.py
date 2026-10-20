@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -596,6 +596,23 @@ class NewtonManager(PhysicsManager):
     def activate_newton_actuator_path(self) -> None:
         """Run the model's Newton actuators inside the step; see :meth:`NewtonBackend.activate_actuators`."""
         self.backend.activate_actuators()
+
+    def request_solver_observables(self, kinds: Iterable[str]) -> None:
+        """Have the solver export *kinds* on every substep, in addition to the kinds requested before.
+
+        Call once the solver exists and before CUDA graph capture, e.g. from a :meth:`register_solver_init_callback`
+        hook. A request for new kinds reallocates :attr:`_solver_observables`, so read the arrays from there when
+        stepping rather than keeping them.
+
+        Raises:
+            ValueError: If the solver does not export a requested kind.
+        """
+        kinds = set(kinds)
+        if self._solver_observables is not None:
+            if kinds <= self._solver_observables.kinds:
+                return
+            kinds |= self._solver_observables.kinds
+        self._solver_observables = self._solver.observables(kinds)
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before the initial FK and any graph capture."""
