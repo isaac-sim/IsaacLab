@@ -71,6 +71,7 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
+from isaaclab.utils.renderers import _resolve_env_light_partitions
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.cloner import ovrtx_replicate
@@ -379,6 +380,7 @@ class OVRTXRenderer(BaseRenderer):
         """Load, clone, and bind the shared scene before any camera products are registered."""
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
+        light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
@@ -422,6 +424,22 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 self.backend.renderer.write_attribute(
                     env_paths, "primvars:omni:scenePartition", tokens,
+                    semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
+                )  # fmt: skip
+        if light_partitions:
+            light_paths = list(light_partitions)
+            if self._use_ovstage:
+                with self.scene.query(light_paths) as query:
+                    self.scene.stage.write_attribute(
+                        query, "omni:scenePartition", ordinal=self.scene.ordinal,
+                        tensors=np.array(
+                            [self.scene.paths.intern_token(token) for token in light_partitions.values()], np.uint64
+                        ),
+                        is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                    ).wait()  # fmt: skip
+            else:
+                self.backend.renderer.write_attribute(
+                    light_paths, "omni:scenePartition", list(light_partitions.values()),
                     semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
                 )  # fmt: skip
         self._setup_xform_bindings(stage)
