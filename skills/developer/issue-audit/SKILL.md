@@ -43,8 +43,8 @@ A comment that reads well is not evidence that its claims are true. Verify every
 
 ## URL Traps
 
-- `github.com/isaac-sim/IsaacLab/blob/main/...` **404s** for anything under `source/isaaclab_newton/`, `source/isaaclab_ov/` or `source/isaaclab_contrib/` — those packages are not on `main`. Use `blob/develop/...`, or cite the path in backticks with no link. Package layout shifts over time (e.g. `isaaclab_ovphysx` was merged into `isaaclab_ov`), so verify the path exists on the ref you link.
-- `isaac-sim.github.io/IsaacLab/main/...` is the stale 2.x docs build. Use `release/3.0.0/...`, and confirm the anchor still exists — several 2.x anchors were removed in the 3.x reorganisation.
+- Use `github.com/isaac-sim/IsaacLab/blob/HEAD/...` for current default-branch source links, or cite the path in backticks with no link. Package layout shifts over time (e.g. `isaaclab_ovphysx` was merged into `isaaclab_ov`), so verify the path exists on the ref you link.
+- Use `isaac-sim.github.io/IsaacLab/main/...` for current development documentation and `release/3.0.0/...` for release-specific claims. Confirm the anchor still exists because several 2.x anchors were removed in the 3.x reorganisation.
 
 ## Do Not Close
 
@@ -134,7 +134,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep the URL traps section synchronized with the current package layout. When a package moves between `main` and `develop`, or the docs build version changes, update it before it produces a dead link in a public comment.
+Keep the URL traps section synchronized with the current package layout. When a package moves between branches or the docs build version changes, update it before it produces a dead link in a public comment.
 
 ## References
 

@@ -1738,7 +1738,7 @@ def rendering_test_cartpole(
 
     @configclass
     class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
-        scene = _CartpoleCameraTestSceneCfg(num_envs=4, env_spacing=20.0, replicate_physics=True)
+        scene = _CartpoleCameraTestSceneCfg(num_envs=4, env_spacing=20.0)
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
@@ -2008,7 +2008,7 @@ def rendering_test_kuka_visual_material_randomization(
         "newton_renderer": NewtonWarpRendererCfg,
         "ovrtx_renderer": OVRTXRendererCfg,
     }[renderer]()
-    scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
+    scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0)
     scene_cfg.sky_light = AssetBaseCfg(
         prim_path="/World/skyLight", spawn=sim_utils.DomeLightCfg(color=(1.0, 1.0, 1.0), intensity=750.0)
     )
@@ -2385,12 +2385,7 @@ def rendering_test_mpm_particles(
         built once per process, so a retry in the same process would draw different entries.
         """
 
-        scene: TestMPMParticleCameraSceneCfg = TestMPMParticleCameraSceneCfg(
-            num_envs=4,
-            env_spacing=3.0,
-            replicate_physics=True,
-            clone_in_fabric=True,
-        )
+        scene: TestMPMParticleCameraSceneCfg = TestMPMParticleCameraSceneCfg(num_envs=4, env_spacing=3.0)
         reset_cycle: bool = True
         reset_particle_max_yaw: float = 0.0
         reset_particle_jitter: float = 0.0

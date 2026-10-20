@@ -5,10 +5,13 @@
 
 """Tests for the unified teleoperation console entry point."""
 
+import argparse
 import re
+import runpy
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
 from unittest import mock
 
 import pytest
@@ -60,6 +63,36 @@ def test_teleop_dispatches_to_an_existing_script(source_checkout_root: Path, com
     script = source_checkout_root.joinpath(*script_parts)
     run_python.assert_called_once_with(script, args[1:], check=True)
     assert script.is_file()
+
+
+@pytest.mark.parametrize("script_parts", TELEOP_WORKFLOWS.values(), ids=TELEOP_WORKFLOWS)
+def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, script_parts, monkeypatch):
+    """Callback-owned flags are removed without losing task or viewer selections."""
+    callback = ModuleType("_teleop_callback")
+
+    def register():
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--callback_option")
+        args, remaining = parser.parse_known_args()
+        assert args.callback_option == "42"
+        return remaining
+
+    callback.register = register
+    monkeypatch.setitem(sys.modules, callback.__name__, callback)
+    script = source_checkout_root.joinpath(*script_parts)
+    monkeypatch.setattr(sys, "argv", [
+        str(script), "--task", "Isaac-Cartpole-Direct", "--external_callback", "_teleop_callback.register",
+        "--callback_option", "42", "--viz", "newton_gl", "--physics=newton_mjwarp", "--renderer", "newton_renderer",
+        "env.sim.dt=0.01",
+    ])  # fmt: skip
+    namespace = runpy.run_path(str(script))
+    assert namespace["args_cli"].task == "Isaac-Cartpole-Direct"
+    assert set(sys.argv[1:]) == {
+        "visualizer=newton_gl",
+        "physics=newton_mjwarp",
+        "renderer=newton_renderer",
+        "env.sim.dt=0.01",
+    }
 
 
 def _requirement_names(requirements: list[str]) -> set[str]:

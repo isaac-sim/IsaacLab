@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import warp as wp
 from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
+from isaaclab_newton.physics import NewtonMPMManager
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
@@ -92,7 +92,9 @@ class CoffeeDemoEnv(ManagerBasedEnv):
             robot, self.scene["spoon"], self.cfg.spoon_offset_pos, self.cfg.spoon_offset_rot
         )
         (solver,) = (
-            solver for solver in NewtonMPMManager._implicit_mpm_solvers() if isinstance(solver, CoffeeMPMSolver)
+            solver
+            for solver in NewtonMPMManager._implicit_mpm_solvers(self.sim.backend_manager)
+            if isinstance(solver, CoffeeMPMSolver)
         )
         configure_spoon_rim_margin(solver, self.cfg.spoon_rim_margin_scale)
         if self.cfg.water_enabled:
@@ -115,12 +117,12 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         expression = re.compile(self.scene[asset_name].cfg.prim_path + r"/.*")
         ranges = [
             np.arange(start, start + count, dtype=np.int32)
-            for path, (start, count) in NewtonManager.backend.particle_ranges.items()
+            for path, (start, count) in self.sim.backend_manager.backend.particle_ranges.items()
             if expression.fullmatch(path)
         ]
         if not ranges:
             raise RuntimeError(f"No particle ranges match {asset_name}.")
-        return wp.array(np.concatenate(ranges), dtype=int, device=NewtonManager.get_model().device)
+        return wp.array(np.concatenate(ranges), dtype=int, device=self.sim.backend_manager.get_model().device)
 
     def _configure_colliders(self, builder, env_id: int, _position, _quaternion) -> None:
         """Expand the thin spoon shell separately from the container colliders."""
@@ -198,7 +200,9 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)
         mask[: self.num_envs][env_ids] = True
         NewtonMPMManager.reset_solver_state(
-            world_mask=wp.from_torch(mask, dtype=wp.bool), flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE
+            self.sim.backend_manager,
+            world_mask=wp.from_torch(mask, dtype=wp.bool),
+            flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )
         if self.rendering is not None:
             self.rendering.reset(env_ids)
