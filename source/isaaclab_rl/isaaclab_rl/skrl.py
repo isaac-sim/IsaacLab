@@ -37,7 +37,7 @@ from .utils.env_types import check_env_type
 if TYPE_CHECKING:
     from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
 
-SKRL_MIN_VERSION = "2.1.0"
+SKRL_MIN_VERSION = "2.1.1"
 """Oldest skrl release supported by the entrypoints."""
 
 
