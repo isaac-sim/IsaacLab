@@ -121,15 +121,15 @@ def apply_cosmos(
     far: float | None = None,
     endpoint: str | list[str] = DEFAULT_ENDPOINT,
     transport: Literal["auto", "cuda_ipc", "socket"] = "auto",
-    num_envs: int = 1,
 ) -> None:
     """Put Cosmos on a task's camera in place.
 
-    Selects the scene camera publishing only ``rgb`` (or ``camera``) and replaces it with :func:`cosmos_camera`. It
-    sets the environment count, whose cameras each service generates as one batch, and derives the episode budget
-    without changing capture timing. It checks that every service is running and idle. Tasks must read the camera
-    image from its output; Direct tasks that size their observation space from the camera configuration are not
-    supported, because the camera renders at the Cosmos canvas.
+    Selects the scene camera publishing only ``rgb`` (or ``camera``) and replaces it with :func:`cosmos_camera`. Each
+    service generates its share of the task's environments (``env_cfg.scene.num_envs``, set with ``--num_envs``) as
+    one batch, so GPU memory limits their count. It derives the episode budget without changing capture timing and
+    checks that every service is running and idle. Tasks must read the camera image from its output; Direct tasks
+    that size their observation space from the camera configuration are not supported, because the camera renders
+    at the Cosmos canvas.
 
     Several cameras share one session: each capture generates all their environments as one batch, camera ``k``'s
     environment ``v`` being view ``k * num_envs + v`` (see :attr:`CosmosModelCfg.cameras`). They render at the canvas
@@ -146,18 +146,15 @@ def apply_cosmos(
         endpoint: Cosmos service endpoint, or a list of services, for example one per GPU, that split the
             environments into contiguous shares.
         transport: How images move to and from the service.
-        num_envs: Environments to generate together. Each session requests its share from its service. A service
-            with several needs compiled inference with per-view caches for independent resets, and enough GPU memory
-            for its batch.
 
     Raises:
         ValueError: If no single rgb camera can be selected, a selected entity is not a suitable camera or already
             has modifiers, sensors update eagerly, a camera renders asynchronously, cameras sharing a session have
-            different update periods, there are fewer views than services, or a service cannot batch its share.
+            different update periods, there are fewer views than services, or a service cannot reset its share of
+            the views independently.
         RuntimeError: If a service is not running or already has a camera session.
     """
-    if type(num_envs) is not int or num_envs < 1:
-        raise ValueError(f"Cosmos needs a positive number of environments, got {num_envs!r}.")
+    num_envs = env_cfg.scene.num_envs
     names = _camera_names(env_cfg.scene, camera)
     camera_cfgs = [getattr(env_cfg.scene, name, None) for name in names]
     for name, camera_cfg in zip(names, camera_cfgs):
@@ -179,9 +176,6 @@ def apply_cosmos(
             )
     if prompt is None:
         logger.warning("Cosmos runs without a prompt; pass `prompt` to describe the scene.")
-    if env_cfg.scene.num_envs != num_envs:
-        logger.info("Cosmos generates %d environment(s); the task default was %d.", num_envs, env_cfg.scene.num_envs)
-        env_cfg.scene.num_envs = num_envs
     if not env_cfg.scene.lazy_sensor_update:
         raise ValueError("Cosmos needs scene.lazy_sensor_update=True so each image matches its simulation state.")
     for name, cfg in zip(names, camera_cfgs):
