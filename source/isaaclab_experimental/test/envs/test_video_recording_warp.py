@@ -35,6 +35,7 @@ from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.visualizers import WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg as CartpoleDirectEnvCfg
@@ -56,7 +57,7 @@ def test_warp_env_records_and_flushes_clip(cfg_class: type, task_id: str):
     env_cfg.seed = 42
     env_cfg.scene.num_envs = 1
     env_cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
-    env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(headless=True, window_width=320, window_height=240)]
+    env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(headless=True, window=WindowCfg(size=(320, 240)))]
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
