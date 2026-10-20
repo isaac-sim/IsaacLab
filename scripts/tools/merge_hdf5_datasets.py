@@ -26,6 +26,23 @@ def merge_datasets():
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"The dataset file {filepath} does not exist.")
 
+    # A single root-level format_version applies to every episode in the output.
+    # Treat a missing attribute as the legacy version 0 and reject heterogeneous
+    # inputs before creating the output file so episodes cannot be mislabeled.
+    format_versions = []
+    for filepath in args_cli.input_files:
+        with h5py.File(filepath, "r") as input:
+            format_versions.append(int(input.attrs.get("format_version", 0)))
+    if len(set(format_versions)) > 1:
+        versions = ", ".join(
+            f"{filepath}={version}" for filepath, version in zip(args_cli.input_files, format_versions)
+        )
+        raise ValueError(
+            f"Cannot merge datasets with different format_version values: {versions}. "
+            "Ensure all inputs use the same dataset format; regenerate augmented datasets from their source or "
+            "convert legacy datasets before merging."
+        )
+
     with h5py.File(args_cli.output_file, "w") as output:
         episode_idx = 0
         copy_attributes = True
@@ -37,6 +54,8 @@ def merge_datasets():
                     episode_idx += 1
 
                 if copy_attributes:
+                    if "format_version" in input.attrs:
+                        output.attrs["format_version"] = input.attrs["format_version"]
                     output["data"].attrs["env_args"] = input["data"].attrs["env_args"]
                     copy_attributes = False
 
