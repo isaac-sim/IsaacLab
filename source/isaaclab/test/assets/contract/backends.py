@@ -95,23 +95,27 @@ def requires(name: str) -> pytest.MarkDecorator:
     return pytest.mark.skipif(name in UNAVAILABLE, reason=f"{name}: {UNAVAILABLE.get(name)}")
 
 
-def patch_physx_manager(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Give PhysX data classes gravity and a scene-data backend without creating a physics scene."""
+def physx_manager():
+    """Return a PhysX manager with gravity and a scene-data backend, without creating a physics scene."""
     from isaaclab_physx.physics import PhysxManager
     from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
 
+    manager = PhysxManager()
     physics_sim_view = MagicMock()
     physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-    monkeypatch.setattr(PhysxManager, "get_physics_sim_view", MagicMock(return_value=physics_sim_view), raising=False)
+    manager.get_physics_sim_view = MagicMock(return_value=physics_sim_view)
     # Writers bump the scene-data transform version that ``initialize()`` would normally create.
-    monkeypatch.setattr(PhysxManager, "_scene_data_backend", PhysxSceneDataBackend(), raising=False)
+    manager._scene_data_backend = PhysxSceneDataBackend(manager)
+    return manager
 
 
-def patch_ovphysx_manager(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Create the OVPhysX scene-data backend whose transform version the writers bump."""
+def ovphysx_manager():
+    """Return an OVPhysX manager with the scene-data backend whose transform version the writers bump."""
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 
-    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend(), raising=False)
+    manager = OvPhysxManager()
+    manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
+    return manager
 
 
 def install_physx_recording_setters(mock_view, storage_by_method: dict[str, str]) -> None:
@@ -180,10 +184,10 @@ def indices(count: int, device: str) -> wp.array:
 
 
 def newton_manager(num_instances: int, device: str) -> MagicMock:
-    """Return a NewtonManager double with a gravity-carrying model."""
+    """Return a NewtonManager double with a gravity-carrying model and no solver."""
     model = MagicMock(world_count=num_instances)
     model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
-    manager = MagicMock()
+    manager = MagicMock(_solver=None)
     manager.get_model.return_value = model
     manager.get_state_0.return_value = manager.get_state_1.return_value = MagicMock()
     return manager

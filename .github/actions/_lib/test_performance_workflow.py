@@ -29,10 +29,11 @@ def test_performance_workflow(tmp_path):
     jobs = workflow["jobs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")
     removed_label = [labeled("maintainer"), {"event": "unlabeled"}]
-    paginated = [[{"event": "commented"}], [labeled("isaaclab-bot[bot]")]]
+    paginated = [[{"event": "commented"}], [{"event": "labeled", "actor": None}, labeled("isaaclab-bot[bot]")]]
+    ignored = [[labeled("github-actions[bot]"), {"event": "commented", "actor": {"login": "human"}}]]
     cases = [
         ("push", "push", "", "", [], True, True, False),
-        ("actions bot", "pull_request", "synchronize", "", [[labeled("github-actions[bot]")]], False, False, True),
+        ("actions bot", "pull_request", "synchronize", "", ignored, False, False, True),
         ("removed human label", "pull_request", "synchronize", "", [removed_label], False, True, True),
         ("paginated bot label", "pull_request", "synchronize", "", paginated, False, True, True),
         ("API error", "pull_request", "synchronize", "", [], True, False, True),

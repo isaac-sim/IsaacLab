@@ -44,7 +44,6 @@ from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils import has_kit
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -351,12 +350,10 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=parse_visualizer_csv,
-            default=[],
-            help=(
-                "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
-                " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."
-            ),
+            type=lambda value: value.split(","),
+            action=_StoreAndMarkExplicit,
+            default=None,
+            help="Alias for visualizer=NAME (comma-separated names enable multiple viewers).",
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -436,7 +433,7 @@ class KitLauncher(SimulationLauncher):
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        self._kit_visualizer = "kit" in (launcher_args.get("visualizer") or ())
+        self._kit_visualizer = launcher_args.get("kit_visualizer", "kit" in (launcher_args.get("visualizer") or ()))
         self._resolve_livestream_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
         self._resolve_headless_settings()

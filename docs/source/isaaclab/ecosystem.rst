@@ -3,26 +3,15 @@
 Ecosystem
 =========
 
-Isaac Lab is a fully open-source framework for building, training, and testing robot-learning
-systems in simulation. It embraces a modular design that supports multiple physics backends,
-rendering backends, RL libraries, and various robot-learning workflows spanning from
-reinforcement learning, imitation learning, teleoperation, and post-training.
+Isaac Lab is an open-source framework for training and testing robot-learning
+systems in GPU-parallel simulation. It supports reinforcement learning, imitation
+learning, teleoperation, and policy post-training.
 
-
-At the core of Isaac Lab, we focus heavily on parallelized GPU-accelerated simulation. Isaac Lab
-provides warp-based integration with `Newton`_, allowing for efficient CUDA graphing of simulation
-and MDP pipelines. Additionally, the `OvPhysX`_ backend provides PhysX support through a lightweight
-standalone library package. Similarly, `OvRTX`_ introduces RTX rendering capabilities through an
-optional standalone python dependency. This architecture promotes a fully customized experience for
-users to choose from a selection of different physics and rendering engines.
-
-
-Isaac Lab is not itself a simulator. It provides a framework for defining
-concepts such as the scene, asset, sensors, actuators, controllers, and tasks, which can run on
-multiple physics and rendering backends. The shared backend interface
-lets a supported environment keep the same structure while its preset selects the runtime. See
-:ref:`backend-architecture` for the implementation model.
-
+Shared scene, asset, sensor, and task APIs let you use different physics engines,
+renderers, and learning libraries. `Newton`_ provides Warp-based simulation and
+CUDA graph support; `OvPhysX`_ and `OvRTX`_ provide standalone PhysX and RTX
+runtimes. Choose the combination your task needs. See
+:doc:`/source/concepts/backends_and_presets` for configuration and launch commands.
 
 Modular Multi-Backend Physics and Rendering
 -------------------------------------------
@@ -118,16 +107,15 @@ can use the lightweight Newton Tiled Camera Sensor or OvRTX for RTX image qualit
 See :doc:`/source/concepts/physics_backends`, :doc:`/source/concepts/renderers`, and
 :doc:`/source/concepts/visualization` for current support matrices and preset commands.
 
-For the most lightweight installation experience, Newton brings the best experience through an out-of-the-box
-installation setup, multiple physics solver capabilities with solver coupling mechanisms, as well as
-lightweight rendering sensors.
+Newton is included in the default installation and can run without Isaac Sim.
+See :ref:`isaaclab-installation-root` for optional backends and renderers.
 
 Capabilities in motion
 ----------------------
 
 These examples span real-to-sim reconstruction, vision-policy learning, and contact-rich material
 simulation. Explore the packaged
-:doc:`demos </source/setup/demos>` and :doc:`environment catalog </source/setup/environments>`
+:doc:`demos </source/isaaclab/demos>` and :doc:`environment catalog </source/isaaclab/environments>`
 for more examples.
 
 .. grid:: 1 1 2 2
@@ -150,7 +138,7 @@ for more examples.
          :alt: An SO-101 arm uses a wrist-camera policy to place a vial in a rack.
 
       The SO-101 tutorial trains a state teacher and distills it into a wrist-camera policy for
-      vial placement. See the :doc:`SO-101 tutorial </source/setup/tutorial>`.
+      vial placement. See the :doc:`SO-101 tutorial </source/isaaclab/tutorial>`.
 
    .. grid-item-card:: Robot cable manipulation
 
