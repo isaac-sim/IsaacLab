@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""PhysX USD export: a PhysX import of the exported file reproduces the initialized engine."""
+
 from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation()
-
-"""PhysX USD export: a PhysX import of the exported file reproduces the initialized engine."""
 
 import json
 import os
