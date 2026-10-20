@@ -66,6 +66,12 @@ class CosmosModelCfg(BackendCfg):
     ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
     resets. None omits an appearance description."""
 
+    prompt_files: str | list[str] | None = None
+    """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
+    :func:`~isaaclab_experimental.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its
+    list; they are read when the camera's Cosmos client is created. Keeping paths in their own field means a prompt
+    is never mistaken for a path."""
+
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. ``apply_cosmos`` and the
     Shadow Hand presets derive it from the task duration and capture rate with :func:`episode_frame_budget`.

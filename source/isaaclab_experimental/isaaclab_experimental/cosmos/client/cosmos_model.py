@@ -23,6 +23,7 @@ from .._protocol import (
     receive_message,
     send_message,
 )
+from .prompt_files import read_prompt_files
 
 if TYPE_CHECKING:
     import numpy as np
@@ -42,6 +43,9 @@ class CosmosModel:
 
     def __init__(self, cfg: CosmosModelCfg):
         """Validate client settings without loading Cosmos or opening a camera session."""
+        if cfg.prompt_files:
+            files = [cfg.prompt_files] if isinstance(cfg.prompt_files, str) else cfg.prompt_files
+            cfg = cfg.replace(prompt=read_prompt_files(files), prompt_files=None)
         parse_endpoint(cfg.endpoint)
         if not math.isfinite(cfg.timeout) or cfg.timeout <= 0:
             raise ValueError("Cosmos timeout must be finite and positive.")

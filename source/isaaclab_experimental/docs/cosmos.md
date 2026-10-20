@@ -258,12 +258,19 @@ CosmosModelCfg(
 
 A prompt can change only at an episode reset.
 
-Prompts can also come from files: `read_prompt_files(["prompts/*.json"])` returns one prompt per file, with patterns
-expanded in sorted order, so `prompt=read_prompt_files([...])` gives each of 16 environments its own file. A `.txt`
-file is used without leading and trailing whitespace. A `.json` file is a structured caption, the format the model was trained on: it is parsed and
-serialized once into the prompt string, keeping its structure rather than flattening it into prose. The service does
-not upsample prompts, so prepared captions reach the model unchanged. Pass the result as the `prompt` of
-`apply_cosmos`, or set it in a preset's `CosmosModelCfg`.
+Prompts can also come from files. `prompt` is always text; file paths go in `prompt_files`, so a prompt is never
+mistaken for a path:
+
+```bash
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
+  presets=cosmos env.cosmos.prompt_files="['prompts/*.json']"
+```
+
+Each file is one prompt and patterns expand in sorted order, so two matching files give each of the two environments
+its own prompt. The files replace `prompt`. A `.txt` file is used without leading and trailing whitespace. A `.json` file is a
+structured caption, the format the model was trained on: it is parsed and serialized once into the prompt string,
+keeping its structure rather than flattening it into prose. The service does not upsample prompts, so prepared
+captions reach the model unchanged. In code, `read_prompt_files([...])` returns the same prompts for `apply_cosmos`.
 
 ## Runtime and resets
 
