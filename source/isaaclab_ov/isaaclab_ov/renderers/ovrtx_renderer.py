@@ -347,6 +347,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
         self._geometry_points_binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
         self._bindings = contextlib.ExitStack()
+        self._env_paths: Sequence[str] = ()
 
     @property
     def visual_material_writer(self):
@@ -362,7 +363,7 @@ class OVRTXRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
         logger.info("Preparing stage (%d envs)...", num_envs)
-        env_paths = self.scene.clone_env_paths
+        env_paths = self._env_paths = self.scene.clone_env_paths
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
@@ -927,6 +928,26 @@ class OVRTXRenderer(BaseRenderer):
                     data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
                     data.warp_buffers[str(RenderBufferKind.RGBA)],
                 )
+
+    def set_environment_visibility(self, visible: Sequence[bool]) -> None:
+        """Show or hide whole cloned environments in every camera that renders the shared scene.
+
+        Args:
+            visible: Per-environment flag, in environment order.
+        """
+        env_paths = list(self._env_paths)
+        if len(visible) != len(env_paths):
+            raise ValueError(f"Expected {len(env_paths)} visibility flags, got {len(visible)}.")
+        tokens = ["inherited" if flag else "invisible" for flag in visible]
+        if self._use_ovstage:
+            with self.scene.query(env_paths) as query:
+                self.scene.stage.write_attribute(
+                    query, "visibility", ordinal=self.scene.ordinal,
+                    tensors=np.array([self.scene.paths.intern_token(token) for token in tokens], np.uint64),
+                    is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                ).wait()  # fmt: skip
+        else:
+            self.backend.renderer.write_attribute(env_paths, "visibility", tokens, semantic=Semantic.TOKEN_STRING)
 
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""

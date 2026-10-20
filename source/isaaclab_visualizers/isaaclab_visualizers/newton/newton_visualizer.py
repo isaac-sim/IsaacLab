@@ -54,6 +54,7 @@ from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
+from .newton_recording import NewtonRecordingPanel
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,10 @@ class NewtonViewerGL(ViewerGL):
     _owner = None
     _policy_ghost_panel = None
     _policy_ghost_restart = None
+    _recording_panel = None
+    image_matches_camera = False
+    """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
+    _view_controls = None
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -137,9 +142,7 @@ class NewtonViewerGL(ViewerGL):
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
         self._fullscreen_image_active = False
-        self.image_matches_camera = False
-        """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
-        draw_texture = self.renderer.render_texture
+        draw_texture = getattr(self.renderer, "render_texture", None)
 
         def render_texture(texture_id, texture_width=0, texture_height=0, **kwargs):
             screen = self.renderer._screen_width / max(self.renderer._screen_height, 1)
@@ -147,7 +150,8 @@ class NewtonViewerGL(ViewerGL):
                 texture_width = texture_height = 0  # Stretch a nearly matching aspect instead of drawing black bars.
             draw_texture(texture_id, texture_width, texture_height, **kwargs)
 
-        self.renderer.render_texture = render_texture
+        if draw_texture is not None:
+            self.renderer.render_texture = render_texture
         self._implot = self._implot_ctx = None
         if self.gui is not None:
             from imgui_bundle import implot
@@ -194,13 +198,14 @@ class NewtonViewerGL(ViewerGL):
         which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
-        2. **Environments** (open) — how many environments are drawn; shown when more than one is available.
-        3. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
-        4. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        5. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls; the marker name is
+        2. **View** (open) — renderer (OpenGL or RTX), camera, VSync, and renderer-specific options.
+        3. **Environments** (open) — how many environments are drawn; shown when more than one is available.
+        4. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
+        5. **Recording** (closed) — video, ``.viser`` scene, and simulation-state checkpoint output.
+        6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        7. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls; the marker name is
            shared with the Kit and Viser visualizers.
-        6. **Rendering Options** (closed) — VSync and renderer-specific options.
-        7. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
+        8. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -249,6 +254,16 @@ class NewtonViewerGL(ViewerGL):
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
 
+            # --- View -------------------------------------------------------
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("View"):
+                imgui.separator()
+                if viewer._view_controls is not None:
+                    viewer._view_controls(imgui)
+                _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
+                for callback in _g._ui_callbacks.get("rendering", []):
+                    callback(imgui)
+
             # --- Environments -----------------------------------------------
             if viewer._has_environment_controls():
                 imgui.set_next_item_open(True, imgui.Cond_.appearing)
@@ -261,6 +276,10 @@ class NewtonViewerGL(ViewerGL):
                 viewer._policy_ghost_panel.draw(imgui)
             elif viewer._policy_ghost_restart is not None:
                 draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
+
+            # --- Recording --------------------------------------------------
+            if viewer._recording_panel is not None:
+                viewer._recording_panel.draw(imgui)
 
             # --- Live Plots -------------------------------------------------
             live_plots_cb = viewer._live_plots_callback
@@ -336,14 +355,6 @@ class NewtonViewerGL(ViewerGL):
                         changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
                         if changed:
                             marker.set_visibility(visible)
-
-            # --- Rendering Options ------------------------------------------
-            imgui.set_next_item_open(False, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Rendering Options"):
-                imgui.separator()
-                _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
-                for callback in _g._ui_callbacks.get("rendering", []):
-                    callback(imgui)
 
             # --- Controls ---------------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
@@ -465,8 +476,13 @@ class NewtonViewerGL(ViewerGL):
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Image coordinates must not pick objects in the hidden perspective scene, unless it is the image's camera."""
-        if not self._fullscreen_image_active or self.image_matches_camera:
-            super().on_mouse_press(x, y, button, modifiers)
+        if self._fullscreen_image_active and not self.image_matches_camera:
+            return
+        if self._fullscreen_image_active and self.picking_enabled and self._owner is not None:
+            self._last_state = (
+                self._owner._update_state()
+            )  # An image frame does not log state; cast against fresh poses.
+        super().on_mouse_press(x, y, button, modifiers)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply configured model-particle appearance while preserving Newton's point logging.
@@ -568,7 +584,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 window_cfg=self.cfg.window,
             )  # fmt: skip
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+        self._viewer._view_controls = self._draw_streaming_view_controls
 
     def log_mesh(
         self,
@@ -620,9 +636,6 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if not imgui.collapsing_header("Camera View"):
-            return
         rtx_index = getattr(self, "rtx_view_index", None)
         if rtx_index is not None:
             rtx_on = self.rtx_rendering
@@ -833,6 +846,8 @@ class NewtonVisualizerBase(BaseVisualizer):
 class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
+    _recording: NewtonRecordingPanel | None = None
+
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
@@ -930,6 +945,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._cfg_visible_env_ids = self._env_ids
         self._num_envs = num_envs
         self._viewer._owner = self
+        self._recording = self._viewer._recording_panel = NewtonRecordingPanel(self)
         self._apply_visible_worlds()
         self._viewer._paused = False
         self._viewer.picking_enabled = self._picking_enabled
@@ -985,8 +1001,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.image_matches_camera = self.rtx_rendering
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
-                if viewer.image_matches_camera and viewer.picking_enabled and not viewer.is_paused():
-                    viewer._last_state = self._update_state()  # Picking casts against the latest body poses.
                 self._log_streaming_image()
             elif not viewer.is_paused():
                 state = self._update_state()
@@ -1008,6 +1022,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
+        if self._recording is not None and not viewer.is_paused():
+            self._recording.capture()
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
@@ -1027,7 +1043,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def rtx_view_index(self) -> int | None:
         """Index of the OVRTX viewer camera among the image views, or None when the scene has none."""
         for index, view in enumerate(self._image_views):
-            if view.camera is not None and view.camera.cfg.prim_path.startswith("/World/viewer_camera_"):
+            if view.camera is not None and getattr(view.camera.cfg, "prim_path", "").startswith(
+                "/World/viewer_camera_"
+            ):
                 return index
         return None
 
@@ -1133,6 +1151,21 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._policy_ghost_panel is not None and getattr(self._viewer, "world_offsets", None) is not None:
             offsets = self._viewer.world_offsets.numpy() + self._policy_ghost_panel.controller.env_origin_offsets()
             self._viewer.world_offsets = wp.array(offsets, dtype=wp.vec3, device=self._viewer.world_offsets.device)
+        self._apply_rtx_visible_envs()
+
+    def _apply_rtx_visible_envs(self) -> None:
+        """Hide the environments outside the visible set in the OVRTX viewer camera's scene."""
+        index = self.rtx_view_index
+        if index is None:
+            return
+        renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
+        num_envs = len(renderer._env_paths)
+        if num_envs:
+            visible = np.ones(num_envs, dtype=bool) if self._env_ids is None else np.zeros(num_envs, dtype=bool)
+            if self._env_ids is not None:
+                visible[np.asarray(list(self._env_ids), dtype=int)] = True
+            renderer.set_environment_visibility(visible)
+            self._image_views[index].invalidate()
 
     def reset(self, soft: bool = False) -> None:
         """Restore GL overlays and picking after the shared model binding changes."""
@@ -1146,7 +1179,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+        self._viewer._view_controls = self._draw_streaming_view_controls
         if self._picking_enabled:
             self._viewer.wind = None
         self._apply_visible_worlds()
@@ -1160,6 +1193,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._is_closed:
             return
         try:
+            if self._recording is not None:
+                self._recording.close()
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()

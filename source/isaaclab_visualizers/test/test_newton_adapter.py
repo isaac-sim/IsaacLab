@@ -452,6 +452,12 @@ def test_newton_gl_viewer_skips_picking_only_while_a_fullscreen_image_is_shown(m
     viewer.end_frame()
     assert picks == [(1, 2, 4, 0)]
 
+    viewer.picking_enabled = False
+    viewer.image_matches_camera = True  # The image comes from the picking camera, e.g. the OVRTX viewer camera.
+    viewer.log_image("Streaming View", np.zeros((2, 2, 3), dtype=np.uint8), fullscreen=True)
+    viewer.end_frame()
+    assert picks == [(1, 2, 4, 0)] * 2
+
 
 def test_newton_viewer_particle_color_override(monkeypatch):
     from newton.viewer import ViewerGL
@@ -714,7 +720,9 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     sim.get_scene_data_provider = visualizer._sim.get_scene_data_provider
     visualizer._sim = sim
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
-    visualizer._env_ids = [1, 3]
+    visualizer._env_ids = visualizer._cfg_visible_env_ids = [1, 3]
+    visualizer._visible_env_count = None
+    visualizer._policy_ghost_panel = None
     visualizer._picking_enabled = picking
     visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.show_contacts = True
@@ -725,9 +733,9 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
+    assert viewer._view_controls == visualizer._draw_streaming_view_controls
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
-        call(visualizer._draw_streaming_view_controls, position="side"),
     ]
     viewer.set_visible_worlds.assert_called_once_with([1, 3])
     viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
