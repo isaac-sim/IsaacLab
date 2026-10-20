@@ -88,7 +88,7 @@ cover the default Newton and PyTorch training environment; Isaac Sim is an optio
      - A CUDA-capable NVIDIA GPU supported by the selected Newton solver and PyTorch.
        The default CUDA 13 stack requires Turing or newer (compute capability 7.5+).
    * - NVIDIA driver
-     - ``580.65.06`` or newer on Linux; ``580.88`` or newer on Windows.
+     - ``595.58.03`` on Linux x86_64; ``580.159`` on Linux aarch64; ``595.97`` on Windows x86_64.
        Use a current production driver for your GPU.
    * - Memory
      - RAM and VRAM needs depend on the task, number of parallel environments, and camera workload.
