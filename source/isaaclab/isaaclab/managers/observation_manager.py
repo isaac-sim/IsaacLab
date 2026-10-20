@@ -51,7 +51,8 @@ class ObservationManager(ManagerBase):
     Observations can also have history. This means a running history is updated per sim step. History can be controlled
     per :class:`ObservationTermCfg` (See the :attr:`ObservationTermCfg.history_length` and
     :attr:`ObservationTermCfg.flatten_history_dim`). History can also be controlled via :class:`ObservationGroupCfg`
-    where group configuration overwrites per term configuration if set. History follows an oldest to newest ordering.
+    where group configuration overwrites per term configuration if set. History dim order is set by
+    :attr:`ObservationTermCfg.history_newest_first` or :attr:`ObservationGroupCfg.history_newest_first`.
 
     The observation manager can be used to compute observations for all the groups or for a specific group. The
     observations are computed by calling the registered functions for each term in the group. The functions are
@@ -285,6 +286,7 @@ class ObservationManager(ManagerBase):
                             "delay_hold_prob",
                             "history_length",
                             "flatten_history_dim",
+                            "history_newest_first",
                         ]:
                             overloads[k] = v
                     desc.update(overloads)
@@ -313,6 +315,7 @@ class ObservationManager(ManagerBase):
                         "delay_hold_prob",
                         "history_length",
                         "flatten_history_dim",
+                        "history_newest_first",
                     ]:
                         formatted_item["overloads"][k] = v
                     elif k in ["modifiers", "description", "units"]:
@@ -478,6 +481,7 @@ class ObservationManager(ManagerBase):
                         batch_size=circular_buffer.batch_size,
                         device=circular_buffer.device,
                         stack_dim=1 if obs.ndim > 1 else None,
+                        history_newest_first=circular_buffer.history_newest_first,
                     )
                     circular_buffer.append(obs)
 
@@ -631,6 +635,7 @@ class ObservationManager(ManagerBase):
                     "history_length",
                     "flatten_history_dim",
                     "history_order",
+                    "history_newest_first",
                     "concatenate_dim",
                 ]:
                     continue
@@ -653,6 +658,11 @@ class ObservationManager(ManagerBase):
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
                     term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
+                term_cfg.history_newest_first = (
+                    term_cfg.history_newest_first
+                    if group_cfg.history_newest_first is None
+                    else group_cfg.history_newest_first
+                )
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
@@ -751,6 +761,7 @@ class ObservationManager(ManagerBase):
                         batch_size=self._env.num_envs,
                         device=self._env.device,
                         stack_dim=1 if len(obs_dims) > 1 else None,
+                        history_newest_first=term_cfg.history_newest_first,
                     )
                     old_dims = list(obs_dims)
                     old_dims.insert(1, term_cfg.history_length)

@@ -30,7 +30,14 @@ class CircularBuffer:
     is disabled in this mode.
     """
 
-    def __init__(self, max_len: int, batch_size: int, device: str, stack_dim: int | None = None):
+    def __init__(
+        self,
+        max_len: int,
+        batch_size: int,
+        device: str,
+        stack_dim: int | None = None,
+        history_newest_first: bool = False,
+    ):
         """Initialize the circular buffer.
 
         Args:
@@ -45,6 +52,9 @@ class CircularBuffer:
                 ``stack_dim=-1`` on a ``(B, H, W, C)`` input stacks K frames along the channel
                 dim, yielding :attr:`stacked` shape ``(B, H, W, K*C)``. Defaults to ``None``
                 (legacy layout).
+            history_newest_first: If True, :attr:`buffer` dim 1 is newest-first; else oldest-first (default).
+                :attr:`stacked` and :meth:`__getitem__` are unchanged (``stacked`` is always oldest-first
+                and ``key=0`` is always the latest append).
 
         Raises:
             ValueError: If the buffer size is less than one, or ``stack_dim == 0``.
@@ -56,6 +66,7 @@ class CircularBuffer:
 
         self._batch_size = batch_size
         self._device = device
+        self._history_newest_first = history_newest_first
         self._ALL_INDICES = torch.arange(batch_size, device=device)
 
         # CPU mirror of max_len; avoids a GPU sync via ``.item()`` on every property access.
@@ -102,12 +113,18 @@ class CircularBuffer:
         return torch.minimum(self._num_pushes, self._max_len)
 
     @property
+    def history_newest_first(self) -> bool:
+        """True if :attr:`buffer` dim 1 is newest-first."""
+        return self._history_newest_first
+
+    @property
     def buffer(self) -> torch.Tensor:
-        """Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
+        """Complete circular buffer with the history along dimension 1.
+
+        The history is oldest-first, or newest-first when :attr:`history_newest_first` is set.
 
         Returns:
-            Complete circular buffer with most recent entry at the end and oldest entry at the beginning of
-            dimension 1. The shape is [batch_size, max_length, data.shape[1:]].
+            Complete circular buffer of shape [batch_size, max_length, data.shape[1:]].
 
         Raises:
             RuntimeError: If no data has been appended yet.
@@ -115,8 +132,12 @@ class CircularBuffer:
         if self._buffer is None:
             raise RuntimeError("The buffer is empty. Please append data before retrieving.")
         if self._stack_dim_internal is None:
-            return torch.transpose(self._buffer, dim0=0, dim1=1)
-        return torch.movedim(self._buffer, source=self._stack_dim_internal, destination=1)
+            buf = torch.transpose(self._buffer, dim0=0, dim1=1)
+        else:
+            buf = torch.movedim(self._buffer, source=self._stack_dim_internal, destination=1)
+        if self._history_newest_first:
+            buf = buf.flip(dims=[1])
+        return buf
 
     @property
     def stacked(self) -> torch.Tensor:

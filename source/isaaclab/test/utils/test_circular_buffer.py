@@ -166,7 +166,7 @@ def test_return_buffer_prop(circular_buffer):
     assert retrieved_buffer.shape == torch.Size([circular_buffer.batch_size, circular_buffer.max_length, 2])
     # check that batch is first dimension
     torch.testing.assert_close(retrieved_buffer[0], retrieved_buffer[1])
-    # check oldest
+    # check oldest (default ordering is oldest-first)
     torch.testing.assert_close(
         retrieved_buffer[:, 0], torch.tensor([[num_overflow]], device=circular_buffer.device).repeat(3, 2)
     )
@@ -178,6 +178,22 @@ def test_return_buffer_prop(circular_buffer):
     # check that it is returned oldest first
     for idx in range(circular_buffer.max_length - 1):
         assert torch.all(torch.le(retrieved_buffer[:, idx], retrieved_buffer[:, idx + 1]))
+
+
+@pytest.mark.parametrize("stack_dim", [None, 1], ids=["default_mode", "stack_dim_mode"])
+def test_return_buffer_prop_history_newest_first(stack_dim: int | None):
+    """``history_newest_first`` puts the most recent entry at index 0 of :attr:`buffer` in both storage layouts."""
+    max_len, batch_size = 5, 3
+    buffer = CircularBuffer(max_len, batch_size, "cpu", stack_dim=stack_dim, history_newest_first=True)
+    for i in range(max_len + 2):
+        buffer.append(torch.full((batch_size, 2), i))
+
+    # the last five appends, most recent first
+    expected = torch.tensor([6, 5, 4, 3, 2]).view(1, max_len, 1).expand(batch_size, max_len, 2)
+    torch.testing.assert_close(buffer.buffer, expected)
+    if stack_dim is None:
+        # LIFO indexing ignores the flag; it is disabled in stack_dim mode
+        torch.testing.assert_close(buffer[torch.zeros(batch_size, dtype=torch.long)], torch.full((batch_size, 2), 6))
 
 
 # ---------------------------------------------------------------------------
