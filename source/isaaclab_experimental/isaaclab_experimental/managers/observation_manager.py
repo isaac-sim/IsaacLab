@@ -410,8 +410,8 @@ class ObservationManager(ManagerBase):
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(env_mask=env_mask)
         # call all tensor processors/noise models that are classes
-        for mod in self._group_obs_class_instances:
-            mod.reset(env_mask=env_mask)
+        for tensor_processor in self._group_obs_class_instances:
+            tensor_processor.reset(env_mask=env_mask)
 
         # nothing to log here
         return {}
@@ -507,8 +507,8 @@ class ObservationManager(ManagerBase):
 
             # apply custom tensor processors (in-place on out_wp)
             if term_cfg.tensor_processors is not None:
-                for modifier in term_cfg.tensor_processors:
-                    modifier.func(term_cfg.out_wp, **modifier.params)
+                for tensor_processor_cfg in term_cfg.tensor_processors:
+                    tensor_processor_cfg.func(term_cfg.out_wp, **tensor_processor_cfg.params)
 
             # apply noise (Warp in-place on out_wp)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
@@ -738,36 +738,41 @@ class ObservationManager(ManagerBase):
                 # prepare tensor processors for each observation
                 if term_cfg.tensor_processors is not None:
                     # initialize list of tensor processors for term
-                    for mod_cfg in term_cfg.tensor_processors:
+                    for tensor_processor_cfg in term_cfg.tensor_processors:
                         # check if class processor and initialize with observation size when adding
-                        if isinstance(mod_cfg, tensor_processors.TensorProcessorCfg):
+                        if isinstance(tensor_processor_cfg, tensor_processors.TensorProcessorCfg):
                             # to list of tensor processors
-                            if inspect.isclass(mod_cfg.func):
-                                if not issubclass(mod_cfg.func, tensor_processors.TensorProcessor):
+                            if inspect.isclass(tensor_processor_cfg.func):
+                                if not issubclass(tensor_processor_cfg.func, tensor_processors.TensorProcessor):
                                     raise TypeError(
-                                        f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                        f" is not a subclass of 'TensorProcessor'. Received: '{type(mod_cfg.func)}'."
+                                        f"Tensor processor function '{tensor_processor_cfg.func}' for observation term"
+                                        f" '{term_name}' is not a subclass of 'TensorProcessor'."
+                                        f" Received: '{type(tensor_processor_cfg.func)}'."
                                     )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                                tensor_processor_cfg.func = tensor_processor_cfg.func(
+                                    cfg=tensor_processor_cfg, data_dim=obs_dims, device=self._env.device
+                                )
 
                                 # add to list of class tensor processors
-                                self._group_obs_class_instances.append(mod_cfg.func)
+                                self._group_obs_class_instances.append(tensor_processor_cfg.func)
                         else:
                             raise TypeError(
-                                f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
-                                f" required type TensorProcessorCfg, Received: '{type(mod_cfg)}'"
+                                f"Tensor processor configuration '{tensor_processor_cfg}' of observation term"
+                                f" '{term_name}' is not of"
+                                f" required type TensorProcessorCfg, Received: '{type(tensor_processor_cfg)}'"
                             )
 
                         # check if function is callable
-                        if not callable(mod_cfg.func):
+                        if not callable(tensor_processor_cfg.func):
                             raise AttributeError(
-                                f"Modifier '{mod_cfg}' of observation term '{term_name}' is not callable."
-                                f" Received: {mod_cfg.func}"
+                                f"Tensor processor '{tensor_processor_cfg}' of observation term '{term_name}'"
+                                " is not callable."
+                                f" Received: {tensor_processor_cfg.func}"
                             )
 
                         # check if term's arguments are matched by params
-                        term_params = list(mod_cfg.params.keys())
-                        args = inspect.signature(mod_cfg.func).parameters
+                        term_params = list(tensor_processor_cfg.params.keys())
+                        args = inspect.signature(tensor_processor_cfg.func).parameters
                         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
                         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
                         args = args_without_defaults + args_with_defaults
@@ -775,8 +780,8 @@ class ObservationManager(ManagerBase):
                         if len(args) > 1:
                             if set(args[1:]) != set(term_params + args_with_defaults):
                                 raise ValueError(
-                                    f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
-                                    f" mandatory parameters: {args_without_defaults[1:]}"
+                                    f"Tensor processor '{tensor_processor_cfg}' of observation term '{term_name}'"
+                                    f" expects mandatory parameters: {args_without_defaults[1:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 

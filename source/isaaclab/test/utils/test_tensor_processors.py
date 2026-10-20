@@ -16,8 +16,8 @@ pytestmark = pytest.mark.unit
 
 
 @configclass
-class ModifierTestCfg:
-    """Configuration for testing tensor_processors."""
+class TensorProcessorTestCfg:
+    """Configuration for testing tensor processors."""
 
     cfg: tensor_processors.TensorProcessorCfg = MISSING
     init_data: torch.Tensor = MISSING
@@ -37,7 +37,7 @@ class ModifierTestCfg:
     ids=["scale", "bias", "clip", "clip_no_upper_bound", "clip_no_lower_bound"],
 )
 def test_stateless_tensor_processors(func, params, result):
-    """Test the stateless scale, bias, and clip tensor_processors."""
+    """Test the stateless scale, bias, and clip tensor processors."""
     cfg = tensor_processors.TensorProcessorCfg(func=func, params=params)
     output = cfg.func(torch.tensor([1.0, 2.0, 3.0]), **cfg.params)
     assert torch.allclose(output, torch.tensor(result))
@@ -45,7 +45,7 @@ def test_stateless_tensor_processors(func, params, result):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_digital_filter(device):
-    """Test digital filter modifier."""
+    """Test digital filter tensor processor."""
     # create test data
     init_data = torch.tensor([0.0, 0.0, 0.0], device=device)
     A = [0.0, 0.1]
@@ -53,25 +53,25 @@ def test_digital_filter(device):
     result = torch.tensor([-0.45661893, -0.45661893, -0.45661893], device=device)
 
     # create test config
-    test_cfg = ModifierTestCfg(
+    test_cfg = TensorProcessorTestCfg(
         cfg=tensor_processors.DigitalFilterCfg(A=A, B=B), init_data=init_data, result=result, num_iter=16
     )
 
-    # create a modifier instance
-    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+    # create a tensor processor instance
+    tensor_processor = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
 
-    # test the modifier
+    # test the tensor processor
     theta = torch.tensor([0.0], device=device)
     delta = torch.pi / torch.tensor([8.0, 8.0, 8.0], device=device)
 
     for _ in range(5):
-        # reset the modifier
-        modifier_obj.reset()
+        # reset the tensor processor
+        tensor_processor.reset()
 
-        # apply the modifier multiple times
+        # apply the tensor processor multiple times
         for i in range(test_cfg.num_iter):
             data = torch.sin(theta + i * delta)
-            processed_data = modifier_obj(data)
+            processed_data = tensor_processor(data)
 
             assert data.shape == processed_data.shape, "Modified data shape does not equal original"
 
@@ -81,35 +81,35 @@ def test_digital_filter(device):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_integral(device):
-    """Test integral modifier."""
+    """Test integral tensor processor."""
     # create test data
     init_data = torch.tensor([0.0], device=device)
     dt = 1.0
     result = torch.tensor([12.5], device=device)
 
     # create test config
-    test_cfg = ModifierTestCfg(
+    test_cfg = TensorProcessorTestCfg(
         cfg=tensor_processors.IntegratorCfg(dt=dt),
         init_data=init_data,
         result=result,
         num_iter=6,
     )
 
-    # create a modifier instance
-    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+    # create a tensor processor instance
+    tensor_processor = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
 
-    # test the modifier
+    # test the tensor processor
     delta = torch.tensor(1.0, device=device)
 
     for _ in range(5):
-        # reset the modifier
-        modifier_obj.reset()
+        # reset the tensor processor
+        tensor_processor.reset()
 
         # clone the data to avoid modifying the original
         data = test_cfg.init_data.clone()
-        # apply the modifier multiple times
+        # apply the tensor processor multiple times
         for _ in range(test_cfg.num_iter):
-            processed_data = modifier_obj(data)
+            processed_data = tensor_processor(data)
             data = data + delta
 
             assert data.shape == processed_data.shape, "Modified data shape does not equal original"

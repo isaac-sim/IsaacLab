@@ -84,7 +84,9 @@ class NestedFieldTermCfg(ManagerTermBaseCfg):
     """Manager term with owned and opaque fields outside ``params``."""
 
     nested_term: ManagerTermBaseCfg = ManagerTermBaseCfg(func=increment_dummy1_by_one)
-    modifier: tensor_processors.TensorProcessorCfg = tensor_processors.TensorProcessorCfg(func=increment_dummy1_by_one)
+    tensor_processor: tensor_processors.TensorProcessorCfg = tensor_processors.TensorProcessorCfg(
+        func=increment_dummy1_by_one
+    )
     dict_processor: tensor_processors.DictTensorProcessorCfg | None = None
     metadata: dict[str, str] = {"func": f"{__name__}:reset_dummy2_to_zero"}
     opaque: OpaqueCfg = OpaqueCfg()
@@ -218,7 +220,7 @@ def test_resolution_walks_declared_term_fields_outside_params(env):
     term_cfg = manager._term_cfgs[0][1]
     assert isinstance(term_cfg, NestedFieldTermCfg)
     assert term_cfg.nested_term.func is reset_dummy2_to_zero
-    assert term_cfg.modifier.func is increment_dummy1_by_one
+    assert term_cfg.tensor_processor.func is increment_dummy1_by_one
     assert isinstance(term_cfg.dict_processor.class_type, str)
     assert isinstance(term_cfg.dict_processor.params["term"].func, reset_dummy2_to_zero_class)
     assert term_cfg.dict_processor.params["asset_cfg"].joint_names == ["c", "a"]

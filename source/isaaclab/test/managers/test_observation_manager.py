@@ -579,14 +579,16 @@ def test_non_callable_class_term(setup_env):
 
 
 @pytest.mark.parametrize("position_term", [pos_w_data, destination_position])
-def test_modifier_compute(setup_env, position_term):
+def test_tensor_processor_compute(setup_env, position_term):
     env = setup_env
-    """Test the observation computation with tensor_processors."""
+    """Test the observation computation with tensor processors."""
 
-    modifier_1 = tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 1.0})
-    modifier_2 = tensor_processors.TensorProcessorCfg(func=tensor_processors.scale, params={"multiplier": 2.0})
-    modifier_3 = tensor_processors.TensorProcessorCfg(func=tensor_processors.clip, params={"bounds": (-0.5, 0.5)})
-    modifier_4 = tensor_processors.IntegratorCfg(dt=env.dt)
+    tensor_processor_1 = tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 1.0})
+    tensor_processor_2 = tensor_processors.TensorProcessorCfg(func=tensor_processors.scale, params={"multiplier": 2.0})
+    tensor_processor_3 = tensor_processors.TensorProcessorCfg(
+        func=tensor_processors.clip, params={"bounds": (-0.5, 0.5)}
+    )
+    tensor_processor_4 = tensor_processors.IntegratorCfg(dt=env.dt)
 
     @configclass
     class MyObservationManagerCfg:
@@ -598,8 +600,8 @@ def test_modifier_compute(setup_env, position_term):
 
             concatenate_terms = False
             term_1 = ObservationTermCfg(func=position_term, tensor_processors=[])
-            term_2 = ObservationTermCfg(func=position_term, tensor_processors=[modifier_1])
-            term_3 = ObservationTermCfg(func=position_term, tensor_processors=[modifier_1, modifier_4])
+            term_2 = ObservationTermCfg(func=position_term, tensor_processors=[tensor_processor_1])
+            term_3 = ObservationTermCfg(func=position_term, tensor_processors=[tensor_processor_1, tensor_processor_4])
 
         @configclass
         class CriticCfg(ObservationGroupCfg):
@@ -607,9 +609,11 @@ def test_modifier_compute(setup_env, position_term):
 
             concatenate_terms = False
             term_1 = ObservationTermCfg(func=position_term, tensor_processors=[])
-            term_2 = ObservationTermCfg(func=position_term, tensor_processors=[modifier_1])
-            term_3 = ObservationTermCfg(func=position_term, tensor_processors=[modifier_1, modifier_2])
-            term_4 = ObservationTermCfg(func=position_term, tensor_processors=[modifier_1, modifier_2, modifier_3])
+            term_2 = ObservationTermCfg(func=position_term, tensor_processors=[tensor_processor_1])
+            term_3 = ObservationTermCfg(func=position_term, tensor_processors=[tensor_processor_1, tensor_processor_2])
+            term_4 = ObservationTermCfg(
+                func=position_term, tensor_processors=[tensor_processor_1, tensor_processor_2, tensor_processor_3]
+            )
 
         policy: ObservationGroupCfg = PolicyCfg()
         critic: ObservationGroupCfg = CriticCfg()
@@ -624,7 +628,7 @@ def test_modifier_compute(setup_env, position_term):
     obs_policy: dict[str, torch.Tensor] = observations["policy"]
     obs_critic: dict[str, torch.Tensor] = observations["critic"]
 
-    # check correct application of modifications
+    # check correct application of tensor processors
     assert torch.equal(obs_policy["term_1"] + 1.0, obs_policy["term_2"])
     # the first integration step averages the biased signal with a zero initial value
     torch.testing.assert_close(obs_policy["term_3"], 0.5 * (obs_policy["term_1"] + 1.0) * env.dt)
@@ -633,13 +637,13 @@ def test_modifier_compute(setup_env, position_term):
     assert torch.min(obs_critic["term_4"]) >= -0.5
     assert torch.max(obs_critic["term_4"]) <= 0.5
 
-    # Dictionary outputs must also survive updates to a modifier's internal state.
+    # Dictionary outputs must also survive updates to a tensor processor's internal state.
     expected_integral = 0.5 * (env.data.pos_w + 1.0) * env.dt
     obs_man.compute()
     obs_man.reset()
     torch.testing.assert_close(obs_policy["term_3"], expected_integral)
 
-    # A concatenated observation must survive subsequent updates to a modifier's internal state.
+    # A concatenated observation must survive subsequent updates to a tensor processor's internal state.
     cfg.policy.term_1 = None
     cfg.policy.term_2 = None
     cfg.policy.concatenate_terms = True
@@ -692,11 +696,13 @@ def test_serialize(setup_env):
     assert obs_man.serialize() == {"policy": {"term_1": serialize_data}}
 
 
-def test_modifier_invalid_config(setup_env):
+def test_tensor_processor_invalid_config(setup_env):
     env = setup_env
-    """Test modifier initialization with invalid config."""
+    """Test tensor processor initialization with invalid config."""
 
-    modifier = tensor_processors.TensorProcessorCfg(func=tensor_processors.clip, params={"min": -0.5, "max": 0.5})
+    tensor_processor = tensor_processors.TensorProcessorCfg(
+        func=tensor_processors.clip, params={"min": -0.5, "max": 0.5}
+    )
 
     @configclass
     class MyObservationManagerCfg:
@@ -707,7 +713,7 @@ def test_modifier_invalid_config(setup_env):
             """Test config class for policy observation group."""
 
             concatenate_terms = False
-            term_1 = ObservationTermCfg(func=pos_w_data, tensor_processors=[modifier])
+            term_1 = ObservationTermCfg(func=pos_w_data, tensor_processors=[tensor_processor])
 
         policy: ObservationGroupCfg = PolicyCfg()
 
@@ -801,8 +807,8 @@ class DummyEnv:
         self.observation = torch.arange(num_envs, dtype=torch.float32).unsqueeze(-1)
 
 
-class StatefulBiasModifier(tensor_processors.TensorProcessor):
-    """Stateful modifier used to verify lazy callable resolution."""
+class StatefulBiasTensorProcessor(tensor_processors.TensorProcessor):
+    """Stateful tensor processor used to verify lazy callable resolution."""
 
     def __init__(self, cfg: tensor_processors.TensorProcessorCfg, data_dim: tuple[int, ...], device: str) -> None:
         super().__init__(cfg, data_dim, device)
@@ -816,8 +822,8 @@ class StatefulBiasModifier(tensor_processors.TensorProcessor):
         return data + self.value
 
 
-class InvalidModifier:
-    """Class with the modifier constructor contract but the wrong base type."""
+class InvalidTensorProcessor:
+    """Class with the tensor processor constructor contract but the wrong base type."""
 
     def __init__(self, cfg, data_dim, device):
         pass
@@ -839,12 +845,12 @@ class HistoryObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-def test_class_modifier_roundtrip_preserves_func_and_params():
-    """Reproduce #6067 with a class modifier and non-empty parameters."""
+def test_class_tensor_processor_roundtrip_preserves_func_and_params():
+    """Reproduce #6067 with a class tensor processor and non-empty parameters."""
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
     cfg.policy.dummy.tensor_processors = [
-        tensor_processors.TensorProcessorCfg(func=StatefulBiasModifier, params={"value": 2.0})
+        tensor_processors.TensorProcessorCfg(func=StatefulBiasTensorProcessor, params={"value": 2.0})
     ]
     update_from_dict(cfg, to_dict(cfg))
     term_cfg = cfg.policy.dummy
@@ -859,7 +865,7 @@ def test_class_modifier_roundtrip_preserves_func_and_params():
     prepared_term_cfg = manager.cfg.policy.dummy
     assert prepared_term_cfg.tensor_processors is not None
     prepared_tensor_processor_cfg = prepared_term_cfg.tensor_processors[0]
-    assert isinstance(prepared_tensor_processor_cfg.func, StatefulBiasModifier)
+    assert isinstance(prepared_tensor_processor_cfg.func, StatefulBiasTensorProcessor)
     observations = manager.compute()["policy"]
     torch.testing.assert_close(observations, env.observation + 2.0)
 
@@ -896,11 +902,11 @@ def test_removed_modifier_imports_report_replacements(path):
         string_to_callable(path)
 
 
-def test_class_modifier_validates_constructed_instance():
-    """Class modifier validation checks the constructed object."""
+def test_class_tensor_processor_validates_constructed_instance():
+    """Class tensor processor validation checks the constructed object."""
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
-    cfg.policy.dummy.tensor_processors = [tensor_processors.TensorProcessorCfg(func=InvalidModifier)]
+    cfg.policy.dummy.tensor_processors = [tensor_processors.TensorProcessorCfg(func=InvalidTensorProcessor)]
     update_from_dict(cfg, to_dict(cfg))
 
     with pytest.raises(TypeError, match="is not an instance of 'TensorProcessor'"):
