@@ -166,14 +166,14 @@ class CapturedStage:
             self._recordings.clear()
 
     @classmethod
-    def invalidate_on(cls, physics_manager: type[PhysicsManager]) -> None:
+    def invalidate_on(cls, backend_manager: PhysicsManager) -> None:
         """Record every stage again after the physics backend rebinds its buffers or stops.
 
         Args:
-            physics_manager: Physics manager class that dispatches the lifecycle events.
+            backend_manager: Physics manager that dispatches the lifecycle events.
         """
         cls._callback_handles = [
-            physics_manager.register_callback(cls.invalidate, event)
+            backend_manager.register_callback(cls.invalidate, event)
             for event in (PhysicsEvent.PHYSICS_READY, PhysicsEvent.STOP)
         ]
 

@@ -103,7 +103,7 @@ class ManagerBasedEnvWarp:
 
         # the managers' stages record CUDA graphs, and record again after the physics buffers rebind
         CapturedStage.enabled = True
-        CapturedStage.invalidate_on(self.sim.physics_manager)
+        CapturedStage.invalidate_on(self.sim.backend_manager)
 
         # print useful information
         logger.info(
@@ -175,8 +175,8 @@ class ManagerBasedEnvWarp:
             self.scene.update(dt=self.physics_dt)
         # let the physics backend know about the env decimation so it can
         # fold the full loop into a single step() when possible
-        self.sim.physics_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
         # TODO(jichuanh): This is a temporary solution for event_manager only, but it should be general for all managers
         # Resolve SceneEntityCfg-dependent term params once before any captured event paths.
