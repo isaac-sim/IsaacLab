@@ -10,7 +10,6 @@
     NewtonManager
     NewtonBackend
     NewtonCloneRecord
-    MjWarpActuatorBridge
     NewtonCfg
     NewtonBackendCfg
     NewtonBuilderCfg
@@ -94,13 +93,6 @@ Solvers
   :show-inheritance:
 
 .. autoclass:: MPMSolver
-  :show-inheritance:
-
-Actuator Solver Access
-----------------------
-
-.. autoclass:: MjWarpActuatorBridge
-  :members:
   :show-inheritance:
 
 Physics Configuration

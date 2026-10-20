@@ -29,11 +29,12 @@ if TYPE_CHECKING:
 
 
 class BamFriction:
-    """Gearbox friction of BAM servos, which MJWarp applies as a DOF friction constraint.
+    """Gearbox friction of BAM servos, which MuJoCo applies as a DOF friction constraint.
 
     Before each actuator step, :meth:`compute_budget` turns the servo velocity, the previous solve's external
-    load and the previous step's applied effort into a velocity-independent friction budget. After the step,
-    :meth:`record_applied_effort` stores the clamped effort for the next budget. Both run in CUDA graphs.
+    load and the previous step's applied effort into a velocity-independent friction budget, and writes it into the
+    model's joint friction for the next solve. After the step, :meth:`record_applied_effort` stores the clamped
+    effort for the next budget. Both run in CUDA graphs.
     """
 
     COEFFICIENTS: ClassVar[tuple[str, ...]] = (
@@ -75,17 +76,32 @@ class BamFriction:
         self.friction_scale = wp.ones(num_dofs, dtype=wp.float32, device=device)
         """Multiplier of the friction budget [-], shape ``(N,)``."""
         self.external_torque = wp.zeros(num_dofs, dtype=wp.float32, device=device)
-        """External gearbox load of the previous solve [N.m], shape ``(N,)``."""
+        """External gearbox load of the previous solve, as of the last budget [N.m], shape ``(N,)``."""
         self.prev_applied_torque = wp.zeros(num_dofs, dtype=wp.float32, device=device)
         """Clamped effort of the previous step [N.m], shape ``(N,)``. Zeroed on reset."""
         self.friction_budget = wp.zeros(num_dofs, dtype=wp.float32, device=device)
         """Velocity-independent friction budget of the last step [N.m], shape ``(N,)``."""
 
-    def compute_budget(self, joint_qd: wp.array) -> None:
-        """Compute this step's friction budget.
+    def compute_budget(
+        self,
+        joint_qd: wp.array,
+        qfrc_bias: wp.array,
+        qfrc_constraint: wp.array,
+        qfrc_frictionloss: wp.array,
+        joint_friction: wp.array,
+    ) -> None:
+        """Compute this step's friction budget and write it into the joint friction.
+
+        The force arrays are the previous solve's, as Newton's MuJoCo solver exports them.
 
         Args:
-            joint_qd: Joint velocities of the simulation state [rad/s], indexed by :attr:`dof_indices`.
+            joint_qd: Joint velocities of the simulation state [rad/s].
+            qfrc_bias: Gravity, Coriolis and centrifugal forces [N.m].
+            qfrc_constraint: Constraint forces, including each DOF's friction loss [N.m].
+            qfrc_frictionloss: Each DOF's own friction-loss force [N.m].
+            joint_friction: Joint friction the solver applies [N.m]; the servo DOFs receive the budget.
+
+        All arrays are indexed by :attr:`dof_indices`.
         """
         wp.launch(
             bam_friction_budget_kernel,
@@ -93,7 +109,9 @@ class BamFriction:
             inputs=[
                 joint_qd,
                 self.dof_indices,
-                self.external_torque,
+                qfrc_bias,
+                qfrc_constraint,
+                qfrc_frictionloss,
                 self.prev_applied_torque,
                 self.friction_scale,
                 *(self.coefficients[name] for name in self.COEFFICIENTS),
@@ -101,7 +119,7 @@ class BamFriction:
                 self.load_dependent,
                 self.quadratic,
             ],
-            outputs=[self.friction_budget],
+            outputs=[self.external_torque, self.friction_budget, joint_friction],
             device=self.dof_indices.device,
         )
 
