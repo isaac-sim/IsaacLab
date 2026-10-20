@@ -27,8 +27,8 @@ from .backends import (
     indices,
     install_physx_recording_setters,
     newton_manager,
-    patch_ovphysx_manager,
-    patch_physx_manager,
+    ovphysx_manager,
+    physx_manager,
 )
 
 if "physx" in AVAILABLE:
@@ -37,7 +37,6 @@ if "physx" in AVAILABLE:
 
 if "newton" in AVAILABLE:
     import isaaclab_newton.assets as newton_assets
-    import isaaclab_newton.assets.articulation.articulation_data as newton_articulation_data
     from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView
 
 if "ovphysx" in AVAILABLE:
@@ -92,7 +91,7 @@ def _set_tendon_names(articulation, fixed: list[str], spatial: list[str]) -> Non
 
 
 def _physx_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering, body_ordering, monkeypatch):
-    patch_physx_manager(monkeypatch)
+    manager = physx_manager()
     view = MockArticulationViewWarp(
         count=N, num_links=B, num_dofs=J, device=device, max_fixed_tendons=FT, max_spatial_tendons=ST
     )
@@ -106,7 +105,8 @@ def _physx_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering, 
     articulation._root_view = view
     articulation._device = device
     articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
-    articulation._data = physx_assets.ArticulationData(view, device)
+    articulation._backend_manager = manager
+    articulation._data = physx_assets.ArticulationData(view, device, backend_manager=manager)
     _set_tendon_names(articulation, _names("fixed_tendon", FT), _names("spatial_tendon", ST))
     finish_shell(articulation)
     articulation._ALL_INDICES = articulation._ALL_INDICES_WP = indices(N, device)
@@ -147,7 +147,7 @@ def _physx_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering, 
 
 
 def _ovphysx_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering, body_ordering, monkeypatch):
-    patch_ovphysx_manager(monkeypatch)
+    manager = ovphysx_manager()
     joint_names, body_names = _names("joint", J), _names("body", B)
     bindings = MockOvPhysxBindingSet(
         num_instances=N,
@@ -175,7 +175,8 @@ def _ovphysx_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering
     articulation._num_fixed_tendons = FT
     articulation._num_spatial_tendons = ST
     # Counts come from the view; names are set on the data afterwards.
-    articulation._data = ovphysx_assets.ArticulationData(bindings.view, device)
+    articulation._backend_manager = manager
+    articulation._data = ovphysx_assets.ArticulationData(bindings.view, device, backend_manager=manager)
     articulation._data.body_names = body_names
     articulation._data.joint_names = joint_names
     articulation._data._is_fixed_base = is_fixed_base
@@ -221,14 +222,13 @@ def _newton_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering,
     model.max_dofs_per_articulation = total_dofs
     model.joint_dof_count = N * total_dofs
     model.body_count = N * B
-    monkeypatch.setattr(newton_articulation_data, "SimulationManager", manager, raising=False)
 
     articulation = _shell(newton_assets.Articulation, joint_ordering, body_ordering)
     articulation._root_view = view
     articulation._device = device
     articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
-    articulation._data = newton_assets.ArticulationData(view, device)
-    articulation._test_simulation_manager = manager
+    articulation._backend_manager = manager
+    articulation._data = newton_assets.ArticulationData(view, device, backend_manager=manager)
     # The solver builds this adapter; the shell has no model, so it stays absent.
     articulation._fixed_tendon_control = None
     _set_tendon_names(articulation, fixed_tendon_names, [])

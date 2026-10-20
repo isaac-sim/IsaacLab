@@ -230,12 +230,13 @@ OVERRIDES = {
     "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "examples/demos/sonic.py": ScriptOverride(
         skip_reason="downloads released ONNX policy models and builds the full granular scene",
-        visualizers=("kit",),
+        visualizers=(None, "kit", "newton_gl", "newton_rtx", "rerun", "viser"),
     ),
     "examples/g1_terrain.py": ScriptOverride(
         args=("--task", "platforms"),
         skip_reason="downloads a published depth policy",
-        visualizers=("kit",),
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=(None, "kit", "newton_gl", "newton_rtx", "rerun", "viser"),
     ),
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
@@ -243,7 +244,9 @@ OVERRIDES = {
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
-        skip_reason="requires a licensed Rizon--Sharpa bundle",
+        fixed_physics_backend="newton_coupler",
+        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+        required_modules=("isaaclab_contrib",),
     ),
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
         fixed_physics_backend="newton_coupler",
@@ -283,9 +286,9 @@ OVERRIDES = {
         visualizers=("newton_gl",),
     ),
     "examples/tablecloth.py": ScriptOverride(
-        args=("--speeds", "4.0", "0.5", "--max_steps", "2", "--viz", "none"),
+        args=("--speeds", "4.0", "0.5", "--max_steps", "2"),
         fixed_physics_backend="newton_vbd",
-        visualizers=(None,),
+        visualizers=("newton_gl", "kit", "newton_rtx"),
     ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(

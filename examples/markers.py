@@ -34,7 +34,6 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_angle_axis
 
@@ -95,8 +94,8 @@ def define_markers() -> "VisualizationMarkers":
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
