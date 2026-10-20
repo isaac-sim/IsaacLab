@@ -32,15 +32,32 @@ def check_checkout(root: Path, expected_commit: str | None = None) -> str:
     commit = _git(root, "rev-parse", "HEAD").decode().strip()
     if expected_commit is not None and commit != expected_commit:
         raise ValueError(f"Checked-out revision {commit} differs from expected commit {expected_commit}.")
-    changed = _git(root, "diff", "--name-only", "-z", "--no-renames", commit, "--", "source", "scripts")
+    changed = _git(
+        root,
+        "-c",
+        "diff.autoRefreshIndex=true",
+        "-c",
+        "core.filemode=false",
+        "diff",
+        "--name-only",
+        "-z",
+        "--no-renames",
+        commit,
+        "--",
+        "source",
+        "scripts",
+    )
     for path in changed.decode().split("\0"):
         if path.endswith((".py", ".pyi")):
-            raise ValueError(f"Checked-out Python source differs from commit {commit}: {path}")
+            details = _git(root, "diff", "--numstat", "--summary", "--no-renames", commit, "--", path).decode().strip()
+            raise ValueError(f"Checked-out Python source differs from commit {commit}: {path}\n{details}")
     return commit
 
 
 def prepare_manifest(root: Path, expected_commit: str | None = None) -> dict:
-    """Record the tracked Python paths from the selected, clean checkout."""
+    """Record the selected commit and repository-relative Python paths.
+    `files` lists paths. `namespaces` maps installed package names to their source directories.
+    """
     commit = check_checkout(root, expected_commit)
     files = sorted(
         path
@@ -64,7 +81,7 @@ def prepare_manifest(root: Path, expected_commit: str | None = None) -> dict:
     }
 
 
-def _expected_paths(name: str, namespaces: dict) -> list[str]:
+def _expected_paths(name: str, namespaces: dict[str, list[str]]) -> list[str]:
     namespace, _, suffix = name.partition(".")
     paths = []
     for prefix in namespaces.get(namespace, []):
