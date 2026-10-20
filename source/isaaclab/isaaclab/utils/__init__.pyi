@@ -33,8 +33,6 @@ __all__ = [
     "PRIMITIVE_MESH_TYPES",
     "TensorProcessorCfg",
     "TensorProcessor",
-    "DictTensorProcessor",
-    "DictTensorProcessorCfg",
     "DigitalFilter",
     "DigitalFilterCfg",
     "Integrator",
@@ -90,8 +88,6 @@ from .mesh import (
     PRIMITIVE_MESH_TYPES,
 )
 from .tensor_processors import (
-    DictTensorProcessor,
-    DictTensorProcessorCfg,
     TensorProcessorCfg,
     TensorProcessor,
     DigitalFilter,

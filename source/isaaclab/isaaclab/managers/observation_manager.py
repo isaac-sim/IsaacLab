@@ -8,21 +8,16 @@
 from __future__ import annotations
 
 import inspect
-from builtins import ExceptionGroup
 from collections.abc import Sequence
-from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-import warp as wp
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import instantiate, noise, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
-from ..utils.tensor_processors._pipeline import _DictTensorProcessorPipeline
-from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -41,8 +36,7 @@ class ObservationManager(ManagerBase):
     Each observation group should inherit from the :class:`ObservationGroupCfg` class. Within each group, each
     observation term should instantiate the :class:`ObservationTermCfg` class. Based on the configuration, the
     observations in a group can be concatenated into a single tensor or returned as a dictionary with keys
-    corresponding to the term's name. Dictionary-returning terms remain nested under their term name
-    and require a non-concatenated group.
+    corresponding to the term's name.
 
     If the observations in a group are concatenated, the shape of the concatenated tensor is computed based on the
     shapes of the individual observation terms. This information is stored in the :attr:`group_obs_dim` dictionary
@@ -92,18 +86,10 @@ class ObservationManager(ManagerBase):
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
 
         # call the base class constructor (this will parse the terms config)
-        self._term_pipelines: dict[tuple[str, str], _DictTensorProcessorPipeline] = {}
-        try:
-            super().__init__(cfg, env)
-        except Exception as error:
-            try:
-                self.close()
-            except Exception as cleanup_error:
-                error.add_note(f"Failed to close observation pipelines after initialization failed: {cleanup_error}")
-            raise
+        super().__init__(cfg, env)
 
         # compute combined vector for obs group
-        self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...] | dict[str, tuple[int, ...]]]] = {}
+        self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = {}
         for group_name, group_term_dims in self._group_obs_term_dim.items():
             # if terms are concatenated, compute the combined shape into a single tuple
             # otherwise, keep the list of shapes as is
@@ -132,25 +118,7 @@ class ObservationManager(ManagerBase):
                 self._group_obs_dim[group_name] = group_term_dims
 
         # Stores the latest observations.
-        self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]] | None = None
-
-    def close(self) -> None:
-        """Release dictionary processor resources. Repeated calls have no effect."""
-        errors = []
-        for pipeline in self._term_pipelines.values():
-            try:
-                pipeline.close()
-            except Exception as error:
-                errors.append(error)
-        if errors:
-            raise ExceptionGroup("Failed to close observation pipelines.", errors)
-
-    def __del__(self):
-        try:
-            if hasattr(self, "_term_pipelines"):
-                self.close()
-        finally:
-            super().__del__()
+        self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
 
     def __str__(self) -> str:
         """Returns: A string representation for the observation manager."""
@@ -173,7 +141,7 @@ class ObservationManager(ManagerBase):
             )
             for index, (name, dims) in enumerate(obs_terms):
                 # resolve inputs to simplify prints
-                tab_dims = dims if isinstance(dims, dict) else tuple(dims)
+                tab_dims = tuple(dims)
                 # add row
                 table.add_row([index, name, tab_dims])
             # convert table to string
@@ -197,17 +165,12 @@ class ObservationManager(ManagerBase):
 
         if self._obs_buffer is None:
             self.compute()
-        obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]] = self._obs_buffer
+        obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] = self._obs_buffer
 
         for group_name, _ in self._group_obs_dim.items():
             if not self.group_obs_concatenate[group_name]:
                 for name, term in obs_buffer[group_name].items():
-                    if isinstance(term, dict):
-                        terms.extend(
-                            (f"{group_name}-{name}/{key}", value[env_idx].cpu().tolist()) for key, value in term.items()
-                        )
-                    else:
-                        terms.append((group_name + "-" + name, term[env_idx].cpu().tolist()))
+                    terms.append((group_name + "-" + name, term[env_idx].cpu().tolist()))
                 continue
 
             idx = 0
@@ -241,22 +204,22 @@ class ObservationManager(ManagerBase):
         return self._group_obs_term_names
 
     @property
-    def group_obs_dim(self) -> dict[str, tuple[int, ...] | list[tuple[int, ...] | dict[str, tuple[int, ...]]]]:
+    def group_obs_dim(self) -> dict[str, tuple[int, ...] | list[tuple[int, ...]]]:
         """Shape of computed observations in each group.
 
         The key is the group name and the value is the shape of the observation tensor.
         If the terms in the group are concatenated, the value is a single tuple representing the
         shape of the concatenated observation tensor. Otherwise, the value is a list of tuples,
-        where each entry is a term shape or a dictionary of named tensor shapes.
+        where each tuple represents the shape of the observation tensor for a term in the group.
         """
         return self._group_obs_dim
 
     @property
-    def group_obs_term_dim(self) -> dict[str, list[tuple[int, ...] | dict[str, tuple[int, ...]]]]:
+    def group_obs_term_dim(self) -> dict[str, list[tuple[int, ...]]]:
         """Shape of individual observation terms in each group.
 
-        The key is the group name and the value is a list of term shapes. Each entry is a tuple for a tensor term
-        or a dictionary of named shapes for a dictionary term. The order corresponds to the terms in the group.
+        The key is the group name and the value is a list of tuples representing the shape of the observation terms
+        in the group. The order of the tuples corresponds to the order of the terms in the group.
         This matches the order of the terms in the :attr:`active_terms`.
         """
         return self._group_obs_term_dim
@@ -378,18 +341,11 @@ class ObservationManager(ManagerBase):
         # call all tensor_processors that are classes
         for mod in self._group_obs_class_instances:
             mod.reset(env_ids=env_ids)
-        if self._term_pipelines:
-            stream = wp.ScopedStream(wp.stream_from_torch(self.device)) if "cuda" in self.device else nullcontext()
-            with stream:
-                for pipeline in self._term_pipelines.values():
-                    pipeline.reset(env_ids)
 
         # nothing to log here
         return {}
 
-    def compute(
-        self, update_history: bool = False
-    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]]:
+    def compute(self, update_history: bool = False) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Compute the observations per group for all groups.
 
         The method computes the observations for all the groups handled by the observation manager.
@@ -416,9 +372,7 @@ class ObservationManager(ManagerBase):
         self._obs_buffer = obs_buffer
         return obs_buffer
 
-    def compute_group(
-        self, group_name: str, update_history: bool = False
-    ) -> torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+    def compute_group(self, group_name: str, update_history: bool = False) -> torch.Tensor | dict[str, torch.Tensor]:
         """Computes the observations for a given group.
 
         The observations for a given group are computed by calling the registered functions for each
@@ -434,9 +388,6 @@ class ObservationManager(ManagerBase):
         5. Apply scaling based on :attr:`ObservationTermCfg.scale`
         6. Apply delay based on :attr:`ObservationTermCfg.delay_min_lag` and :attr:`ObservationTermCfg.delay_max_lag`
         7. Append the delayed observation to history if requested
-
-        Dictionary-returning terms apply their dictionary processors and return named tensors
-        under the term name. Tensor-only post-processing settings are not supported for these terms.
 
         We apply noise to the computed term first to maintain the integrity of how noise affects the data
         as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
@@ -466,10 +417,10 @@ class ObservationManager(ManagerBase):
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
         term_cfgs = self._group_obs_term_cfgs[group_name]
-        obs_terms = zip(group_term_names, term_cfgs, self._group_obs_term_dim[group_name])
+        obs_terms = zip(group_term_names, term_cfgs)
 
         # evaluate terms: compute, add noise, clip, scale, custom tensor_processors
-        for term_name, term_cfg, term_dims in obs_terms:
+        for term_name, term_cfg in obs_terms:
             output_spec = self._term_output_specs.get((group_name, term_name))
             owned = output_spec is not None
             if output_spec is not None:
@@ -481,10 +432,6 @@ class ObservationManager(ManagerBase):
                     )
             else:
                 obs = term_cfg.func(self._env, **term_cfg.params)
-            if isinstance(term_dims, dict):
-                pipeline = self._term_pipelines[group_name, term_name]
-                group_obs[term_name] = self._compute_dict_term(group_name, term_name, pipeline, obs, term_dims)
-                continue
             # apply post-processing
             if term_cfg.tensor_processors is not None:
                 for modifier in term_cfg.tensor_processors:
@@ -590,21 +537,22 @@ class ObservationManager(ManagerBase):
         # The destination is supplied by the manager, not by the term configuration.
         term_cfg.params.pop("out", None)
 
-    def _prepare_term_output(
-        self, group_name: str, term_name: str, term_cfg: ObservationTermCfg
-    ) -> torch.Tensor | dict[str, torch.Tensor | ProxyArray]:
+    def _prepare_term_output(self, group_name: str, term_name: str, term_cfg: ObservationTermCfg) -> tuple[int, ...]:
         """Probe output dimensions and cache destination specifications for explicitly supported terms."""
         out_param = inspect.signature(term_cfg.func).parameters.get("out")
         writes_output = out_param is not None and out_param.kind is inspect.Parameter.KEYWORD_ONLY
         if writes_output and out_param.default is not None:
             raise ValueError(f"Observation term '{group_name}/{term_name}' must declare keyword-only 'out=None'.")
         sample = term_cfg.func(self._env, **term_cfg.params)
-        if isinstance(sample, dict):
-            return sample
+        if not isinstance(sample, torch.Tensor):
+            raise TypeError(
+                f"Observation term '{group_name}/{term_name}' must return a torch.Tensor."
+                f" Received: {type(sample).__name__}."
+            )
         shape = tuple(sample.shape)
         if writes_output:
             self._term_output_specs[group_name, term_name] = (shape, sample.dtype, sample.device)
-        return sample
+        return shape
 
     def _prepare_terms(self):
         """Prepares a list of observation terms functions."""
@@ -612,7 +560,7 @@ class ObservationManager(ManagerBase):
         # TODO: Make this more convenient by using data structures.
         self._term_output_specs: dict[tuple[str, str], tuple[tuple[int, ...], torch.dtype, torch.device]] = {}
         self._group_obs_term_names: dict[str, list[str]] = {}
-        self._group_obs_term_dim: dict[str, list[tuple[int, ...] | dict[str, tuple[int, ...]]]] = {}
+        self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = {}
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_concatenate: dict[str, bool] = {}
@@ -682,18 +630,17 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in term_cfg_items:
                 # skip non-obs settings
-                if (
-                    term_name
-                    in [
-                        "enable_corruption",
-                        "concatenate_terms",
-                        "history_length",
-                        "flatten_history_dim",
-                        "history_order",
-                        "concatenate_dim",
-                    ]
-                    or term_cfg is None
-                ):
+                if term_name in [
+                    "enable_corruption",
+                    "concatenate_terms",
+                    "history_length",
+                    "flatten_history_dim",
+                    "history_order",
+                    "concatenate_dim",
+                ]:
+                    continue
+                # check for non config
+                if term_cfg is None:
                     continue
                 if not isinstance(term_cfg, ObservationTermCfg):
                     raise TypeError(
@@ -715,15 +662,7 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
                 # call function the first time to fill up dimensions
-                sample = self._prepare_term_output(group_name, term_name, term_cfg)
-                if isinstance(term_cfg.func, ManagerTermBase):
-                    self._group_obs_class_term_cfgs[group_name].append(term_cfg)
-                    term_cfg.func.reset()
-                if isinstance(sample, dict):
-                    dimensions = self._prepare_dict_term(group_name, term_name, term_cfg, sample)
-                    self._group_obs_term_dim[group_name].append(dimensions)
-                    continue
-                obs_dims = tuple(sample.shape)
+                obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
@@ -828,57 +767,11 @@ class ObservationManager(ManagerBase):
 
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
+                # add term in a separate list if term is a class
+                if isinstance(term_cfg.func, ManagerTermBase):
+                    self._group_obs_class_term_cfgs[group_name].append(term_cfg)
+                    # call reset (in-case above call to get obs dims changed the state)
+                    term_cfg.func.reset()
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
-
-    @staticmethod
-    def _dict_arrays(data: dict[str, torch.Tensor | ProxyArray]) -> dict[str, ProxyArray]:
-        if not isinstance(data, dict) or not all(
-            isinstance(name, str) and isinstance(value, (torch.Tensor, ProxyArray)) for name, value in data.items()
-        ):
-            raise TypeError("Dictionary observation terms must return string keys and Tensor or ProxyArray values.")
-        return {
-            name: value if isinstance(value, ProxyArray) else ProxyArray(wp.from_torch(value))
-            for name, value in data.items()
-        }
-
-    def _prepare_dict_term(
-        self, group_name: str, term_name: str, cfg: ObservationTermCfg, sample: dict[str, torch.Tensor | ProxyArray]
-    ) -> dict[str, tuple[int, ...]]:
-        if self._group_obs_concatenate[group_name]:
-            raise ValueError(f"Dictionary observation term '{term_name}' requires concatenate_terms=False.")
-        if (
-            any(value is not None for value in (cfg.noise, cfg.clip, cfg.scale))
-            or cfg.delay_max_lag
-            or cfg.history_length
-        ):
-            raise ValueError(
-                f"Dictionary observation term '{term_name}' does not support noise, clip, scale, delay, or history."
-                " Use dictionary processors to transform its named tensors."
-            )
-        if any(not isinstance(step, tensor_processors.DictTensorProcessorCfg) for step in cfg.tensor_processors or []):
-            raise TypeError(f"Dictionary observation term '{term_name}' requires DictTensorProcessorCfg processors.")
-        stream = wp.ScopedStream(wp.stream_from_torch(self.device)) if "cuda" in self.device else nullcontext()
-        with stream:
-            pipeline = _DictTensorProcessorPipeline(self._dict_arrays(sample), cfg.tensor_processors or [])
-        self._term_pipelines[group_name, term_name] = pipeline
-        for name, value in pipeline.outputs.items():
-            if not value.torch.shape or value.torch.shape[0] != self.num_envs:
-                raise ValueError(f"Dictionary observation output '{term_name}/{name}' must preserve the batch size.")
-        return {name: tuple(value.torch.shape[1:]) for name, value in pipeline.outputs.items()}
-
-    def _compute_dict_term(
-        self,
-        group_name: str,
-        term_name: str,
-        pipeline: _DictTensorProcessorPipeline,
-        data: dict[str, torch.Tensor | ProxyArray],
-        expected_dims: dict[str, tuple[int, ...]],
-    ) -> dict[str, torch.Tensor]:
-        stream = wp.ScopedStream(wp.stream_from_torch(self.device)) if "cuda" in self.device else nullcontext()
-        with stream:
-            result = pipeline(self._dict_arrays(data))
-            if result.keys() != expected_dims.keys():
-                raise ValueError(f"Dictionary observation term '{group_name}/{term_name}' changed its output keys.")
-            return {name: value.torch.clone() for name, value in result.items()}

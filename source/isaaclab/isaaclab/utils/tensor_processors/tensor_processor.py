@@ -18,8 +18,7 @@ if TYPE_CHECKING:
 class TensorProcessor(ABC):
     """Transform one tensor into one tensor, optionally retaining state between calls.
 
-    This is the single-tensor counterpart of :class:`DictTensorProcessor`. Subclasses
-    implement ``__call__`` and ``reset``. Observation processors preserve the input shape.
+    Subclasses implement ``__call__`` and ``reset``. Observation processors preserve the input shape.
     Configuration and dimensions
     are supplied by the observation manager once during construction.
     """

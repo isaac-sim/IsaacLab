@@ -3,15 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Stateful and stateless processing for tensors and dictionaries of named tensors.
+"""Stateful and stateless processing for tensors.
 
 Single-tensor functions and :class:`TensorProcessor` subclasses take and return one tensor.
 They apply custom operations in the :class:`~isaaclab.managers.ObservationManager`, such as
 normalization or rolling averages. Configure them through
 :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
-
-:class:`DictTensorProcessor` subclasses take and return dictionaries of named
-:class:`~isaaclab.utils.warp.ProxyArray` tensors. They own persistent outputs and state.
 
 Usage with a function processor:
 

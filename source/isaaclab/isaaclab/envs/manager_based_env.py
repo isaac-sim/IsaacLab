@@ -609,23 +609,19 @@ class ManagerBasedEnv:
 
             # destructor is order-sensitive
             del self.action_manager
-            try:
-                self.observation_manager.close()
-            finally:
-                # Processor cleanup errors must not leave the environment partially closed.
-                del self.observation_manager
-                del self.event_manager
-                del self.recorder_manager
-                del self.scene
+            del self.observation_manager
+            del self.event_manager
+            del self.recorder_manager
+            del self.scene
 
-                # clear callbacks and instance
-                self.sim.clear_instance()
+            # clear callbacks and instance
+            self.sim.clear_instance()
 
-                # destroy the window
-                if self._window is not None:
-                    self._window = None
-                # update closing status
-                self._is_closed = True
+            # destroy the window
+            if self._window is not None:
+                self._window = None
+            # update closing status
+            self._is_closed = True
 
     """
     Helper functions.

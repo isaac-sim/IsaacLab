@@ -15,11 +15,10 @@ import torch
 
 from ..utils import configclass
 from ..utils.noise import NoiseCfg, NoiseModelCfg
-from ..utils.tensor_processors import DictTensorProcessorCfg, TensorProcessorCfg
+from ..utils.tensor_processors import TensorProcessorCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from ..utils.warp import ProxyArray
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
@@ -159,20 +158,16 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | dict[str, torch.Tensor | ProxyArray] | None] | type[ManagerTermBase] = MISSING
+    func: Callable[..., torch.Tensor] | type[ManagerTermBase] = MISSING
     """The function or :class:`ManagerTermBase` subclass to be called.
 
     The manager instantiates class-based terms before calling them.
     The function or the class's ``__call__`` method should take the environment object and any other parameters
     as input and return the observation signal as torch float tensors of
-    shape (num_envs, obs_term_dim), or a dictionary of named batched tensors. Dictionary values
-    may be Torch tensors or ProxyArray objects. Dictionary terms require a non-concatenated
-    group and remain nested under their term name. They do not support the tensor-only noise,
-    clip, scale, delay, or history settings; use dictionary processors for their transformations.
-    Dictionary terms are supported by the standard observation manager.
+    shape (num_envs, obs_term_dim).
     """
 
-    tensor_processors: list[TensorProcessorCfg] | list[DictTensorProcessorCfg] | None = None
+    tensor_processors: list[TensorProcessorCfg] | None = None
     """The list of tensor processors to apply to the observation in order. Defaults to None,
     in which case no modifications will be applied.
 
@@ -180,9 +175,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     or stateful, and can be used to apply transformations to the observation data. For example,
     a processor can be used to normalize the observation data or to apply a rolling average.
 
-    Use :class:`~isaaclab.utils.tensor_processors.TensorProcessorCfg` for tensor-returning terms
-    and :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorCfg` for dictionary-returning
-    terms. Dictionary processors may add or replace keys; other keys are preserved.
+    For more information, see :class:`~isaaclab.utils.tensor_processors.TensorProcessorCfg`.
     """
 
     noise: NoiseCfg | NoiseModelCfg | None = None

@@ -127,16 +127,14 @@ Mesh operations
 Tensor processors
 ~~~~~~~~~~~~~~~~~
 
-Use :mod:`isaaclab.utils.tensor_processors` to transform observations:
+Use :mod:`isaaclab.utils.tensor_processors` to transform observation tensors. Configure processors
+with ``TensorProcessorCfg`` through :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
 
-* ``TensorProcessor``: tensor to tensor.
-* ``DictTensorProcessor``: dictionary of named tensors to dictionary of named tensors.
-
-Configure processors with :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
-Use ``TensorProcessorCfg`` for a term returning one tensor and ``DictTensorProcessorCfg`` for
-a term returning a dictionary of named tensors. Dictionary terms require ``concatenate_terms=False``.
-Each dictionary processor declares the input keys it needs and the output keys it adds or replaces.
-Other keys remain available to subsequent processors.
+Migration: import ``TensorProcessor`` and ``TensorProcessorCfg`` from
+``isaaclab.utils.tensor_processors`` in place of ``ModifierBase`` and ``ModifierCfg`` from
+``isaaclab.utils.modifiers``. Replace ``ObservationTermCfg.modifiers`` with
+``ObservationTermCfg.tensor_processors``. The processing order and tensor shapes are unchanged.
+Old imports raise ``ValueError`` with migration instructions.
 
 .. automodule:: isaaclab.utils.tensor_processors
    :members:
