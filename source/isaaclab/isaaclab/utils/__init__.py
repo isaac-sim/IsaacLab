@@ -13,11 +13,6 @@ _stub_getattr, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
 
 
 def __getattr__(name: str):
-    if name in {"ModifierBase", "ModifierCfg"}:
-        raise ValueError(
-            "ModifierBase and ModifierCfg were removed. Use TensorProcessor and TensorProcessorCfg"
-            " from isaaclab.utils.tensor_processors instead."
-        )
     # ``configclass`` names both a sub-module of this package and the decorator that sub-module
     # defines, so ``isaaclab.utils.configclass`` can only ever be one of the two. Importing the
     # sub-module binds the module object here and shadows the lazily attached decorator, while

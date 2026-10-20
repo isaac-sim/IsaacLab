@@ -24,7 +24,6 @@ from isaaclab.managers import (
     RewardTermCfg,
 )
 from isaaclab.utils import DelayBuffer, configclass, noise, tensor_processors, to_dict, update_from_dict, validate
-from isaaclab.utils.string import string_to_callable
 
 pytestmark = pytest.mark.unit
 
@@ -886,20 +885,6 @@ def test_stateless_tensor_processor_cfg_roundtrip_preserves_signature_validation
     manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
     observations = manager.compute()["policy"]
     torch.testing.assert_close(observations, env.observation + 2.0)
-
-
-@pytest.mark.parametrize(
-    "path",
-    [
-        "isaaclab.utils:ModifierBase",
-        "isaaclab.utils.modifiers:ModifierCfg",
-        "isaaclab_experimental.utils.modifiers.modifier_base:ModifierBase",
-    ],
-)
-def test_removed_modifier_imports_report_replacements(path):
-    """Old class imports and serialized paths fail with the replacement API."""
-    with pytest.raises(ValueError, match="TensorProcessor.*TensorProcessorCfg"):
-        string_to_callable(path)
 
 
 def test_class_tensor_processor_validates_constructed_instance():

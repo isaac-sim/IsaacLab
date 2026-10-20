@@ -147,7 +147,7 @@ Migration: import ``TensorProcessor`` and ``TensorProcessorCfg`` from
 ``isaaclab.utils.tensor_processors`` in place of ``ModifierBase`` and ``ModifierCfg`` from
 ``isaaclab.utils.modifiers``. Replace ``ObservationTermCfg.modifiers`` with
 ``ObservationTermCfg.tensor_processors``. The processing order and tensor shapes are unchanged.
-Old imports raise ``ValueError`` with migration instructions.
+Old imports remain supported and emit ``DeprecationWarning`` with migration instructions.
 
 .. automodule:: isaaclab.utils.tensor_processors
    :members:

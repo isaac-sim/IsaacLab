@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import subprocess
+import sys
 from dataclasses import MISSING
 
 import pytest
@@ -13,6 +15,42 @@ from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.unit
+
+
+def test_legacy_modifier_imports_warn_and_preserve_aliases():
+    """Legacy imports and serialized paths resolve to the canonical processor APIs."""
+    script = """
+import warnings
+from importlib import import_module
+
+from isaaclab.utils.string import string_to_callable
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    from isaaclab.utils import ModifierBase, ModifierCfg, modifiers, tensor_processors
+    from isaaclab_experimental.utils import modifiers as warp_modifiers
+
+assert ModifierBase is tensor_processors.TensorProcessor
+assert ModifierCfg is tensor_processors.TensorProcessorCfg
+for legacy in (modifiers, warp_modifiers):
+    processors = import_module(legacy.__name__.replace("modifiers", "tensor_processors"))
+    assert import_module(f"{legacy.__name__}.modifier_base").ModifierBase is processors.TensorProcessor
+    assert import_module(f"{legacy.__name__}.modifier_cfg").ModifierCfg is processors.TensorProcessorCfg
+    assert string_to_callable(f"{legacy.__name__}.modifier:bias") is processors.bias
+    exported = {}
+    exec(f"from {legacy.__name__} import *", exported)
+    assert exported["ModifierBase"] is processors.TensorProcessor
+    assert exported["ModifierCfg"] is processors.TensorProcessorCfg
+    assert exported["scale"] is processors.scale
+    assert any(
+        warning.category is DeprecationWarning
+        and legacy.__name__ in str(warning.message)
+        and "tensor_processors" in str(warning.message)
+        for warning in caught
+    )
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
 
 
 @configclass
