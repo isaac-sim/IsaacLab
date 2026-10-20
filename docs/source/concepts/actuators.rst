@@ -954,26 +954,32 @@ and changes of direction retain progress. Mostly stationary episodes hold their 
 and poor tracking lower it. This replaces the 4 m net-displacement requirement, which prevented
 promotion for slow commands in a 20 s episode.
 
-For 16 GPUs with 4,096 environments per GPU, add ``presets=multi_gpu_16`` alongside any robot preset:
+For distributed training with 4,096 environments per GPU, add ``presets=multi_gpu`` alongside any robot
+preset. The preset reads the total GPU count from ``WORLD_SIZE``, set by the distributed launcher:
 
 .. code-block:: bash
 
-    uv run isaaclab train_multigpu --num_gpus 16 \\
-        --task IsaacContrib-Velocity-Rough-MicroDuck --rl_library rsl_rl \\
-        --num_envs 4096 --seed 42 presets=backlash,multi_gpu_16
+    uv run isaaclab train_multigpu --num_gpus 8 \
+        --task IsaacContrib-Velocity-Rough-MicroDuck --rl_library rsl_rl \
+        --num_envs 4096 --seed 42 presets=backlash,multi_gpu
 
-For multiple nodes, use the :ref:`multi-node-training` launcher options with 16 GPUs in total;
-for example, two nodes with ``--nnodes 2 --num_gpus 8`` and node ranks 0 and 1.
-The preset selects 3,125 iterations and saves every 16 iterations. Each rollout collects
-1,572,864 transitions across all ranks. Four minibatches per rank produce synchronized optimizer
-minibatches of 393,216 transitions. RSL-RL already averages gradients across ranks; the minibatch
-count remains four, and the KL-adaptive learning rate is unchanged.
+For N GPUs in total, the preset selects 50,000 / N iterations and saves every 250 / N iterations,
+rounding both up. For example, eight GPUs use 6,250 iterations and save every 32 iterations.
+For multiple nodes, use the :ref:`multi-node-training` launcher options; two nodes with
+``--nnodes 2 --num_gpus 8`` and node ranks 0 and 1 use 16 GPUs in total, 3,125 iterations, and a
+16-iteration checkpoint interval.
 
-All six fixed-step curricula advance 16 times sooner in per-environment steps, preserving their
-collected-sample milestones. Terrain progression remains episode-based, and physical timing and the
-24-step rollout length are unchanged. The run collects the same total samples as 50,000 iterations
-with 4,096 environments on one GPU; equivalent convergence still needs validation. Without
-``multi_gpu_16``, the original iteration budget and fixed-step curricula are retained.
+Each rollout collects 98,304 * N transitions across all ranks. Four minibatches per rank produce
+synchronized optimizer minibatches of 24,576 * N transitions. RSL-RL already averages gradients across
+ranks; the minibatch count remains four, and the KL-adaptive learning rate is unchanged.
+
+All six fixed-step curricula divide their step boundaries by N, rounding up to preserve their
+collected-sample milestones to the nearest step. Terrain progression remains episode-based, and
+physical timing and the 24-step rollout length are unchanged. The total sample budget matches
+50,000 iterations with 4,096 environments on one GPU, rounded up to a full distributed rollout;
+equivalent convergence still needs validation. Without a multi-GPU preset, the original iteration
+budget and fixed-step curricula are retained. The fixed ``multi_gpu_16`` preset remains available
+for existing commands; use ``multi_gpu`` when varying the GPU count.
 
 To retain the previous training recipe in a custom task config, use ``mdp.track_linear_velocity``
 with weight 2.0 and ``std=math.sqrt(0.1)``, and ``mdp.track_angular_velocity`` with weight 2.0 and

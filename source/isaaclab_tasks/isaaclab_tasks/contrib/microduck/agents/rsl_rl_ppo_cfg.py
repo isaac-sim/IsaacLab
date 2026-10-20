@@ -11,7 +11,7 @@ from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPp
 
 from isaaclab_tasks.utils import preset
 
-from ..flat_env_cfg import MICRODUCK_MULTI_GPU_COUNT, MICRODUCK_STEPS_PER_ITERATION
+from ..flat_env_cfg import MICRODUCK_MULTI_GPU_COUNT, MICRODUCK_STEPS_PER_ITERATION, _scale_multi_gpu
 
 
 @configclass
@@ -19,8 +19,10 @@ class MicroDuckPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO runner for the MicroDuck velocity-tracking tasks."""
 
     num_steps_per_env = MICRODUCK_STEPS_PER_ITERATION
-    max_iterations = preset(default=50000, multi_gpu_16=50000 // MICRODUCK_MULTI_GPU_COUNT)
-    save_interval = preset(default=250, multi_gpu_16=16)
+    max_iterations = preset(
+        default=50000, multi_gpu=_scale_multi_gpu(50000), multi_gpu_16=50000 // MICRODUCK_MULTI_GPU_COUNT
+    )
+    save_interval = preset(default=250, multi_gpu=_scale_multi_gpu(250), multi_gpu_16=16)
     experiment_name = preset(default="microduck_velocity_flat", backlash="microduck_velocity_flat_backlash")
     obs_groups = {"actor": ["policy"], "critic": ["critic"]}
     actor = RslRlMLPModelCfg(
