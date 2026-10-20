@@ -50,7 +50,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
 from isaaclab.cloner import CloneCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, index_fill_, instantiate
 
@@ -63,10 +62,8 @@ youngs_modulus = 1e5
 poissons_ratio = 0.4
 density = 500.0
 if args_cli.backend == "newton_vbd":
-    from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
-    deformable_props = NewtonDeformableBodyPropertiesCfg()
     # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
     collision_props = None
     physics_material = NewtonDeformableBodyMaterialCfg(
@@ -75,10 +72,9 @@ if args_cli.backend == "newton_vbd":
         density=density,
     )
 else:
-    from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
     from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
-    deformable_props = PhysxDeformableBodyPropertiesCfg()
     collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
     physics_material = PhysxDeformableBodyMaterialCfg(
         poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
@@ -100,9 +96,11 @@ class DeformableSceneCfg(InteractiveSceneCfg):
     # 3D Deformable Object
     cube_object = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
+        # PhysX deformables must be parsed from USD while other assets retain native replication.
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",) if args_cli.backend == "physx" else None,
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=deformable_props,
+            volume_deformable_props=[],
             collision_props=collision_props,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
             physics_material=physics_material,
@@ -180,11 +178,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
         if args_cli.backend == "newton_vbd":
             physics_cfg.solver_cfg.iterations = 10
             physics_cfg.num_substeps = 4
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])

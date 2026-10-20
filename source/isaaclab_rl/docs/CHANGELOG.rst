@@ -3,6 +3,95 @@ Changelog
 
 .. towncrier release notes start
 
+5.2.2 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Selected recording sources from composed visualizer configs while preserving shared image views
+  and headless, on-demand capture when no window was selected.
+
+Fixed
+^^^^^
+
+* Preserved physics, renderer, and visualizer selector aliases when filtering external task callback arguments.
+
+
+5.2.1 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed random-agent playback for direct multi-agent tasks by generating batched actions for each agent.
+
+
+5.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_rl.rsl_rl.RslRlMLPModelCfg.GaussianDistributionCfg.std_range` to clamp the standard
+  deviation of RSL-RL Gaussian output distributions, exposing the existing ``std_range`` argument of RSL-RL.
+
+Fixed
+^^^^^
+
+* Fixed TorchRL wrapper stepping when its output device differs from the simulation device.
+* Updated RLInf configuration loading for compatibility with Hydra 1.4.
+
+
+5.1.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--no-resume_optimizer_state`` to RSL-RL training to restore checkpoint models and iteration with a fresh policy optimizer. RND retained its separate optimizer state.
+
+Fixed
+^^^^^
+
+* Allowed a further Ctrl+C during environment shutdown to force process termination.
+* Loaded installed downstream task registrations in direct distributed workers before selecting the training backend.
+
+
+5.0.0 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--seed`` to the RL-Games export command, matching the RSL-RL export command.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the RSL-RL, RL-Games, and Stable-Baselines3 workflows to run the agent on the simulation's
+  device, as skrl and TorchRL do. They ignored ``--device`` for the agent outside distributed runs and used the
+  agent configuration's ``cuda:0``; pass ``--device`` to choose where both run.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint pretrained`` rejecting tasks that run on a Newton Kamino solver, such as
+  ``Isaac-Fourbar-Pole-Swingup``. Newton solvers are named after their config class, for example
+  ``newtonkaminopadmm``.
+* Fixed RLinf playback launched with ``uv run`` failing when Ray attempted to upload working directories larger
+  than 512 MiB. The upload is now disabled for both RLinf training and playback.
+
+
+4.0.1 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Applied task play-mode configuration during LEAPP exports so inference-only resources are initialized correctly.
+
+
 4.0.0 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~
 

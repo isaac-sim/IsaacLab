@@ -184,7 +184,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         super().__init__(cfg, render_mode, **kwargs)
         self.cartpole = self.scene["cartpole"]
 
-        # Get the indices (develop API: find_joints returns (indices, names))
+        # Get the indices (current API: find_joints returns (indices, names))
         self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
 

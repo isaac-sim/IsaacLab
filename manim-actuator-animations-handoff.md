@@ -3,8 +3,7 @@
 ## Context
 
 You are producing conceptual animations for `docs/source/concepts/actuators.rst` in IsaacLab
-(branch `antoine/tmp_articulation`, PR #6839, worktree
-`/home/antoiner/Documents/IsaacLab/.worktrees/tmp-articulation`). The page already has two kinds
+(branch `antoine/tmp_articulation`, PR #6839). The page already has two kinds
 of media in `docs/source/_static/actuators/`:
 
 - Simulator clips (`*-clip.webp`): five-pendulum parameter sweeps rendered from the simulator.

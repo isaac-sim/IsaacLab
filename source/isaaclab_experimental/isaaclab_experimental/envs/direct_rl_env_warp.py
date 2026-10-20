@@ -195,8 +195,8 @@ class DirectRLEnvWarp(DirectRLEnv):
             self.scene.update(dt=self.physics_dt)
         # let the physics backend know about the env decimation so it can
         # fold the full loop into a single step() when possible
-        self.sim.physics_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -241,7 +241,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # the task stages record CUDA graphs, and record again after the physics buffers rebind
         CapturedStage.enabled = True
-        CapturedStage.invalidate_on(self.sim.physics_manager)
+        CapturedStage.invalidate_on(self.sim.backend_manager)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()

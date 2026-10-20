@@ -406,6 +406,7 @@ from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_
 
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs.utils._manual_success import _prepare_success_term
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -1014,36 +1015,6 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     return launcher
 
 
-def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
-    """Return whether the CLI selects a renderer that actually drives RTX rendering.
-
-    The RTX/DLSS global settings are only meaningful when something renders through RTX.
-    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
-    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
-    A pure-headless replay with none of these renders nothing.
-
-    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
-    check keeps working as these scripts grow support for other renderers and kitless runs.
-    """
-    visualizers = getattr(args, "visualizer", None) or []
-    external_cameras = not getattr(args, "disable_external_cameras", False)
-    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
-
-
-def _apply_rtx_settings() -> None:
-    """Apply the RTX/DLSS global settings used for replay rendering.
-
-    Only call this when an RTX render pipeline actually runs this session (Kit visualizer,
-    external cameras, or XR), see :func:`_rtx_rendering_requested`; a headless replay that renders
-    nothing neither needs them nor has the extensions loaded to apply them.
-    """
-    from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
-
-    apply_isaac_rtx_global_settings(
-        IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
-    )
-
-
 def _prepare_env_cfg(
     task: str,
     num_envs: int,
@@ -1055,7 +1026,7 @@ def _prepare_env_cfg(
     Mirrors the env-config mutations performed by ``record_demos.py``'s
     :func:`create_environment_config`:
 
-    * The ``success`` term is extracted and cleared from the env config so the
+    * The ``success`` term is extracted and replaced by an inert term so the
       script can drive success detection (and the matching reset cycle)
       explicitly via :func:`_process_success_condition`, gated by
       ``--num_success_steps``. This matches record_demos.py's pattern of
@@ -1095,11 +1066,8 @@ def _prepare_env_cfg(
             "teleop_replay_agent only supports ManagerBasedRLEnv environments. "
             f"Received environment config type: {type(env_cfg).__name__}"
         )
-    success_term: object | None = None
-    if hasattr(env_cfg.terminations, "success"):
-        success_term = env_cfg.terminations.success
-        env_cfg.terminations.success = None
-    else:
+    success_term = _prepare_success_term(env_cfg)
+    if success_term is None:
         logger.warning(
             "No success termination term was found in the environment;"
             " success-driven resets will not fire during replay."
@@ -1580,8 +1548,10 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
             _resolve_cloudxr_env(args_cli.cloudxr_env), args_cli.auto_launch_cloudxr
         )
 
-        if _rtx_rendering_requested(args_cli):
-            _apply_rtx_settings()
+        if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
+            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
+            apply_isaac_rtx_global_settings(IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"))
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 

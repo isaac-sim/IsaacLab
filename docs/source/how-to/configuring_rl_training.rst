@@ -7,19 +7,12 @@ Configuring an RL Agent
 
 .. currentmodule:: isaaclab
 
-In the previous tutorial, we saw how to train an RL agent to solve the cartpole balancing task
-using the `Stable-Baselines3`_ library. In this tutorial, we will see how to configure the
-training process to use different RL libraries and different training algorithms.
+Each task registers an agent configuration for every supported RL library. The
+configuration selects the algorithm, network, and training settings.
 
-In the directory ``scripts/reinforcement_learning``, you will find the scripts for
-different RL libraries. These are organized into subdirectories named after the library name.
-Each subdirectory contains the training and playing scripts for the library.
-
-To configure a learning library with a specific task, you need to create a configuration file
-for the learning agent. This configuration file is used to create an instance of the learning agent
-and is used to configure the training process. Similar to the environment registration shown in
-the :ref:`tutorial-register-rl-env-gym` tutorial, you can register the learning agent with the
-``gymnasium.register`` method.
+This tutorial creates an agent configuration and registers it with the task using
+``gymnasium.register``, building on :ref:`tutorial-register-rl-env-gym`.
+For library choices and training commands, see :ref:`reinforcement-learning`.
 
 The Code
 --------
@@ -143,6 +136,18 @@ we can use the ``--agent`` argument to specify the configuration instance to use
 
 The ``--run_name`` argument is used to specify the name of the run. This is used to
 create a directory for the run in the ``logs/rsl_rl/cartpole`` directory.
+
+When continuing RSL-RL training with a different policy learning rate, use
+``--checkpoint /path/to/model.pt --no-resume_optimizer_state``. This restores model weights and the
+iteration count while keeping the newly configured policy optimizer and its learning rate.
+By default, ``--resume_optimizer_state`` restores the checkpoint's optimizer state as usual. RND models and their
+separate optimizer retain their checkpoint state.
+For distillation, this option requires a student checkpoint containing both student and teacher;
+omit it when initializing a new student from a PPO teacher checkpoint.
+
+Installed downstream tasks are discovered through the ``isaaclab.tasks`` entry-point group.
+Custom launchers can call ``isaaclab.cli.load_external_tasks()`` before looking up task IDs,
+as the built-in CLI and direct RL workers do.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games
