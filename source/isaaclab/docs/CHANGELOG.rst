@@ -3,6 +3,32 @@ Changelog
 
 .. towncrier release notes start
 
+40.0.1 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the multi-version documentation root redirect default to ``main``.
+
+Fixed
+^^^^^
+
+* Fixed the tablecloth demo importing Newton and OpenUSD before the Kit runtime started.
+* Fixed direct scene prototype placement so fixed-base robots aligned with their cloned environments.
+* Fixed RTX camera declarations in the tablecloth and teapot demos, and improved tablecloth interior lighting.
+* Fixed :class:`~isaaclab.sensors.MultiMeshRayCaster` and :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` giving
+  every environment the source environment's copy of a static environment-local target
+  (``track_mesh_transforms=False``) on kitless backends, which author only the source on the USD stage. Static
+  targets now resolve through the clone plan like tracked targets: each environment holds its own copy, and in a
+  heterogeneous scene only the targets of its own prototype.
+  A static target that names one environment's prim, such as ``/World/envs/env_0/Crate``, now belongs to that
+  environment only, as a tracked target does; it used to be given to every environment.
+* Fixed interactive startup prompts being hidden by the console loading screen by restoring the console and showing captured output before reading input.
+* Fixed Kit startup for the teapot pouring example by deferring Newton and USD imports until after the application launches.
+* Fixed ``isaaclab --docs_multi`` builds to pin historical 2.x links and clone commands to their release tags.
+
+
 40.0.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~~
 
