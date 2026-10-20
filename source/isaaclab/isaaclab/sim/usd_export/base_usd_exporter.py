@@ -229,7 +229,8 @@ class BaseUsdExporter(ABC):
         An explicit actuator runs outside the engine, which holds zero drive gains for its joint; its gains
         live only on a ``NewtonActuator`` prim. The drive replaces the prim, which is deactivated so that
         importers reading both do not apply the PD twice. Actuators with motor saturation, delay,
-        position-dependent limits or a network stay prims.
+        position-dependent limits or a network, and actuators of joints other than revolute and prismatic,
+        stay prims.
         """
         kept = []
         for prim in [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]:
@@ -237,8 +238,12 @@ class BaseUsdExporter(ABC):
             schemas = set(prim.GetPrimTypeInfo().GetAppliedAPISchemas())
             targets = prim.GetRelationship("newton:targets").GetTargets()
             joint = stage.GetPrimAtPath(targets[0]) if len(targets) == 1 else None
-            axis = "angular" if joint and joint.IsA(UsdPhysics.RevoluteJoint) else "linear"
-            if "NewtonPDControlAPI" not in schemas or not schemas <= _PD_ACTUATOR_SCHEMAS or not joint:
+            axis = None
+            if joint and joint.IsA(UsdPhysics.RevoluteJoint):
+                axis = "angular"
+            elif joint and joint.IsA(UsdPhysics.PrismaticJoint):
+                axis = "linear"
+            if "NewtonPDControlAPI" not in schemas or not schemas <= _PD_ACTUATOR_SCHEMAS or axis is None:
                 kept.append(str(prim.GetPath()))
                 continue
             scale = math.pi / 180.0 if axis == "angular" else 1.0

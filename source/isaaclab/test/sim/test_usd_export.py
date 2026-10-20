@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kit-less tests of how the PhysX-dialect USD export matches asset data names to prims."""
+"""Kit-less tests of how the USD export maps engine values and actuators to prims."""
 
 from types import SimpleNamespace
 
 import pytest
 import torch
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
 
@@ -50,6 +50,12 @@ def _articulation(joint_names, body_names):
     return SimpleNamespace(cfg=cfg, joint_names=joint_names, body_names=body_names, data=data)
 
 
+def _scene(**assets):
+    """A scene of one environment, before its first physics step."""
+    assets = {"articulations": {}, "rigid_objects": {}, "rigid_object_collections": {}, **assets}
+    return SimpleNamespace(num_envs=1, sim=SimpleNamespace(get_physics_step_count=lambda: 0), **assets)
+
+
 @pytest.mark.parametrize(
     "joint_names,body_names,name",
     [([], ["Base", "Foot"], "Foot"), (["Ankle"], ["Base"], "Ankle")],
@@ -61,13 +67,27 @@ def test_names_must_match_one_prim(joint_names, body_names, name):
     UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
     for link in ("/Robot/Base", "/Robot/Left/Foot", "/Robot/Right/Foot"):
         UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, link).GetPrim())
-    scene = SimpleNamespace(
-        num_envs=1,
-        sim=SimpleNamespace(get_physics_step_count=lambda: 0),
-        articulations={"robot": _articulation(joint_names, body_names)},
-        rigid_objects={},
-        rigid_object_collections={},
-    )
+    scene = _scene(articulations={"robot": _articulation(joint_names, body_names)})
 
     with pytest.raises(RuntimeError, match=f"one prim named '{name}'"):
         _Exporter(scene).compute_diff(stage)
+
+
+@pytest.mark.parametrize(
+    "joint_type,converted",
+    [(UsdPhysics.RevoluteJoint, True), (UsdPhysics.SphericalJoint, False)],
+    ids=["revolute joint", "spherical joint"],
+)
+def test_pd_actuator_becomes_a_drive_of_single_axis_joints_only(joint_type, converted):
+    """A PD actuator becomes a revolute or prismatic joint's drive; on other joints it stays an actuator prim."""
+    stage = Usd.Stage.CreateInMemory()
+    joint = joint_type.Define(stage, "/Robot/Joint").GetPrim()
+    actuator = stage.DefinePrim("/Robot/Actuator", "NewtonActuator")
+    actuator.AddAppliedSchema("NewtonPDControlAPI")
+    actuator.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
+    actuator.CreateAttribute("newton:kp", Sdf.ValueTypeNames.Float).Set(80.0)
+
+    _Exporter(_scene())._write_pd_actuators_as_drives(stage)
+
+    assert actuator.IsActive() != converted
+    assert bool([schema for schema in joint.GetAppliedSchemas() if schema.startswith("PhysicsDriveAPI")]) == converted
