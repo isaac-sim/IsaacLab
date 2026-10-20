@@ -36,6 +36,8 @@ def check_checkout(root: Path, expected_commit: str | None = None) -> str:
         root,
         "-c",
         "diff.autoRefreshIndex=true",
+        "-c",
+        "core.filemode=false",
         "diff",
         "--name-only",
         "-z",

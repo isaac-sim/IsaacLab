@@ -250,6 +250,14 @@ class SourceRevisionTests(unittest.TestCase):
             os.utime(self.checkout / TASK, (1700000000, 1700000000))
             self.assertEqual(self._git("diff", "--name-only", "HEAD", "--", TASK.as_posix()), TASK.as_posix())
             self._prepare("unchanged-source")
+            _, output, _ = self._run(manifest_a, "permission-only")
+            self._git("config", "core.filemode", "true")
+            (self.checkout / TASK).chmod(0o755)
+            self.assertIn("mode change", self._git("diff", "--summary", "HEAD", "--", TASK.as_posix()))
+            checked = self._invoke("check", "--manifest", manifest_a, "--output-dir", output)
+            self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+            self.assertEqual(json.loads((output / "source-revision.json").read_text())["status"], "verified")
+            self._prepare("permission-only")
             for path, contents in (
                 (TASK, "def observed():\n    return 'B'\n"),
                 (IMPORT_MAP, "# changed exports\n"),
@@ -264,6 +272,7 @@ class SourceRevisionTests(unittest.TestCase):
                     # The worker checks paths; the host checks for source edits after the attempt.
                     process, output, sidecar = self._run(manifest_a, "wrong-bytes")
                     if path == TASK:
+                        (self.checkout / path).chmod(0o755)
                         self.assertEqual(
                             json.loads((output / "benchmark_runtime_fixture.json").read_text())["executed_revision"],
                             "B",
@@ -274,6 +283,7 @@ class SourceRevisionTests(unittest.TestCase):
                     self.assertEqual(proof["status"], "failed")
                     self.assertTrue(any(path.as_posix() in item["reason"] for item in proof["mismatches"]))
                     if path == TASK:
+                        (self.checkout / path).chmod(0o644)
                         self._git("add", "--", path.as_posix())
                     _, process = self._prepare(success=False)
                     self.assertNotEqual(process.returncode, 0)
