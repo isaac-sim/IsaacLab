@@ -23,7 +23,8 @@ We compare:
 We do **not** compare the old measurement code against the new measurement code. Therefore, this comparison cannot tell us whether changing the measurement code itself made the benchmark faster or slower.
 
 Reuse requires verified base results and matching base, workload matrix, launcher settings, and measurement-code digest.
-If no reusable results are found, CI measures the base and PR on the same runner. The PR is always measured fresh.
+If no reusable results are found, CI measures the base and PR on the same runner.
+Every new PR commit gets fresh measurements, even when the base results are reused.
 
 ## Comparison safety
 
