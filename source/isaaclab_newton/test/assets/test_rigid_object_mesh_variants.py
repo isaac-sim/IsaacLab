@@ -133,10 +133,10 @@ def test_initially_unused_variants_remain_resources(device: str, use_mujoco_cont
         bank = next(iter(sim.backend_manager.backend.mesh_variants.values()))
         viewer = ViewerNull()
         viewer.set_model(
-            model, shape_choices=[ViewerBase.ShapeChoices(bank.render_model, bank.body_indices, bank.variant_ids.warp)]
+            model,
+            body_instances=[ViewerBase.BodyInstances(bank.render_model, bank.body_indices, bank.variant_ids.warp)],
         )
-        batches = [batch for batch in viewer._shape_instances.values() if batch.selected is bank.variant_ids.warp]
-        assert batches
+        rendered_geometries = []
         shape_count = model.shape_count
         geometry_count = np.count_nonzero(model.shape_flags.numpy() & int(ShapeFlags.SITE) == 0)
         for variant, mass in enumerate((1.0, 8.0, 27.0)):
@@ -145,9 +145,11 @@ def test_initially_unused_variants_remain_resources(device: str, use_mujoco_cont
             assert asset.data.body_mass.torch.item() == pytest.approx(mass)
             assert (model.body_count, model.shape_count) == (1, shape_count)
             viewer.log_state(sim.backend_manager.get_state_0())
-            for batch in batches:
-                active = np.any(batch.scales.numpy() != 0.0, axis=1)
-                np.testing.assert_array_equal(active, batch.choice_indices.numpy() == variant)
+            batches = tuple(viewer._shape_instances.values())
+            assert batches
+            rendered_geometries.append(tuple(sorted(batch.mesh for batch in batches)))
+            assert all(np.all(np.any(batch.scales.numpy() != 0.0, axis=1)) for batch in batches)
+        assert len(set(rendered_geometries)) == 3
         viewer.close()
         sim.reset()
         model = sim.backend_manager.get_model()

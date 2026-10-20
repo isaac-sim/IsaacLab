@@ -326,8 +326,8 @@ class ViserVisualizer(BaseVisualizer):
             self._log_viewer_url("ViserVisualizer", viewer_url)
         self._viewer.set_model(
             self.backend.model,
-            shape_choices=[
-                ViewerBase.ShapeChoices(bank.render_model, bank.body_indices, bank.variant_ids.warp)
+            body_instances=[
+                ViewerBase.BodyInstances(bank.render_model, bank.body_indices, bank.variant_ids.warp)
                 for bank in self.backend.mesh_variants.values()
                 if bank.render_model is not None
             ],
@@ -441,8 +441,8 @@ class ViserVisualizer(BaseVisualizer):
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(
             self.backend.model,
-            shape_choices=[
-                ViewerBase.ShapeChoices(bank.render_model, bank.body_indices, bank.variant_ids.warp)
+            body_instances=[
+                ViewerBase.BodyInstances(bank.render_model, bank.body_indices, bank.variant_ids.warp)
                 for bank in self.backend.mesh_variants.values()
                 if bank.render_model is not None
             ],

@@ -728,12 +728,12 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once()
     assert viewer.set_model.call_args.args == (new_model,)
-    choices = viewer.set_model.call_args.kwargs["shape_choices"]
-    assert len(choices) == int(picking)
+    instances = viewer.set_model.call_args.kwargs["body_instances"]
+    assert len(instances) == int(picking)
     if picking:
-        assert choices[0].model is bank.render_model
-        assert choices[0].bodies == bank.body_indices
-        assert choices[0].selected is bank.variant_ids.warp
+        assert instances[0].model is bank.render_model
+        assert instances[0].bodies == bank.body_indices
+        assert instances[0].body_indices is bank.variant_ids.warp
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
         call(visualizer._draw_streaming_view_controls, position="side"),
