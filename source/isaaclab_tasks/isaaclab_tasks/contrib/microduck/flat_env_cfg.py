@@ -6,9 +6,9 @@
 """Flat walking recipe ported from pollen-robotics/microduck_rl and the original Lab task."""
 
 import math
-import os
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from omegaconf import OmegaConf
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -59,12 +59,14 @@ MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
 MICRODUCK_STEPS_PER_ITERATION = 24
 
 
-def _scale_multi_gpu(steps: int) -> int:
-    """Scale a sample-count milestone by the total number of distributed ranks."""
-    world_size = int(os.environ.get("WORLD_SIZE", "1"))
-    if world_size < 1:
-        raise ValueError("WORLD_SIZE must be a positive integer.")
-    return math.ceil(steps / world_size)
+def _scale_multi_gpu(steps: int, num_gpus: int) -> int:
+    """Scale a sample-count milestone after Hydra has applied the GPU-count override."""
+    if not isinstance(num_gpus, int) or isinstance(num_gpus, bool) or num_gpus < 1:
+        raise ValueError("num_gpus must be a positive integer.")
+    return math.ceil(steps / num_gpus)
+
+
+OmegaConf.register_resolver("microduck_scale", _scale_multi_gpu, replace=True)
 
 
 def _backlash_preset(term, func=None, **params):
@@ -405,7 +407,7 @@ def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
             "modify_params": {
                 "stages": preset(
                     default=steps,
-                    multi_gpu=[(_scale_multi_gpu(step), value) for step, value in steps],
+                    multi_gpu=[(f"${{microduck_scale:{step},${{env.num_gpus}}}}", value) for step, value in steps],
                 )
             },
         },
@@ -446,6 +448,9 @@ class CurriculumCfg:
 @configclass
 class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
     """MicroDuck flat velocity walking with Newton MJWarp and BAM servos."""
+
+    num_gpus: int = preset(default=1, multi_gpu="${oc.decode:${oc.env:WORLD_SIZE,1}}")
+    """GPU count for training-recipe scaling; the multi-GPU preset defaults to the total distributed rank count."""
 
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(

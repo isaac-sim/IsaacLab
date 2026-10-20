@@ -260,6 +260,13 @@ def _iter_cfg_items(cfg):
     return ()
 
 
+def _has_interpolations(cfg: object) -> bool:
+    """Check whether the active configuration contains OmegaConf interpolations."""
+    if isinstance(cfg, str):
+        return "${" in cfg
+    return any(_has_interpolations(value) for _, value in _iter_cfg_items(cfg))
+
+
 def collect_presets(cfg, path: str = "") -> dict:
     """Discover preset alternatives, including those inside inactive branches.
 
@@ -429,7 +436,7 @@ def resolve_task_config(
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
 ):
-    """Resolve env and agent configs with Hydra overrides, presets, and scalars fully applied.
+    """Resolve env and agent configs with Hydra overrides, presets, scalars, and interpolations applied.
 
     Safe to call before Kit is launched -- callable config values are stored as
     :class:`~isaaclab.utils.string.ResolvableString` and resolved lazily on
@@ -600,7 +607,7 @@ def register_task(
         else:
             hydra_args.append(arg)
 
-    if not hydra_args:
+    if not hydra_args and not _has_interpolations(cfgs):
         return env_cfg, agent_cfg, hydra_args
 
     # Convert to dict for Hydra (handle gym spaces and slices)
@@ -608,9 +615,17 @@ def register_task(
     agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
     env_dict = to_dict(env_cfg)  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
+    hydra_cfg = OmegaConf.create(cfg_dict)
+
+    if not hydra_args:
+        cfg_dict = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
+        update_from_dict(env_cfg, cfg_dict["env"])
+        if agent_cfg is not None:
+            update_from_dict(agent_cfg, cfg_dict["agent"])
+        return env_cfg, agent_cfg, hydra_args
 
     # Register plain config (no groups) - Hydra only handles global scalars
-    ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
+    ConfigStore.instance().store(name=task_name, node=hydra_cfg)
     return env_cfg, agent_cfg, hydra_args
 
 

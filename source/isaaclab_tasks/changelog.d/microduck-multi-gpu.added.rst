@@ -1,1 +1,1 @@
-* Added the ``multi_gpu`` preset for MicroDuck walking with 4,096 environments per GPU, scaling the iteration budget, checkpoint interval, and fixed-step curricula by the total distributed rank count.
+* Added the ``multi_gpu`` preset for MicroDuck walking with 4,096 environments per GPU, scaling the iteration budget, checkpoint interval, and fixed-step curricula by the total distributed rank count. Added ``env.num_gpus`` to override the scaling through Hydra.
