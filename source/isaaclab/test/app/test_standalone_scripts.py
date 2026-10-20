@@ -136,11 +136,9 @@ import runpy
 import sys
 
 import isaaclab.app
-from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
 
 def check_launch(cfg, args):
-    simulation = cfg if isinstance(cfg, SimulationCfg) else cfg.sim
     configs, _ = isaaclab.app.validate_launch(cfg, args)
     viewers = [cfg for cfg in configs if isinstance(cfg, VisualizerCfg)]
     assert [cfg.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']

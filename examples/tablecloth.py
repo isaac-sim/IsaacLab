@@ -54,15 +54,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import newton
 import warp as wp
-from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.controllers.ik import (
-    NewtonIKJointLimitObjectiveCfg,
-    NewtonIKPoseObjectiveCfg,
-    NewtonIKSolver,
-    NewtonIKSolverCfg,
-)
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -81,8 +73,9 @@ from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg, NewtonSurf
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import clone, configclass, instantiate
@@ -90,9 +83,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
+    import newton
     from newton import Mesh, ModelBuilder
 
     from pxr import Usd
+
+    from isaaclab.assets import Articulation
 
 
 # Scene configuration and native contact preparation.
@@ -679,6 +675,12 @@ TABLECLOTH_ASSETS = {
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
     ),
+    # Illuminate the pull stations below the cantina's opaque ceiling.
+    "interior_light": AssetBaseCfg(
+        prim_path="/World/InteriorLight",
+        spawn=sim_utils.DiskLightCfg(radius=1.5, intensity=16000.0),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.8, 0.0, 3.0), rot=(0.0, 0.3007058, 0.0, 0.95371695)),
+    ),
     "backdrop": AssetBaseCfg(
         prim_path="/World/Backdrop",
         spawn=sim_utils.UsdFileCfg(usd_path=CANTINA_USD),
@@ -930,6 +932,14 @@ class _Controller:
         control: newton.Control,
         substeps: int,
     ) -> None:
+        import newton  # noqa: PLC0415
+        from isaaclab_newton.controllers.ik import (  # noqa: PLC0415
+            NewtonIKJointLimitObjectiveCfg,
+            NewtonIKPoseObjectiveCfg,
+            NewtonIKSolver,
+            NewtonIKSolverCfg,
+        )
+
         from pxr import Gf, Usd, UsdPhysics  # noqa: PLC0415
 
         self.robot = robot
@@ -1312,8 +1322,14 @@ def main() -> None:
             focal_length=27.0 if len(speeds) <= 3 else 20.0,
         ),
     )
-    with launch_simulation(cfg=sim_cfg, launcher_args=args_cli):
+    viewer_scene_cfg = InteractiveSceneCfg(num_envs=len(speeds), env_spacing=1.5)
+    with launch_simulation(cfg={"sim": sim_cfg, "scene": viewer_scene_cfg}, launcher_args=args_cli):
+        # Kit must select its OpenUSD runtime before importing native scene and Newton code.
+        from isaaclab_newton.cloner import newton_builder_world_hook  # noqa: PLC0415
+
         from pxr import UsdGeom  # noqa: PLC0415
+
+        from isaaclab.scene import InteractiveScene  # noqa: PLC0415
 
         usd_path = retrieve_file_path(H2_PLUS_USD)
         sim = sim_utils.SimulationContext(sim_cfg)
@@ -1325,6 +1341,8 @@ def main() -> None:
             scene.stage.GetPrimAtPath(scene.env_prim_paths[0]), translation=tuple(map(float, positions[0]))
         )
         cfgs = {name: clone(cfg) for name, cfg in TABLECLOTH_ASSETS.items()}
+        # Include cameras declared by launch in the same topology as the manually constructed assets.
+        cfgs.update({name: cfg for name, cfg in vars(viewer_scene_cfg).items() if isinstance(cfg, CameraCfg)})
         cfgs["robot"].spawn.usd_path = usd_path
         plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, cfgs.values(), len(speeds), 1.5, positions=positions)
         scene.articulations["robot"] = instantiate(cfgs["robot"])
@@ -1338,7 +1356,9 @@ def main() -> None:
         for name in ("bowl", "glass", "fork"):
             scene.rigid_objects[name] = instantiate(cfgs[name])
         for name, cfg in cfgs.items():
-            if name not in ("robot", "cloth", "bowl", "glass", "fork"):
+            if isinstance(cfg, CameraCfg):
+                scene.sensors[name] = instantiate(cfg)
+            elif name not in ("robot", "cloth", "bowl", "glass", "fork"):
                 scene.extras[name] = instantiate(cfg)
         contact_hook = partial(_prepare_contacts, device=sim.device, mesh_sdf_cache={})
         with newton_builder_world_hook(contact_hook):
