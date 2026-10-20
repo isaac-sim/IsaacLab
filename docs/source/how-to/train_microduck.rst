@@ -38,7 +38,7 @@ Distributed training
 --------------------
 
 With 4,096 environments per GPU, add ``presets=multi_gpu`` alongside any robot preset. The preset
-defaults ``env.num_gpus`` to GPUs per node (``LOCAL_WORLD_SIZE``) and ``env.num_nodes`` to the node count
+defaults ``env.ngpus`` to GPUs per node (``LOCAL_WORLD_SIZE``) and ``env.nnodes`` to the node count
 (``GROUP_WORLD_SIZE``), as set by torchrun. Their product gives the total rank count (``WORLD_SIZE``).
 
 .. code-block:: bash
@@ -51,14 +51,14 @@ defaults ``env.num_gpus`` to GPUs per node (``LOCAL_WORLD_SIZE``) and ``env.num_
 ``--nnodes 2 --num_gpus 8`` use 16 ranks in total; four nodes with ``--nnodes 4 --num_gpus 4`` also use
 16 ranks. See :ref:`multi-node-training` for the rendezvous options.
 
-To override recipe scaling through Hydra, pass both ``env.num_gpus`` (GPUs per node) and
-``env.num_nodes``. For example, ``env.num_gpus=8 env.num_nodes=2`` and
-``env.num_gpus=4 env.num_nodes=4`` both scale the recipe for 16 GPUs. These fields change the training
+To override recipe scaling through Hydra, pass both ``env.ngpus`` (GPUs per node) and
+``env.nnodes``. For example, ``env.ngpus=8 env.nnodes=2`` and
+``env.ngpus=4 env.nnodes=4`` both scale the recipe for 16 GPUs. These fields change the training
 budget and schedules; they do not change the number of launched workers. Overriding one field retains
 the detected value of the other. Without distributed environment variables, both default to one;
 ``WORLD_SIZE`` alone is treated as a single-node GPU count.
 
-For a scaling count N = ``env.num_gpus * env.num_nodes``, the preset selects 50,000 / N iterations and
+For a scaling count N = ``env.ngpus * env.nnodes``, the preset selects 50,000 / N iterations and
 saves every 250 / N iterations, rounding both up. Eight GPUs use 6,250 iterations and save every 32
 iterations; 16 GPUs use 3,125
 iterations and save every 16 iterations. All six fixed-step curricula divide their boundaries by N,
