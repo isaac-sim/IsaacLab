@@ -80,7 +80,15 @@ def test_one_preset_selects_camera_and_image_term():
     assert cfg.observations.camera_image.image.params["sensor_cfg"].name == "camera"
 
 
-def test_kitchen_spawner_deactivates_set_lights(tmp_path):
+@pytest.fixture
+def stage():
+    """A new in-memory stage, current only for the test so the previous stage is restored afterwards."""
+    stage = Usd.Stage.CreateInMemory()
+    with sim_utils.use_stage(stage):
+        yield stage
+
+
+def test_kitchen_spawner_deactivates_set_lights(tmp_path, stage):
     """Every environment's copy keeps its geometry and loses the set's lights."""
     asset_path = tmp_path / "Kitchen_set.usda"
     asset = Usd.Stage.CreateNew(str(asset_path))
@@ -90,7 +98,6 @@ def test_kitchen_spawner_deactivates_set_lights(tmp_path):
     UsdLux.RectLight.Define(asset, "/Kitchen_set/Props/RectLight")
     asset.Save()
 
-    stage = sim_utils.create_new_stage()
     for env_index in range(2):
         UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_index}")
     cfg = _load_cfg().scene.kitchen.spawn
