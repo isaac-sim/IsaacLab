@@ -9,12 +9,8 @@ This experimental example uses a fixed index grasp and motion.
 
 .. code-block:: bash
 
-    # Newton GL (the default):
+    # Newton GL:
     uv run isaaclab example rizon-sharpa-teapot
-    # Isaac Sim Kit, including its optional runtime:
-    uv run --extra isaacsim isaaclab example rizon-sharpa-teapot --visualizer kit
-    # Standalone Newton RTX:
-    uv run --extra ovrtx isaaclab example rizon-sharpa-teapot --visualizer newton_rtx
 
 
 The pinned robot USD and textures are downloaded and verified on first use.
