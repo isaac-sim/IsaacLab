@@ -24,6 +24,14 @@ environment, global terrain, and dynamic bodies. Newton ignores
 :class:`isaaclab_newton.sensors.NewtonRaycastSensorCfg` to make that behavior
 explicit and to access Newton-specific options.
 
+For explicitly selected moving geometry, :class:`~sensors.MultiMeshRayCaster` and
+:class:`~sensors.MultiMeshRayCasterCamera` load their target meshes once and bind
+each tracked mesh to its owning rigid body during initialization. They read live
+body poses through the shared scene-data provider, including when several meshes
+belong to the same body. Targets with ``track_mesh_transforms=False`` retain their
+initial poses. The deprecated Newton multi-mesh adapters use this same path;
+Newton's native ray-cast sensor continues to use its scene BVH.
+
 Choose a ray pattern and a parent frame. The frame and sensor offset set the pose;
 the pattern sets the ray origins and directions. Built-in patterns include lidar
 and grids.

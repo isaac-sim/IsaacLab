@@ -16,7 +16,6 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
@@ -121,55 +120,6 @@ class _PhysXRayCasterMixin:
             idx = wp.to_torch(indices).to(dtype=torch.long) if isinstance(indices, wp.array) else indices
             transforms_t = transforms_t[idx]
         return SimpleNamespace(torch=transforms_t[:, 0:3]), SimpleNamespace(torch=transforms_t[:, 3:7])
-
-    def _create_tracked_target_view(self: Any, target_prim_paths: str | list[str]):
-        """Create a PhysX rigid-body view for dynamic multi-mesh targets."""
-        if isinstance(target_prim_paths, str):
-            target_prim_paths = [target_prim_paths]
-        if not target_prim_paths:
-            raise RuntimeError(f"No tracked target bodies resolved from: {target_prim_paths}")
-        physics_sim_view = self._backend_manager.get_physics_sim_view()
-        if physics_sim_view is None:
-            raise RuntimeError("PhysX simulation view is not initialized.")
-        return physics_sim_view.create_rigid_body_view([_physx_body_glob(path) for path in target_prim_paths])
-
-    def _update_mesh_transforms(self: Any) -> None:
-        """Refresh dynamic multi-mesh targets directly from PhysX views."""
-        if not hasattr(self, "_mesh_views"):
-            return
-        mesh_idx = 0
-        for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
-            if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
-                continue
-
-            transforms = view.get_transforms()
-            transforms_wp = (
-                transforms.view(wp.transformf)
-                if isinstance(transforms, wp.array)
-                else wp.from_torch(transforms.contiguous()).view(wp.transformf)
-            )
-
-            view_count = view.count
-            meshes_per_env = view_count
-            if view_count != 1:
-                # PhysX views return a flat list across envs; the mesh table is indexed per env.
-                meshes_per_env = view_count // self._num_envs
-
-            wp.launch(
-                copy_mesh_transforms_to_table_kernel,
-                dim=(self._num_envs, meshes_per_env),
-                inputs=[
-                    transforms_wp,
-                    int(meshes_per_env),
-                    int(mesh_idx),
-                    bool(view_count == 1),
-                    self._mesh_positions_w,
-                    self._mesh_orientations_w,
-                ],
-                device=self._device,
-            )
-            mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
 
 
 class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):

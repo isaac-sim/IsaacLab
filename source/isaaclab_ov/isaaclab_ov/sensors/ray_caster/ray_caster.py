@@ -19,7 +19,6 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +125,6 @@ class _OvPhysxRayCasterMixin:
             offset_quat[: self._view_count], dtype=torch.float32, device=self._device
         )
         self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
-        self._mesh_view_bufs = {}
 
     def _initialize_static_pose_tracking(self: Any, prims) -> None:
         """Cache authored USD poses for non-physics sensor frames.
@@ -148,7 +146,6 @@ class _OvPhysxRayCasterMixin:
         identity_quat[:, 3] = 1.0
         self._offset_quat_contiguous = identity_quat.contiguous()
         self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
-        self._mesh_view_bufs = {}
 
     def _get_view_transforms_wp(self: Any) -> wp.array:
         """Return tracked sensor-frame transforms as a ``wp.transformf`` array.
@@ -175,85 +172,6 @@ class _OvPhysxRayCasterMixin:
             transforms_t = transforms_t[idx]
         return SimpleNamespace(torch=transforms_t[:, 0:3]), SimpleNamespace(torch=transforms_t[:, 3:7])
 
-    def _create_tracked_target_view(self: Any, target_prim_paths: str | list[str]):
-        """Create an ovphysx RIGID_BODY_POSE binding for dynamic multi-mesh targets.
-
-        v1 limitation: target paths must dedup to a single env-wildcard
-        pattern. Multi-pattern targets raise ``NotImplementedError`` -- the
-        same limit the OVPhysX ``ContactSensor`` already documents for
-        ``track_pose``.
-        """
-        from isaaclab_ov import tensor_types as TT  # noqa: PLC0415
-
-        if isinstance(target_prim_paths, str):
-            target_prim_paths = [target_prim_paths]
-        if not target_prim_paths:
-            raise RuntimeError(f"No tracked target bodies resolved from: {target_prim_paths}")
-
-        patterns = sorted({_ovphysx_body_glob(path) for path in target_prim_paths})
-        if len(patterns) > 1:
-            raise NotImplementedError(
-                f"OvPhysxRayCaster v1 supports a single body-type pattern for dynamic targets; "
-                f"resolved {len(patterns)} patterns: {patterns}. Multi-pattern targets require "
-                "per-pattern bindings and an interleaved-read kernel that does not exist yet."
-            )
-
-        physx = self._backend_manager.get_physx_instance()
-        if physx is None:
-            raise RuntimeError(
-                "OvPhysxManager has no PhysX instance yet -- multi-mesh target view requested "
-                "before PhysicsEvent.PHYSICS_READY."
-            )
-        return physx.create_tensor_binding(pattern=patterns[0], tensor_type=TT.RIGID_BODY_POSE)
-
-    def _update_mesh_transforms(self: Any) -> None:
-        """Refresh dynamic multi-mesh target poses from their ovphysx bindings."""
-        if not hasattr(self, "_mesh_views"):
-            return
-        mesh_idx = 0
-        for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
-            if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
-                continue
-
-            # ``view`` here is an ovphysx TensorBinding produced by
-            # :meth:`_create_tracked_target_view`. Each binding owns its own
-            # staging buffer cached in ``self._mesh_view_bufs`` (initialized
-            # in :meth:`_initialize_pose_tracking`).
-            buf = self._mesh_view_bufs.get(id(view))
-            if buf is None:
-                buf = wp.zeros(view.shape, dtype=wp.float32, device=self._device)
-                self._mesh_view_bufs[id(view)] = buf
-
-            view.read(buf)
-            transforms_wp = wp.array(
-                ptr=buf.ptr,
-                shape=(int(view.shape[0]),),
-                dtype=wp.transformf,
-                device=str(buf.device),
-                copy=False,
-            )
-
-            view_count = int(view.shape[0])
-            meshes_per_env = view_count
-            if view_count != 1:
-                meshes_per_env = view_count // self._num_envs
-
-            wp.launch(
-                copy_mesh_transforms_to_table_kernel,
-                dim=(self._num_envs, meshes_per_env),
-                inputs=[
-                    transforms_wp,
-                    int(meshes_per_env),
-                    int(mesh_idx),
-                    bool(view_count == 1),
-                    self._mesh_positions_w,
-                    self._mesh_orientations_w,
-                ],
-                device=self._device,
-            )
-            mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
-
     def _invalidate_initialize_callback(self: Any, event) -> None:
         """Release ovphysx native handles when the simulation stops."""
         super()._invalidate_initialize_callback(event)
@@ -262,12 +180,6 @@ class _OvPhysxRayCasterMixin:
             with contextlib.suppress(Exception):
                 view.destroy()
         self._ovphysx_body_view = None
-
-        for buf_view in getattr(self, "_mesh_views", []) or []:
-            with contextlib.suppress(Exception):
-                buf_view.destroy()
-        self._mesh_views = []
-        self._mesh_view_bufs = {}
 
 
 class RayCaster(_OvPhysxRayCasterMixin, BaseRayCaster):

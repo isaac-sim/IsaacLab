@@ -143,9 +143,7 @@ class _NewtonRayCasterPoseMixin:
 
     def _update_ray_infos(self: Any, env_mask: wp.array) -> None:
         """Update site poses and transform local rays into world space."""
-        self._update_newton_site_transforms(
-            self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp
-        )
+        self.get_world_poses()
         pos_w = self._data.pos_w.warp
         quat_w = self._data.quat_w_world.warp if hasattr(self._data, "quat_w_world") else self._data.quat_w.warp
         ray_starts = self.ray_starts.warp if hasattr(self.ray_starts, "warp") else self._ray_starts_local
@@ -179,8 +177,17 @@ class _NewtonRayCasterPoseMixin:
             poses, mapping=self._transform_mapping, count=backend.model.body_count
         ):
             backend.state_0.body_q = poses.transforms
-        self._update_newton_site_transforms(
-            self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp
+        wp.launch(
+            _newton_site_world_poses_kernel,
+            dim=self._sensor_site_indices.shape[0],
+            inputs=[
+                self._sensor_site_indices,
+                backend.model.shape_body,
+                backend.model.shape_transform,
+                backend.state_0.body_q,
+            ],
+            outputs=[self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp],
+            device=self._device,
         )
         if indices is None:
             return self._newton_pos_w, self._newton_quat_w
@@ -196,23 +203,6 @@ class _NewtonRayCasterPoseMixin:
             device=self._device,
         )
         return ProxyArray(pos_w), ProxyArray(quat_w)
-
-    def _update_newton_site_transforms(
-        self: Any,
-        site_indices: wp.array,
-        pose_buf: wp.array,
-        pos_buf: wp.array,
-        quat_buf: wp.array,
-    ) -> None:
-        """Update site transforms from the shared state already refreshed through SDP."""
-        model, state = self.backend.model, self.backend.state_0
-        wp.launch(
-            _newton_site_world_poses_kernel,
-            dim=site_indices.shape[0],
-            inputs=[site_indices, model.shape_body, model.shape_transform, state.body_q],
-            outputs=[pose_buf, pos_buf, quat_buf],
-            device=self._device,
-        )
 
     def _resolve_site_indices(self, labels: list[str], prim_expr: str, num_envs: int) -> list[int]:
         """Expand registered site labels into per-environment Newton site indices."""
