@@ -59,11 +59,12 @@ MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
 MICRODUCK_STEPS_PER_ITERATION = 24
 
 
-def _scale_multi_gpu(steps: int, num_gpus: int) -> int:
-    """Scale a sample-count milestone after Hydra has applied the GPU-count override."""
-    if not isinstance(num_gpus, int) or isinstance(num_gpus, bool) or num_gpus < 1:
-        raise ValueError("num_gpus must be a positive integer.")
-    return math.ceil(steps / num_gpus)
+def _scale_multi_gpu(steps: int, num_gpus: int, num_nodes: int) -> int:
+    """Scale a sample-count milestone by GPUs per node times the node count."""
+    for name, count in (("num_gpus", num_gpus), ("num_nodes", num_nodes)):
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+            raise ValueError(f"{name} must be a positive integer.")
+    return math.ceil(steps / (num_gpus * num_nodes))
 
 
 OmegaConf.register_resolver("microduck_scale", _scale_multi_gpu, replace=True)
@@ -407,7 +408,10 @@ def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
             "modify_params": {
                 "stages": preset(
                     default=steps,
-                    multi_gpu=[(f"${{microduck_scale:{step},${{env.num_gpus}}}}", value) for step, value in steps],
+                    multi_gpu=[
+                        (f"${{microduck_scale:{step},${{env.num_gpus}},${{env.num_nodes}}}}", value)
+                        for step, value in steps
+                    ],
                 )
             },
         },
@@ -449,8 +453,11 @@ class CurriculumCfg:
 class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
     """MicroDuck flat velocity walking with Newton MJWarp and BAM servos."""
 
-    num_gpus: int = preset(default=1, multi_gpu="${oc.decode:${oc.env:WORLD_SIZE,1}}")
-    """GPU count for training-recipe scaling; the multi-GPU preset defaults to the total distributed rank count."""
+    num_gpus: int = preset(default=1, multi_gpu="${oc.decode:${oc.env:LOCAL_WORLD_SIZE,${oc.env:WORLD_SIZE,1}}}")
+    """GPUs per node for recipe scaling; defaults to torchrun's local worker count with ``multi_gpu``."""
+
+    num_nodes: int = preset(default=1, multi_gpu="${oc.decode:${oc.env:GROUP_WORLD_SIZE,1}}")
+    """Nodes for recipe scaling; defaults to torchrun's worker-group count with ``multi_gpu``."""
 
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
