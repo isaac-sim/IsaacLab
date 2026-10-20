@@ -12,12 +12,17 @@ Image-transfer scheduling and Cosmos generation quality have separate owners.
 from __future__ import annotations
 
 import json
+import os
 import pickle
+import shutil
 import socket
 import struct
+import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,6 +31,7 @@ import pytest
 import torch
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferModifierCfg, _protocol
 from isaaclab_experimental.cosmos.client import CosmosModel
+from isaaclab_experimental.cosmos.client.camera import service_capabilities
 from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import depth_to_control
 from isaaclab_experimental.image_transfer import modifier as modifier_module
@@ -34,11 +40,19 @@ from isaaclab.utils.modifiers import ModifierCfg, ModifierChain
 
 pytestmark = pytest.mark.unit
 
+_UNIX = pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="Unix sockets need Linux")
+
+
+def _unix_endpoint() -> tuple[str, str]:
+    """Return a short-path Unix socket endpoint and its directory; pytest's tmp_path can exceed the path limit."""
+    directory = tempfile.mkdtemp(prefix="cosmos-", dir="/tmp")
+    return f"unix://{directory}/service.sock", directory
+
 
 class TransportResource:
     """Already-loaded resource whose ownership is observable across a real socket."""
 
-    capabilities = {"modalities": ["edge", "depth", "seg"]}
+    capabilities = {}
 
     def __init__(self):
         self.streams = []
@@ -88,18 +102,22 @@ class TransportStream:
 
 
 @pytest.fixture
-def cosmos_service():
-    """Start the production listener, then shut it down through its ordinary endpoint."""
+def cosmos_service(request):
+    """Start the production listener on a TCP or Unix socket endpoint, then shut it down through that endpoint."""
     resource = TransportResource()
-    with socket.socket() as reserved:
-        reserved.bind(("127.0.0.1", 0))
-        port = reserved.getsockname()[1]
-    endpoint = f"tcp://127.0.0.1:{port}"
+    directory = None
+    if getattr(request, "param", "tcp") == "unix":
+        endpoint, directory = _unix_endpoint()
+    else:
+        with socket.socket() as reserved:
+            reserved.bind(("127.0.0.1", 0))
+            port = reserved.getsockname()[1]
+        endpoint = f"tcp://127.0.0.1:{port}"
     failures = []
 
     def run():
         try:
-            serve(resource, host="127.0.0.1", port=port, warmup=True)
+            serve(resource, endpoint, warmup=True)
         except Exception as error:
             failures.append(error)
 
@@ -127,12 +145,13 @@ def cosmos_service():
         assert not failures, failures
         assert resource.closed.is_set()
         assert resource.calls[-1] == ("model.close", resource.calls[0][1])
+        if directory is not None:
+            assert os.listdir(directory) == [], "the service left its socket file behind"
+            shutil.rmtree(directory)
 
 
 def _client(endpoint):
-    return CosmosModel(
-        CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", modality="edge", timeout=2)
-    )
+    return CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", timeout=2))
 
 
 def _controls():
@@ -209,6 +228,7 @@ def test_wire_treats_pickle_bytes_as_pixels_without_execution(tmp_path):
     assert not marker.exists()
 
 
+@pytest.mark.parametrize("cosmos_service", ["tcp", pytest.param("unix", marks=_UNIX)], indirect=True)
 def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_service):
     """Warmup and reconnect use one inference thread, while status stays responsive during generation."""
     client = _client(cosmos_service.endpoint)
@@ -224,6 +244,8 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     assert resident_stream.settings["prompt"] == "A camera view"
     assert resident_stream.settings["height"] == 2 and resident_stream.settings["width"] == 3
     assert resident_stream.settings["seeds"] == (7,)
+    with pytest.raises(RuntimeError, match="active camera session"):
+        service_capabilities(cosmos_service.endpoint)
 
     cosmos_service.resource.step_entered.clear()
     cosmos_service.resource.resume_step.clear()
@@ -243,6 +265,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     client.close()
     assert resident_stream.closed.wait(2)
     assert not cosmos_service.resource.closed.is_set()
+    assert service_capabilities(cosmos_service.endpoint)["transports"]
 
     replacement = _client(cosmos_service.endpoint)
     try:
@@ -292,7 +315,6 @@ def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_res
             "num_views": 1,
             "seeds": [1],
             "prompt": "A lab.",
-            "modality": "edge",
             "height": 2,
             "width": 3,
             "max_episode_frames": 9,
@@ -316,7 +338,6 @@ def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_
             "num_views": 1,
             "seeds": [7],
             "prompt": "A camera view",
-            "modality": "edge",
             "height": 2,
             "width": 3,
             "max_episode_frames": 13,
@@ -368,9 +389,7 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
         [
             ModifierCfg(func=depth_to_control, params={"near": 1.0, "far": 9.0}),
             CosmosTransferModifierCfg(
-                backend=CosmosModelCfg(
-                    max_episode_frames=13, endpoint=cosmos_service.endpoint, modality="depth", timeout=2
-                )
+                backend=CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2)
             ),
         ],
         device="cpu",
@@ -416,6 +435,334 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
 
 
+_SAME_GPU = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "pci_bus_id": "0000:01:00.0"}
+
+
+@pytest.mark.parametrize(
+    "transport,device,capabilities,available,expected",
+    [
+        ("socket", "cuda:0", _SAME_GPU, True, "socket"),
+        ("auto", "cpu", _SAME_GPU, True, "socket"),
+        ("auto", "cuda:0", {"transports": ["socket"]}, True, "socket"),
+        ("auto", "cuda:0", {**_SAME_GPU, "pci_bus_id": "0000:02:00.0"}, True, "socket"),
+        # A local endpoint tunneled to another machine whose GPU has the same PCI bus ID.
+        ("auto", "cuda:0", {**_SAME_GPU, "host_id": "other-boot"}, True, "socket"),
+        ("auto", "cuda:0", _SAME_GPU, False, "socket"),
+        ("auto", "cuda:0", _SAME_GPU, True, "cuda_ipc"),
+        ("cuda_ipc", "cuda:0", _SAME_GPU, True, "cuda_ipc"),
+    ],
+)
+def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu(
+    transport, device, capabilities, available, expected, monkeypatch, caplog
+):
+    """Auto uses CUDA IPC only for a service on this machine and the same GPU; the socket is the fallback."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: "0000:01:00.0")
+    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13, transport=transport)).open_stream(
+        num_views=1, seeds=(1,)
+    )
+    stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": capabilities}, [])
+    with caplog.at_level("INFO"):
+        assert stream._select_transport(torch.device(device)) == expected
+    if transport != "socket":
+        # The log says which path the images take; an explicit socket transport needs no choice.
+        assert ("CUDA IPC" if expected == "cuda_ipc" else "through the socket") in caplog.text
+
+
+def test_transport_identifies_this_machine_by_boot_id_not_by_address(monkeypatch):
+    """A TCP address naming this machine (not a loopback name) still uses CUDA IPC when the boot ID matches."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    monkeypatch.setattr(_cuda_ipc, "available", lambda: True)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: "0000:01:00.0")
+    cfg = CosmosModelCfg(max_episode_frames=13, endpoint="tcp://10.0.0.5:5555")
+    stream = CosmosModel(cfg).open_stream(num_views=1, seeds=(1,))
+    stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": _SAME_GPU}, [])
+    assert stream._select_transport(torch.device("cuda:0")) == "cuda_ipc"
+
+
+@pytest.mark.parametrize("case", [None, "created", "opened", "unconfirmed"])
+def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_its_own_only_once_released(monkeypatch, case):
+    """Freeing memory another process still has open is undefined in CUDA, so each side releases the other's first."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    acquired, released = [], []
+
+    class Resource:
+        def close(self):
+            if self not in released:
+                released.append(self)
+
+    class Buffer(Resource):
+        def __init__(self, device, shape, handle=None):
+            self.handle = handle or "control"
+            acquired.append(self)
+
+    class Event(Resource):
+        def __init__(self, device, handle=None):
+            if case == ("opened" if handle else "created"):
+                raise RuntimeError("Cannot get event")
+            self.handle = handle or "control_ready"
+            acquired.append(self)
+
+    monkeypatch.setattr(_cuda_ipc, "SharedBuffer", Buffer)
+    monkeypatch.setattr(_cuda_ipc, "SharedEvent", Event)
+    monkeypatch.setattr(_cuda_ipc, "_KEPT", [])
+    if case == "created":
+        with pytest.raises(RuntimeError, match="Cannot get event"):
+            _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3), writes="control")
+        assert released == acquired
+        return
+    channel = _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3), writes="control")
+    assert channel.handles == {"control": "control", "control_ready": "control_ready"}
+    created = list(acquired)
+    if case == "opened":
+        with pytest.raises(RuntimeError, match="Cannot get event"):
+            channel.open({"output": "output", "output_ready": "output_ready"})
+        assert released == acquired[2:]
+    else:
+        channel.open({"output": "output", "output_ready": "output_ready"})
+        assert (channel.output.handle, channel.output_ready.handle) == ("output", "output_ready")
+    if case == "unconfirmed":
+        # Without confirmation that the other process released them, this process keeps its own until it exits.
+        channel.close(peer_released=False)
+        assert released == acquired[2:][::-1] and len(_cuda_ipc._KEPT) == 1
+        return
+    channel.close()
+    channel.close()
+    assert set(released) == set(acquired) and released[-2:] == created[::-1]
+
+
+@pytest.mark.parametrize("failure", [None, "close", "step"])
+def test_the_camera_frees_its_control_buffer_only_after_the_service_releases_it(failure):
+    """The service may read the controls until it confirms the close; without that they stay allocated."""
+    released = []
+    channel = SimpleNamespace(
+        control=SimpleNamespace(tensor=torch.zeros((1, 4, 2, 3, 3), dtype=torch.uint8)),
+        control_ready=SimpleNamespace(record=lambda: None),
+        close_opened=lambda: released.append("output"),
+        close=lambda *, peer_released: released.append(("control", peer_released)),
+    )
+    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13)).open_stream(num_views=1, seeds=(1,))
+
+    def exchange(metadata, arrays=()):
+        if metadata["op"] == failure:
+            raise ConnectionError("Cosmos connection closed")
+        return {"ok": True}, []
+
+    stream._exchange = exchange
+    stream._socket, stream._channel, stream._shape = SimpleNamespace(close=lambda: None), channel, (2, 3, 3)
+    if failure == "step":
+        with pytest.raises(ConnectionError):
+            stream.step([_controls()], (), ())
+    else:
+        stream.close()
+    # The camera releases the service's output first; it frees its controls only after the confirmed close.
+    assert released == ["output", ("control", failure is None)]
+
+
+@pytest.mark.parametrize("end,freed", [("disconnect", True), ("idle", False), ("shutdown", False)])
+def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camera_disconnects(monkeypatch, end, freed):
+    """The camera may have the output buffer open until it handles the error and disconnects. An idle timeout or the
+    service's own shutdown ends the connection without that confirmation, so the buffer stays until the service exits.
+    """
+    from isaaclab_experimental.cosmos.server import service
+
+    released = []
+
+    class Channel:
+        handles = {"output": "output", "output_ready": "output_ready"}
+
+        def close_opened(self):
+            if "control" not in released:
+                released.append("control")
+
+        def close(self, *, peer_released=True):
+            self.close_opened()
+            released.append("output freed" if peer_released else "output kept")
+
+    def fail(*args):
+        raise RuntimeError("generation failed")
+
+    monkeypatch.setattr(service, "_open_channel", lambda *args: Channel())
+    monkeypatch.setattr(service, "_step_channel", fail)
+    state = service._ServiceState(TransportResource())
+    state.transports = ["socket", "cuda_ipc"]
+    camera, connection = socket.socketpair()
+    if end == "idle":
+        connection.settimeout(0.5)
+    handler = threading.Thread(
+        target=service._handle_connection, args=(connection, state, {connection}, threading.Lock())
+    )
+    handler.start()
+    try:
+        _protocol.send_message(
+            camera,
+            {
+                "op": "open",
+                "num_views": 1,
+                "seeds": [1],
+                "prompt": None,
+                "height": 2,
+                "width": 3,
+                "max_episode_frames": 9,
+                "transport": "cuda_ipc",
+                "ipc": {"pci_bus_id": "0000:01:00.0", "control": "control", "control_ready": "control_ready"},
+            },
+        )
+        reply, _ = _protocol.receive_message(camera)
+        assert reply["ok"] and reply["ipc"] == Channel.handles
+        _protocol.send_message(camera, {"op": "step", "reset_rows": [], "seeds": [], "frames": [1]})
+        reply, _ = _protocol.receive_message(camera)
+        assert not reply["ok"] and "generation failed" in reply["error"]
+        deadline = time.monotonic() + 5
+        while state.owner is not None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        # The session ended and the camera's controls are released, but the output buffer waits for the camera.
+        assert state.owner is None and released[0] == "control"
+        if end != "idle":
+            assert released == ["control"] and handler.is_alive()
+        if end == "shutdown":
+            state.stopping.set()
+            connection.shutdown(socket.SHUT_RDWR)
+        if end != "disconnect":
+            # The camera stays connected until the service has handled the timeout or shutdown.
+            handler.join(timeout=5)
+    finally:
+        camera.close()
+        handler.join(timeout=5)
+        state.executor.shutdown()
+    assert not handler.is_alive() and released == ["control", "output freed" if freed else "output kept"]
+
+
+def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():
+    """Driver handles are raw bytes; zero bytes must survive the trip to the other process."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    raw = bytes([7, 0]) + bytes(range(62))
+    handle = _cuda_ipc._Handle.from_buffer_copy(raw)
+    assert bytes(_cuda_ipc._decode(_cuda_ipc._encode(handle)).reserved) == raw
+
+
+def test_explicit_cuda_ipc_fails_clearly_when_unavailable_and_remote_services_use_the_socket(monkeypatch):
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    monkeypatch.setattr(_cuda_ipc, "available", lambda: False)
+    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13, transport="cuda_ipc")).open_stream(
+        num_views=1, seeds=(1,)
+    )
+    stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": {"transports": ["socket"]}}, [])
+    with pytest.raises(RuntimeError, match="cuda_ipc is unavailable"):
+        stream._select_transport(torch.device("cuda:0"))
+    # A service on another machine reports another boot ID, so auto uses the socket whatever its address.
+    monkeypatch.setattr(_cuda_ipc, "available", lambda: True)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
+    remote = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint="tcp://10.1.2.3:5555")).open_stream(
+        num_views=1, seeds=(1,)
+    )
+    remote._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": {**_SAME_GPU, "host_id": "other"}}, [])
+    assert remote._select_transport(torch.device("cuda:0")) == "socket"
+
+
+def test_a_service_without_cuda_ipc_rejects_shared_gpu_sessions(cosmos_service):
+    reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=2)
+    assert reply["capabilities"]["transports"] == ["socket"]
+    with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+        open_request = {
+            "op": "open",
+            "num_views": 1,
+            "seeds": [1],
+            "prompt": None,
+            "height": 2,
+            "width": 3,
+            "max_episode_frames": 9,
+            "transport": "cuda_ipc",
+            "ipc": {},
+        }
+        _protocol.send_message(connection, open_request)
+        reply, _ = _protocol.receive_message(connection)
+    assert not reply["ok"] and "does not offer the cuda_ipc transport" in reply["error"]
+
+
+_GPU_SERVICE = r"""
+import sys
+import torch
+from isaaclab_experimental.cosmos.server.service import serve
+
+
+class Stream:
+    def step(self, controls, reset_rows, seeds, **episode):
+        return [255 - control for control in controls]
+
+    def close(self):
+        pass
+
+
+class Model:
+    capabilities = {"device": "cuda:0"}
+
+    def warmup(self):
+        pass
+
+    def open_stream(self, **settings):
+        return Stream()
+
+    def close(self):
+        pass
+
+
+serve(Model(), sys.argv[1])
+"""
+
+
+@pytest.mark.skipif(
+    not (sys.platform.startswith("linux") and torch.cuda.is_available()), reason="CUDA IPC needs Linux and a GPU"
+)
+def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu():
+    """A service in another process reads controls and writes images in shared GPU memory; no TCP is involved."""
+    import subprocess
+
+    endpoint, directory = _unix_endpoint()
+    service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint], env={**os.environ})
+    try:
+        deadline = time.monotonic() + 60
+        while True:
+            try:
+                _protocol.request(endpoint, {"op": "status"}, timeout=1)
+                break
+            except OSError:
+                if time.monotonic() > deadline or service.poll() is not None:
+                    pytest.fail("GPU test service did not start")
+                time.sleep(0.2)
+        client = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10))
+        stream = client.open_stream(num_views=1, seeds=(7,))
+        first = torch.full((1, 4, 6, 3), 10, dtype=torch.uint8, device="cuda:0")
+        update = torch.arange(4 * 4 * 6 * 3, device="cuda:0").remainder(256).to(torch.uint8).view(4, 4, 6, 3)
+        images = [stream.step([first], (), ())[0], stream.step([update], (), ())[0]]
+        assert stream.transport == "cuda_ipc"
+        assert images[0].device == first.device and torch.equal(images[0], 255 - first)
+        assert torch.equal(images[1], 255 - update)
+        client.close()
+
+        # Two views share the buffers row by row; view 1 restarts with one frame while view 0 sends four.
+        client = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10))
+        stream = client.open_stream(num_views=2, seeds=(7, 8))
+        stream.step([first, first + 1], (), ())
+        images = stream.step([update, first + 2], (1,), (9,))
+        assert [tuple(view.shape) for view in images] == [(4, 4, 6, 3), (1, 4, 6, 3)]
+        assert torch.equal(images[0], 255 - update) and torch.equal(images[1], 255 - (first + 2))
+        client.close()
+    finally:
+        with suppress(OSError):
+            _protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
+        service.wait(timeout=30)
+        shutil.rmtree(directory, ignore_errors=True)
+
+
 def test_several_views_share_one_session_with_their_own_prompts_frames_and_resets(cosmos_service):
     """Two views open one batched session; a restarting view sends one frame while the other sends four."""
     cfg = CosmosModelCfg(
@@ -445,7 +792,6 @@ def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos
             "num_views": 2,
             "seeds": [1, 2],
             "prompt": None,
-            "modality": "edge",
             "height": 2,
             "width": 3,
             "max_episode_frames": 9,
@@ -455,6 +801,32 @@ def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos
         _protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
         reply, _ = _protocol.receive_message(connection)
     assert not reply["ok"] and "distinct opened views" in reply["error"]
+
+
+def test_small_messages_leave_in_one_write_and_tcp_sends_them_without_delay(cosmos_service):
+    """Header and metadata go out together, and TCP connections disable Nagle, so CUDA IPC steps do not stall."""
+
+    class RecordingSocket:
+        def __init__(self):
+            self.writes = []
+
+        def sendall(self, data):
+            self.writes.append(bytes(data))
+
+    recording = RecordingSocket()
+    _protocol.send_message(recording, {"op": "step", "frames": 4})
+    assert len(recording.writes) == 1
+    if cosmos_service.endpoint.startswith("tcp://"):
+        with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+            assert connection.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
+
+
+def test_a_missing_service_is_reported_with_its_endpoint():
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        endpoint = f"tcp://127.0.0.1:{reserved.getsockname()[1]}"
+    with pytest.raises(ConnectionError, match=f"No Cosmos service at {endpoint}"):
+        _protocol.connect(endpoint, timeout=1)
 
 
 def test_worker_rejects_an_occupied_endpoint_before_loading_the_model(monkeypatch):
@@ -467,9 +839,9 @@ def test_worker_rejects_an_occupied_endpoint_before_loading_the_model(monkeypatc
     with socket.socket() as occupied:
         occupied.bind(("127.0.0.1", 0))
         occupied.listen()
-        port = occupied.getsockname()[1]
+        endpoint = f"tcp://127.0.0.1:{occupied.getsockname()[1]}"
         with pytest.raises(OSError):
-            worker.main(["--checkpoint", "unused", "--host", "127.0.0.1", "--port", str(port), "--warmup"])
+            worker.main(["--checkpoint", "unused", "--endpoint", endpoint, "--warmup"])
 
 
 def test_failed_model_loading_releases_the_reserved_endpoint():
@@ -481,6 +853,82 @@ def test_failed_model_loading_releases_the_reserved_endpoint():
         raise ValueError("checkpoint unavailable")
 
     with pytest.raises(ValueError, match="checkpoint unavailable"):
-        serve(load, host="127.0.0.1", port=port)
+        serve(load, f"tcp://127.0.0.1:{port}")
     with socket.socket() as replacement:
         replacement.bind(("127.0.0.1", port))
+
+
+def test_endpoints_name_an_absolute_unix_socket_or_a_tcp_host_and_port():
+    assert _protocol.parse_endpoint("tcp://127.0.0.1:5555") == (socket.AF_INET, ("127.0.0.1", 5555))
+    for malformed in ("tcp://127.0.0.1", "http://127.0.0.1:5555", "127.0.0.1:5555"):
+        with pytest.raises(ValueError, match="unix:///absolute/path or tcp://host:port"):
+            _protocol.parse_endpoint(malformed)
+    if hasattr(socket, "AF_UNIX"):
+        assert _protocol.parse_endpoint("unix:///tmp/a.sock") == (socket.AF_UNIX, "/tmp/a.sock")
+        assert f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock" == _protocol.DEFAULT_ENDPOINT
+        with pytest.raises(ValueError, match="unix:///absolute/path"):
+            _protocol.parse_endpoint("unix://relative.sock")
+        with pytest.raises(ValueError, match="at most 107 bytes"):
+            _protocol.parse_endpoint("unix:///" + "a" * 120)
+    else:
+        assert _protocol.DEFAULT_ENDPOINT == "tcp://127.0.0.1:5555"
+        with pytest.raises(ValueError, match="need Linux"):
+            _protocol.parse_endpoint("unix:///tmp/a.sock")
+
+
+@_UNIX
+def test_a_unix_socket_service_is_private_replaces_a_stale_socket_and_refuses_a_second_service():
+    """Only the owner can open the socket; a stopped service's file is reused; a running service is not replaced."""
+    import stat
+
+    endpoint, directory = _unix_endpoint()
+    path = endpoint[len("unix://") :]
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stale:
+        stale.bind(path)
+    resource = TransportResource()
+    thread = threading.Thread(target=serve, args=(resource, endpoint), daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                reply, _ = _protocol.request(endpoint, {"op": "status"}, timeout=0.2)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    pytest.fail("Cosmos service did not replace the stale socket")
+                time.sleep(0.01)
+        assert reply["ready"]
+        assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+        with pytest.raises(RuntimeError, match="already running"):
+            serve(TransportResource(), endpoint)
+    finally:
+        with suppress(OSError):
+            _protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
+        thread.join(timeout=5)
+        shutil.rmtree(directory, ignore_errors=True)
+    assert not thread.is_alive() and not os.path.exists(path)
+
+
+@_UNIX
+def test_a_stopping_service_removes_its_socket_file_but_not_a_replacement():
+    """A service that took over the endpoint's path keeps its socket file when the earlier service stops."""
+    endpoint, directory = _unix_endpoint()
+    path = endpoint[len("unix://") :]
+    moved = f"unix://{directory}/moved.sock"
+    thread = threading.Thread(target=serve, args=(TransportResource(), endpoint), daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 5
+        while not os.path.exists(path):
+            if time.monotonic() >= deadline:
+                pytest.fail("Cosmos service did not create its socket")
+            time.sleep(0.01)
+        os.rename(path, moved[len("unix://") :])
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as replacement:
+            replacement.bind(path)
+            _protocol.request(moved, {"op": "shutdown"}, timeout=2)
+            thread.join(timeout=5)
+            assert not thread.is_alive() and os.path.exists(path)
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
