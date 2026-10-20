@@ -528,6 +528,7 @@ TABLECLOTH_ASSETS = {
             "body": ImplicitActuatorCfg(
                 joint_names_expr=[r"(left|right)_(hip|knee|ankle|shoulder|elbow)_.*", r"(waist|head)_.*"],
                 stiffness=5.0e5,
+                # Scale damping by sqrt(10) to preserve the damping ratio with 10x higher body stiffness.
                 damping=5.0e2 * math.sqrt(10.0),
             ),
             "wrists": ImplicitActuatorCfg(
