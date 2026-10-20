@@ -74,13 +74,13 @@ def is_configured() -> bool:
 
 @dataclass(frozen=True)
 class BaselineRow:
-    """One recorded develop measurement for a single contract.
+    """One recorded default-branch measurement for a single contract.
 
     Attributes:
         contract: Serialised :class:`~tools.perf_smoke.contract.Contract`.
         contract_hash: Digest of ``contract``, used as the storage key.
         metrics: Measured value per metric name.
-        commit: Develop commit the measurement was taken on.
+        commit: Default-branch commit the measurement was taken on.
         timestamp: ISO-8601 UTC timestamp of the run.
         run_id: CI run identifier, for tracing a row back to its logs.
     """

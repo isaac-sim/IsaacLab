@@ -258,7 +258,7 @@ class FrameTransformer(BaseFrameTransformer):
                 ) from exc
 
             if binding.count != self._num_envs:
-                # OVPhysX's InteractiveScene defaults to clone_usd=True on develop, so this branch is
+                # OVPhysX's InteractiveScene defaults to clone_usd=True on the default branch, so this branch is
                 # unexpected in current flows. Mirror ContactSensor's clone_usd=False fallback so the
                 # sensor stays correct if a future scene runs with clone_usd=False.
                 logger.warning(
