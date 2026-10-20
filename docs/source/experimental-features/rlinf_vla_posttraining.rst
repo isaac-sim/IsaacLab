@@ -3,9 +3,8 @@
 RL Post-Training for VLA Models
 ================================
 
-`RLinf <https://github.com/RLinf/RLinf.git>`_ is a flexible and scalable open-source RL infrastructure designed for
-Embodied and Agentic AI. This integration enables **reinforcement learning fine-tuning of Vision-Language-Action
-(VLA) models** (e.g., GR00T, OpenVLA) on Isaac Lab simulation tasks.
+`RLinf <https://github.com/RLinf/RLinf.git>`_ fine-tunes pretrained vision-language-action
+(VLA) models, such as GR00T and OpenVLA, with reinforcement learning on Isaac Lab tasks.
 
 The typical workflow follows three stages:
 
@@ -19,34 +18,9 @@ Overview
 The RLinf integration allows Isaac Lab users to:
 
 - Fine-tune pretrained VLA models on Isaac Lab tasks using PPO / Actor-Critic / SAC
-- Leverage RLinf's FSDP-based distributed training across multiple GPUs/nodes
+- Distribute training across GPUs and nodes with FSDP
 - Define observation/action mappings from Isaac Lab to GR00T format via a single YAML config
 - Register Isaac Lab tasks into RLinf without modifying RLinf source code
-
-Architecture
-------------
-
-.. code-block:: text
-
-    ┌────────────────────────────────────────────────────────────────┐
-    │                         RLinf Runner                           │
-    │                 (EmbodiedRunner / EvalRunner)                  │
-    ├────────────────┬──────────────────────┬────────────────────────┤
-    │  Actor Worker  │   Rollout Worker     │      Env Worker        │
-    │  (FSDP)        │  (HF Inference)      │  (IsaacLab Sim)        │
-    │                │                      │                        │
-    │ Policy         │  Multi-step rollout  │ IsaacLabGenericEnv     │
-    │ Update         │  with VLA model      │  ├─ _make_env_function │
-    │                │                      │  ├─ _wrap_obs          │
-    │                │                      │  └─ _wrap_action       │
-    └────────────────┴──────────────────────┴────────────────────────┘
-
-**Data flow:**
-
-1. ``EnvWorker`` runs Isaac Lab simulation and converts observations to RLinf format
-2. ``RolloutWorker`` runs VLA model inference (e.g., GR00T) to produce actions
-3. Actions are converted back to Isaac Lab format and stepped in the environment
-4. ``ActorWorker`` updates the VLA model with PPO/actor-critic loss via FSDP
 
 Prerequisites
 -------------
@@ -88,7 +62,8 @@ the alternative model dependencies below.
        "git+https://github.com/RLinf/RLinf.git@0f9ea98c7a6d9e3ade24e8f4846c64d3b135dbcc"
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   uv pip install transformers==4.51.3 "tokenizers>=0.21,<0.22" \
+       "huggingface-hub>=0.30,<1.0" --no-deps
    # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
    # GR00T N1.5 only uses pytorch3d.transforms, so skip the compiled extension.
    PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
@@ -136,7 +111,7 @@ package with incompatible APIs. After Step 1 above, replace Steps 2–4 with:
 
    uv pip install --no-deps \
        "git+https://github.com/NVIDIA/Isaac-GR00T.git@1a1837f20538b7d7e21f977a11a5aee14f99803c" \
-       "transformers==4.57.3" "tokenizers>=0.22,<0.23"
+       "transformers==4.57.3" "tokenizers>=0.22,<0.23" "huggingface-hub>=0.34,<1.0"
    uv pip install --no-deps --no-build-isolation "flash-attn==2.8.3"
 
 Set ``actor.model.model_type: gr00t_n1d7`` in the task YAML. RLinf loads the model and
@@ -288,6 +263,40 @@ are converted to GR00T format:
      action_mapping:
        prefix_pad: 15
        suffix_pad: 0
+
+Action chunks across resets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab resets completed environments inside ``step()``. For absolute joint-position policies,
+set ``env.train.isaaclab.hold_pose_on_midchunk_reset: true`` to replace the remaining old-episode
+actions with the returned joint positions until the next chunk. The configured ``states`` vector
+must contain only those joint positions, in the same order and units as the environment actions.
+This option defaults to false and does not apply to delta-position, velocity, or torque actions.
+
+Architecture
+------------
+
+.. code-block:: text
+
+    ┌────────────────────────────────────────────────────────────────┐
+    │                         RLinf Runner                           │
+    │                 (EmbodiedRunner / EvalRunner)                  │
+    ├────────────────┬──────────────────────┬────────────────────────┤
+    │  Actor Worker  │   Rollout Worker     │      Env Worker        │
+    │  (FSDP)        │  (HF Inference)      │  (IsaacLab Sim)        │
+    │                │                      │                        │
+    │ Policy         │  Multi-step rollout  │ IsaacLabGenericEnv     │
+    │ Update         │  with VLA model      │  ├─ _make_env_function │
+    │                │                      │  ├─ _wrap_obs          │
+    │                │                      │  └─ _wrap_action       │
+    └────────────────┴──────────────────────┴────────────────────────┘
+
+**Data flow:**
+
+1. ``EnvWorker`` runs Isaac Lab simulation and converts observations to RLinf format
+2. ``RolloutWorker`` runs VLA model inference (e.g., GR00T) to produce actions
+3. Actions are converted back to Isaac Lab format and stepped in the environment
+4. ``ActorWorker`` updates the VLA model with PPO/actor-critic loss via FSDP
 
 Key Files
 ---------

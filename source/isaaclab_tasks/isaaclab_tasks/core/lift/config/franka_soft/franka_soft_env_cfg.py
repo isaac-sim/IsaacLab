@@ -104,6 +104,7 @@ class DeformableCfg(PresetCfg):
 
     physx: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.04, 0.04),
@@ -587,12 +588,10 @@ class TerminationsCfg:
 class FrankaSoftSceneCfg(PresetCfg):
     """Scene presets for soft-beam lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(
-        num_envs=2048, env_spacing=2.0, replicate_physics=True
-    )
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0)
 
-    # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    # The PhysX deformable asset uses USD replication; other scene assets keep their backend route.
+    physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0)
     isaacsim_physx = physx
 
     default = newton_mjwarp_vbd_proxy
@@ -602,12 +601,8 @@ class FrankaSoftSceneCfg(PresetCfg):
 class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
-        num_envs=128, env_spacing=2.0, replicate_physics=True
-    )
-    physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
-        num_envs=128, env_spacing=2.0, replicate_physics=False
-    )
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
+    physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
     isaacsim_physx = physx
     default = newton_mjwarp_vbd_proxy
 
@@ -638,7 +633,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = _FrankaSoftVisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
 
     def play_mode(self):
         super().play_mode()
@@ -660,11 +655,3 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
         super().__post_init__()
         # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
-
-
-@configclass
-class _FrankaSoftVisualizerCfg(VisualizerCfg):
-    """Visualizer with a full-HD window for the soft-body environments."""
-
-    window_width: int = 1920
-    window_height: int = 1080

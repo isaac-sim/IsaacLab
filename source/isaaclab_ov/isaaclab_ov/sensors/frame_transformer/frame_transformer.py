@@ -22,7 +22,6 @@ from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 import isaaclab_ov.tensor_types as TT
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .frame_transformer_data import FrameTransformerData
@@ -234,7 +233,7 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
         # --- OVPhysX: create one TT.RIGID_BODY_POSE view per unique tracked body ---
-        physx_instance = SimulationManager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError(
                 "OvPhysxManager has not been initialized yet."
@@ -259,7 +258,7 @@ class FrameTransformer(BaseFrameTransformer):
                 ) from exc
 
             if binding.count != self._num_envs:
-                # OVPhysX's InteractiveScene defaults to clone_usd=True on develop, so this branch is
+                # OVPhysX's InteractiveScene defaults to clone_usd=True on the default branch, so this branch is
                 # unexpected in current flows. Mirror ContactSensor's clone_usd=False fallback so the
                 # sensor stays correct if a future scene runs with clone_usd=False.
                 logger.warning(
@@ -273,9 +272,7 @@ class FrameTransformer(BaseFrameTransformer):
                 self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
                 self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
                 self._reset_mask_torch = wp.to_torch(self._reset_mask)
-                self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-                self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-                self._timestamp_last_update = wp.zeros_like(self._timestamp)
+                self._create_timing_buffers()
 
             read_buf = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
             dst_torch = torch.tensor(

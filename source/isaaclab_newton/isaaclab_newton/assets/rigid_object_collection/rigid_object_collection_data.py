@@ -17,7 +17,7 @@ from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.assets import kernels as shared_kernels
-from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.physics import NewtonManager
 
 from ..kernels import vec13f
 
@@ -52,7 +52,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object collection data."""
 
-    def __init__(self, root_view: ArticulationView, num_bodies: int, device: str):
+    def __init__(
+        self, root_view: ArticulationView, num_bodies: int, device: str, *, backend_manager: NewtonManager | None = None
+    ):
         """Initializes the rigid object collection data.
 
         Args:
@@ -60,7 +62,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 The view's 2nd dimension (matches per world) corresponds to the body types.
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
+            backend_manager: Newton physics manager that owns the simulation state.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("RigidObjectCollectionData()")
+        self._backend_manager = backend_manager
         super().__init__(root_view, num_bodies, device)
         self.num_bodies = num_bodies
         # Store the view as a weak reference to avoid circular references
@@ -75,7 +82,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # projected_gravity_b kernel broadcasts each env's vector across its bodies.
         # The final entry is reserved for Newton's global world and is not an
         # Isaac Lab environment.
-        model = SimulationManager.get_model()
+        model = self._backend_manager.get_model()
         self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self.num_instances, self.num_bodies, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
@@ -150,7 +157,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 self._body_com_state_w,
             ]
         )
-        SimulationManager.invalidate_fk(
+        self._backend_manager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
 
@@ -184,7 +191,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 self._body_com_state_w,
             ]
         )
-        SimulationManager.invalidate_fk(
+        self._backend_manager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
 
@@ -277,7 +284,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        SimulationManager.forward()
+        self._backend_manager.forward()
         return self._body_link_pose_w_ta
 
     @property
@@ -342,7 +349,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
-        SimulationManager.forward()
+        self._backend_manager.forward()
         return self._body_com_vel_w_ta
 
     @property
@@ -698,11 +705,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         per world) corresponds to the different body types. This gives us direct 2D bindings into
         Newton's state with no scatter/gather overhead.
         """
-        # A full reset replaces simulation arrays.
-        self._read_launch_cache.clear()
-
-        state_0 = SimulationManager.get_state_0()
-        model = SimulationManager.get_model()
+        state_0 = self._backend_manager.get_state_0()
+        model = self._backend_manager.get_model()
 
         # Root transforms/velocities are (num_envs, num_bodies) — direct 2D bindings
         self._sim_bind_body_link_pose_w = self._root_view.get_root_transforms(state_0)
@@ -726,11 +730,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             device=_body_inertia_raw.device,
             copy=False,
         )
-
-        # Re-pin ProxyArray wrappers to the newly created sim bindings.
-        # On first init, _create_buffers() handles this after all buffers exist.
-        if hasattr(self, "_body_link_pose_w_ta"):
-            self._pin_proxy_arrays()
 
     def _create_buffers(self) -> None:
         """Create buffers for computing and caching derived quantities."""
@@ -767,60 +766,30 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # -- Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
 
-        # Pin all ProxyArray wrappers to current buffers.
-        self._pin_proxy_arrays()
+        # Bind public arrays once for this model generation.
+        self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
+        self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
+        self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
+        self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
+        self._body_inertia_ta = ProxyArray(self._body_inertia)
+        self._default_body_pose_ta = ProxyArray(self._default_body_pose)
+        self._default_body_vel_ta = ProxyArray(self._default_body_vel)
 
-    def _pin_proxy_arrays(self) -> None:
-        """Create or rebind all pinned ProxyArray wrappers.
+        # Category 2: TimestampedBuffer properties
+        self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w.data)
+        self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w.data)
+        self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
+        self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
+        self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
+        self._heading_w_ta = ProxyArray(self._heading_w.data)
+        self._body_link_lin_vel_b_ta = ProxyArray(self._body_link_lin_vel_b.data)
+        self._body_link_ang_vel_b_ta = ProxyArray(self._body_link_ang_vel_b.data)
+        self._body_com_lin_vel_b_ta = ProxyArray(self._body_com_lin_vel_b.data)
+        self._body_com_ang_vel_b_ta = ProxyArray(self._body_com_ang_vel_b.data)
+        self._body_state_w_ta = ProxyArray(self._body_state_w.data)
+        self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
+        self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
 
-        Called from :meth:`_create_buffers` on first initialization and from
-        :meth:`_create_simulation_bindings` after a full simulation reset when
-        the solver recreates its internal arrays.
-        """
-        is_rebind = hasattr(self, "_body_link_pose_w_ta")
-
-        if is_rebind:
-            # Rebind sim-bound ProxyArrays to new solver arrays
-            self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
-            self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
-            self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
-            self._body_inertia_ta = ProxyArray(self._body_inertia)
-        else:
-            # First-time creation: pin ProxyArrays to current buffers
-            # Category 1: sim-bound and pre-allocated buffers
-            # Newton wp.array pointers are stable, so a ProxyArray wrapping them is valid forever.
-            self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
-            self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
-            self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
-            self._body_inertia_ta = ProxyArray(self._body_inertia)
-            self._default_body_pose_ta = ProxyArray(self._default_body_pose)
-            self._default_body_vel_ta = ProxyArray(self._default_body_vel)
-
-            # Category 2: TimestampedBuffer properties
-            self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w.data)
-            self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w.data)
-            self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
-            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
-            self._heading_w_ta = ProxyArray(self._heading_w.data)
-            self._body_link_lin_vel_b_ta = ProxyArray(self._body_link_lin_vel_b.data)
-            self._body_link_ang_vel_b_ta = ProxyArray(self._body_link_ang_vel_b.data)
-            self._body_com_lin_vel_b_ta = ProxyArray(self._body_com_lin_vel_b.data)
-            self._body_com_ang_vel_b_ta = ProxyArray(self._body_com_ang_vel_b.data)
-            self._body_state_w_ta = ProxyArray(self._body_state_w.data)
-            self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
-            self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
-
-            # -- deprecated state properties (lazy); type annotation declared once here
-            self._default_body_state_ta: ProxyArray | None = None
-
-        # Invalidate lazy sliced ProxyArrays AND their backing wp.arrays so they are
-        # re-created from fresh data on next access.  On first init the backing fields
-        # are already None (set by _create_buffers), so the assignments below are
-        # harmless no-ops.  On rebind they reset stale pointers into freed transform
-        # memory after a sim reset.
         self._body_link_pos_w_ta: ProxyArray | None = None
         self._body_link_quat_w_ta: ProxyArray | None = None
         self._body_link_lin_vel_w_ta: ProxyArray | None = None

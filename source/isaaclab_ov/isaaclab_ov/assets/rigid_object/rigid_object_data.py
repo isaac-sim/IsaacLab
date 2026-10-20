@@ -20,7 +20,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
+from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 
@@ -63,6 +63,8 @@ class RigidObjectData(BaseRigidObjectData):
         view: OvPhysxView,
         device: str,
         check_shapes: bool = True,
+        *,
+        backend_manager: OvPhysxManager | None = None,
     ):
         """Initializes the rigid object data.
 
@@ -76,8 +78,13 @@ class RigidObjectData(BaseRigidObjectData):
             check_shapes: Whether to enforce internal shape/dtype invariants on
                 lazy reads. Defaults to ``True``; production callers thread this
                 from :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks`.
+            backend_manager: The OVPhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(view, device)
+        if backend_manager is None:
+            backend_manager = OvPhysxManager._deprecated_active("RigidObjectData()")
+        self._backend_manager = backend_manager
         # The view owns the per-tensor-type bindings and the CPU/GPU device policy.
         self._view = view
         self._check_shapes = check_shapes
@@ -88,8 +95,8 @@ class RigidObjectData(BaseRigidObjectData):
         self._num_instances = root_pose.count
         self._num_bodies = 1
 
-        if SimulationManager._sim is not None and hasattr(SimulationManager._sim, "cfg"):
-            gravity = SimulationManager._sim.cfg.gravity
+        if self._backend_manager._sim is not None and hasattr(self._backend_manager._sim, "cfg"):
+            gravity = self._backend_manager._sim.cfg.gravity
         else:
             gravity = (0.0, 0.0, -9.81)
 
@@ -915,17 +922,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_mass = self._body_mass.reshape(body_shape)
         self._body_inertia = self._body_inertia.reshape((*body_shape, 9))
 
-        # Initialize ProxyArray wrappers
-        self._pin_proxy_arrays()
-
-    def _pin_proxy_arrays(self) -> None:
-        """Create pinned ProxyArray wrappers for all data buffers.
-
-        This is called once from :meth:`_create_buffers` during initialization.
-        PhysX tensor API buffers have stable GPU pointers across simulation steps,
-        so no rebinding is needed (unlike Newton).
-        """
-        # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
+        # Initialize ProxyArray wrappers (lazily created on first property access).
         # Defaults
         self._default_root_pose_ta: ProxyArray | None = None
         self._default_root_vel_ta: ProxyArray | None = None

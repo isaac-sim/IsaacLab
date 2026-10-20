@@ -139,9 +139,8 @@ def _assert_rest_positions_match_authored(
 
 
 @pytest.fixture
-def host_shell(monkeypatch):
-    """Run an asset shell on CPU with a scene-data backend, without a simulation."""
-    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
+def host_shell():
+    """Run an asset shell on CPU without a simulation."""
     with wp.ScopedDevice("cpu"):
         yield
 
@@ -228,6 +227,8 @@ def _make_asset_shell(
     num_vertices: int = 4,
 ) -> OvPhysxDeformableObject:
     asset = object.__new__(OvPhysxDeformableObject)
+    asset._backend_manager = OvPhysxManager()
+    asset._backend_manager._scene_data_backend = OvPhysxSceneDataBackend(asset._backend_manager)
     asset._device = "cpu"
     asset._check_shapes = True
     asset._DTYPE_TO_TORCH_TRAILING_DIMS = {**asset._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
@@ -550,6 +551,43 @@ def test_initialization_with_shared_material():
         assert deformable._material_physx_view is None
 
 
+@pytest.mark.parametrize("deformable_type", ["volume", "surface"])
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+def test_mesh_spawner_deformable_fragment_slots(deformable_type: str):
+    """The mesh spawner's deformable fragment slots author a deformable that OVPhysX simulates."""
+    from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    body_cfg = OmniPhysicsDeformableBodyCfg(mass=0.5)
+    if deformable_type == "volume":
+        pytest.importorskip("pytetwild", reason="volume deformables are tetrahedralized with pytetwild")
+        spawn = sim_utils.MeshCuboidCfg(
+            size=(0.2, 0.2, 0.2), volume_deformable_props=body_cfg, physics_material=PhysxDeformableBodyMaterialCfg()
+        )
+    else:
+        spawn = sim_utils.MeshRectangleCfg(
+            size=(0.2, 0.2), surface_deformable_props=body_cfg, physics_material=PhysxSurfaceDeformableBodyMaterialCfg()
+        )
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        deformable = _generate_deformable_scene(spawn)
+
+        sim.reset()
+
+        assert deformable.is_initialized
+        assert deformable._deformable_type == deformable_type
+        assert deformable.num_instances == 2
+        stage = sim_utils.get_current_stage()
+        for index in range(2):
+            body = stage.GetPrimAtPath(f"/World/Table_{index}/Object")
+            assert "OmniPhysicsDeformableBodyAPI" in body.GetPrimTypeInfo().GetAppliedAPISchemas()
+            assert body.GetAttribute("omniphysics:mass").Get() == pytest.approx(0.5)
+        for _ in range(5):
+            sim.step()
+            deformable.update(sim.cfg.dt)
+        _assert_finite_deformable_state(deformable)
+
+
 def test_initialization_on_device_cpu():
     """Test that OVPhysX deformable initialization rejects a CPU simulation.
 
@@ -748,7 +786,7 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         # A forced re-warm replaces the attached stage, so the deformable bindings are rebuilt.
         original_view = deformable.root_view
         original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
-        OvPhysxManager._warmup_done = False
+        sim.backend_manager._warmup_done = False
         sim.reset()
 
         assert deformable.is_initialized
@@ -910,9 +948,9 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         runtime_paths = shape.root_view.prim_paths
         assert set(runtime_paths) == expected_paths
         assert len(runtime_paths) == len(set(runtime_paths)) == num_envs
-        assert OvPhysxManager._stage_usda is not None
+        assert sim.backend_manager._stage_usda is not None
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
-        assert layer.ImportFromString(OvPhysxManager._stage_usda)
+        assert layer.ImportFromString(sim.backend_manager._stage_usda)
         materialized_stage = Usd.Stage.Open(layer)
         assert materialized_stage.GetPrimAtPath(camera_path).IsValid()
         assert all(materialized_stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)

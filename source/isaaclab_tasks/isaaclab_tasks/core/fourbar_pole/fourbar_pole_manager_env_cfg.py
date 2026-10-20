@@ -224,7 +224,7 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the fourbar-pole swing-up environment."""
 
     # Scene settings
-    scene: FourbarPoleSceneCfg = FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)
+    scene: FourbarPoleSceneCfg = FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

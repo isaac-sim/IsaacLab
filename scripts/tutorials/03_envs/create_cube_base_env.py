@@ -11,11 +11,8 @@ While going through this tutorial, we recommend you to pay attention to how a cu
 is defined. The action term is responsible for processing the raw actions and applying them to the
 scene entities.
 
-We also define an event term called 'randomize_scale' that randomizes the scale of
-the cube. This event term has the mode 'prestartup', which means that it is applied on the USD stage
-before the simulation starts. Additionally, the flag 'replicate_physics' is set to False,
-which means that the cube is not replicated across multiple environments but rather each
-environment gets its own cube instance.
+Three declared cube sizes preserve per-environment variation under physics replication. The reset event
+changes position, and a prestartup event changes visual color.
 
 The rest of the environment is similar to the previous tutorials.
 
@@ -180,12 +177,16 @@ class MySceneCfg(InteractiveSceneCfg):
     # add cube
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.CuboidCfg(
+                    size=(edge, edge, edge),
+                    rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+                    mass_props=sim_utils.MassCfg(mass=1.0),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+                )
+                for edge in (0.12, 0.20, 0.28)
+            ]
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
     )
@@ -249,22 +250,7 @@ class EventCfg:
         },
     )
 
-    # This event term randomizes the scale of the cube.
-    # The mode is set to 'prestartup', which means that the scale is randomize on the USD stage before the
-    # simulation starts.
-    # Note: USD-level randomizations require the flag 'replicate_physics' to be set to False.
-    randomize_scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={
-            "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
-            "asset_cfg": SceneEntityCfg("cube"),
-        },
-    )
-
-    # This event term randomizes the visual color of the cube.
-    # Similar to the scale randomization, this is also a USD-level randomization and requires the flag
-    # 'replicate_physics' to be set to False.
+    # This prestartup event randomizes the cube's visual color.
     randomize_color = EventTerm(
         func=mdp.randomize_visual_color,
         mode="prestartup",
@@ -287,10 +273,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
-    # across multiple environments but rather each environment gets its own cube instance.
-    # This allows modifying the cube's properties independently for each environment.
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
+    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5)
 
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
