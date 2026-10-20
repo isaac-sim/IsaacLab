@@ -822,9 +822,9 @@ ENV_ORIGINS = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0), (2.0, 2.0, 0.0
 CAMERA_OFFSET = (0.5, -0.5, 1.0)
 # 90 degrees about x in (x, y, z, w), with a non-uniform scale, so a wrong matrix order changes the result.
 ENV_ORIENTATION = (0.7071068, 0.0, 0.0, 0.7071068)
-ENV_SCALE = (2.0, 1.0, 1.0)
+ENV_SCALE = (2.0, 1.0, 0.5)
 # CAMERA_OFFSET scaled by ENV_SCALE, then rotated by ENV_ORIENTATION.
-CAMERA_OFFSET_IN_WORLD = (1.0, -1.0, -0.5)
+CAMERA_OFFSET_IN_WORLD = (1.0, -0.5, -0.5)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
