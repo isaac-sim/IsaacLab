@@ -40,13 +40,15 @@ preset with `cosmos_camera` (see "Configure another camera task").
 
 `apply_cosmos` finds the task's camera that publishes only `rgb`, renders it at a Cosmos canvas with the same aspect
 ratio and view, generates with Cosmos, and scales the result back to the camera's size, so the policy's observation
-keeps its shape. It uses one environment unless `num_envs` asks for more (see "Several environments"). The task's
+keeps its shape. Cosmos generates the task's environments together, so set `env_cfg.scene.num_envs` (or
+`--num_envs`) to what the GPU holds, usually one or two (see "Several environments"). The task's
 episode length and capture rate determine the requested frame budget; capture timing is preserved. Start the service
 first: `apply_cosmos` checks that it is running and idle before the simulation is created.
 
 ```python
 from isaaclab_experimental.cosmos import apply_cosmos
 
+env_cfg.scene.num_envs = 1
 apply_cosmos(env_cfg, prompt="A KUKA arm with an Allegro hand turning a cube in a bright lab.", near=0.6, far=1.9)
 ```
 
@@ -57,14 +59,13 @@ apply_cosmos(env_cfg, prompt="A KUKA arm with an Allegro hand turning a cube in 
 | `near`, `far` | Depth shown white and black [m] (defaults 0.1 and 2.0) |
 | `endpoint` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
 | `transport` | `"auto"`, `"cuda_ipc"` or `"socket"`: how images move to the service; see "Endpoints and transports" (default `"auto"`) |
-| `num_envs` | Environments generated together as one batch |
 
 Choose `near` and `far` to cover the scene: the Kuka Allegro base camera sees the cube,
 hand and table between about 0.7 m and 1.8 m.
 
 Limits of `apply_cosmos`:
 
-- One environment unless `num_envs` sets more, subject to GPU memory and transport limits. Agent configurations with
+- The environment count is limited by GPU memory and the transport. Agent configurations with
   fixed minibatch sizes larger than the rollout (some rl_games configurations) need adjusting; RSL-RL works as
   configured.
 - The camera must publish only `rgb`, use a pinhole lens, and have no existing modifiers. Rendering must be
@@ -325,7 +326,7 @@ uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_libra
   env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
-For a task without a preset, call `apply_cosmos(env_cfg, prompt=[...], num_envs=2)`.
+For a task without a preset, set `env_cfg.scene.num_envs = 2` and call `apply_cosmos(env_cfg, prompt=[...])`.
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
