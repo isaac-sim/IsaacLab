@@ -268,6 +268,14 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertEqual(self._git("diff", "--name-only", "HEAD", "--", TASK.as_posix()), TASK.as_posix())
             measurement = self._snapshot()
             manifest, _ = self._prepare("measurement-source", measurement=measurement)
+            _, output, _ = self._run(manifest, "permission-only")
+            self._git("config", "core.filemode", "true")
+            (self.checkout / TASK).chmod(0o755)
+            self.assertIn("mode change", self._git("diff", "--summary", "HEAD", "--", TASK.as_posix()))
+            checked = self._invoke("check", "--manifest", manifest, "--output-dir", output)
+            self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+            self.assertEqual(json.loads((output / "source-revision.json").read_text())["status"], "verified")
+            self._prepare("permission-only", measurement=measurement)
             stub = Path("source/isaaclab/isaaclab/benchmark/__init__.pyi")
             for name, path in (
                 ("shared workload", TASK),
@@ -288,6 +296,7 @@ class SourceRevisionTests(unittest.TestCase):
                         self.assertTrue(any(item.get("path") == path.as_posix() for item in sidecar["mismatches"]))
                     else:
                         if path == TASK:
+                            (self.checkout / path).chmod(0o755)
                             result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
                             self.assertEqual(result["executed_revision"], "B")
                         checked = self._invoke("check", "--manifest", manifest, "--output-dir", output)
@@ -296,6 +305,7 @@ class SourceRevisionTests(unittest.TestCase):
                         self.assertEqual(proof["status"], "failed")
                         self.assertTrue(any(path.as_posix() in item["reason"] for item in proof["mismatches"]))
                     if path == TASK:
+                        (self.checkout / path).chmod(0o644)
                         self._git("add", path.as_posix())
                     _, process = self._prepare(name + "-dirty", measurement=measurement, success=False)
                     self.assertIn(path.as_posix(), process.stderr)
