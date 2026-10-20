@@ -355,7 +355,6 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         manager._num_envs = len(env_ids)
         if catalogs:
             bodies = {label: index for index, label in enumerate(builder.body_label)}
-            builder.mesh_variant_definitions = {}
             for rows, (properties, initial_ids, targets) in catalogs.items():
                 shapes = [
                     [
