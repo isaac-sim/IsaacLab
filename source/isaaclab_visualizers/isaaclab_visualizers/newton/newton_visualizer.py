@@ -1126,6 +1126,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.renderer.sky_upper = tuple(upper_color)
         self._viewer.renderer.sky_lower = tuple(lower_color)
         self._viewer.renderer._light_color = tuple(self.cfg.light_color)
+        if self.cfg.exposure is not None:
+            self._viewer.renderer.exposure = self.cfg.exposure
 
 
 class NewtonRTXVisualizer(NewtonVisualizerBase):

@@ -7,7 +7,7 @@
 
 .. code-block:: bash
 
-    uvx isaaclab demo newton-block-and-tackle
+    uvx isaaclab example newton-block-and-tackle
 """
 
 import argparse
@@ -15,7 +15,7 @@ import math
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-parser = argparse.ArgumentParser(description="Newton block-and-tackle viewer dragging demo.")
+parser = argparse.ArgumentParser(description="Newton block-and-tackle viewer dragging example.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -305,7 +305,7 @@ def run_simulator(sim: sim_utils.SimulationContext) -> None:
 
 
 def main() -> None:
-    """Launch the block-and-tackle dragging demo."""
+    """Launch the block-and-tackle dragging example."""
     physics_cfg = NewtonCfg(
         num_substeps=16,
         collision_decimation=1,

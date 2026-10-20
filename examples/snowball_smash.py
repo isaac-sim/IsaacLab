@@ -11,7 +11,7 @@ capture.
 
 .. code-block:: bash
 
-    uvx isaaclab demo snowball-smash --device cuda:0 --visualizer newton_gl
+    uvx isaaclab example snowball-smash --device cuda:0 --visualizer newton_gl
 
 Use ``--grid_type fixed`` to compare against the larger fixed-grid fallback.
 """
@@ -40,7 +40,7 @@ class SnowballSpec(NamedTuple):
 
 DEFAULT_VOXEL_SIZE = 0.05
 
-parser = argparse.ArgumentParser(description="Newton implicit-MPM snowball-smash demo.")
+parser = argparse.ArgumentParser(description="Newton implicit-MPM snowball-smash example.")
 parser.add_argument("--max_steps", type=int, default=900, help="Stop after this many frames; negative runs forever.")
 parser.add_argument(
     "--voxel_size",
@@ -127,7 +127,7 @@ def create_sim_cfg():
     from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     if not str(args_cli.device).startswith("cuda"):
-        raise RuntimeError("The graph-captured implicit-MPM coupling demo requires a CUDA device.")
+        raise RuntimeError("The graph-captured implicit-MPM coupling example requires a CUDA device.")
 
     is_sparse_grid = GRID_TYPE == "sparse"
     solver_cfg = CouplerProxyCfg(
@@ -314,7 +314,7 @@ def particle_count(scene) -> int:
 
 
 def keep_running(sim, count: int) -> bool:
-    """Return whether the demo loop should continue."""
+    """Return whether the example loop should continue."""
     if args_cli.max_steps >= 0 and count >= args_cli.max_steps:
         return False
     return sim.is_running()
@@ -333,7 +333,7 @@ def run_simulator(sim, scene) -> None:
 
 
 def main() -> None:
-    """Set up and run the Newton MPM snowball-smash demo."""
+    """Set up and run the Newton MPM snowball-smash example."""
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
@@ -345,7 +345,7 @@ def main() -> None:
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
 
         print(
-            "[INFO]: Isaac Lab Newton snowball-smash demo ready."
+            "[INFO]: Isaac Lab Newton snowball-smash example ready."
             f" Spawned {particle_count(scene)} particles across {len(SNOWBALLS)} snowballs;"
             f" grid={GRID_TYPE} ({MAX_ACTIVE_CELL_COUNT} active-cell capacity);"
             f" CUDA graph={'enabled' if sim_cfg.physics.use_cuda_graph else 'disabled'}.",

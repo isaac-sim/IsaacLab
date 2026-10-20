@@ -157,7 +157,7 @@ def main() -> None:
         str(round(800 * SEQUENCE_DURATION)),
     ]
     try:
-        runpy.run_path(str(Path(__file__).parent / "demos" / "teapot_fill.py"), run_name="__main__")
+        runpy.run_path(str(Path(__file__).with_name("teapot_fill.py")), run_name="__main__")
     finally:
         sys.argv[:] = original_args
 

@@ -34,13 +34,18 @@ parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.R
 parser.add_argument(
     "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
 )
+parser.add_argument(
+    "--physics",
+    choices=["newton_mjwarp", "isaacsim_physx"],
+    help="Physics backend (default: MJWarp, or PhysX with renderer=isaacsim_rtx).",
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli, overrides = setup_preset_cli(parser)
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
-from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -55,11 +60,37 @@ from isaaclab.utils import configclass, instantiate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
-from isaaclab_tasks.utils import preset
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 WAREHOUSE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/MicroDuckWarehouse/microduck_warehouse_static.usdc"
+
+
+@configclass
+class WarehousePhysicsCfg(PresetCfg):
+    """Initialize the static scene with MJWarp, or PhysX for Isaac Sim RTX."""
+
+    newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False, load_visual_shapes=True)
+    isaacsim_physx = PhysxCfg()
+    default = preset(default=newton_mjwarp, isaacsim_rtx=isaacsim_physx)
+
+
+@configclass
+class WarehouseRendererCfg(MultiBackendRendererCfg):
+    """Select the default RTX renderer from the physics and visualizer runtimes."""
+
+    ovrtx = OVRTXRendererCfg(enable_shadows=True)
+    newton_renderer = NewtonWarpRendererCfg(enable_textures=True, enable_shadows=True)
+    isaacsim_rtx = IsaacRtxRendererCfg(
+        global_settings=preset(
+            default=IsaacRtxRendererGlobalSettingsCfg(carb_settings={"/rtx/rendermode": "RealTimePathTracing"}),
+            path_traced=IsaacRtxRendererGlobalSettingsCfg(
+                carb_settings={"/rtx/rendermode": "PathTracing", "/rtx/pathtracing/spp": 128}
+            ),
+        )
+    )
+    default = MultiBackendRendererCfg().rtx
 
 
 @configclass
@@ -82,19 +113,7 @@ class WarehouseSceneCfg(InteractiveSceneCfg):
             semantic_segmentation=["semantic_segmentation"],
             instance_segmentation=["instance_segmentation"],
         ),
-        renderer_cfg=MultiBackendRendererCfg(
-            default=OVRTXRendererCfg(enable_shadows=True),
-            ovrtx=OVRTXRendererCfg(enable_shadows=True),
-            newton_renderer=NewtonWarpRendererCfg(enable_textures=True, enable_shadows=True),
-            isaacsim_rtx=IsaacRtxRendererCfg(
-                global_settings=preset(
-                    default=IsaacRtxRendererGlobalSettingsCfg(carb_settings={"/rtx/rendermode": "RealTimePathTracing"}),
-                    path_traced=IsaacRtxRendererGlobalSettingsCfg(
-                        carb_settings={"/rtx/rendermode": "PathTracing", "/rtx/pathtracing/spp": 128}
-                    ),
-                )
-            ),
-        ),
+        renderer_cfg=WarehouseRendererCfg(),
     )
 
 
@@ -109,10 +128,7 @@ class WarehouseDemoCfg(ManagerBasedEnvCfg):
     ui_window_class_type = None
     scene: WarehouseSceneCfg = WarehouseSceneCfg(num_envs=1, env_spacing=0.0)
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
-        physics=preset(
-            default=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False, load_visual_shapes=True),
-            isaacsim_rtx=PhysxCfg(),
-        ),
+        physics=WarehousePhysicsCfg(),
         default_visualizer_cfg=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
     )
     camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_renderer=None)
@@ -149,7 +165,11 @@ def main() -> None:
             raise ValueError(f"No USD camera at {cfg.camera_path!r} in {WAREHOUSE_USD!r}.")
         camera = UsdGeom.Camera.Define(stage, "/World/envs/env_0/Camera")
         camera.SetFromCamera(source_camera.GetCamera())
-        if output == "rgb" and cfg.camera_exposure_iso is not None:
+        if (
+            output == "rgb"
+            and isinstance(cfg.scene.camera.renderer_cfg, OVRTXRendererCfg)
+            and cfg.camera_exposure_iso is not None
+        ):
             # Use a fixed physical exposure for the warehouse's dim interior in OVRTX.
             camera.GetPrim().AddAppliedSchema("OmniRtxCameraExposureAPI_1")
             camera.CreateExposureFStopAttr(5.0)

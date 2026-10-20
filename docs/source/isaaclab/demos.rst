@@ -49,17 +49,19 @@ No source checkout is required.
                data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
                data-demo-visualizers-newton-mjwarp="kit,newton_gl,newton_rtx,rerun,viser"
-               data-demo-description="Animate an arm, biped, quadruped, dexterous hand, quadcopter, and rigid props in one deterministic scene.">
-         <img src="../../_static/demos/zoo.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
+               data-demo-description="Explore twenty robot models: humanoids, quadrupeds, industrial and collaborative arms, dexterous hands, MicroDuck, and a hovering quadcopter.">
+         <img src="../../_static/demos/zoo.jpg" alt="Twenty robot models arranged across the Isaac Lab Zoo" loading="lazy">
          <span>Zoo</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
-               data-demo-physics="isaacsim_physx"
+               data-demo-physics="newton_mjwarp,isaacsim_physx"
                data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
+               data-demo-extras="ovrtx"
                data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
-         <img src="../../_static/browser_demos/previews/microduck.jpg"
-              alt="MicroDuck warehouse scene" loading="lazy">
+         <img src="../../_static/demos/microduck_warehouse.jpg"
+              alt="MicroDuck among cans and warehouse shelves in the native rendering demo" loading="lazy">
          <span>MicroDuck Warehouse</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
@@ -78,8 +80,10 @@ No source checkout is required.
                data-demo-visualizers="newton_gl,kit,newton_rtx,rerun,viser"
                data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
                data-demo-visualizers-newton-mjwarp="newton_gl,kit,newton_rtx,rerun,viser"
-               data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
-         <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
+               data-demo-extras="isaacsim"
+               data-demo-packages="huggingface-hub>=0.34,onnxruntime-gpu>=1.22"
+               data-demo-description="Run G1 over deformable gravel and sand with released SONIC policies.">
+         <img src="../../_static/demos/sonic.jpg" alt="G1 on the native SONIC gravel and sand course" loading="lazy">
          <span>SONIC</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
@@ -96,32 +100,6 @@ No source checkout is required.
                data-demo-description="Interactively pick up a cube with a parallel robot and place it on a target.">
          <img src="../../_static/demos/pick_and_place.jpg" alt="Interactive pick and place demo" loading="lazy">
          <span>Pick and Place</span>
-       </button>
-       <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Newton Block and Tackle" data-demo-id="newton-block-and-tackle"
-               data-demo-physics="newton_vbd" data-demo-fixed-physics="true"
-               data-demo-visualizers="newton_gl"
-               data-demo-description="Drag a cable handle to lift a load through a 4:1 pulley system.">
-         <img src="../../_static/demos/newton_block_and_tackle.jpg" alt="Block and tackle pulleys and a red load" loading="lazy">
-         <span>Newton Block and Tackle</span>
-       </button>
-       <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Snowball Smash" data-demo-id="snowball-smash"
-               data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
-               data-demo-args="--device cuda:0"
-               data-demo-description="Smash rigid crates with coupled MPM snowballs.">
-         <img src="../../_static/demos/snowball_smash.jpg" alt="Snowballs striking a stack of colored crates" loading="lazy">
-         <span>Snowball Smash</span>
-       </button>
-       <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Teapot Fill" data-demo-id="teapot-fill"
-               data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
-               data-demo-args="--device cuda:0"
-               data-demo-description="Fill a Utah teapot with MPM water particles and pour them into a bowl.">
-         <img src="../../_static/demos/teapot_fill.jpg" alt="Utah teapot pouring simulated water" loading="lazy">
-         <span>Teapot Fill</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Rizon–Sharpa Coffee" data-demo-id="rizon-sharpa-coffee"
@@ -168,6 +146,7 @@ MicroDuck Warehouse rendering
 -----------------------------
 
 View the static MicroDuck Warehouse through selectable renderers and saved cameras, without advancing physics.
+Newton MJWarp and the Newton GL visualizer are the defaults; the camera uses OVRTX for rendering.
 
 .. code-block:: bash
 
@@ -185,7 +164,8 @@ SONIC on gravel and sand
 ------------------------
 
 The SONIC demo runs a G1 robot over gravel and sand with Newton MJWarp and MPM,
-or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU and uses Kit for RTX rendering.
+or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU. Default offscreen recording
+uses Kit for RTX rendering.
 
 From the repository root, install the simulator, recording dependencies, and the
 additional packages used to download and run the released ONNX models:
@@ -233,6 +213,42 @@ Focused examples
 
 .. grid:: 1 1 2 2
    :gutter: 2
+
+   .. grid-item-card:: Newton Block and Tackle
+
+      .. image:: ../_static/examples/newton_block_and_tackle.jpg
+         :width: 100%
+         :alt: Block and tackle pulleys and a red load.
+
+      Drag a cable handle to lift a load through a 4:1 pulley system with Newton VBD.
+
+      .. code-block:: bash
+
+         uvx --torch-backend cu130 isaaclab example newton-block-and-tackle
+
+   .. grid-item-card:: Snowball Smash
+
+      .. image:: ../_static/examples/snowball_smash.jpg
+         :width: 100%
+         :alt: Snowballs striking a stack of colored crates.
+
+      Smash rigid crates with coupled MPM snowballs.
+
+      .. code-block:: bash
+
+         uvx --torch-backend cu130 isaaclab example snowball-smash --device cuda:0
+
+   .. grid-item-card:: Teapot Fill
+
+      .. image:: ../_static/examples/teapot_fill.jpg
+         :width: 100%
+         :alt: Utah teapot pouring simulated water.
+
+      Fill a Utah teapot with MPM water particles and pour them into a bowl.
+
+      .. code-block:: bash
+
+         uvx --torch-backend cu130 isaaclab example teapot-fill --device cuda:0
 
    .. grid-item-card:: Tablecloth trick (Newton VBD, experimental)
 

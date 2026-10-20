@@ -11,15 +11,15 @@ The teapot is a hollow, double-walled shell, so the fluid is seeded in its enclo
 .. code-block:: bash
 
     # Fast Newton visualizer (the default):
-    uvx isaaclab demo teapot-fill --device cuda:0 --visualizer newton_gl
+    uvx isaaclab example teapot-fill --device cuda:0 --visualizer newton_gl
     # Display both the raw particles and reconstructed surface:
-    uvx isaaclab demo teapot-fill --visualizer newton_gl --fluid_render_mode both
+    uvx isaaclab example teapot-fill --visualizer newton_gl --fluid_render_mode both
     # Newton RTX path-traced visualizer:
-    uvx --from 'isaaclab[ovrtx]' isaaclab demo teapot-fill --device cuda:0 --visualizer newton_rtx
+    uvx --from 'isaaclab[ovrtx]' isaaclab example teapot-fill --device cuda:0 --visualizer newton_rtx
     # Isaac Sim Kit visualizer:
-    uvx --from 'isaaclab[isaacsim]' isaaclab demo teapot-fill --device cuda:0 --visualizer kit
+    uvx --from 'isaaclab[isaacsim]' isaaclab example teapot-fill --device cuda:0 --visualizer kit
     # Fuller / coarser (faster) fill:
-    uvx isaaclab demo teapot-fill --fill_level 1.0 --fill_spacing 0.003
+    uvx isaaclab example teapot-fill --fill_level 1.0 --fill_spacing 0.003
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def _unit_interval_float(value: str) -> float:
 
 
 parser = argparse.ArgumentParser(
-    description="Newton implicit MPM teapot-fill demo.",
+    description="Newton implicit MPM teapot-fill example.",
     epilog="For the Kit visualizer, include --extra isaacsim when launching with uv run.",
 )
 parser.add_argument("--robot", choices=["none", "rizon_sharpa"], default="none", help="Use the fixed physical grasp.")
@@ -210,8 +210,7 @@ CAMERA_EYE = (0.0, -0.72, 1.18)
 CAMERA_TARGET = (0.0, 0.0, TABLE_TOP_Z + 0.10)
 
 if ROBOT_ENABLED:
-    # The optional robot example lives outside the curated demos.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from rizon_sharpa_teapot import BOWL_BASE_POS, HOLD_TIME, ROBOT_BASE_POS, pose_at_time
 
     BOWL_WORLD_TOP_Z = BOWL_BASE_POS[2] + BOWL_SCALE * BOWL_LOCAL_Z_MAX
@@ -754,7 +753,7 @@ def particle_count(scene) -> int:
 
 
 def keep_running(sim, count: int) -> bool:
-    """Return whether the demo loop should continue this frame."""
+    """Return whether the example loop should continue this frame."""
     if args_cli.max_steps >= 0 and count >= args_cli.max_steps:
         return False
     return sim.is_running()
@@ -790,7 +789,7 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None, 
 
 
 def main() -> None:
-    """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
+    """Set up and run the Isaac Lab Newton MPM teapot-fill example."""
     sim_cfg = create_sim_cfg()
     viewer_scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
     with launch_simulation({"sim": sim_cfg, "scene": viewer_scene_cfg}, args_cli):
@@ -862,7 +861,7 @@ def main() -> None:
         surface_triangle_count = surface_renderer.update() if surface_renderer is not None else 0
 
         print(
-            "[INFO]: Isaac Lab Newton teapot-fill MPM demo ready."
+            "[INFO]: Isaac Lab Newton teapot-fill MPM example ready."
             f" Sampled {particle_count(scene)} MPM particles inside the teapot;"
             f" extracted {surface_triangle_count} surface triangles;"
             f" rendering {args_cli.fluid_render_mode};"

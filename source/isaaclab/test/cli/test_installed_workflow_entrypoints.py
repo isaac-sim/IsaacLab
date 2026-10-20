@@ -139,7 +139,9 @@ def test_demo_catalog_lists_packaged_demos(capsys):
 
     output = capsys.readouterr().out
     assert "zoo" in output
-    assert "teapot-fill" in output
+    assert "newton-block-and-tackle" not in output
+    assert "snowball-smash" not in output
+    assert "teapot-fill" not in output
     assert "newton-dominoes" not in output
     assert "bin-packing" not in output
 
@@ -159,7 +161,9 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "mpm-two-way-coupling" in output
     assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling" in output
     assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in output
-    assert "teapot-fill" not in output
+    assert "newton-block-and-tackle" in output
+    assert "snowball-smash" in output
+    assert "teapot-fill" in output
 
 
 def _visualizer(visualizer_type: str) -> mock.Mock:
