@@ -13,6 +13,7 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
+import warnings
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from functools import wraps
@@ -87,7 +88,7 @@ def profile_renderers(
 
 @contextmanager
 def profile_physics_steps(
-    physics_manager: type[PhysicsManager] | ResolvableString,
+    backend_manager: PhysicsManager | type[PhysicsManager] | ResolvableString,
     *,
     active: bool = True,
     timings: list[tuple[str, float]] | None = None,
@@ -95,12 +96,13 @@ def profile_physics_steps(
     """Temporarily time the benchmark's selected physics manager.
 
     Only the selected manager is wrapped, so inherited ``super().step()`` calls
-    are included in one timing record. The original class method is restored when
+    are included in one timing record. The original method is restored when
     the context exits, including on failure.
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
-        physics_manager: Concrete physics manager selected by the environment, or its lazy class reference.
+        backend_manager: Physics manager instance selected by the environment. A manager class or its lazy
+            class reference is deprecated and resolves to the active simulation's manager.
         active: Whether to install the timing wrapper.
         timings: Shared list of scope names and elapsed times [ms], in call order.
             A new list is created if omitted. Timings are collected without printing.
@@ -116,26 +118,34 @@ def profile_physics_steps(
 
     import warp as wp  # noqa: PLC0415
 
-    # The bound method identifies the concrete class even through a lazy class reference.
-    physics_manager = physics_manager.step.__self__
-    step = physics_manager.step.__func__
+    from ..physics import PhysicsManager  # noqa: PLC0415
+    from ..sim import SimulationContext  # noqa: PLC0415
+
+    if not isinstance(backend_manager, PhysicsManager):
+        warnings.warn(
+            "Passing a manager class to profile_physics_steps() is deprecated; pass sim.backend_manager.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        backend_manager = SimulationContext.instance().backend_manager
+    step = backend_manager.step
     missing = object()
-    original = vars(physics_manager).get("step", missing)
+    original = vars(backend_manager).get("step", missing)
     scope_timings = {PHYSICS_PROFILE_SCOPE: _ProfileScopeTimings(PHYSICS_PROFILE_SCOPE, timings)}
 
     @wraps(step)
-    def timed_step(cls: type[PhysicsManager]) -> None:
+    def timed_step() -> None:
         with wp.ScopedTimer(PHYSICS_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
-            return step(cls)
+            return step()
 
-    physics_manager.step = classmethod(timed_step)
+    backend_manager.step = timed_step
     try:
         yield timings
     finally:
         if original is missing:
-            del physics_manager.step
+            del backend_manager.step
         else:
-            physics_manager.step = original
+            backend_manager.step = original
 
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:

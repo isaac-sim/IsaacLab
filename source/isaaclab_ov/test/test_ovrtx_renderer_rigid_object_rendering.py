@@ -103,7 +103,6 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     """Overlapping worlds retain distinct contacts and images across shared-stage control writes."""
     import ovrtx
     import torch
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
     from isaaclab_ppisp import PpispCfg
 
     from pxr import UsdPhysics
@@ -172,14 +171,14 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
             # Full-stage consumers need authored copies, which prototype-only sharing cannot preserve.
             with monkeypatch.context() as full_stage:
-                full_stage.setattr(OvPhysxManager, "_requires_full_stage", True)
+                full_stage.setattr(sim.backend_manager, "_requires_full_stage", True)
                 with pytest.raises(ValueError, match="full-stage"):
                     sim.reset()
             sim.reset()
             scene.reset()
             camera, other = scene["camera"], scene["other_camera"]
             assert camera._renderer.backend is other._renderer.backend
-            assert sim.physics_manager.backend.stage is camera._renderer.scene.stage
+            assert sim.backend_manager.backend.stage is camera._renderer.scene.stage
             floor_pose = scene["floor"].data.root_link_pose_w.torch.clone()
             floor_pose[1, 2] += 1.0
             scene["floor"].write_root_pose_to_sim_index(root_pose=floor_pose)
@@ -187,7 +186,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             for step in range(60):
                 gravity = -5.0 if 6 <= step < 12 else -10.0
                 if step in (6, 12):
-                    sim.physics_manager.set_gravity((0.0, 0.0, gravity))
+                    sim.backend_manager.set_gravity((0.0, 0.0, gravity))
                 sim.step(render=False)
                 scene.update(cfg.dt)
                 expected_vz += gravity * cfg.dt
@@ -211,10 +210,10 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 if not soft:
                     UsdPhysics.MassAPI(sim.stage.GetPrimAtPath("/World/envs/env_0/Body")).GetMassAttr().Set(2.0)
                     sim.stage.GetPrimAtPath("/World/envs/env_0/Body").GetAttribute("xformOp:scale").Set((1, 1, 2))
-                    OvPhysxManager._warmup_done = False
+                    sim.backend_manager._warmup_done = False
                 sim.reset(soft=soft)
                 scene.reset()
-                sim.physics_manager.set_gravity((0.0, 0.0, 0.0))
+                sim.backend_manager.set_gravity((0.0, 0.0, 0.0))
                 sim.render()
                 scene.update(cfg.dt)
                 torch.testing.assert_close(camera.data.output["depth"].torch, other.data.output["depth"].torch)

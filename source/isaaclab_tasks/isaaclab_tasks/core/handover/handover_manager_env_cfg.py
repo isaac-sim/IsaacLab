@@ -216,16 +216,6 @@ class RandomizationEventCfg:
 class ResetEventCfg:
     """Reset distributions matching the Direct handover environment."""
 
-    reset_object = EventTerm(
-        func=mdp.reset_root_state_with_random_orientation,
-        mode="reset",
-        params={
-            # the Direct task jitters the drop position and samples a random orientation
-            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object"),
-        },
-    )
     reset_right_hand = EventTerm(
         func=reorient_mdp.reset_reorient_hand,
         mode="reset",

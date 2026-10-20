@@ -246,6 +246,10 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertIn("KeyboardInterrupt", process.stderr)
             self.assertFalse(list(output.glob("benchmark_runtime_*.json")))
         with self.subTest(case="host Git check rejects changed source and import maps"):
+            self._git("config", "diff.autoRefreshIndex", "false")
+            os.utime(self.checkout / TASK, (1700000000, 1700000000))
+            self.assertEqual(self._git("diff", "--name-only", "HEAD", "--", TASK.as_posix()), TASK.as_posix())
+            self._prepare("unchanged-source")
             for path, contents in (
                 (TASK, "def observed():\n    return 'B'\n"),
                 (IMPORT_MAP, "# changed exports\n"),

@@ -195,7 +195,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         self._mesh_positions_w = wp.array2d(mesh_positions, dtype=wp.vec3f, device=self.device)
         self._mesh_orientations_w = wp.array2d(mesh_orientations, dtype=wp.quatf, device=self.device)
 
-    def _build_mesh_records(
+    def _build_mesh_records(  # noqa: C901
         self,
         target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg,
         plan: cloner.ClonePlan | None,
@@ -207,7 +207,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
         has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
-        if plan is not None and target_cfg.track_mesh_transforms:
+        if plan is not None:
             sources = cloner.path.get_asset_prototype_paths(plan)
             templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
                 plan, include_world_indices=True
@@ -239,7 +239,37 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     source_root, lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None
                 )
                 if not source_prims:
+                    # A static target may exist in only some prototypes; their environments hold no copy.
+                    if not target_cfg.track_mesh_transforms:
+                        continue
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
+                if not target_cfg.track_mesh_transforms:
+                    stage = source_prims[0].GetStage()
+                    source_env = cloner.path.match(source_root, plan.env_template)
+                    source_anchor = (
+                        stage.GetPrimAtPath(plan.env_template.format(source_env.instance)) if source_env else None
+                    )
+                    source_records = [
+                        (str(prim.GetPath()), prim, *sim_utils.resolve_prim_pose(prim, source_anchor))
+                        for prim in source_prims
+                    ]
+                    for env_id in env_ids:
+                        origin = plan.positions[env_id] if plan.positions is not None else 0.0
+                        for source_path, source_prim, local_pos, local_quat in source_records:
+                            dest_path = cloner.path.rebase(
+                                source_path, source_root, destination_template.format(env_id)
+                            )
+                            dest_prim = stage.GetPrimAtPath(dest_path)
+                            if dest_prim.IsValid() and dest_path != source_path:
+                                mesh_id = self._load_target_prim_warp_mesh(dest_prim, target_cfg)
+                                pos, quat = sim_utils.resolve_prim_pose(dest_prim)
+                            else:
+                                # The source USD prim is a prototype, even if its path is a destination.
+                                mesh_id = self._load_target_prim_warp_mesh(source_prim, target_cfg)
+                                pos, quat = tuple(np.add(local_pos, origin)), local_quat
+                            dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
+                            records_per_env[env_id].append((mesh_id, pos, quat))
+                    continue
 
                 mesh_ids: list[int] = []
                 row_tracked_target_exprs: list[str] = []
@@ -285,7 +315,9 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         records_per_env[env_id].append((mesh_id, (1.0e9, 1.0e9, 1.0e9), (0.0, 0.0, 0.0, 1.0)))
 
             if target_in_plan:
-                if not plan_tracked_target_exprs:
+                if not target_cfg.track_mesh_transforms and not any(records_per_env):
+                    raise RuntimeError(f"No ClonePlan source prims matched '{target_cfg.prim_expr}'.")
+                if target_cfg.track_mesh_transforms and not plan_tracked_target_exprs:
                     raise RuntimeError(
                         f"No tracked body expressions were resolved for target '{target_cfg.prim_expr}'."
                     )
