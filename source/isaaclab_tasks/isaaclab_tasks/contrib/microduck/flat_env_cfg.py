@@ -57,7 +57,6 @@ MICRODUCK_SOLE_TO_ANKLE_OFFSET = 0.0225
 """Standing ankle-frame height above the sole [m]."""
 MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
 MICRODUCK_STEPS_PER_ITERATION = 24
-MICRODUCK_MULTI_GPU_COUNT = 16
 
 
 def _scale_multi_gpu(steps: int) -> int:
@@ -407,7 +406,6 @@ def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
                 "stages": preset(
                     default=steps,
                     multi_gpu=[(_scale_multi_gpu(step), value) for step, value in steps],
-                    multi_gpu_16=[(math.ceil(step / MICRODUCK_MULTI_GPU_COUNT), value) for step, value in steps],
                 )
             },
         },

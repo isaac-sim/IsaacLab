@@ -1,1 +1,1 @@
-* Added the ``multi_gpu`` preset for MicroDuck walking with 4,096 environments per GPU, scaling the iteration budget, checkpoint interval, and fixed-step curricula by the total distributed rank count. Retained ``multi_gpu_16`` for existing 16-GPU commands.
+* Added the ``multi_gpu`` preset for MicroDuck walking with 4,096 environments per GPU, scaling the iteration budget, checkpoint interval, and fixed-step curricula by the total distributed rank count.

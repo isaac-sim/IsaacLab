@@ -978,8 +978,7 @@ collected-sample milestones to the nearest step. Terrain progression remains epi
 physical timing and the 24-step rollout length are unchanged. The total sample budget matches
 50,000 iterations with 4,096 environments on one GPU, rounded up to a full distributed rollout;
 equivalent convergence still needs validation. Without a multi-GPU preset, the original iteration
-budget and fixed-step curricula are retained. The fixed ``multi_gpu_16`` preset remains available
-for existing commands; use ``multi_gpu`` when varying the GPU count.
+budget and fixed-step curricula are retained.
 
 To retain the previous training recipe in a custom task config, use ``mdp.track_linear_velocity``
 with weight 2.0 and ``std=math.sqrt(0.1)``, and ``mdp.track_angular_velocity`` with weight 2.0 and
