@@ -55,6 +55,7 @@ def test_static_and_variant_tasks_resolve_with_their_policy_inputs():
     assert isinstance(variant, FactoryVariantEnvCfg)
     assert len(variant.events.assembly_variants.params["variant_names"]) == 20
     assert len(variant.scene.fixed_asset.spawn.assets_cfg) == len(variant.scene.held_asset.spawn.assets_cfg) == 20
+    assert not variant.scene.clone_cfg.clone_combinations
     assert static_agent.obs_groups == {"actor": ["policy"], "critic": ["policy"]}
     assert variant_agent.obs_groups == {"actor": ["policy", "perception"], "critic": ["policy", "perception"]}
     for group in variant_agent.obs_groups["actor"]:

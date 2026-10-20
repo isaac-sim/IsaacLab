@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
@@ -34,11 +33,6 @@ class FactoryVariantSceneCfg(InteractiveSceneCfg):
 
     num_envs: int = 4096
     env_spacing: float = 2.0
-    clone_cfg: cloner.CloneCfg = cloner.CloneCfg(
-        clone_combinations=[
-            cloner.InclusionSet(assets=[("fixed_asset", i), ("held_asset", i)]) for i in range(len(ASSEMBLY_VARIANTS))
-        ]
-    )
 
     ground = assets.GROUND_CFG
     table = assets.TABLE_CFG

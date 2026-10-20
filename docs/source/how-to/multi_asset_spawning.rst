@@ -121,23 +121,6 @@ variant because their batched Newton views currently require a uniform body layo
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
-Paired catalog members
-~~~~~~~~~~~~~~~~~~~~~~
-
-Use the existing :class:`~cloner.InclusionSet` entries to restrict a named asset to one catalog member.
-For example, two matching fixed/movable catalogs can share the same variant index:
-
-.. code-block:: python
-
-   scene_cfg.clone_cfg.clone_combinations = [
-       cloner.InclusionSet(assets=[("fixed_asset", i), ("held_asset", i)])
-       for i in range(num_variants)
-   ]
-
-A name without an index still expands every catalog member. Assets absent from all inclusion sets remain
-present in every combination; an asset named in one set is omitted from sets that do not name it. Each set
-retains its sampling weight. Catalog selection uses this same named composition path, not positional scene rows.
-
 Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -156,6 +139,9 @@ On a supported backend, clone construction prepares compatible catalog resources
 model finalization binds those definitions without rediscovering the scene. A reset event calls
 ``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` before writing the episode's initial pose and
 velocity. Indices follow the spawner's list order. Sampling decisions remain with the reset event, not the spawner.
+
+For matching fixed/movable catalogs, the task's startup and reset events select the same index on both objects.
+This relationship belongs to task reset logic, not an additional clone-composition API.
 
 Reset-time selection currently requires Newton MJWarp with external contacts and sleeping disabled. Every
 alternative must have one rigid body, the same fixed/free root-joint type and kinematic flags, and compatible
