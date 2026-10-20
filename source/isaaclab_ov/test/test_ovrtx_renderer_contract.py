@@ -603,6 +603,118 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
             SimulationContext.instance().close_backend(renderer.scene)
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
+@pytest.mark.parametrize("use_ovstage", [False, True], ids=["legacy", "ovstage"])
+def test_environment_dome_update_changes_only_its_camera(monkeypatch, use_ovstage):
+    """Changing one cloned dome leaves the other environment cameras unchanged."""
+    from ovrtx import PrimMode
+
+    from pxr import Gf, Usd, UsdGeom, UsdLux
+
+    from isaaclab.cloner import make_clone_plan, replicate
+
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX rendering requires CUDA")
+    sim = SimulationContext.instance()
+    sim.device = "cuda:0"
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
+
+    num_envs = 3
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/envs")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    light = UsdLux.DomeLight.Define(stage, "/World/envs/env_0/Dome")
+    light.CreateIntensityAttr(300.0)
+    light.CreateColorAttr((0.8, 0.8, 0.8))
+    cube = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Cube")
+    cube.CreateSizeAttr(1.0)
+    cube.CreateDisplayColorAttr([(0.5, 0.5, 0.5)])
+    cube.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 0.5))
+    camera = UsdGeom.Camera.Define(stage, "/World/envs/env_0/Camera")
+    camera.CreateProjectionAttr("orthographic")
+    camera.CreateHorizontalApertureAttr(3.0)
+    camera.CreateVerticalApertureAttr(3.0)
+    camera.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 4.0))
+
+    renderer = sim.get_or_create_backend(OVRTXRendererCfg())
+    positions = np.zeros((num_envs, 3), dtype=np.float32)
+    positions[:, 0] = np.arange(num_envs) * 10.0
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+", cloning_contexts=renderer.cfg.cloning_contexts),),
+        ((0,),),
+        num_envs,
+        positions=positions,
+    )
+    sim.plan = plan
+    replicate(plan)
+    try:
+        renderer.prepare_stage(stage, num_envs)
+        cfg = _make_camera_cfg(["rgb"])
+        cfg.height = cfg.width = 96
+        spec = CameraRenderSpec(
+            cfg=cfg,
+            device="cuda:0",
+            num_instances=num_envs,
+            camera_prim_paths=tuple(f"/World/envs/env_{index}/Camera" for index in range(num_envs)),
+            view_count=num_envs,
+        )
+        render_data = renderer.create_render_data(spec)
+        data = CameraData.allocate(
+            data_types=cfg.data_types,
+            height=cfg.height,
+            width=cfg.width,
+            num_views=num_envs,
+            device="cuda:0",
+            supported_specs=renderer.supported_output_types(),
+        )
+        renderer.set_outputs(render_data, data.output)
+
+        def capture() -> np.ndarray:
+            frames = []
+            for _ in range(24):
+                renderer.render(render_data)
+                renderer.read_output(render_data, data)
+                frames.append(data.output["rgb"].torch.cpu().numpy().copy())
+            return np.asarray(frames, dtype=np.float32)
+
+        baseline = capture()
+        ordinary = capture()
+        before = ordinary[-8:].mean(axis=0)
+        noise = np.abs(ordinary - baseline[-8:].mean(axis=0)).mean(axis=(2, 3, 4)).max(axis=0)
+        color = np.asarray([[0.9, 0.02, 0.02]], dtype=np.float32)
+        if use_ovstage:
+            with renderer.scene.query(["/World/envs/env_0/Dome"]) as query:
+                renderer.scene.stage.write_attribute(
+                    query,
+                    "inputs:color",
+                    ordinal=renderer.scene.ordinal,
+                    tensors=color,
+                    is_array=False,
+                ).wait()
+            renderer.scene.commit()
+        else:
+            renderer.backend.renderer.write_attribute(
+                ["/World/envs/env_0/Dome"], "inputs:color", color, prim_mode=PrimMode.MUST_EXIST
+            )
+        changed = capture()
+        delta = np.abs(changed - before).mean(axis=(2, 3, 4))
+        assert delta[-8:, 0].mean() > 15.0, f"Selected dome update was not rendered: {delta[-8:].mean(axis=0)}"
+        assert np.all(delta[:, 1:] <= np.maximum(3.0, 4.0 * noise[1:])), (
+            f"Dome update changed untouched views: peak={delta.max(axis=0)}, noise={noise}"
+        )
+    finally:
+        renderer.close()
+        for resource in dict.fromkeys((renderer.scene, renderer.backend)):
+            if any(registered is resource for _, registered in sim._backend_registry):
+                sim.close_backend(resource)
+        if any(registered is renderer for _, registered in sim._backend_registry):
+            sim.close_backend(renderer)
+
+
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
 def test_async_cameras_publish_independently_with_capture_metadata_and_reset(monkeypatch, batch):
     """Real captures match delayed metadata; generated images and other cameras cannot replace them."""

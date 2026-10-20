@@ -355,6 +355,8 @@ selected environment.
 This setting does not affect OVRTX, which always partitions multi-environment scenes.
 
 Prims outside the environment hierarchies remain in the shared background partition.
+Lights inside an environment hierarchy illuminate only cameras in that environment.
+Keep a light outside the environment hierarchies to illuminate shared or viewport cameras.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
 
