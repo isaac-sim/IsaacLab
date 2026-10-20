@@ -51,6 +51,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel(enable_backward=False)
+def _zero_reset_world_dofs(
+    world_mask: wp.array(dtype=wp.bool), dofs_per_world: int, values: wp.array(dtype=wp.float32)
+):
+    """Zero the per-DOF values of the worlds flagged for reset."""
+    dof = wp.tid()
+    if world_mask[dof // dofs_per_world]:
+        values[dof] = 0.0
+
+
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     """Construct the shared builder: solver-aware under Newton physics, plain otherwise.
 
@@ -613,6 +623,26 @@ class NewtonManager(PhysicsManager):
                 return
             kinds |= self._solver_observables.kinds
         self._solver_observables = self._solver.observables(kinds)
+
+    def _clear_reset_world_observables(self) -> None:
+        """Zero the per-DOF solver observables of the worlds flagged for reset.
+
+        The solver writes observables only while stepping, so a reset world would otherwise expose the terminated
+        episode's values, such as its last joint loads, until its next solve.
+        """
+        if self._solver_observables is None or self._world_reset_mask is None:
+            return
+        model = self.backend.model
+        for kind in self._solver_observables.kinds:
+            values = getattr(self._solver_observables, kind)
+            if values.dtype == wp.float32 and values.shape == (model.joint_dof_count,):
+                wp.launch(
+                    _zero_reset_world_dofs,
+                    dim=model.joint_dof_count,
+                    inputs=[self._world_reset_mask, model.joint_dof_count // model.world_count],
+                    outputs=[values],
+                    device=values.device,
+                )
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before the initial FK and any graph capture."""
