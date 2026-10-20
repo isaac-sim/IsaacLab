@@ -130,6 +130,19 @@ Tensor processors
 Use :mod:`isaaclab.utils.tensor_processors` to transform observation tensors. Configure processors
 with ``TensorProcessorCfg`` through :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
 
+For named tensor dictionaries, implement :class:`~isaaclab.utils.tensor_processors.DictTensorProcessor`
+and configure it with :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorCfg`.
+Set ``class_type`` to the implementation class or a resolvable import string, ``inputs`` and
+``outputs`` to the dictionary keys it reads and produces, and ``params`` to its settings.
+Construct the processor with ``instantiate(cfg, data)``, where ``data`` maps input names to
+:class:`~isaaclab.utils.warp.ProxyArray` values. String-valued ``class_type`` fields resolve lazily
+through ``configclass`` when the implementation is needed. Processors read settings from
+``cfg.params``; these settings are not forwarded as constructor keyword arguments.
+
+Observation terms remain tensor-valued: ``ObservationTermCfg.tensor_processors`` accepts only
+``TensorProcessorCfg``. Dictionary processors are constructed directly; camera attachment and
+dictionary processor pipelines are not provided by this API.
+
 Migration: import ``TensorProcessor`` and ``TensorProcessorCfg`` from
 ``isaaclab.utils.tensor_processors`` in place of ``ModifierBase`` and ``ModifierCfg`` from
 ``isaaclab.utils.modifiers``. Replace ``ObservationTermCfg.modifiers`` with
