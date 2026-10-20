@@ -3,6 +3,26 @@ Changelog
 
 .. towncrier release notes start
 
+3.4.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Declared runtime-launch requirements on concrete visualizer configurations.
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to read contacts and register callbacks through ``sim.backend_manager``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing :class:`~isaaclab_visualizers.newton.ParticleSurfaceRenderer` without
+  ``backend_manager``; the active simulation's Newton manager is used with a :class:`DeprecationWarning`.
+
+
 3.3.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 

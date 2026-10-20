@@ -7,13 +7,12 @@ Setting up Isaac Capture with CloudXR
 
 .. currentmodule:: isaaclab
 
-`Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ (https://github.com/NVIDIA/IsaacCapture) is the unified framework for high-fidelity
-teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
-pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
-
-This guide walks you through setting up CloudXR, connecting an XR device, and running your first
-teleoperation session. For additional details see the `Isaac Capture Quick Start
-<https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html>`_.
+Use Isaac Capture's `NVIDIA CloudXR`_ integration to connect an XR device and
+teleoperate a robot in Isaac Lab. This guide covers streaming setup and your first
+session. See :ref:`isaac-teleop-feature` for devices and retargeting, or the
+`Isaac Capture Quick Start
+<https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html>`_ for
+upstream setup instructions.
 
 .. note::
 
@@ -22,10 +21,6 @@ teleoperation session. For additional details see the `Isaac Capture Quick Start
    guide are intentional. See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
 
-.. tip::
-
-   For architecture details, retargeting pipelines, control scheme recommendations, and how to
-   add new embodiments or devices, see the :ref:`isaac-teleop-feature` page.
 
 
 Prerequisites
