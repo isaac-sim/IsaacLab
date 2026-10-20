@@ -16,8 +16,10 @@ from tensordict import TensorDict
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
+from isaaclab import cloner
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import EventTermCfg, ObservationTermCfg
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import SimulationContext, UsdFileCfg
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils import math as math_utils
 
@@ -115,11 +117,21 @@ def test_point_cloud_sampling_preserves_checkpoint_order_and_observation_geometr
 
     def observe(names, sampling_order=None, seed=42, geometry_source=geometry_path):
         num_envs = len(names)
+        plan = cloner.make_clone_plan(
+            [
+                RigidObjectCfg(
+                    prim_path="/Parts", spawn=UsdFileCfg(usd_path="unused.usda", spawn_path=f"/Parts/{name}")
+                )
+                for name in names
+            ],
+            [(0,)],
+            num_envs,
+        )
         poses = wp.from_torch(torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]).repeat(num_envs, 1, 1), wp.transformf)
         asset = SimpleNamespace(
             cfg=SimpleNamespace(
                 prim_path="/Parts",
-                spawn=SimpleNamespace(spawn_paths=tuple(f"/Parts/{name}" for name in names)),
+                spawn=SimpleNamespace(spawn_paths=(None,) * num_envs),
             ),
             num_mesh_variants=num_envs,
             mesh_variant_ids=SimpleNamespace(warp=wp.from_torch(torch.arange(num_envs, dtype=torch.int32))),
@@ -139,6 +151,7 @@ def test_point_cloud_sampling_preserves_checkpoint_order_and_observation_geometr
         env = SimpleNamespace(
             num_envs=num_envs,
             device="cpu",
+            sim=SimpleNamespace(get_clone_plan=lambda: plan),
             scene={"fixed_asset": asset, "held_asset": asset, "robot": robot},
             event_manager=SimpleNamespace(
                 get_term_cfg=lambda _: SimpleNamespace(func=SimpleNamespace(variant_names=names))

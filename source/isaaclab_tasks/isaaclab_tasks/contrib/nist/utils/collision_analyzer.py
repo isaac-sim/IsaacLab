@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.cloner import num_spawn_variants
+from isaaclab import cloner
 from isaaclab.sim.utils import resolve_matching_prims_from_source
 
 from . import mesh_ops as _mesh_ops
@@ -42,6 +42,8 @@ class CollisionAnalyzer:
         self.cfg = cfg
         self.asset: RigidObject = env.scene[cfg.asset_cfg.name]
         self.obstacles: list[RigidObject] = [env.scene[cfg.name] for cfg in cfg.obstacle_cfgs]
+        plan = env.sim.get_clone_plan()
+        source_paths = cloner.path.get_asset_prototype_paths(plan)
         device = env.device
         min_dist_by_obstacle = cfg.min_dist_by_obstacle
         obstacle_names = [obstacle_cfg.name for obstacle_cfg in cfg.obstacle_cfgs]
@@ -64,7 +66,7 @@ class CollisionAnalyzer:
 
         self.body_ids = []
         point_clouds = []
-        num_asset_variants = num_spawn_variants(self.asset.cfg.spawn)
+        num_asset_variants = cloner.num_spawn_variants(self.asset.cfg.spawn)
         if num_asset_variants > 1:
             asset_hasher = RigidObjectHasher(
                 env.num_envs,
@@ -72,7 +74,9 @@ class CollisionAnalyzer:
                 device=device,
                 rigid_body_root=True,
                 compact_sources=True,
-                source_paths=self.asset.cfg.spawn.spawn_paths,
+                source_paths=tuple(
+                    source_paths[index] for index in cloner.path.get_asset_prototypes(plan, self.asset.cfg.prim_path)
+                ),
                 geometry_policy=getattr(cfg.asset_cfg, "geometry_policy", "authored_collision"),
             )
             if asset_hasher.num_root != num_asset_variants:
@@ -167,7 +171,7 @@ class CollisionAnalyzer:
 
         for i, obstacle in enumerate(self.obstacles):
             start = time.perf_counter()
-            num_variants = num_spawn_variants(obstacle.cfg.spawn)
+            num_variants = cloner.num_spawn_variants(obstacle.cfg.spawn)
             articulated = len(obstacle.body_names) > 1
             obstacle_cfg = cfg.obstacle_cfgs[i]
             selected_body_names = None
@@ -183,7 +187,13 @@ class CollisionAnalyzer:
                 device="cpu",
                 rigid_body_root=num_variants > 1,
                 compact_sources=not articulated,
-                source_paths=obstacle.cfg.spawn.spawn_paths if num_variants > 1 else None,
+                source_paths=(
+                    tuple(
+                        source_paths[index] for index in cloner.path.get_asset_prototypes(plan, obstacle.cfg.prim_path)
+                    )
+                    if num_variants > 1
+                    else None
+                ),
                 geometry_policy=getattr(obstacle_cfg, "geometry_policy", "authored_collision"),
                 body_names=selected_body_names,
             )

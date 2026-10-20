@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab import cloner
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils import resolve_matching_prims_from_source
 
@@ -130,13 +131,16 @@ def _sample_variant_points(
     from ..utils import mesh_ops
     from ..utils.rigid_object_hasher import RigidObjectHasher
 
+    plan = env.sim.get_clone_plan()
+    paths = cloner.path.get_asset_prototype_paths(plan)
+    prototypes = cloner.path.get_asset_prototypes(plan, asset.cfg.prim_path)
     hasher = RigidObjectHasher(
         env.num_envs,
         asset.cfg.prim_path,
         device=env.device,
         rigid_body_root=True,
         compact_sources=True,
-        source_paths=tuple(asset.cfg.spawn.spawn_paths[index] for index in source_indices),
+        source_paths=tuple(paths[prototypes[index]] for index in source_indices),
     )
     if hasher.num_root != asset.num_mesh_variants:
         raise ValueError(
