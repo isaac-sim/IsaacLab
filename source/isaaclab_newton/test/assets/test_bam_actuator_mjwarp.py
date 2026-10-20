@@ -225,6 +225,37 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_reset_environment_starts_without_the_previous_episode_load(native_sim, device, pendulum_usd):
+    """The first budget after a reset sees no external load in the reset environment only.
+
+    The solver writes its load observables only while stepping, so a reset environment would otherwise feed the
+    terminated episode's load into its first friction budget.
+    """
+    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": _make_cfg()})
+    friction = get_bam_group(robot, "servo").friction
+    for _ in range(4):
+        robot.write_data_to_sim()
+        native_sim.step()
+        robot.update(native_sim.get_physics_dt())
+    # The load the next budget reads without a reset.
+    loads = native_sim.backend_manager._solver_observables
+    dofs = friction.dof_indices.numpy()
+    last_load = (-loads.qfrc_bias.numpy() + loads.qfrc_constraint.numpy() - loads.qfrc_frictionloss.numpy())[dofs]
+    reset = dofs // (native_sim.backend_manager.backend.model.joint_dof_count // NUM_ENVS) == 0
+    assert (last_load[reset] != 0.0).all(), "the pendulum must carry a load for the reset to clear"
+
+    robot.write_joint_position_to_sim_index(position=torch.full((1, 1), INITIAL_ANGLE, device=device), env_ids=[0])
+    robot.write_joint_velocity_to_sim_index(velocity=torch.zeros(1, 1, device=device), env_ids=[0])
+    robot.reset([0])
+    robot.write_data_to_sim()
+    native_sim.step()
+
+    external_torque = friction.external_torque.numpy()
+    np.testing.assert_array_equal(external_torque[reset], 0.0)
+    np.testing.assert_array_equal(external_torque[~reset], last_load[~reset])
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("elbow_delay", [2, 0], ids=["separate-actuators", "shared-actuator"])
 def test_each_group_keeps_its_own_configuration(native_sim, device, elbow_delay):
     """BAM groups of one robot keep their own supply and friction settings, also when Newton merges their actuators."""

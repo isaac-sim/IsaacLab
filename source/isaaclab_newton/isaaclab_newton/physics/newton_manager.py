@@ -152,6 +152,16 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_
     world_mask[env_ids[wp.tid()]] = True
 
 
+@wp.kernel(enable_backward=False)
+def _zero_reset_world_dofs(
+    world_mask: wp.array(dtype=wp.bool), dofs_per_world: int, values: wp.array(dtype=wp.float32)
+):
+    """Zero the per-DOF values of the worlds flagged for reset."""
+    dof = wp.tid()
+    if world_mask[dof // dofs_per_world]:
+        values[dof] = 0.0
+
+
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     """Construct a native builder through the selected physics manager's factory.
 
@@ -669,6 +679,7 @@ class NewtonManager(PhysicsManager):
         if not (self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
             return
         self._reset_solver_internals_delegate(self._world_reset_mask)
+        self._clear_reset_world_observables()
         self._eval_fk(self._world_reset_mask, self._fk_reset_mask)
         if self._fk_reset_mask is not None:
             self._fk_reset_mask.zero_()
@@ -1901,6 +1912,26 @@ class NewtonManager(PhysicsManager):
                 return
             kinds |= self._solver_observables.kinds
         self._solver_observables = self._solver.observables(kinds)
+
+    def _clear_reset_world_observables(self) -> None:
+        """Zero the per-DOF solver observables of the worlds flagged for reset.
+
+        The solver writes observables only while stepping, so a reset world would otherwise expose the terminated
+        episode's values, such as its last joint loads, until its next solve.
+        """
+        if self._solver_observables is None or self._world_reset_mask is None:
+            return
+        model = self.backend.model
+        for kind in self._solver_observables.kinds:
+            values = getattr(self._solver_observables, kind)
+            if values.dtype == wp.float32 and values.shape == (model.joint_dof_count,):
+                wp.launch(
+                    _zero_reset_world_dofs,
+                    dim=model.joint_dof_count,
+                    inputs=[self._world_reset_mask, model.joint_dof_count // model.world_count],
+                    outputs=[values],
+                    device=values.device,
+                )
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.
