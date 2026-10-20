@@ -45,7 +45,7 @@ class _RenderContext(_Context):
 def simulation(monkeypatch):
     registry = []
     sim = SimpleNamespace(
-        backend_manager=SimpleNamespace(clone_context_type=_Context, _supports_mesh_variants=False),
+        backend_manager=SimpleNamespace(clone_context_type=_Context),
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),
@@ -224,8 +224,8 @@ def test_grid_transforms_centers_a_float32_grid():
     np.testing.assert_array_equal(orientations, [[0, 0, 0, 1]] * 3)
 
 
-@pytest.mark.parametrize("supports_switching, unused_variant", [(True, False), (True, True), (False, True)])
-def test_multi_spawner_creates_concrete_asset_prototypes(simulation, supports_switching, unused_variant):
+@pytest.mark.parametrize("unused_variant", [False, True])
+def test_multi_spawner_creates_concrete_asset_prototypes(simulation, unused_variant):
     """Homogeneous planning rejects variants atomically; a session authors each alternative once."""
     shapes = [CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]
     object_cfg = RigidObjectCfg(
@@ -240,15 +240,13 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation, supports_sw
     assert simulation.plan is None
 
     ground = AssetBaseCfg(prim_path="/World/Ground")
-    simulation.backend_manager._supports_mesh_variants = supports_switching
     worlds = ((0,),) if unused_variant else None
     with ReplicateSession((object_cfg, ground), 4, 2.0, world_prototypes=worlds) as session:
         plan = session.plan
         assert len(plan.asset_cfgs) == 3
         for cfg, shape in zip(plan.asset_cfgs[:2], object_cfg.spawn.assets_cfg, strict=True):
             assert cfg.spawn.assets_cfg[0] is shape
-        unused_source = "/World/IsaacLabPrototypes/asset_1" if supports_switching else None
-        expected_sources = ["/World/envs/env_0/Object", unused_source if unused_variant else "/World/envs/env_2/Object"]
+        expected_sources = ["/World/envs/env_0/Object", None if unused_variant else "/World/envs/env_2/Object"]
         assert object_cfg.spawn.spawn_paths == expected_sources
         assert cloner_path.get_asset_prototype_paths(plan)[:2] == tuple(expected_sources)
         np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0] if unused_variant else [2, 0, 1])

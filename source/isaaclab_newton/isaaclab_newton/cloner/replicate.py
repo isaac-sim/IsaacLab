@@ -35,7 +35,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.physics.mesh_variants import _mesh_variant_body_properties, _prepare_mesh_variant, _render_shapes
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
@@ -110,31 +110,23 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
 ) -> tuple[ModelBuilder, object, dict]:
     """Import and replicate the plan's Newton representation, with or without Newton physics."""
     cfg = sim.cfg.physics
-    sources = cloner_path.get_asset_prototype_paths(plan)
+    sources = list(cloner_path.get_asset_prototype_paths(plan))
     templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
     shared = templates[: starts[1]]
     global_paths = tuple(
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
-    routed_sources = tuple(sources[index] for index in asset_prototype_ids if sources[index] is not None)
-    world_assets = plan.topology.world_prototypes[starts[1] :]
-    has_world_source = any(asset in asset_prototype_ids and sources[asset] is not None for asset in world_assets)
-    # A selected source owns its entire USD subtree, including separately declared descendants.
-    exclude_paths = tuple(
-        source
-        for index, source in enumerate(sources)
-        if source is not None and index not in asset_prototype_ids
-        if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
-        if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
-    )
     simulation = isinstance(cfg, NewtonCfg)
     manager = sim.backend_manager if simulation else NewtonManager
     catalog_rows = {}
-    if simulation and manager._supports_mesh_variants and not cfg.solver_cfg.use_mujoco_contacts:
-        names = dict.fromkeys(asset.prim_path for asset in plan.asset_cfgs if isinstance(asset, RigidObjectCfg))
-        for name in names:
-            rows = tuple(cloner_path.get_asset_prototypes(plan, name))
-            if len(rows) < 2 or any(sources[row] is None for row in rows):
+    if simulation and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
+        rigid_prototypes = {}
+        for row, asset in enumerate(plan.asset_cfgs):
+            if isinstance(asset, RigidObjectCfg) and asset.spawn is not None:
+                rigid_prototypes.setdefault(asset.prim_path, []).append(row)
+        for indices in rigid_prototypes.values():
+            rows = tuple(indices)
+            if len(rows) < 2 or not any(row in asset_prototype_ids for row in rows):
                 continue
             members = [
                 [
@@ -146,6 +138,26 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             ]
             if all(len(indices) == 1 for indices in members):
                 catalog_rows[rows] = [indices[0] for indices in members]
+                for row in rows:
+                    if sources[row] is None:
+                        asset = plan.asset_cfgs[row]
+                        spawn = asset.spawn
+                        sources[row] = spawn.spawn_path = f"/World/IsaacLabPrototypes/asset_{row}"
+                        spawn.spawn_paths = [sources[row]]
+                        spawn.func(
+                            sources[row], spawn, translation=asset.init_state.pos, orientation=asset.init_state.rot
+                        )
+    routed_sources = tuple(sources[index] for index in asset_prototype_ids if sources[index] is not None)
+    world_assets = plan.topology.world_prototypes[starts[1] :]
+    has_world_source = any(asset in asset_prototype_ids and sources[asset] is not None for asset in world_assets)
+    # A selected source owns its entire USD subtree, including separately declared descendants.
+    exclude_paths = tuple(
+        source
+        for index, source in enumerate(sources)
+        if source is not None and index not in asset_prototype_ids
+        if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
+        if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
+    )
     variant_sources = tuple(dict.fromkeys(sources[row] for rows in catalog_rows for row in rows))
     if positions is None:
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
@@ -241,7 +253,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             catalogs = exclusive
     variant_sources = tuple(dict.fromkeys(sources[row] for rows in catalogs for row in rows))
     variant_visual_shapes = {}
-    if simulation and load_visual_shapes and variant_sources:
+    if load_visual_shapes and variant_sources:
         # Collision topology stays strided; ragged visual geometry is a separate renderer projection.
         variant_visual_shapes = {
             source: _render_shapes(source_builders[source], ShapeFlags.VISIBLE) for source in variant_sources

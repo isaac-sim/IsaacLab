@@ -21,7 +21,9 @@ from newton import Model, ShapeFlags
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.cloner import path as cloner_path
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import ImuCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.configclass import configclass
@@ -90,6 +92,52 @@ def _snapshot(scene: InteractiveScene, model: Model) -> dict[str, np.ndarray]:
         arrays[f"{name}.acceleration"] = obj.data.body_com_acc_w.warp
     wp.synchronize_device()
     return {name: array.numpy().copy() for name, array in arrays.items()}
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.parametrize("use_mujoco_contacts", [False, True])
+def test_initially_unused_variants_remain_resources(device: str, use_mujoco_contacts: bool) -> None:
+    """Unused alternatives stay out of live worlds and are authored only for supported reset-time selection."""
+    scene_cfg = _MeshVariantSceneCfg(num_envs=1, env_spacing=2.0)
+    scene_cfg.object.spawn.assets_cfg[1].func = sim_utils.spawn_mesh_cone
+    scene_cfg.imu = ImuCfg(prim_path=scene_cfg.object.prim_path)
+    third = scene_cfg.object.spawn.assets_cfg[0].copy()
+    third.radius, third.mass_props.mass = 0.06, 27.0
+    scene_cfg.object.spawn.assets_cfg.append(third)
+    sim_cfg = SimulationCfg(
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=use_mujoco_contacts), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(scene_cfg)
+        sim.register_interactive_scene(scene)
+        sim.reset()
+        asset = scene["object"]
+        model = sim.backend_manager.get_model()
+        assert model.body_count == 1
+        paths = cloner_path.get_asset_prototype_paths(sim.get_clone_plan())
+        if use_mujoco_contacts:
+            assert sum(path is not None for path in paths) == 1
+            with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
+                asset.write_mesh_variant_to_sim(wp.array([2], dtype=wp.int32, device=device))
+            return
+        assert sum(path is not None for path in paths) == len(scene_cfg.object.spawn.assets_cfg)
+        assert all(sim.stage.GetPrimAtPath(path) for path in paths if path is not None)
+        shape_count = model.shape_count
+        geometry_count = np.count_nonzero(model.shape_flags.numpy() & int(ShapeFlags.SITE) == 0)
+        for variant, mass in enumerate((1.0, 8.0, 27.0)):
+            asset.write_mesh_variant_to_sim(wp.array([variant], dtype=wp.int32, device=device))
+            assert asset.mesh_variant_ids.torch.item() == variant
+            assert asset.data.body_mass.torch.item() == pytest.approx(mass)
+            assert (model.body_count, model.shape_count) == (1, shape_count)
+        sim.reset()
+        model = sim.backend_manager.get_model()
+        assert model.body_count == 1
+        assert np.count_nonzero(model.shape_flags.numpy() & int(ShapeFlags.SITE) == 0) == geometry_count
+        asset.write_mesh_variant_to_sim(wp.array([2], dtype=wp.int32, device=device))
+        assert asset.data.body_mass.torch.item() == pytest.approx(27.0)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
