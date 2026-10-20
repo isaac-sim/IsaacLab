@@ -187,8 +187,6 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
-        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
-
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
@@ -202,10 +200,12 @@ class ManagerBasedEnv:
             # this shouldn't cause an issue since later on, users do a reset over all the environments
             # so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
+
         # let the physics backend know about the env decimation so it can
         # fold the full loop into a single step() when possible
-        self.sim.physics_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
@@ -384,7 +384,11 @@ class ManagerBasedEnv:
 
         Does nothing when running truly headless (no Kit GUI and no standalone visualizers).
         """
-        if not self.sim.has_gui and not self.sim.has_active_visualizers():
+        if not (
+            self.sim.has_gui
+            or any(cfg.visualizer_type and not cfg.headless for cfg in self.sim.cfg.visualizer_cfgs)
+            or self.sim.get_setting("/isaaclab/video/auto_start_kit")
+        ):
             self.manager_visualizers = {}
             return
         managers = {
@@ -455,8 +459,8 @@ class ManagerBasedEnv:
 
         if self.cfg.wait_for_textures and self.has_rtx_sensors:
             # Wait for assets to finish loading (PhysX-specific)
-            if hasattr(self.sim.physics_manager, "assets_loading"):
-                while self.sim.physics_manager.assets_loading():
+            if hasattr(self.sim.backend_manager, "assets_loading"):
+                while self.sim.backend_manager.assets_loading():
                     self.sim.render()
 
         # return observations

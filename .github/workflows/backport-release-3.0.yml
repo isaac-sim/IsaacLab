@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Backport an opted-in PR after it merges into develop while a release branch is
+# Backport an opted-in PR after it merges into the default branch while a release branch is
 # active. Clean, content-equivalent cherry-picks advance that branch directly. A
 # conflict is resolved through NVIDIA inference on a dedicated branch and opened
 # as a draft PR; inferred resolutions never push directly to the release branch.
@@ -16,6 +16,7 @@ name: Backport selected PR to active release
 on:
   pull_request_target:
     branches:
+      - main
       - develop
     types:
       - closed
@@ -29,6 +30,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  SOURCE_BRANCH: ${{ github.event.pull_request.base.ref }}
   TARGET_BRANCH: ${{ vars.ACTIVE_RELEASE_BACKPORT_BRANCH }}
   BACKPORT_BRANCH: backport/${{ vars.ACTIVE_RELEASE_BACKPORT_BRANCH }}/pr-${{ github.event.pull_request.number }}
 
@@ -85,12 +87,12 @@ jobs:
           set -euo pipefail
 
           git fetch --no-tags origin \
-            "+refs/heads/develop:refs/remotes/origin/develop" \
+            "+refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
             "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH" \
             "+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr/$PR_NUMBER/head"
           git switch --detach "refs/remotes/origin/$TARGET_BRANCH"
-          if ! git merge-base --is-ancestor "$SOURCE_SHA" refs/remotes/origin/develop; then
-            echo "::error::Merged SHA $SOURCE_SHA is not reachable from develop."
+          if ! git merge-base --is-ancestor "$SOURCE_SHA" "refs/remotes/origin/$SOURCE_BRANCH"; then
+            echo "::error::Merged SHA $SOURCE_SHA is not reachable from $SOURCE_BRANCH."
             exit 1
           fi
 
@@ -388,3 +390,6 @@ jobs:
             --body-file "$body_file" \
             --draft)
           echo "Inference-resolved draft backport PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          # Docker CI runs only on request; the App token's comment triggers run-docker-ci.yml.
+          gh pr comment "$pr_url" --body "run-ci" \
+            || echo "::warning::The draft PR was opened, but Docker CI could not be requested. Comment 'run-ci' on it."

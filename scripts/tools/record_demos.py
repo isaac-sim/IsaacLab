@@ -45,8 +45,7 @@ from typing import TYPE_CHECKING
 
 # Isaac Lab simulation launcher
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import replace
-from isaaclab.utils.string import list_intersection, string_to_callable
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.utils import setup_preset_cli
 
@@ -154,13 +153,10 @@ args_cli.enable_cameras = not args_cli.disable_external_cameras
 args_cli.require_kit = True
 
 # Call an external callback if requested.
-remaining_args_env_registration = None
 if args_cli.external_callback:
-    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = external_callback_function()
-
-# Hand arguments consumed by neither this parser nor the callback over to Hydra.
-hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+    remaining = string_to_callable(args_cli.external_callback, separator=".")()
+    if remaining is not None:
+        _, hydra_args = setup_preset_cli(parser, remaining)
 sys.argv = [sys.argv[0]] + hydra_args
 
 """Rest everything follows."""
@@ -180,7 +176,8 @@ from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import DatasetExportMode
+from isaaclab.envs.utils._manual_success import _prepare_success_term
+from isaaclab.managers import CommandTermCfg, DatasetExportMode
 
 import isaaclab_mimic.envs  # noqa: F401
 
@@ -192,10 +189,8 @@ logger = logging.getLogger(__name__)
 
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
 
-
-def _never_terminate(env: gym.Env) -> torch.Tensor:
-    """Return a false termination signal for every environment."""
-    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+# CommandTerm samples its timer with uniform_, which requires finite bounds.
+_RECORDING_COMMAND_RESAMPLING_TIME_S = 1.0e9
 
 
 def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
@@ -218,22 +213,6 @@ def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | N
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
         _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
-
-
-def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
-    """Return whether the CLI selects a renderer that actually drives RTX rendering.
-
-    The RTX/DLSS global settings are only meaningful when something renders through RTX.
-    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
-    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
-    A pure-headless session with none of these renders nothing.
-
-    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
-    check keeps working as these scripts grow support for other renderers and kitless runs.
-    """
-    visualizers = getattr(args, "visualizer", None) or []
-    external_cameras = not getattr(args, "disable_external_cameras", False)
-    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
 
 
 class RateLimiter:
@@ -333,10 +312,8 @@ def create_environment_config(
     # Extract the success condition for manual evaluation in the main loop. Keep
     # an inert term registered under the same name so rewards and other manager
     # terms that reference "success" can still resolve it during initialization.
-    success_term = getattr(env_cfg.terminations, "success", None)
-    if success_term is not None:
-        env_cfg.terminations.success = replace(success_term, func=_never_terminate, params={})
-    else:
+    success_term = _prepare_success_term(env_cfg)
+    if success_term is None:
         logger.warning(
             "No success termination term was found in the environment."
             " Will not be able to mark recorded demos as successful."
@@ -354,6 +331,19 @@ def create_environment_config(
     # the goal is reached or other termination conditions are met
     env_cfg.terminations.time_out = None
     env_cfg.observations.policy.concatenate_terms = False
+
+    # Keep each demonstration's goals fixed; command generators still sample
+    # fresh goals when the environment resets for the next recording attempt.
+    if env_cfg.commands is not None:
+        command_cfgs = (
+            env_cfg.commands.values() if isinstance(env_cfg.commands, dict) else vars(env_cfg.commands).values()
+        )
+        for command_cfg in command_cfgs:
+            if isinstance(command_cfg, CommandTermCfg):
+                command_cfg.resampling_time_range = (
+                    _RECORDING_COMMAND_RESAMPLING_TIME_S,
+                    _RECORDING_COMMAND_RESAMPLING_TIME_S,
+                )
 
     demo_recorder_cfg_entry_point = gym.spec(args_cli.task.split(":")[-1]).kwargs.get("demo_recorder_cfg_entry_point")
     if demo_recorder_cfg_entry_point is None:
@@ -826,7 +816,7 @@ def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: c
 
     # Apply the RTX/DLSS global settings when an RTX render pipeline will run (Kit visualizer,
     # external cameras, or XR).
-    if _rtx_rendering_requested(args_cli):
+    if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
         )
