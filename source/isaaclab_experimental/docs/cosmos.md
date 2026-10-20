@@ -8,7 +8,8 @@ service's endpoint. Training uses the existing Isaac Lab environment and command
 
 Start a compatible streaming service using the separate
 [Cosmos service setup guide](cosmos_service.md), or use an endpoint provided by the
-service operator. The default camera endpoint is `tcp://127.0.0.1:5555`.
+service operator. The default camera endpoint is the server's default: on Linux the Unix socket
+`/tmp/isaaclab-cosmos-<uid>.sock`, which only your user can open, and `tcp://127.0.0.1:5555` on Windows.
 The public Framework's Ray HTTP server has a different interface and cannot be
 used as this camera endpoint.
 
@@ -27,27 +28,14 @@ A successful response contains `"ready": true` and the model's capabilities. Che
 that `"session_active": false` before connecting: this service supports one active
 camera session. Wait for the service to finish loading and warming up before
 starting training.
-For a different endpoint, pass `--endpoint tcp://127.0.0.1:5556` to `status` and
-set the camera's `CosmosModelCfg.endpoint` to the same address.
+For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoint tcp://127.0.0.1:5556` to
+`status` and set the camera's `CosmosModelCfg.endpoint` to the same address.
 
 ## Controls and prompts
 
 The service follows the Sim-Transfer recipe of the Cosmos cookbook: 480p canvases, four distilled denoising steps,
-guidance 1.0, a 30-latent history window with three attention sinks, and one control per stream:
-
-| Control | Prepared by | How |
-|---|---|---|
-| `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
-| `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
-| `blur` | The service | The camera's RGB, blurred by the Framework's own filter with the recipe's medium preset |
-| `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
-
-Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
-extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
-recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
-palette, while regional edges also require the camera's segmentation output and
-explicit foreground IDs. See the helper docstrings for their camera requirements.
+guidance 1.0, and a 30-latent history window with three attention sinks. Its control is depth, prepared in Isaac
+Lab by `depth_processor`: metric depth mapped to white (near) through black (far).
 
 The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
 uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
@@ -86,7 +74,7 @@ Cosmos updates.
 
 The preset selects one environment, a `640 x 640` RGB camera, and depth controls
 covering `0.1` to `1.5` meters. Its prompt describes a Shadow Hand manipulating a
-cube, and it connects to `tcp://127.0.0.1:5555`. The camera captures at 10 Hz of
+cube, and it connects to the default endpoint. The camera captures at 10 Hz of
 simulation time. After the initial generated frame, Cosmos updates every four
 captures, so fresh generated observations arrive at 2.5 Hz of simulation time.
 Generation latency determines the elapsed time needed to run those captures.
@@ -123,7 +111,7 @@ The implementation has three boundaries:
 | --- | --- | --- |
 | `isaaclab_experimental.cosmos.client` | Camera controls, frame queues, requests, resets, and RGB publication | Isaac Lab |
 | `isaaclab_experimental.cosmos.server` | Checkpoint loading, inference, serving, and process startup | Cosmos Framework |
-| `isaaclab_experimental.cosmos._protocol` | Shared TCP message format | Both |
+| `isaaclab_experimental.cosmos._protocol` | Shared socket message format and endpoints | Both |
 
 The standalone `isaaclab-cosmos` distribution installs only the Cosmos directory
 into the Framework environment. The server imports the shared protocol and its
@@ -146,8 +134,6 @@ from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
 
 input_name, modifiers = depth_processor(
     CosmosModelCfg(
-        endpoint="tcp://127.0.0.1:5555",
-        modality="depth",
         prompt="A robot arm manipulating an object on a workbench.",
         # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
         max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
@@ -191,7 +177,6 @@ prompt's first use can trigger compilation, so prefer a short list of prompts.
 
 ```python
 CosmosModelCfg(
-    modality="depth",
     prompt=[
         "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
         "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
@@ -211,7 +196,7 @@ transfer modifier for queuing, resets, and publication, and validates Cosmos's
 required frame cadence before opening a stream. `CosmosModelCfg` creates an
 endpoint client implementing the generic image transfer model contract.
 The client opens a generation session on its first control chunk. Requests carry
-JSON metadata and binary uint8 image arrays over TCP; generated arrays return to
+JSON metadata over the endpoint and, with the `socket` transport, binary uint8 image arrays; generated arrays return to
 the control tensor's original device.
 
 Each episode generates one initial frame, then updates in chunks of four captured
@@ -252,11 +237,41 @@ and a new batch size may compile on its first use.
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
 - An environment that resets mid-chunk starts its new episode at the next chunk with its newest capture, so all
   environments keep one four-frame cadence; it shows black until then.
-- One step's message carries at most 16 environments.
+- With the socket transport, one step's image message carries at most 16 environments.
 - Each environment's history window (`--kv-window`, default 30 latent frames) takes GPU memory. On a 48 GB GPU,
   one environment fits with the default window; two need `--kv-window 8`. Larger GPUs fit more environments.
 - Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
   step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
+
+## Endpoints and transports
+
+The **endpoint** is how Isaac Lab reaches the service; it carries the session's messages:
+
+| Endpoint | Where it works |
+|---|---|
+| `unix:///path` (default on Linux, `/tmp/isaaclab-cosmos-<uid>.sock`) | Same machine. Only your user can open the socket; no network port is opened. |
+| `tcp://host:port` | Also from another machine, for example Isaac Lab on Windows. |
+
+The **transport** is how control images go to the service, and generated images come back:
+
+| Transport | Data path | Where it works |
+|---|---|---|
+| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies. Each step sends only a small message on the endpoint. | Service on the same Linux machine and the same GPU as the camera. |
+| `socket` | Images go through host memory in the endpoint's messages. | Any endpoint. |
+
+`CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it, runs on this machine (the same
+boot ID), and uses the camera's GPU, the socket otherwise. `cuda_ipc` fails when it is unavailable instead of
+falling back. `status` lists the service's transports. With the defaults on one Linux machine, image transport uses
+shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket
+transport's 16-view protocol limit; the available GPU memory still limits the batch size.
+
+Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
+
+For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
+for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
+`ssh -L 5555:/tmp/isaaclab-cosmos-<uid>.sock gpu-host`. Then set the camera's endpoint to `tcp://127.0.0.1:5555`;
+the protocol has no authentication, so do not open a public interface. `auto` sees from the boot ID that a tunneled
+service runs on another machine and uses the socket.
 
 ## Episode frame budget
 

@@ -8,17 +8,8 @@ __all__ = [
     "CosmosModelCfg",
     "CosmosTransferModifier",
     "CosmosTransferModifierCfg",
-    "RegionalEdgeControl",
-    "RegionalEdgeControlCfg",
-    "blur_processor",
     "depth_processor",
-    "edge_control",
-    "edge_processor",
     "episode_frame_budget",
-    "region_control",
-    "regional_edge_processor",
-    "regional_edges",
-    "segmentation_processor",
 ]
 
 from .client import (
@@ -26,15 +17,6 @@ from .client import (
     CosmosModelCfg,
     CosmosTransferModifier,
     CosmosTransferModifierCfg,
-    RegionalEdgeControl,
-    RegionalEdgeControlCfg,
-    blur_processor,
     depth_processor,
-    edge_control,
-    edge_processor,
     episode_frame_budget,
-    region_control,
-    regional_edge_processor,
-    regional_edges,
-    segmentation_processor,
 )

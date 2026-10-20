@@ -159,13 +159,13 @@ class CosmosInferenceModel:
             raise
         self.capabilities: dict[str, Any] = {
             "max_concurrent_streams": 1,
-            "modalities": ["edge", "blur", "depth", "seg"],
             "initial_frames": 1,
             "update_frames": 4,
             "canvases": [list(canvas) for canvas in _CANVASES],
             "fps": 30,
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.
             "partial_resets": use_compile and _vae_cache_owner(model.tokenizer_vision_gen) is not None,
+            "device": str(selected_device),
             "kv_window": kv_window,
             "attention_sink": attention_sink,
         }
@@ -176,14 +176,13 @@ class CosmosInferenceModel:
         num_views: int,
         seeds: tuple[int, ...],
         prompt: str | None | list[str | None],
-        modality: str,
         height: int,
         width: int,
         max_episode_frames: int,
     ) -> _CosmosInferenceStream:
         """Open one fixed-resolution generation session with a fresh episode history.
 
-        Controls must already represent the selected modality. The Framework's
+        Controls must already be depth images prepared by the camera. The Framework's
         transfer system prompt and native duration/resolution formatting condition
         generation; no reference video or cookbook files are loaded.
 
@@ -193,8 +192,6 @@ class CosmosInferenceModel:
             seeds: One seed per view for its first episode.
             prompt: Appearance description, the same for every view or one per view. None uses empty text plus
                 native metadata. A view keeps its prompt across resets when the session has several views.
-            modality: Control type: edge, depth, or seg prepared by the camera, or blur, which the service
-                derives from the camera's RGB with the Framework's own filter.
             height: Control image height [pixels].
             width: Control image width [pixels].
             max_episode_frames: Episode horizon, ``1 + 4*k`` frames; the model is told the episode's duration.
@@ -217,8 +214,6 @@ class CosmosInferenceModel:
         prompts = list(prompt) if isinstance(prompt, (list, tuple)) else [prompt] * num_views
         if len(prompts) != num_views or any(text is not None and not isinstance(text, str) for text in prompts):
             raise ValueError("The Cosmos appearance prompt must be text or None, or one per camera view.")
-        if modality not in self.capabilities["modalities"]:
-            raise ValueError("Cosmos controls must use edge, blur, depth, or seg modality.")
         if (height, width) not in _CANVASES:
             raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(_CANVASES)}.")
         if type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4:
@@ -230,10 +225,10 @@ class CosmosInferenceModel:
             rows = {text: self._prompt_batch(text, height, width, max_episode_frames) for text in set(prompts)}
         if num_views == 1:
             data = rows[prompts[0]]
-            self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, modality)
+            self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames)
         else:
             data = _merge_prompt_rows([rows[text] for text in prompts], self._pipeline.model.input_caption_key)
-            self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames, modality)
+            self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames)
         return self._stream
 
     def warmup(self, *, height: int = 480, width: int = 832) -> None:
@@ -248,7 +243,6 @@ class CosmosInferenceModel:
             num_views=1,
             seeds=(0,),
             prompt=None,
-            modality="edge",
             height=height,
             width=width,
             max_episode_frames=frames,
@@ -307,24 +301,6 @@ class CosmosInferenceModel:
         return data
 
 
-def _blur_controls(frames: np.ndarray) -> np.ndarray:
-    """Turn uint8 THWC RGB into the blur control with the Framework's own filter, as its Transfer inference does.
-
-    The recipe's medium preset has no random parameters, so filtering chunk by chunk matches filtering the video.
-    """
-    import torch
-    from cosmos_framework.inference.args import PresetBlurStrength, PresetEdgeThreshold, TransferHintKey
-    from cosmos_framework.inference.transfer import apply_transfer_control_augmentor
-
-    blurred = apply_transfer_control_augmentor(
-        torch.from_numpy(np.ascontiguousarray(frames.transpose(3, 0, 1, 2))),  # [3,T,H,W]
-        hint_key=TransferHintKey.BLUR,
-        preset_edge_threshold=PresetEdgeThreshold.MEDIUM,
-        preset_blur_strength=PresetBlurStrength.MEDIUM,
-    )
-    return torch.as_tensor(blurred).to(torch.uint8).permute(1, 2, 3, 0).contiguous().numpy()  # [T,H,W,3]
-
-
 def _merge_prompt_rows(rows: list[dict[str, Any]], caption_key: str) -> dict[str, Any]:
     """Combine one-view prompt batches into one batch with a caption, negative caption, and frame rate per view."""
     data = dict(rows[0])
@@ -375,7 +351,6 @@ class _CosmosInferenceStream:
         height: int,
         width: int,
         max_episode_frames: int,
-        modality: str,
     ):
         self._owner = owner
         self._model = owner._pipeline.model
@@ -383,7 +358,6 @@ class _CosmosInferenceStream:
         self._seed = seed
         self._canvas = (height, width, 3)
         self._max_episode_frames = max_episode_frames
-        self._modality = modality
         self._frame_count = 0
         self._closed = False
         self._cache_scope: ExitStack | None = None
@@ -392,13 +366,16 @@ class _CosmosInferenceStream:
 
     def step(
         self,
-        controls: list[np.ndarray],
+        controls: list[np.ndarray] | list[torch.Tensor],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
         *,
         prompt: str | None | object = _KEEP_PROMPT,
-    ) -> list[np.ndarray]:
+    ) -> list[np.ndarray] | list[torch.Tensor]:
         """Generate uint8 THWC RGB from one initial frame or four subsequent frames.
+
+        NumPy controls (socket transport) return NumPy images. CUDA tensors on the model's device (CUDA IPC)
+        return CUDA tensors produced on the current stream, without host copies or synchronization.
 
         A full reset ``reset_rows=(0,)`` requires one new seed and a one-frame
         control. It closes the previous generation and VAE state before processing
@@ -416,16 +393,20 @@ class _CosmosInferenceStream:
             _validate_seed(seeds[0])
         expected_frames = 1 if self._frame_count == 0 or reset_rows else 4
         expected_shape = (expected_frames, *self._canvas)
-        if len(controls) != 1 or not isinstance(controls[0], np.ndarray):
-            raise ValueError("Cosmos requires exactly one numpy control array.")
+        import torch
+
+        if len(controls) != 1 or not isinstance(controls[0], (np.ndarray, torch.Tensor)):
+            raise ValueError("Cosmos requires exactly one NumPy array or CUDA tensor of controls.")
         control = controls[0]
-        if control.dtype != np.uint8 or control.shape != expected_shape:
+        on_device = isinstance(control, torch.Tensor)
+        if on_device and control.device != self._owner._device:
+            raise ValueError(f"Cosmos tensor controls must be on {self._owner._device}, got {control.device}.")
+        dtype_ok = control.dtype == (torch.uint8 if on_device else np.uint8)
+        if not dtype_ok or tuple(control.shape) != expected_shape:
             raise ValueError(f"Cosmos controls must be uint8 THWC with shape {expected_shape}.")
         previous_frames = 0 if reset_rows else self._frame_count
         if previous_frames + expected_frames > self._max_episode_frames:
             raise RuntimeError("Cosmos episode horizon exceeded; reset the camera before sending more controls.")
-
-        import torch
 
         try:
             # Service connections run in separate threads, whose default CUDA
@@ -445,9 +426,8 @@ class _CosmosInferenceStream:
                     self._cache_scope = ExitStack()
                     self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
                     self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_decoder())
-                if self._modality == "blur":
-                    control = _blur_controls(control)
-                pixels = torch.from_numpy(np.ascontiguousarray(control)).permute(3, 0, 1, 2).unsqueeze(0)
+                pixels = control if on_device else torch.from_numpy(np.ascontiguousarray(control))
+                pixels = pixels.permute(3, 0, 1, 2).unsqueeze(0)
                 pixels = pixels.to(**self._model.tensor_kwargs).div(127.5).sub(1)
                 latent = self._model.encode(pixels)
                 self._next_control = latent[:, :, -1:].clone()
@@ -456,7 +436,9 @@ class _CosmosInferenceStream:
                 if tuple(decoded.shape) != (1, 3, expected_frames, *self._canvas[:2]):
                     raise RuntimeError(f"Cosmos decoder returned unexpected shape {tuple(decoded.shape)}.")
                 packed = decoded[0].clamp(-1, 1).add(1).mul(127.5).round().to(torch.uint8)
-                video = packed.permute(1, 2, 3, 0).contiguous().cpu().numpy()
+                video = packed.permute(1, 2, 3, 0).contiguous()
+                if not on_device:
+                    video = video.cpu().numpy()
                 self._frame_count = previous_frames + expected_frames
                 return [video]
         except BaseException:
@@ -522,12 +504,10 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         height: int,
         width: int,
         max_episode_frames: int,
-        modality: str,
     ):
         self._owner = owner
         self._model = owner._pipeline.model
         self._vae = _vae_cache_owner(self._model.tokenizer_vision_gen)
-        self._modality = modality
         self._data_batch = data_batch
         self._seeds = tuple(seeds)
         self._canvas = (height, width, 3)
@@ -542,11 +522,11 @@ class _CosmosBatchStream(_CosmosInferenceStream):
 
     def step(
         self,
-        controls: list[np.ndarray],
+        controls: list[np.ndarray] | list[torch.Tensor],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
         **episode: object,
-    ) -> list[np.ndarray]:
+    ) -> list[np.ndarray] | list[torch.Tensor]:
         """Generate uint8 THWC RGB for every view: one frame for starting views, four for the others.
 
         ``reset_rows`` restarts those views' episodes with ``seeds``; the other views continue. Restarting some
@@ -580,10 +560,16 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         expected = [1 if not self._started or row in resets else 4 for row in range(num_views)]
         if len(controls) != num_views:
             raise ValueError(f"Cosmos requires one control chunk per view, {num_views} in total.")
+        on_device = isinstance(controls[0], torch.Tensor)
         for row, control in enumerate(controls):
-            if not isinstance(control, np.ndarray):
-                raise ValueError("Cosmos controls must be NumPy arrays.")
-            if control.dtype != np.uint8 or tuple(control.shape) != (expected[row], *self._canvas):
+            if not isinstance(control, torch.Tensor if on_device else np.ndarray):
+                raise ValueError("Cosmos controls must be all NumPy arrays or all CUDA tensors.")
+            if on_device and control.device != self._owner._device:
+                raise ValueError(f"Cosmos tensor controls must be on {self._owner._device}, got {control.device}.")
+            if control.dtype != (torch.uint8 if on_device else np.uint8) or tuple(control.shape) != (
+                expected[row],
+                *self._canvas,
+            ):
                 raise ValueError(f"Cosmos controls of view {row} must be uint8 THWC with {expected[row]} frames.")
             if (0 if row in resets else self._frames[row]) + expected[row] > self._max_episode_frames:
                 raise RuntimeError(f"Cosmos episode horizon exceeded for view {row}; reset it before continuing.")
@@ -605,9 +591,7 @@ class _CosmosBatchStream(_CosmosInferenceStream):
                     self._vae_states[row] = self._fresh_vae_state()
                 latents = []
                 for row, control in enumerate(controls):
-                    if self._modality == "blur":
-                        control = _blur_controls(control)
-                    pixels = torch.from_numpy(np.ascontiguousarray(control))
+                    pixels = control if on_device else torch.from_numpy(np.ascontiguousarray(control))
                     pixels = pixels.permute(3, 0, 1, 2).unsqueeze(0).to(**self._model.tensor_kwargs).div(127.5).sub(1)
                     with self._view_vae(row):
                         latents.append(self._model.encode(pixels)[:, :, -1:])
@@ -628,7 +612,8 @@ class _CosmosBatchStream(_CosmosInferenceStream):
                     if tuple(decoded.shape) != (1, 3, expected[row], *self._canvas[:2]):
                         raise RuntimeError(f"Cosmos decoder returned unexpected shape {tuple(decoded.shape)}.")
                     packed = decoded[0].clamp(-1, 1).add(1).mul(127.5).round().to(torch.uint8)
-                    videos.append(packed.permute(1, 2, 3, 0).contiguous().cpu().numpy())
+                    video = packed.permute(1, 2, 3, 0).contiguous()
+                    videos.append(video if on_device else video.cpu().numpy())
                 for row in range(num_views):
                     self._frames[row] = (0 if row in resets else self._frames[row]) + expected[row]
                 self._started = True
