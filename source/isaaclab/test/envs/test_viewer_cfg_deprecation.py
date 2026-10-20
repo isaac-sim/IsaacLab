@@ -72,7 +72,7 @@ def test_deprecated_viewer_forwards_only_to_unconfigured_views(case, expected_pa
 def test_combined_visualizer_configs_translate_once_before_launch():
     """Old constructors preserve shared/backend settings and feed the same runtime configuration."""
     from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonGLVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonGLVisualizerCfg, NewtonVisualizerCfg
 
     from isaaclab.app import validate_launch
     from isaaclab.physics import PhysicsCfg
@@ -93,6 +93,7 @@ def test_combined_visualizer_configs_translate_once_before_launch():
     kit, gl = cfg.visualizer_cfgs
     assert type(kit) is type(gl) is VisualizerCfg
     assert len(caught) == 3
+    assert all("deprecated in Isaac Lab 3.2" in str(warning.message) for warning in caught)
     assert type(kit.backend) is KitBackendCfg and type(gl.backend) is NewtonGLBackendCfg
     assert kit.window.size == (1280, 720) and gl.window.size == (1920, 1080)
     assert kit.window.fps == gl.window.fps == 60
@@ -107,8 +108,8 @@ def test_combined_visualizer_configs_translate_once_before_launch():
         validate_launch(cfg)
     assert cfg.visualizer_cfgs == [kit, gl]
 
-    with pytest.warns(DeprecationWarning, match="NewtonGLVisualizerCfg is deprecated"):
-        visualizer = instantiate(NewtonGLVisualizerCfg(eye=gl.eye, enable_shadows=False))
+    with pytest.warns(DeprecationWarning, match=r"NewtonVisualizerCfg is deprecated in Isaac Lab 3\.2"):
+        visualizer = instantiate(NewtonVisualizerCfg(eye=gl.eye, enable_shadows=False))
     assert type(visualizer.cfg) is VisualizerCfg
     assert visualizer.cfg.eye == gl.eye and not visualizer.cfg.backend.enable_shadows
     visualizer.close()

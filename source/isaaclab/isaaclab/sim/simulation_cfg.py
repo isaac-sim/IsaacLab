@@ -144,4 +144,4 @@ class SimulationCfg:
     """
 
     default_visualizer_cfg: VisualizerCfg | None = None
-    """Deprecated shared defaults, translated once into :attr:`visualizer_cfgs` before launch."""
+    """Deprecated in Isaac Lab 3.2; translated once into :attr:`visualizer_cfgs` before launch."""

@@ -2605,12 +2605,12 @@ Its ``backend`` contains only implementation-specific options. For example:
        ),
    )
 
-The old ``KitVisualizerCfg``, ``NewtonGLVisualizerCfg``, ``NewtonRTXVisualizerCfg``,
-``RerunVisualizerCfg``, and ``ViserVisualizerCfg`` declarations remain available as deprecated
-configuration-only adapters. Launch translates their fields into ``VisualizerCfg`` plus the
-corresponding ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBackendCfg``,
-``RerunBackendCfg``, or ``ViserBackendCfg``. ``default_visualizer_cfg`` is also translated once,
-preserving explicit per-view overrides. Both forms use the same runtime implementation.
+The old ``KitVisualizerCfg``, ``NewtonVisualizerCfg``, ``NewtonGLVisualizerCfg``, ``NewtonRTXVisualizerCfg``,
+``RerunVisualizerCfg``, and ``ViserVisualizerCfg`` declarations are deprecated in Isaac Lab 3.2
+and remain available as configuration-only adapters. Launch translates their fields into ``VisualizerCfg``
+plus the corresponding ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBackendCfg``,
+``RerunBackendCfg``, or ``ViserBackendCfg``. ``default_visualizer_cfg`` is also deprecated in Isaac Lab 3.2
+and translated once, preserving explicit per-view overrides. Both forms use the same runtime implementation.
 Deprecated declarations emit ``DeprecationWarning``; update the configuration at its declaration site.
 
 Old Kit declarations retain their 1280-by-720 default. New shared declarations use
@@ -2806,14 +2806,14 @@ camera, force a capture, or remove camera prims on close. See :ref:`visualizatio
    )
 
 .. note::
-   :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` is deprecated in this release.
-   Use :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` (OpenGL rasterizer) or
-   :class:`~isaaclab_visualizers.newton.NewtonRTXBackendCfg` (OVRTX path tracer) instead.
+   :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` is deprecated in Isaac Lab 3.2.
+   Use ``VisualizerCfg(backend=NewtonGLBackendCfg())`` (OpenGL rasterizer) or
+   ``VisualizerCfg(backend=NewtonRTXBackendCfg())`` (OVRTX path tracer) instead.
 
 
 .. rubric:: Newton Visualizer Type Split (``newton`` → ``newton_gl`` / ``newton_rtx``)
 
-The single ``NewtonGLBackendCfg`` (``visualizer_type="newton"``) has been split into two
+The single ``NewtonVisualizerCfg`` (``visualizer_type="newton"``) has been split into two
 dedicated configs with separate type identifiers:
 
 .. list-table::
@@ -2823,7 +2823,7 @@ dedicated configs with separate type identifiers:
    * - Old (removed / deprecated)
      - New
      - Notes
-   * - ``NewtonGLBackendCfg`` (``visualizer_type="newton"``)
+   * - ``NewtonVisualizerCfg`` (``visualizer_type="newton"``)
      - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` (``visualizer_type="newton_gl"``)
      - OpenGL rasterizer; default Newton visualizer
    * - —

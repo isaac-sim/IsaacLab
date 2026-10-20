@@ -299,7 +299,7 @@ def migrate_visualizer_cfgs(
     declarations = declarations if isinstance(declarations, list) else [declarations]
     if defaults is not None:
         warnings.warn(
-            "default_visualizer_cfg is deprecated. Put shared settings on each VisualizerCfg instead.",
+            "default_visualizer_cfg is deprecated in Isaac Lab 3.2. Put shared settings on each VisualizerCfg instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -319,7 +319,8 @@ def migrate_visualizer_cfgs(
                         setattr(target, field.name, deepcopy(value))
         if isinstance(cfg, VisualizerBackendCfg):
             warnings.warn(
-                f"{type(cfg).__name__} is deprecated. Use VisualizerCfg(backend={type(cfg.backend).__name__}(), ...) "
+                f"{type(cfg).__name__} is deprecated in Isaac Lab 3.2. "
+                f"Use VisualizerCfg(backend={type(cfg.backend).__name__}(), ...) "
                 "with shared camera and window settings on VisualizerCfg.",
                 DeprecationWarning,
                 stacklevel=2,

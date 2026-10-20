@@ -1,6 +1,6 @@
 * Separated shared view, camera, window, and visibility settings in ``VisualizerCfg`` from backend-only
   ``*BackendCfg`` options. Kept the old combined ``*VisualizerCfg`` declarations and
-  ``SimulationCfg.default_visualizer_cfg`` as deprecated inputs, translated once before launch.
+  ``SimulationCfg.default_visualizer_cfg`` as inputs deprecated in Isaac Lab 3.2, translated once before launch.
   Migrate to ``VisualizerCfg(..., backend=NewtonGLBackendCfg(...))`` or a task-owned
   ``MultiBackendVisualizerCfg``. Old Kit declarations retained their 720p default; new shared
   declarations used the common 1080p default. Explicit per-view settings retained precedence.
