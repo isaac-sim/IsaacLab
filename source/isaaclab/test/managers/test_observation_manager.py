@@ -61,13 +61,16 @@ class complex_function_class(ManagerTermBase):
         self.env = env
         # define some variables
         self._time_passed = torch.zeros(env.num_envs, device=env.device)
+        self.calls = self.resets = 0
 
     def reset(self, env_ids: torch.Tensor | None = None):
+        self.resets += 1
         if env_ids is None:
             env_ids = slice(None)
         self._time_passed[env_ids] = 0.0
 
     def __call__(self, env: object, interval: float) -> torch.Tensor:
+        self.calls += 1
         self._time_passed += interval
         return self._time_passed.clone().unsqueeze(-1)
 
@@ -514,9 +517,14 @@ def test_invalid_observation_config(setup_env):
         ObservationManager(cfg, env)
 
 
-def test_callable_class_term(setup_env):
+@pytest.mark.parametrize("declare_output", [False, True])
+def test_callable_class_term(setup_env, monkeypatch, declare_output):
     env = setup_env
     """Test the observation computation with callable class term."""
+    if declare_output:
+        monkeypatch.setattr(
+            complex_function_class, "output_spec", ((env.num_envs, 1), torch.float32, torch.device("cpu"))
+        )
 
     @configclass
     class MyObservationManagerCfg:
@@ -534,6 +542,9 @@ def test_callable_class_term(setup_env):
     # create observation manager
     cfg = MyObservationManagerCfg()
     obs_man = ObservationManager(cfg, env)
+    term = obs_man.cfg.policy.term_2.func
+    assert term.calls == int(not declare_output)
+    assert term.resets == 1
     # compute observation using manager
     observations = obs_man.compute()
     # check the observation

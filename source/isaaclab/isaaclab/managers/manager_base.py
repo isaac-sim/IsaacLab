@@ -13,6 +13,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
+import torch
+
 from ..physics import PhysicsEvent, PhysicsManager
 from ..utils import string as string_utils
 from ..utils import string_to_callable, to_dict
@@ -52,6 +54,15 @@ class ManagerTermBase(ABC):
         # define manager instance
         my_manager = ManagerBase(cfg=ManagerCfg(), env=env)
 
+    """
+
+    output_spec: tuple[tuple[int, ...], torch.dtype, torch.device] | None = None
+    """Observation output shape (including the environment axis), dtype, and device.
+
+    Observation terms may set this during construction to avoid executing the term to infer its output.
+    The specification describes the raw term output, before manager modifiers, delay, or history.
+    None retains the usual single construction-time call. All class terms are reset after setup.
+    Other managers do not use this attribute.
     """
 
     def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):

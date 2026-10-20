@@ -393,6 +393,9 @@ class CameraImageBase(ManagerTermBase):
     :mod:`isaaclab.utils.images` to :attr:`_frames`. Each subclass declares a
     ``data_type`` argument with a default in ``__call__``, which the manager
     resolves into the term parameters before construction.
+
+    Output dimensions come from the allocated sensor buffers, so manager construction neither
+    captures an image nor fills the frame stack. The sensor must already be initialized.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
@@ -400,6 +403,16 @@ class CameraImageBase(ManagerTermBase):
         data_type = cfg.params["data_type"]
         if not self._accepts(data_type):
             raise ValueError(f"{type(self).__name__} does not support camera data type '{data_type}'.")
+        sensor: Camera | RayCasterCamera = env.scene.sensors[cfg.params["sensor_cfg"].name]
+        # Read allocation metadata without entering sensor.data, which can capture a frame.
+        images = sensor._data.output[data_type].torch
+        if is_rgb_like(data_type):
+            images = images[..., :3]
+        batch, height, width, channels = images.shape
+        channels *= cfg.params["frame_stack"]
+        shape = (batch, channels, height, width) if cfg.params["channel_first"] else (batch, height, width, channels)
+        float_output = cfg.params["normalize"] and (is_rgb_like(data_type) or "segmentation" in data_type)
+        self.output_spec = (shape, torch.float32 if float_output else images.dtype, images.device)
         self._frames = CameraFrameStack(
             env.num_envs,
             env.device,
