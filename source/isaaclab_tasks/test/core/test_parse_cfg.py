@@ -77,3 +77,15 @@ def test_pink_task_checks_lazy_dependencies(monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(ImportError, match=f"{task_name}.*Pink IK requires Linux x86_64 or aarch64"):
         parse_cfg.load_cfg_from_registry(task_name, "env_cfg_entry_point")
     assert parse_cfg.load_cfg_from_registry("Isaac-Cartpole", "env_cfg_entry_point") is not None
+
+
+def test_override_paths_reject_a_misspelled_field():
+    """A misspelled field fails instead of being added beside the field it was meant to set."""
+    from types import SimpleNamespace
+
+    from isaaclab_tasks.utils.hydra import _setattr
+
+    cfg = SimpleNamespace(backend=SimpleNamespace(prompt="A lab."))
+    with pytest.raises(AttributeError, match="has no field 'prompts'"):
+        _setattr(cfg, "backend.prompts", "x")
+    assert cfg.backend.prompt == "A lab." and not hasattr(cfg.backend, "prompts")
