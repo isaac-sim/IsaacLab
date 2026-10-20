@@ -6,6 +6,8 @@
 __all__ = [
     "AbsBinaryJointPositionAction",
     "AbsBinaryJointPositionActionCfg",
+    "AckermannAction",
+    "AckermannActionCfg",
     "BinaryJointAction",
     "BinaryJointActionCfg",
     "BinaryJointPositionAction",
@@ -162,6 +164,8 @@ __all__ = [
 from .actions import (
     AbsBinaryJointPositionAction,
     AbsBinaryJointPositionActionCfg,
+    AckermannAction,
+    AckermannActionCfg,
     BinaryJointAction,
     BinaryJointActionCfg,
     BinaryJointPositionAction,
