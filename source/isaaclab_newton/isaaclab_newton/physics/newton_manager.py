@@ -156,18 +156,6 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=Any), world_mask:
 _SCATTER_WORLD_RESET_MASK_FROM_IDS = IndexKernelDispatcher(_scatter_world_reset_mask_from_ids, ("env_ids",))
 
 
-class _NewtonBuilder(ModelBuilder):
-    """Native builder with construction metadata retained across model hard resets.
-
-    Variant rows and visual descriptors belong to this assembled builder; Newton's
-    ``add_builder`` and ``add_world`` do not copy them from source builders.
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.mesh_variant_definitions: dict[str, _MeshVariantDefinition] = {}
-
-
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     """Construct a native builder through the selected physics manager's factory.
 
@@ -177,9 +165,13 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     Returns:
         An empty builder with the selected solver schemas and shape/BVH defaults.
     """
-    if isinstance(cfg.physics_cfg, NewtonCfg):
-        return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
-    return _NewtonBuilder()
+    builder = (
+        cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
+        if isinstance(cfg.physics_cfg, NewtonCfg)
+        else ModelBuilder()
+    )
+    builder.mesh_variant_definitions: dict[str, _MeshVariantDefinition] = {}
+    return builder
 
 
 class NewtonBackend:
@@ -918,7 +910,7 @@ class NewtonManager(PhysicsManager):
             physics_cfg = sim.cfg.physics if sim is not None else None
         cfg = physics_cfg
 
-        builder = _NewtonBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
         builder.default_bvh_cfg = ModelBuilder.BvhConfig(
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
