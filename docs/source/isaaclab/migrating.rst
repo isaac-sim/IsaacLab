@@ -1941,7 +1941,7 @@ Run the tool to scan your code for potential quaternions:
    python scripts/tools/find_quaternions.py --path my_project/
 
    # Compare against a different branch
-   python scripts/tools/find_quaternions.py --base develop
+   python scripts/tools/find_quaternions.py --base main
 
 .. tip::
   We recommend always running the tool with a custom base branch *and* a specific path.

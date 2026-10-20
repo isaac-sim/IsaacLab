@@ -3,6 +3,78 @@ Changelog
 
 .. towncrier release notes start
 
+40.0.1 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the multi-version documentation root redirect default to ``main``.
+
+Fixed
+^^^^^
+
+* Fixed the tablecloth demo importing Newton and OpenUSD before the Kit runtime started.
+* Fixed direct scene prototype placement so fixed-base robots aligned with their cloned environments.
+* Fixed RTX camera declarations in the tablecloth and teapot demos, and improved tablecloth interior lighting.
+* Fixed :class:`~isaaclab.sensors.MultiMeshRayCaster` and :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` giving
+  every environment the source environment's copy of a static environment-local target
+  (``track_mesh_transforms=False``) on kitless backends, which author only the source on the USD stage. Static
+  targets now resolve through the clone plan like tracked targets: each environment holds its own copy, and in a
+  heterogeneous scene only the targets of its own prototype.
+  A static target that names one environment's prim, such as ``/World/envs/env_0/Crate``, now belongs to that
+  environment only, as a tracked target does; it used to be given to every environment.
+* Fixed interactive startup prompts being hidden by the console loading screen by restoring the console and showing captured output before reading input.
+* Fixed Kit startup for the teapot pouring example by deferring Newton and USD imports until after the application launches.
+* Fixed ``isaaclab --docs_multi`` builds to pin historical 2.x links and clone commands to their release tags.
+
+
+40.0.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``scan`` and ``Scan``; runtime selection was shared by ``validate_launch`` and ``launch_simulation``.
+  Read selected physics, renderer, and visualizer configs inside the launch context. Pass the same
+  ``SimulationCfg`` to launch and simulation construction instead of transferring viewer names through settings.
+* Ran concrete ``SimulationCfg.visualizer_cfgs`` as declared when no CLI selection was supplied.
+  Used ``--viz none`` or an empty configuration list to disable viewers.
+* **Breaking:** :class:`~isaaclab.physics.PhysicsManager` runtime methods and state are per instance.
+  :class:`~isaaclab.sim.SimulationContext` constructs the manager selected by ``cfg.physics.class_type`` and owns it
+  as :attr:`~isaaclab.sim.SimulationContext.backend_manager`. Call runtime methods on the instance, for example
+  ``sim.backend_manager.get_physics_sim_view()`` instead of ``PhysxManager.get_physics_sim_view()``; assets and
+  sensors use ``self._backend_manager``. Comparing ``sim.physics_manager`` with a manager class (``is``, ``==``,
+  ``__name__``) no longer works; use :func:`isinstance` or :attr:`~isaaclab.physics.PhysicsManager.backend_name`.
+* **Breaking:** Backend factories select implementations with
+  :attr:`~isaaclab.physics.PhysicsManager.backend_name` instead of the manager class name, and
+  :attr:`~isaaclab.physics.PhysicsManager.views` is keyed by prim path per manager instead of
+  ``(manager class, path)``.
+* **Breaking:** ``InteractiveScene.physics_backend`` is the backend key (``"physx"``,
+  ``"ovphysx"``, ``"newton"``) instead of the lowercased manager class name (for example ``"newtonmjwarpmanager"``).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated class-level access to :class:`~isaaclab.physics.PhysicsManager` runtime methods and state, such as
+  ``PhysxManager.get_physics_sim_view()``. It forwards to the active simulation's manager with a
+  :class:`DeprecationWarning`.
+* Deprecated :attr:`~isaaclab.sim.SimulationContext.physics_manager` in favor of
+  :attr:`~isaaclab.sim.SimulationContext.backend_manager`.
+* Deprecated the ``physics_manager`` argument of :meth:`~isaaclab.physics.PhysicsManager.safe_callback_invoke` in
+  favor of ``backend_manager``.
+* Deprecated passing a manager class or lazy class reference to
+  :func:`~isaaclab.benchmark.stepping.profile_physics_steps`; pass the manager instance.
+
+Fixed
+^^^^^
+
+* Preserved shared renderer references and unchanged named tuples during launch.
+* Applied distributed and runtime-selected devices to the ``SimulationCfg`` found in the config tree,
+  including standalone configs and configs nested in dictionaries or lists, in ``launch_simulation``.
+* Reused each recorded perspective producer across multiple recorders and enabled streaming views requested by video sources.
+
+
 39.0.0 (2026-10-18)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -5,13 +5,15 @@
 # from the environment for the first two.
 SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
+PYTHON        ?= python
 SOURCEDIR     = .
 BUILDDIR      = _build
-DOCS_DEFAULT_REF ?= develop
+DOCS_DEFAULT_REF ?= main
 
 .PHONY: multi-docs
 multi-docs:
 	@sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)" --jobs=auto $(SPHINXOPTS)
+	@$(PYTHON) ../tools/docs/pin_historical_versions.py "$(BUILDDIR)"
 	@test -f "$(BUILDDIR)/$(DOCS_DEFAULT_REF)/index.html" || \
 		(echo "Default docs ref '$(DOCS_DEFAULT_REF)' was not built" && exit 1)
 	@sed 's|__DOCS_DEFAULT_REF__|$(DOCS_DEFAULT_REF)|g' _redirect/index.html > $(BUILDDIR)/index.html

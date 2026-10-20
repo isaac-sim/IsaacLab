@@ -3,6 +3,52 @@ Changelog
 
 .. towncrier release notes start
 
+28.3.0 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``action_rate_penalty_scale`` to ``Isaac-Shadow-Handover-Direct`` to optionally penalize changes of each
+  hand's actions between steps for smoother motion; it is disabled by default.
+
+Changed
+^^^^^^^
+
+* Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to start each episode with the object in a
+  random hand (``randomize_start_hand``). Set ``randomize_start_hand=False`` for the previous fixed right-to-left
+  start.
+* Changed both handover tasks to start the object at the holding hand's goal point, 3 cm closer to the palm than
+  before, and renamed the Direct ``goal_position_offset`` and the command's ``position_offset`` to
+  ``hold_position_offset`` since it now sets both points.
+
+
+28.2.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``visualizer=NAME[,...]`` alongside physics and renderer selectors. Accepted ``--physics``,
+  ``--renderer``, and ``--visualizer`` (also ``--viz``) as aliases before task composition without
+  forwarding preset names to Kit. Explicit selections took precedence over script defaults;
+  conflicting selections reported an error. Custom visualizers used existing ``PresetCfg`` alternatives.
+* Added ``MultiBackendVisualizerCfg`` in ``isaaclab_tasks.utils.presets`` for configurable viewer alternatives.
+  Completed task selection before passing concrete configs to the runtime launcher.
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to reach the physics manager through ``env.sim.backend_manager``.
+
+Fixed
+^^^^^
+
+* Used the supplied command-line arguments when selecting the task for preset help, including repeated ``--task`` options.
+* Preserved dictionary keys in discovered paths for nested preset alternatives.
+* Preserved multiple configured viewers of one type and kept explicit viewer preset paths ahead of global selectors.
+
+
 28.1.1 (2026-10-18)
 ~~~~~~~~~~~~~~~~~~~
 
