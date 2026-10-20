@@ -52,7 +52,7 @@ def test_published_wheel_docs_cover_one_off_and_managed_uv_workflows(source_chec
     assert "--index pytorch-cu130=https://download.pytorch.org/whl/cu130" in project_docs
     assert "torch==2.11.0 torchvision==0.26.0" in project_docs
     assert "--index nvidia=https://pypi.nvidia.com" in project_docs
-    assert "isaaclab==3.0.0" in project_docs
+    assert "isaaclab==3.0.0" in {line.strip() for line in project_docs.splitlines()}
     assert "git+" not in published_docs
     assert "[tool.uv.sources]" not in published_docs
     assert "--torch-backend cu130" in windows_docs
