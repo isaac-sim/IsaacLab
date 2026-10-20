@@ -18,9 +18,8 @@ from isaaclab_newton.physics.mesh_variants import (
     MeshVariants,
     _mesh_variant_body_properties,
     _prepare_mesh_variant,
-    _render_shapes,
 )
-from newton import GeoType, Mesh, Model, ModelBuilder, ShapeFlags
+from newton import GeoType, Mesh, Model, ModelBuilder
 
 
 def _variant_builder(
@@ -119,8 +118,8 @@ def test_mesh_variant_resources_do_not_add_rigid_bodies() -> None:
     model = builder.finalize(device="cpu")
     variants = MeshVariants(model, definition)
     np.testing.assert_array_equal(variants.variant_ids.warp.numpy(), (0, 0))
-    assert variants.visual_variants is None
-    assert variants.body_indices is None
+    assert variants.render_model is None
+    assert variants.body_indices == (0, 1)
     np.testing.assert_array_equal(model.shape_flags.numpy()[definition.source_shape_indices.flatten()], 0)
 
 
@@ -186,18 +185,22 @@ def test_mesh_selection_updates_geometry_and_inertia_without_solver(body_type: s
     builder = ModelBuilder()
     builder.add_world(sources[0])
     builder.add_world(sources[1])
+    render_builder = ModelBuilder()
+    for source in sources:
+        render_builder.add_builder(source)
+    render_model = render_builder.finalize(device="cpu")
     definition = _prepare_mesh_variant(
         builder,
         sources,
         np.asarray(((0,), (1,)), dtype=np.int32),
         _mesh_variant_body_properties(sources, 0.25),
         np.asarray((0, 1), dtype=np.int32),
-        tuple(_render_shapes(source, ShapeFlags.VISIBLE) for source in sources),
+        render_model,
     )
     resource_shapes = definition.source_shape_indices
     model = builder.finalize(device="cpu")
     selected = MeshVariants(model, definition)
-    assert selected.visual_variants is not None
+    assert selected.render_model is render_model
     ids = selected.variant_ids.torch
     original_body_flags = model.body_flags.numpy().copy()
     np.testing.assert_array_equal(ids.numpy(), (0, 1))
@@ -237,11 +240,10 @@ def test_mesh_selection_updates_geometry_and_inertia_without_solver(body_type: s
     np.testing.assert_array_equal(
         model.shape_source_ptr.numpy()[np.asarray(resource_shapes).flatten()], resources_before
     )
-    np.testing.assert_array_equal(selected.body_indices.numpy(), (0, 1))
-    assert selected.model_shape_indices == (0, 1)
-    assert tuple(len(shapes) for shapes in selected.visual_variants) == (1, 1, 1)
-    assert selected.collision_variants[2][0].source is sources[2].shape_source[0]
-    assert selected.collision_variants[2][0].scale == tuple(sources[2].shape_scale[0])
+    assert selected.body_indices == (0, 1)
+    assert tuple(len(render_model.body_shapes[body]) for body in range(render_model.body_count)) == (1, 1, 1)
+    assert render_model.shape_source[2] is sources[2].shape_source[0]
+    np.testing.assert_array_equal(render_model.shape_scale.numpy()[2], tuple(sources[2].shape_scale[0]))
     np.testing.assert_allclose(np.asarray(sources[0].body_inertia[0]).reshape(3, 3), np.eye(3))
 
 
@@ -327,9 +329,10 @@ def test_mesh_variants_do_not_depend_on_fork_solver_banks() -> None:
     ):
         tree = ast.parse((visualizer_dir / relative_path).read_text())
         visualizer = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name)
-        assert not any(isinstance(node, ast.FunctionDef) and node.name == "_bind_model" for node in visualizer.body), (
-            f"{class_name} duplicates MeshVariantRenderer model binding"
-        )
+        for node in ast.walk(visualizer):
+            if isinstance(node, ast.Attribute):
+                assert node.attr != "_mesh_variant_renderer", f"{class_name} duplicates native shape rendering"
+    assert not (visualizer_dir / "mesh_variant_renderer.py").exists()
 
 
 @pytest.mark.parametrize(

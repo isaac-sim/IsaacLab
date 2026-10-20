@@ -19,7 +19,6 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonMJWarpManager
-from isaaclab_visualizers.mesh_variant_renderer import MeshVariantRenderer, populate_shapes_without_mesh_variants
 from isaaclab_visualizers.newton import (
     NewtonGLVisualizer,
     NewtonGLVisualizerCfg,
@@ -79,118 +78,6 @@ def test_log_geo_with_expanded_plane_scale_preserves_non_plane_scale():
 
     log_geo_with_expanded_plane_scale(_log_geo, 1, "box", 2, (0.0, 25.0), 0.0, True, hidden=True)
     assert calls == [("box", 2, (0.0, 25.0), 0.0, True, None, True)]
-
-
-def test_mesh_variant_renderer_updates_visual_collision_and_live_world_visibility(monkeypatch):
-    from isaaclab_newton.physics.mesh_variants import MeshVariantRenderShape
-    from newton import GeoType, Mesh, ModelBuilder
-    from newton._src.geometry.sdf_texture import TextureSDFData
-    from newton.viewer import ViewerNull
-
-    class VariantViewer(ViewerNull):
-        def _populate_shapes(self):
-            populate_shapes_without_mesh_variants(self, self._mesh_variant_model_shapes, super()._populate_shapes)
-
-    builder = ModelBuilder()
-    for _ in range(2):
-        builder.begin_world()
-        builder.add_shape_box(builder.add_body(), hx=0.1, hy=0.1, hz=0.1)
-        builder.end_world()
-    model = builder.finalize(device="cpu")
-    model._shape_sdf_index = wp.array((0, 1), dtype=wp.int32, device="cpu")
-    model._texture_sdf_data = wp.zeros(2, dtype=TextureSDFData, device="cpu")
-    flags = model.shape_flags
-    expected_flags = flags.numpy().copy()
-    viewer = VariantViewer()
-    mesh = Mesh(
-        vertices=((0, 0, 0), (1, 0, 0), (0, 1, 0)),
-        indices=(0, 1, 2),
-        uvs=((0, 0), (1, 0), (0, 1)),
-        texture=np.ones((1, 1, 3), dtype=np.uint8),
-        roughness=0.2,
-        metallic=0.4,
-    )
-    shapes = tuple(
-        MeshVariantRenderShape(int(GeoType.MESH), mesh, (0, 0.25, 0, 0, 0, 0, 1), (scale,) * 3, 0, True, (1, 0, 0))
-        for scale in (1, 2)
-    )
-    selected = ProxyArray(wp.array((0, 1), dtype=wp.int32, device="cpu"))
-    bank = SimpleNamespace(
-        body_indices=wp.array((0, 1), dtype=wp.int32, device="cpu"),
-        model_shape_indices=(0, 1),
-        visual_variants=tuple((shape,) for shape in shapes),
-        collision_variants=tuple((shape,) for shape in shapes),
-        variant_ids=selected,
-    )
-    renderer = MeshVariantRenderer(viewer, model, (bank,), None)
-    assert model.shape_flags is flags
-    np.testing.assert_array_equal(model.shape_flags.numpy(), expected_flags)
-    assert all(batch.flags == 0 for batch in viewer._shape_instances.values())
-    viewer._isomesh_cache.update({0: mesh, 1: mesh})
-    viewer._populate_sdf_isomesh_instances()
-    assert not viewer._sdf_isomesh_instances
-    np.testing.assert_array_equal(model._shape_sdf_index.numpy(), (0, 1))
-
-    def failed_population():
-        raise RuntimeError("viewer population failed")
-
-    with pytest.raises(RuntimeError, match="viewer population failed"):
-        populate_shapes_without_mesh_variants(viewer, (0, 1), failed_population)
-    assert model.shape_flags is flags
-
-    body_q = wp.array(((1, 0, 0, 0, 0, 0, 1), (2, 0, 0, 0, 0, 0, 1)), dtype=wp.transformf, device="cpu")
-    calls = []
-    appearances = []
-
-    def log_instances(name, mesh, xforms, scales, colors, materials, hidden):
-        calls.append((name, xforms.numpy(), scales.numpy(), colors is not None, hidden))
-        if materials is not None:
-            appearances.append(materials.numpy())
-
-    viewer.show_visual = viewer.show_collision = True
-    viewer.set_world_offsets((0.0, 0.0, 0.0))
-    monkeypatch.setattr(viewer, "log_instances", log_instances)
-    renderer.render(viewer, body_q)
-    assert len(calls) == 4
-    np.testing.assert_allclose(appearances[0], ((0.2, 0.4, 0, 1),) * 2)
-    np.testing.assert_allclose(appearances[2], ((0.3, 0, 0, 0),) * 2)
-    for index, (_, positions, scales, has_color, hidden) in enumerate(calls):
-        variant = index % 2
-        expected = np.zeros((2, 3))
-        expected[variant] = variant + 1
-        np.testing.assert_array_equal(scales, expected)
-        np.testing.assert_array_equal(positions[:, :3], ((1, 0.25, 0), (2, 0.25, 0)))
-        assert has_color and not hidden
-
-    selected.warp.assign(np.array((1, 0), dtype=np.int32))
-    viewer.set_visible_worlds([1])
-    viewer.show_visual = False
-    calls.clear()
-    renderer.render(viewer, body_q)
-    for index, (_, _, scales, _, hidden) in enumerate(calls):
-        expected = np.zeros((2, 3))
-        if index % 2 == 0:
-            expected[1] = 1
-        np.testing.assert_array_equal(scales, expected)
-        assert hidden == (index < 2)
-
-    viewer.set_visible_worlds(None)
-    viewer.show_visual = True
-    calls.clear()
-    renderer.render(viewer, body_q)
-    for index, (_, _, scales, has_color, hidden) in enumerate(calls):
-        expected = np.zeros((2, 3))
-        expected[1 - index % 2] = index % 2 + 1
-        np.testing.assert_array_equal(scales, expected)
-        # Restored objects retain the catalog's original appearance.
-        assert has_color and not hidden
-
-    renderer = MeshVariantRenderer(viewer, model, (), None)
-    assert viewer._mesh_variant_model_shapes == ()
-    assert all(batch.flags != 0 for batch in viewer._shape_instances.values())
-    calls.clear()
-    renderer.render(viewer, body_q)
-    assert not calls
 
 
 def test_newton_visualizer_log_mesh_requires_initialized_viewer():
@@ -751,7 +638,6 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer.cfg.window.fps = 1e9
     visualizer._runtime_headless = False
     visualizer._viewer = viewer
-    visualizer._mesh_variant_renderer = Mock()
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
         model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}
@@ -812,8 +698,8 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     new_model = SimpleNamespace(body_label=["/Object"], world_count=4, device="cpu")
     new_state = object()
-    bank = SimpleNamespace(model_shape_indices=(2, 3), visual_variants=(), collision_variants=())
-    banks = {"hidden": SimpleNamespace(visual_variants=None), "visible": bank} if picking else {}
+    bank = SimpleNamespace(render_model=object(), body_indices=(2, 3), variant_ids=ProxyArray(wp.zeros(2, dtype=int)))
+    banks = {"hidden": SimpleNamespace(render_model=None), "visible": bank} if picking else {}
     backend = SimpleNamespace(model=new_model, state_0=new_state, mesh_variants=banks)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
@@ -840,7 +726,14 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
-    viewer.set_model.assert_called_once_with(new_model)
+    viewer.set_model.assert_called_once()
+    assert viewer.set_model.call_args.args == (new_model,)
+    choices = viewer.set_model.call_args.kwargs["shape_choices"]
+    assert len(choices) == int(picking)
+    if picking:
+        assert choices[0].model is bank.render_model
+        assert choices[0].bodies == bank.body_indices
+        assert choices[0].selected is bank.variant_ids.warp
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
         call(visualizer._draw_streaming_view_controls, position="side"),
@@ -851,10 +744,6 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert viewer.picking_enabled is picking
     if picking:
         assert viewer.wind is None
-        assert viewer._mesh_variant_model_shapes == (2, 3)
-    else:
-        assert viewer._mesh_variant_model_shapes == ()
-    assert isinstance(visualizer._mesh_variant_renderer, MeshVariantRenderer)
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 
@@ -863,7 +752,6 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
     contacts = object()
     viewer = _Viewer()
     visualizer = _make_newton_visualizer(viewer, state=state)
-    renderer = visualizer._mesh_variant_renderer = Mock()
 
     monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", lambda: contacts)
 
@@ -871,7 +759,6 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
 
     assert viewer.logged_state is state
     assert viewer.logged_contacts == (contacts, state)
-    renderer.render.assert_called_once_with(viewer, state.body_q)
 
 
 def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):

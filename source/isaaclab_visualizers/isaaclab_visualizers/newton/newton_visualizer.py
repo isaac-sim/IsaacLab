@@ -37,7 +37,7 @@ elif sys.platform not in ("win32", "darwin"):
 
 import newton
 from isaaclab_newton.physics import NewtonBackendCfg
-from newton.viewer import ViewerGL
+from newton.viewer import ViewerBase, ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.scene_data import SceneDataFormat
@@ -49,7 +49,6 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
-from isaaclab_visualizers.mesh_variant_renderer import MeshVariantRenderer, populate_shapes_without_mesh_variants
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg
@@ -98,7 +97,6 @@ class NewtonViewerGL(ViewerGL):
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
-        self._mesh_variant_model_shapes: tuple[int, ...] = ()
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._reset_requested = False
@@ -128,16 +126,6 @@ class NewtonViewerGL(ViewerGL):
             # Live plots are drawn in the sidebar, not Newton's floating window.
             self.gui._render_scalar_plots = lambda: None
         self.register_ui_callback(self._render_training_controls, position="side")
-
-    def _populate_shapes(self) -> None:
-        """Exclude shapes drawn by the reset-selectable variant batches."""
-        populate_shapes_without_mesh_variants(self, self._mesh_variant_model_shapes, super()._populate_shapes)
-
-    def _compute_shape_offset_mesh(self, shape_idx: int, *args, **kwargs) -> newton.Mesh | None:
-        """Skip cached margin surfaces for reset-selected meshes."""
-        if shape_idx in self._mesh_variant_model_shapes:
-            return None
-        return super()._compute_shape_offset_mesh(shape_idx, *args, **kwargs)
 
     @property
     def camera_speed(self) -> float:
@@ -803,7 +791,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().__init__(cfg)
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
-        self._mesh_variant_renderer: MeshVariantRenderer | None = None
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -837,8 +824,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             )
 
         self._picking_enabled = self.cfg.enable_picking and picking_supported and not self._runtime_headless
-        self._mesh_variant_renderer = MeshVariantRenderer(
-            self._viewer, self.backend.model, self.backend.mesh_variants.values(), self._env_ids
+        self._viewer.set_model(
+            self.backend.model,
+            shape_choices=[
+                ViewerBase.ShapeChoices(bank.render_model, bank.body_indices, bank.variant_ids.warp)
+                for bank in self.backend.mesh_variants.values()
+                if bank.render_model is not None
+            ],
         )
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
@@ -894,7 +886,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    self._mesh_variant_renderer.render(viewer, state.body_q)
                     contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)
@@ -936,8 +927,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._mesh_variant_renderer = MeshVariantRenderer(
-            self._viewer, self.backend.model, self.backend.mesh_variants.values(), self._env_ids
+        self._viewer.set_model(
+            self.backend.model,
+            shape_choices=[
+                ViewerBase.ShapeChoices(bank.render_model, bank.body_indices, bank.variant_ids.warp)
+                for bank in self.backend.mesh_variants.values()
+                if bank.render_model is not None
+            ],
         )
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
@@ -959,7 +955,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
         finally:
-            self._mesh_variant_renderer = None
             self._viewer = self.backend = self._transform_mapping = None
             super().close()
 

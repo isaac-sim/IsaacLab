@@ -36,7 +36,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
-from isaaclab_newton.physics.mesh_variants import _mesh_variant_body_properties, _prepare_mesh_variant, _render_shapes
+from isaaclab_newton.physics.mesh_variants import _mesh_variant_body_properties, _prepare_mesh_variant
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 _PER_WORLD_BUILDER_HOOKS: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -252,12 +252,14 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
                 break
             catalogs = exclusive
     variant_sources = tuple(dict.fromkeys(sources[row] for rows in catalogs for row in rows))
-    variant_visual_shapes = {}
+    render_models = {}
     if load_visual_shapes and variant_sources:
         # Collision topology stays strided; ragged visual geometry is a separate renderer projection.
-        variant_visual_shapes = {
-            source: _render_shapes(source_builders[source], ShapeFlags.VISIBLE) for source in variant_sources
-        }
+        for rows in catalogs:
+            render_builder = create_builder()
+            for row in rows:
+                render_builder.add_builder(source_builders[sources[row]])
+            render_models[rows] = render_builder.finalize(device="cpu")
         collision_sources = build_source_builders(
             stage,
             variant_sources,
@@ -371,7 +373,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
                     np.asarray(shapes, dtype=np.int32),
                     properties,
                     initial_ids,
-                    tuple(variant_visual_shapes[sources[row]] for row in rows) if variant_visual_shapes else None,
+                    render_models.get(rows),
                 )
     return builder, stage_info, site_index_map
 

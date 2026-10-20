@@ -148,6 +148,9 @@ alternative must have one rigid body, the same fixed/free root-joint type and ki
 ordered mesh colliders and collision filtering. Visual mesh counts may differ. Collision geometry and its
 margin/gap, mass, and inertia follow the selected variant; per-environment contact-material settings are retained.
 Newton GL and Viser display the selection; RTX and MuJoCo's internal collision geometry do not support switching.
+The visualizers bind native Newton geometry catalogs to the bank's selection array and use the normal render
+loop. Catalog instance storage scales with the choices and visible environments; limit visible worlds for large
+training scenes.
 Each switchable binding must own its target bodies independently. When rendering, source geometry shared with
 a non-switchable binding retains its initial assignment rather than enabling selection.
 

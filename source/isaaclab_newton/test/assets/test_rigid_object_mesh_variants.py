@@ -18,6 +18,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, XPBDSolverCfg
 from newton import Model, ShapeFlags
+from newton.viewer import ViewerBase, ViewerNull
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -107,7 +108,11 @@ def test_initially_unused_variants_remain_resources(device: str, use_mujoco_cont
     sim_cfg = SimulationCfg(
         device=device,
         gravity=(0.0, 0.0, 0.0),
-        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=use_mujoco_contacts), use_cuda_graph=False),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=use_mujoco_contacts),
+            use_cuda_graph=False,
+            load_visual_shapes=True,
+        ),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
@@ -125,6 +130,13 @@ def test_initially_unused_variants_remain_resources(device: str, use_mujoco_cont
             return
         assert sum(path is not None for path in paths) == len(scene_cfg.object.spawn.assets_cfg)
         assert all(sim.stage.GetPrimAtPath(path) for path in paths if path is not None)
+        bank = next(iter(sim.backend_manager.backend.mesh_variants.values()))
+        viewer = ViewerNull()
+        viewer.set_model(
+            model, shape_choices=[ViewerBase.ShapeChoices(bank.render_model, bank.body_indices, bank.variant_ids.warp)]
+        )
+        batches = [batch for batch in viewer._shape_instances.values() if batch.selected is bank.variant_ids.warp]
+        assert batches
         shape_count = model.shape_count
         geometry_count = np.count_nonzero(model.shape_flags.numpy() & int(ShapeFlags.SITE) == 0)
         for variant, mass in enumerate((1.0, 8.0, 27.0)):
@@ -132,6 +144,11 @@ def test_initially_unused_variants_remain_resources(device: str, use_mujoco_cont
             assert asset.mesh_variant_ids.torch.item() == variant
             assert asset.data.body_mass.torch.item() == pytest.approx(mass)
             assert (model.body_count, model.shape_count) == (1, shape_count)
+            viewer.log_state(sim.backend_manager.get_state_0())
+            for batch in batches:
+                active = np.any(batch.scales.numpy() != 0.0, axis=1)
+                np.testing.assert_array_equal(active, batch.choice_indices.numpy() == variant)
+        viewer.close()
         sim.reset()
         model = sim.backend_manager.get_model()
         assert model.body_count == 1

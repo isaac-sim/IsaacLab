@@ -13,24 +13,11 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import BodyFlags, Gaussian, GeoType, Heightfield, JointType, Mesh, Model, ModelBuilder, ShapeFlags
+from newton import BodyFlags, GeoType, JointType, Mesh, Model, ModelBuilder, ShapeFlags
 from newton._src.geometry.inertia import verify_and_correct_inertia
 
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
-
-
-@dataclass(frozen=True, slots=True)
-class MeshVariantRenderShape:
-    """One shape stored once in a mesh variant render bank."""
-
-    geometry_type: int
-    source: Mesh | Heightfield | Gaussian | None
-    transform: tuple[float, ...]
-    scale: tuple[float, float, float]
-    thickness: float
-    is_solid: bool
-    color: tuple[float, float, float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,8 +30,8 @@ class _MeshVariantDefinition:
     root_joint_type: int
     body_flags: int
     initial_variant_ids: np.ndarray
-    visual_variants: tuple[tuple[MeshVariantRenderShape, ...], ...] | None
-    collision_variants: tuple[tuple[MeshVariantRenderShape, ...], ...]
+    render_model: Model | None
+    source_meshes: tuple[tuple[Mesh, ...], ...]
 
 
 @wp.struct
@@ -233,10 +220,8 @@ class MeshVariants:
             raise ValueError("Mesh variants require mesh-only collision geometry.")
         if not np.all(types[sources] == types[targets[0]]) or not np.all(types[targets] == types[targets[0]]):
             raise ValueError("Mesh variants must preserve ordered collision-shape types.")
-        for row, shapes in zip(sources, definition.collision_variants, strict=True):
-            if any(
-                hash(model.shape_source[index]) != hash(shape.source) for index, shape in zip(row, shapes, strict=True)
-            ):
+        for row, meshes in zip(sources, definition.source_meshes, strict=True):
+            if any(hash(model.shape_source[index]) != hash(mesh) for index, mesh in zip(row, meshes, strict=True)):
                 raise ValueError("Mesh variant resources do not match their imported mesh sources.")
         bodies = model.shape_body.numpy()[targets]
         if np.any(bodies < 0) or not np.all(bodies == bodies[:, :1]):
@@ -273,35 +258,8 @@ class MeshVariants:
         self.shape_indices = wp.array(targets, dtype=wp.int32, device=model.device)
         self.body_properties = wp.array(properties, dtype=_VariantBody, device=model.device)
         self.variant_ids = ProxyArray(wp.array(initial_variant_ids, dtype=wp.int32, device=model.device))
-        self.visual_variants = definition.visual_variants
-        self.collision_variants = definition.collision_variants
-        self.body_indices: wp.array | None = None
-        self.model_shape_indices: tuple[int, ...] = ()
-        if definition.visual_variants is not None:
-            self.body_indices = wp.array(body_ids, dtype=wp.int32, device=model.device)
-            self.model_shape_indices = tuple(shape for body in body_ids for shape in model.body_shapes[body])
-
-
-def _render_shapes(builder: ModelBuilder, flag: ShapeFlags) -> tuple[MeshVariantRenderShape, ...]:
-    if builder.body_count != 1:
-        raise ValueError("Mesh variant render sources must contain one rigid body.")
-    shapes = []
-    for shape in builder.body_shapes[0]:
-        flags = int(builder.shape_flags[shape])
-        if not flags & int(flag) or flags & int(ShapeFlags.SITE):
-            continue
-        shapes.append(
-            MeshVariantRenderShape(
-                geometry_type=int(builder.shape_type[shape]),
-                source=builder.shape_source[shape],
-                transform=tuple(builder.shape_transform[shape]),
-                scale=tuple(builder.shape_scale[shape]),
-                thickness=float(builder.shape_margin[shape]),
-                is_solid=bool(builder.shape_is_solid[shape]),
-                color=tuple(builder.shape_color[shape]),
-            )
-        )
-    return tuple(shapes)
+        self.render_model = definition.render_model
+        self.body_indices = tuple(body_ids.tolist())
 
 
 def _prepare_mesh_variant(
@@ -310,7 +268,7 @@ def _prepare_mesh_variant(
     targets: np.ndarray,
     properties: np.ndarray,
     initial_variant_ids: np.ndarray,
-    visual_variants: tuple[tuple[MeshVariantRenderShape, ...], ...] | None,
+    render_model: Model | None,
 ) -> _MeshVariantDefinition:
     """Append one catalog's inactive collision resources after its resolved native target rows."""
     resources = []
@@ -357,6 +315,13 @@ def _prepare_mesh_variant(
         root_joint_type=sources[0].joint_type[0] if sources[0].joint_count else -1,
         body_flags=sources[0].body_flags[0],
         initial_variant_ids=initial_variant_ids,
-        visual_variants=visual_variants,
-        collision_variants=tuple(_render_shapes(source, ShapeFlags.COLLIDE_SHAPES) for source in sources),
+        render_model=render_model,
+        source_meshes=tuple(
+            tuple(
+                source.shape_source[shape]
+                for shape in source.body_shapes[0]
+                if source.shape_flags[shape] & ShapeFlags.COLLIDE_SHAPES
+            )
+            for source in sources
+        ),
     )

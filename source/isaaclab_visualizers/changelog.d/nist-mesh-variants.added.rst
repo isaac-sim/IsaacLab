@@ -1,4 +1,4 @@
-* Added live mesh-variant projection to the Newton OpenGL and Viser visualizers so reset-selected
-  rigid-object geometry followed the physics selection without rebuilding the simulation model.
+* Added reset-selected rigid-object geometry to Newton OpenGL and Viser through native viewer
+  shape-choice binding and the existing render loop, without a separate Isaac Lab renderer.
   Collision overlays used the selected triangle meshes; cached SDF isosurfaces and margin wireframes
   were excluded for these objects.
