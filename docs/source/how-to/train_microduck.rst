@@ -39,33 +39,28 @@ Distributed training
 
 With 4,096 environments per GPU, add ``presets=multi_gpu`` alongside any robot preset. The preset
 defaults ``env.num_gpus`` to ``WORLD_SIZE``, the total rank count set by the distributed launcher.
-Override this value through Hydra to choose the count used for recipe scaling:
 
 .. code-block:: bash
 
     uv run isaaclab train_multigpu --num_gpus 8 \
         --task IsaacContrib-Velocity-Rough-MicroDuck --rl_library rsl_rl \
-        --num_envs 4096 --seed 42 presets=backlash,multi_gpu env.num_gpus=8
+        --num_envs 4096 --seed 42 presets=backlash,multi_gpu
 
-``--num_gpus`` selects the number of workers per node. ``env.num_gpus`` controls recipe scaling;
-omit the override to use the total distributed rank count automatically. For example, two nodes
-with ``--nnodes 2 --num_gpus 8`` use 16 ranks in total. See :ref:`multi-node-training` for the
-rendezvous options.
+``--num_gpus`` selects the number of workers per node. For example, two nodes with
+``--nnodes 2 --num_gpus 8`` use 16 ranks in total. See :ref:`multi-node-training` for the rendezvous
+options. To scale the recipe using a different count, pass a Hydra override such as ``env.num_gpus=4``;
+this changes the training budget and schedules, independently of the number of launched workers.
 
-For a total count N, the preset selects 50,000 / N iterations and saves every 250 / N iterations,
+For a scaling count N, the preset selects 50,000 / N iterations and saves every 250 / N iterations,
 rounding both up. Eight GPUs use 6,250 iterations and save every 32 iterations; 16 GPUs use 3,125
 iterations and save every 16 iterations. All six fixed-step curricula divide their boundaries by N,
 rounding up to a whole step. These values are computed after Hydra applies overrides, so an explicit
 ``agent.max_iterations``, ``agent.save_interval``, or curriculum-stage override still takes precedence.
 
-Each rollout collects 98,304 * N transitions across all ranks. Four minibatches per rank produce
-synchronized optimizer minibatches of 24,576 * N transitions. RSL-RL averages gradients across ranks;
-the minibatch count remains four, and the KL-adaptive learning rate is unchanged. Terrain progression
-remains episode-based, and physical timing and the 24-step rollout length are unchanged.
-
-The total sample budget matches 50,000 iterations with 4,096 environments on one GPU, rounded up to
-a full distributed rollout; equivalent convergence still needs validation. Without ``multi_gpu``,
-the original iteration budget and fixed-step curricula are retained.
+With automatic rank detection and 4,096 environments per GPU, the total sample budget matches the
+single-GPU run, rounded up to a full distributed rollout. Larger optimizer batches can still change
+convergence. Terrain progression remains episode-based. Without ``multi_gpu``, the original iteration
+budget and fixed-step curricula are retained.
 
 Previous walking recipe
 -----------------------

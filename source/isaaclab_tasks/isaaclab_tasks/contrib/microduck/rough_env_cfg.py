@@ -15,7 +15,7 @@ from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.utils import configclass
 
 from .flat_env_cfg import CurriculumCfg, MicroDuckSceneCfg, MicroDuckVelocityFlatEnvCfg
-from .mdp.commands import MicroDuckRoughVelocityCommand
+from .mdp.commands import MicroDuckRoughVelocityCommand, MicroDuckVelocityCommand
 from .mdp.curriculums import microduck_terrain_levels
 
 
@@ -103,6 +103,7 @@ class MicroDuckVelocityRoughEnvCfg(MicroDuckVelocityFlatEnvCfg):
     def play_mode(self):
         """Use a smaller terrain map with randomly sampled difficulty for playback."""
         super().play_mode()
+        self.commands.base_velocity.class_type = MicroDuckVelocityCommand
         self.scene.terrain.terrain_generator.curriculum = False
         self.scene.terrain.terrain_generator.num_rows = 5
         self.scene.terrain.terrain_generator.num_cols = 5

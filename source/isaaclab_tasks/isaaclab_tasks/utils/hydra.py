@@ -620,7 +620,9 @@ def register_task(
     if not hydra_args:
         cfg_dict = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
         update_from_dict(env_cfg, cfg_dict["env"])
-        if agent_cfg is not None:
+        if isinstance(agent_cfg, dict) or agent_cfg is None:
+            agent_cfg = cfg_dict["agent"]
+        else:
             update_from_dict(agent_cfg, cfg_dict["agent"])
         return env_cfg, agent_cfg, hydra_args
 
