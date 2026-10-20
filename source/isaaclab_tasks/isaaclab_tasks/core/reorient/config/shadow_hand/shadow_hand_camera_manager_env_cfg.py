@@ -5,13 +5,15 @@
 
 """Manager-based counterpart of the Shadow Hand camera reorientation task."""
 
+from isaaclab_experimental.cosmos import CosmosModelCfg
+
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.utils import preset
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES
 
@@ -19,8 +21,12 @@ from ... import mdp
 from ...reorient_manager_env_cfg import ReorientFullStateObsCfg, ReorientRobotObsCfg
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_direct_camera_env_cfg import (
+    SHADOW_HAND_COSMOS_CAMERA_CFG,
     ShadowHandTiledCameraCfg,
+    set_shadow_hand_cosmos_settings,
+    shadow_hand_cosmos_settings,
     validate_shadow_hand_camera_settings,
+    validate_shadow_hand_cosmos_preset,
 )
 from .shadow_hand_manager_env_cfg import (
     ShadowHandManagerEnvCfg,
@@ -131,3 +137,45 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True
         self.observations.policy.camera_features.params["feature_extractor_cfg"] = self.feature_extractor
+
+
+@configclass
+class ShadowHandCameraManagerCosmosEnvCfg(ShadowHandCameraManagerEnvCfg):
+    """Manager-based Shadow Hand task with depth-guided Cosmos RGB, selected with ``presets=cosmos``.
+
+    The camera runs the same Cosmos chain as the Direct preset, and the policy's camera observation term
+    reads the generated ``rgb``. Start the Cosmos service first.
+    """
+
+    scene: ShadowHandCameraManagerSceneCfg = ShadowHandCameraManagerSceneCfg(
+        num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG
+    )
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, image_update_frames=4)
+
+    @property
+    def cosmos(self) -> CosmosModelCfg:
+        """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
+        return shadow_hand_cosmos_settings(self)
+
+    @cosmos.setter
+    def cosmos(self, settings: CosmosModelCfg):
+        # Also lets the configclass copier, which copies inherited properties like fields, set it in subclasses.
+        set_shadow_hand_cosmos_settings(self, settings)
+
+    def validate_config(self):
+        """Check the scene and episode fit the Cosmos service's stream limits."""
+        super().validate_config()
+        validate_shadow_hand_cosmos_preset(self)
+
+    def play_mode(self):
+        """Load this run's feature extractor and retain the single-camera scene."""
+        super().play_mode()
+        self.scene.num_envs = 1
+
+
+@configclass
+class ShadowHandCameraManagerEnvPresetCfg(PresetCfg):
+    """Select ordinary camera observations or depth-guided Cosmos with ``presets=cosmos``."""
+
+    default: ShadowHandCameraManagerEnvCfg = ShadowHandCameraManagerEnvCfg()
+    cosmos: ShadowHandCameraManagerCosmosEnvCfg = ShadowHandCameraManagerCosmosEnvCfg()
