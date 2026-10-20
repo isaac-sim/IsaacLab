@@ -230,8 +230,8 @@ Choose the contribution location
      - Robot ports, task or reward variants, research reproductions, vendor examples, application workflows,
        trained policies, datasets, and combinations of capabilities already demonstrated in Isaac Lab.
 
-If a downstream project exposes a missing reusable primitive, propose that primitive and its focused validation
-separately while keeping the complete robot or application in the community-owned project.
+If a downstream project exposes a missing reusable primitive, propose that primitive separately while keeping the
+complete robot or application in the community-owned project.
 
 Before opening a pull request
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -243,7 +243,7 @@ Start with a `GitHub Discussion <https://github.com/isaac-sim/IsaacLab/discussio
 * the proposed location: core, time-bounded ``contrib`` incubation, or a community-owned project;
 * supported physics backends, renderers, operating modes, and known limitations;
 * asset sources, licenses, immutable hosting, and reproducible conversion or authoring instructions;
-* the minimum test matrix and evidence that the capability works as claimed;
+* evidence that the capability works as claimed;
 * the individual or organization responsible for triage and compatibility updates; and
 * for ``contrib`` work, an exit plan that allows an unmaintained contribution to be promoted, relocated, or
   removed.
@@ -261,7 +261,7 @@ An environment proposed for core or ``contrib`` must meet all of these requireme
 * Be the smallest clear example of the capability and reuse existing assets and task terms wherever possible.
 * Declare and validate the supported physics backend and renderer combinations. Unsupported combinations must be
   omitted from registration or fail with a clear message.
-* Include deterministic smoke coverage, focused behavioral tests, documentation, and a support owner.
+* Document the capability and name a support owner.
 
 Projects that adapt an existing reach, lift, locomotion, or manipulation task to another robot are usually a better
 fit for a community-owned project. The same applies to new reward formulations, scene layouts, training
@@ -271,18 +271,14 @@ framework capabilities are already represented.
 Requirements for in-repository assets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-An asset proposed for core or ``contrib`` must demonstrate an asset capability that current examples do not cover.
-Examples include tendons, closed-loop kinematics, mobile or floating bases, unusual joint or articulation
-topologies, deformable or coupled bodies, and new sensor or actuator integrations. Differences in brand, appearance,
-link dimensions, degree-of-freedom count, or commercial popularity alone do not require another in-repository asset.
+An asset proposed for core or ``contrib`` should demonstrate a capability that current examples do not cover, such
+as tendons, closed-loop kinematics, mobile or floating bases, unusual articulations, deformable or coupled bodies, or
+new sensor or actuator integrations. Differences in brand, appearance, dimensions, degree-of-freedom count, or
+commercial popularity alone are better suited to a community-owned project.
 
-Prefer an existing asset or a small synthetic fixture when it can demonstrate the capability. When a full robot is
-necessary, include only the configurations needed to exercise the capability and keep robot-specific applications
-and trained policies in the owner's project.
-
-Every accepted asset must have clear provenance, redistribution-compatible licensing, immutable versioned hosting,
-reproducible conversion or authoring instructions, and a named upstream owner. Keep large binary assets in external
-hosting and link to an immutable version instead of committing them directly to Isaac Lab. See the
+Accepted assets need clear provenance, redistribution-compatible licensing, immutable versioned hosting,
+reproducible conversion or authoring instructions, and an upstream owner. Keep large binaries externally hosted and
+link to an immutable version. See the
 `Isaac Sim asset documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_overview.html>`__
 for existing assets and asset-format guidance.
 
@@ -297,9 +293,9 @@ to create a standalone project outside the Isaac Lab checkout:
    uv run isaaclab --new
 
 Choose **External**. Use **Cartpole** for a runnable task baseline, **Stubbed** for a task skeleton, or **Blank** when
-adding Isaac Lab support to an existing project. The project should own its code, assets, tests, documentation,
-releases, support, compatibility declarations, and versioned dependencies. It should also document installation and
-at least one smoke-test command and use its own issue tracker for support.
+adding Isaac Lab support to an existing project. The project should own its code, assets, documentation, releases,
+support, compatibility declarations, and versioned dependencies. It should also document installation and use its
+own issue tracker for support.
 
 
 Maintaining package changelogs and versions
