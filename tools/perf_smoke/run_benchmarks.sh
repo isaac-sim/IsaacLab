@@ -34,7 +34,9 @@ run_attempt() {
   local attempt="$1"
   container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
   cleanup_container
-  # Cached images may contain older code, so mount source, scripts, and apps from the selected checkout.
+  python3 "$SOURCE_REVISION_LAUNCHER" check --checkout-root "$CHECKOUT_ROOT" \
+    --manifest "$SOURCE_MANIFEST" --output-dir "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}" || return 1
+  # Mount the selected checkout over the image's cached code.
   timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/isaaclab-ci-home \
@@ -76,6 +78,8 @@ run_attempt() {
   docker cp "$container:/tmp/benchmark-output/." "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}/" 2>/dev/null || true
   cleanup_container
   container=""
+  python3 "$SOURCE_REVISION_LAUNCHER" check --checkout-root "$CHECKOUT_ROOT" \
+    --manifest "$SOURCE_MANIFEST" --output-dir "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}" || status=1
   local -a bundles
   mapfile -t bundles < <(find "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
   if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
