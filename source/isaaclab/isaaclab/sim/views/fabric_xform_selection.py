@@ -111,7 +111,6 @@ class FabricXformSelection:
 
         # Tag children and parents with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
-        seeded = False
         for paths, index_attr, is_child in (
             (self._prim_paths, self.child_index_attr, True),
             (self.unique_parent_paths, self._parent_index_attr, False),
@@ -127,16 +126,13 @@ class FabricXformSelection:
                     rt_xformable.CreateFabricHierarchyLocalMatrixAttr()
                     rt_xformable.SetLocalXformFromUsd()
                     rt_xformable.SetWorldXformFromUsd()
-                    seeded = True
                 else:
                     if not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME):
                         rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
                         rt_xformable.SetWorldXformFromUsd()
-                        seeded = True
                     if is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME):
                         rt_xformable.CreateFabricHierarchyLocalMatrixAttr()
                         rt_xformable.SetLocalXformFromUsd()
-                        seeded = True
                 rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
                 rt_prim.GetAttribute(index_attr).Set(i)
                 group_prims.append(rt_prim)
@@ -145,7 +141,7 @@ class FabricXformSelection:
         # usdrt's *XformFromUsd helpers write legacy transform attributes. Only the host Fabric Hierarchy
         # update turns them into the omni:fabric matrices, and Kit runs it per frame only when the Fabric
         # Scene Delegate is on.
-        if seeded and self.fabric_hierarchy is not None:
+        if self.fabric_hierarchy is not None:
             self.fabric_hierarchy.update_world_xforms()
 
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
