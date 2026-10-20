@@ -847,10 +847,11 @@ least as large as the actuator cap.
 MJWarp coupling
 ^^^^^^^^^^^^^^^
 
-Each physics step Isaac Lab writes the friction budget into MuJoCo's ``dof_frictionloss``, so the
-solver resolves static friction with the other constraints. The budget follows from the servo velocity,
-the effort applied on the previous step, and the external load: the previous solve's bias and
-constraint forces without the servo's own friction. Applied body wrenches are not included. The
+Each physics step Isaac Lab writes the friction budget into the servos' joint friction, which the
+MuJoCo solver applies as ``dof_frictionloss``, so it resolves static friction with the other
+constraints. The budget follows from the servo velocity, the effort applied on the previous step, and
+the external load: the previous solve's bias and constraint forces without the servo's own friction
+loss, which Newton's MuJoCo solver exports as observables. Applied body wrenches are not included. The
 viscous coefficient is applied once as passive joint damping and is visible through
 ``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` authors a stiff friction-constraint
 reference on the servo joints (``mjc:solreffriction`` and ``mjc:solimpfriction``) to reduce creep,
@@ -858,7 +859,7 @@ since MJWarp has no noslip solver.
 
 :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports the clamped motor torque and
 :attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` the unclamped one; neither includes
-friction. ``data.joint_friction`` reports the authored seed. Read the live budget with
+friction. ``data.joint_friction`` reports the budget of the last step on the servo joints. Read it with
 ``get_bam_group(robot, "servos").friction_budget`` from :mod:`isaaclab_newton.actuators`.
 
 Newton draws one command lag per environment, shared by the group's joints, honoring ``min_delay``,

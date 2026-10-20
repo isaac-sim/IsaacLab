@@ -3,5 +3,5 @@
   through the ``"drive"`` component instead. Access the friction scale and the supply through
   :func:`~isaaclab_newton.actuators.get_bam_group` instead of the drive's ``friction_scale``, ``vin`` and
   ``sag_gain``.
-* Removed ``MjWarpActuatorBridge.stiffen_friction_constraint`` and its ``STIFF_SOLREF_FRICTION`` and
-  ``STIFF_SOLIMP_FRICTION`` constants. BAM authoring sets the stiff friction constraint instead.
+* Removed ``isaaclab_newton.physics.MjWarpActuatorBridge``. BAM friction reads the previous solve's loads from
+  Newton's MuJoCo solver observables and publishes its budget as the servos' joint friction instead.

@@ -151,10 +151,17 @@ def make_actuator(
 
 
 def add_friction(bam: SimpleNamespace, motor: BamMotorCfg) -> BamFriction:
-    """Attach gearbox friction, reset with the adapter as the articulation path does."""
+    """Attach gearbox friction, reset with the adapter as the articulation path does.
+
+    ``bam.loads`` stands in for the solver's load observables and the model's joint friction, all zero.
+    """
     dof_indices = wp.array(bam.dofs.ravel(), dtype=wp.uint32, device=bam.device)
     bam.friction = BamFriction(motor, dof_indices, dofs_per_env=len(JOINT_NAMES))
     bam.adapter.register_reset_callback(bam.friction.reset)
+    names = ("qfrc_bias", "qfrc_constraint", "qfrc_frictionloss", "joint_friction")
+    bam.loads = SimpleNamespace(
+        **{name: wp.zeros(bam.dofs.size, dtype=wp.float32, device=bam.device) for name in names}
+    )
     return bam.friction
 
 
@@ -165,7 +172,7 @@ def step(bam: SimpleNamespace, joint_pos: np.ndarray, joint_vel: np.ndarray, tar
     bam.target_pos.assign(np.ascontiguousarray(target_pos, dtype=np.float32))
     with wp.ScopedDevice(bam.device):
         if bam.friction is not None:
-            bam.friction.compute_budget(bam.state.joint_qd)
+            bam.friction.compute_budget(bam.state.joint_qd, *vars(bam.loads).values())
         bam.adapter.step(bam.state, bam.control, DT)
         if bam.friction is not None:
             bam.friction.record_applied_effort(bam.control.joint_f)
@@ -325,7 +332,8 @@ def test_motor_and_friction_match_upstream_goldens(goldens, servo_usd, device):
     friction = add_friction(bam, cfg.motor)
     # The previous applied torque is an independent golden input, not recomputed by the port.
     friction.prev_applied_torque.assign(goldens["prev_tau"].astype(np.float32))
-    friction.external_torque.assign(goldens["ext_tau"].astype(np.float32))
+    # Without bias or friction loss, the constraint force is the whole external load.
+    bam.loads.qfrc_constraint.assign(goldens["ext_tau"].astype(np.float32))
     effort = step(bam, *(goldens[key].reshape(-1, 2) for key in ("q", "dq", "q_target")))
     np.testing.assert_allclose(
         bam.adapter.computed_effort_2d.numpy().ravel(), goldens["motor_torque"], rtol=1e-5, atol=1e-6
@@ -333,6 +341,7 @@ def test_motor_and_friction_match_upstream_goldens(goldens, servo_usd, device):
     limit = VIN * cfg.motor.kt / cfg.motor.resistance
     np.testing.assert_allclose(effort.ravel(), np.clip(goldens["motor_torque"], -limit, limit), rtol=1e-5, atol=1e-6)
     np.testing.assert_allclose(friction.friction_budget.numpy(), goldens["frictionloss_budget"], rtol=1e-5, atol=1e-6)
+    np.testing.assert_array_equal(bam.loads.joint_friction.numpy(), friction.friction_budget.numpy())
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

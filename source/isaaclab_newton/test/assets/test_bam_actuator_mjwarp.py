@@ -13,9 +13,6 @@ import torch
 import warp as wp
 from isaaclab_newton.actuators import get_bam_group
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg
-from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
-from newton import ModelBuilder
-from newton.solvers import SolverMuJoCo
 from newton_test_utils import local_usd, spawn_assets
 
 import isaaclab.sim as sim_utils
@@ -150,7 +147,8 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, INITIAL_ANGLE))
     robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(robot.data.joint_vel.torch))
     robot.actuators.reset()
-    with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory.npz")) as golden:
+    # Version 2 starts without external load: the solver has not exported one before the first step.
+    with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory_v2.npz")) as golden:
         assert native_sim.get_physics_dt() == float(golden["dt"])
         traces = {name: [] for name in ("position", "velocity", "effort", "friction_budget")}
         for index in range(0, len(golden["target"]), decimation):
@@ -271,14 +269,3 @@ def test_unsupported_setups_fail_at_startup(device, pendulum_usd, solver_cfg, us
         cfgs = {f"Robot{index}": _make_cfg(**kwargs) for index, kwargs in enumerate(overrides)}
         with pytest.raises(ValueError, match=error):
             _spawn_pendulums(sim, pendulum_usd, cfgs)
-
-
-def test_bridge_rejects_cpu_mujoco():
-    """CPU MuJoCo builds the MuJoCo Warp model too, but steps the host model the bridge never reaches."""
-    builder = ModelBuilder()
-    body = builder.add_link(mass=1.0)
-    builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1)
-    builder.add_articulation([builder.add_joint_revolute(-1, body, axis=(0.0, 0.0, 1.0))])
-    solver = SolverMuJoCo(builder.finalize(device="cpu"), use_mujoco_cpu=True)
-    assert solver.mjw_model is not None
-    assert not MjWarpActuatorBridge.is_available(solver)

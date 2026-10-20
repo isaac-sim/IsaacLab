@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from newton import Model
+from newton import Model, ModelFlags
 from newton.actuators import DriveBAM, InputProcessorBacklash, InputProcessorRandomDelay
 
 from isaaclab.actuators import ActuatorCollection
@@ -29,7 +29,6 @@ from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuat
 
 from isaaclab_newton.actuators.bam import BamFriction, BamGroup
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
 
 if TYPE_CHECKING:
     from .articulation import Articulation
@@ -142,7 +141,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             if adapter is None:
                 raise RuntimeError(f"BAM groups {sorted(self._bam_cfgs)} have no Newton actuators.")
             self._create_bam_groups(collection, adapter)
-            # The MJWarp binding needs the solver, which does not exist yet.
+            # The friction needs the solver's load observables, and the solver does not exist yet.
             self._articulation._backend_manager.register_solver_init_callback(self._bind_bam_friction)
 
         if adapter is None:
@@ -298,36 +297,43 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         return samples[0], samples[1]
 
     def _bind_bam_friction(self) -> None:
-        """Bind each BAM group's friction to the MJWarp solver.
+        """Feed each BAM group's friction budget from the solver's load observables.
 
-        Each step, the pre-actuator hook gathers the previous solve's external load and computes the friction
-        budget, and the post-actuator hook publishes the budget and records the applied effort before the
-        substeps.
+        Each step, the pre-actuator hook computes the budget from the previous solve's loads and publishes it as the
+        servos' joint friction, and the post-actuator hook records the applied effort for the next budget.
 
         Raises:
-            ValueError: If the active solver is not MJWarp or runs CPU MuJoCo (``use_mujoco_cpu=True``).
+            ValueError: If the active solver does not export its bias, constraint and friction-loss forces.
         """
         solver = self._articulation._backend_manager._solver
-        if not MjWarpActuatorBridge.is_available(solver):
+        kinds = {"qfrc_bias", "qfrc_constraint", "qfrc_frictionloss"}
+        if not kinds <= solver.supported_observables:
             raise ValueError(
-                "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
+                "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg), which exports joint loads."
             )
+        self._articulation._backend_manager.request_solver_observables(kinds)
         model = self._articulation._backend_manager.backend.model
-        for name, group in self.bam_groups.items():
-            friction = group.friction
-            bridge = MjWarpActuatorBridge(solver, model, friction.dof_indices, self.device)
+        for group in self.bam_groups.values():
 
-            def update_budget(bridge: MjWarpActuatorBridge = bridge, friction: BamFriction = friction) -> None:
-                bridge.gather_external_torque(friction.external_torque)
-                friction.compute_budget(self._articulation._backend_manager.backend.state_0.joint_qd)
+            def update_budget(friction: BamFriction = group.friction) -> None:
+                loads = self._articulation._backend_manager._solver_observables
+                friction.compute_budget(
+                    self._articulation._backend_manager.backend.state_0.joint_qd,
+                    loads.qfrc_bias,
+                    loads.qfrc_constraint,
+                    loads.qfrc_frictionloss,
+                    model.joint_friction,
+                )
 
-            def publish_budget(bridge: MjWarpActuatorBridge = bridge, friction: BamFriction = friction) -> None:
-                bridge.publish_dof_friction(friction.friction_budget)
+            def record_effort(friction: BamFriction = group.friction) -> None:
                 # The adapter zeroes the actuated DOFs of joint_f before the actuators add their clamped effort.
                 friction.record_applied_effort(self._articulation._backend_manager.backend.control.joint_f)
 
             self._articulation._backend_manager.register_pre_actuator_callback(update_budget)
-            self._articulation._backend_manager.register_post_actuator_callback(publish_budget)
+            self._articulation._backend_manager.register_post_actuator_callback(record_effort)
+        self._articulation._backend_manager.register_pre_actuator_callback(
+            lambda: solver.notify_model_changed(ModelFlags.JOINT_DOF_FORCE_PROPERTIES)
+        )
 
     def _joint_dof_offset(self) -> int:
         """Return the first selected joint DOF's model offset within an environment."""

@@ -14,7 +14,9 @@ import warp as wp
 def bam_friction_budget_kernel(
     joint_qd: wp.array[float],
     dof_indices: wp.array[wp.uint32],
-    external_torque: wp.array[float],
+    qfrc_bias: wp.array[float],
+    qfrc_constraint: wp.array[float],
+    qfrc_frictionloss: wp.array[float],
     prev_applied_torque: wp.array[float],
     friction_scale: wp.array[float],
     friction_base: wp.array[float],
@@ -30,12 +32,20 @@ def bam_friction_budget_kernel(
     stribeck: int,
     load_dependent: int,
     quadratic: int,
+    external_torque: wp.array[float],
     friction_budget: wp.array[float],
+    joint_friction: wp.array[float],
 ):
-    """Compute the velocity-independent gearbox friction budget from the servo velocity and transmitted loads."""
+    """Compute the velocity-independent gearbox friction budget from the servo velocity and transmitted loads.
+
+    The external load is the previous solve's bias and constraint forces without the servo's own friction loss,
+    which would otherwise feed the load-dependent terms back on themselves.
+    """
     i = wp.tid()
-    joint_vel = joint_qd[dof_indices[i]]
-    ext_tau = external_torque[i]
+    dof = dof_indices[i]
+    joint_vel = joint_qd[dof]
+    ext_tau = -qfrc_bias[dof] + qfrc_constraint[dof] - qfrc_frictionloss[dof]
+    external_torque[i] = ext_tau
 
     stribeck_coeff = float(0.0)
     if stribeck != 0:
@@ -63,6 +73,7 @@ def bam_friction_budget_kernel(
     budget *= friction_scale[i]
 
     friction_budget[i] = budget
+    joint_friction[dof] = budget
 
 
 @wp.kernel
