@@ -16,7 +16,6 @@ from typing import Any
 import numpy as np
 
 from .. import sim as sim_utils
-from ..assets import RigidObjectCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sensors.sensor_base_cfg import SensorBaseCfg
 from ..utils.string import string_to_callable
@@ -269,11 +268,6 @@ def _prepare_cloning(
         if spawn is None:
             continue
         paths = [source_paths[index] for index in indices]
-        if isinstance(cfg, RigidObjectCfg) and len(indices) > 1 and sim.backend_manager._supports_mesh_variants:
-            # Retain unused Newton resources without authoring extra live bodies in USD-based engines.
-            paths = [
-                path or f"/World/IsaacLabPrototypes/asset_{index}" for index, path in zip(indices, paths, strict=True)
-            ]
         if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
             spawn.spawn_path, spawn.spawn_paths = None, paths
             for index, path in zip(indices, paths, strict=True):

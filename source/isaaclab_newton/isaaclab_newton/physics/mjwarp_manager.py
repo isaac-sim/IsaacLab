@@ -31,7 +31,6 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     _builder_attribute_solvers = (SolverMuJoCo,)
-    _supports_mesh_variants = True
 
     @classmethod
     def _create_solver(
