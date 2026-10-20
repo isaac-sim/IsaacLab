@@ -37,9 +37,11 @@ failures and poor tracking lower it.
 Distributed training
 --------------------
 
-With 4,096 environments per GPU, add ``presets=multi_gpu`` alongside any robot preset. The preset
-defaults ``env.ngpus`` to GPUs per node (``LOCAL_WORLD_SIZE``) and ``env.nnodes`` to the node count
-(``GROUP_WORLD_SIZE``), as set by torchrun. Their product gives the total rank count (``WORLD_SIZE``).
+Isaac Lab's native launcher supports distributed training without a task preset. With 4,096
+environments per GPU, add the optional ``presets=multi_gpu`` alongside any robot preset to preserve
+the single-GPU sample budget. It scales the training budget and fixed-step curricula using
+``WORLD_SIZE``, the total rank count set by the distributed launcher. Every rank uses the same count,
+including when nodes have different numbers of workers. Without ``WORLD_SIZE``, the count defaults to one.
 
 .. code-block:: bash
 
@@ -54,14 +56,14 @@ defaults ``env.ngpus`` to GPUs per node (``LOCAL_WORLD_SIZE``) and ``env.nnodes`
 To override recipe scaling through Hydra, pass both ``env.ngpus`` (GPUs per node) and
 ``env.nnodes``. For example, ``env.ngpus=8 env.nnodes=2`` and
 ``env.ngpus=4 env.nnodes=4`` both scale the recipe for 16 GPUs. These fields change the training
-budget and schedules; they do not change the number of launched workers. Overriding one field retains
-the detected value of the other. Without distributed environment variables, both default to one;
-``WORLD_SIZE`` alone is treated as a single-node GPU count.
+budget and schedules; they do not change the number of launched workers. Both fields default to
+``None``, which selects ``WORLD_SIZE``. Supplying only one raises an error instead of combining an
+override with a rank's local topology.
 
-For a scaling count N = ``env.ngpus * env.nnodes``, the preset selects 50,000 / N iterations and
-saves every 250 / N iterations, rounding both up. Eight GPUs use 6,250 iterations and save every 32
-iterations; 16 GPUs use 3,125
-iterations and save every 16 iterations. All six fixed-step curricula divide their boundaries by N,
+For a scaling count N (``WORLD_SIZE``, or the explicit ``env.ngpus * env.nnodes``), the preset selects
+50,000 / N iterations and saves every 250 / N iterations, rounding both up. Eight GPUs use 6,250
+iterations and save every 32 iterations; 16 GPUs use 3,125 iterations and save every 16 iterations.
+All six fixed-step curricula divide their boundaries by N,
 rounding up to a whole step. These values are computed after Hydra applies overrides, so an explicit
 ``agent.max_iterations``, ``agent.save_interval``, or curriculum-stage override still takes precedence.
 

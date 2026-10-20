@@ -6,6 +6,7 @@
 """Flat walking recipe ported from pollen-robotics/microduck_rl and the original Lab task."""
 
 import math
+import os
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from omegaconf import OmegaConf
@@ -59,8 +60,12 @@ MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
 MICRODUCK_STEPS_PER_ITERATION = 24
 
 
-def _scale_multi_gpu(steps: int, ngpus: int, nnodes: int) -> int:
-    """Scale a sample-count milestone by GPUs per node times the node count."""
+def _scale_multi_gpu(steps: int, ngpus: int | None, nnodes: int | None) -> int:
+    """Scale a sample milestone by total ranks, or an explicit paired GPU/node override."""
+    if ngpus is None and nnodes is None:
+        ngpus, nnodes = int(os.environ.get("WORLD_SIZE", "1")), 1
+    elif ngpus is None or nnodes is None:
+        raise ValueError("Set env.ngpus and env.nnodes together, or leave both unset to use WORLD_SIZE.")
     for name, count in (("ngpus", ngpus), ("nnodes", nnodes)):
         if not isinstance(count, int) or isinstance(count, bool) or count < 1:
             raise ValueError(f"{name} must be a positive integer.")
@@ -452,11 +457,11 @@ class CurriculumCfg:
 class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
     """MicroDuck flat velocity walking with Newton MJWarp and BAM servos."""
 
-    ngpus: int = preset(default=1, multi_gpu="${oc.decode:${oc.env:LOCAL_WORLD_SIZE,${oc.env:WORLD_SIZE,1}}}")
-    """GPUs per node for recipe scaling; defaults to torchrun's local worker count with ``multi_gpu``."""
+    ngpus: int | None = None
+    """Optional GPUs per node for recipe scaling. Set together with :attr:`nnodes` to override ``WORLD_SIZE``."""
 
-    nnodes: int = preset(default=1, multi_gpu="${oc.decode:${oc.env:GROUP_WORLD_SIZE,1}}")
-    """Nodes for recipe scaling; defaults to torchrun's worker-group count with ``multi_gpu``."""
+    nnodes: int | None = None
+    """Optional node count for recipe scaling. Set together with :attr:`ngpus` to override ``WORLD_SIZE``."""
 
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(
