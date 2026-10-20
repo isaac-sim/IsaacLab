@@ -1,7 +1,7 @@
 Contribution Guidelines
 =======================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-following-coding-style``,
    ``isaaclab-preparing-pr-workflow``, and ``isaaclab-writing-changelog-fragments`` agent skills
@@ -11,25 +11,13 @@ Contribution Guidelines
    When shared guidance changes, update affected skill workflows and examples without copying the rules. See
    :doc:`/source/developer-tools/agent_skills`.
 
-We wholeheartedly welcome contributions to the project to make the framework more mature
-and useful for everyone. These may happen in forms of:
+Contributions can include bug fixes, features, documentation, and tutorials.
 
-* Bug reports: Please report any bugs you find in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
-* Feature requests: Please suggest new features you would like to see in the `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__.
-* Code contributions: Please submit a `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
-
-  * Bug fixes
-  * New features
-  * Documentation improvements
-  * Tutorials and tutorial improvements
-
-We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
-asking questions, conversations and requests for new features.
-
-Please use the
-`issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
-with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
-
+* Report reproducible bugs in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
+* Use `Discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__ for questions,
+  ideas, and feature proposals.
+* Submit code and documentation changes through a
+  `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
 
 Contributing Code
 -----------------
@@ -50,7 +38,7 @@ follow the following steps to contribute code:
 3. Create a new branch for your changes.
 4. Make your changes and commit them.
 5. Push your changes to your fork.
-6. Submit a pull request to the `develop branch <https://github.com/isaac-sim/IsaacLab/compare/develop...>`__.
+6. Submit a pull request to the `main branch <https://github.com/isaac-sim/IsaacLab/compare/main...>`__.
 7. Ensure all the checks on the pull request template are performed.
 
 After sending a pull request, the maintainers will review your code and provide feedback.
@@ -60,9 +48,8 @@ as described in `Unit Testing`_ and `Tools`_.
 
 .. tip::
 
-   It is important to keep the pull request as small as possible. This makes it easier for the
-   maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
-   Large pull requests are difficult to review and may take a long time to merge.
+   Keep each pull request focused on one change. Submit unrelated changes separately
+   so maintainers can review and test them independently.
 
 
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
@@ -128,7 +115,7 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 for maintaining the documentation.
 
 API ``[source]`` links open the implementation on GitHub, using the published documentation's
-branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+branch or tag (``main`` for a current-checkout build by default). We do not generate local
 Python source pages; viewing the implementation requires internet access.
 
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
@@ -299,12 +286,12 @@ Validate against the PR's base without creating temporary remote-tracking refs:
 
 .. code-block:: bash
 
-   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+   uv run python tools/changelog/cli.py check upstream/main --include-worktree
 
 The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
-``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
-select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
-set, otherwise ``develop``. Fetch the intended base before validation.
+``main`` continues to prefer ``origin/main`` when it exists; use ``refs/heads/main`` to select a
+local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when set,
+otherwise ``main``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -385,13 +372,17 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   announced removal release instead of maintaining unused extension points.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
+  Customize existing preset alternatives with configured instances; do not introduce a preset
+  subclass just to change a backend's settings. Preset declarations and selection belong in
+  ``isaaclab_tasks`` and scripts. Complete selection before runtime launch; core simulation and backend
+  packages must not import, declare, or resolve presets.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
   not import renderer implementations or manipulate their attachment state.
   Author camera and ISP settings during camera construction, before scene cloning or native import.
   Renderer initialization consumes the prepared configuration; do not add feature-specific scene-authoring
   hooks to ``BaseRenderer``.
-  See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
+  See :doc:`/source/concepts/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
   clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.

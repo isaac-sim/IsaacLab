@@ -125,7 +125,7 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        self.physics_backend = self.sim.physics_manager.__name__.lower()
+        self.physics_backend = self.sim.backend_manager.backend_name
         self._physics_scene_path = None
         clone_cfg = self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
         # the template is authoritative; the regex form is the same namespace spelled for matching
@@ -146,7 +146,7 @@ class InteractiveScene:
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
             # Direct tasks may use regex spawners before declaring their clone plan.
-            self.stage.DefinePrim(self.env_prim_paths[0])
+            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
         self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
 

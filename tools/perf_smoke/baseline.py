@@ -127,8 +127,6 @@ class Evidence:
     samples: dict[str, list[dict[str, Any]]]
     statuses: dict[str, str]
     issues: list[str]
-    measurement_start: str | None
-    measurement_end: str | None
     files: dict[str, bytes] = field(repr=False)
 
 
@@ -208,15 +206,6 @@ def artifact_json(files: dict[str, bytes], name: str) -> dict:
     return _object(files[name], f"Artifact {name}")
 
 
-def _github_links(identity: dict) -> dict[str, str]:
-    repository, run_id, attempt = identity["repository"], identity["run_id"], identity["run_attempt"]
-    return {
-        "run_url": f"https://github.com/{repository}/actions/runs/{run_id}/attempts/{attempt}",
-        "commit_url": f"https://github.com/{repository}/commit/{identity['source_commit']}",
-        "artifact_url": f"https://github.com/{repository}/actions/runs/{run_id}/artifacts/{identity['artifact_id']}",
-    }
-
-
 def read_evidence(
     client: GitHubClient,
     run: dict,
@@ -248,7 +237,6 @@ def read_evidence(
     try:
         digest, files = contents if contents is not None else download_artifact(client, artifact, comparison_dir)
     except EvidenceError as exc:
-        identity.update(_github_links(identity))
         raise EvidenceError(exc.code, str(exc), identity) from None
     context = artifact_json(files, "build-context.json") if "build-context.json" in files else {}
     execution = context.get("execution", {})
@@ -263,10 +251,6 @@ def read_evidence(
     samples: dict[str, list[dict]] = {}
     statuses = {}
     issues = []
-    starts = []
-    ends = []
-    missing_start = False
-    missing_end = False
     for path, content in sorted(files.items()):
         parts = path.split("/")
         if len(parts) == 2 and parts[1] == "status":
@@ -283,47 +267,12 @@ def read_evidence(
                     raise EvidenceError("corrupt", "Runtime bundle run/runtime is not an object")
             except EvidenceError as exc:
                 issues.append(f"{path}: {exc}")
-                missing_start = missing_end = True
                 continue
             samples[parts[0]].append({"path": path, "bundle": bundle})
-            start = parse_timestamp(bundle["run"].get("start_time_utc"))
-            end = parse_timestamp(bundle["run"].get("end_time_utc"))
-            if start and end and end < start:
-                issues.append(f"{path}: runtime ends before it starts")
-                start = end = None
-            if start:
-                starts.append(start)
-            else:
-                missing_start = True
-                issues.append(f"{path}: runtime has no valid start timestamp")
-            if end:
-                ends.append(end)
-            else:
-                missing_end = True
-                issues.append(f"{path}: runtime has no valid end timestamp")
             if bundle["run"].get("status") == "completed" and runtime_fps(bundle) is None:
                 issues.append(f"{path}: completed runtime has no finite nonnegative FPS value")
     if not context:
         issues.append("Build context and FPS formula provenance are unavailable in this artifact")
-    capture_time = parse_timestamp(execution.get("measurement_not_before"))
-    cutoff = min(starts) if starts and not missing_start else capture_time
-    if cutoff and (missing_start or not starts):
-        if starts and cutoff > min(starts):
-            cutoff = None
-            issues.append("Provenance capture time is later than a sample start; candidate cutoff is unknown")
-        else:
-            issues.append("Candidate cutoff uses the provenance capture time because sample start times are incomplete")
-    completed = max(ends) if ends and not missing_end else None
-    if missing_end:
-        jobs = [job for job in client.jobs(run_id, attempt) if job.get("name") == "performance-smoke-benchmarks"]
-        job_ends = [parse_timestamp(job.get("completed_at")) for job in jobs]
-        if job_ends and all(end is not None for end in job_ends):
-            bound = max(job_ends)
-            if not ends or bound >= max(ends):
-                completed = bound
-                issues.append(
-                    "Measurement end uses the GitHub benchmark-job completion bound because sample times are incomplete"
-                )
     identity.update(
         artifact_id=artifact["id"],
         sha256=digest,
@@ -333,17 +282,7 @@ def read_evidence(
         source_provenance="artifact_context" if source.get("commit") else "github_run_metadata",
         workflow_id=run.get("workflow_id"),
     )
-    identity.update(_github_links(identity))
-    return Evidence(
-        identity,
-        context,
-        samples,
-        statuses,
-        issues,
-        cutoff.isoformat() if cutoff else None,
-        completed.isoformat() if completed else None,
-        files,
-    )
+    return Evidence(identity, context, samples, statuses, issues, files)
 
 
 def resolve_candidate_artifact(client: GitHubClient, run_id: int, report_attempt: int) -> tuple[dict, dict, int]:

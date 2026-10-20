@@ -3,6 +3,39 @@ Changelog
 
 .. towncrier release notes start
 
+10.0.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :class:`~isaaclab_newton.physics.NewtonManager` and its solver managers are used as instances
+  (``sim.backend_manager``); call runtime methods on the instance, for example ``sim.backend_manager.get_model()``
+  instead of ``NewtonManager.get_model()``. Subclasses override runtime hooks as instance methods. Newton asset and
+  sensor data classes take the manager as a keyword-only ``backend_manager`` argument. Solver construction hooks
+  (``_create_solver``, ``_filter_solver_kwargs``) take the determinism mode as an argument instead of reading manager
+  state.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing Newton asset data classes without ``backend_manager``; the active simulation's manager
+  is used with a :class:`DeprecationWarning`.
+
+
+9.4.1 (2026-10-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed duplicated PPISP configuration discovery from renderer initialization. Cameras now resolved
+  ``isp_cfg`` during construction, before scene import; renderer initialization continued to create the
+  image-processing pipeline from the prepared configuration.
+* Consolidated lens-distortion checks into render-data creation and read segmentation labels directly
+  from the simulation-owned stage.
+
+
 9.4.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 

@@ -107,6 +107,10 @@ def command_build_docs(multi_version: bool = False) -> None:
         if not (out_dir / default_ref / "index.html").is_file():
             print_error(f"Default docs ref '{default_ref}' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF.")
             raise SystemExit(1)
+        run_command(
+            cmd + ["python", str(ISAACLAB_ROOT / "tools" / "docs" / "pin_historical_versions.py"), str(out_dir)],
+            cwd=docs_dir,
+        )
         template = (docs_dir / "_redirect" / "index.html").read_text(encoding="utf-8")
         (out_dir / "index.html").write_text(template.replace("__DOCS_DEFAULT_REF__", default_ref), encoding="utf-8")
     else:

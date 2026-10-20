@@ -30,10 +30,11 @@ def test_performance_workflow(tmp_path, subtests):
     jobs = workflow["jobs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")
     removed_label = [labeled("maintainer"), {"event": "unlabeled"}]
-    paginated = [[{"event": "commented"}], [labeled("isaaclab-bot[bot]")]]
+    paginated = [[{"event": "commented"}], [{"event": "labeled", "actor": None}, labeled("isaaclab-bot[bot]")]]
+    ignored = [[labeled("github-actions[bot]"), {"event": "commented", "actor": {"login": "human"}}]]
     cases = [
         ("push", "push", "", "", [], True, True, False),
-        ("actions bot", "pull_request", "synchronize", "", [[labeled("github-actions[bot]")]], False, False, True),
+        ("actions bot", "pull_request", "synchronize", "", ignored, False, False, True),
         ("removed human label", "pull_request", "synchronize", "", [removed_label], False, True, True),
         ("paginated bot label", "pull_request", "synchronize", "", paginated, False, True, True),
         ("API error", "pull_request", "synchronize", "", [], True, False, True),
@@ -95,6 +96,22 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
     scripts.mkdir(parents=True)
     (scripts / "run_benchmarks.sh").write_bytes(
         (WORKFLOW.parents[2] / "tools/perf_smoke/run_benchmarks.sh").read_bytes()
+    )
+    launcher = scripts / "source_revision.py"
+    launcher.write_bytes((WORKFLOW.parents[2] / "tools/perf_smoke/source_revision.py").read_bytes())
+    source = tmp_path / "source/isaaclab/isaaclab/__init__.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("")
+    for arguments in (
+        ["init", "--quiet"],
+        ["add", "source"],
+        ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "Fixture"],
+    ):
+        subprocess.run(["git", "-C", str(tmp_path), *arguments], check=True, capture_output=True)
+    output = tmp_path / "benchmark-output"
+    output.mkdir()
+    (output / "source-manifest.json").write_text(
+        json.dumps(runpy.run_path(str(launcher))["prepare_manifest"](tmp_path))
     )
     (tmp_path / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n")
     executables = tmp_path / "bin"

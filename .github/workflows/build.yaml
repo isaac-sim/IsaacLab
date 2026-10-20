@@ -488,6 +488,9 @@ jobs:
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
 
+  # Share runner/image startup across the short package suites. Keep per-file
+  # process isolation and the same four-slot budget within each combined job.
+  # RL stays separate because it installs extra dependencies the other suites do not need.
   test-isaaclab-rl:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
@@ -511,77 +514,6 @@ jobs:
         warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-rl-test
-
-  test-isaaclab-mimic:
-    name: isaaclab_mimic
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_mimic"
-        warp-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-mimic-test
-
-  test-isaaclab-contrib:
-    name: isaaclab_contrib
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_contrib"
-        warp-cache: restore
-        ovrtx-shader-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-contrib-test
-
-  test-isaaclab-teleop:
-    name: isaaclab_teleop
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_teleop"
-        warp-cache: restore
-        ovrtx-shader-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
     name: isaaclab_visualizers
@@ -625,33 +557,57 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_assets"
+        filter-pattern: "isaaclab_assets,isaaclab_contrib,isaaclab_teleop,isaaclab_mimic,isaaclab_experimental"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-assets-test
 
+  # Preserve the required package check names without provisioning GPU runners.
+  # A failed or cancelled combined suite must fail each dependent check too.
+  test-isaaclab-mimic:
+    name: isaaclab_mimic
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
+
   test-isaaclab-experimental:
     name: isaaclab_experimental
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
     steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_experimental"
-        warp-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-experimental-test
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
+
+  test-isaaclab-contrib:
+    name: isaaclab_contrib
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
+
+  test-isaaclab-teleop:
+    name: isaaclab_teleop
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
 
   test-isaaclab-newton:
     name: isaaclab_newton
@@ -710,7 +666,7 @@ jobs:
       github.event_name != 'push' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -885,7 +841,7 @@ jobs:
     needs: [build, config]
     if: needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -931,7 +887,7 @@ jobs:
       github.event_name != 'pull_request' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -975,9 +931,10 @@ jobs:
     env:
       PERF_BASE_COMMIT: ${{ needs.config.outputs.paired_base_commit }}
       PERF_PAIR_ERROR: ${{ needs.config.outputs.paired_base_error }}
-    # develop pushes refresh the rolling-history baseline used by the gate.
+    # Pull requests and manual dispatches run in gate mode. A push runs only on the
+    # repository default branch, where it also records a baseline; release pushes skip this job.
     if: >-
-      (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
+      (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -1185,11 +1142,11 @@ jobs:
         BENCHMARK_ROLE=CURRENT exec bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
 
     - name: Restore the JIT archive path
-      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
       run: mv "$PERF_CONTROLLER/jit-cache" "$GITHUB_WORKSPACE/jit-cache"
 
     - name: Save warm JIT cache
-      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
       uses: actions/cache/save@v4
       with:
         path: ${{ github.workspace }}/jit-cache
@@ -1242,8 +1199,12 @@ jobs:
             | tee -a "$gate_report"
         done < "$PERF_CONTROLLER/benchmark-legs.tsv"
 
+    # Only the default branch records baselines, so the gate always compares a pull request
+    # against the branch it will merge into rather than against a stale snapshot.
+    # Writes are create-only under a name derived from the commit and run id. Each
+    # leg is gated on its own status, so one leg's fault does not skip the rest.
     - name: Record baseline
-      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      if: ${{ always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
       timeout-minutes: 30
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
@@ -1419,8 +1380,11 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
     env:
-      # PRs can restore these caches from their base branch; publishing on other branches wastes quota.
-      PUBLISHES_WARP_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+      # Caches are branch-scoped: publishing only helps from a PR base branch
+      # (the on.push.branches list). A dispatch from elsewhere runs as a dry run
+      # instead of burning quota in a scope no PR can read. The default branch
+      # and active release branches are the scopes that can serve future PRs.
+      PUBLISHES_WARP_CACHE: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -1455,7 +1419,7 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
     env:
-      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
       with:

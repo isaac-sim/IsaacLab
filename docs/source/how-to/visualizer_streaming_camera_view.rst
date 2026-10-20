@@ -7,8 +7,7 @@ Streaming a camera view in a visualizer
 
 .. currentmodule:: isaaclab
 
-This guide shows how to show ground-truth camera frames from many environments in one live
-panel of a visualizer. For how the view works and which visualizers support it, see
+Display ground-truth camera frames from many environments in one live visualizer panel. For how the view works and which visualizers support it, see
 :ref:`visualization-streaming-camera-view`.
 
 
@@ -388,7 +387,7 @@ with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, se
 ``cameras=[SceneCameraCfg(...)]``. This puts the camera
 in the clone plan and the normal sensor initialization, update, and teardown lifecycle.
 The full option mapping is in the
-:doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>`.
+:doc:`3.0 migration guide </source/isaaclab/migrating>`.
 
 Closing a visualizer does not affect the camera or other visualizers reading it.
 ``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.

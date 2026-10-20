@@ -1,23 +1,15 @@
 Welcome to the bleeding edge!
 =============================
 
-Isaac Lab is open source because our intention is to grow a community of open collaboration for robotic simulation.
-We believe that robust tools are crucial for the future of robotics.
-
-Sometimes new features may require extensive changes to the internal structure of Isaac Lab.
-Directly integrating such features before they are complete and without feedback from the full community could cause
-serious issues for users caught unaware.
-
-To address this, major and experimental features are developed in the ``isaaclab_contrib`` package and released as
-experimental features. This way, the community can experiment with and contribute to a feature before it is
-fully integrated, reducing the likelihood of being derailed by unexpected errors.
+Experimental features let the community try new capabilities and provide feedback
+before they become part of the core packages. Expect APIs and behavior to change
+as these features develop.
 
 The ``isaaclab_contrib`` Package
 ---------------------------------
 
-The ``source/isaaclab_contrib`` folder is the **community incubator** for Isaac Lab. It provides a collection of
-specialized robot types, actuator models, sensors, controllers, and other components that extend the core framework
-for specific use cases. Contributions here are:
+``source/isaaclab_contrib`` contains community-developed robots, actuators, sensors,
+and controllers for specialized tasks. Contributions here are:
 
 - Actively maintained and supported by the community
 - Developed openly so the broader community can provide feedback before a wider release

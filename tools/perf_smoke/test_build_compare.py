@@ -10,7 +10,7 @@ import json
 from unittest.mock import patch
 
 from . import build_compare, compare
-from .baseline import Evidence, workload_key
+from .baseline import Evidence
 from .build_compare import compare_evidence
 from .report import render_aggregate, render_build_comparison
 from .test_baseline import HEAD, PARENT, FixtureClient, bundle, stamp
@@ -35,8 +35,6 @@ def evidence(samples=None, *, fps=(90, 100, 110), expected=3, formula="measureme
         },
         statuses={leg: "ok" for leg in samples} if statuses is None else statuses,
         issues=[],
-        measurement_start=None,
-        measurement_end=None,
         files={},
     )
 
@@ -92,7 +90,13 @@ def check_comparisons(subtests):
         b = evidence({"leg": [bundle(93), bundle(96), bundle(999)]})
         report = compare_evidence(a, b)
         row = report["rows"][0]
-        assert row["workload_key"] == workload_key(bundle(100))
+        assert json.loads(row["workload_key"]) == {
+            "task": "Task",
+            "physics_backend": "newton_mjwarp",
+            "render_backend": None,
+            "presets": [],
+            "num_envs": 512,
+        }
         assert_fields(row["baseline"], samples=[90, 100, 1100], median=100, min=90, max=1100, expected_count=3)
         assert row["candidate"]["median"] == 96
         assert_fields(row, absolute_change=-4, change_pct=-4, status="compared")
@@ -172,6 +176,7 @@ def check_comparisons(subtests):
             ("seed", "run.seed", 7),
             ("warmup_steps", "runtime.environment_step_timing.warmup_steps", 20),
             ("measured_steps", "runtime.iterations_completed", 100),
+            ("steps_per_iteration", "runtime.steps_per_iteration", 256),
             ("measurement_mode", "runtime.environment_step_timing.measurement_mode", "synchronized"),
             ("measurement_mode", "runtime.environment_step_timing.measurement_mode", None),
         ):
@@ -224,8 +229,6 @@ def check_comparisons(subtests):
                 [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}] * 2,
                 None,
             ),
-            ("unknown", "baseline", None, None, None),
-            ("unknown", "candidate", None, None, None),
             ("unknown", "both", None, None, None),
             ("unknown", "baseline", "cpu_name", None, None),
             ("unknown", "candidate", "cpu_count", None, None),

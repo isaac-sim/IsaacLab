@@ -109,7 +109,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
     def setUp(self):
         self.sim = object.__new__(SimulationContext)
         self.sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-        self.sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+        self.sim.backend_manager = SimpleNamespace(get_device=lambda: "cpu")
         self.sim.stage, self.sim._backend_registry = None, []
         patch = mock.patch.object(SimulationContext, "instance", return_value=self.sim)
         patch.start()
@@ -231,9 +231,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
         assets += tuple(AssetBaseCfg(prim_path=path) for path in shared)
         plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=range(2, len(assets)), env_template="/Scene/copy_{}")
         bindings = {"/PhysicsOwned": [0]}
-        with mock.patch.object(replicate_module.NewtonManager, "_cable_bindings", bindings):
+        with mock.patch.object(self.sim.backend_manager, "_cable_bindings", bindings, create=True):
             builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
-            self.assertIs(replicate_module.NewtonManager._cable_bindings, bindings)
+            self.assertIs(self.sim.backend_manager._cable_bindings, bindings)
         for path in ("/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"):
             self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
         self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
