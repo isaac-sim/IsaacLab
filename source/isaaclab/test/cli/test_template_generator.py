@@ -219,6 +219,8 @@ def test_generation_arguments_require_non_interactive_opt_in(capsys):
 def test_generated_project_matches_canonical_uv_layout(tmp_path):
     """A generated project must use one uv project with a src package and tests."""
     specification = _external_specification(tmp_path)
+    # Wheel builds carry a local label; the requirement must accept patch releases of the public version.
+    specification["isaaclab_version"] = "3.0.0+build7.abc1234"
 
     with mock.patch.object(_GENERATOR, "_setup_git_repo"):
         _GENERATOR.generate(specification)
@@ -231,14 +233,14 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
         "requires": ["uv_build>=0.12.6,<0.13"],
         "build-backend": "uv_build",
     }
-    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]==3.0.0"]
+    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]~=3.0.0"]
     assert project_config["project"]["authors"] == [
         {"name": "Test Author"},
         {"name": "Example Organization"},
     ]
     assert project_config["project"]["entry-points"]["isaaclab.tasks"] == {"test_project": "test_project.tasks"}
     assert project_config["project"]["optional-dependencies"] == {
-        extra: [f"isaaclab[{extra}]==3.0.0"]
+        extra: [f"isaaclab[{extra}]~=3.0.0"]
         for extra in ("all", "isaacsim", "ov", "ovphysx", "ovrtx", "rerun", "viser")
     }
     assert project_config["dependency-groups"]["dev"] == [
@@ -332,6 +334,21 @@ def test_generated_project_uses_active_source_checkout(tmp_path):
     assert list((tmp_path / "installed").glob("isaaclab_dev-*.dist-info"))
 
 
+def test_generation_warns_when_initial_commit_fails(tmp_path, monkeypatch, caplog):
+    """A missing git identity must be reported instead of silently leaving a repository without commits."""
+    git_config = tmp_path / "gitconfig"
+    git_config.write_text("[user]\n\tuseConfigOnly = true\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(git_config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    for variable in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"):
+        monkeypatch.delenv(variable, raising=False)
+
+    _GENERATOR.generate(_external_specification(tmp_path, initial_content="blank"))
+
+    assert "'git commit' failed" in caplog.text
+    assert 'git commit -q -m "Initial commit"' in caplog.text
+
+
 def test_installed_project_discovers_all_distribution_extras(tmp_path):
     """Wheel-generated projects must forward every extra declared in package metadata."""
     specification = _external_specification(tmp_path)
@@ -363,7 +380,7 @@ def test_generated_blank_project_contains_no_example_task(tmp_path):
     compile((project_dir / "tests" / "test_registration.py").read_text(), "test_registration.py", "exec")
     with (project_dir / "pyproject.toml").open("rb") as file:
         project_config = tomllib.load(file)
-    assert project_config["project"]["dependencies"] == ["isaaclab==3.0.0"]
+    assert project_config["project"]["dependencies"] == ["isaaclab~=3.0.0"]
 
 
 def test_source_path_falls_back_to_absolute_path_across_windows_drives(monkeypatch):
