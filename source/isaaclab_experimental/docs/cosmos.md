@@ -312,11 +312,11 @@ runtime). Omit `--warmup`: it compiles one `832 x 480` view and keeps that memor
 or canvas compiles again on its first step.
 
 ```bash
-uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --kv-window 4
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT"
 ```
 
-`--kv-window 4` fits two `640 x 640` environments on a 48 GB GPU that Isaac Sim shares; larger GPUs can keep the
-default window of 30 latent frames, which remembers more of each episode.
+Keep the default history of 30 latent frames for quality. If the environments do not fit beside Isaac Sim, run the
+service on a GPU of its own with `--device cuda:1`.
 
 A camera with a Cosmos chain requests one view per environment when its session opens. The server uses that
 count without a separate view setting. A compiled server compiles again for each new count, and Torch limits how
@@ -346,11 +346,8 @@ For a task without a preset, set `env_cfg.scene.num_envs = 2` and call `apply_co
   runtime. `apply_cosmos` checks this before training; with a preset, a service without them stops the run with an
   error at the first independent reset.
 - With the socket transport, one step's image message carries at most 16 environments.
-- Each environment's history window (`--kv-window`, default 30 latent frames) takes GPU memory. On a 48 GB GPU,
-  one environment fits with the default window. Two `640 x 640` Shadow Hand environments ran with `--kv-window 4`
-  and no `--warmup` while Isaac Sim shared the GPU. Larger GPUs fit more environments.
-- Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
-  step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
+- Each environment's history (30 latent frames) takes GPU memory. On a 48 GB GPU that Isaac Sim shares, one
+  environment fits; for more, give the service its own GPU (`--device cuda:1`) or a larger one.
 
 ### Record several environments
 
