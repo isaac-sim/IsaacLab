@@ -89,15 +89,16 @@ class UsdExporter(BaseUsdExporter):
         model = self.scene.sim.backend_manager.get_model()
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
+        joint_edits, force_position_velocity = self._joint_edits(stage, model)
         edits = [
-            *self._joint_edits(stage, model),
+            *joint_edits,
             *self._body_edits(stage, model),
             *self._shape_edits(stage, model),
             *self._gravity_edits(stage, gravity),
         ]
         settings = {
             "dt": self.scene.sim.get_physics_dt(),
-            "force_position_velocity_actuation": self._force_position_velocity,
+            "force_position_velocity_actuation": force_position_velocity,
             "solver_type": f"{type(solver_cfg).__module__}:{type(solver_cfg).__name__}",
             "solver": solver_cfg.to_dict(),
         }
@@ -173,7 +174,7 @@ class UsdExporter(BaseUsdExporter):
     def _selected(self, worlds) -> np.ndarray:
         return np.flatnonzero(np.isin(worlds.numpy(), (-1, self.env_id)))
 
-    def _joint_edits(self, stage: Usd.Stage, model: newton.Model) -> list[UsdEdit]:
+    def _joint_edits(self, stage: Usd.Stage, model: newton.Model) -> tuple[list[UsdEdit], bool]:
         values = self._arrays(model, DOF_ATTRIBUTES)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
         axes = {int(newton.JointType.REVOLUTE): "angular", int(newton.JointType.PRISMATIC): "linear"}
@@ -202,10 +203,10 @@ class UsdExporter(BaseUsdExporter):
                     edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
         if unsupported:
             logger.warning(f"Joints other than revolute and prismatic are not exported: {unsupported}.")
-        self._force_position_velocity = self._actuation_flag(
+        force_position_velocity = self._actuation_flag(
             values["joint_target_ke"][dofs], values["joint_target_kd"][dofs], modes[dofs]
         )
-        return [edit for edit in edits if edit is not None]
+        return [edit for edit in edits if edit is not None], force_position_velocity
 
     def _body_edits(self, stage: Usd.Stage, model: newton.Model) -> list[UsdEdit]:
         mass, com, inertia = model.body_mass.numpy(), model.body_com.numpy(), model.body_inertia.numpy()
