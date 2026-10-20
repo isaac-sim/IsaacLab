@@ -27,6 +27,7 @@ import logging
 import math
 import os
 import sys
+import tempfile
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
@@ -96,6 +97,7 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
+    _export_stage_to_file,
     build_render_product_as_string,
     create_scene_partition_attributes,
     export_stage_to_string,
@@ -295,6 +297,8 @@ class OVRTXBackend:
         self.paths = None
         with contextlib.ExitStack() as resources:
             if cfg.use_ovstage:
+                # USD can memory-map the crate until the stage closes; register its directory first.
+                self._usd_temp_dir = resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_ovstage_"))
                 self.stage = resources.enter_context(create_ovstage("isaaclab.ovrtx"))
                 self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
             self.renderer = Renderer(native_cfg)
@@ -414,6 +418,7 @@ class OVRTXRenderer(BaseRenderer):
         self._geometry_timestamp = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
+        self._exported_usd_file: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
@@ -472,7 +477,7 @@ class OVRTXRenderer(BaseRenderer):
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
 
-        Adds scene partition attributes and exports the stage to a string held on the renderer until
+        Adds scene partition attributes and exports a prototype scene held on the renderer until
         :meth:`create_render_data` is called.
         """
         if stage is None:
@@ -497,9 +502,15 @@ class OVRTXRenderer(BaseRenderer):
         )
         templates, _ = cloner_path.get_world_prototype_asset_templates(self._clone_plan)
         keep_env_roots = not self._use_ovstage and self._clone_plan.env_template not in templates
-        self._exported_usd_string = export_stage_to_string(
-            stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
-        )
+        if self._use_ovstage:
+            # A backend may serve several cameras: each export needs a distinct USD cache identifier.
+            with tempfile.NamedTemporaryFile(suffix=".usdc", dir=self.backend._usd_temp_dir, delete=False) as file:
+                self._exported_usd_file = file.name
+            _export_stage_to_file(stage, num_envs, source_paths=sources, output_path=self._exported_usd_file)
+        if not self._use_ovstage or self.cfg.temp_usd_dir is not None:
+            self._exported_usd_string = export_stage_to_string(
+                stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
+            )
 
     def _capture_object_scales(self, stage: Any) -> None:
         """Record composed world scales beneath the plan's prototypes and shared roots before export.
@@ -1702,8 +1713,8 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Injecting camera definitions...")
 
-        if self._exported_usd_string is None:
-            raise RuntimeError("Expected an exported USD string from stage")
+        if self._exported_usd_file is None:
+            raise RuntimeError("Expected an exported USD file from stage")
 
         scope = render_data.render_scope_name
         render_product_path = render_data.render_product_path
@@ -1722,13 +1733,14 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Loading USD into OvRTX via ovstage...")
         # Ordinal 0 is the empty/unwritten state in ovstage; the first write must use >= 1.
         self._current_ordinal += 1
-        ovstage.population.open_usd_from_string(
+        ovstage.population.open_usd(
             self.backend.stage,
-            self._exported_usd_string,
+            self._exported_usd_file,
             ordinal=self._current_ordinal,
             domains=ovstage.PopulationDomain.RENDERING,
         )
-        self._exported_usd_string = None  # Free memory
+        self._exported_usd_string = None
+        self._exported_usd_file = None
         reference = ovstage.population.add_usd_reference_from_string(
             self.backend.stage, render_product_string, f"/{scope}"
         )

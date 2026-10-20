@@ -9,8 +9,10 @@ import contextlib
 import ctypes
 import importlib.util
 import sys
+import tempfile
 import types
 from builtins import ExceptionGroup
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -138,6 +140,9 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     shared = OVRTXRenderer(renderer.cfg)
 
     assert shared.backend is renderer.backend
+    if use_ovstage:
+        crate_directory = Path(renderer.backend._usd_temp_dir)
+        assert crate_directory.is_dir()
     assert loaded == [str(dependency)]
     assert len(redirected) == 1
     assert renderer.backend.renderer is not None
@@ -153,8 +158,12 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     shared.close()
     other.close()
     assert not destroyed
+    if use_ovstage:
+        assert crate_directory.is_dir()
     SimulationContext.instance().close_backend(renderer.backend)
     SimulationContext.instance().close_backend(other.backend)
+    if use_ovstage:
+        assert not crate_directory.exists()
     assert len(destroyed) == 2
     assert redirected == destroyed
     assert not SimulationContext.instance()._backend_registry
@@ -318,7 +327,12 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: batches
     )
     renderer._sdp = SceneDataProvider(publication)
-    renderer._exported_usd_string = stage.ExportToString()
+    if use_ovstage:
+        with tempfile.NamedTemporaryFile(suffix=".usdc", dir=renderer.backend._usd_temp_dir, delete=False) as file:
+            renderer._exported_usd_file = file.name
+        stage.Export(renderer._exported_usd_file)
+    else:
+        renderer._exported_usd_string = stage.ExportToString()
     renderer._clone_plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )

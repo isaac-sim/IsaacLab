@@ -22,6 +22,7 @@ Guidelines for modifications:
 * Antoine Richard
 * Antonio Serrano-Muñoz
 * Ben Johnston
+* Blago Taskov
 * Brian McCann
 * Clemens Schwarke
 * David Hoeller

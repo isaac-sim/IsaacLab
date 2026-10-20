@@ -23,7 +23,13 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
+    from pxr import Sdf, Usd, UsdGeom  # noqa: E402
+
+    from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
+    from isaaclab.sensors.camera import CameraCfg  # noqa: E402
+
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
+        _export_stage_to_file,
         build_render_product_as_string,
         build_render_scope_usd,
         create_scene_partition_attributes,
@@ -33,11 +39,6 @@ if not _MISSING_MODULES:
         render_var_prim_names_by_source,
         render_var_prim_paths_by_source,
     )
-
-    from pxr import Sdf, Usd, UsdGeom  # noqa: E402
-
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
-    from isaaclab.sensors.camera import CameraCfg  # noqa: E402
 else:
     Sdf = None
     Usd = None
@@ -519,3 +520,36 @@ def test_create_scene_partition_attributes_all_envs():
         assert env_partition_attr.default == f"env_{env_idx}"
         assert camera_partition_attr is not None
         assert camera_partition_attr.default == f"env_{env_idx}"
+
+
+def test_ovstage_crate_export_preserves_composed_scene_and_input(tmp_path):
+    """The native handoff contains the source scene and session edits without mutating physics USD."""
+    stage = _make_multi_env_stage(4)
+    mesh = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Mesh")
+    mesh.CreatePointsAttr([(0, 0, 0), (1.5, 0, 0), (0, 2, 0)])
+    mesh.CreateFaceVertexCountsAttr([3])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+    mesh.GetPrim().CreateAttribute("texture", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath("/tmp/albedo.exr"))
+    stage.SetStartTimeCode(12)
+    stage.SetEndTimeCode(48)
+    stage.SetEditTarget(stage.GetSessionLayer())
+    mesh.CreateDisplayColorAttr([(0.125, 0.5, 1.0)])
+    root_before = stage.GetRootLayer().ExportToString()
+    session_before = stage.GetSessionLayer().ExportToString()
+    crate = tmp_path / "scene.usdc"
+
+    _export_stage_to_file(stage, 4, ("/World/envs/env_0",), str(crate))
+
+    assert crate.read_bytes()[:8] == b"PXR-USDC"
+    exported = Usd.Stage.Open(str(crate))
+    assert exported.GetStartTimeCode() == 12
+    assert exported.GetEndTimeCode() == 48
+    copied = UsdGeom.Mesh(exported.GetPrimAtPath("/World/envs/env_0/Mesh"))
+    assert list(copied.GetPointsAttr().Get()) == [(0, 0, 0), (1.5, 0, 0), (0, 2, 0)]
+    assert list(copied.GetFaceVertexCountsAttr().Get()) == [3]
+    assert list(copied.GetFaceVertexIndicesAttr().Get()) == [0, 1, 2]
+    assert list(copied.GetDisplayColorAttr().Get()) == [(0.125, 0.5, 1.0)]
+    assert copied.GetPrim().GetAttribute("texture").Get().path == "/tmp/albedo.exr"
+    assert not exported.GetPrimAtPath("/World/envs/env_1")
+    assert stage.GetRootLayer().ExportToString() == root_before
+    assert stage.GetSessionLayer().ExportToString() == session_before

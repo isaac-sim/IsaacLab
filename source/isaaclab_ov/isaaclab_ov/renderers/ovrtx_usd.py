@@ -419,8 +419,22 @@ def export_stage_to_string(
     Returns:
         USDA text of the (possibly trimmed) stage.
     """
+    return _prepare_export_stage(stage, num_envs, source_paths, keep_env_roots).ExportToString()
+
+
+def _export_stage_to_file(stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], output_path: str) -> None:
+    """Flatten the OVStage prototype scene to a crate without serializing geometry as text."""
+    export_stage = _prepare_export_stage(stage, num_envs, source_paths, keep_env_roots=False)
+    if not export_stage.Export(output_path):
+        raise RuntimeError(f"Failed to export OVRTX scene: {output_path}")
+
+
+def _prepare_export_stage(
+    stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool
+) -> Usd.Stage:
+    """Trim an export-only session so the live physics stage retains every environment."""
     if num_envs <= 1:
-        return stage.ExportToString()
+        return stage
 
     export_session = Sdf.Layer.CreateAnonymous()
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
@@ -448,4 +462,4 @@ def export_stage_to_string(
             Sdf.CreatePrimInLayer(export_session, prim_path).active = False
             logger.debug("Deactivated prim: %s", prim_path)
     logger.info("Deactivated %d prims in total", len(prim_paths))
-    return export_stage.ExportToString()
+    return export_stage
