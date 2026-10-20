@@ -14,7 +14,14 @@ The Kitchen Set is not part of the Isaac Lab assets, so its path is left missing
 ``env.scene.kitchen.spawn.usd_path=<path to Kitchen_set.usda>``. Its ``assets`` directory must sit next to it.
 """
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -41,12 +48,12 @@ def spawn_kitchen_set(
     cfg: UsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> Usd.Prim:
     """Spawn the Kitchen Set with its own lights deactivated.
 
     The set ships five lights; cloned into every environment they would multiply with the
-    environment count, so the scene's dome light stays the only light.
+    environment count, so they are deactivated in every copy.
     """
     from pxr import Usd, UsdLux  # noqa: PLC0415
 
@@ -96,73 +103,47 @@ KITCHEN_CAMERA_CFG = CameraCfg(
 )
 
 
-@configclass
-class KitchenCameraCfg(PresetCfg):
-    """Kitchen camera presets, one per data type and resolution."""
+_IMAGE_OBSERVATION_FUNCS = {
+    "rgb": mdp.image_rgb,
+    "depth": mdp.image_depth,
+    "albedo": mdp.image_rgb,
+    "simple_shading_constant_diffuse": mdp.image_rgb,
+    "simple_shading_diffuse_mdl": mdp.image_rgb,
+    "simple_shading_full_mdl": mdp.image_rgb,
+    "semantic_segmentation": mdp.image_segmentation,
+}
+"""Image observation function per camera data type."""
 
-    rgb64 = replace(KITCHEN_CAMERA_CFG, data_types=["rgb"], width=64, height=64)
-    rgb128 = replace(KITCHEN_CAMERA_CFG, data_types=["rgb"], width=128, height=128)
-    rgb256 = replace(KITCHEN_CAMERA_CFG, data_types=["rgb"], width=256, height=256)
-    depth64 = replace(KITCHEN_CAMERA_CFG, data_types=["depth"], width=64, height=64)
-    depth128 = replace(KITCHEN_CAMERA_CFG, data_types=["depth"], width=128, height=128)
-    depth256 = replace(KITCHEN_CAMERA_CFG, data_types=["depth"], width=256, height=256)
-    albedo64 = replace(KITCHEN_CAMERA_CFG, data_types=["albedo"], width=64, height=64)
-    albedo128 = replace(KITCHEN_CAMERA_CFG, data_types=["albedo"], width=128, height=128)
-    albedo256 = replace(KITCHEN_CAMERA_CFG, data_types=["albedo"], width=256, height=256)
-    simple_shading_constant_diffuse64 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=64, height=64
-    )
-    simple_shading_constant_diffuse128 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=128, height=128
-    )
-    simple_shading_constant_diffuse256 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_constant_diffuse"], width=256, height=256
-    )
-    simple_shading_diffuse_mdl64 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=64, height=64
-    )
-    simple_shading_diffuse_mdl128 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=128, height=128
-    )
-    simple_shading_diffuse_mdl256 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_diffuse_mdl"], width=256, height=256
-    )
-    simple_shading_full_mdl64 = replace(KITCHEN_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=64, height=64)
-    simple_shading_full_mdl128 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=128, height=128
-    )
-    simple_shading_full_mdl256 = replace(
-        KITCHEN_CAMERA_CFG, data_types=["simple_shading_full_mdl"], width=256, height=256
-    )
-    semantic_segmentation64 = replace(KITCHEN_CAMERA_CFG, data_types=["semantic_segmentation"], width=64, height=64)
-    semantic_segmentation128 = replace(KITCHEN_CAMERA_CFG, data_types=["semantic_segmentation"], width=128, height=128)
-    semantic_segmentation256 = replace(KITCHEN_CAMERA_CFG, data_types=["semantic_segmentation"], width=256, height=256)
-    default = rgb64
+_IMAGE_RESOLUTIONS = (64, 128, 256)
 
 
-def _image_term_presets(sensor_name: str) -> PresetCfg:
-    """Image observation terms named like the camera presets, so one preset selects both."""
-    terms = {}
-    for name, func, data_type in (
-        ("rgb", mdp.image_rgb, "rgb"),
-        ("albedo", mdp.image_rgb, "albedo"),
-        ("simple_shading_constant_diffuse", mdp.image_rgb, "simple_shading_constant_diffuse"),
-        ("simple_shading_diffuse_mdl", mdp.image_rgb, "simple_shading_diffuse_mdl"),
-        ("simple_shading_full_mdl", mdp.image_rgb, "simple_shading_full_mdl"),
-        ("semantic_segmentation", mdp.image_segmentation, "semantic_segmentation"),
-        ("depth", mdp.image_depth, "depth"),
-    ):
-        for resolution in (64, 128, 256):
-            terms[f"{name}{resolution}"] = ObsTerm(
-                func=func,
-                params={
-                    "sensor_cfg": SceneEntityCfg(sensor_name),
-                    "data_type": data_type,
-                    "normalize": False,
-                    "channel_first": True,
-                },
-            )
-    return preset(default=terms["rgb64"], **terms)
+def _camera_presets(make_option: Callable[[str, int], Any]) -> PresetCfg:
+    """One option per data type and resolution, named like the Kuka-Allegro camera presets (e.g. ``rgb64``).
+
+    The camera and its image observation share these names, so one ``presets=`` name selects both.
+    """
+    options = {
+        f"{data_type}{resolution}": make_option(data_type, resolution)
+        for data_type in _IMAGE_OBSERVATION_FUNCS
+        for resolution in _IMAGE_RESOLUTIONS
+    }
+    return preset(default=options["rgb64"], **options)
+
+
+def _kitchen_camera(data_type: str, resolution: int) -> CameraCfg:
+    return replace(KITCHEN_CAMERA_CFG, data_types=[data_type], width=resolution, height=resolution)
+
+
+def _camera_image_term(data_type: str, resolution: int) -> ObsTerm:
+    return ObsTerm(
+        func=_IMAGE_OBSERVATION_FUNCS[data_type],
+        params={
+            "sensor_cfg": SceneEntityCfg("camera"),
+            "data_type": data_type,
+            "normalize": False,
+            "channel_first": True,
+        },
+    )
 
 
 ##
@@ -175,7 +156,7 @@ class FrankaKitchenSceneCfg(ReachSceneCfg):
     """Reach scene plus a static, visual-only Kitchen Set and one camera per environment."""
 
     kitchen: AssetBaseCfg = KITCHEN_CFG
-    camera: CameraCfg = KitchenCameraCfg()
+    camera: CameraCfg = _camera_presets(_kitchen_camera)
 
 
 @configclass
@@ -189,7 +170,7 @@ class FrankaKitchenObservationsCfg(ObservationsCfg):
     class CameraImageCfg(ObsGroup):
         """Camera observations."""
 
-        image = _image_term_presets("camera")
+        image = _camera_presets(_camera_image_term)
 
     camera_image: CameraImageCfg = CameraImageCfg()
 
