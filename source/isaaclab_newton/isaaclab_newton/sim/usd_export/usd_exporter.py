@@ -25,7 +25,7 @@ from isaaclab.sim.usd_export.base_usd_exporter import (
 )
 from isaaclab.utils.string import string_to_callable
 
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonManager, NewtonSolverCfg
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,11 @@ class UsdExporter(BaseUsdExporter):
         settings = json.loads(stage.GetRootLayer().customLayerData.get(SETTINGS_KEY, "{}"))
         solver_cfg = None
         if "solver_type" in settings:
-            solver_cfg = string_to_callable(settings["solver_type"])()
+            # The file names the class to call; accept only solver configurations.
+            solver_type = string_to_callable(settings["solver_type"])
+            if not (isinstance(solver_type, type) and issubclass(solver_type, NewtonSolverCfg)):
+                raise ValueError(f"'{settings['solver_type']}' in '{path}' is not a Newton solver configuration.")
+            solver_cfg = solver_type()
             solver_cfg.from_dict(settings["solver"])
         force = settings.get("force_position_velocity_actuation", False)
         model = cls.import_model(stage, solver_cfg, device, force)
@@ -267,7 +271,11 @@ class UsdExporter(BaseUsdExporter):
         if solver_cfg is None:
             return NewtonManager
         manager = solver_cfg.class_type
-        return string_to_callable(manager) if isinstance(manager, str) else manager
+        manager = string_to_callable(manager) if isinstance(manager, str) else manager
+        # An exported file sets the class type; accept only Newton managers.
+        if not (isinstance(manager, type) and issubclass(manager, NewtonManager)):
+            raise ValueError(f"'{solver_cfg.class_type}' is not a Newton physics manager.")
+        return manager
 
     @staticmethod
     def _actuation_flag(target_ke, target_kd, modes) -> bool:

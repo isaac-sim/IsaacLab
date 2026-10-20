@@ -5,6 +5,8 @@
 
 """Newton USD export: loading the exported file reproduces the initialized model."""
 
+import json
+
 import newton
 import numpy as np
 import pytest
@@ -169,6 +171,27 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     hinge_dof = model.joint_qd_start.numpy()[model.joint_label.index("/World/envs/env_0/Robot/Hinge")]
     assert model.joint_target_ke.numpy()[hinge_dof] == pytest.approx(83.0, rel=1e-5)
     assert model.joint_target_kd.numpy()[hinge_dof] == pytest.approx(4.5, rel=1e-5)
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"solver_type": "builtins:dict", "solver": {}},
+        {"solver_type": "isaaclab_newton.physics:XPBDSolverCfg", "solver": {"class_type": "builtins:dict"}},
+    ],
+    ids=["solver type", "manager type"],
+)
+def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
+    """A file names the solver classes that loading instantiates; any other class is refused, not called."""
+    from isaaclab_newton.sim.usd_export import UsdExporter
+    from isaaclab_newton.sim.usd_export.usd_exporter import SETTINGS_KEY
+
+    layer = Sdf.Layer.CreateNew(str(tmp_path / "export.usda"))
+    layer.customLayerData = {SETTINGS_KEY: json.dumps(settings)}
+    layer.Save()
+
+    with pytest.raises(ValueError, match="is not a Newton"):
+        UsdExporter.load_usd(layer.realPath)
 
 
 def test_attribute_tables_cover_newton_importer():
