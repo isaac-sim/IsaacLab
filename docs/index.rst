@@ -1,6 +1,11 @@
 Welcome to Isaac Lab!
 =====================
 
+.. important::
+
+   Visit the `AI-friendly Fern documentation <https://docs.nvidia.com/isaaclab>`__ to chat with AI
+   about Isaac Lab or access the documentation in machine-readable, AI-friendly formats.
+
 .. figure:: source/_static/isaaclab.jpg
    :width: 100%
    :alt: H1 Humanoid example using Isaac Lab
