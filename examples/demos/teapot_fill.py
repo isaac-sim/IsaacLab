@@ -34,9 +34,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
@@ -67,7 +71,10 @@ def _unit_interval_float(value: str) -> float:
     return resolved
 
 
-parser = argparse.ArgumentParser(description="Newton implicit MPM teapot-fill demo.")
+parser = argparse.ArgumentParser(
+    description="Newton implicit MPM teapot-fill demo.",
+    epilog="For the Kit visualizer, include --extra isaacsim when launching with uv run.",
+)
 parser.add_argument("--robot", choices=["none", "rizon_sharpa"], default="none", help="Use the fixed physical grasp.")
 parser.add_argument(
     "--max_steps",
@@ -220,30 +227,12 @@ SURFACE_MAX_GRID_CELLS = 4_000_000
 SURFACE_PATH = "/fluid_surface"
 
 
-def create_visualizer_cfgs():
-    """Create demo-specific visualizer configs for requested backends."""
-    requested = args_cli.visualizer or []
-    if not any(name in requested for name in ("newton_gl", "newton_rtx")):
-        return []
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfgs = []
-    for name in requested:
-        if name == "newton_gl":
-            cfgs.append(NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR))
-        elif name == "newton_rtx":
-            cfgs.append(NewtonRTXVisualizerCfg())
-    return cfgs
-
-
 def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
     """Configure teapot-specific surface extraction after Newton initializes."""
-    from isaaclab_newton.physics import NewtonManager
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
     from newton.geometry import ParticleSurface
 
-    model = NewtonManager.get_model()
+    model = sim.backend_manager.get_model()
     surface = ParticleSurface(
         voxel_size=SURFACE_VOXEL_SIZE,
         max_grid_cells=SURFACE_MAX_GRID_CELLS,
@@ -517,7 +506,8 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        default_visualizer_cfg=VisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET),
+        visualizer_cfgs=[NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR)],
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,
@@ -570,7 +560,6 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-    from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
     from isaaclab.sim.utils import clone
     from isaaclab.utils import configclass
@@ -802,13 +791,15 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None, 
 
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
-    if ROBOT_ENABLED:
-        from rizon_sharpa_teapot import configured_asset_path
-
-        configured_asset_path()
     sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
-        if "kit" in (args_cli.visualizer or []):
+    viewer_scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    with launch_simulation({"sim": sim_cfg, "scene": viewer_scene_cfg}, args_cli):
+        if ROBOT_ENABLED:
+            from rizon_sharpa_teapot import configured_asset_path
+
+            configured_asset_path()
+        visualizers = {cfg.visualizer_type for cfg in sim_cfg.visualizer_cfgs}
+        if "kit" in visualizers:
             from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
             from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
@@ -826,7 +817,12 @@ def main() -> None:
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg(container_usd, island_usd, bowl_usd))
+        # Asset inspection requires the running USD runtime; retain launch's declared viewer cameras.
+        scene_cfg = create_scene_cfg(container_usd, island_usd, bowl_usd)
+        vars(scene_cfg).update(
+            {name: cfg for name, cfg in vars(viewer_scene_cfg).items() if isinstance(cfg, CameraCfg)}
+        )
+        scene = InteractiveScene(scene_cfg)
         sim.reset()
         robot_motion = None
         if ROBOT_ENABLED:

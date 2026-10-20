@@ -396,7 +396,7 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-# Platforms Isaac Lab supports (docs/source/setup/installation/index.rst and the
+# Platforms Isaac Lab supports (docs/source/isaaclab/installation.rst and the
 # install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
 # Windows 11 x86_64. Restricting the resolution universe keeps macOS and other
 # unsupported wheels out of uv.lock.

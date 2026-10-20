@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
@@ -142,6 +142,8 @@ class NewtonRTXVisualizerCfg(VisualizerCfg):
 
     class_type: type[NewtonRTXVisualizer] | str = "{DIR}.newton_visualizer:NewtonRTXVisualizer"
     """Visualizer implementation class."""
+
+    launcher_type: ClassVar[str] = "isaaclab_ov.app:OvrtxLauncher"
 
     visualizer_type: str = "newton_rtx"
     """Visualizer selector identifier. Do not change."""

@@ -3,6 +3,78 @@ Changelog
 
 .. towncrier release notes start
 
+40.0.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``scan`` and ``Scan``; runtime selection was shared by ``validate_launch`` and ``launch_simulation``.
+  Read selected physics, renderer, and visualizer configs inside the launch context. Pass the same
+  ``SimulationCfg`` to launch and simulation construction instead of transferring viewer names through settings.
+* Ran concrete ``SimulationCfg.visualizer_cfgs`` as declared when no CLI selection was supplied.
+  Used ``--viz none`` or an empty configuration list to disable viewers.
+* **Breaking:** :class:`~isaaclab.physics.PhysicsManager` runtime methods and state are per instance.
+  :class:`~isaaclab.sim.SimulationContext` constructs the manager selected by ``cfg.physics.class_type`` and owns it
+  as :attr:`~isaaclab.sim.SimulationContext.backend_manager`. Call runtime methods on the instance, for example
+  ``sim.backend_manager.get_physics_sim_view()`` instead of ``PhysxManager.get_physics_sim_view()``; assets and
+  sensors use ``self._backend_manager``. Comparing ``sim.physics_manager`` with a manager class (``is``, ``==``,
+  ``__name__``) no longer works; use :func:`isinstance` or :attr:`~isaaclab.physics.PhysicsManager.backend_name`.
+* **Breaking:** Backend factories select implementations with
+  :attr:`~isaaclab.physics.PhysicsManager.backend_name` instead of the manager class name, and
+  :attr:`~isaaclab.physics.PhysicsManager.views` is keyed by prim path per manager instead of
+  ``(manager class, path)``.
+* **Breaking:** ``InteractiveScene.physics_backend`` is the backend key (``"physx"``,
+  ``"ovphysx"``, ``"newton"``) instead of the lowercased manager class name (for example ``"newtonmjwarpmanager"``).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated class-level access to :class:`~isaaclab.physics.PhysicsManager` runtime methods and state, such as
+  ``PhysxManager.get_physics_sim_view()``. It forwards to the active simulation's manager with a
+  :class:`DeprecationWarning`.
+* Deprecated :attr:`~isaaclab.sim.SimulationContext.physics_manager` in favor of
+  :attr:`~isaaclab.sim.SimulationContext.backend_manager`.
+* Deprecated the ``physics_manager`` argument of :meth:`~isaaclab.physics.PhysicsManager.safe_callback_invoke` in
+  favor of ``backend_manager``.
+* Deprecated passing a manager class or lazy class reference to
+  :func:`~isaaclab.benchmark.stepping.profile_physics_steps`; pass the manager instance.
+
+Fixed
+^^^^^
+
+* Preserved shared renderer references and unchanged named tuples during launch.
+* Applied distributed and runtime-selected devices to the ``SimulationCfg`` found in the config tree,
+  including standalone configs and configs nested in dictionaries or lists, in ``launch_simulation``.
+* Reused each recorded perspective producer across multiple recorders and enabled streaming views requested by video sources.
+
+
+39.0.0 (2026-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* ``randomize_rigid_body_scale`` now rejects multi-environment rigid bodies because their per-environment
+  USD scale edits do not reach replicated physics. Declare size variants with ``MultiAssetSpawnerCfg``.
+* Resolved ``CameraCfg.isp_cfg`` and authored RTX exposure overrides during camera construction, before
+  scene cloning or native import, including cameras with ``spawn=None``. Authored PPISP settings must be
+  present before constructing the sensor. Renderers now consumed the prepared configuration and retained
+  their normal runtime initialization; registry-owned renderers remained available across sensor resets.
+* **Breaking:** Removed the redundant ``BaseRenderer.prepare_cameras`` phase. Custom renderers should perform per-camera
+  runtime setup in ``create_render_data`` and access the authored stage through ``self._sim.stage``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the non-replicated clone path. The ``replicate_physics`` argument remains accepted by
+  scene and clone configurations, ``cloner.replicate``, ``ReplicateSession``, and multi-asset spawners, but
+  now warns and is ignored. Use ``CloneCfg.clone_combinations`` for heterogeneous environments; assets such
+  as PhysX deformables can select a USD clone context when native physics replication is unsupported.
+* Removed the unused ``clone_in_fabric`` scene and multi-asset spawner arguments. PhysX replication continues
+  to use ``useFabricForReplication=False``.
+
+
 38.0.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~~
 

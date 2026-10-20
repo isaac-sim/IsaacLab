@@ -93,7 +93,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None
     sim = sim_utils.SimulationContext.instance()
     if sim.get_clone_plan() is not plan:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
-    physics_context = sim.physics_manager.clone_context_type
+    physics_context = sim.backend_manager.clone_context_type
     render_contexts = {
         string_to_callable(context) if isinstance(context, str) else context
         for context in sim.render_context.clone_contexts

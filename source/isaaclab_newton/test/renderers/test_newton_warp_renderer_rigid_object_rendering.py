@@ -16,7 +16,6 @@ launch_test_simulation(enable_cameras=True)
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 
@@ -42,7 +41,6 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered() -> None:
             name="newton_warp (PhysX)",
             simulation_context_factory=lambda: build_simulation_context(device="cuda:0", gravity_enabled=False),
             renderer_cfg=NewtonWarpRendererCfg(),
-            cleanup=NewtonManager.clear,
         )
     )
 

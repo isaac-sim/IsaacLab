@@ -21,6 +21,7 @@ from isaaclab_physx.physics import PhysxCfg
 wp.config.enable_backward = False
 
 from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -55,8 +56,10 @@ def main() -> None:
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     if args.checkpoint is not None:
         cfg.policy.checkpoint = args.checkpoint
-    if args.visualizer is None:
-        args.visualizer = ["kit" if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else "newton_gl"]
+    if not any(arg.startswith("visualizer=") for arg in overrides):
+        cfg.sim.visualizer_cfgs = [
+            KitVisualizerCfg() if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else NewtonGLVisualizerCfg()
+        ]
     aperture = 20.955 * args.height / args.width
     cfg.sim.default_visualizer_cfg = VisualizerCfg(
         window=WindowCfg(size=(args.width, args.height)),
@@ -80,11 +83,6 @@ def main() -> None:
                 fps=round(1 / step_dt),
             )
         ]
-    cfg.sim.visualizer_cfgs = [
-        KitVisualizerCfg(
-            window=WindowCfg(size=(args.width, args.height)),
-        )
-    ]
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped

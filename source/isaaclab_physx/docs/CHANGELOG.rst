@@ -3,6 +3,46 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Derived Kit viewport and streaming requirements from composed visualizer configs. Honored
+  windowed or headless viewer configuration uniformly, including with XR, and retained
+  ``--viz`` / ``--visualizer`` as preset-selection aliases.
+* **Breaking:** :class:`~isaaclab_physx.physics.PhysxManager` is used as an instance (``sim.backend_manager``). The
+  PhysX asset data classes take the manager as a keyword-only ``backend_manager`` argument.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing PhysX asset data classes without ``backend_manager``; the active simulation's manager is
+  used with a :class:`DeprecationWarning`.
+
+
+8.0.1 (2026-10-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved PPISP discovery and RTX exposure authoring to camera construction, before scene import.
+  Authored PPISP camera attributes must be present before constructing the sensor; renderer initialization
+  continued to create render products and the image-processing pipeline.
+* Removed validation of ``replicate_physics=False`` from visual color and texture randomization events
+  after scene physics replication became unconditional.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor` returning pre-reset contact points and, with Isaac Sim 6.1,
+  pre-reset filtered friction forces and friction history when its data was read after
+  :meth:`~isaaclab.scene.InteractiveScene.reset` and before the next physics step. Like the net forces, these
+  buffers now keep their reset values until the sensor's next update.
+
+
 8.0.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 
