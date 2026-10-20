@@ -21,15 +21,11 @@ uv run --no-sync uv pip install --editable "$ISAAC_LAB_ROOT/source/isaaclab_expe
 uv run --no-sync hf download nvidia/Cosmos3-Nano-Sim-Transfer --local-dir "$COSMOS_CHECKPOINT"
 
 export LD_LIBRARY_PATH=
-uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --kv-window 4
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT"
 ```
 
 The `uv sync`, `uv pip install`, and `hf download` commands are one-time setup. Wait for `Cosmos ready at ...`.
-
-`--kv-window 4` shortens the history the model attends to so that two environments fit when Isaac Sim and Cosmos share
-one GPU: on a 48 GB GPU slice, two environments peaked at about 43 GB. If Cosmos has a GPU of its own, you can start
-it with `--device cuda:1` and without `--kv-window` to keep the default history of 30; whether two environments fit
-then depends on that GPU's memory.
+If two environments do not fit beside Isaac Sim, run the service on a GPU of its own with `--device cuda:1`.
 
 ## 2. Train with Cosmos on the camera
 
