@@ -43,7 +43,7 @@ if not _MISSING_MODULES:
     )
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _resolve_env_light_partitions  # noqa: E402
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade  # noqa: E402
 else:
@@ -268,9 +268,8 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is dump_enabled
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True], ids=["native", "ovstage"])
-def test_prepare_stage_assigns_environment_lights_to_source_and_clone_partitions(caplog, use_ovstage):
-    """Environment lights receive selectors without requiring every clone source in USD."""
+def test_resolve_env_light_partitions_maps_clones_and_skips_unsupported_sources(caplog):
+    """Resolve clone destinations while leaving shared, instanced, and missing sources alone."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
     UsdGeom.Xform.Define(stage, "/World/envs")
@@ -285,55 +284,18 @@ def test_prepare_stage_assigns_environment_lights_to_source_and_clone_partitions
     fixture.SetInstanceable(True)
     assert stage.GetPrimAtPath("/World/envs/env_0/Fixture/Light").IsInstanceProxy()
 
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = use_ovstage
-    plan = make_clone_plan(
-        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
-        ((0,),),
-        3,
-        positions=np.zeros((3, 3), dtype=np.float32),
+    env_paths = [f"/World/envs/env_{env_id}" for env_id in range(3)]
+    actual = _resolve_env_light_partitions(
+        stage,
+        env_paths,
+        copies=(
+            (env_paths[0], env_paths[1:]),
+            ("/Visuals/ContactSensor", ["/Visuals/ContactSensor_1"]),
+        ),
     )
-    _prepare_clones(renderer, plan)
-    renderer.scene.clone_copies.append(("/Visuals/ContactSensor", ["/Visuals/ContactSensor_1"]))
-    writes = []
 
-    if use_ovstage:
-        backend = renderer.backend
-        backend.attached = False
-        backend.detach = Mock()
-        backend.renderer.attach_ovstage = Mock()
-        scene = renderer.scene
-        scene.ordinal = 0
-        scene.paths = SimpleNamespace(intern_token=lambda token: int(token.removeprefix("env_")))
-        scene.resources = contextlib.ExitStack()
-        scene.query = lambda paths: contextlib.nullcontext(tuple(paths))
-
-        def populate(_usd):
-            scene.ordinal = 1
-
-        def write_attribute(query, attribute_name, **kwargs):
-            writes.append((query, attribute_name, kwargs["tensors"].tolist()))
-            return SimpleNamespace(wait=lambda: None)
-
-        scene.populate = populate
-        scene.stage = SimpleNamespace(write_attribute=write_attribute)
-        scene.commit = Mock()
-        renderer._sim.render_context = SimpleNamespace(reset_stage_prepare_flag=Mock())
-    else:
-
-        def write_attribute(prim_paths, attribute_name, values, **_kwargs):
-            writes.append((tuple(prim_paths), attribute_name, list(values)))
-
-        renderer.backend.renderer.write_attribute = write_attribute
-
-    renderer.prepare_stage(stage, 3)
-
-    light_writes = [write for write in writes if write[1] == "omni:scenePartition"]
-    assert len(light_writes) == 1
-    light_paths, _, partition_tokens = light_writes[0]
-    actual = dict(zip(light_paths, partition_tokens, strict=True))
     expected = {
-        f"/World/envs/env_{env_id}/{light_path}": env_id if use_ovstage else f"env_{env_id}"
+        f"/World/envs/env_{env_id}/{light_path}": f"env_{env_id}"
         for light_path in ("Dome", "Robot/Lamp")
         for env_id in range(3)
     }
