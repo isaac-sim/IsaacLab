@@ -270,7 +270,7 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
 
 @pytest.mark.parametrize("use_ovstage", [False, True], ids=["native", "ovstage"])
 def test_prepare_stage_assigns_environment_lights_to_source_and_clone_partitions(caplog, use_ovstage):
-    """Environment lights receive direct selectors while shared and instanced lights do not."""
+    """Environment lights receive selectors without requiring every clone source in USD."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
     UsdGeom.Xform.Define(stage, "/World/envs")
@@ -294,6 +294,7 @@ def test_prepare_stage_assigns_environment_lights_to_source_and_clone_partitions
         positions=np.zeros((3, 3), dtype=np.float32),
     )
     _prepare_clones(renderer, plan)
+    renderer.scene.clone_copies.append(("/Visuals/ContactSensor", ["/Visuals/ContactSensor_1"]))
     writes = []
 
     if use_ovstage:

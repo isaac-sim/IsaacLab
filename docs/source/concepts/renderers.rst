@@ -355,7 +355,10 @@ selected environment.
 This setting does not affect OVRTX, which always partitions multi-environment scenes.
 
 Prims outside the environment hierarchies remain in the shared background partition.
-Lights inside an environment hierarchy illuminate only cameras in that environment.
+Non-instanced lights inside an environment hierarchy receive its matching scene-partition selector.
+Lights inside USD instances do not receive a selector; make their light-containing ancestors
+non-instanceable to partition them. Isaac RTX dome backgrounds may remain shared across tiled
+views even when selectors match, so use analytic lights for independent per-environment illumination.
 Keep a light outside the environment hierarchies to illuminate shared or viewport cameras.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
