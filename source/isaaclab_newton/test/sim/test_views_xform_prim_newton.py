@@ -25,7 +25,6 @@ import warp as wp
 from frame_view_contract_utils import *  # noqa: F401, F403 — import all contract tests
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
 from pxr import Sdf, UsdPhysics
@@ -34,7 +33,7 @@ import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.utils import configclass
 
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
@@ -63,16 +62,18 @@ def _sim_context(device, num_envs=4):
 
 
 def _get_body_positions(num_envs, device="cpu"):
-    model = NewtonManager.get_model()
+    backend_manager = SimulationContext.instance().backend_manager
+    model = backend_manager.get_model()
     body_labels = list(model.body_label)
-    body_q_t = wp.to_torch(NewtonManager.get_state_0().body_q)
+    body_q_t = wp.to_torch(backend_manager.get_state_0().body_q)
     return torch.stack([body_q_t[body_labels.index(f"/World/envs/env_{i}/Cube"), :3] for i in range(num_envs)])
 
 
 def _set_body_positions(positions, num_envs):
-    model = NewtonManager.get_model()
+    backend_manager = SimulationContext.instance().backend_manager
+    model = backend_manager.get_model()
     body_labels = list(model.body_label)
-    body_q_t = wp.to_torch(NewtonManager.get_state_0().body_q)
+    body_q_t = wp.to_torch(backend_manager.get_state_0().body_q)
     for i in range(num_envs):
         body_q_t[body_labels.index(f"/World/envs/env_{i}/Cube"), :3] = positions[i]
 
@@ -135,7 +136,7 @@ def test_non_colliding_shapes_after_finalize(device):
     cloner.replicate(plan)
     sim.reset()
 
-    shape_labels = list(NewtonManager.get_model().shape_label)
+    shape_labels = list(sim.backend_manager.get_model().shape_label)
     assert SITE_PATH in shape_labels
     assert VISUAL_PATH in shape_labels
     FrameView(SITE_PATH, device=device)
@@ -196,7 +197,7 @@ def test_close_before_reset_cancels_deferred_initialization(device):
     # FrameView rejects prim paths that resolve to a Newton physics body or collision shape.
     with pytest.raises(ValueError, match="physics body"):
         FrameView("/World/envs/env_[^/]+/Cube", device=device)
-    shape_labels = list(NewtonManager.get_model().shape_label)
+    shape_labels = list(sim.backend_manager.get_model().shape_label)
     assert shape_labels, "scene must contribute at least one collision shape"
     with pytest.raises(ValueError, match="collision shape"):
         FrameView(shape_labels[0], device=device)

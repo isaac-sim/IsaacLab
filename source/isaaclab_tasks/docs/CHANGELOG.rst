@@ -3,6 +3,130 @@ Changelog
 
 .. towncrier release notes start
 
+28.3.0 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``action_rate_penalty_scale`` to ``Isaac-Shadow-Handover-Direct`` to optionally penalize changes of each
+  hand's actions between steps for smoother motion; it is disabled by default.
+
+Changed
+^^^^^^^
+
+* Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to start each episode with the object in a
+  random hand (``randomize_start_hand``). Set ``randomize_start_hand=False`` for the previous fixed right-to-left
+  start.
+* Changed both handover tasks to start the object at the holding hand's goal point, 3 cm closer to the palm than
+  before, and renamed the Direct ``goal_position_offset`` and the command's ``position_offset`` to
+  ``hold_position_offset`` since it now sets both points.
+
+
+28.2.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``visualizer=NAME[,...]`` alongside physics and renderer selectors. Accepted ``--physics``,
+  ``--renderer``, and ``--visualizer`` (also ``--viz``) as aliases before task composition without
+  forwarding preset names to Kit. Explicit selections took precedence over script defaults;
+  conflicting selections reported an error. Custom visualizers used existing ``PresetCfg`` alternatives.
+* Added ``MultiBackendVisualizerCfg`` in ``isaaclab_tasks.utils.presets`` for configurable viewer alternatives.
+  Completed task selection before passing concrete configs to the runtime launcher.
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to reach the physics manager through ``env.sim.backend_manager``.
+
+Fixed
+^^^^^
+
+* Used the supplied command-line arguments when selecting the task for preset help, including repeated ``--task`` options.
+* Preserved dictionary keys in discovered paths for nested preset alternatives.
+* Preserved multiple configured viewers of one type and kept explicit viewer preset paths ahead of global selectors.
+
+
+28.1.1 (2026-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* PhysX Franka soft and cloth scenes now route deformables through USD cloning within the shared scene
+  clone plan, so each environment has a live deformable without a scene-wide physics replication switch.
+
+
+28.1.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.hydra.is_task_run_launchable` to check one exact preset combination of a task.
+* Added ``IsaacContrib-Velocity-Flat-MicroDuck``, a flat walking task using Newton MJWarp and BAM
+  servos, with the original MicroDuck policy interface and an RSL-RL PPO configuration.
+* Added ``IsaacContrib-Velocity-Rough-MicroDuck`` with gentle terrain, a terrain curriculum,
+  and terrain-relative foot clearance.
+* Added a ``backlash`` preset to the MicroDuck walking tasks for the robot with gearbox play,
+  with output-side encoder observations and head-pose rewards.
+* Added a non-learning Rizon-Sharpa coffee IK demo with coupled Newton MPM/MJWarp,
+  a mounted spoon, a single scoop/pour/stir controller and per-world resets.
+* Added physical soluble-coffee conversion, conservative colour transport and
+  native grains and bounded liquid surfaces, including refracting water for RTX.
+* Loaded a self-contained hosted asset bundle and a render-only kitchen shared
+  by Kit and Newton RTX; retained Newton GL's tabletop scene and the native recorder.
+* Added :func:`~isaaclab_tasks.utils.hydra.resolve_task_runs` to list the preset combinations a task can
+  launch, one per distinct resolved config, rejecting those the env config or the launcher refuses.
+* Added G1 platform, ramp, and granular terrain demonstrations with pretrained depth and SONIC policies,
+  automatic checkpoint downloads, and RTX rendering through ``examples/g1_terrain.py``
+  and ``isaaclab demo sonic``.
+  Supported Isaac Sim PhysX and Newton MJWarp, with PBD and MPM respectively for granular terrain.
+  Selected courses through a shared task preset and declared terrain materials and collision properties
+  with standard spawner configurations.
+  Kept pretrained depth and SONIC policy inference in the task's ``agents`` package.
+  Shared spectator setup across the entry points, derived SONIC joint mappings from named joints,
+  and used the launcher's selected CUDA device for PhysX particles and SONIC inference.
+* Added a non-RL manager-based RJ45 insertion/extraction environment using spring-clip retention,
+  native hydroelastic contact, a VBD cable, and CUDA-captured Newton IK.
+* Added renderer-only data-center scenery for Kit/Newton RTX and one full-detail rack for NewtonGL.
+
+Changed
+^^^^^^^
+
+* Reduced the coffee demo's bowl and water fill, used a shallow cup, and shortened
+  the scoop-to-stir motion while retaining a minimum delivered dose.
+* Increased physical coffee sampling with fewer rendering grains and adjusted
+  spoon contact capacity and margins.
+* Smoothed native liquid reconstruction and strengthened the dissolved coffee tint.
+* Removed the cabinet visual material overrides from the direct and manager-based cabinet tasks to use the original asset materials.
+* Updated the coffee demo to publish grains and liquid materials through the scene camera's shared RTX renderer. Authored its backdrop before camera initialization and removed its Newton RTX viewer subclass.
+* Restored coffee geometry publication in GL frames and moved RTX publication to camera capture, including recording without a window. Kept liquid colors and grain widths on the GPU during RTX updates.
+
+Fixed
+^^^^^
+
+* Loaded the coffee robot from its own asset bundle so the teapot/RJ45 environment
+  override cannot select an incompatible prepared USD. Use
+  ``ISAACLAB_COFFEE_ASSET_ROOT`` to select the coffee bundle, including ``Robot/``.
+* Improved typed backend selector errors for tasks that do not expose selectable backend presets.
+* Migrated the OVPhysX 0.7 presets for Allegro, Kuka-Allegro, and Shadow Hand tasks to explicit friction efforts matching their existing runtime actuator settings.
+* Fixed SO-101 keyboard resets under PhysX when each environment contains multiple keyboard articulations, and aligned the keyboard pool with the 19 training variants.
+* Fixed overly sensitive keyboard, gamepad, and SpaceMouse teleoperation in ``Isaac-Reach-Franka`` with the
+  ``diffik`` and ``newton_ik`` presets. Full device input now commands 0.025 m and 0.025 rad per step, the
+  same end-effector motion as ``IsaacContrib-Stack-Cube-Franka-IK-Rel``.
+* Fixed the dual-Franka shoelace task loading assets from an untracked local directory by using
+  the hosted Isaac Lab shoelace assets, configuring all six rod gain slots for Newton VBD, and
+  enabling its contributed-environment smoke coverage.
+* Fixed G1 terrain scene preparation to support runs without the Kit visualizer.
+* Allowed stack, pick-place, and locomanipulation environments to load without the optional
+  ``isaaclab_teleop`` package while preserving non-XR Isaac Teleop pipelines when it is installed.
+* Fixed the Spot velocity environment's advertised Newton presets by removing the nonfunctional Kamino option.
+* Added a soft rear fill light to improve visibility of the Sharpa RJ45 hand and connector in the data-center scene.
+
+
 28.0.0 (2026-10-14)
 ~~~~~~~~~~~~~~~~~~~
 

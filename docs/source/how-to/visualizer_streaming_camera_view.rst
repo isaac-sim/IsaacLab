@@ -7,8 +7,7 @@ Streaming a camera view in a visualizer
 
 .. currentmodule:: isaaclab
 
-This guide shows how to show ground-truth camera frames from many environments in one live
-panel of a visualizer. For how the view works and which visualizers support it, see
+Display ground-truth camera frames from many environments in one live visualizer panel. For how the view works and which visualizers support it, see
 :ref:`visualization-streaming-camera-view`.
 
 
@@ -23,11 +22,14 @@ controls presentation independently through ``VisualizerCfg.window``. ``Visualiz
 .. code-block:: python
 
    from isaaclab.envs import VideoRecorderCfg
-   from isaaclab.visualizers import ImageViewCfg, WindowCfg
-   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   from isaaclab.visualizers import ImageViewCfg, VisualizerCfg, WindowCfg
+
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
    view = ImageViewCfg(source="front_camera", envs=(0, 2), channels=("rgb", "depth"))
-   env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(view=view, window=WindowCfg(size=(1280, 720)))]
+   env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+       view=view, window=WindowCfg(size=(1280, 720)), backend=MultiBackendVisualizerCfg(),
+   )
    env_cfg.video_recorders = [VideoRecorderCfg(source=view, output_dir="videos")]
 
 Use ``--viz newton_gl`` (or ``--viz newton_rtx`` for the RTX example) to display the window.
@@ -52,15 +54,15 @@ For Newton RTX, a perspective declaration is expanded into an ordinary scene cam
 
 .. code-block:: python
 
-   from isaaclab.visualizers import PerspectiveCameraCfg
-   from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
 
    view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)))
-   env_cfg.sim.visualizer_cfgs = [
-       NewtonRTXVisualizerCfg(view=view, window=WindowCfg(size=(960, 540)))
-   ]
+   env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+       view=view, window=WindowCfg(size=(960, 540)), backend=MultiBackendVisualizerCfg(),
+   )
    env_cfg.video_recorders = [VideoRecorderCfg(source=view)]
 
+Select ``visualizer=newton_rtx`` or ``visualizer=newton_gl`` at the task entry point.
 Newton RTX fixes perspective render resolution at the initial ``WindowCfg.size``; resizing the window
 scales its image. Newton GL perspective rendering follows its window framebuffer dimensions.
 The recorder reads the completed native render without requesting a second render for that step.
@@ -139,16 +141,18 @@ Use ``cameras`` to declare a list of selectable views; the first starts active:
 
 .. code-block:: python
 
-   from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
-   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
-   viewer_cfg = NewtonGLVisualizerCfg(
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   viewer_cfg = VisualizerCfg(
        cameras=[
            SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/FrontCamera"),
            SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/BackCamera"),
            PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)),
        ],
        streaming_envs=list(range(16)),
+       backend=MultiBackendVisualizerCfg(),
    )
 
 The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use the first scene
@@ -166,7 +170,7 @@ Changing the simulation timestep does not change that limit. Headless on-demand 
 independent of the window update rate; Kit uses its application's update cadence.
 
 Newton RTX displays ordinary camera output in a Newton GL window. Equal ``OVRTXRendererCfg``
-configurations share one renderer and its scene. ``NewtonRTXVisualizerCfg.renderer_cfg`` selects
+configurations share one renderer and its scene. ``NewtonRTXBackendCfg.renderer_cfg`` selects
 the renderer for generated perspective cameras; explicitly selected scene cameras retain their
 own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
 ``isaaclab_ov.stage.OvstageBackend`` remains available for downstream consumers that need an
@@ -190,7 +194,7 @@ spawning assets and cameras, including for a single environment:
    from isaaclab.utils import instantiate
    from isaaclab.visualizers import SceneCameraCfg
    from isaaclab_ov.renderers import OVRTXRendererCfg
-   from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+   from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
    camera_cfg = CameraCfg(
        prim_path="/World/PerspectiveCamera", width=960, height=540,
@@ -199,7 +203,7 @@ spawning assets and cameras, including for a single environment:
        render_settings={"omni:rtx:quality": ("Int", 0)},
    )
    sim_cfg = SimulationCfg(
-       visualizer_cfgs=[NewtonRTXVisualizerCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
+       visualizer_cfgs=[NewtonRTXBackendCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
    )
    target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=CuboidCfg(size=(1.0, 1.0, 1.0)))
    light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=DomeLightCfg(intensity=1000.0))
@@ -308,7 +312,7 @@ Example 2: Streaming from Robot-Mounted Cameras
              --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
 The Galbot cube-stacking environment ships with wrist-mounted cameras giving an egocentric
-view of the gripper, table, and cubes. The script's ``NewtonGLVisualizerCfg`` streams from the
+view of the gripper, table, and cubes. The script's ``NewtonGLBackendCfg`` streams from the
 existing sensor at ``/World/envs/env_.*/Robot/head_camera_sim_view_frame/head_camera``; edit
 ``streaming_sensor_prim_path`` to show a different camera. Of the 25 environments, 12 camera
 feeds are shown by default.
@@ -388,7 +392,7 @@ with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, se
 ``cameras=[SceneCameraCfg(...)]``. This puts the camera
 in the clone plan and the normal sensor initialization, update, and teardown lifecycle.
 The full option mapping is in the
-:doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>`.
+:doc:`3.0 migration guide </source/isaaclab/migrating>`.
 
 Closing a visualizer does not affect the camera or other visualizers reading it.
 ``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.
