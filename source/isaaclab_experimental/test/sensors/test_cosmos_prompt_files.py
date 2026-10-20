@@ -8,7 +8,7 @@
 import json
 
 import pytest
-from isaaclab_experimental.cosmos import read_prompt_files
+from isaaclab_experimental.cosmos import CosmosModel, CosmosModelCfg, read_prompt_files
 
 _SCENE = {
     "subjects": [{"description": "A small apple with a yellow upper half and a red lower half."}],
@@ -28,6 +28,19 @@ def test_text_and_json_files_become_prompts_in_the_order_given(tmp_path):
     assert read_prompt_files([str(tmp_path / "b.txt"), str(tmp_path / "a.json")]) == [sheet, scene]
     # A pattern expands in sorted order.
     assert read_prompt_files([str(tmp_path / "*.txt")]) == [sheet, "A white plate."]
+
+
+def test_prompt_files_replace_the_text_prompt_and_a_prompt_is_never_read_as_a_path(tmp_path):
+    """Paths go in ``prompt_files``; ``prompt`` is always used as text, even when it looks like a path."""
+    (tmp_path / "red.txt").write_text("A red cube.", encoding="utf-8")
+    (tmp_path / "blue.json").write_text(json.dumps({"subjects": "A blue cube."}), encoding="utf-8")
+    path_like = str(tmp_path / "red.txt")
+
+    from_files = CosmosModel(CosmosModelCfg(prompt="A lab.", prompt_files=str(tmp_path / "*"), max_episode_frames=13))
+    as_text = CosmosModel(CosmosModelCfg(prompt=path_like, max_episode_frames=13))
+
+    assert from_files._cfg.prompt == ['{"subjects": "A blue cube."}', "A red cube."]
+    assert as_text._cfg.prompt == path_like
 
 
 @pytest.mark.parametrize(

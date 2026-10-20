@@ -70,6 +70,12 @@ class CosmosModelCfg(BackendCfg):
     ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
     resets. None omits an appearance description."""
 
+    prompt_files: str | list[str] | None = None
+    """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
+    :func:`~isaaclab_experimental.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its
+    list; they are read when the camera's Cosmos client is created. Keeping paths in their own field means a prompt
+    is never mistaken for a path."""
+
     cameras: tuple[str, ...] = ()
     """Scene names of the cameras that share one session, each configured with this model. Defaults to none, which
     gives each camera its own session. With several, every capture generates all their environments as one batch:
