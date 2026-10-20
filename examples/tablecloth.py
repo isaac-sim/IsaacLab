@@ -276,7 +276,6 @@ class _TablewareCfg(sim_utils.UsdFileCfg):
 
 FPS = 60
 SUBSTEPS = 16
-RENDER_INTERVAL = 2
 # Table height calibrated for the fixed-pelvis H2 stance and native fingertip pinch.
 TABLE_TOP_Z = 1.0352
 TABLEWARE_CLEARANCE = 0.011
@@ -1296,7 +1295,7 @@ def main() -> None:
     camera_distance = max(4.6, 1.16 * len(speeds))
     sim_cfg = sim_utils.SimulationCfg(
         dt=step_dt / substeps,
-        render_interval=substeps * RENDER_INTERVAL,
+        render_interval=substeps,
         physics=NewtonCfg(
             num_substeps=1,
             collision_decimation=0,
@@ -1389,7 +1388,7 @@ def main() -> None:
         try:
             step = 0
             while sim.is_running() and (max_steps < 0 or step < max_steps):
-                sim.step(render=step % RENDER_INTERVAL == 0)
+                sim.step()
                 scene.update(step_dt)
                 step += 1
             if step >= complete_steps:
