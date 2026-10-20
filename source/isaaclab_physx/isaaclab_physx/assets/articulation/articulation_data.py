@@ -21,7 +21,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
+from isaaclab_physx.physics import PhysxManager
 
 from ..kernels import vec13f
 
@@ -73,14 +73,19 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, root_view: physx.ArticulationView, device: str):
+    def __init__(self, root_view: physx.ArticulationView, device: str, *, backend_manager: PhysxManager | None = None):
         """Initializes the articulation data.
 
         Args:
             root_view: The root articulation view.
             device: The device used for processing.
+            backend_manager: The PhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view, device)
+        if backend_manager is None:
+            backend_manager = PhysxManager._deprecated_active("ArticulationData()")
+        self._backend_manager = backend_manager
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
@@ -94,7 +99,7 @@ class ArticulationData(BaseArticulationData):
         self._has_reversed_joints = False
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
@@ -176,7 +181,7 @@ class ArticulationData(BaseArticulationData):
                 self._mass_matrix,
             ]
         )
-        SimulationManager.kinematics_dirty = True
+        self._backend_manager.kinematics_dirty = True
 
     def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
@@ -204,7 +209,7 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_state_w,
             ]
         )
-        SimulationManager.kinematics_dirty = True
+        self._backend_manager.kinematics_dirty = True
 
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from body-frame center-of-mass offsets."""
@@ -846,7 +851,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        SimulationManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         self._refresh_body_state_user(
             self._body_link_pose_w, lambda: self._root_view.get_link_transforms().view(wp.transformf)
         )
@@ -921,7 +926,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
-        SimulationManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         self._refresh_body_state_user(
             self._body_com_vel_w, lambda: self._root_view.get_link_velocities().view(wp.spatial_vectorf)
         )
@@ -929,6 +934,21 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
         return self._body_com_vel_w_ta
+
+    @property
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._body_joint_wrench.data is None and self.has_body_ordering:
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+        self._refresh_body_state_user(
+            self._body_joint_wrench,
+            lambda: self._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf),
+        )
+        if self._body_joint_wrench_ta is None:
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        return self._body_joint_wrench_ta
 
     @property
     def body_com_acc_w(self) -> ProxyArray:
@@ -1053,7 +1073,8 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
         if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
             source = self._root_view.get_gravity_compensation_forces()
-            if self.has_joint_ordering or self._has_reversed_joints:
+            # PhysX gravity forces already use the public joint directions.
+            if self.has_joint_ordering:
                 if self._gravity_compensation_forces.data is None:
                     self._gravity_compensation_forces.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
@@ -1062,10 +1083,10 @@ class ArticulationData(BaseArticulationData):
                     dim=source.shape,
                     inputs=[
                         source,
-                        self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
-                        self._joint_dof_signs,
+                        self.joint_ordering.user_to_backend,
+                        None,
                         self._num_base_dofs,
-                        self.has_joint_ordering,
+                        True,
                     ],
                     outputs=[self._gravity_compensation_forces.data],
                 )

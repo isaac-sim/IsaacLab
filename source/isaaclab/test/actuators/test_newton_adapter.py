@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from newton._src.actuators.utils import load_checkpoint
 from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
 
 from pxr import Usd, UsdGeom, UsdPhysics
@@ -26,23 +27,10 @@ from isaaclab.sim.schemas.schemas_actuators import (
     define_actuator_properties,
     resave_checkpoint_with_metadata,
 )
-from isaaclab.utils import configclass
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.test.utils.actuator_equivalence import make_dummy_lstm_checkpoint, make_dummy_mlp_checkpoint
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
-
-
-@configclass
-class UnsupportedNewtonActuatorCfg(ActuatorBaseCfg):
-    """Explicit actuator config intentionally unsupported by Newton authoring."""
-
-    class_type: str = "unsupported:ExplicitActuator"
-
-
-@configclass
-class CustomDCMotorCfg(DCMotorCfg):
-    """DC motor config that selects a custom Lab actuator implementation."""
-
-    class_type: str = "unsupported:CustomDCMotor"
 
 
 class MisleadingImplicitActuatorDCMotor(DCMotor):
@@ -145,6 +133,38 @@ def test_checkpoint_metadata_rejects_pickle_without_deserializing(monkeypatch, t
     assert not marker_path.exists()
 
 
+@pytest.mark.parametrize("kind", ["mlp", "lstm"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_checkpoint_export_preserves_metadata_and_variable_batches(kind, device):
+    """Newton can move exported Lab checkpoints to CUDA and evaluate any environment count."""
+    path = make_dummy_mlp_checkpoint() if kind == "mlp" else make_dummy_lstm_checkpoint()
+    converted_path = None
+    try:
+        original = torch.jit.load(path).eval()
+        converted_path = resave_checkpoint_with_metadata(path, {"model_type": kind, "torque_scale": 3.0})
+        converted, metadata = load_checkpoint(converted_path)
+        original, converted = original.to(device), converted.to(device)
+        assert metadata["model_type"] == kind
+        assert metadata["torque_scale"] == 3.0
+        if kind == "mlp":
+            assert metadata["input_idx"] == [0, 1, 2]
+            assert metadata["vel_scale"] == 0.5
+        else:
+            assert (metadata["num_layers"], metadata["hidden_size"]) == (1, 4)
+        for batch_size in (1, 3, 8):
+            if kind == "mlp":
+                args = (torch.randn(batch_size, 6, device=device),)
+            else:
+                hidden = torch.randn(1, batch_size, 4, device=device)
+                cell = torch.randn_like(hidden)
+                args = (torch.randn(batch_size, 1, 2, device=device), (hidden, cell))
+            torch.testing.assert_close(converted(*args), original(*args))
+    finally:
+        Path(path).unlink()
+        if converted_path is not None:
+            Path(converted_path).unlink()
+
+
 def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     """Aggregate scalar variants while keeping incompatible shared lookup tables separate."""
     actuators = NewtonActuatorAdapter.from_usd(
@@ -159,20 +179,20 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert len(actuators) == 4
 
     pd = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingMaxEffort])
-    assert type(pd.controller) is DrivePD
+    assert type(pd.drive) is DrivePD
     np.testing.assert_array_equal(pd.indices.numpy(), [0, 1, 6, 7])
-    np.testing.assert_allclose(pd.controller.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
-    np.testing.assert_allclose(pd.controller.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
+    np.testing.assert_allclose(pd.drive.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
+    np.testing.assert_allclose(pd.drive.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
     np.testing.assert_allclose(pd.clamping[0].max_effort.numpy(), [21.0, 32.0, 21.0, 32.0])
     np.testing.assert_array_equal(pd.delay.delay_steps.numpy(), [2, 4, 2, 4])
     assert pd.delay.buf_depth == 4
 
     dc = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingDCMotor])
-    assert type(dc.controller) is DrivePD
+    assert type(dc.drive) is DrivePD
     assert dc.delay is None
     np.testing.assert_array_equal(dc.indices.numpy(), [2, 3, 8, 9])
-    np.testing.assert_allclose(dc.controller.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
-    np.testing.assert_allclose(dc.controller.kd.numpy(), [3.5, 4.5, 3.5, 4.5])
+    np.testing.assert_allclose(dc.drive.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
+    np.testing.assert_allclose(dc.drive.kd.numpy(), [3.5, 4.5, 3.5, 4.5])
     np.testing.assert_allclose(dc.clamping[0].saturation_effort.numpy(), [53.0, 64.0, 53.0, 64.0])
     np.testing.assert_allclose(dc.clamping[0].velocity_limit.numpy(), [7.0, 8.0, 7.0, 8.0])
     np.testing.assert_allclose(dc.clamping[0].max_motor_effort.numpy(), [43.0, 54.0, 43.0, 54.0])
@@ -269,21 +289,13 @@ def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit
 @pytest.mark.parametrize(
     ("group_name", "cfg"),
     [
-        ("unsupported", UnsupportedNewtonActuatorCfg(joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0)),
         (
-            "custom_dc",
-            CustomDCMotorCfg(
-                joint_names_expr=["pd_a"],
-                stiffness=0.0,
-                damping=0.0,
-                actuator_effort_limit=1.0,
-                actuator_velocity_limit=1.0,
-                saturation_effort=1.0,
-            ),
+            "unsupported",
+            ActuatorBaseCfg(class_type=DCMotor, joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0),
         ),
         (
-            "misleading_name",
-            CustomDCMotorCfg(
+            "custom_dc",
+            DCMotorCfg(
                 class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",
                 joint_names_expr=["pd_a"],
                 stiffness=0.0,

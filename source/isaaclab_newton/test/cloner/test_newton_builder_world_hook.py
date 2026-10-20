@@ -39,7 +39,7 @@ def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
         pass
 
     hooks = [existing]
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks)
+    monkeypatch.setattr(replicate_module, "_PER_WORLD_BUILDER_HOOKS", hooks)
 
     with pytest.raises(ValueError, match="stop"):
         with newton_builder_world_hook(temporary):
@@ -65,7 +65,8 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     body = source.add_body()
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/Source": source})
+    sim = SimpleNamespace(backend_manager=SimpleNamespace(_cl_protos={"/World/Source": source}))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     copied = copy_newton_clone_source("/World/Source")
 
@@ -116,9 +117,11 @@ def test_explicit_global_import_uses_global_world(
         create_builder=newton.ModelBuilder,
         _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
         _inject_terrain_heightfields=mock.Mock(return_value=[]),
+        _cl_inject_sites=mock.Mock(return_value=({}, {}, {})),
     )
+    manager._scene_data_backend = NewtonSceneDataBackend(manager)
     sim = SimpleNamespace(
-        physics_manager=manager,
+        backend_manager=manager,
         device="cpu",
         cfg=SimpleNamespace(
             physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene", device="cpu"
@@ -129,14 +132,8 @@ def test_explicit_global_import_uses_global_world(
         _backend_registry=[],
     )
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
-    monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend())
-    monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", ())
-    monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
-    monkeypatch.setattr(NewtonManager, "_world_xforms", None)
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {})
-    monkeypatch.setattr(NewtonManager, "_num_envs", 0)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(replicate_module, "_PER_WORLD_BUILDER_HOOKS", ())
 
     env_ids, mapping = np.arange(2, dtype=np.int64), np.empty((0, 2), dtype=np.bool_)
     builder, _ = replicate_module.newton_physics_replicate(stage, (), (), env_ids, mapping, global_paths=global_paths)
@@ -192,7 +189,8 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         UsdPhysics.Scene.Define(stage, "/physicsScene")
         volume_world = int(heterogeneous)
         volume_path = f"/World/env_{volume_world}/Volume"
-        _author_deformable(stage, "/World/env_0/Cloth", "surface")
+        cloth_name = "Robot/Cloth"
+        _author_deformable(stage, f"/World/env_0/{cloth_name}", "surface")
         _author_deformable(stage, volume_path, "volume")
         _author_deformable(stage, "/Shared/Cloth", "surface")
         positions = np.asarray([[0, 0, 0], [2, 0, 0], [4, 0, 0]], dtype=np.float32)
@@ -200,25 +198,31 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
             UsdGeom.Xform.Define(stage, "/World/env_1").AddTranslateOp().Set(tuple(positions[1].astype(float)))
         rotations = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
         assets = (
-            AssetBaseCfg(prim_path="/World/env_[^/]+/Cloth", spawn=SpawnerCfg(spawn_path="/World/env_0/Cloth")),
+            AssetBaseCfg(
+                prim_path=f"/World/env_[^/]+/{cloth_name}",
+                spawn=SpawnerCfg(spawn_path=f"/World/env_0/{cloth_name}"),
+            ),
             AssetBaseCfg(prim_path="/World/env_[^/]+/Volume", spawn=SpawnerCfg(spawn_path=volume_path)),
             AssetBaseCfg(prim_path="/Shared/Cloth"),
         )
-        prototypes = ((0,), (1,)) if heterogeneous else ((0, 1),)
+        assets += (AssetBaseCfg(prim_path="/World/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/env_0/Robot")),)
+        prototypes = ((3,), (0, 1)) if heterogeneous else ((0, 1, 3),)
         layout = np.array([0, int(heterogeneous), 0])
         placement = dict(env_template="/World/env_{}", positions=positions)
         plan = make_clone_plan(
             assets, prototypes, 3, shared_assets=(2,), clone_strategy=lambda _weights, _count: layout, **placement
         )
         sim.set_clone_plan(plan)
-        options = dict(plan=plan, asset_prototype_ids=(0, 1, 2), positions=positions, quaternions=rotations)
+        options = dict(
+            plan=plan, asset_prototype_ids=tuple(range(len(assets))), positions=positions, quaternions=rotations
+        )
         builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
         sim.reset()
-        native = NewtonManager.backend
+        native = sim.backend_manager.backend
         stage.RemovePrim("/World")
         stage.RemovePrim("/Shared")
 
-        expected_counts = [3, 4, 3] if heterogeneous else [7, 7, 7]
+        expected_counts = [3, 7, 3] if heterogeneous else [7, 7, 7]
         assert builder.particle_count == sum(expected_counts) + 3
         np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, *expected_counts])
         assert native.deformable_ranges["/Shared/Cloth"] == (0, 3, "surface")
@@ -226,11 +230,9 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         expected_paths = {"/Shared/Cloth/sim"}
         local_vertices = np.asarray([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], dtype=np.float32)
         for world in range(3):
-            kinds = (
-                ("Volume",) if heterogeneous and world == 1 else ("Cloth",) if heterogeneous else ("Cloth", "Volume")
-            )
+            kinds = ("Cloth",) if heterogeneous and world != 1 else ("Cloth", "Volume")
             for name in kinds:
-                path = f"/World/env_{world}/{name}"
+                path = f"/World/env_{world}/{cloth_name if name == 'Cloth' else name}"
                 start, count, _ = native.deformable_ranges[path]
                 xform = wp.transform(positions[world], rotations[world])
                 expected = np.asarray([wp.transform_point(xform, wp.vec3(p)) for p in local_vertices[:count]])
@@ -245,7 +247,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
                 else:
                     np.testing.assert_allclose(points[visual_path].numpy(), (expected[1:] + expected[0]) / 2, atol=1e-6)
         assert set(points) == expected_paths
-        np.testing.assert_allclose(np.asarray(builder.tri_materials)[builder._cloth_tri_start, 0], 123.0)
+        np.testing.assert_allclose(np.asarray(builder.tri_materials)[builder._surface_tri_start, 0], 123.0)
         np.testing.assert_allclose(np.asarray(builder.tet_materials)[:, 0], 456.0)
         for tet, pose in zip(builder.tet_indices, builder.tet_poses, strict=True):
             vertices = np.asarray(builder.particle_q)[tet]

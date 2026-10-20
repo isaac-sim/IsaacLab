@@ -24,13 +24,10 @@ from newton.viewer import ViewerViser
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import (
-    apply_viewer_visible_worlds,
-    log_geo_with_expanded_plane_scale,
-    resolve_visible_env_indices,
-)
+from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -38,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from isaaclab.scene_data import SceneDataProvider
+    from isaaclab.sensors.camera import Camera
 
 
 def _letterbox_16_9(image: np.ndarray) -> np.ndarray:
@@ -71,36 +68,6 @@ def _scalar_base_name(name: str) -> str:
     return name
 
 
-def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
-    """Skip viser's runtime frontend rebuild when a bundled build is present."""
-    try:
-        import viser
-        import viser._client_autobuild as client_autobuild
-    except Exception:
-        return
-
-    client_root = Path(viser.__file__).resolve().parent / "client"
-    has_bundled_build = (client_root / "build" / "index.html").exists()
-    if not has_bundled_build:
-        return
-
-    client_autobuild.ensure_client_is_built = lambda: None
-
-
-def _open_viser_web_viewer(url: str) -> None:
-    """Open the Viser web UI in a browser."""
-    try:
-        if not webbrowser.open_new_tab(url):
-            logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
-    except Exception:
-        logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
-
-
-def _viser_web_viewer_url(port: int, display_address: str) -> str:
-    """Return Viser web UI URL for display to users."""
-    return f"http://{display_address}:{int(port)}"
-
-
 _BACKEND_DISPLAY_NAMES = {
     "physx": "PhysX",
     "ovphysx": "OVPhysX",
@@ -119,7 +86,6 @@ class NewtonViewerViser(ViewerViser):
         verbose: bool = True,
         share: bool = False,
         record_to_viser: str | None = None,
-        metadata: dict | None = None,
     ):
         """Initialize Newton-backed viser viewer wrapper.
 
@@ -130,16 +96,17 @@ class NewtonViewerViser(ViewerViser):
             verbose: Whether to keep verbose startup output enabled.
             share: Whether to enable sharing/tunneling.
             record_to_viser: Optional recording destination.
-            metadata: Optional metadata attached to the viewer.
         """
-        _disable_viser_runtime_client_rebuild_if_bundled()
-        try:
-            viser = self._get_viser()
-        except ImportError as exc:
-            raise ImportError(
-                "The Viser visualizer requires the optional 'viser' package. "
-                "Run your command with: uv run --extra viser <command>."
-            ) from exc
+        import viser
+        import viser._client_autobuild as client_autobuild
+
+        self._isaaclab_plane_grid_cache: dict[str, tuple] = {}
+        self._per_plot_folders: dict[str, Any] = {}
+        self._live_plots_folder: Any = None
+
+        # Use the bundled frontend without rebuilding it at viewer startup.
+        if (Path(viser.__file__).resolve().parent / "client" / "build" / "index.html").exists():
+            client_autobuild.ensure_client_is_built = lambda: None
         original_viser_server = viser.ViserServer
 
         def _viser_server_with_bind_address(*args, **kwargs):
@@ -160,31 +127,15 @@ class NewtonViewerViser(ViewerViser):
                 share=share,
                 record_to_viser=record_to_viser,
             )
-        self._metadata = metadata or {}
-        self._isaaclab_plane_grid_cache: dict[str, tuple] = {}
-        self._per_plot_folders: dict[str, Any] = {}
-        self._live_plots_folder: Any = None
-
-    @property
-    def share_url(self) -> str | None:
-        """Return the public share URL created by Viser, if any."""
-        return self._share_url
 
     def clear_model(self) -> None:
         """Clear cached state and remove per-plot GUI folders with the viewer model."""
-        cache = getattr(self, "_isaaclab_plane_grid_cache", None)
-        if cache is not None:
-            cache.clear()
+        self._isaaclab_plane_grid_cache.clear()
         super().clear_model()
-        per_plot_folders = getattr(self, "_per_plot_folders", None)
-        if per_plot_folders:
-            for folder in list(per_plot_folders.values()):
-                with contextlib.suppress(Exception):
-                    folder.remove()
-            per_plot_folders.clear()
-        # Do NOT remove _live_plots_folder — it is a persistent structural element
-        # created once in _setup_isaaclab_sidebar and should survive model reloads.
-        # Only the per-term chart handles (in _per_plot_folders) are cleared above.
+        for folder in self._per_plot_folders.values():
+            folder.remove()
+        self._per_plot_folders.clear()
+        # The sidebar's live-plots folder survives model reloads.
 
     @staticmethod
     def _array_signature(array) -> tuple[tuple[int, ...], bytes] | None:
@@ -203,16 +154,13 @@ class NewtonViewerViser(ViewerViser):
         hidden: bool = False,
     ) -> None:
         """Avoid removing/re-adding unchanged Viser plane grids every frame."""
-        cache = getattr(self, "_isaaclab_plane_grid_cache", None)
         if hidden or xforms is None:
-            if cache is not None:
-                cache.pop(name, None)
+            self._isaaclab_plane_grid_cache.pop(name, None)
             return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
 
         xforms_np = self._to_numpy(xforms)
         if xforms_np is None or len(xforms_np) == 0:
-            if cache is not None:
-                cache.pop(name, None)
+            self._isaaclab_plane_grid_cache.pop(name, None)
             return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
 
         scales_np = self._to_numpy(scales) if scales is not None else None
@@ -222,10 +170,9 @@ class NewtonViewerViser(ViewerViser):
             self._array_signature(xforms_np),
             self._array_signature(scales_np),
         )
-        if cache is not None and cache.get(name) == signature and name in self._plane_handles:
+        if self._isaaclab_plane_grid_cache.get(name) == signature and name in self._plane_handles:
             return None
-        if cache is not None:
-            cache[name] = signature
+        self._isaaclab_plane_grid_cache[name] = signature
         return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
 
     def log_geo(
@@ -341,48 +288,54 @@ class ViserVisualizer(BaseVisualizer):
         self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
         self.backend = None
-        self._sim_time = 0.0
-        self._active_record_path: str | None = None
-        self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
-        self._resolved_visible_env_ids: list[int] | None = None
         self._warned_marker_render_failure = False
-        self._live_plots_checkboxes: dict[str, Any] = {}  # unused; kept for subclass compatibility
         self._paused_rendering = False
         self._paused_simulation = False
-        self._camera_sensor = None
-        self._camera_sensor_indices: list[int] = []
-        self._camera_env_indices: list[int] = []
-        self._camera_is_owned = False
-        self._generated_camera_prim_paths: list[str] = []
-        self._streaming_camera_key: tuple | None = None
-        self._last_streaming_composite: np.ndarray | None = None
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used to fetch model/state data.
+            sim: Simulation owner used to resolve scene data and native resources.
+            cameras: Resolved perspective settings and borrowed scene sensors, in display order.
         """
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
 
-        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
-        metadata = {"num_envs": num_envs}
-        self._env_ids = self._compute_visualized_env_ids()
-        sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        self._active_record_path = self.cfg.record_to_viser
-        self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        num_visualized_envs = (
-            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
+        self._viewer = NewtonViewerViser(
+            port=self.cfg.port,
+            bind_address=self.cfg.bind_address,
+            label="Isaac Lab",
+            verbose=False,
+            share=self.cfg.share,
+            record_to_viser=self.cfg.record_to_viser,
         )
+        self._viewer._server.gui.add_markdown(f"Physics: {_BACKEND_DISPLAY_NAMES[self.physics_backend]}")
+        viewer_url = self._viewer._share_url or f"http://{self.cfg.display_address}:{self.cfg.port}"
+        if self.cfg.verbose:
+            print()
+            self._log_viewer_url("ViserVisualizer", viewer_url)
+        self._viewer.set_model(self.backend.model)
+        self._viewer.show_particles = self.cfg.show_particles
+        # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
+        self._setup_isaaclab_sidebar(self._viewer._server)
+        self._viewer.set_visible_worlds(self._env_ids)
+        # Preserve simulation world positions rather than adding viewer-side offsets.
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+        if self.cfg.open_browser:
+            webbrowser.open_new_tab(viewer_url)
+        self.set_camera_view(self.cfg.eye, self.cfg.lookat)
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="ViserVisualizer Configuration",
@@ -397,7 +350,6 @@ class ViserVisualizer(BaseVisualizer):
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )
-        self._setup_streaming_view(num_envs)
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
@@ -406,24 +358,16 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
+        if not self._is_initialized:
             return
 
-        self._apply_pending_camera_pose()
-
-        num_envs = self.backend.model.num_envs
+        if self._pending_camera_pose is not None:
+            self.set_camera_view(*self._pending_camera_pose)
 
         self._sim_time += dt
 
         # Skip all rendering when no browser clients are connected.
-        server = getattr(self._viewer, "_server", None)
-        has_clients = True
-        if server is not None:
-            get_clients = getattr(server, "get_clients", None)
-            if callable(get_clients):
-                has_clients = len(get_clients()) > 0
-
-        if not has_clients:
+        if not self._viewer._server.get_clients():
             self._render_live_plots()  # still throttled internally; no-ops when no clients
             # No browser clients: skip compositing and pushing entirely.  If a
             # VideoRecorder calls render_tiled_rgb_array() it will compose on demand.
@@ -440,7 +384,7 @@ class ViserVisualizer(BaseVisualizer):
             # When streaming_view is active, skip the 3D Newton scene so the
             # background streaming composite is the only content visible.
             if not self.cfg.streaming_view:
-                backend, provider = self.backend, self._scene_data_provider
+                backend, provider = self.backend, self._sim.get_scene_data_provider()
                 poses = SceneDataFormat.Transform()
                 if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
                     backend.state_0.body_q = poses.transforms
@@ -448,7 +392,7 @@ class ViserVisualizer(BaseVisualizer):
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
                 self._viewer.log_state(self.backend.state_0)
                 if self.cfg.enable_markers:
-                    self._render_markers(num_envs)
+                    self._render_markers(self.backend.model.num_envs)
             self._render_live_plots()
             self._push_streaming_frame()
         finally:
@@ -458,150 +402,19 @@ class ViserVisualizer(BaseVisualizer):
     # Streaming view
     # ------------------------------------------------------------------
 
-    def _setup_streaming_view(self, num_envs: int) -> None:
-        """Resolve or create the streaming camera sensor."""
-        from isaaclab.envs.utils.camera_colorizer import SUPPORTED_GT_TYPES, sensor_keys_for_gt_types
-        from isaaclab.envs.utils.camera_view import (
-            VISUALIZER_TILED_CAMERA_MAX_TILES,
-            create_visualizer_camera,
-            find_camera_by_prim_path,
-            resolve_streaming_envs,
-        )
-
-        if not self.cfg.streaming_view:
-            return
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        for gt in gt_types:
-            if gt not in SUPPORTED_GT_TYPES:
-                raise ValueError(
-                    f"[ViserVisualizer] streaming_gt_types contains unsupported type {gt!r}. "
-                    f"Valid types: {sorted(SUPPORTED_GT_TYPES)}"
-                )
-
-        env_ids = resolve_streaming_envs(
-            num_envs,
-            self.cfg.streaming_envs,
-            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
-            sample_from=self._resolved_visible_env_ids,
-        )
-        self._camera_env_indices = env_ids
-
-        if self.cfg.streaming_sensor_prim_path is not None:
-            cameras = self._scene_data_provider.get_camera_sensors()
-            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.streaming_sensor_prim_path, env_ids)
-            self._camera_sensor_indices = env_ids
-            return
-
-        if self.cfg.streaming_cam_target_prim_path is None:
-            cameras = self._scene_data_provider.get_camera_sensors()
-            if cameras:
-                self._camera_sensor = next(iter(cameras.values()))
-                self._camera_sensor_indices = env_ids
-            return
-
-        result = create_visualizer_camera(
-            num_envs=num_envs,
-            width=320,
-            height=240,
-            renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
-            data_types=sensor_keys_for_gt_types(gt_types),
-            target_prim_path=self.cfg.streaming_cam_target_prim_path,
-            eye=self.cfg.streaming_cam_eye,
-            streaming_envs=tuple(int(i) for i in env_ids),
-        )
-        self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
-            result
-        )
-        self._camera_sensor_indices = env_ids
-        self._apply_streaming_camera_pose(env_ids)
-
-    def _apply_streaming_camera_pose(self, env_ids: list[int]) -> None:
-        """Position the auto-created streaming camera using the cfg target prim and eye offset."""
-        if not self._camera_is_owned or self._camera_sensor is None:
-            return
-        from isaaclab.envs.utils.camera_view import apply_camera_target_positions, prim_world_positions
-        from isaaclab.sim import get_current_stage
-
-        try:
-            stage = get_current_stage()
-            scene = self._scene_data_provider.get_interactive_scene() if self._scene_data_provider else None
-            target_positions = prim_world_positions(
-                stage, self.cfg.streaming_cam_target_prim_path, env_ids, scene=scene
-            )
-            apply_camera_target_positions(self._camera_sensor, target_positions, self.cfg.streaming_cam_eye, env_ids)
-        except Exception as exc:
-            logger.debug("[ViserVisualizer] streaming camera pose: %s", exc)
-
-    def _compose_streaming_frame(self) -> None:
-        """Colorize camera tiles and store the result in ``_last_streaming_composite``.
-
-        This is the compute-only half of streaming frame production.  It updates
-        ``_last_streaming_composite`` but does **not** push the image to Viser
-        clients.  Call :meth:`_push_streaming_frame` when clients are connected
-        to compose *and* push in a single pass.
-        """
-        from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
-        from isaaclab.envs.utils.camera_view import camera_gt_batch, compose_streaming_grid
-
-        if self._camera_sensor is None:
-            return
-        if self._camera_is_owned:
-            self._apply_streaming_camera_pose(self._camera_sensor_indices)
-            self._camera_sensor.update(dt=0.0, force_recompute=True)
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        available = frozenset(self._camera_sensor.data.output.keys())
-        frames = []
-        for env_idx in self._camera_sensor_indices:
-            for gt in gt_types:
-                key = sensor_key_for_gt_type(gt, available)
-                raw = camera_gt_batch(self._camera_sensor, [env_idx], key)[0]
-                frames.append(
-                    CameraFrameColorizer.colorize(
-                        raw,
-                        gt,
-                        depth_min=self.cfg.streaming_depth_min,
-                        depth_max=self.cfg.streaming_depth_max,
-                    )
-                )
-
-        n_envs = len(self._camera_sensor_indices)
-        self._last_streaming_composite = compose_streaming_grid(frames, n_envs, len(gt_types))
-
     def _push_streaming_frame(self) -> None:
         """Compose the streaming frame and push it to connected Viser clients."""
-        self._compose_streaming_frame()
-        if self._last_streaming_composite is None:
+        composite = self.render_tiled_rgb_array()
+        if composite is None:
             return
         # Letterbox to 16:9 so the composite isn't stretched when Viser fills
         # the browser canvas.  Black bars are added on whichever axis needs it.
-        composite_display = _letterbox_16_9(self._last_streaming_composite)
-        with contextlib.suppress(Exception):
-            server = getattr(self._viewer, "_server", None)
-            if server is not None:
-                server.scene.set_background_image(composite_display, format="jpeg")
-
-    def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Return the last composited streaming frame (all GT types side-by-side).
-
-        Returns the pre-letterbox composite so the full content is available for
-        recording without black bars.  If no frame has been composited yet (e.g.
-        no browser clients are connected), compositing is triggered on demand so
-        that a :class:`VideoRecorder` can capture headless frames.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if streaming view
-            is not active or camera data is unavailable.
-        """
-        if self._last_streaming_composite is None:
-            self._compose_streaming_frame()
-        return self._last_streaming_composite
+        self._viewer._server.scene.set_background_image(_letterbox_16_9(composite), format="jpeg")
 
     def _render_markers(self, num_envs: int) -> None:
         """Render marker overlays without letting them interrupt Viser body updates."""
         try:
-            render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+            render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
         except Exception as exc:
             if not self._warned_marker_render_failure:
                 logger.warning("[ViserVisualizer] Marker rendering failed; continuing body updates: %s", exc)
@@ -611,17 +424,17 @@ class ViserVisualizer(BaseVisualizer):
 
     def reset(self, soft: bool = False) -> None:
         """Rebind the viewer when a hard reset replaces the shared native model."""
+        super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._setup_isaaclab_sidebar(self._viewer._server)
-        self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+        self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
     def close(self) -> None:
@@ -629,22 +442,20 @@ class ViserVisualizer(BaseVisualizer):
         if not self._is_initialized:
             return
         try:
-            self._close_viewer(finalize_viser=bool(self.cfg.record_to_viser))
+            self._viewer.close()
+            if self.cfg.record_to_viser:
+                if os.path.exists(self.cfg.record_to_viser):
+                    size = os.path.getsize(self.cfg.record_to_viser)
+                    logger.info("[ViserVisualizer] Recording saved: %s (%s bytes)", self.cfg.record_to_viser, size)
+                else:
+                    logger.warning("[ViserVisualizer] Recording file not found: %s", self.cfg.record_to_viser)
         except Exception as exc:
             logger.warning("[ViserVisualizer] Error during close: %s", exc)
 
-        if self._camera_sensor is not None and self._camera_is_owned:
-            from isaaclab.envs.utils.camera_view import evict_visualizer_camera, remove_generated_prims
-
-            evict_visualizer_camera(self._streaming_camera_key)
-            remove_generated_prims(self._generated_camera_prim_paths)
-        self._camera_sensor = None
-
         self._viewer = None
         self._is_initialized = False
-        self.backend = self._scene_data_provider = self._transform_mapping = None
-        self._is_closed = True
-        self._active_record_path = None
+        self.backend = self._transform_mapping = None
+        super().close()
         self._pending_camera_pose = None
 
     def is_running(self) -> bool:
@@ -653,11 +464,7 @@ class ViserVisualizer(BaseVisualizer):
         Returns:
             ``True`` while the visualizer is active, otherwise ``False``.
         """
-        if not self._is_initialized or self._is_closed:
-            return False
-        if self._viewer is None:
-            return False
-        return self._viewer.is_running()
+        return self._is_initialized and not self._is_closed and self._viewer.is_running()
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused from viewer controls."""
@@ -675,40 +482,15 @@ class ViserVisualizer(BaseVisualizer):
         """Viser backend supports live plots via :meth:`newton.Viewer.log_scalar` (uPlot sidebar charts)."""
         return True
 
-    def add_live_plots(
-        self,
-        managers: dict,
-        scalars: dict | None = None,
-        term_names: dict[str, list[str]] | None = None,
-        env_idx: int = 0,
-    ) -> None:
-        """Register managers for live plotting.
-
-        Calls the base implementation to populate :attr:`_live_plot_sources`.  Checkboxes are
-        created lazily on the first :meth:`_render_live_plots` call so each checkbox appears
-        immediately above its plot charts in the Viser sidebar.
-
-        Args:
-            managers: Mapping of manager name to manager instance.
-            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
-                Each callable must take no arguments and return a numeric value.
-            term_names: Optional per-manager allowlists of term names to include.
-            env_idx: Environment index to sample each step.  Defaults to ``0``.
-        """
-        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
-
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Viser viewer's per-term plot folders."""
         if self._viewer is None or not self._live_plot_sources:
             return
         # Skip when no browser clients are connected — nobody is watching the plots.
-        server = getattr(self._viewer, "_server", None)
-        if server is not None:
-            get_clients = getattr(server, "get_clients", None)
-            if callable(get_clients) and len(get_clients()) == 0:
-                return
+        if not self._viewer._server.get_clients():
+            return
         self._live_plots_step_counter += 1
-        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
+        if self._live_plots_step_counter % max(1, self.cfg.live_plots_update_interval) != 0:
             return
         for source in self._live_plot_sources:
             for term_name, values in source.collect(self._live_plot_env_idx).items():
@@ -717,55 +499,6 @@ class ViserVisualizer(BaseVisualizer):
                 else:
                     for i, v in enumerate(values):
                         self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
-
-    def _create_viewer(self, record_to_viser: str | None, metadata: dict | None = None) -> None:
-        """Create Newton-backed Viser viewer and apply initial camera.
-
-        Args:
-            record_to_viser: Optional output path for viser recording.
-            metadata: Optional metadata passed to viewer.
-        """
-        self._viewer = NewtonViewerViser(
-            port=self.cfg.port,
-            bind_address=self.cfg.bind_address,
-            label="Isaac Lab",
-            verbose=False,
-            share=self.cfg.share,
-            record_to_viser=record_to_viser,
-            metadata=metadata or {},
-        )
-        backend = self.physics_backend or "unknown"
-        backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
-        server = getattr(self._viewer, "_server", None)
-        if server is not None:
-            server.gui.add_markdown(f"Physics: {backend_display}")
-        viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
-        if self.cfg.verbose:
-            print()
-            self._log_viewer_url(
-                "ViserVisualizer",
-                viewer_url,
-            )
-        num_envs = int((metadata or {}).get("num_envs", 0))
-        self._viewer.set_model(self.backend.model)
-        self._viewer.show_particles = self.cfg.show_particles
-        # Set up sidebar AFTER set_model() — set_model calls clear_model() internally,
-        # which would destroy any GUI elements created before it.
-        if server is not None:
-            self._setup_isaaclab_sidebar(server)
-        apply_viewer_visible_worlds(
-            self._viewer,
-            env_ids=self._env_ids,
-            max_visible_envs=self.cfg.max_visible_envs,
-            num_envs=num_envs,
-        )
-        # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
-        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-        if self.cfg.open_browser:
-            _open_viser_web_viewer(viewer_url)
-        initial_pose = self._resolve_initial_camera_pose()
-        self._set_viser_camera_view(initial_pose)
-        self._sim_time = 0.0
 
     def _setup_isaaclab_sidebar(self, server) -> None:
         """Configure the Viser sidebar as the Isaac Lab panel.
@@ -820,88 +553,11 @@ class ViserVisualizer(BaseVisualizer):
                 for label, attr in _VIZ_FLAGS:
                     if not hasattr(viewer, attr):
                         continue
-                    cb = server.gui.add_checkbox(label, initial_value=getattr(viewer, attr, False))
+                    cb = server.gui.add_checkbox(label, initial_value=getattr(viewer, attr))
 
-                    def _make_cb(a=attr):
-                        @cb.on_update
-                        def _(event, _attr=a):
-                            with contextlib.suppress(Exception):
-                                setattr(viewer, _attr, event.target.value)
-
-                    _make_cb()
-
-    def _close_viewer(self, finalize_viser: bool = False) -> None:
-        """Close viewer and log recording output when requested."""
-        if self._viewer is None:
-            return
-        self._viewer.close()
-        if finalize_viser and self._active_record_path:
-            if os.path.exists(self._active_record_path):
-                size = os.path.getsize(self._active_record_path)
-                logger.info("[ViserVisualizer] Recording saved: %s (%s bytes)", self._active_record_path, size)
-            else:
-                logger.warning("[ViserVisualizer] Recording file not found: %s", self._active_record_path)
-        self._viewer = None
-
-    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config."""
-        return self._resolve_cfg_camera_pose("ViserVisualizer")
-
-    def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
-        """Try applying camera pose to active viser clients.
-
-        Returns:
-            ``True`` if at least one client camera was updated, otherwise ``False``.
-        """
-        if self._viewer is None:
-            return False
-        server = getattr(self._viewer, "_server", None)
-        get_clients = getattr(server, "get_clients", None) if server is not None else None
-        if not callable(get_clients):
-            return False
-
-        try:
-            clients = get_clients()
-        except Exception:
-            return False
-
-        client_iterable = clients.values() if isinstance(clients, dict) else clients
-        cam_pos, cam_target = pose
-        fov_radians = math.radians(self._focal_length_to_vertical_fov_degrees())
-        applied = False
-        for client in client_iterable:
-            camera = getattr(client, "camera", None)
-            if camera is None:
-                continue
-            try:
-                if hasattr(camera, "fov"):
-                    camera.fov = fov_radians
-                    applied = True
-                if hasattr(camera, "position"):
-                    camera.position = cam_pos
-                    applied = True
-                if hasattr(camera, "look_at"):
-                    camera.look_at = cam_target
-                    applied = True
-            except Exception:
-                continue
-        return applied
-
-    def _set_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
-        """Apply or defer camera pose update depending on client readiness."""
-        if self._try_apply_viser_camera_view(pose):
-            self._last_camera_pose = pose
-            self._pending_camera_pose = None
-        else:
-            self._pending_camera_pose = pose
-
-    def _apply_pending_camera_pose(self) -> None:
-        """Apply deferred camera pose once client cameras are available."""
-        if self._pending_camera_pose is None:
-            return
-        if self._try_apply_viser_camera_view(self._pending_camera_pose):
-            self._last_camera_pose = self._pending_camera_pose
-            self._pending_camera_pose = None
+                    @cb.on_update
+                    def _(event, _attr=attr):
+                        setattr(viewer, _attr, event.target.value)
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
@@ -912,6 +568,12 @@ class ViserVisualizer(BaseVisualizer):
             eye: Camera eye position.
             target: Camera look-at target.
         """
-        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
-        target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self._set_viser_camera_view((eye_t, target_t))
+        self._pending_camera_pose = (tuple(float(v) for v in eye), tuple(float(v) for v in target))
+        if self._viewer is None:
+            return
+        clients = self._viewer._server.get_clients()
+        for client in clients.values():
+            client.camera.fov = math.radians(self._focal_length_to_vertical_fov_degrees())
+            client.camera.position, client.camera.look_at = self._pending_camera_pose
+        if clients:
+            self._pending_camera_pose = None

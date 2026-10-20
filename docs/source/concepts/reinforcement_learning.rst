@@ -4,10 +4,8 @@
 Reinforcement Learning
 ======================
 
-Isaac Lab provides a common workflow for training and evaluating policies with
-several reinforcement learning (RL) libraries. This page helps you choose a
-library, run your first experiment, and understand the options you are most
-likely to use.
+Use ``train`` and ``play`` to train and evaluate policies with any supported
+reinforcement learning (RL) library.
 
 If you are starting a new robotics project and do not need a feature unique to
 another library, start with **RSL-RL**.
@@ -29,9 +27,14 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole \
-       --checkpoint latest --num_envs 32 --viz newton
+       --checkpoint latest --num_envs 32 --viz newton_gl
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
+
+Try pretrained Cartpole, G1, and ANYmal-D controllers in the
+:ref:`interactive demo gallery <interactive-browser-demos>` without installing
+Isaac Lab. These compact browser scenes illustrate policy control; use native
+playback for full task evaluation.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_learning_progression_anymald.gif
    :width: 100%
@@ -45,9 +48,7 @@ The ``train`` and ``play`` commands work across the supported RL libraries.
 Choose an RL library
 --------------------
 
-All supported libraries use the same Isaac Lab environments, but they differ in
-algorithms, configuration style, and intended workflow. Choose based on the
-features your experiment needs, not on a single throughput result.
+Choose a library for the algorithms and configuration tools your experiment needs.
 
 .. list-table::
    :widths: 18 28 36 18
@@ -65,7 +66,7 @@ features your experiment needs, not on a single throughput result.
    * - **skrl**
      - JAX workflows or explicit multi-agent training
      - PPO, AMP, IPPO, and MAPPO with PyTorch or JAX
-     - ``--extra skrl``
+     - ``--extra skrl`` for PyTorch or ``--extra skrl-jax`` for JAX
    * - **RL-Games**
      - Existing RL-Games projects or population-based workflows
      - PPO, SAC, A2C, population-based training, distributed training, and Ray
@@ -91,6 +92,7 @@ Install optional dependencies by selecting the corresponding ``uv`` extra when r
 .. code-block:: bash
 
    uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole
+   uv run --extra skrl-jax isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework jax
    uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Cartpole
    uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole
    uv run --extra torchrl isaaclab train --rl_library torchrl --task Isaac-Cartpole
@@ -119,16 +121,65 @@ Then run a few training iterations on a limited number of environments:
 If both commands succeed, remove the smoke-test overrides and use the task's
 tuned defaults.
 
-Monitor training
-~~~~~~~~~~~~~~~~
+.. _monitor-training:
+.. _rl-training-logging:
 
-Start TensorBoard in a second terminal:
+Log training progress
+~~~~~~~~~~~~~~~~~~~~~
+
+Use **TensorBoard** to inspect local runs, or **Weights & Biases (W&B)** to track
+experiments online and compare results with your team. Logging is configured by
+the RL library, so the options differ between runners.
+
+**TensorBoard.** RSL-RL logs to TensorBoard by default under ``logs/rsl_rl/``.
+Start the dashboard in a second terminal:
 
 .. code-block:: bash
 
    uv run python -m tensorboard.main --logdir logs
 
-Focus on trends across multiple iterations:
+Open ``http://localhost:6006``. Using ``logs`` includes runs from all libraries;
+use ``--logdir logs/rsl_rl`` to focus on RSL-RL. RL-Games, Stable-Baselines3, and
+the TorchRL runner also write TensorBoard logs. For skrl, logging frequency is
+controlled by ``agent.experiment.write_interval``; ``auto`` enables periodic logging
+and ``0`` disables it.
+
+**Weights & Biases.** Add the ``wandb`` extra, sign in, then select W&B when
+starting a run. For RSL-RL:
+
+.. code-block:: bash
+
+   uv run --extra wandb wandb login
+   uv run --extra wandb isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
+       --logger wandb --log_project_name isaaclab --run_name cartpole_baseline
+
+Choose a descriptive run name so you can distinguish experiments in the dashboard.
+For other runners, use their own tracking options:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Library
+     - W&B configuration
+   * - RSL-RL
+     - ``--logger wandb --log_project_name <project>``.
+   * - RL-Games
+     - ``--track --wandb-project-name <project> --wandb-entity <user-or-team>``.
+       The entity is required; ``--wandb-name`` optionally names the run.
+   * - skrl
+     - Set ``agent.experiment.wandb`` to ``True`` in the agent configuration and
+       provide ``project`` and, optionally, ``entity`` in
+       ``agent.experiment.wandb_kwargs``.
+
+Keep the library's extra alongside ``--extra wandb`` when needed, for example
+``uv run --extra rl-games --extra wandb isaaclab train ...``. The supplied SB3 and
+TorchRL runners use TensorBoard and do not expose a W&B command-line switch.
+
+RSL-RL also offers ``--logger neptune --log_project_name <project>``. It requires
+``neptune-client`` and Neptune credentials in the training environment.
+
+**What to watch.** Focus on trends across multiple iterations:
 
 * **Mean reward** should generally improve, although its absolute value is
   task-specific.
@@ -179,16 +230,12 @@ For example, play the best local checkpoint and record a short video:
 Pretrained checkpoints
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Published pretrained checkpoints are available only for supported core tasks,
-and availability may vary by RL library and backend combination. Other
-registered tasks, including contributed tasks, are not covered by the
-published checkpoint set.
+Pretrained checkpoints are published for selected core tasks and RL-library/backend
+combinations. Contributed tasks are not included.
 
-Pass ``--checkpoint pretrained`` to load the published policy matching the
-resolved task configuration. The selector does not guarantee that an artifact
-exists for every registered task: if the matching artifact has not been
-published, the command reports that it is unavailable and exits. In that case,
-train the task locally and use ``latest`` or an explicit checkpoint path.
+Use ``--checkpoint pretrained`` to load a published policy for the resolved task
+configuration. If none is available, the command exits with a message. Train the
+task locally and use ``latest`` or an explicit checkpoint path instead.
 
 Maintainers can generate the preferred core-task checkpoint matrix with
 ``scripts/tools/train_and_publish_checkpoints.py``. Use ``--list --all --core``
@@ -212,9 +259,8 @@ Resume from the latest compatible checkpoint:
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
        --checkpoint latest
 
-When loading an explicit checkpoint, use the same task, agent, ML framework,
-and observation/action presets used during training. A checkpoint stores policy
-state; it cannot make incompatible observations or actions compatible.
+When loading a checkpoint, match the original task, agent, ML framework, and
+observation/action presets.
 
 Configure an experiment
 -----------------------
@@ -227,11 +273,12 @@ creating one from scratch.
 Discover tasks and agents
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-List registered tasks, then inspect the task-specific help:
+List registered tasks, then inspect the task-specific help. The list includes an RL Libraries column,
+since each task supports only the libraries it registers a config for:
 
 .. code-block:: bash
 
-   uv run python scripts/environments/list_envs.py
+   uv run isaaclab list_envs --show_presets
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --help
 
 Use ``--agent`` to select an alternate registered configuration. For example:
@@ -262,8 +309,8 @@ whose network matches the selected preset.
 Override configuration with Hydra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hydra allows you to override environment and agent configurations after the
-regular command-line options:
+Append Hydra overrides after the command-line options to change environment or
+agent settings:
 
 .. code-block:: bash
 
@@ -297,17 +344,13 @@ task.
 
    Use the same physics, renderer, domain, and observation/action presets for
    training and playback. Changing an observation or action preset can change
-   the policy architecture and cause checkpoint shape errors. This is a feature
-   and reflects that the selected configuration defines the policy contract.
+   the policy architecture and cause checkpoint shape errors.
 
 Scale training
 --------------
 
-Isaac Lab collects experience from many environments in parallel.
-``--num_envs`` controls the number of simulation instances. Increasing it can
-improve sample collection until simulation cost, optimizer structure, or GPU
-memory becomes the bottleneck. Use ``--num_envs`` to scale up or down as needed,
-but recognize that more environments do not always make training faster.
+``--num_envs`` sets the number of parallel environments. Increasing it can speed up
+data collection until simulation, optimization, or GPU memory becomes the bottleneck.
 
 Isaac Lab also supports distributed training for RSL-RL, RL-Games, and skrl.
 See :doc:`/source/features/multi_gpu` for details on scaling training across
@@ -316,9 +359,7 @@ multiple GPUs.
 Specialized workflows
 ---------------------
 
-The standard training workflow is sufficient for most tasks. The following
-workflows are useful when transferring an existing policy, training multiple
-agents, using JAX, or post-training a vision-language-action model.
+These workflows cover policy transfer, multi-agent training, JAX, and VLA post-training.
 
 RSL-RL distillation
 ~~~~~~~~~~~~~~~~~~~
@@ -385,15 +426,20 @@ compilation and execution:
 
 .. code-block:: bash
 
-   uv run --extra skrl isaaclab train --rl_library skrl \
+   uv run --extra skrl-jax isaaclab train --rl_library skrl \
        --task Isaac-Reach-Franka \
        --ml_framework jax
 
-Install a CUDA-enabled JAX build that matches your platform before using this
-workflow. JAX preallocates GPU memory by default, so ensure that the simulation
-and learner can share the available memory. See the `skrl installation guide
+.. note::
+
+   The ``skrl-jax`` extra installs JAX with CUDA 13 support and the skrl JAX
+   dependencies. Use it instead of the ``skrl`` extra for this workflow.
+
+JAX preallocates GPU memory by default, so ensure that the simulation and
+learner can share the available memory. See the `skrl installation guide
 <https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ and the `JAX
-installation guide <https://docs.jax.dev/en/latest/installation.html>`__.
+installation guide <https://docs.jax.dev/en/latest/installation.html>`__ for
+more information.
 
 RLinf VLA post-training
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -418,10 +464,7 @@ installation, distributed execution, configuration, and evaluation.
 Programmatic use
 ----------------
 
-Downstream applications and automated scripts can invoke the same training
-dispatcher used by the command line. Constructing a request directly avoids creating an
-``argparse.Namespace`` and provides a stable interface for launching training
-from Python:
+From Python, use the same dispatcher as the command line:
 
 .. code-block:: python
 
@@ -506,8 +549,22 @@ Prefer the ``latest`` or ``best`` checkpoint selectors when available. Manifest
 discovery filters incompatible runs before attempting to load their
 checkpoints.
 
-Next steps
-----------
+.. Maintenance notes
+
+   This page is the source of truth for the ``isaaclab-training-rl-agents`` and
+   ``isaaclab-debugging-rl-training`` agent skills
+   (`skills/user/train-rl-agents/
+   <../../../skills/user/train-rl-agents/SKILL.md>`__,
+   `skills/user/debug-rl-training/
+   <../../../skills/user/debug-rl-training/SKILL.md>`__). When you change this
+   page, update those skills so their guidance stays in sync. See
+   :doc:`/source/developer-tools/agent_skills`.
+
+
+.. _next-steps:
+
+Where to go next
+----------------
 
 * :ref:`tutorial-run-rl-training` explains how an Isaac Lab environment is
   wrapped for an RL library.
@@ -519,7 +576,7 @@ Next steps
 
 * :doc:`/source/features/multi_gpu` covers multi-GPU and multi-node training.
 
-* :doc:`/source/features/reproducibility` covers reproducible experiments.
+* :doc:`/source/how-to/reproducibility` covers reproducible experiments.
 
 * :doc:`/source/how-to/capture_sensor_frames` covers image-observation
   diagnostics.
@@ -529,14 +586,3 @@ Next steps
 .. _RL-Games: https://github.com/Denys88/rl_games
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/
 .. _RLinf: https://github.com/RLinf/RLinf
-
-.. seealso::
-
-   This page is the source of truth for the ``isaaclab-training-rl-agents`` and
-   ``isaaclab-debugging-rl-training`` agent skills
-   (`skills/user/train-rl-agents/
-   <../../../skills/user/train-rl-agents/SKILL.md>`__,
-   `skills/user/debug-rl-training/
-   <../../../skills/user/debug-rl-training/SKILL.md>`__). When you change this
-   page, update those skills so their guidance stays in sync. See
-   :doc:`/source/developer-tools/agent_skills`.

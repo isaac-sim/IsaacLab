@@ -8,10 +8,10 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.physics import NewtonManager
 
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, gather_particles, vec6f
 
@@ -26,7 +26,15 @@ class DeformableObjectData(BaseDeformableObjectData):
     The data is lazily updated, meaning that the data is only updated when it is accessed.
     """
 
-    def __init__(self, particle_offsets: wp.array, particles_per_body: int, num_instances: int, device: str):
+    def __init__(
+        self,
+        particle_offsets: wp.array,
+        particles_per_body: int,
+        num_instances: int,
+        device: str,
+        *,
+        backend_manager: NewtonManager | None = None,
+    ):
         """Initialize the Newton deformable object data.
 
         Args:
@@ -35,7 +43,12 @@ class DeformableObjectData(BaseDeformableObjectData):
             particles_per_body: Number of particles per deformable body instance.
             num_instances: Number of deformable body instances.
             device: The device used for processing.
+            backend_manager: Newton physics manager that owns the simulation state.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("DeformableObjectData()")
+        self._backend_manager = backend_manager
         super().__init__(device)
 
         # Store dimensions and indexing
@@ -74,26 +87,11 @@ class DeformableObjectData(BaseDeformableObjectData):
     Shape is (num_instances, particles_per_body) with dtype vec4f.
     """
 
-    def _create_simulation_bindings(self) -> None:
-        """Invalidate gathered buffers after model reinitialization.
-
-        Newton may swap :attr:`state_0` and :attr:`state_1` across substeps, so deformable data does not keep
-        long-lived particle array bindings. Read properties query :meth:`SimulationManager.get_state_0` at gather time
-        and materialize object-local views from the current flat particle arrays.
-        """
-        reset_timestamps(
-            (self._nodal_pos_w, self._nodal_vel_w, self._nodal_state_w, self._root_pos_w, self._root_vel_w)
-        )
-
-    ##
-    # Properties.
-    ##
-
     @property
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            state = SimulationManager.get_state_0()
+            state = self._backend_manager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
@@ -108,7 +106,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            state = SimulationManager.get_state_0()
+            state = self._backend_manager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),

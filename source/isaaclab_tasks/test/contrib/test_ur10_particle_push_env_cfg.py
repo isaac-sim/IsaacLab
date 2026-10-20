@@ -13,7 +13,46 @@ import torch
 from isaaclab.utils import update_from_dict, validate
 
 from isaaclab_tasks.contrib.ur10_particle_push.mdp.curriculums import SinglePushCurriculum
-from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env_cfg import UR10ParticlePushEnvCfg
+from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env_cfg import (
+    UR10ParticlePushEnvCfg,
+    configure_sparse_mpm_capacities,
+    get_mpm_solver_cfg,
+)
+
+
+def test_sparse_mpm_capacities_scale_to_large_batches():
+    """The tuned hierarchy must reserve bounded capacities for CUDA graph capture."""
+    cfg = UR10ParticlePushEnvCfg()
+    cfg.scene.num_envs = 513
+
+    configure_sparse_mpm_capacities(cfg)
+
+    solver_cfg = get_mpm_solver_cfg(cfg)
+    assert solver_cfg.max_active_cell_count == 1536 * cfg.scene.num_envs
+    assert solver_cfg.max_leaf_node_count == 48 * cfg.scene.num_envs
+    assert solver_cfg.max_lower_node_count == 4 * cfg.scene.num_envs
+    assert solver_cfg.max_upper_node_count == 65
+
+
+@pytest.mark.parametrize(("num_envs", "expected_lower_nodes"), ((1, 32), (9, 36)))
+def test_sparse_mpm_capacities_keep_small_batch_hierarchy(num_envs, expected_lower_nodes):
+    """Small batches must satisfy Newton's hierarchy while retaining the upper-node floor."""
+    cfg = UR10ParticlePushEnvCfg()
+    cfg.scene.num_envs = num_envs
+
+    configure_sparse_mpm_capacities(cfg)
+
+    solver_cfg = get_mpm_solver_cfg(cfg)
+    assert solver_cfg.max_upper_node_count == 32
+    assert solver_cfg.max_lower_node_count == expected_lower_nodes
+    assert solver_cfg.max_active_cell_count >= 3072
+    assert solver_cfg.max_leaf_node_count >= 96
+    assert (
+        solver_cfg.max_upper_node_count
+        <= solver_cfg.max_lower_node_count
+        <= solver_cfg.max_leaf_node_count
+        <= solver_cfg.max_active_cell_count
+    )
 
 
 def test_final_validation_checks_post_construction_overrides():

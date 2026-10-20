@@ -49,11 +49,6 @@ def _list_tasks() -> None:
 
 def run(argv: list[str]) -> None:
     """Launch RLinf training."""
-    # Ray 2.47+ turns the current project into a ``working_dir`` runtime environment when the driver is
-    # launched through ``uv run``. An Isaac Lab checkout commonly contains a large ``.venv`` and local
-    # model checkpoints, which exceed Ray's 500 MiB upload limit. RLinf already selects the Python
-    # executable for each worker, so this upload is neither needed nor desirable.
-    os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
     # required for RLinf to register Isaac Lab tasks and converters
     os.environ.setdefault("RLINF_EXT_MODULE", "isaaclab_contrib.rl.rlinf.extension")
     args_cli = _parse_args(argv)
@@ -82,7 +77,7 @@ def run(argv: list[str]) -> None:
     logger.info(f"Using config: {config_name}")
     logger.info(f"Config path: {config_dir}")
     GlobalHydra.instance().clear()
-    initialize_config_dir(config_dir=config_dir, version_base="1.1")
+    initialize_config_dir(config_dir=config_dir)
     cfg = compose(config_name=config_name)
 
     task_id = cfg.env.train.init_params.id

@@ -44,7 +44,6 @@ from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils import has_kit
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -84,8 +83,8 @@ def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
 class _StoreAndMarkExplicit(argparse.Action):
     """Store the value and set ``<dest>_explicit``, for options whose default must stay a real value.
 
-    ``--device`` defaults to ``"cuda:0"`` because scripts read ``args_cli.device`` before launch, yet XR
-    needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
+    ``--device`` defaults to ``"cuda:0"`` (``"cpu"`` on macOS) because scripts read ``args_cli.device`` before
+    launch, yet XR needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -225,9 +224,9 @@ class KitLauncher(SimulationLauncher):
         signal.signal(signal.SIGINT, signal.default_int_handler)
 
     def close(self, exit_code: int = 0) -> None:
-        """Close the Kit app this launcher started; Kit fast shutdown exits with *exit_code*."""
+        """Close the Kit app this launcher started; another SIGINT forces exit."""
         if self._app is not None:
-            previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
             try:
                 # let callbacks queued by the closing simulation run before shutdown
                 self._app.update()
@@ -341,18 +340,20 @@ class KitLauncher(SimulationLauncher):
             "--device",
             type=str,
             action=_StoreAndMarkExplicit,
-            default="cuda:0",
-            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+            # macOS has no CUDA; checked without importing torch, which must load after Kit
+            default="cpu" if sys.platform == "darwin" else "cuda:0",
+            help=(
+                'The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID.'
+                ' Defaults to "cuda:0", or "cpu" on macOS.'
+            ),
         )
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=parse_visualizer_csv,
+            type=lambda value: value.split(","),
+            action=_StoreAndMarkExplicit,
             default=None,
-            help=(
-                "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
-                " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."
-            ),
+            help="Alias for visualizer=NAME (comma-separated names enable multiple viewers).",
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -432,7 +433,7 @@ class KitLauncher(SimulationLauncher):
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        self._kit_visualizer = "kit" in (launcher_args.get("visualizer") or ())
+        self._kit_visualizer = launcher_args.get("kit_visualizer", "kit" in (launcher_args.get("visualizer") or ()))
         self._resolve_livestream_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
         self._resolve_headless_settings()
