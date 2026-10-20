@@ -36,7 +36,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
@@ -439,19 +439,30 @@ def test_nested_articulation_follows_root_pose_writes():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-@pytest.mark.parametrize("point_path", ["gpu", "legacy-kit", "streaming"])
+@pytest.mark.parametrize(
+    "point_path", ["gpu", "legacy-kit", "streaming", "streaming-gpu", "cpu", "unsupported-gpu-device"]
+)
 def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(
     monkeypatch, particle_render_settings, point_path
 ):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
     kit_version = tuple(map(int, simulation_app.get_kit_version_short().split(".")))
-    gpu_points = point_path == "gpu" and kit_version >= (110, 4)
-    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path == "streaming" else "Mesh")
+    gpu_points = point_path in {"gpu", "streaming-gpu"} and kit_version >= (110, 4)
+    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path.startswith("streaming") else "Mesh")
+    particle_render_settings.set(
+        "/isaaclab/render/points_update_mode",
+        "gpu"
+        if point_path in {"streaming-gpu", "unsupported-gpu-device"}
+        else "cpu"
+        if point_path == "cpu"
+        else "auto",
+    )
     if point_path == "legacy-kit":
         app = Mock(wraps=simulation_app)
         app.get_kit_version_short.return_value = "110.3"
         monkeypatch.setattr(omni.kit.app, "get_app", lambda: app)
-    cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
+    device = "cpu" if point_path == "unsupported-gpu-device" else "cuda:0"
+    cfg = SimulationCfg(device=device, physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
         parent = UsdGeom.Xform.Define(sim.stage, "/World/Geometry")
         parent.AddTranslateOp().Set(UsdGf.Vec3d(10.0, 20.0, 30.0))
@@ -484,6 +495,10 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(
             )
         )
         fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        if point_path == "unsupported-gpu-device":
+            with pytest.raises(RuntimeError, match="CUDA simulation device"):
+                fabric.update_geometries(provider, 0)
+            return
         fabric.update_geometries(provider, 0)
         simulation_app.update()
         wp.synchronize_device(sim.device)
@@ -509,16 +524,19 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(
         fabric.update_geometries(provider, 2)
         np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
         copy = wp.copy
+        point_readbacks = []
 
         def copy_without_point_readback(dest, src, *args, **kwargs):
-            if gpu_points:
-                assert not (src.device.is_cuda and dest.device.is_cpu), "Particle rendering copied points to CPU"
+            if src.device.is_cuda and dest.device.is_cpu:
+                assert not gpu_points, "Particle rendering copied points to CPU"
+                point_readbacks.append(src.size)
             return copy(dest, src, *args, **kwargs)
 
         # Only the cloud is due here; a CUDA cloud must enter Fabric without a host copy.
         with monkeypatch.context() as patch:
             patch.setattr(wp, "copy", copy_without_point_readback)
             fabric.update_geometries(provider, 3)
+        assert point_readbacks == ([] if gpu_points else [3])
         np.testing.assert_allclose(
             _fabric_curve_points_world(str(cloud.GetPath())), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6
         )
@@ -541,10 +559,15 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-@pytest.mark.parametrize("point_path", ["gpu", "streaming"])
-def test_mpm_particle_writes_and_resets_are_visible_in_rtx(particle_render_settings, point_path):
+@pytest.mark.parametrize("point_path", ["gpu", "streaming", "streaming-gpu"])
+def test_mpm_particle_writes_and_resets_are_visible_in_rtx(monkeypatch, particle_render_settings, point_path):
     """RTX must render particle writes and resets independently for cloned MPM assets."""
-    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path == "streaming" else "Mesh")
+    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path.startswith("streaming") else "Mesh")
+    if point_path == "streaming-gpu":
+        kit_version = tuple(map(int, simulation_app.get_build_version().split("+")[0].split(".")))
+        if kit_version < (110, 4, 1):
+            pytest.skip("Streamed GPU rendering requires a compatible fixed Kit build")
+    points_mode = "gpu" if point_path == "streaming-gpu" else "auto"
 
     @configclass
     class ParticleSceneCfg(InteractiveSceneCfg):
@@ -569,7 +592,9 @@ def test_mpm_particle_writes_and_resets_are_visible_in_rtx(particle_render_setti
             data_types=["rgb"],
             offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), convention="opengl"),
             spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=20.0),
-            renderer_cfg=IsaacRtxRendererCfg(),
+            renderer_cfg=IsaacRtxRendererCfg(
+                global_settings=IsaacRtxRendererGlobalSettingsCfg(points_update_mode=points_mode)
+            ),
         )
         light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0))
 
@@ -599,6 +624,23 @@ def test_mpm_particle_writes_and_resets_are_visible_in_rtx(particle_render_setti
                 return torch.stack(values)
 
             before = centers()
+            # No rigid transforms are published in this scene. A new physics timestamp
+            # must not make particle rendering wait for an empty transform hierarchy.
+            assert sim.get_scene_data_provider().transform_count == 0
+            sim.step(render=False)
+
+            def unexpected_particle_wait(*_args, **_kwargs):
+                raise AssertionError("Particle-only rendering synchronized an empty rigid hierarchy")
+
+            if point_path != "streaming" and tuple(map(int, simulation_app.get_kit_version_short().split("."))) >= (
+                110,
+                4,
+            ):
+                with monkeypatch.context() as patch:
+                    patch.setattr(wp, "synchronize_stream", unexpected_particle_wait)
+                    patch.setattr(wp, "synchronize_device", unexpected_particle_wait)
+                    sim.render()
+                    scene["camera"].update(sim.get_rendering_dt(), force_recompute=True)
             state = scene["red"].data.default_particle_state_w.torch[1:2].clone()
             state[..., 1] += 0.4
             scene["red"].write_particle_state_to_sim_index(state, env_ids=[1])
@@ -692,7 +734,10 @@ def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
 def particle_render_settings():
     """Restore the process-wide geometry settings after each particle render case."""
     settings = get_settings_manager()
-    original = {path: settings.get(path) for path in ("/UJITSO/geometry", "/UJITSO/geometryTypes")}
+    original = {
+        path: settings.get(path)
+        for path in ("/UJITSO/geometry", "/UJITSO/geometryTypes", "/isaaclab/render/points_update_mode")
+    }
     settings.set("/UJITSO/geometry", False)
     try:
         yield settings

@@ -13,3 +13,11 @@ def test_global_settings_cfg_is_publicly_exported():
     """Test that the global settings config is exported from the renderer package."""
     assert renderers.IsaacRtxRendererGlobalSettingsCfg is IsaacRtxRendererGlobalSettingsCfg
     assert "IsaacRtxRendererGlobalSettingsCfg" in renderers.__all__
+
+
+def test_global_settings_preserve_positional_constructor_arguments():
+    """Adding particle transport must not reinterpret existing positional quality settings."""
+    cfg = IsaacRtxRendererGlobalSettingsCfg(True, False, points_update_mode="gpu")
+    assert cfg.enable_translucency is True
+    assert cfg.enable_reflections is False
+    assert cfg.points_update_mode == "gpu"

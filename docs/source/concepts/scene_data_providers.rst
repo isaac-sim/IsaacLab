@@ -133,31 +133,55 @@ writable Fabric arrays. Renderers use this same path regardless of physics backe
 
 The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
 PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
-are interpolated directly into GPU Fabric storage. ``Points`` destinations use GPU Fabric
-on Kit 110.4 and newer when RTX Points geometry streaming is disabled, keeping the SDP
-particle-position upload on the device. Older Kit versions, streamed ``Points``, and
-``BasisCurves`` use CPU Fabric destinations; SDP handles their device transfer without USD
-attribute writes. Only destinations whose update interval has elapsed are updated. World-space
-point destinations reset their transform stack to avoid applying the environment or body pose twice.
-The procedural Points path renders particle spheres through RTX's analytic geometry and GPU
-position-update API. The visual prim remains ``UsdGeom.Points``. Geometry streaming controls
-geometry preprocessing, loading, and caching; GPU position updates also exist in its animated
-Points path. On Isaac Sim 6.2.0-rc.11 / Kit 110.4, streamed GPU updates leave a single-particle
-cloud with default constant display color stale, while a 4,000-particle scene moves correctly
-but loses its authored colors. The procedural path passes the movement and color checks.
-Points streaming is enabled by default, including when ``/UJITSO/geometry`` is false or
-``/UJITSO/geometryTypes`` is empty.
-To use GPU particle updates, set the following Kit arguments before creating the scene:
+are interpolated directly into GPU Fabric storage. World-space point destinations reset their
+transform stack to avoid applying the environment or body pose twice. Only destinations whose
+update interval has elapsed are updated, and the authored USD point arrays remain unchanged.
+
+Points transport is controlled by
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg.points_update_mode`:
+
+* ``"auto"`` uses GPU Fabric for procedural Points on Kit 110.4 and newer. Streamed Points,
+  older Kit versions and ``BasisCurves`` retain CPU destinations.
+* ``"gpu"`` keeps Points positions on the GPU, including when Points streaming is enabled.
+  Use this mode with a verified compatible Kit build: older Kit 110.4 builds can freeze a
+  single point with constant color or lose colors after GPU-first initialization. This mode
+  requires a CUDA simulation device and Kit 110.4 or newer; it does not enable GPU curves.
+* ``"cpu"`` explicitly selects the compatibility path for Points.
+
+For example, select GPU particle transport for a compatible runtime before creating the scene:
+
+.. code-block:: python
+
+   from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
+
+   renderer_cfg = IsaacRtxRendererCfg(
+       global_settings=IsaacRtxRendererGlobalSettingsCfg(points_update_mode="gpu")
+   )
+
+The setting is shared by Kit and Isaac RTX consumers of the same Fabric resource. For a
+Kit-only visualizer, the equivalent launch argument is
+``--kit_args "--/isaaclab/render/points_update_mode=gpu"``. The default ``None`` on the
+configuration preserves the launch-time setting; absent that setting, transport is ``"auto"``.
+Configure it before geometry bindings are initialized, rather than changing it per frame.
+
+Older Kit 110.4 builds can use procedural GPU Points by excluding Points from geometry streaming:
 
 .. code-block:: text
 
    --kit_args "--/UJITSO/geometry=false --/UJITSO/geometryTypes=Mesh"
 
-This configuration selects the procedural GPU particle path while enabling geometry streaming
-for existing meshes. Particle positions remain on the device during SDP uploads. Gaussian
-rendering requires Points streaming; retain the CPU particle fallback for scenes that need it.
-This removes the SDP particle-position readback; unrelated Fabric/RTX synchronization and
-small renderer metadata transfers can still occur.
+This selects analytic particle spheres while keeping the visual prim as ``UsdGeom.Points``;
+no particle mesh is generated. Geometry streaming controls preprocessing, loading and caching,
+and is not required for GPU position updates. Gaussian rendering requires Points streaming,
+so it needs either a compatible runtime with explicit GPU mode or the CPU fallback.
+Points streaming is enabled by default, including when ``/UJITSO/geometry`` is false or
+``/UJITSO/geometryTypes`` is empty.
+
+GPU transport removes the SDP particle-position download. Particle-only scenes also skip
+GPU hierarchy propagation and its host waits when the producer publishes no rigid transforms.
+Scenes with rigid bodies retain hierarchy synchronization, and native rendering or solver
+metadata can still require host transfers or waits. GPU particle storage does not imply a
+completely asynchronous simulation/render frame.
 ``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
 
 Newton backend

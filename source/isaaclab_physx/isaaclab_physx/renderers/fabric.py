@@ -11,7 +11,6 @@ from dataclasses import field
 
 import warp as wp
 
-import omni.kit.app
 import usdrt
 import usdrt.hierarchy
 from pxr import Usd, UsdGeom, UsdUtils
@@ -113,7 +112,13 @@ class FabricBackend:
             self.transforms.matrices = wp.fabricarray(self._write_selection, "omni:fabric:localMatrix")
         provider.get_transforms(self.transforms, self._mapping, scales=self._scales)
         timestamp = provider.backend.transforms_timestamp
-        if self._selection is not None and (changed or self._transforms_timestamp != timestamp):
+        # World-space particle geometry has no rigid transforms to propagate. Keep
+        # native Fabric refreshes above, but avoid fencing an empty foreign hierarchy.
+        if (
+            self._selection is not None
+            and provider.transform_count
+            and (changed or self._transforms_timestamp != timestamp)
+        ):
             self._write_selection.PrepareForReuse()
             device = self._scales.device
             wp.synchronize_stream(device)
@@ -156,6 +161,8 @@ class FabricBackend:
 
     def _bind_geometries(self, provider: SceneDataProvider, paths: tuple[str, ...]) -> None:
         """Bind declared destinations by device and cadence; SDP owns all data movement."""
+        import omni.kit.app  # noqa: PLC0415 - requires the active Kit runtime
+
         # Foreign physics publishes world points. Author the sink once so Kit's USD refresh agrees.
         groups = {}
         kit_version = tuple(map(int, omni.kit.app.get_app().get_kit_version_short().split(".")))
@@ -164,7 +171,12 @@ class FabricBackend:
         points_streaming = settings.get("/UJITSO/geometry", False) or any(
             value.strip() in {"All", "Points", "StaticPoints", "AnimatedPoints"} for value in streamed_types
         )
-        gpu_points = kit_version >= (110, 4) and not points_streaming
+        points_mode = settings.get("/isaaclab/render/points_update_mode", "auto")
+        if points_mode not in {"auto", "cpu", "gpu"}:
+            raise ValueError(f"Invalid points_update_mode {points_mode!r}; expected 'auto', 'cpu', or 'gpu'.")
+        gpu_points = kit_version >= (110, 4) and (
+            points_mode == "gpu" or points_mode == "auto" and not points_streaming
+        )
         for path in paths:
             geometry = UsdGeom.Xformable(self.usd_stage.GetPrimAtPath(path))
             geometry.ClearXformOpOrder()
@@ -173,9 +185,15 @@ class FabricBackend:
             if prim_type == "Mesh":
                 device, frequency = self.device, 1
             elif prim_type in {"BasisCurves", "Points"}:
-                # Kit 110.4's streamed Points have GPU update and color regressions.
-                # Procedural Points render GPU position updates as analytic spheres.
-                # Curves require CPU storage (NVBug 6502662).
+                # Auto retains the fallback for runtimes with streamed GPU Points bugs.
+                # Explicit GPU mode is for compatible runtimes; curves still require CPU storage.
+                if prim_type == "Points" and points_mode == "gpu":
+                    if kit_version < (110, 4):
+                        raise RuntimeError("GPU Points updates require Kit 110.4 or newer; select 'auto' or 'cpu'.")
+                    if not wp.get_device(self.device).is_cuda:
+                        raise RuntimeError(
+                            "GPU Points updates require a CUDA simulation device; select 'auto' or 'cpu'."
+                        )
                 device = self.device if prim_type == "Points" and gpu_points else "cpu"
                 frequency = geometry.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() or 1
             else:
