@@ -21,13 +21,21 @@ import omni.kit.app
 
 simulation_app = omni.kit.app.get_app()
 
+from unittest.mock import MagicMock
+
+import numpy as np
 import pytest
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_teleop import XrCameraFeedCfg
+from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg
 from isaaclab_teleop.camera_feed import _PanelDescriptor
 from isaaclab_teleop.camera_feed_kit_scene_ui import _KitSceneUiCameraFeedPresenter
+from isaaclab_teleop.control_events import _NO_OP_EVENTS
+from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+from isaaclab_teleop.xr_anchor_utils import XrAnchorSynchronizer
+from isaaclab_teleop.xr_cfg import XrCfg
 
 import omni.replicator.core as rep
+import usdrt
 import usdrt.Usd as UsdRtUsd
 from pxr import Sdf, UsdUtils
 
@@ -206,3 +214,43 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera(us
         rep.vp_manager.destroy_hydra_textures("Replicator")
         sim.stop()
         sim.clear_instance()
+
+
+def test_teleop_frame_bindings_follow_updates(monkeypatch):
+    """Bound Fabric attributes follow live poses, and invalid targets fail before a session starts."""
+    session = MagicMock()
+    session.step.return_value = None
+    session.last_control_events = _NO_OP_EVENTS
+    monkeypatch.setattr("isaaclab_teleop.isaac_teleop_device.TeleopSessionLifecycle", lambda *args, **kwargs: session)
+    monkeypatch.setattr("isaaclab_teleop.xr_anchor_manager.XRCore", None)
+    with sim_utils.build_simulation_context(device="cpu") as sim:
+        sim_utils.create_prim("/World/Reference")
+        sim.reset()
+        stage = usdrt.Usd.Stage.Attach(sim_utils.get_current_stage_id())
+        reference = usdrt.Rt.Xformable(stage.GetPrimAtPath("/World/Reference"))
+        world_matrix = reference.CreateFabricHierarchyWorldMatrixAttr()
+        cfg = IsaacTeleopCfg(target_frame_prim_path="/World/Reference", sim_device="cpu")
+        with IsaacTeleopDevice(cfg, use_kit_xr_bridge=False) as device:
+            xr_cfg = XrCfg(anchor_prim_path="/World/Reference", fixed_anchor_height=False)
+            core = MagicMock()
+            sync = XrAnchorSynchronizer(core, xr_cfg, "/World/XRAnchor")
+            with monkeypatch.context() as bound:
+                bound.setattr(usdrt.Usd.Stage, "Attach", MagicMock(side_effect=AssertionError("Frame already bound")))
+                for position in ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0)):
+                    world_matrix.Set(usdrt.Gf.Matrix4d(1.0).SetTranslate(usdrt.Gf.Vec3d(*position)))
+                    device.advance()
+                    sync.sync_headset_to_anchor()
+                    expected = np.eye(4, dtype=np.float32)
+                    expected[:3, 3] = -np.asarray(position)
+                    target = session.step.call_args.kwargs["target_T_world"]
+                    assert target is not None
+                    np.testing.assert_allclose(target, expected)
+                    np.testing.assert_allclose(sync.get_world_transform()[0], position)
+                    displayed = core.set_world_transform_matrix.call_args.args[1]
+                    np.testing.assert_allclose(displayed.ExtractTranslation(), position)
+        session.start.reset_mock()
+        cfg.target_frame_prim_path = "/World/Missing"
+        with pytest.raises(ValueError, match="No target frame"):
+            with IsaacTeleopDevice(cfg, use_kit_xr_bridge=False):
+                pass
+        session.start.assert_not_called()
