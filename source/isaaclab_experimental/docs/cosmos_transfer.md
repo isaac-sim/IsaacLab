@@ -1,8 +1,7 @@
 # Cosmos Transfer demo setup and training
 
-Run the Shadow Hand camera task with Cosmos3-Nano-Sim-Transfer using the setup from
-the [GTC Berlin demo QA instructions](https://docs.google.com/document/d/11t8llGsfOmg-ttM5QjKhncVX_YqDfjrm7RIY_AWzhZE/edit?tab=t.0#heading=h.uomakmzdpww9).
-The revisions below record that demo's tested configuration. The Framework checkout
+Run the Shadow Hand camera task with Cosmos3-Nano-Sim-Transfer using the setup below.
+The revisions below record the demo's tested configuration. The Framework checkout
 is private and requires repository access; the checkpoint requires access to
 [nvidia/Cosmos3-Nano-Sim-Transfer](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer).
 
