@@ -130,22 +130,10 @@ def _required_version_names(physics_backend: str, render_backend: str | None) ->
     return tuple(sorted(set(names)))
 
 
-def build(bundle: dict[str, Any]) -> Contract:
-    """Build the comparability contract for a runtime bundle.
-
-    Args:
-        bundle: A schema-v1 runtime bundle.
-
-    Returns:
-        The contract used to select poolable baseline rows.
-
-    Raises:
-        PerfSmokeError: If required identity or hardware fields are missing.
-    """
+def workload_identity(bundle: dict[str, Any]) -> dict[str, Any]:
+    """Normalize the measured workload independently of hardware and runtime versions."""
     run = mapping(bundle.get("run"), "run")
     config = mapping(run.get("config"), "run.config")
-    versions = mapping(bundle.get("versions"), "versions")
-    hardware = mapping(bundle.get("hardware"), "hardware")
 
     task = run.get("task")
     if not isinstance(task, str) or not task.strip():
@@ -164,6 +152,36 @@ def build(bundle: dict[str, Any]) -> Contract:
     if not isinstance(presets, list) or not all(isinstance(item, str) for item in presets):
         raise PerfSmokeError("run.config.presets must be a list of strings")
 
+    solvers = config.get("physics_solvers", [])
+    if not isinstance(solvers, list) or not all(isinstance(name, str) and name for name in solvers):
+        raise PerfSmokeError("run.config.physics_solvers must be a list of non-empty strings")
+    solvers = sorted(set(solvers)) if solvers else [physics_backend]
+    if physics_backend not in solvers:
+        raise PerfSmokeError("run.config.physics_backend must be included in physics_solvers")
+    coupling = config.get("physics_coupling")
+    if coupling is not None and (not isinstance(coupling, str) or not coupling):
+        raise PerfSmokeError("run.config.physics_coupling must be a non-empty string or null")
+
+    workload = {
+        "task": task,
+        "physics_backend": physics_backend,
+        "render_backend": render_backend,
+        "presets": sorted(presets),
+        "num_envs": positive_int(run.get("num_envs"), "run.num_envs"),
+    }
+    if len(solvers) > 1 or coupling is not None:
+        workload.update(physics_solvers=solvers, physics_coupling=coupling)
+    return workload
+
+
+def build(bundle: dict[str, Any]) -> Contract:
+    """Build the workload, hardware and runtime key used to select baseline rows."""
+    workload = workload_identity(bundle)
+    versions = mapping(bundle.get("versions"), "versions")
+    hardware = mapping(bundle.get("hardware"), "hardware")
+    physics_backend, render_backend = workload["physics_backend"], workload["render_backend"]
+    solvers = workload.get("physics_solvers", [physics_backend])
+
     gpu_devices = hardware.get("gpu_devices")
     if not isinstance(gpu_devices, list) or not gpu_devices:
         raise PerfSmokeError("hardware.gpu_devices must contain at least one device")
@@ -174,16 +192,6 @@ def build(bundle: dict[str, Any]) -> Contract:
     cpu_name = hardware.get("cpu_name")
     if not isinstance(cpu_name, str) or not cpu_name.strip():
         raise PerfSmokeError("hardware.cpu_name must be a non-empty string")
-
-    solvers = config.get("physics_solvers", [])
-    if not isinstance(solvers, list) or not all(isinstance(name, str) and name for name in solvers):
-        raise PerfSmokeError("run.config.physics_solvers must be a list of non-empty strings")
-    solvers = sorted(set(solvers)) if solvers else [physics_backend]
-    if physics_backend not in solvers:
-        raise PerfSmokeError("run.config.physics_backend must be included in physics_solvers")
-    coupling = config.get("physics_coupling")
-    if coupling is not None and (not isinstance(coupling, str) or not coupling):
-        raise PerfSmokeError("run.config.physics_coupling must be a non-empty string or null")
 
     pinned: dict[str, str] = {}
     required_versions = dict.fromkeys(
@@ -197,15 +205,6 @@ def build(bundle: dict[str, Any]) -> Contract:
             raise PerfSmokeError(f"versions.{name} must be a non-empty string")
         pinned[name] = strip_build_metadata(value) if name in _STRIP_BUILD_METADATA else value.strip()
 
-    workload = {
-        "task": task,
-        "physics_backend": physics_backend,
-        "render_backend": render_backend,
-        "presets": sorted(presets),
-        "num_envs": positive_int(run.get("num_envs"), "run.num_envs"),
-    }
-    if len(solvers) > 1 or coupling is not None:
-        workload.update(physics_solvers=solvers, physics_coupling=coupling)
     return Contract(
         workload=workload,
         runtime={

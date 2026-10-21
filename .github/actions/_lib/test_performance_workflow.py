@@ -24,7 +24,7 @@ def labeled(login):
     return {"event": "labeled", "actor": {"login": login}}
 
 
-def test_performance_workflow(tmp_path):
+def test_performance_workflow(tmp_path, subtests):
     workflow = yaml.safe_load(WORKFLOW.read_text())
     assert "synchronize" in workflow.get("on", workflow.get(True, {}))["pull_request"]["types"]
     jobs = workflow["jobs"]
@@ -147,6 +147,8 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
         **os.environ,
         "PATH": f"{executables}{os.pathsep}{os.environ['PATH']}",
         "GITHUB_WORKSPACE": str(tmp_path),
+        "PERF_CONTROLLER": str(tmp_path),
+        "PERF_MEASUREMENT_ROOT": str(tmp_path / "measurement"),
         "GITHUB_RUN_ID": "123",
         "GITHUB_RUN_ATTEMPT": "2",
         "CI_IMAGE_TAG": "fixture-image",
@@ -179,3 +181,6 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             process.communicate()
+
+    registry = runpy.run_path(str(Path(__file__).with_name("test_registry_credential_fallback.py")))
+    registry["check_registry"](tmp_path / "registry", subtests)
