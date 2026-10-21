@@ -37,17 +37,17 @@ failures and poor tracking lower it.
 Distributed training
 --------------------
 
-Isaac Lab's native launcher supports distributed training without a task preset. With 4,096
-environments per GPU, add the optional ``presets=multi_gpu`` alongside any robot preset to preserve
-the single-GPU sample budget. It scales the training budget and fixed-step curricula using
-``WORLD_SIZE``, the total rank count set by the distributed launcher. Every rank uses the same count,
-including when nodes have different numbers of workers. Without ``WORLD_SIZE``, the count defaults to one.
+MicroDuck automatically scales the training budget and fixed-step curricula using ``WORLD_SIZE``,
+the total rank count set by Isaac Lab's native distributed launcher. With 4,096 environments per GPU,
+this preserves the single-GPU sample budget without an additional preset. Every rank uses the same
+count, including when nodes have different numbers of workers. Without ``WORLD_SIZE``, the count
+defaults to one and the single-GPU budgets and schedules are unchanged.
 
 .. code-block:: bash
 
     uv run isaaclab train_multigpu --num_gpus 8 \
         --task IsaacContrib-Velocity-Rough-MicroDuck --rl_library rsl_rl \
-        --num_envs 4096 --seed 42 presets=backlash,multi_gpu
+        --num_envs 4096 --seed 42 presets=backlash
 
 ``--num_gpus`` selects workers per node and ``--nnodes`` selects nodes. Two nodes with
 ``--nnodes 2 --num_gpus 8`` use 16 ranks in total; four nodes with ``--nnodes 4 --num_gpus 4`` also use
@@ -60,7 +60,7 @@ budget and schedules; they do not change the number of launched workers. Both fi
 ``None``, which selects ``WORLD_SIZE``. Supplying only one raises an error instead of combining an
 override with a rank's local topology.
 
-For a scaling count N (``WORLD_SIZE``, or the explicit ``env.ngpus * env.nnodes``), the preset selects
+For a scaling count N (``WORLD_SIZE``, or the explicit ``env.ngpus * env.nnodes``), the recipe selects
 50,000 / N iterations and saves every 250 / N iterations, rounding both up. Eight GPUs use 6,250
 iterations and save every 32 iterations; 16 GPUs use 3,125 iterations and save every 16 iterations.
 All six fixed-step curricula divide their boundaries by N,
@@ -69,8 +69,8 @@ rounding up to a whole step. These values are computed after Hydra applies overr
 
 With automatic rank detection and 4,096 environments per GPU, the total sample budget matches the
 single-GPU run, rounded up to a full distributed rollout. Larger optimizer batches can still change
-convergence. Terrain progression remains episode-based. Without ``multi_gpu``, the original iteration
-budget and fixed-step curricula are retained.
+convergence. Terrain progression remains episode-based, and the 24-step rollout length and PPO
+settings are unchanged.
 
 Previous walking recipe
 -----------------------

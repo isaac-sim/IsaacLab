@@ -411,12 +411,9 @@ def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
             "address": address,
             "modify_fn": mdp.staged_value,
             "modify_params": {
-                "stages": preset(
-                    default=steps,
-                    multi_gpu=[
-                        (f"${{microduck_scale:{step},${{env.ngpus}},${{env.nnodes}}}}", value) for step, value in steps
-                    ],
-                )
+                "stages": [
+                    (f"${{microduck_scale:{step},${{env.ngpus}},${{env.nnodes}}}}", value) for step, value in steps
+                ]
             },
         },
     )
