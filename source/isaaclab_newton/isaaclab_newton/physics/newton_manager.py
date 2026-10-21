@@ -50,7 +50,6 @@ from isaaclab.utils import checked_apply, to_dict
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
@@ -240,7 +239,7 @@ class NewtonQueries:
             if model.device.is_cuda and use_cuda_graph:
                 if cached.data is None or cached.data[0] != pointers:
                     refit = partial(NewtonQueries._refit_bvh, backend)
-                    cached.data = pointers, NewtonQueries.capture_graph(str(model.device), refit, relaxed=has_kit())
+                    cached.data = pointers, NewtonQueries.capture_graph(str(model.device), refit)
                 wp.capture_launch(cached.data[1])
             else:
                 NewtonQueries._refit_bvh(backend)
@@ -249,21 +248,18 @@ class NewtonQueries:
             query()
             return None
         if graph is None or graph[0] != pointers:
-            graph = pointers, NewtonQueries.capture_graph(str(model.device), query, relaxed=has_kit())
+            graph = pointers, NewtonQueries.capture_graph(str(model.device), query)
         wp.capture_launch(graph[1])
         return graph
 
     @staticmethod
-    def capture_graph(device: str, capture_target: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
+    def capture_graph(device: str, capture_target: Callable[[], None]) -> wp.Graph:
         """Record work without an eager warmup or graph replay, using Warp's public capture API."""
-        stream = wp.get_stream(device)
-        mode = wp.CaptureMode.THREAD_LOCAL
-        if relaxed:
-            # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-            stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
-            mode = wp.CaptureMode.RELAXED
+        # RTX can use the legacy CUDA stream without Kit. Always capture on a nonblocking
+        # stream so unrelated rendering cannot implicitly synchronize with the capture.
+        stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
         with NewtonQueries._paused_gc(), wp.ScopedStream(stream):
-            with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
+            with wp.ScopedCapture(stream=stream, capture_mode=wp.CaptureMode.RELAXED) as capture:
                 capture_target()
         return capture.graph
 
@@ -1660,9 +1656,7 @@ class NewtonManager(PhysicsManager):
 
     def _capture_graph(self, capture_target: Callable[[], None]) -> wp.Graph:
         """Record physics or scene queries without an eager warmup or graph replay."""
-        sim = self._sim
-        relaxed = has_kit() and (sim.has_gui or sim.has_offscreen_render)
-        return NewtonQueries.capture_graph(self._device, capture_target, relaxed=relaxed)
+        return NewtonQueries.capture_graph(self._device, capture_target)
 
     # ------------------------------------------------------------------
     # Building blocks — used by _simulate_full / _simulate_physics_only
