@@ -646,5 +646,5 @@ def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
         if gravity_enabled:
             gravity[..., 2] = -9.81
 
-        # Check the body accelerations are correct
-        torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
+        # Check the body accelerations, which are finite differences of float32 velocities.
+        torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity, atol=1e-4, rtol=0)
