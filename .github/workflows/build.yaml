@@ -989,6 +989,13 @@ jobs:
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
         # Restored version directories and kernels must also be writable by the container user.
         chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
+        # actions/cache restores the tree with the runner's ownership, while the
+        # benchmark image runs as uid 1000. Normalize ownership before Warp needs
+        # to create a build directory for a newly changed upstream kernel.
+        docker run --rm --user root \
+          -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+          --entrypoint bash "$CI_IMAGE_TAG" -lc \
+          "chown -R isaaclab:isaaclab /tmp/jit-cache"
 
         container=""
         cleanup_container() {
