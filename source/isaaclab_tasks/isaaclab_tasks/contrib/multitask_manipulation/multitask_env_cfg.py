@@ -488,7 +488,7 @@ class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
             gpu_max_rigid_patch_count=4 * 5 * 2**15,
             gpu_found_lost_pairs_capacity=2**26,
         )
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-3.0, 3.0, 2.5), lookat=(0.0, 0.0, 0.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(-3.0, 3.0, 2.5), lookat=(0.0, 0.0, 0.5))
 
     def validate_config(self) -> None:
         """Validate the minimum batch size required to instantiate all task views."""

@@ -55,18 +55,20 @@ class VideoRecorder:
             self._capture = lambda: view.read_rgb(env.sim.get_physics_step_count())
         else:
             for viz in env.sim.visualizers:
-                if viz.cfg.visualizer_type in CAPTURE_VISUALIZER_TYPES and (
-                    not name or viz.cfg.visualizer_type == name
+                if viz.cfg.backend.visualizer_type in CAPTURE_VISUALIZER_TYPES and (
+                    not name or viz.cfg.backend.visualizer_type == name
                 ):
                     break
             else:
-                active = [viz.cfg.visualizer_type for viz in env.sim.visualizers]
+                active = [viz.cfg.backend.visualizer_type for viz in env.sim.visualizers]
                 raise RuntimeError(
                     f"Source {cfg.source!r} has no recording-capable visualizer (active: {active}). "
                     "Use --viz kit, --viz newton_gl, --viz newton_rtx, or source='sensor:<name>'."
                 )
             if channel == "streaming_view" and not viz.cfg.streaming_view:
-                raise RuntimeError(f"Enable streaming_view on {viz.cfg.visualizer_type!r} to record its sensor view.")
+                raise RuntimeError(
+                    f"Enable streaming_view on {viz.cfg.backend.visualizer_type!r} to record its sensor view."
+                )
             # Legacy recording follows camera selection in the window.
             self._capture = viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array
 
