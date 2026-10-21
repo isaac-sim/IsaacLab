@@ -53,8 +53,9 @@ WebAssembly, and policy inference also runs in your browser.
    .. _interactive-demo-pulley:
 
    **Pulley workshop** — Choose the wheel count and payload, pull the handle,
-   and compare ideal force with the cable reaction. VBD offers one, two, or four
-   wheels; an ideal massless cable reference also offers six.
+   and compare ideal force with the cable reaction. Choose a massless rope, a
+   VBD cable, or a Newton tendon with friction and stretch. VBD and Newton
+   offer one, two, or four wheels; the massless rope also offers six.
 
    .. _interactive-demo-dominoes:
 

@@ -153,12 +153,12 @@ class IsaacLabDemos(SphinxDirective):
             '<div class="isaaclab-demos-heading">'
             f"<strong>{title}</strong>"
             f'<a href="{escape(base, quote=True)}" target="_blank" rel="noopener noreferrer" '
-            'aria-label="Open demo gallery in a new tab">Open demo gallery <span aria-hidden="true">↗</span></a>'
+            'aria-label="Open demo gallery in a new tab">Open gallery</a>'
             "</div>"
             '<p class="isaaclab-demos-status" role="status" aria-live="polite">'
             "Interactive demos load when this section is visible.</p>"
             f'<iframe class="isaaclab-demos-frame" title="{title}" loading="lazy" '
-            'height="720" allow="fullscreen" aria-busy="true"></iframe>'
+            'height="320" allow="fullscreen" aria-busy="true"></iframe>'
             "<noscript><p>Enable JavaScript to use the embedded gallery, or open the demo gallery above.</p></noscript>"
             "</section>"
         )

@@ -29,7 +29,7 @@
                 started: false,
                 ready: false,
                 selection: "",
-                height: 720,
+                height: 320,
                 timer: null,
             };
         });
@@ -39,6 +39,24 @@
             const value = document.documentElement.dataset.theme;
             return value === "dark" || (!value && window.matchMedia("(prefers-color-scheme: dark)").matches)
                 ? "dark" : "light";
+        };
+        const themeMessage = () => {
+            const root = getComputedStyle(document.documentElement);
+            const body = getComputedStyle(document.body);
+            const colors = {
+                background: "--pst-color-background",
+                surface: "--pst-color-on-background",
+                mutedSurface: "--pst-color-surface",
+                text: "--pst-color-text-base",
+                muted: "--pst-color-text-muted",
+                border: "--pst-color-border",
+                accent: "--pst-color-primary",
+            };
+            const styles = Object.fromEntries(Object.entries(colors)
+                .map(([key, variable]) => [key, root.getPropertyValue(variable).trim()]));
+            return {type: "theme", theme: theme(), styles: {
+                ...styles, fontFamily: body.fontFamily, fontSize: body.fontSize, lineHeight: body.lineHeight,
+            }};
         };
         const send = (embed, message) => {
             if (embed.ready) {
@@ -73,10 +91,10 @@
                 embed.element.dataset.state = "ready";
                 embed.iframe.setAttribute("aria-busy", "false");
                 embed.status.textContent = "Choose a demo to start the simulation.";
-                send(embed, {type: "theme", theme: theme()});
+                send(embed, themeMessage());
                 if (embed.selection) send(embed, {type: "select", demo: embed.selection});
             } else if (message.type === "resize" && Number.isFinite(message.height) && message.height > 0) {
-                const height = Math.max(400, Math.min(12000, Math.ceil(message.height)));
+                const height = Math.max(1, Math.ceil(message.height));
                 if (Math.abs(height - embed.height) > 1) {
                     embed.height = height;
                     embed.iframe.style.height = `${height}px`;
@@ -88,7 +106,8 @@
         });
 
         new MutationObserver(() => {
-            for (const embed of embeds) send(embed, {type: "theme", theme: theme()});
+            const message = themeMessage();
+            for (const embed of embeds) send(embed, message);
         }).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
 
         const selectAnchor = (hash) => {
