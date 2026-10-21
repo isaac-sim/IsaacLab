@@ -57,8 +57,9 @@ class _PhysXRayCasterMixin:
         sensor_prim, sensor_expr = matches[0]
         body = sim_utils.get_first_matching_ancestor_prim(sensor_prim.GetPath(), predicate=_has_rigid_body_api)
         if body is None:
-            # No rigid-body ancestor: nothing spans envs, so cache every concrete env frame.
-            self._initialize_static_pose_tracking(sim_utils.find_matching_prims(self.cfg.prim_path))
+            # No rigid-body ancestor: nothing spans envs, so cache the frame's concrete copy in each env, like
+            # the body view does for a frame with one.
+            self._initialize_static_pose_tracking(sim_utils.find_matching_prims(sensor_expr))
             return
 
         # The body view is ``sensor_expr`` with the sensor-relative suffix trimmed off.

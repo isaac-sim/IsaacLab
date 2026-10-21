@@ -15,7 +15,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import (
     FrameTransformerCfg,
@@ -115,4 +115,33 @@ def test_multi_mesh_ray_caster_rejects_tracked_target_missing_from_some_envs():
         # keep the scene alive: only live sensors initialize on reset
         _scene = InteractiveScene(cfg)
         with pytest.raises(RuntimeError, match=r"found 2 instances of '[^']*/Crate' in 4 environments"):
+            sim.reset()
+
+
+def test_ray_caster_rejects_frames_from_too_few_envs():
+    """A ray caster fails to initialize when its frames fill the frame count from too few environments.
+
+    Two frames in each of environments 0 and 1 make four frames for four environments: environments 1 to 3
+    would read the frames of other environments.
+    """
+    cfg = _PartialAssetSceneCfg(num_envs=4)
+    for name in SENSORS:
+        setattr(cfg, name, None)
+    # two static frames that exist in environments 0 and 1 only
+    cfg.frame_a = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/FrameA", spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)))
+    cfg.frame_b = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/FrameB", spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)))
+    cfg.clone_cfg.clone_combinations = [
+        cloner.InclusionSet(assets=["frame_a", "frame_b"]),
+        cloner.InclusionSet(assets=[]),
+    ]
+    cfg.scanner = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Frame[AB]",
+        mesh_prim_paths=["/World/ground"],
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(0.0, 0.0)),
+    )
+
+    with build_simulation_context(sim_cfg=SimulationCfg(physics=PhysxCfg())) as sim:
+        # keep the scene alive: only live sensors initialize on reset
+        _scene = InteractiveScene(cfg)
+        with pytest.raises(RuntimeError, match=r"found 2 instances in 4 environments"):
             sim.reset()
