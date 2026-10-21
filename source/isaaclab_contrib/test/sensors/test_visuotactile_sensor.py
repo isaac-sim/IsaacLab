@@ -21,9 +21,12 @@ import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
+from isaaclab.cloner import CloneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.utils import instantiate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
@@ -308,14 +311,24 @@ def test_sensor_cam_new_spawn(setup_tactile_cam):
 
 @pytest.mark.isaacsim_ci
 def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
-    """Test sensor with both camera and force field enabled, detecting contact forces."""
+    """Tactile images and contact forces cover every clone, including nonstandard environment paths."""
     sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
     # A mismatched camera update period is overridden by the sensor's update period.
     sensor_cfg.update_period = dt
     sensor_cfg.camera_cfg.update_period = dt * 2
-    robot = Articulation(cfg=robot_cfg)
-    sensor = VisuoTactileSensor(cfg=sensor_cfg)
-    nut = RigidObject(cfg=nut_cfg)
+    robot_cfg.prim_path = "{ENV_REGEX_NS}/Robot"
+    nut_cfg.prim_path = "{ENV_REGEX_NS}/Nut"
+    sensor_cfg.prim_path = "{ENV_REGEX_NS}/Robot/elastomer/sensor_nut"
+    sensor_cfg.camera_cfg.prim_path = "{ENV_REGEX_NS}/Robot/elastomer_tip/cam"
+    sensor_cfg.contact_object_prim_path_expr = "{ENV_REGEX_NS}/Nut"
+    scene_cfg = InteractiveSceneCfg(
+        num_envs=2, env_spacing=2.0, clone_cfg=CloneCfg(clone_template="/World/batches/batch_{}")
+    )
+    scene_cfg.robot = robot_cfg
+    scene_cfg.nut = nut_cfg
+    scene_cfg.sensor = sensor_cfg
+    scene = instantiate(scene_cfg)
+    robot, sensor, nut = scene["robot"], scene["sensor"], scene["nut"]
     sim.reset()
     sensor.get_initial_render()
     assert sensor.cfg.camera_cfg.update_period == sensor.cfg.update_period
@@ -331,18 +344,15 @@ def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
             wp.to_torch(sensor._camera_sensor._timestamp_last_update), torch.tensor((i + 1) * dt, device=sensor.device)
         )
     assert sensor.is_initialized
-    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
-    assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
-    assert sensor.data.tactile_points_pos_w.shape == (1, 50, 3)
-    assert sensor.data.penetration_depth.shape == (1, 50)
-    assert sensor.data.tactile_normal_force.shape == (1, 50)
-    assert sensor.data.tactile_shear_force.shape == (1, 50, 2)
-    sum_depth = torch.sum(sensor.data.penetration_depth)  # 0.020887471735477448
-    normal_force_sum = torch.sum(sensor.data.tactile_normal_force.abs())
-    shear_force_sum = torch.sum(sensor.data.tactile_shear_force.abs())
-    assert normal_force_sum > 0.0
-    assert sum_depth > 0.0
-    assert shear_force_sum > 0.0
+    assert sensor.data.tactile_depth_image.shape == (2, 320, 240, 1)
+    assert sensor.data.tactile_rgb_image.shape == (2, 320, 240, 3)
+    assert sensor.data.tactile_points_pos_w.shape == (2, 50, 3)
+    assert sensor.data.penetration_depth.shape == (2, 50)
+    assert sensor.data.tactile_normal_force.shape == (2, 50)
+    assert sensor.data.tactile_shear_force.shape == (2, 50, 2)
+    assert torch.all(sensor.data.penetration_depth.sum(dim=1) > 0.0)
+    assert torch.all(sensor.data.tactile_normal_force.abs().sum(dim=1) > 0.0)
+    assert torch.all(sensor.data.tactile_shear_force.abs().sum(dim=(1, 2)) > 0.0)
 
 
 @pytest.mark.isaacsim_ci
@@ -384,7 +394,7 @@ def test_sensor_force_field_contact_object_not_found(setup_nut_rgb_ff):
         sim.reset()
         robot.update(dt)
         sensor.update(dt)
-    assert "No contact object prim found matching pattern" in str(excinfo.value)
+    assert "No prim found at" in str(excinfo.value)
 
 
 @pytest.mark.isaacsim_ci
