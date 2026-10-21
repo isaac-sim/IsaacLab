@@ -448,7 +448,7 @@ skrl training with NVIDIA Warp
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 skrl can also train policies with NVIDIA Warp instead of PyTorch. This is useful when
-integrating with a NVIDIA Warp-based learning stack or experimenting with NVIDIA Warp
+integrating with an NVIDIA Warp-based learning stack or experimenting with NVIDIA Warp
 compilation and execution:
 
 .. code-block:: bash
