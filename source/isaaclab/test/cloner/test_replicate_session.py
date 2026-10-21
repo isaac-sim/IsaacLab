@@ -101,11 +101,13 @@ def test_asset_routing_preserves_explicit_overrides(simulation, override):
     assert all(plan is session.plan and ids == (0,) for _, plan, ids in simulation.calls)
 
 
-@pytest.mark.parametrize("shared", [False, True])
-def test_empty_and_shared_only_worlds(simulation, shared):
-    """An empty world is still a valid world; shared assets are routed once, not repeated."""
+@pytest.mark.parametrize("shared, opt_out", [(False, False), (True, False), (True, True)])
+def test_empty_and_shared_only_worlds(simulation, shared, opt_out):
+    """Empty worlds work, and shared assets honor explicit physics routing."""
     simulation.render_context.clone_contexts.add(_RenderContext)
-    assets = (AssetBaseCfg(prim_path="/World/Ground"),) if shared else ()
+    if opt_out:
+        simulation.render_context.clone_contexts.add(_Context)
+    assets = (AssetBaseCfg(prim_path="/World/Ground", cloning_contexts=() if opt_out else None),) if shared else ()
     with ReplicateSession(assets, 3, 2.0) as session:
         templates, starts = cloner_path.get_world_prototype_asset_templates(session.plan)
         assert templates[: starts[1]] == (("/World/Ground",) if shared else ())
@@ -114,6 +116,8 @@ def test_empty_and_shared_only_worlds(simulation, shared):
     assert {context for context, _, _ in simulation.calls} == (
         {_Context, _RenderContext} if shared else {_RenderContext}
     )
+    if opt_out:
+        assert (_Context, session.plan, ()) in simulation.calls
 
 
 @pytest.mark.parametrize("from_env_0", [False, True])
