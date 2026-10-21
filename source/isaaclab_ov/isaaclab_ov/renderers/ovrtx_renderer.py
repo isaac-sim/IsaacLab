@@ -366,10 +366,13 @@ class OVRTXRenderer(BaseRenderer):
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
+            # Shared physics stages need fully composed instance collider data.
             usd = export_stage_to_string(
                 stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
                 keep_env_roots=False, env_paths=self.scene.population_env_paths,
-                preserve_references=True,
+                preserve_references=not (
+                    self._use_ovstage and self.scene.cfg.population_domains & ovstage.PopulationDomain.PHYSICS
+                ),
             )  # fmt: skip
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
