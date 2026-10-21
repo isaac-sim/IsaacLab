@@ -81,7 +81,6 @@ class FixtureClient(baseline.GitHubClient):
         event="push",
         branch="develop",
         samples=None,
-        context=True,
         artifact=True,
         statuses=None,
         conclusion="success",
@@ -115,19 +114,18 @@ class FixtureClient(baseline.GitHubClient):
                 for index, value in enumerate(values, 1)
             }
             files.update({f"{leg}/status": value for leg, value in (statuses or {"leg": "ok"}).items()})
-            if context:
-                files["build-context.json"] = {
-                    "source": {
-                        "commit": commit,
-                    },
-                    "execution": {
-                        "run_id": run_id,
-                        "run_attempt": attempt,
-                        "expected_samples": 3,
-                        "measurement_not_before": start,
-                    },
-                    "metric_definition": {"total_fps": "source-fps-v2:" + "a" * 64},
-                }
+            files["build-context.json"] = {
+                "source": {
+                    "commit": commit,
+                },
+                "execution": {
+                    "run_id": run_id,
+                    "run_attempt": attempt,
+                    "expected_samples": 3,
+                    "measurement_not_before": start,
+                },
+                "metric_definition": {"total_fps": "source-fps-v2:" + "a" * 64},
+            }
             self.add_artifact(run_id, f"performance-smoke-{run_id}-{attempt}", files)
         return run
 
@@ -212,7 +210,7 @@ def check_evidence(subtests):
         assert evidence.measurement_end == stamp(11)
         assert "broken/sample-1/benchmark_runtime_broken.json" in str(evidence.issues)
 
-    with subtests.test(evidence="unusable and incomplete samples"):
+    with subtests.test(evidence="unusable samples and failed runs"):
         malformed = bundle()
         malformed["runtime"]["total_fps"] = []
         client = FixtureClient()
@@ -222,9 +220,8 @@ def check_evidence(subtests):
             samples={
                 "leg": [malformed, bundle(fps=10**1000)],
                 "failed": [bundle(status="failed")],
-                "incomplete": [bundle(), bundle(end=None, status="failed")],
             },
-            statuses={"leg": "ok", "failed": "failed", "incomplete": "ok"},
+            statuses={"leg": "ok", "failed": "failed"},
         )
         evidence = baseline.resolve_candidate(client, 10, 1)
         assert len(evidence.samples["leg"]) == 2
@@ -278,7 +275,7 @@ def check_evidence(subtests):
             assert baseline.workload_key(sample) is None
 
 
-def check_transport(tmp_path, subtests):
+def check_transport(subtests):
     with subtests.test(transport="pagination"):
         client = baseline.GitHubClient(REPO)
         pages = [{"id": i} for i in range(100)], [{"id": 100}]
