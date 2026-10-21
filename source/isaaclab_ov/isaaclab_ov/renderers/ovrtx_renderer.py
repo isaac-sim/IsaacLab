@@ -369,6 +369,7 @@ class OVRTXRenderer(BaseRenderer):
             usd = export_stage_to_string(
                 stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
                 keep_env_roots=False, env_paths=self.scene.population_env_paths,
+                preserve_references=True,
             )  # fmt: skip
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
