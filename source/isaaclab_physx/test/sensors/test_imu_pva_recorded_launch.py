@@ -122,6 +122,7 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor._device = device
     sensor._num_envs = 2
     sensor._view = rigid_view
+    sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)
     sensor._timestamp = wp.ones(2, dtype=wp.float32, device=device)
     sensor._offset_pos_b = wp.zeros(2, dtype=wp.vec3f, device=device)
     sensor._offset_quat_b = wp.array(
