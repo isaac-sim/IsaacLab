@@ -989,14 +989,6 @@ jobs:
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
         # Restored version directories and kernels must also be writable by the container user.
         chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
-        # actions/cache restores the tree with the runner's ownership, while the
-        # benchmark image runs as uid 1000. Normalize ownership before Warp needs
-        # to create a build directory for a newly changed upstream kernel.
-        docker run --rm --user root \
-          -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
-          --entrypoint bash "$CI_IMAGE_TAG" -lc \
-          "chown -R isaaclab:isaaclab /tmp/jit-cache"
-
         container=""
         cleanup_container() {
           if [ -n "$container" ]; then
@@ -1011,6 +1003,13 @@ jobs:
           local attempt="$1"
           container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
           cleanup_container
+          # actions/cache restores the tree with the runner's ownership, while
+          # each benchmark container runs as uid 1000. A previous container can
+          # also add directories, so normalize ownership before every attempt.
+          docker run --rm --user root \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            "chown -R isaaclab:isaaclab /tmp/jit-cache"
           timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
