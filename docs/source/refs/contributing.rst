@@ -131,8 +131,10 @@ Reuse the ``interactive-releases`` publishing branch and upload commit-named arc
 Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
 ``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
 The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
-under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
-assets and preserve older links. The development source tree contains the staging script, documentation links,
+under ``docs/_build/demos/`` before publishing Pages. Stage only the current gallery's physics bundles and
+required shared assets; keep older gallery entry points as redirects. When updating the archive, review the
+staging script's retired-bundle list against the current catalog so superseded builds do not accumulate in
+the documentation artifact. The development source tree contains the staging script, documentation links,
 and small thumbnails. Run the staging step from the repository root:
 
 .. code-block:: bash
