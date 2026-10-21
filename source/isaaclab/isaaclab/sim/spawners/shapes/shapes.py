@@ -24,7 +24,7 @@ from ...utils import (
 )
 from ..materials.physics_materials import spawn_physics_material
 from ..spawner_cfg import RigidObjectSpawnerCfg
-from ..utils import apply_schema_props
+from ..utils import apply_mesh_collision_props, apply_schema_props
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -55,7 +55,6 @@ def spawn_sphere(
             this is set to the origin.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -95,7 +94,6 @@ def spawn_cuboid(
             this is set to the origin.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -133,7 +131,6 @@ def spawn_cylinder(
             this is set to the origin.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -170,7 +167,6 @@ def spawn_capsule(
             this is set to the origin.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -207,7 +203,6 @@ def spawn_cone(
             this is set to the origin.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The created prim.
@@ -340,6 +335,9 @@ def spawn_geom_from_prim_type(
             schemas.define_collision_properties,
             stage,
         )
+    # mesh-collision properties target the collider authored above; cables carry none
+    if isinstance(cfg, RigidObjectSpawnerCfg) and cfg.mesh_collision_props is not None:
+        apply_mesh_collision_props(cfg.mesh_collision_props, mesh_prim_path, "", stage)
     if cfg.visual_material is not None:
         material_path = (
             cfg.visual_material_path

@@ -12,7 +12,7 @@ import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
 from ...renderers.output_contract import RenderBufferKind, RenderBufferSpec
-from ...utils.leapp.leapp_semantics import leapp_tensor_semantics
+from ...utils.leapp import leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 from ...utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -61,6 +61,7 @@ class CameraData:
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/position")
     def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m], following ROS convention.
 
@@ -71,6 +72,7 @@ class CameraData:
         return self._pos_w
 
     @property
+    @leapp_tensor_semantics(kind="state/body/rotation")
     def quat_w_world(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in world frame,
         following the world coordinate frame convention.
@@ -89,6 +91,7 @@ class CameraData:
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/camera/intrinsics")
     def intrinsic_matrices(self) -> ProxyArray:
         """The intrinsic matrices for the camera.
 
@@ -115,8 +118,11 @@ class CameraData:
         return self._output[RenderBufferKind.RGB.value]
 
     @property
+    @leapp_tensor_semantics(kind="state/camera/image")
     def output(self) -> dict[str, ProxyArray] | None:
         """The retrieved sensor data with sensor types as key.
+
+        LEAPP exports each accessed output buffer as a separate input.
 
         Each value is a :class:`~isaaclab.utils.warp.ProxyArray` of shape
         ``(N, H, W, C)`` where N is the number of views, H/W are image dimensions,
@@ -233,6 +239,7 @@ class CameraData:
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/rotation")
     def quat_w_ros(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following ROS convention.
 
@@ -247,6 +254,7 @@ class CameraData:
         return self._quat_w_ros
 
     @property
+    @leapp_tensor_semantics(kind="state/body/rotation")
     def quat_w_opengl(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following
         Opengl / USD Camera convention.

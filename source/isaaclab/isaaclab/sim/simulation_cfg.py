@@ -137,19 +137,11 @@ class SimulationCfg:
     If None, the logs will be saved to the temp directory.
     """
 
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
-    """The visualizer configuration(s). Default is an empty list.
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = VisualizerCfg()
+    """Concrete visualizer configurations. Defaults to no active visualizer.
 
-    A launch (:func:`~isaaclab.app.launch_simulation`) runs exactly the visualizer types ``--visualizer``
-    selects, none without it: each uses the configured visualizer of its type, with its settings, or else that
-    type's default config. A simulation built without a launch runs the configured visualizers as given.
+    Select built-in visualizers with ``--viz`` or supply configured instances directly.
     """
 
     default_visualizer_cfg: VisualizerCfg | None = None
-    """Default visualizer settings applied to any visualizer that is selected at runtime, e.g. with ``--visualizer``.
-
-    This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
-    Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
-    :attr:`~isaaclab.visualizers.VisualizerCfg.background_color` are forwarded to each resolved
-    visualizer unless that visualizer already has an explicitly customised value.
-    """
+    """Deprecated in Isaac Lab 3.2; translated once into :attr:`visualizer_cfgs` before launch."""

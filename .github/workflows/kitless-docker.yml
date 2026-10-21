@@ -51,7 +51,6 @@ jobs:
           ^docker/test/test_dockerfile_nonroot\.py$ :: Dockerfile contract tests
           ^docker/test/test_security_dependencies\.py$ :: Container dependency tests
           ^docker/test/requirements\.txt$ :: Locked container test dependencies
-          ^docker/scripts/install_git_lfs\.sh$ :: Verified Git LFS installer
           ^docker/utils/container_interface\.py$ :: Container profile implementation
           ^docker/utils/volume_mounts\.py$ :: Container volume helper
           ^isaaclab\.sh$ :: Install CLI wrapper

@@ -8,8 +8,8 @@ import subprocess
 from ..utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
 
 
-def command_format() -> None:
-    """Run code formatting using pre-commit."""
+def command_format(files: list[str] | None = None) -> None:
+    """Run pre-commit once on selected files, or all tracked files when none are supplied."""
     python_exe = extract_python_exe()
 
     # Install the formatting tool into the interpreter running the CLI when needed.
@@ -26,9 +26,5 @@ def command_format() -> None:
 
     print_info("Formatting the repository...")
 
-    cmd = [python_exe, "-m", "pre_commit", "run", "--all-files"]
-    result = run_command(cmd, cwd=ISAACLAB_ROOT, check=False)
-    if result.returncode != 0:
-        # Hooks can fail after applying automatic fixes; the retry must still propagate failures.
-        print_info("Pre-commit failed; running it again to check for automatic fixes...")
-        run_command(cmd, cwd=ISAACLAB_ROOT)
+    scope = ["--files", *files] if files else ["--all-files"]
+    run_command([python_exe, "-m", "pre_commit", "run", *scope], cwd=ISAACLAB_ROOT)

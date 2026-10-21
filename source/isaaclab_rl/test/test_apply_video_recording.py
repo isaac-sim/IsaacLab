@@ -14,13 +14,14 @@ import os
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.viser import ViserVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.viser import ViserBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
-from isaaclab.app import SimulationLauncher, add_launcher_args, get_settings_manager
+from isaaclab.app import SimulationLauncher, add_launcher_args
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_rl.entrypoints.common import (
     add_common_train_args,
@@ -84,9 +85,9 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
 
         return start
 
-    monkeypatch.setattr(sim_launcher, "string_to_callable", fake_launcher)
-    yield started
-    get_settings_manager().set("/isaaclab/visualizer/types", None)
+    for launcher_type in (_KIT_LAUNCHER, OVRTXRendererCfg.launcher_type):
+        monkeypatch.setattr(launcher_type.replace(":", "."), fake_launcher(launcher_type))
+    return started
 
 
 @pytest.mark.parametrize(
@@ -95,15 +96,23 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         # --video records from the first capture-capable visualizer --viz selects, in its window
         (
             dict(visualizer=["viser", "kit", "newton_gl"]),
-            ("viz:kit", [("kit", False), ("viser", None), ("newton_gl", False)]),
+            ("viz:kit", [("viser", False), ("kit", False), ("newton_gl", False)]),
         ),
         # ...else from a headless newton_gl, also next to streaming-only visualizers
         (dict(), ("viz:newton_gl", [("newton_gl", True)])),
-        (dict(visualizer=["viser"]), ("viz:newton_gl", [("viser", None), ("newton_gl", True)])),
+        (dict(visualizer=["viser"]), ("viz:newton_gl", [("viser", False), ("newton_gl", True)])),
         # viz:<type> records from the selected visualizer, else from a headless one added for the recording
         (dict(video="viz:newton_rtx", visualizer=["newton_rtx"]), ("viz:newton_rtx", [("newton_rtx", False)])),
         (dict(video="viz:newton_rtx"), ("viz:newton_rtx", [("newton_rtx", True)])),
         (dict(video="kit"), ("viz:kit", [("kit", True)])),
+        (
+            dict(video="viz:newton_gl:streaming_view"),
+            ("viz:newton_gl:streaming_view", [("newton_gl", True)]),
+        ),
+        (
+            dict(video="viz:newton_gl:streaming_view", visualizer=["newton_gl"]),
+            ("viz:newton_gl:streaming_view", [("newton_gl", False)]),
+        ),
         # a scene sensor needs no visualizer
         (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
         # streaming visualizers have no frame capture, and recording needs the torch frontend
@@ -117,6 +126,8 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         "type-selected",
         "type-added",
         "kit-added",
+        "camera-view-headless",
+        "camera-view-windowed",
         "sensor",
         "streaming-rejected",
         "warp-frontend-rejected",
@@ -124,11 +135,14 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
 )
 def test_video_source_resolves_against_the_visualizer_selection(launches, cli, expected):
     """The launch resolves the ``--video`` source and runs a visualizer ``--viz`` did not select headless."""
-    kit_cfg = KitVisualizerCfg(eye=(1.0, 2.0, 3.0))
+    view_cfg = VisualizerCfg(eye=(1.0, 2.0, 3.0), backend=[KitBackendCfg(), ViserBackendCfg()])
     env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.sim.physics = NewtonCfg()
-    env_cfg.sim.visualizer_cfgs = [kit_cfg, ViserVisualizerCfg()]
+    env_cfg.sim.device = "cpu"
+    env_cfg.sim.visualizer_cfgs = view_cfg
     args = _args(**cli)
+    if args.visualizer is None:
+        args.visualizer = []
     if isinstance(expected, str):
         with pytest.raises(ValueError, match=expected):
             pre_launch_video_config(env_cfg, args)
@@ -141,19 +155,21 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
 
     source, visualizers = expected
     assert [recorder.source for recorder in env_cfg.video_recorders] == [source]
-    assert [(cfg.visualizer_type, getattr(cfg, "headless", None)) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
+    assert [(cfg.backend.visualizer_type, cfg.headless) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
+    if source.endswith(":streaming_view"):
+        assert env_cfg.sim.visualizer_cfgs[0].streaming_view
     # a Kit visualizer, selected or added, keeps its configured camera; an added one is a copy, so the
     # configured visualizer stays as configured for a later launch
-    assert all(cfg.eye == kit_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type == "kit")
-    assert not kit_cfg.headless
+    assert all(cfg.eye == view_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.backend.visualizer_type == "kit")
+    assert not view_cfg.headless
     # Kit starts only for a Kit visualizer, with cameras, windowed only when --viz selects it
     kit_args = launches.get(_KIT_LAUNCHER)
     assert (kit_args is not None) == ("kit" in dict(visualizers))
     if kit_args is not None:
-        assert ("kit" in kit_args["visualizer"], kit_args["enable_cameras"]) == (not dict(visualizers)["kit"], True)
+        assert (kit_args["kit_visualizer"], kit_args["enable_cameras"]) == (not dict(visualizers)["kit"], True)
     assert (OVRTXRendererCfg.launcher_type in launches) == ("newton_rtx" in source)
     # a launch with a SimulationCfg leaves no selection behind for configs built afterwards
-    assert get_settings_manager().get("/isaaclab/visualizer/types") == ""
+    assert type(env_cfg.sim)(physics=NewtonCfg()).visualizer_cfgs.backend == []
 
 
 def test_apply_video_recording_noop_when_video_false():

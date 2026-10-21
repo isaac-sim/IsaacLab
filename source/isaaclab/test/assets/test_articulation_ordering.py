@@ -466,10 +466,11 @@ def _install_source_asset_resolver(monkeypatch: pytest.MonkeyPatch, resolve_matc
 
     The resolver imports the source-prim query lazily from ``isaaclab.sim.utils.queries``; the sim
     package is otherwise unavailable in this unit-test env, so we install a minimal module tree that
-    exposes only the query the resolver calls.
+    exposes only the queries the resolver calls.
     """
     queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
     queries_mod.resolve_matching_prims_from_source = resolve_matching_prims_from_source
+    queries_mod.path_expr_to_glob = lambda path_expr: path_expr
     sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
     monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
     monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
@@ -662,17 +663,23 @@ def test_robot_schema_ordering_helper_rejects_duplicate_relationship_targets(
         get_articulation_name_ordering(articulation, "robot_schema", kind="joint")
 
 
-def _install_newton_usd_builder_mocks(monkeypatch: pytest.MonkeyPatch, stage: Usd.Stage, calls: dict, view_names: dict):
+def _install_newton_usd_builder_mocks(
+    monkeypatch: pytest.MonkeyPatch, stage: Usd.Stage, calls: dict, view_names: dict, model: object = None
+):
     """Install mocked Newton modules and a current-stage provider around a real in-memory stage.
 
     Only the optional Newton dependency (unavailable in this unit-test env) is mocked; ``pxr`` stays
     real so the resolver reads real prims and a real stage. Returns nothing; records builder activity
-    into :paramref:`calls` and serves :paramref:`view_names` from the mocked articulation view.
+    into :paramref:`calls`, serves :paramref:`view_names` from the mocked articulation view, and
+    finalizes to :paramref:`model`.
     """
 
     class _JointType:
         FREE = 0
         FIXED = 1
+        REVOLUTE = 2
+        PRISMATIC = 3
+        BALL = 4
 
     class _SolverMuJoCo:
         @staticmethod
@@ -688,13 +695,14 @@ def _install_newton_usd_builder_mocks(monkeypatch: pytest.MonkeyPatch, stage: Us
 
         def finalize(self, **kwargs):
             calls["finalize"].append(kwargs)
-            return object()
+            return model
 
     class _ArticulationView:
         def __init__(self, model, pattern, **kwargs):
             calls["views"].append((pattern, kwargs))
             self.joint_dof_names = list(view_names["joint"])
             self.link_names = list(view_names["body"])
+            self.articulation_ids = types.SimpleNamespace(numpy=lambda: np.array([[0]]))
 
     newton_mod = types.ModuleType("newton")
     newton_mod.JointType = _JointType
@@ -759,8 +767,13 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     assert calls["views"] == [("/World/envs/env_0/Robot/base", {"verbose": False, "exclude_joint_types": [0, 1]})]
 
 
-def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Resolve PhysX ordering from Newton's BFS USD builder path when no PhysX root view exists."""
+def _install_newton_model_case(
+    monkeypatch: pytest.MonkeyPatch, bodies: tuple, joints: tuple, root: str = "base", loop_joints: int = 0
+):
+    """Serve a mocked Newton model of ``(name, parent, child, type)`` joints; the last ``loop_joints`` close loops.
+
+    ``root`` is the ArticulationRootAPI prim, a container unless it names a body.
+    """
     calls = {"add_usd": [], "finalize": [], "views": [], "registered": 0}
 
     stage = Usd.Stage.CreateInMemory()
@@ -773,50 +786,85 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
             return [(robot_prim, "/World/envs/env_[^/]+/Robot")]
         return [(root_prim, "/World/envs/env_[^/]+/Robot/base")]
 
-    _install_newton_usd_builder_mocks(
-        monkeypatch,
-        stage,
-        calls,
-        {
-            "joint": ["hip", "shoulder", "knee", "elbow"],
-            "body": ["base", "upper_arm", "forearm", "hand"],
-        },
+    def _array(values):
+        return types.SimpleNamespace(numpy=lambda: np.array(values))
+
+    joint_names, parents, children, joint_types = zip(*joints)
+    model = types.SimpleNamespace(
+        joint_label=[f"/World/envs/env_0/Robot/{name}" for name in joint_names],
+        joint_parent=_array(parents),
+        joint_child=_array(children),
+        joint_type=_array(joint_types),
+        body_label=[f"/World/envs/env_0/Robot/{body}" for body in bodies],
+        articulation_start=_array([0, len(joints)]),
+        articulation_end=_array([len(joints) - loop_joints]),
+        articulation_label=[f"/World/envs/env_0/Robot/{root}"],
     )
+    dof_names = tuple(name for name, _, _, joint_type in joints[: len(joints) - loop_joints] if joint_type > 1)
+    body_names = tuple(body.rsplit("/", 1)[-1] for body in bodies)
+    _install_newton_usd_builder_mocks(monkeypatch, stage, calls, {"joint": dof_names, "body": body_names}, model)
     _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
     class _Articulation:
         __backend_name__ = "newton"
         _ordering_convention_name_cache: dict = {}
         cfg = types.SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", articulation_root_prim_path=None)
+        backend_joint_names = dof_names
+        backend_body_names = body_names
 
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["hip", "knee", "shoulder", "elbow"]
+    return _Articulation(), calls
 
-        @property
-        def backend_body_names(self) -> list[str]:
-            return ["base", "upper_arm", "hand", "forearm"]
 
-    articulation = _Articulation()
+def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve PhysX ordering from Newton's BFS USD builder, re-rooted and re-sorted the way PhysX walks the tree.
 
-    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == (
-        "hip",
-        "shoulder",
-        "knee",
-        "elbow",
-    )
-    assert get_articulation_name_ordering(articulation, "physx", kind="body") == (
-        "base",
-        "upper_arm",
-        "forearm",
-        "hand",
-    )
+    The articulation root is a container, so Newton's "bfs" starts at the first body of the joint chain while PhysX
+    starts at the graph center ``b``. PhysX also visits ``b``'s links by joint type before joint path.
+    """
+    # Links a-b, then b-c (prismatic), b-d (revolute) and b-m (fixed); Newton adds a free joint to a.
+    joints = (("free", -1, 0, 0), ("ab", 0, 1, 2), ("bc", 1, 2, 3), ("bd", 1, 3, 2), ("bm", 1, 4, 1))
+    articulation, calls = _install_newton_model_case(monkeypatch, ("a", "b", "c", "d", "m"), joints)
+
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == ("ab", "bd", "bc")
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == ("b", "m", "a", "d", "c")
     assert calls["registered"] == 1
     assert len(calls["add_usd"]) == 1
     assert calls["add_usd"][0]["root_path"] == "/World/envs/env_0/Robot"
     assert calls["add_usd"][0]["joint_ordering"] == "bfs"
     assert calls["add_usd"][0]["bodies_follow_joint_ordering"] is True
     assert calls["views"] == [("/World/envs/env_0/Robot/base", {"verbose": False, "exclude_joint_types": [0, 1]})]
+
+
+def test_physx_ordering_helper_roots_at_the_root_api_body_before_world_joints(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Root the "physx" order at the ArticulationRootAPI body even when another body is jointed to the world."""
+    joints = (("a_world", -1, 0, 1), ("ab", 0, 1, 2))
+    articulation, _ = _install_newton_model_case(monkeypatch, ("a", "b"), joints, root="b")
+
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == ("b", "a")
+
+
+@pytest.mark.parametrize(
+    ("bodies", "joints", "loop_joints", "reason"),
+    [
+        (("a", "b"), (("free", -1, 0, 0), ("ab", 0, 1, 2)), 0, "two bodies tie as its graph center"),
+        (("a", "a/b", "a/b/c"), (("free", -1, 0, 0), ("ab", 0, 1, 2), ("bc", 1, 2, 2)), 0, "nested in each other"),
+        (("a", "b", "c"), (("free", -1, 0, 0), ("ab", 0, 1, 2), ("bc", 1, 2, 2), ("ca", 2, 0, 2)), 1, "loop-closing"),
+        (
+            ("a", "b", "c", "d"),
+            (("wa", -1, 0, 1), ("ab", 0, 1, 2), ("wc", -1, 2, 1), ("cd", 2, 3, 2)),
+            0,
+            "not reached",
+        ),
+    ],
+)
+def test_physx_ordering_helper_rejects_root_choices_it_does_not_emulate(
+    monkeypatch: pytest.MonkeyPatch, bodies: tuple, joints: tuple, loop_joints: int, reason: str
+) -> None:
+    """Refuse the "physx" order where OVPhysX's root choice is not emulated, rather than guess one."""
+    articulation, _ = _install_newton_model_case(monkeypatch, bodies, joints, loop_joints=loop_joints)
+
+    with pytest.raises(NotImplementedError, match=reason):
+        get_articulation_name_ordering(articulation, "physx", kind="joint")
 
 
 def test_symbolic_cross_backend_resolver_uses_newton_builder_names(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StateInputSpec:
-    """Read a property from a scene entity's data object."""
+    """Read a data property, using dots for mapping entries such as ``output.rgb``."""
 
     entity_name: str
     property_name: str
@@ -695,7 +695,10 @@ class LeappDeploymentEnv:
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
-                value = getattr(entity.data, spec.property_name).torch
+                value = entity.data
+                for part in spec.property_name.split("."):
+                    value = value[part] if isinstance(value, Mapping) else getattr(value, part)
+                value = value.torch
                 if spec.input_transform is not None:
                     transformed = spec.input_transform(value)
                     if transformed.shape != value.shape:
@@ -774,7 +777,7 @@ class LeappDeploymentEnv:
                 self.sim.render()
 
         if getattr(self.cfg, "wait_for_textures", False) and self.has_rtx_sensors:
-            assets_loading = getattr(self.sim.physics_manager, "assets_loading", None)
+            assets_loading = getattr(self.sim.backend_manager, "assets_loading", None)
             if callable(assets_loading):
                 while assets_loading():
                     self.sim.render()

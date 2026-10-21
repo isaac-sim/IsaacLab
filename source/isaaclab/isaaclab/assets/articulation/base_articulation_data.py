@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from ...utils.buffers import TimestampedBuffer
 from ...utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
@@ -29,7 +30,6 @@ from . import ordering_kernels
 
 if TYPE_CHECKING:
     from ...actuators import ActuatorCollection
-    from ...utils.buffers import TimestampedBuffer
     from .ordering import ArticulationNameMap
 
 
@@ -70,6 +70,8 @@ class BaseArticulationData(ABC):
         self._joint_pos_target_ta: ProxyArray | None = None
         self._joint_vel_target_ta: ProxyArray | None = None
         self._joint_effort_target_ta: ProxyArray | None = None
+        self._body_joint_wrench = TimestampedBuffer()
+        self._body_joint_wrench_ta: ProxyArray | None = None
 
     def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
         """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
@@ -859,6 +861,24 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/wrench")
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrench ``[force, torque]`` for each body.
+
+        Shape is (num_instances, num_bodies), dtype = ``wp.spatial_vectorf``. In torch this
+        resolves to (num_instances, num_bodies, 6). Entries follow :attr:`body_names`.
+        Force [N] and torque [N*m] are expressed in the child-side joint frame, with torque
+        referenced at the child-side joint anchor. This is not the applied actuator effort.
+
+        Newton requires :attr:`ArticulationCfg.enable_joint_wrench` before simulation startup.
+        Its free and world-fixed root entries are zero; loop-closing constraints are excluded.
+        PhysX and OVPhysX include the backend's root reaction. Values describe the last physics
+        step, so step the simulation after resetting or writing state before reading them.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
@@ -889,6 +909,7 @@ class BaseArticulationData(ABC):
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/link_jacobian")
     def body_link_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
@@ -917,6 +938,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/body/com_jacobian")
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
@@ -935,6 +957,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_com_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/mass_matrix")
     def mass_matrix(self) -> ProxyArray:
         """Per-env generalized mass matrix ``M(q)`` in joint space.
 
@@ -949,6 +972,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/gravity_compensation")
     def gravity_compensation_forces(self) -> ProxyArray:
         """Per-env gravity compensation torques ``g(q)`` in joint space.
 

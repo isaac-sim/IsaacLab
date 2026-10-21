@@ -1,19 +1,16 @@
 Tricks and Troubleshooting
 ==========================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
-.. note::
-
-    The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
-    Please also check the `troubleshooting page on Omniverse
-    <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__ for more
-    assistance.
+Find fixes for installation, launch, simulation, and training problems below.
+For Kit-specific issues, see the `Omniverse troubleshooting guide
+<https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__.
 
 .. contents::
    :local:
@@ -89,9 +86,9 @@ or run a Newton-based task, which does not need Kit:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton
+   uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton_gl
 
-See :doc:`/source/setup/quickstart` for the full list of ``physics=`` and ``renderer=``
+See :doc:`/source/isaaclab/quickstart` for the full list of ``physics=`` and ``renderer=``
 selectors and the extras each one requires.
 
 Dependency version conflicts during installation
@@ -255,7 +252,7 @@ mode because Isaac Lab computes their effort directly.
 
 Joints not covered by an Isaac Lab actuator configuration retain their imported
 USD target modes. Thus, zero-gain USD drives no longer require
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
 to make a configured joint actuate in Newton. The option remains available for
 workflows that need to author placeholder drives independently of an Isaac Lab
 actuator configuration. See :ref:`import-new-asset-ensure-drives-exist` for
@@ -293,7 +290,7 @@ The viser visualizer serves a web UI instead of opening a window
 
 ``--visualizer viser`` does not open a native window. Check the terminal for the served
 URL; the default port is ``8080``, configurable through
-:attr:`~isaaclab_visualizers.ViserVisualizerCfg.port`. The ``viser`` package ships in the
+:attr:`~isaaclab_visualizers.ViserBackendCfg.port`. The ``viser`` package ships in the
 ``viser`` extra.
 
 

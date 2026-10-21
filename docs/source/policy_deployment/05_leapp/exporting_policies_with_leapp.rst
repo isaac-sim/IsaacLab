@@ -1,42 +1,36 @@
-Deploy Policies with LEAPP
-==========================
+Exporting Policies with LEAPP
+=============================
 
 .. currentmodule:: isaaclab
 
-This guide covers how to export and deploy trained reinforcement learning policies from Isaac Lab using
-`LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for Policy Pipelines).
-The main goal of the LEAPP export path is to package a policy together with the input and output
-semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
-observation preprocessing, action postprocessing, or recurrent-state handling by hand.
+`LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for
+Policy Pipelines) exports a trained policy together with its observation processing,
+action processing, and recurrent-state handling. This keeps deployment consistent
+with training without reimplementing those operations by hand.
 
-The Isaac Lab LEAPP exporter traces the data flowing between the policy and the simulation,
-capturing the operations applied along the way. It also embeds semantic metadata for the exported
-policy inputs and outputs. Isaac Lab can consume these exports through :class:`~envs.LeappDeploymentEnv`.
+The exporter traces tensor operations and records input and output metadata.
+Run the exported policy in simulation with :class:`~envs.LeappDeploymentEnv`, on a
+robot with `Isaac ROS Deploy
+<https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/index.html>`__,
+or in a custom runtime that reads the exported YAML.
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/ur10_sim_vs_real.gif
+   :width: 100%
+   :align: center
+   :alt: Side-by-side UR10 reaching motions in Isaac Lab on the left and on a physical robot on the right.
+
+   A LEAPP-exported ``Isaac-Reach-UR10`` policy deployed on a physical robot.
 
 Supported Workflows
 -------------------
 
-**Manager-based RL environments:** The standard export and deployment workflow supports manager-based RL environments
-(``ManagerBasedRLEnv``) trained with ``rsl_rl``, ``rl_games``, ``skrl``, or
-``sb3``. It exports the policy from a manager-based environment and
-deploys it through :class:`~envs.LeappDeploymentEnv`.
-
-**Physics backend:** The manager-based exporter relies on the environment's manager interfaces and does
-not select a physics backend itself. This includes **Newton** for tasks that expose a Newton
-preset. The LEAPP integration test creates an RSL-RL ``Isaac-Humanoid`` checkpoint and exports it
-with **Isaac Sim PhysX** (``presets=isaacsim_physx``) and **Newton MJWarp**
-(``presets=newton_mjwarp``). When its optional runtime is installed, the same test also covers
-**OV PhysX** (``presets=ovphysx``).
-
-You do not need to specify a preset when using the task's default backend. To select a backend,
-append its ``presets=<PRESET_NAME>`` argument to both the training and export commands. Use the
-same preset for both commands so the export recreates the environment configuration used by the
-checkpoint.
-
-**Direct RL environments:** ``DirectRLEnv`` environments can be exported with the RSL-RL workflow
-after you add LEAPP annotations; see the advanced
-:doc:`Direct workflow export guide <exporting_direct_workflow_policies_with_leapp>`.
-They are not supported by :class:`~envs.LeappDeploymentEnv`.
+- **Manager-based RL environments:** Export policies trained with ``rsl_rl``, ``rl_games``,
+  ``skrl``, or ``sb3`` and run them in Isaac Lab with :class:`~envs.LeappDeploymentEnv`.
+- **Direct RL environments:** Export RSL-RL policies after adding LEAPP annotations; see the
+  :doc:`Direct workflow export guide <exporting_direct_workflow_policies_with_leapp>`.
+  These policies are not supported by :class:`~envs.LeappDeploymentEnv`.
+- **Physics backends:** Export with Isaac Sim PhysX, Newton MJWarp, or OV PhysX, as supported
+  by your task. Use the same backend and configuration as training.
 
 .. toctree::
    :hidden:
@@ -268,8 +262,7 @@ backend-specific and launcher arguments (see :func:`~isaaclab.app.add_launcher_a
    exporters, but a published artifact is not available for every task and backend combination.
    If no matching artifact has been published, the exporter reports that it is unavailable and
    exits. Train the task locally and omit ``--checkpoint`` for automatic discovery, or pass an
-   explicit checkpoint path. See :ref:`pretrained-checkpoints` for the publication scope and the
-   command that lists the targeted task matrix.
+   explicit checkpoint path. See :ref:`pretrained-checkpoints` for checkpoint availability.
 
 
 How It Works (High Level)
@@ -300,7 +293,7 @@ configuration are needed.
    - **Critical traced operations should avoid unsupported third-party libraries.** PyTorch
      operations are the best-supported path. NumPy conversions inside the traced node can be
      captured when they do not cross the graph boundary, but external library calls may not be
-     traceable. Warp operations will be supported in the future by this export path.
+     traceable. This export path does not currently support Warp operations.
 
 
 Verifying an Export
@@ -337,16 +330,6 @@ one backend fails, try another backend that produces an acceptable artifact form
 
 For details on ONNX, JIT, and PT2 export formats, see the
 `LEAPP export guide <https://nvidia-isaac.github.io/leapp/guides/export.html>`__.
-
-
-Recurrent Policies
-^^^^^^^^^^^^^^^^^^
-
-LSTM recurrent policies are supported automatically. The exporters detect actor-side LSTM
-state for RSL-RL, RL-Games, skrl, and Stable-Baselines3 policies, register it as LEAPP feedback
-state, and ensure it appears in the ``feedback_flow`` section of the output YAML. The initial
-hidden state values are saved in the ``.safetensors`` file. Other recurrent architectures are
-not currently supported by these exporters.
 
 
 To run an exported policy in Isaac Lab, see the
