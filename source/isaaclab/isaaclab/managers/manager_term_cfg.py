@@ -158,13 +158,16 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor] | type[ManagerTermBase] = MISSING
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
     """The function or :class:`ManagerTermBase` subclass to be called.
 
     The manager instantiates class-based terms before calling them.
-    The function or the class's ``__call__`` method should take the environment object and any other parameters
-    as input and return the observation signal as torch float tensors of
-    shape (num_envs, obs_term_dim).
+    With the standard observation manager, the function or the class's ``__call__`` method takes the
+    environment object and any other parameters as input and returns the observation signal as a
+    torch tensor of shape (num_envs, obs_term_dim).
+
+    With the experimental Warp observation manager, it also takes a pre-allocated output buffer as
+    its second argument, writes the observations into that buffer, and returns None.
     """
 
     tensor_processors: list[TensorProcessorCfg] | None = None
