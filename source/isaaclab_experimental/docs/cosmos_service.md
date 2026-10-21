@@ -5,6 +5,9 @@ separate terminal and connect its camera to the service. The server keeps the mo
 loaded between camera sessions. See [Cosmos camera integration](cosmos.md) for the
 Isaac Lab configuration and training commands.
 
+For the demo's tested private Framework revision and a complete setup-to-recording
+sequence, see the [Cosmos Transfer demo walkthrough](cosmos_transfer.md).
+
 The server uses Cosmos Framework for inference and the standalone `isaaclab-cosmos`
 package for the camera-session protocol. Installing this package requires only the
 Cosmos directory from the Isaac Lab checkout. The server does not require the
