@@ -20,7 +20,7 @@ overrides = [
     { name = "fsspec", specifier = ">=2026.6.0" },
     { name = "mujoco", specifier = "~=3.15.0" },
     { name = "mujoco-warp", specifier = "~=3.15.0" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=aad887137c1e55c4307d083daad8d19785a0bebe" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=42f7def118c2c4299ce493457bafd4e8a22a696e" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -2045,7 +2045,7 @@ requires-dist = [
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=aad887137c1e55c4307d083daad8d19785a0bebe" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=42f7def118c2c4299ce493457bafd4e8a22a696e" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -3455,7 +3455,7 @@ wheels = [
 [[package]]
 name = "newton"
 version = "1.8.0.dev0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=aad887137c1e55c4307d083daad8d19785a0bebe#aad887137c1e55c4307d083daad8d19785a0bebe" }
+source = { git = "https://github.com/newton-physics/newton.git?rev=42f7def118c2c4299ce493457bafd4e8a22a696e#42f7def118c2c4299ce493457bafd4e8a22a696e" }
 dependencies = [
     { name = "warp-lang" },
 ]
