@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Check registry credentials and image digests with local Docker stubs.
-
-The actions resolve Bash from PATH; compute-deps-hash uses mapfile (Bash 4+).
-On macOS, prepend the directory containing a newer Bash to PATH when running pytest.
-"""
+"""Check registry credentials and image digests using local Docker stubs and Bash 4+."""
 
 from __future__ import annotations
 
@@ -336,10 +332,10 @@ def check_dependency_cache(tmp_path: Path, subtests) -> None:
     action = yaml.safe_load((_LIB_DIR.parent / "ecr-build-push-pull/action.yml").read_text())
     steps = {step["name"]: step for step in action["runs"]["steps"]}
     bin_dir = tmp_path / "bin"
-    trace = tmp_path / "docker.log"
+    trace = tmp_path / "docker-calls.log"
     _write_stub_docker(
         bin_dir,
-        'if [ "$1 $2" = "manifest inspect" ]; then [ "$CACHE" = deps ]; exit $?; fi\nprintf "%s\\n" "$*" >> "$TRACE"',
+        'if [ "$1 $2" = "manifest inspect" ]; then [ "$CACHE" = deps ]; exit $?; fi',
     )
     for cache in ("exact", "deps", "miss"):
         with subtests.test(dependency_cache=cache):
@@ -350,7 +346,6 @@ def check_dependency_cache(tmp_path: Path, subtests) -> None:
                 **os.environ,
                 "PATH": f"{bin_dir}:{os.environ['PATH']}",
                 "CACHE": cache,
-                "TRACE": str(trace),
                 "ECR_URL": "registry.example/lab",
                 "ECR_IMAGE": "registry.example/lab:PR",
                 "DEPS_ECR_IMAGE": "registry.example/lab:deps-BASE",

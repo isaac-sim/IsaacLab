@@ -276,15 +276,12 @@ class PairedFixture:
         start=stamp(10),
         fps=100,
         selection=None,
-        definition=None,
         measurement=None,
     ):
         files = self._files(run_id=20, measurement=measurement, commit=HEAD, fps=fps, start=start, end=stamp(11))
         context = files["build-context.json"]
         context["source"].update(benchmark_role="current", commit_parents=[self.commit, HEAD])
         context["execution"].update(hostname=hostname, measurement_not_before=start)
-        if definition is not None:
-            context["metric_definition"] = definition
         files["pr-comparison.json"] = {
             "schema_version": 1,
             "comparison_mode": "paired_pr",
@@ -678,8 +675,7 @@ def check_reuse(tmp_path, subtests):
                 if mutation == "missing":
                     del files[path]
                 elif mutation == "result":
-                    path = f"{sample}/benchmark_runtime_fixture.json"
-                    files[path]["runtime"]["total_fps"]["mean"] = 900
+                    files[f"{sample}/benchmark_runtime_fixture.json"]["runtime"]["total_fps"]["mean"] = 900
                 elif mutation == "legacy-format":
                     files[path]["schema_version"] = 2
                 else:
@@ -708,17 +704,14 @@ def check_reuse(tmp_path, subtests):
                 proof = files[path]
                 if mutation == "failed_proof":
                     proof["status"] = "failed"
-                elif mutation in ("digest", "missing_manifest"):
-                    manifest = files["source-manifest.json"]
-                    if mutation == "digest":
-                        manifest["measurement"]["digest"] = "0" * 64
-                    else:
-                        del manifest["measurement"]
+                elif mutation == "digest":
+                    files["source-manifest.json"]["measurement"]["digest"] = "0" * 64
+                elif mutation == "missing_manifest":
+                    del files["source-manifest.json"]["measurement"]
                 elif mutation == "missing_measurement_digest":
                     del proof["measurement_digest"]
                 else:
-                    context = files["build-context.json"]
-                    context["metric_definition"]["total_fps"] = "measurement-v1:" + "0" * 64
+                    files["build-context.json"]["metric_definition"]["total_fps"] = "measurement-v1:" + "0" * 64
                 artifact = pair._add_baseline(files)
                 candidate = pair._candidate(
                     pair._origin(artifact, run_id=10), reused=True, measurement=pair.measurement
@@ -970,7 +963,7 @@ def test_pr_comparison(tmp_path, subtests):
     registry = Path(__file__).resolve().parents[2] / ".github/actions/_lib/test_registry_credential_fallback.py"
     runpy.run_path(str(registry))["check_dependency_cache"](tmp_path / "cache", subtests)
     check_evidence(subtests)
-    check_transport(tmp_path, subtests)
+    check_transport(subtests)
     check_comparisons(subtests)
     check_reports(tmp_path, subtests)
     check_capture(tmp_path, subtests)
