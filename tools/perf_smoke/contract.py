@@ -175,17 +175,7 @@ def workload_identity(bundle: dict[str, Any]) -> dict[str, Any]:
 
 
 def build(bundle: dict[str, Any]) -> Contract:
-    """Build the comparability contract for a runtime bundle.
-
-    Args:
-        bundle: A schema-v1 runtime bundle.
-
-    Returns:
-        The contract used to select poolable baseline rows.
-
-    Raises:
-        PerfSmokeError: If required identity or hardware fields are missing.
-    """
+    """Build the workload, hardware and runtime key used to select baseline rows."""
     workload = workload_identity(bundle)
     versions = mapping(bundle.get("versions"), "versions")
     hardware = mapping(bundle.get("hardware"), "hardware")

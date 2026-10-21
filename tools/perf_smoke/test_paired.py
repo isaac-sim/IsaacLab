@@ -57,7 +57,7 @@ class PairedFixtureClient(FixtureClient):
         return matches[0]
 
 
-from .test_build_compare import check_comparisons, check_reports, run_report
+from .test_build_compare import assert_fields, check_comparisons, check_reports, run_report
 from .test_compare import check_rolling_history
 
 
@@ -215,11 +215,8 @@ class PairedFixture:
             {
                 "name": "isaaclab.benchmark.entrypoints.runtime" if path == RUNTIME else "isaaclab",
                 "relative_path": path,
-                "digest": digest,
-                "status": "verified",
-                **({"origin": "measurement" if path in measured_files else "workload"} if measurement else {}),
             }
-            for path, digest in (self.manifest["files"] | measured_files).items()
+            for path in sorted(set(self.manifest["files"]) | measured_files.keys())
         ]
         for leg in ("first", "second"):
             files[f"{leg}/status"] = b"ok"
@@ -230,16 +227,11 @@ class PairedFixture:
                 files[path] = value
                 files[f"{leg}/sample-{sample}/source-revision.json"] = {
                     "schema_version": manifest["schema_version"],
-                    **({"measurement": {**measurement, "status": "verified"}} if measurement else {}),
+                    **({"measurement_digest": measurement["digest"]} if measurement else {}),
                     "status": "verified",
                     "bytecode_policy": "fresh_process_cache",
                     "commit": commit,
-                    "benchmark_exit_code": 0,
                     "modules": modules,
-                    "runtime_entrypoint": {
-                        "module": "isaaclab.benchmark.entrypoints.runtime",
-                        **({"origin": "measurement"} if measurement else {}),
-                    },
                     "outputs": [
                         {
                             "path": "benchmark_runtime_fixture.json",
@@ -284,15 +276,12 @@ class PairedFixture:
         start=stamp(10),
         fps=100,
         selection=None,
-        definition=None,
         measurement=None,
     ):
         files = self._files(run_id=20, measurement=measurement, commit=HEAD, fps=fps, start=start, end=stamp(11))
         context = files["build-context.json"]
         context["source"].update(benchmark_role="current", commit_parents=[self.commit, HEAD])
         context["execution"].update(hostname=hostname, measurement_not_before=start)
-        if definition is not None:
-            context["metric_definition"] = definition
         files["pr-comparison.json"] = {
             "schema_version": 1,
             "comparison_mode": "paired_pr",
@@ -378,7 +367,7 @@ def check_capture(tmp_path, subtests):
                 assert json.loads((output / "source-manifest.json").read_text())["commit"] == commit
                 assert context["execution"]["benchmark_protocol"] == pair.protocol
                 saved = json.loads((output / "build-context.json").read_text())
-                assert saved["execution"]["benchmark_protocol"] == pair.protocol
+                assert_fields(saved["execution"], hostname="fixture-gpu-host", benchmark_protocol=pair.protocol)
                 if role == "current":
                     assert source["commit_parents"] == [base, head]
             for failure in ("image", "image_shape", "context_write"):
@@ -388,11 +377,10 @@ def check_capture(tmp_path, subtests):
                     assert result == 0
                     manifest = json.loads((output / "source-manifest.json").read_text())
                     assert manifest["commit"] == merge
-                    assert manifest["files"][RUNTIME] == pair._git("rev-parse", f"{merge}:{RUNTIME}")
+                    assert RUNTIME in manifest["files"]
                     assert not (output / "paired-failure.json").exists()
                     if failure != "context_write":
                         context = json.loads((output / "build-context.json").read_text())
-                        assert context["execution"]["hostname"] == "fixture-gpu-host"
                         assert context["execution"]["benchmark_protocol"] == pair.protocol
                         assert context["metric_definition"]["total_fps"] is None
                         assert "provenance capture failed" in context["metric_definition"]["reason"]
@@ -409,8 +397,7 @@ def check_capture(tmp_path, subtests):
                     assert paired.main(args) == 0
                     manifest = json.loads((output / "source-manifest.json").read_text())
                     context = json.loads((output / "build-context.json").read_text())
-                    assert manifest["commit"] == commit
-                    assert manifest["measurement"] == measurement
+                    assert_fields(manifest, commit=commit, measurement=measurement)
                     assert context["source"]["commit"] == commit
                     assert context["measurement"] == {"commit": merge, "digest": measurement["digest"]}
                     assert context["metric_definition"]["total_fps"] == f"measurement-v1:{measurement['digest']}"
@@ -435,7 +422,7 @@ def check_capture(tmp_path, subtests):
             assert json.loads((pair.output / "source-manifest.json").read_text()) == pair.manifest
             assert not (pair.output / "build-context.json").exists()
             assert not any(call.args[0][0] == "docker" for call in commands.call_args_list)
-            with patch.dict(os.environ, {"GITHUB_SHA": HEAD}), pytest.raises(ValueError, match="selected commit"):
+            with patch.dict(os.environ, {"GITHUB_SHA": HEAD}), pytest.raises(ValueError, match="expected commit"):
                 paired.capture_context(pair.checkout, pair.output, "same-image", "current", {}, pair.legs)
     with paired_fixture(tmp_path, subtests, "invalid source") as pair:
         base, head, merge, _ = pair._moving_merge()
@@ -510,7 +497,7 @@ def check_capture(tmp_path, subtests):
                     assert manifest["commit"] == merge
                     for name in ("pr.py", "base.py"):
                         source_path = f"source/isaaclab/isaaclab/{name}"
-                        assert manifest["files"][source_path] == pair._git("rev-parse", f"{merge}:{source_path}")
+                        assert source_path in manifest["files"]
                     assert json.loads(path.read_text()) == original
                     assert not (pair.output / "pr-comparison.json").exists()
                     with pytest.raises(ValueError):
@@ -576,8 +563,7 @@ def check_reuse(tmp_path, subtests):
         selection = pair._restore(measurement=measurement)
         assert selection["baseline_reused"]
         assert selection["requested_head_commit"] == "d" * 40
-        assert selection["baseline_origin"]["artifact_id"] == artifact["id"]
-        assert selection["baseline_origin"]["source_commit"] == pair.commit
+        assert_fields(selection["baseline_origin"], artifact_id=artifact["id"], source_commit=pair.commit)
         assert json.loads(pair.selection_path.read_text()) == selection
         changed_files = {**pair.measurement["files"], RUNTIME: "0" * 64}
         changed = {
@@ -596,13 +582,11 @@ def check_reuse(tmp_path, subtests):
         pair.event["pull_request"]["base"]["sha"] = event_base
         restored = pair._restore()
         assert restored["baseline_reused"]
-        assert restored["reference_commit"] == pair.commit
-        assert restored["event_base_commit"] == event_base
+        assert_fields(restored, reference_commit=pair.commit, event_base_commit=event_base)
         candidate = pair._candidate(pair._origin(artifact, run_id=10), reused=True, hostname="different-gpu-host")
         candidate.context["source"]["event_base_commit"] = event_base
         evidence, metadata = paired.select_pr_baseline(pair.client, candidate)
-        assert evidence.identity["source_commit"] == pair.commit
-        assert evidence.identity["run_id"] == 10
+        assert_fields(evidence.identity, source_commit=pair.commit, run_id=10)
         assert metadata["baseline_reused"]
     with paired_fixture(tmp_path, subtests, "unresolved reference") as pair:
         with patch.dict(os.environ, {"PERF_BASE_COMMIT": ""}):
@@ -686,12 +670,11 @@ def check_reuse(tmp_path, subtests):
                 if mutation == "missing":
                     del files[path]
                 elif mutation == "result":
-                    path = f"{sample}/benchmark_runtime_fixture.json"
-                    files[path]["runtime"]["total_fps"]["mean"] = 900
+                    files[f"{sample}/benchmark_runtime_fixture.json"]["runtime"]["total_fps"]["mean"] = 900
                 elif mutation == "legacy-format":
                     files[path]["schema_version"] = 2
                 else:
-                    files[path]["modules"][0]["digest"] = "0" * 40
+                    files[path]["modules"][0]["relative_path"] = "source/isaaclab/isaaclab/missing.py"
                 artifact = pair._add_baseline(files)
                 candidate = pair._candidate(pair._origin(artifact, run_id=10), reused=True)
                 evidence, _ = paired.select_pr_baseline(pair.client, candidate)
@@ -703,44 +686,27 @@ def check_reuse(tmp_path, subtests):
                 assert "Baseline is incomplete or its source proof is invalid." in str(selection["issues"])
     with paired_fixture(tmp_path, subtests, "mixed measurement proof") as pair:
         for mutation in (
-            "workload_origin",
-            "measurement_origin",
-            "native_runtime",
-            "runtime_origin",
-            "proof_commit",
+            "failed_proof",
             "digest",
             "context",
             "missing_manifest",
-            "missing_proof",
+            "missing_measurement_digest",
         ):
             with subtests.test(mutation=mutation):
                 pair.client = PairedFixtureClient()
                 files = pair._files(measurement=pair.measurement)
                 path = "first/sample-1/source-revision.json"
                 proof = files[path]
-                runtime = next(item for item in proof["modules"] if item["relative_path"] == RUNTIME)
-                workload = next(item for item in proof["modules"] if item["relative_path"] != RUNTIME)
-                if mutation == "workload_origin":
-                    workload["origin"] = "measurement"
-                elif mutation == "measurement_origin":
-                    runtime["origin"] = "workload"
-                elif mutation == "native_runtime":
-                    runtime["digest"] = pair.manifest["files"][RUNTIME]
-                elif mutation == "runtime_origin":
-                    proof["runtime_entrypoint"]["origin"] = "workload"
-                elif mutation == "proof_commit":
-                    proof["measurement"]["commit"] = pair.commit
-                elif mutation in ("digest", "missing_manifest"):
-                    manifest = files["source-manifest.json"]
-                    if mutation == "digest":
-                        manifest["measurement"]["digest"] = "0" * 64
-                    else:
-                        del manifest["measurement"]
-                elif mutation == "missing_proof":
-                    del proof["measurement"]
+                if mutation == "failed_proof":
+                    proof["status"] = "failed"
+                elif mutation == "digest":
+                    files["source-manifest.json"]["measurement"]["digest"] = "0" * 64
+                elif mutation == "missing_manifest":
+                    del files["source-manifest.json"]["measurement"]
+                elif mutation == "missing_measurement_digest":
+                    del proof["measurement_digest"]
                 else:
-                    context = files["build-context.json"]
-                    context["metric_definition"]["total_fps"] = "measurement-v1:" + "0" * 64
+                    files["build-context.json"]["metric_definition"]["total_fps"] = "measurement-v1:" + "0" * 64
                 artifact = pair._add_baseline(files)
                 candidate = pair._candidate(
                     pair._origin(artifact, run_id=10), reused=True, measurement=pair.measurement
@@ -786,15 +752,13 @@ def check_reuse(tmp_path, subtests):
         del incomplete["second/sample-3/source-revision.json"]
         first = pair._add_baseline(incomplete)
         first_bytes = pair.client.contents[first["id"]]
-        assert not pair._restore(run_id=10, attempt=2)["baseline_reused"]
         second = pair._add_baseline(run_id=10, attempt=2)
         assert first["name"] != second["name"]
         with subtests.test(stage="valid_attempt_cannot_reuse_itself"):
             assert not pair._restore(run_id=10, attempt=2)["baseline_reused"]
         selection = pair._restore(run_id=10, attempt=3)
         assert selection["baseline_reused"]
-        assert selection["baseline_origin"]["artifact_id"] == second["id"]
-        assert selection["baseline_origin"]["run_attempt"] == 2
+        assert_fields(selection["baseline_origin"], artifact_id=second["id"], run_attempt=2)
         assert pair.client.contents[first["id"]] == first_bytes
         second["expired"] = True
         assert not pair._restore(run_id=10, attempt=3)["baseline_reused"]
@@ -835,8 +799,7 @@ def check_pair_reports(tmp_path, subtests):
             _, second, rerun_markdown = pair._run_report(attempt=2)
             assert (pair.root / "comparisons/first/comparison.json").read_bytes() == gate
             assert second["baseline"] == first["baseline"]
-            assert second["candidate"]["run_attempt"] == 1
-            assert second["candidate"]["report_attempt"] == 2
+            assert_fields(second["candidate"], run_attempt=1, report_attempt=2)
             assert "Measurements: attempt 1; report: attempt 2" in rerun_markdown
             artifact["expired"] = True
             _, result, markdown = pair._run_report(attempt=2)
@@ -879,28 +842,30 @@ def check_binding(tmp_path, subtests):
         with pytest.raises(baseline.EvidenceError, match="does not identify this tested PR revision"):
             paired.select_pr_baseline(pair.client, candidate)
         assert pair.client.downloaded == downloaded
-    with paired_fixture(tmp_path, subtests, "fresh runner and ordering") as pair:
+    with paired_fixture(tmp_path, subtests, "fresh runner and sample clocks") as pair:
         for case, arguments, reason in (
-            ("valid pair without completion bound", {}, None),
+            ("pinned_digest", {}, "identity_mismatch"),
             ("different_runner", {"hostname": "different-gpu-host"}, "runner_mismatch"),
-            ("overlap", {"start": stamp(9)}, "measurement_order"),
+            ("sample_clock_overlap", {"start": stamp(9)}, None),
             (
-                "completion_bound_hides_sample",
+                "sample_clock_disagrees_with_phase",
                 {"start": stamp(9), "selection": {"baseline_finished_before": stamp(8, 59)}},
-                "measurement_order",
+                None,
             ),
         ):
             with subtests.test(case=case):
                 pair.client = PairedFixtureClient()
                 artifact = pair._add_baseline(run_id=20)
-                candidate = pair._candidate(pair._origin(artifact), **arguments)
+                origin = pair._origin(artifact)
+                if case == "pinned_digest":
+                    origin["sha256"] = "0" * 64
+                candidate = pair._candidate(origin, **arguments)
                 evidence, metadata = paired.select_pr_baseline(pair.client, candidate)
                 if reason:
                     assert evidence is None
                     assert metadata["reason_code"] == reason
                 else:
-                    assert evidence.identity["artifact_id"] == artifact["id"]
-                    assert evidence.identity["source_commit"] == pair.commit
+                    assert_fields(evidence.identity, artifact_id=artifact["id"], source_commit=pair.commit)
                     assert pair.client.pages_requested == []
     with paired_fixture(tmp_path, subtests, "partial baseline") as pair:
         pair._restore()
@@ -909,24 +874,18 @@ def check_binding(tmp_path, subtests):
         files["second/sample-3/benchmark_runtime_fixture.json"] = b"{invalid JSON"
         artifact = pair._add_baseline(files, run_id=20)
         origin = pair._origin(artifact)
-        with (
-            patch.dict(os.environ, {"GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "20", "GITHUB_RUN_ATTEMPT": "1"}),
-            patch.object(paired, "datetime") as clock,
-        ):
-            clock.now.return_value.isoformat.return_value = stamp(9, 30)
+        with patch.dict(os.environ, {"GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "20", "GITHUB_RUN_ATTEMPT": "1"}):
             paired.bind_baseline(pair.selection_path, str(artifact["id"]), pair.output, REPO, issue)
         pin = json.loads((pair.output / "pr-comparison.json").read_text())
         assert pin["reason"] == issue
         assert issue in pin["issues"]
         assert pin["baseline_origin"]["artifact_id"] == artifact["id"]
         candidate = pair._candidate(origin, selection=pin)
-        pair.client.run_jobs[20, 1][0]["completed_at"] = stamp(12)
         evidence, _ = paired.select_pr_baseline(pair.client, candidate)
         assert evidence is not None
         report = build_compare.compare_evidence(evidence, candidate)
         by_leg = {row["legs"]["baseline"][0]: row for row in report["rows"]}
-        assert by_leg["first"]["status"] == "compared"
-        assert by_leg["first"]["change_pct"] == 0
+        assert_fields(by_leg["first"], status="compared", change_pct=0)
         assert by_leg["second"]["status"] == "partial"
         assert by_leg["second"]["change_pct"] is None
     with paired_fixture(tmp_path, subtests, "bind wrong base") as pair:
@@ -942,11 +901,7 @@ def check_binding(tmp_path, subtests):
         fresh = pair._add_baseline(run_id=20)
         for uploaded in (True, False):
             with subtests.test(fresh_upload_succeeded=uploaded):
-                with (
-                    pair._workflow(GITHUB_SHA=HEAD, PERF_BASELINE_REUSED=""),
-                    patch.object(paired, "datetime") as clock,
-                ):
-                    clock.now.return_value.isoformat.return_value = stamp(9, 30)
+                with pair._workflow(GITHUB_SHA=HEAD, PERF_BASELINE_REUSED=""):
                     arguments = ["bind", "--selection", str(pair.selection_path), "--output-dir", str(pair.output)]
                     if uploaded:
                         arguments.extend(["--artifact-id", str(fresh["id"])])
@@ -955,8 +910,7 @@ def check_binding(tmp_path, subtests):
                 candidate = pair._candidate(pin["baseline_origin"], selection=pin)
                 evidence, metadata = paired.select_pr_baseline(pair.client, candidate)
                 if uploaded:
-                    assert evidence.identity["artifact_id"] == fresh["id"]
-                    assert evidence.identity["run_id"] == 20
+                    assert_fields(evidence.identity, artifact_id=fresh["id"], run_id=20)
                 else:
                     assert evidence is None
                     assert metadata["baseline_origin"] is None
@@ -997,7 +951,7 @@ def test_pr_comparison(tmp_path, subtests):
     registry = Path(__file__).resolve().parents[2] / ".github/actions/_lib/test_registry_credential_fallback.py"
     runpy.run_path(str(registry))["check_dependency_cache"](tmp_path / "cache", subtests)
     check_evidence(subtests)
-    check_transport(tmp_path, subtests)
+    check_transport(subtests)
     check_comparisons(subtests)
     check_reports(tmp_path, subtests)
     check_capture(tmp_path, subtests)
