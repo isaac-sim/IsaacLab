@@ -34,16 +34,12 @@ Clone the experimental Isaac Lab branch and select the demo revision:
 
 ```bash
 git clone -b exp/cosmos https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB"
-git -C "$ISAAC_LAB" fetch origin
-git -C "$ISAAC_LAB" checkout 4f8fb991f
 ```
 
 Clone the private Cosmos Framework variant and select its matching revision:
 
 ```bash
-git clone https://github.com/nvidia-cosmos/cosmos-framework-private.git "$COSMOS_FRAMEWORK"
-git -C "$COSMOS_FRAMEWORK" fetch origin
-git -C "$COSMOS_FRAMEWORK" checkout be540e475
+git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK"
 ```
 
 ## 3. Install dependencies and download the checkpoint
