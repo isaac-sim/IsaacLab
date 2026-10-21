@@ -70,14 +70,16 @@ class _CheckpointEnv(gym.Env):
 
 def _create_rsl_rl_checkpoint(env: _CheckpointEnv, cfg, directory: Path) -> Path:
     """Initialize and save the same runner used by the task, without learning."""
-    from rsl_rl.runners import OnPolicyRunner
+    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     cfg.device = "cpu"
-    runner = OnPolicyRunner(env, to_dict(cfg), log_dir=str(directory), device="cpu")
+    runner_type = DistillationRunner if cfg.class_name == "DistillationRunner" else OnPolicyRunner
+    runner = runner_type(env, to_dict(cfg), log_dir=str(directory), device="cpu")
     # Preserve nontrivial normalization coverage with deterministic synthetic samples.
     observations = env.get_observations()
-    runner.alg.actor.update_normalization(observations.apply(lambda value: value + 0.2))
-    runner.alg.actor.update_normalization(observations.apply(lambda value: value - 0.4))
+    policy = runner.alg.get_policy()
+    policy.update_normalization(observations.apply(lambda value: value + 0.2))
+    policy.update_normalization(observations.apply(lambda value: value - 0.4))
     path = directory / "model_0.pt"
     runner.save(str(path), infos={"initialized_for_leapp_export_test": True})
     return path
