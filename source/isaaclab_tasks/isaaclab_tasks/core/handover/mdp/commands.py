@@ -8,43 +8,50 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.managers import CommandTerm, CommandTermCfg
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.managers import CommandTerm
+from isaaclab.markers import VisualizationMarkers
 
-from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
-from isaaclab_tasks.core.utils import EpisodeErrorRecorder
+from isaaclab_tasks.core.reorient.utils import EpisodeErrorRecorder
+
+from ..handover_common import HandoverGoal
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
 
+    from .commands_cfg import HandoverCommandCfg
+
 
 class HandoverCommand(CommandTerm):
-    """Sample the fixed-position, random-orientation handover goal pose."""
+    """Alternate handover goals after cumulative success steps at each receiving hand."""
 
     cfg: HandoverCommandCfg
 
     def __init__(self, cfg: HandoverCommandCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self._object: RigidObject = env.scene[cfg.asset_name]
-        offset = torch.tensor(cfg.position_offset, dtype=torch.float, device=self.device)
-        self.pos_command_e = self._object.data.default_root_pose.torch[:, :3] + offset
+        self._goal = HandoverGoal(
+            torch.stack(
+                (
+                    env.scene[cfg.right_hand_name].data.default_root_pose.torch,
+                    env.scene[cfg.left_hand_name].data.default_root_pose.torch,
+                )
+            ),
+            cfg.hold_position_offset,
+            randomize_start=cfg.randomize_start_hand,
+        )
+        self.pos_command_e = self._goal.position
         self.quat_command_w = torch.zeros(self.num_envs, 4, device=self.device)
         self.quat_command_w[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
-        self._x_unit = torch.tensor([1.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
-        self._y_unit = torch.tensor([0.0, 1.0, 0.0], device=self.device).repeat(self.num_envs, 1)
         self.metrics["goal_distance"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["consecutive_success"] = torch.zeros(self.num_envs, device=self.device)
         self._minimum_goal_distance = EpisodeErrorRecorder(self.num_envs, self.device)
-        # Whether each environment has brought the object within the success distance this episode.
-        self._succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
     @property
     def command(self) -> torch.Tensor:
@@ -56,34 +63,45 @@ class HandoverCommand(CommandTerm):
         goal_distance = torch.linalg.norm(object_pos - self.pos_command_e, ord=2, dim=-1)
         self.metrics["goal_distance"][:] = goal_distance
         self._minimum_goal_distance.update(goal_distance)
-        self._succeeded |= goal_distance < self.cfg.success_distance_threshold
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> dict[str, torch.Tensor]:
         if env_ids is None:
             env_ids = slice(None)
-        # the base class means the metric over ``env_ids``, converts it to a float and
-        # zeroes it, so the episode's success bit is written before delegating
-        self.metrics["success_rate"][env_ids] = self._succeeded[env_ids].float()
+        goals = self._goal.success.snapshot(env_ids)
+        self.metrics["success_rate"][env_ids] = goals / (goals + 1.0)
+        self.metrics["consecutive_success"][env_ids] = goals
         extras = super().reset(env_ids)
-        self._succeeded[env_ids] = False
         log = self._env.extras.setdefault("log", {})
-        # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
-        # card across tasks); pop it from the returned dict so CommandManager does not
-        # additionally log it under ``Metrics/<term_name>/success_rate``.
+        # Route both metrics to the unified ``Metrics/`` cards shared across tasks; pop them so
+        # CommandManager does not also log them under ``Metrics/<term_name>/``.
         log["Metrics/success_rate"] = extras.pop("success_rate")
+        log["Metrics/consecutive_success"] = extras.pop("consecutive_success")
         for statistic, value in self._minimum_goal_distance.reset(env_ids).items():
             log[f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
         return extras
 
-    def _resample_command(self, env_ids: Sequence[int]) -> None:
-        random_values = 2.0 * torch.rand((len(env_ids), 2), device=self.device) - 1.0
-        self.quat_command_w[env_ids] = math_utils.quat_mul(
-            math_utils.quat_from_angle_axis(random_values[:, 0] * torch.pi, self._x_unit[env_ids]),
-            math_utils.quat_from_angle_axis(random_values[:, 1] * torch.pi, self._y_unit[env_ids]),
+    def _resample_command(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
+        if isinstance(env_ids, slice):
+            env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
+        self._goal.reset(env_ids)
+        # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
+        self.quat_command_w[env_ids] = math_utils.random_orientation(len(env_ids), device=self.device)
+        # the object starts at rest in the hand opposite the first goal, so it is placed here, after the goal reset
+        noise = math_utils.sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
+        position = self._goal.start_position(env_ids) + self.cfg.reset_position_noise * noise
+        position += self._env.scene.env_origins[env_ids]
+        orientation = math_utils.random_orientation(len(env_ids), device=self.device)
+        self._object.write_root_pose_to_sim_index(root_pose=torch.cat((position, orientation), dim=-1), env_ids=env_ids)
+        self._object.write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros((len(env_ids), 6), device=self.device), env_ids=env_ids
         )
 
     def _update_command(self) -> None:
-        pass
+        succeeded = self.metrics["goal_distance"] < self.cfg.success_distance_threshold
+        # Commands follow autoreset; the reset pose must not count as a success step.
+        succeeded &= ~(self._env.reset_terminated | self._env.reset_time_outs)
+        self._goal.update(succeeded, self.cfg.success_steps_required)
+        self._env.extras.setdefault("log", {})["Diagnostics/success_steps"] = self._goal.success_steps.float().mean()
 
     def _set_debug_vis_impl(self, debug_vis: bool) -> None:
         if debug_vis:
@@ -98,17 +116,3 @@ class HandoverCommand(CommandTerm):
             translations=self.pos_command_e + self._env.scene.env_origins,
             orientations=self.quat_command_w,
         )
-
-
-@configclass
-class HandoverCommandCfg(CommandTermCfg):
-    """Configuration for :class:`HandoverCommand`."""
-
-    class_type: type[HandoverCommand] = HandoverCommand
-    resampling_time_range: tuple[float, float] = (1.0e6, 1.0e6)
-    asset_name: str = MISSING
-    position_offset: tuple[float, float, float] = GOAL_POSITION_OFFSET
-    """Goal-position offset from the object's default position [m]."""
-    success_distance_threshold: float = 0.1
-    """Object-to-goal distance below which an episode counts as successful [m]."""
-    goal_visualizer_cfg: VisualizationMarkersCfg = GOAL_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_marker")

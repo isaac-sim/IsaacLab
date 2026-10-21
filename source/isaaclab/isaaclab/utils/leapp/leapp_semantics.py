@@ -14,7 +14,7 @@ from typing import Any
 
 import warp as wp
 
-from isaaclab.utils.array import convert_to_torch
+from ..array import convert_to_torch
 
 try:
     from leapp import InputKindEnum, OutputKindEnum
@@ -81,7 +81,6 @@ def leapp_tensor_semantics(
     const: bool = False,
 ) -> Callable:
     """Attach LEAPP semantic metadata to a raw tensor-producing function."""
-
     semantics = LeappTensorSemantics(
         kind=kind,
         element_names=element_names,

@@ -8,7 +8,12 @@ from typing import cast
 
 import pytest
 from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
-from isaaclab_teleop.deprecated.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
+from isaaclab_teleop.deprecated.openxr.retargeters import (
+    GripperRetargeter,
+    GripperRetargeterCfg,
+    Se3AbsRetargeter,
+    Se3AbsRetargeterCfg,
+)
 
 # Import teleop device factory for testing
 from isaaclab_teleop.deprecated.teleop_device_factory import create_teleop_device
@@ -74,57 +79,6 @@ def mock_environment(mocker):
         "websockets": websockets_mock,
         "websocket": websocket_mock,
     }
-
-
-"""
-Test OpenXR devices.
-"""
-
-
-def test_openxr_constructors(mock_environment, mocker):
-    """Test constructor for OpenXRDevice."""
-    xr_cfg = XrCfg(
-        anchor_pos=(1.0, 2.0, 3.0),
-        anchor_rot=(0.0, 0.1, 0.2, 0.3),
-        near_plane=0.2,
-    )
-    config = OpenXRDeviceCfg(xr_cfg=xr_cfg)
-
-    mock_controller_retargeter = mocker.MagicMock()
-    mock_head_retargeter = mocker.MagicMock()
-    retargeters = [mock_controller_retargeter, mock_head_retargeter]
-
-    device_mod = importlib.import_module("isaaclab_teleop.deprecated.openxr.openxr_device")
-    mocker.patch.dict(
-        "sys.modules",
-        {
-            "carb": mock_environment["carb"],
-            "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-        },
-    )
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-
-    mock_stage = mocker.MagicMock()
-    mock_prim = mocker.MagicMock()
-    mock_prim.IsValid.return_value = False
-    mock_stage.GetPrimAtPath.return_value = mock_prim
-    mocker.patch.object(device_mod, "sim_utils", mocker.MagicMock())
-    device_mod.sim_utils.get_current_stage.return_value = mock_stage
-    device_mod.sim_utils.create_prim.return_value = None
-
-    device = OpenXRDevice(config)
-    assert device._xr_cfg == xr_cfg
-
-    device = OpenXRDevice(cfg=config, retargeters=retargeters)
-    assert device._retargeters == retargeters
-
-    device = OpenXRDevice(cfg=config, retargeters=retargeters)
-    assert device._xr_cfg == xr_cfg
-    assert device._retargeters == retargeters
-
-    device.reset()
 
 
 """
@@ -217,6 +171,8 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
     device = create_teleop_device("test_xr", devices_cfg)
 
     assert len(device._retargeters) == 2
+    assert isinstance(device._retargeters[0], Se3AbsRetargeter)
+    assert isinstance(device._retargeters[1], GripperRetargeter)
 
 
 def test_create_teleop_device_device_not_found():

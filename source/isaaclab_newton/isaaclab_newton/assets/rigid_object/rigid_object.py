@@ -19,13 +19,11 @@ from pxr import UsdPhysics
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
 
@@ -148,14 +146,14 @@ class RigidObject(BaseRigidObject):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             wp.launch(
                 shared_kernels.update_wrench_array_with_force_and_torque,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    composer.out_force_b,
-                    composer.out_torque_b,
+                    force_b,
+                    torque_b,
                     self._data.body_link_pose_w.warp,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
@@ -371,6 +369,9 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
+        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -419,6 +420,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -472,6 +475,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -523,6 +528,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -799,7 +806,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -848,7 +855,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -873,12 +880,15 @@ class RigidObject(BaseRigidObject):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
@@ -896,7 +906,7 @@ class RigidObject(BaseRigidObject):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -921,6 +931,8 @@ class RigidObject(BaseRigidObject):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -929,6 +941,7 @@ class RigidObject(BaseRigidObject):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,
@@ -945,7 +958,7 @@ class RigidObject(BaseRigidObject):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -993,7 +1006,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -1042,7 +1055,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Internal helper.
@@ -1056,20 +1069,13 @@ class RigidObject(BaseRigidObject):
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
         self._root_view = ArticulationView(
-            SimulationManager.get_model(),
+            self._backend_manager.get_model(),
             path_expr_to_glob(root_prim_path_expr),
             verbose=False,
         )
 
         # container for data access
-        self._data = RigidObjectData(self.root_view, self.device)
-
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"rigid_object_rebind_{self.cfg.prim_path}",
-        )
+        self._data = RigidObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
 
         # create buffers
         self._create_buffers()
@@ -1079,13 +1085,6 @@ class RigidObject(BaseRigidObject):
         self.update(0.0)
         # Let the rigid object data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
-
-    def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks, including the physics-ready rebind handle."""
-        super()._clear_callbacks()
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None
 
     def _create_buffers(self):
         """Create buffers for storing data."""
@@ -1125,6 +1124,8 @@ class RigidObject(BaseRigidObject):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids

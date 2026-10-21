@@ -179,14 +179,14 @@ def _cylinder_object_cfg(pos=CYLINDER_INIT_POS, rot=CYLINDER_INIT_ROT) -> RigidO
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    physx = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
         gpu_collision_stack_size=2**28,
         gpu_found_lost_pairs_capacity=2**23,
         gpu_found_lost_aggregate_pairs_capacity=2**23,
         gpu_total_aggregate_pairs_capacity=2**23,
     )
-    newton = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
             integrator="implicitfast",
@@ -200,7 +200,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    default = physx
+    physx = isaacsim_physx
+    default = isaacsim_physx
 
 
 @configclass
@@ -280,9 +281,7 @@ class AllegroRotateEnvCfg(DirectRLEnvCfg):
     object_pinch_center_offset = (0.0, 0.0, 0.0)
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
-    )
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=0.75)
 
     # observation/action
     history_len = 3

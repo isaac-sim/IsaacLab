@@ -429,6 +429,42 @@ def test_deselected_tests_are_not_journaled_as_collected(tmp_path):
     assert read_journal(str(journal_file)).collected == [f"{_FILE}::test_keep"]
 
 
+def test_an_xdist_run_journals_each_event_once(tmp_path):
+    """Regression test for ``pytest-xdist`` runs journaling every event twice.
+
+    The workers and the controller both fire the per-test hooks, and every worker fires the
+    collection hook. Duplicated starts turn a worker crash that xdist recovered from into an
+    unmatched start, so a later session crash would be blamed on a test that already reported.
+    """
+    pytest.importorskip("xdist")
+    _write_test_module(
+        tmp_path,
+        """
+        def test_a():
+            pass
+
+        def test_b():
+            assert 1 == 2
+
+        def test_c():
+            pass
+        """,
+    )
+    journal_file = tmp_path / "journal.jsonl"
+    junit_file = tmp_path / "report.xml"
+    _run_pytest(tmp_path, journal_file, junit_file, "-p", "xdist.plugin", "-n", "2")
+
+    records = [json.loads(line) for line in journal_file.read_text(encoding="utf-8").splitlines()]
+    node_ids = [f"{_FILE}::test_{name}" for name in "abc"]
+    assert [record["event"] for record in records].count("collected") == 1
+    for event in ("start", "result", "finish"):
+        assert sorted(record["node_id"] for record in records if record["event"] == event) == node_ids
+
+    journal = read_journal(str(journal_file))
+    assert journal.collected == node_ids
+    assert journal.culprit is None
+
+
 # -- artificial crashes in a real pytest run --------------------------------------------------
 
 

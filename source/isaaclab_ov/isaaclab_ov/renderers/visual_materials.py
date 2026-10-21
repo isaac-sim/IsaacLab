@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import itertools
+import logging
 import weakref
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +22,8 @@ if TYPE_CHECKING:
 
     from .ovrtx_renderer import OVRTXRenderer
 
+logger = logging.getLogger(__name__)
+
 
 class OVRTXVisualMaterialWriter:
     """Compile OVRTX material addresses once and publish dirty device buffers."""
@@ -29,7 +33,7 @@ class OVRTXVisualMaterialWriter:
         self._buffers: dict[str, torch.Tensor] = {}
         self._dirty_channels: set[str] = set()
         self._operations: tuple[Any, ...] = ()
-        self._addresses: list[tuple[str, Any, Any | None, str, slice]] = []
+        self._addresses: list[tuple[str, Any, str, slice]] = []
 
         groups = []
         device = None
@@ -56,19 +60,14 @@ class OVRTXVisualMaterialWriter:
                     (batch.channel, f"inputs:{input_name}", list(batch.shader_paths[rows]), rows, dtype, shape)
                 )
                 start = end
-        self._event = wp.Event(device=str(device))
-        try:
+        self._device = str(device)
+        self._event = wp.Event(device=self._device)
+        with contextlib.ExitStack() as resources:
             for channel, attribute_name, shader_paths, rows, dtype, shape in groups:
                 if renderer._use_ovstage:
-                    path_list = renderer._stage_paths.create_path_list_from_strings(shader_paths)
-                    try:
-                        address = renderer._stage.query_from_path_list(path_list)
-                    except Exception:
-                        renderer._stage_paths.destroy_path_list(path_list)
-                        raise
+                    address = resources.enter_context(renderer.scene.query(shader_paths))
                 else:
-                    path_list = None
-                    address = renderer._renderer.bind_attribute(
+                    address = renderer.backend.renderer.bind_attribute(
                         prim_paths=shader_paths,
                         attribute_name=attribute_name,
                         dtype=dtype,
@@ -76,10 +75,9 @@ class OVRTXVisualMaterialWriter:
                         prim_mode=PrimMode.EXISTING_ONLY,
                         flags=BindingFlag.OPTIMIZE,
                     )
-                self._addresses.append((channel, address, path_list, attribute_name, rows))
-        except Exception:
-            self._release_backend_addresses(renderer)
-            raise
+                    resources.callback(address.unbind)
+                self._addresses.append((channel, address, attribute_name, rows))
+            self._resources = resources.pop_all()
 
     def __call__(self, material_offsets: dict[str, Any] | None = None, env_ids: Any | None = None) -> None:
         """Mark channels dirty; OVRTX currently copies each dirty channel's full device buffer."""
@@ -96,23 +94,28 @@ class OVRTXVisualMaterialWriter:
         renderer = self._renderer_ref()
         operations = []
         try:
-            for channel, address, _path_list, attribute_name, rows in self._addresses:
+            for channel, address, attribute_name, rows in self._addresses:
                 if channel not in channels:
                     continue
                 if renderer._use_ovstage:
-                    operation = renderer._stage.write_attribute(
+                    operation = renderer.scene.stage.write_attribute(
                         address,
                         attribute_name,
-                        ordinal=renderer._current_ordinal,
+                        ordinal=renderer.scene.ordinal,
                         tensors=self._buffers[channel][rows],
                         is_array=False,
                         cuda_event=self._event.cuda_event,
                     )
                 else:
+                    # The event orders the read after the producers (access sync). The stream
+                    # receives the done fence: work later enqueued on it waits for the read, so
+                    # the next refill of these zero-copy buffers cannot race it. Fills and
+                    # refills run on this device's current Warp stream.
                     operation = address.write_async(
                         self._buffers[channel][rows],
                         data_access=DataAccess.ASYNC,
                         cuda_event=self._event.cuda_event,
+                        cuda_stream=wp.get_stream(self._device).cuda_stream or 1,
                     )
                 operations.append(operation)
         finally:
@@ -120,27 +123,34 @@ class OVRTXVisualMaterialWriter:
         channels.clear()
 
     def drain(self) -> None:
-        """Complete submitted writes before their scene buffers may change."""
-        operations, self._operations = self._operations, ()
-        for operation in operations:
-            operation.wait()
+        """Complete submitted writes before their scene buffers may change.
 
-    def _release_backend_addresses(self, renderer: OVRTXRenderer) -> None:
-        for _channel, address, path_list, _attribute_name, _rows in self._addresses:
-            if renderer._use_ovstage:
-                renderer._stage.release_query(address).wait()
-                renderer._stage_paths.destroy_path_list(path_list)
-            else:
-                address.unbind()
-        self._addresses.clear()
+        Every op is waited even when an earlier one fails. Skipping the rest would leave their
+        writes pending with no remaining reference to wait on.
+        """
+        operations, self._operations = self._operations, ()
+        errors = []
+        for operation in operations:
+            try:
+                operation.wait()
+            except Exception as e:
+                errors.append(e)
+        if errors:
+            raise RuntimeError(f"{len(errors)} OVRTX material write(s) failed to complete") from errors[0]
 
     def close(self) -> None:
         """Drain writes and release every compiled backend address."""
         try:
-            self.drain()
+            with self._resources:
+                try:
+                    self.drain()
+                finally:
+                    renderer = self._renderer_ref()
+                    if renderer is not None:
+                        # A render may still read these bindings when RenderContext closes its writers.
+                        for error in renderer.drain_pending_renders():
+                            logger.warning("Error draining in-flight render before material release: %s", error)
         finally:
-            renderer = self._renderer_ref()
-            if renderer is not None:
-                self._release_backend_addresses(renderer)
+            self._addresses.clear()
             self._dirty_channels.clear()
             self._buffers.clear()

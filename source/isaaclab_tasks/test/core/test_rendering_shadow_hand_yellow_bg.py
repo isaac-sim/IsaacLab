@@ -5,10 +5,9 @@
 
 """Golden render test: Shadow Hand with yellow camera background (RGB only)."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+launch_test_simulation(enable_cameras=True)
 
 import pytest  # noqa: E402
 from rendering_test_utils import rendering_test_shadow_hand_yellow_bg  # noqa: E402

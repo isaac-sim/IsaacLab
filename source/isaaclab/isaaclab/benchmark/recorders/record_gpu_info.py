@@ -9,8 +9,8 @@ import subprocess
 
 import torch
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import (
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import (
     DictMetadata,
     IntMetadata,
     SingleMeasurement,
@@ -55,8 +55,6 @@ class GPUInfoRecorder(MeasurementDataRecorder):
         self._device_count = torch.cuda.device_count()
         self._gpu_hardware_info["device_count"] = self._device_count
         self._gpu_hardware_info["current_device"] = torch.cuda.current_device()
-
-        # Collect info for all devices
         self._gpu_hardware_info["devices"] = []
         for i in range(self._device_count):
             gpu_props = torch.cuda.get_device_properties(i)
@@ -88,7 +86,6 @@ class GPUInfoRecorder(MeasurementDataRecorder):
             cuda_version = getattr(torch_version, "cuda", None)
             self._gpu_hardware_info["cuda_version"] = cuda_version if cuda_version else "Unknown"
 
-        # Initialize pynvml for GPU utilization monitoring (all devices)
         with contextlib.suppress(Exception):
             import pynvml
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Haptic feedback (device output) for IsaacTeleop teleoperation.
+"""Haptic feedback (device output) for Isaac Capture teleoperation.
 
 This module adds an *output* path to the otherwise input-only teleop stack: a
 sim-side signal (contact force on a gripper, per-finger grip force on an object,
@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 import numpy as np
 import torch
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -107,7 +107,7 @@ def contact_force_magnitude(left_sensor_name: str, right_sensor_name: str) -> Si
         magnitudes = {
             endpoint: torch.linalg.vector_norm(forces.torch[0], dim=-1).sum().item()
             for endpoint, name in names.items()
-            if (forces := env.scene[name].data.net_forces_w) is not None
+            if (forces := env.scene[name].data.net_normal_forces_w) is not None
         }
         return {endpoint: np.array([magnitudes.get(endpoint, 0.0)], dtype=np.float32) for endpoint in names}
 
@@ -121,7 +121,7 @@ def per_finger_object_grip(
 ) -> SignalFn:
     """Signal source: per-finger grip force against the filtered object.
 
-    Reads each hand's contact sensor ``force_matrix_w`` -- the contact force
+    Reads each hand's contact sensor ``normal_force_matrix_w`` -- the contact force
     *filtered against the grasped object* (see
     :attr:`ContactSensorCfg.filter_prim_paths_expr`) -- and accumulates it into one
     channel per finger. Only force against the object contributes, so incidental
@@ -159,8 +159,8 @@ def per_finger_object_grip(
         for endpoint, name in names.items():
             sensor = env.scene[name]
             vec = np.zeros(num_channels, dtype=np.float32)
-            # force_matrix_w: [num_envs, num_bodies, num_filters, 3] (None before first contact).
-            force_matrix = sensor.data.force_matrix_w
+            # normal_force_matrix_w: [num_envs, num_bodies, num_filters, 3] (None before first contact).
+            force_matrix = sensor.data.normal_force_matrix_w
             if force_matrix is not None:
                 channels = body_channels.get(name)
                 if channels is None:
@@ -300,7 +300,7 @@ class GloveHapticFeedbackCfg(HapticFeedbackCfg):
     smoothing: float = 0.5
     """EMA new-sample weight in ``[0, 1]`` (1.0 = no smoothing) applied to each finger power."""
     collection_id: str = "manus_glove_haptic"
-    """Push-tensor collection id pairing Isaac Teleop with the glove plugin process
+    """Push-tensor collection id pairing Isaac Capture with the glove plugin process
     (the Manus plugin's default). Change it to target a different glove vendor."""
     finger_order: list[str] = ["thumb", "index", "middle", "ring", "pinky"]
     """Per-channel finger substrings, in glove channel order, matched against the

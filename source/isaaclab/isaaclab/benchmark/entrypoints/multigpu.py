@@ -15,12 +15,12 @@ Every rank creates its own Isaac Lab instance, so ``--num_envs`` is the number o
 
 Usage example::
 
-    uv run isaaclab benchmark startup-multigpu \\
+    uv run isaaclab benchmark startup_multigpu \\
         --task Isaac-Cartpole-Direct \\
         --num_gpus 2 \\
         presets=newton_mjwarp
 
-    uv run isaaclab benchmark training-multigpu \\
+    uv run isaaclab benchmark training_multigpu \\
         --rl_library rsl_rl \\
         --num_gpus 2 \\
         --task Isaac-Cartpole-Direct \\
@@ -36,8 +36,11 @@ from isaaclab.cli.multigpu import MultiGpuLauncherCfg, run_multigpu_cli
 
 WORKER_SCRIPT = str(Path(__file__).resolve())
 
-MULTIGPU_SUFFIX = "-multigpu"
+MULTIGPU_SUFFIX = "_multigpu"
 """Suffix that turns a benchmark workflow name into its multi-GPU variant."""
+
+LEGACY_MULTIGPU_SUFFIX = "-multigpu"
+"""Deprecated suffix retained for command-line compatibility."""
 
 MULTIGPU_WORKFLOWS = ("startup", "runtime", "training")
 """Benchmark workflows that offer a multi-GPU variant."""

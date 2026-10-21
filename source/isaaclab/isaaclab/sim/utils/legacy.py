@@ -23,7 +23,6 @@ from .prims import add_usd_reference
 from .queries import get_next_free_prim_path
 from .stage import get_current_stage
 
-# import logger
 logger = logging.getLogger(__name__)
 
 

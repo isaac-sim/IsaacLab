@@ -3,16 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Franka reach environments."""
+
 import gymnasium as gym
 
-from isaaclab_tasks.core.reach.config.franka import agents
+from . import agents
 
 ##
 # Register Gym environments.
-##
-
-##
-# Franka Reach
 ##
 
 gym.register(
@@ -24,13 +22,10 @@ gym.register(
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachPPORunnerCfg",
         "default_agent": "rsl_rl",
+        "pretrained_checkpoint_training_presets": {"rsl_rl": ("hold",)},
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
-
-##
-# Operational Space Control
-##
 
 gym.register(
     id="Isaac-Reach-Franka-OSC",
@@ -38,7 +33,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_reach_osc_env_cfg:FrankaReachEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachOSCPPORunnerCfg",
         "default_agent": "rsl_rl",
     },
 )

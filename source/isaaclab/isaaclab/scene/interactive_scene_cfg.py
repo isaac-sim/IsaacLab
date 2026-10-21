@@ -5,18 +5,17 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.cloner import CloneCfg, InclusionSet
-from isaaclab.cloner import add as clone_add
-from isaaclab.utils import find_unique_string_name
-from isaaclab.utils.configclass import configclass
+from ..cloner import CloneCfg, InclusionSet
+from ..cloner import add as clone_add
+from ..utils import configclass, find_unique_string_name, replace
 
 if TYPE_CHECKING:
-    from isaaclab.assets import AssetBaseCfg
-
+    from ..assets import AssetBaseCfg
     from .interactive_scene import InteractiveScene
 
 
@@ -41,7 +40,7 @@ class InteractiveSceneCfg:
         from isaaclab.assets import AssetBaseCfg
         from isaaclab.scene import InteractiveSceneCfg
         from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass, replace
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
@@ -55,9 +54,9 @@ class InteractiveSceneCfg:
             )
 
             # articulation - robot 1
-            robot_1 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_1")
+            robot_1 = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_1")
             # articulation - robot 2
-            robot_2 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_2")
+            robot_2 = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_2")
             robot_2.init_state.pos = (0.0, 1.0, 0.6)
 
             # sensor - ray caster attached to the base of robot 1 that scans the ground
@@ -102,30 +101,14 @@ class InteractiveSceneCfg:
     data is updated every time sensors are updated.
     """
 
-    replicate_physics: bool = True
-    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
+    replicate_physics: bool | None = None
+    """Deprecated and ignored. Clone contexts are selected per asset."""
 
-    If True, the simulation will have the same asset instances (USD prims) in all the cloned environments.
-    Internally, this ensures optimization in setting up the scene and parsing it via the physics stage parser.
-
-    If False, the simulation allows having separate asset instances (USD prims) in each environment.
-    This flexibility comes at a cost of slowdowns in setting up and parsing the scene.
-
-    .. note::
-        Optimized parsing of certain prim types (such as deformable objects) is not currently supported
-        by the physics engine. In these cases, this flag needs to be set to False.
-
-    .. attention::
-        Setting this flag to False is currently not supported on the Newton physics backend:
-        Newton discovers the scene through its replication path, which stage parsing cannot
-        replace for cloned environments.
-
-    .. note::
-        The scene pipes this flag into :attr:`~isaaclab.cloner.CloneCfg.replicate_physics`;
-        the policy is applied by :func:`~isaaclab.cloner.replicate`. Direct workflows that
-        call :func:`~isaaclab.cloner.replicate` themselves pass ``replicate_physics``
-        explicitly.
-    """
+    def __post_init__(self) -> None:
+        if self.replicate_physics is not None:
+            warnings.warn(
+                "InteractiveSceneCfg.replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2
+            )
 
     filter_collisions: bool = True
     """Enable/disable collision filtering between cloned environments. Default is True.
@@ -135,16 +118,8 @@ class InteractiveSceneCfg:
     If False, the simulation will generate collisions between environments.
 
     .. note::
-        Collisions can only be filtered automatically in direct workflows when physics replication is enabled.
-        If :attr:`replicated_physics` is ``False`` and collision filtering is desired, make sure to call
-        ``scene.filter_collisions()``.
-    """
-
-    clone_in_fabric: bool = False
-    """Deprecated legacy Fabric cloning flag. Default is False.
-
-    Queued replication no longer forwards this flag to the PhysX replicator;
-    ``useFabricForReplication`` is always ``False``.
+        Direct workflows that add assets after scene construction must call ``scene.filter_collisions()``
+        to filter those assets.
     """
 
     clone_cfg: CloneCfg = CloneCfg()
@@ -217,7 +192,7 @@ def add(
         else:
             target_name = find_unique_string_name(source_name, lambda name: name not in used_names)
             if cfg.prim_path in paths:
-                cfg = cfg.replace(prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths))
+                cfg = replace(cfg, prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths))
             setattr(target, target_name, cfg)
             used_names.add(target_name)
             paths.add(cfg.prim_path)
@@ -234,7 +209,7 @@ def _scene_assets(
     """List the environment-scoped spawned assets of one scene."""
     # Deferred: config construction must stay importable without isaaclab.assets
     # (kitless factories); only scene composition pays for it.
-    from isaaclab.assets import AssetBaseCfg  # noqa: PLC0415
+    from ..assets import AssetBaseCfg  # noqa: PLC0415
 
     env_root = "{ENV_REGEX_NS}/"
     base_fields, assets = InteractiveSceneCfg.__dataclass_fields__, []

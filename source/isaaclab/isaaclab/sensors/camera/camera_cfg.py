@@ -9,10 +9,9 @@ import warnings
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.renderers import RendererCfg
-from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils.configclass import configclass
-
+from ...renderers import RendererCfg
+from ...sim import FisheyeCameraCfg, PinholeCameraCfg
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
@@ -97,6 +96,13 @@ class CameraCfg(SensorBaseCfg):
 
     height: int = MISSING
     """Height of the image in pixels."""
+
+    render_settings: dict[str, tuple[str, Any]] = dict()
+    """Per-camera OVRTX render-product attributes, as ``{name: (USD type name, value)}``.
+
+    For example, ``{"omni:rtx:quality": ("Int", 0)}`` disables the path tracer convergence loop
+    for an interactive camera. These settings do not change the shared renderer configuration.
+    """
 
     update_latest_camera_pose: bool = False
     """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
@@ -210,7 +216,7 @@ class CameraCfg(SensorBaseCfg):
 
     * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
       tonemapping flags are flipped.
-    * A :class:`CameraISPMode` sentinel — the renderer backend walks the USD stage to
+    * A :class:`CameraISPMode` sentinel — camera construction walks the USD stage to
       discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
     * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
 
@@ -218,9 +224,11 @@ class CameraCfg(SensorBaseCfg):
     scalar coefficients, so every cloned view in a tiled batch shares the same
     ISP configuration — there is no per-view ISP today.
 
-    :mod:`isaaclab.sensors.camera` does not depend on any ISP implementation; the
-    annotation is intentionally loose (``Any``) so the sensor layer can carry the
-    cfg through to a renderer that knows what to do with it.
+    Camera construction resolves the configuration and, for RTX renderers, neutralizes the
+    camera prim's exposure before the scene is cloned or imported. This also applies to existing
+    camera prims with ``spawn=None``; author their PPISP attributes before constructing the sensor.
+    Renderers receive the resolved configuration and apply PPISP to their HDR output. The PPISP
+    package is imported only when this option is enabled.
     """
 
     def __post_init__(self):
@@ -230,12 +238,9 @@ class CameraCfg(SensorBaseCfg):
         :class:`DeprecationWarning` and is copied onto ``self.renderer_cfg``
         when that cfg defines the same-named field.
         """
-        # TODO when Camera.__init__ moves rtx_sensor setting out of camera initialization
-        # the default renderer config instantiation can be moved into the render factory
-        # and get_default_render_cfg method can be removed from backend_utils
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
         if renderer_type == "default":
-            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+            from ...utils.backend_utils import get_default_renderer_cfg
 
             self.renderer_cfg = get_default_renderer_cfg()
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.
@@ -254,3 +259,19 @@ class CameraCfg(SensorBaseCfg):
             # Reset to default so re-runs of ``__post_init__`` (via ``SensorBase.__init__``'s
             # ``cfg.copy()``) don't re-forward and clobber a user-set ``renderer_cfg`` field.
             setattr(self, field_name, default)
+
+    def validate_config(self) -> None:
+        """Validate the requested data types against the selected renderer contract."""
+        if self.renderer_cfg is None:
+            return
+        supported_specs = self.renderer_cfg.supported_output_types()
+        if supported_specs is None:
+            return
+        supported = {str(kind) for kind in supported_specs}
+        unsupported = sorted(set(self.data_types) - supported)
+        if unsupported:
+            raise ValueError(
+                f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
+                f"but the camera is configured with unsupported types: {unsupported}. "
+                "Choose supported data types or select a different renderer."
+            )

@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow Humanoid locomotion environment."""
+
 from __future__ import annotations
 
-from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import HumanoidEnvCfg
-from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirectEnv
+from ..locomotion_direct_env import LocomotionDirectEnv
+from .humanoid_direct_env_cfg import HumanoidEnvCfg
 
 
 class HumanoidEnv(LocomotionDirectEnv):

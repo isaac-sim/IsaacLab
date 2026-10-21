@@ -8,6 +8,8 @@ isaaclab_newton.sim.spawners
   .. autosummary::
 
     NewtonMaterialCfg
+    NewtonVolumeDeformableMaterialCfg
+    NewtonSurfaceDeformableMaterialCfg
     NewtonDeformableBodyMaterialCfg
     NewtonDeformableMaterialCfg
     NewtonSurfaceDeformableBodyMaterialCfg
@@ -25,6 +27,16 @@ Deformable Materials
 
 Newton provides the backend-specific deformable material cfgs. Deformable material spawning is unified in
 :func:`isaaclab.sim.spawners.materials.spawn_deformable_body_material`.
+
+.. autoclass:: NewtonVolumeDeformableMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: NewtonSurfaceDeformableMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 .. autoclass:: NewtonDeformableBodyMaterialCfg
     :members:
@@ -56,8 +68,9 @@ MPM Particles
 -------------
 
 Declarative particle generation for :class:`~isaaclab_newton.assets.MPMObject`.
-The spawner creates a placeholder ``Xform`` prim; the particles themselves are
-emitted into the Newton model builder during replication.
+The spawner authors explicit ``UsdGeom.Points`` simulation geometry and a bound
+Newton MPM material below an asset-root ``Xform``. Newton imports the particles
+through its normal USD path during replication.
 
 .. autoclass:: MPMParticleSpawnerCfg
     :members:

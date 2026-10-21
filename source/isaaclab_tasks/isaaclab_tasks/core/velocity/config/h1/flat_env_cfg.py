@@ -3,46 +3,46 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+"""Configuration for the Unitree H1 velocity-tracking environment on flat terrain."""
 
-from isaaclab.physics import PhysxAutoCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+import isaaclab_tasks.core.velocity.mdp as mdp
 
-from .rough_env_cfg import H1RoughEnvCfg
+from .rough_env_cfg import H1Rewards, H1RoughEnvCfg
 
 
 @configclass
-class PhysicsCfg(PresetCfg):
-    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    ovphysx = OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=65,
-            nconmax=15,
-            cone="pyramidal",
-            impratio=1.0,
-            integrator="implicitfast",
-        ),
-        num_substeps=1,
-        debug_mode=False,
+class H1FlatRewards(H1Rewards):
+    """Reward terms for the MDP."""
+
+    # fixes the tilted gait
+    air_time_variance = RewTerm(
+        func=mdp.feet_air_time_variance,
+        weight=-2.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_link"),
+            "command_name": "base_velocity",
+        },
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
-    default = newton_mjwarp
 
 
 @configclass
 class H1FlatEnvCfg(H1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+    """Configuration for the Unitree H1 velocity-tracking environment on flat terrain."""
+
+    rewards: H1FlatRewards = H1FlatRewards()
 
     def __post_init__(self):
         super().__post_init__()
 
+        # physics
+        newton_mjwarp = self.sim.physics.newton_mjwarp
+        newton_mjwarp.solver_cfg.njmax = 65
+        newton_mjwarp.solver_cfg.nconmax = 15
+        self.sim.physics.default = newton_mjwarp
         # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None

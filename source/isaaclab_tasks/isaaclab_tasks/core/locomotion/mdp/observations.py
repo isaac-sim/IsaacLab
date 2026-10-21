@@ -3,8 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Observation terms for the locomotion (ant and humanoid) environments."""
+
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING
 
 import torch
@@ -43,7 +46,17 @@ def walk_target_w(env: ManagerBasedEnv, target_pos: tuple[float, float, float]) 
     The target is specified relative to the environment origin so that every robot walks along the
     same direction in its own frame, independently of where its environment sits in the grid.
     """
-    return env.scene.env_origins + torch.tensor(target_pos, device=env.device)
+    return env.scene.env_origins + _walk_target_offset(tuple(target_pos), str(env.device))
+
+
+@functools.cache
+def _walk_target_offset(target_pos: tuple[float, float, float], device: str) -> torch.Tensor:
+    """Walk target offset [m] as a device tensor.
+
+    Cached per ``(target_pos, device)`` so the hot path does not upload the constant on every call;
+    ``device`` is a string so that it is hashable for the cache.
+    """
+    return torch.tensor(target_pos, device=device)
 
 
 def base_heading_proj(

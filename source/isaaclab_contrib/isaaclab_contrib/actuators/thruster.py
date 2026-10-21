@@ -157,10 +157,7 @@ class Thruster:
         if env_ids is None:
             env_ids = slice(None)
 
-        if isinstance(env_ids, slice):
-            num_resets = self._num_envs
-        else:
-            num_resets = len(env_ids)
+        num_resets = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
 
         self.tau_inc_s[env_ids] = math_utils.sample_uniform(
             *self.tau_inc_r,

@@ -6,12 +6,13 @@
 from dataclasses import MISSING
 
 import numpy as np
-from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
+from isaaclab_tasks.utils import preset
 
 from . import stack_joint_pos_env_cfg
 from .pose_ik_action import SO101PoseIKActionCfg
@@ -22,12 +23,6 @@ from .stack_joint_pos_env_cfg import SO101_GRIPPER_CLOSE, SO101_GRIPPER_OPEN
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.so101 import SO101_HIGH_PD_CFG  # isort: skip
-
-# ``isaaclab_teleop`` imports cleanly without the optional ``isaacteleop`` package (the heavy
-# import is deferred to session start), so no import guard is needed here. This lightweight
-# marker lets the env test suite categorize this as a teleop env (see
-# ``isaaclab_tasks/test/env_test_utils.py::_is_teleop_env``).
-_TELEOP_AVAILABLE = True
 
 # Analog-gripper action affine: ``joint = offset + scale * closedness`` maps the retargeter's
 # closedness ``c in [0, 1]`` to a ``gripper`` joint target [rad]. ``offset == OPEN`` (so ``c=0``
@@ -64,7 +59,7 @@ _SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (
 
 
 def _build_so101_stack_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for SO-101 cube stacking.
+    """Build an Isaac Capture retargeting pipeline for SO-101 cube stacking.
 
     Creates a SO101ClutchRetargeter for right-hand clutch-rebased full-pose tracking and a
     SO101GripperRetargeter for right-hand analog gripper control, flattened into a single action
@@ -208,10 +203,8 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Switch to a stiffer PD controller so the arm tracks IK targets well. SO101_HIGH_PD_CFG
-        # carries only the so101.py asset default init_state (zeros, no root pos), so ``replace``
-        # would DISCARD the parent's seated + stack-posed init_state. Preserve it explicitly so
-        # the IK-Abs task is also seated on the table and starts in the stack joint pose.
+        # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
+        # configured by the parent so its task-specific seated root and stack joint pose are retained.
         #
         # Also soften the gripper to mimic the Franka panda_hand's grasp feel. The SO-101 jaw asset
         # default (effort 10 N·m, velocity 10 rad/s) snaps shut fast and hard, pushing through the
@@ -221,9 +214,17 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # without penetrating. ``joint_effort_limit`` is the "strength" knob and ``joint_velocity_limit``
         # the "speed" knob; stiffness/damping keep the asset defaults. Tune in-sim (lower effort if
         # it still pushes through; raise it if the cube drops).
-        self.scene.robot = SO101_HIGH_PD_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            init_state=self.scene.robot.init_state,
+        self.scene.robot = replace(
+            self.scene.robot,
+            soft_joint_pos_limit_factor=SO101_HIGH_PD_CFG.soft_joint_pos_limit_factor,
+            spawn=replace(
+                SO101_HIGH_PD_CFG.spawn,
+                variants={
+                    "Robot": "robot",
+                    "Sensor": "sensors",
+                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
+                },
+            ),
             actuators={
                 "arm": SO101_HIGH_PD_CFG.actuators["arm"],
                 "gripper": ImplicitActuatorCfg(
@@ -282,17 +283,20 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             ),
         )
 
-        # IsaacTeleop-based teleoperation pipeline
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_so101_stack_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-            # Rebase all teleop output poses into the robot base frame: the device reads this
-            # prim's world transform each frame and left-multiplies its inverse onto the XR
-            # anchor (``base_T_world @ world_T_anchor``), so the clutch retargeter works
-            # in the base frame -- the IK command's root frame (the FrameTransformer source
-            # also uses ``Robot/base``). The clutch's reset-origin home (_BASE_T_GRIPPER_HOME)
-            # provides the engage seed, so no live end-effector feed is needed. Teleop runs a
-            # single env (env_0).
-            target_frame_prim_path="/World/envs/env_0/Robot/base",
-        )
+        # Isaac Capture-based teleoperation pipeline
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_so101_stack_pipeline,
+                sim_device=self.sim.device,
+                # Rebase all teleop output poses into the robot base frame: the device reads this
+                # prim's world transform each frame and left-multiplies its inverse onto the XR
+                # anchor (``base_T_world @ world_T_anchor``), so the clutch retargeter works
+                # in the base frame -- the IK command's root frame (the FrameTransformer source
+                # also uses ``Robot/base``). The clutch's reset-origin home (_BASE_T_GRIPPER_HOME)
+                # provides the engage seed, so no live end-effector feed is needed. Teleop runs a
+                # single env (env_0).
+                target_frame_prim_path="/World/envs/env_0/Robot/base",
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )

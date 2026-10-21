@@ -11,19 +11,26 @@ No Kit/GPU required — safe for CI and beginners.
 """
 
 import sys
+from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.physics import PhysicsCfg, PhysxAutoCfg
+from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.hydra import (
+    PresetTarget,
+    collect_presets,
+    enumerate_task_presets,
+    resolve_presets,
+    resolve_task_runs,
+)
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
@@ -60,19 +67,40 @@ def test_resolve_task_config_applies_plain_scalar_override():
     assert env_cfg.scene.num_envs == 123
 
 
-def test_rtx_is_renderer_selector():
-    """The automatic RTX selector is exposed as ``renderer=rtx``."""
+def test_camera_cli_size_overrides_update_observation_space(monkeypatch: pytest.MonkeyPatch):
+    """A composed camera config exposes CLI dimensions before the env derives its Gym space."""
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv, CartpoleEnv
+
+    env_cfg = _resolve_with_args(
+        "env.scene.tiled_camera.height=45",
+        "env.scene.tiled_camera.width=80",
+        "env.frame_stack=1",
+    )
+
+    class FakeScene(dict):
+        num_envs = 2
+
+    def fake_parent_init(self, cfg, *_args, **_kwargs):
+        self.cfg = cfg
+        self.scene = FakeScene(robot=SimpleNamespace(), tiled_camera=SimpleNamespace())
+        self.sim = SimpleNamespace(device="cpu")
+        self._configure_gym_env_spaces()
+        self._is_closed = True
+
+    monkeypatch.setattr(CartpoleEnv, "__init__", fake_parent_init)
+    env = CartpoleCameraEnv(env_cfg)
+
+    assert env.cfg.observation_space == [3, 45, 80]
+    assert env.single_observation_space["policy"].shape == (3, 45, 80)
+    assert env.observation_space.shape == (2, 3, 45, 80)
+
+
+def test_rtx_and_isaacsim_physx_are_typed_selectors():
+    """``renderer=rtx`` (automatic RTX) and ``physics=isaacsim_physx`` (concrete Isaac Sim PhysX) are exposed."""
     preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
 
     assert preset_map is not None
     assert "rtx" in preset_map[PresetTarget.RENDERER]
-
-
-def test_isaacsim_physx_is_physics_selector():
-    """The concrete Isaac Sim PhysX selector is exposed as ``physics=isaacsim_physx``."""
-    preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
-
-    assert preset_map is not None
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 
@@ -103,7 +131,41 @@ def test_registered_task_physx_presets_keep_auto_selection_explicit():
                 assert fields.get("isaacsim_physx") == fields["physx"], location
 
 
+@pytest.mark.parametrize(
+    "task_id", ["IsaacContrib-Open-Drawer-Franka-IK-Abs", "IsaacContrib-Open-Drawer-Franka-IK-Rel"]
+)
+def test_franka_cabinet_ik_preserves_newton_asset_variant(task_id):
+    """The IK robot override retains the cabinet task's backend-aware asset selection."""
+    cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"), selected=("newton_mjwarp",))
+
+    assert cfg.scene.robot.spawn.variants["Physics"] == "mujoco"
+
+
+def test_registered_manager_based_configs_name_their_env_class():
+    """A manager-based task's ``class_type`` constructs the env class its registration names."""
+
+    for task_id, task_spec in gym.registry.items():
+        if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
+            continue
+        env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        if isinstance(env_cfg, ManagerBasedEnvCfg):
+            assert string_to_callable(str(env_cfg.class_type)) is string_to_callable(task_spec.entry_point), task_id
+
+
 def test_physx_and_isaacsim_physx_presets_conflict():
     """``physx`` and ``isaacsim_physx`` are distinct choices even when both use PhysxCfg."""
     with pytest.raises(ValueError, match="Conflicting global presets"):
         _resolve_with_presets("physx,isaacsim_physx")
+
+
+def test_resolve_task_runs_lists_each_launchable_combination_once():
+    """OvPhysX and OVRTX never pair with Kit, env-config checks apply, and a selector folds into its target."""
+    runs = resolve_task_runs(_CAMERA_PRESETS_TASK)
+
+    pairs = {(physics, renderer) for physics, renderer, _ in runs}
+    assert {("ovphysx", "ovrtx"), ("isaacsim_physx", "isaacsim_rtx")} <= pairs
+    assert not {("isaacsim_physx", "ovrtx"), ("ovphysx", "isaacsim_rtx")} & pairs
+    # The Warp renderer cannot produce shaded images; the env config rejects that pairing.
+    assert ("newton_mjwarp", "newton_renderer", "simple_shading_full_mdl") not in runs
+    # ``physx`` and ``rtx`` select a concrete backend, so they resolve to a run already listed.
+    assert not {"physx", "rtx"} & {name for physics, renderer, _ in runs for name in (physics, renderer)}

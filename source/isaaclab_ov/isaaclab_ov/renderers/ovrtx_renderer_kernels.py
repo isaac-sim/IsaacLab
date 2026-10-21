@@ -13,67 +13,37 @@ import warp as wp
 from isaaclab.renderers.segmentation_colors import random_color_from_id_wp
 
 
+@wp.kernel(enable_backward=False)
+def create_marker_transforms_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quat),
+    scales: wp.array(dtype=wp.vec3),
+    local_transforms: wp.array(dtype=wp.mat44d),
+    instance_ids: wp.array(dtype=wp.int32),
+    transforms: wp.array(dtype=wp.mat44d),
+):
+    """Compose marker poses and scales in the native renderer's matrix layout."""
+    i = wp.tid()
+    source = instance_ids[i]
+    position, orientation, scale = positions[source], orientations[source], scales[source]
+    p = wp.vec3d(wp.float64(position[0]), wp.float64(position[1]), wp.float64(position[2]))
+    q = wp.quatd(
+        wp.float64(orientation[0]), wp.float64(orientation[1]), wp.float64(orientation[2]), wp.float64(orientation[3])
+    )
+    s = wp.vec3d(wp.float64(scale[0]), wp.float64(scale[1]), wp.float64(scale[2]))
+    transforms[i] = local_transforms[i] * wp.transpose(wp.transform_compose(p, q, s))
+
+
 @wp.kernel
 def create_camera_transforms_kernel(
     positions: wp.array(dtype=wp.vec3),  # type: ignore
     orientations: wp.array(dtype=wp.quatf),  # type: ignore
     transforms: wp.array(dtype=wp.mat44d),  # type: ignore
 ):
-    """Build camera 4x4 transforms from positions and quaternions (column-major for OVRTX)."""
+    """Convert world-frame camera poses to OVRTX's OpenGL row-vector matrices in one pass."""
     i = wp.tid()
-    pos = positions[i]
-    quat = orientations[i]
-    qx, qy, qz, qw = quat[0], quat[1], quat[2], quat[3]
-
-    r00 = 1.0 - 2.0 * (qy * qy + qz * qz)
-    r01 = 2.0 * (qx * qy - qw * qz)
-    r02 = 2.0 * (qx * qz + qw * qy)
-    r10 = 2.0 * (qx * qy + qw * qz)
-    r11 = 1.0 - 2.0 * (qx * qx + qz * qz)
-    r12 = 2.0 * (qy * qz - qw * qx)
-    r20 = 2.0 * (qx * qz - qw * qy)
-    r21 = 2.0 * (qy * qz + qw * qx)
-    r22 = 1.0 - 2.0 * (qx * qx + qy * qy)
-
-    _0 = wp.float64(0.0)
-    _1 = wp.float64(1.0)
-    transforms[i] = wp.mat44d(  # type: ignore
-        wp.float64(r00),
-        wp.float64(r10),
-        wp.float64(r20),
-        _0,
-        wp.float64(r01),
-        wp.float64(r11),
-        wp.float64(r21),
-        _0,
-        wp.float64(r02),
-        wp.float64(r12),
-        wp.float64(r22),
-        _0,
-        wp.float64(float(pos[0])),
-        wp.float64(float(pos[1])),
-        wp.float64(float(pos[2])),
-        _1,
-    )
-
-
-@wp.kernel
-def extract_tile_from_tiled_buffer_kernel(
-    tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    tile_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    tile_x: int,
-    tile_y: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract one RGBA tile from a tiled buffer."""
-    y, x = wp.tid()
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    tile_buffer[y, x, 0] = tiled_buffer[src_y, src_x, 0]
-    tile_buffer[y, x, 1] = tiled_buffer[src_y, src_x, 1]
-    tile_buffer[y, x, 2] = tiled_buffer[src_y, src_x, 2]
-    tile_buffer[y, x, 3] = tiled_buffer[src_y, src_x, 3]
+    orientation = orientations[i] * wp.quatf(0.5, -0.5, -0.5, 0.5)
+    transforms[i] = wp.mat44d(wp.transpose(wp.transform_to_matrix(wp.transformf(positions[i], orientation))))
 
 
 @wp.kernel
@@ -175,113 +145,19 @@ def generate_random_colors_from_ids_kernel(
     output_colors[i, j, k] = random_color_from_id_wp(input_ids[i, j, k])
 
 
-@wp.kernel
-def sync_newton_transforms_kernel(
-    ovrtx_transforms: wp.array(dtype=wp.mat44d),  # type: ignore
-    newton_body_indices: wp.array(dtype=wp.int32),  # type: ignore
-    newton_body_q: wp.array(dtype=wp.transformf),  # type: ignore
-    object_scales: wp.array(dtype=wp.vec3f),  # type: ignore
+@wp.kernel(enable_backward=False)
+def accumulate_mesh_normals(
+    points: wp.array(dtype=wp.vec3), indices: wp.array(dtype=wp.int32), normals: wp.array(dtype=wp.vec3)
 ):
-    """Sync Newton physics body transforms to OVRTX 4x4 column-major matrices.
-
-    A Newton ``transformf`` holds only translation and rotation, so the authored USD scale is
-    reapplied here to keep it from being overwritten with unit scale.
-    """
-    i = wp.tid()
-    body_idx = newton_body_indices[i]
-    transform = newton_body_q[body_idx]
-    scale = object_scales[i]
-    ovrtx_transforms[i] = wp.mat44d(
-        wp.transpose(
-            wp.transform_compose(
-                wp.transform_get_translation(transform),
-                wp.transform_get_rotation(transform),
-                scale,
-            )
-        )
-    )
-
-
-@wp.func
-def _cable_capsule_endpoint_world(
-    shape_id: int,
-    z_sign: float,
-    shape_body: wp.array(dtype=wp.int32),
-    body_q: wp.array(dtype=wp.transformf),
-    shape_transform: wp.array(dtype=wp.transformf),
-    shape_scale: wp.array(dtype=wp.vec3f),
-) -> wp.vec3f:
-    """World-space tip of a Newton cable capsule along local ±Z.
-
-    Args:
-        shape_id: Newton shape id of the capsule segment.
-        z_sign: ``+1`` / ``-1`` selects the local +Z / -Z capsule tip.
-        shape_body: Newton shape-to-body index map.
-        body_q: Body poses in world frame [m, quaternion].
-        shape_transform: Local shape transforms relative to body [m, quaternion].
-        shape_scale: Shape scales; capsule half-length is ``shape_scale[shape_id][1]`` [m].
-
-    Returns:
-        Capsule tip position in world frame [m].
-    """
-    shape_q = wp.transform_multiply(body_q[shape_body[shape_id]], shape_transform[shape_id])
-    return wp.transform_point(shape_q, wp.vec3f(0.0, 0.0, z_sign * shape_scale[shape_id][1]))
+    face = wp.tid() * 3
+    a, b, c = indices[face], indices[face + 1], indices[face + 2]
+    normal = wp.cross(points[b] - points[a], points[c] - points[a])
+    wp.atomic_add(normals, a, normal)
+    wp.atomic_add(normals, b, normal)
+    wp.atomic_add(normals, c, normal)
 
 
 @wp.kernel(enable_backward=False)
-def compute_cable_points_world_kernel(
-    shape_ids: wp.array(dtype=wp.int32),  # type: ignore
-    offsets: wp.array(dtype=wp.int32),  # type: ignore
-    counts: wp.array(dtype=wp.int32),  # type: ignore
-    shape_body: wp.array(dtype=wp.int32),  # type: ignore
-    body_q: wp.array(dtype=wp.transformf),  # type: ignore
-    shape_transform: wp.array(dtype=wp.transformf),  # type: ignore
-    shape_scale: wp.array(dtype=wp.vec3f),  # type: ignore
-    points_out: wp.array(dtype=wp.vec3f),  # type: ignore
-):
-    """Write world-space cable curve points from Newton segment bodies.
-
-    Same endpoint construction as NewtonManager Fabric cable sync, but emits world space because
-    the OVRTX cable prims pin an identity omni:xform with the transform stack reset. Endpoints
-    come from the first and last capsule; interior points are the midpoint of the two adjacent
-    capsule ends.
-
-    Launch with ``dim=(num_curves, max_segment_count + 1)``. Each thread owns one
-    ``(curve, point)``; threads with ``point > counts[curve]`` return immediately.
-
-    Args:
-        shape_ids: Flattened Newton segment shape ids packed by curve.
-        offsets: Start index into ``shape_ids`` for each curve.
-        counts: Segment count per curve.
-        shape_body: Newton shape-to-body index map.
-        body_q: Body poses in world frame [m, quaternion].
-        shape_transform: Local shape transforms relative to body [m, quaternion].
-        shape_scale: Shape scales; capsule half-length is ``shape_scale[shape][1]`` [m].
-        points_out: Flattened world-space curve points [m].
-    """
-    curve, point = wp.tid()
-    segment_count = counts[curve]
-    if point > segment_count:
-        return
-
-    offset = offsets[curve]
-    # ``offset`` is the prefix sum of segment counts. Every preceding curve contributes one
-    # additional endpoint, so its point-buffer start is ``offset + curve``.
-    point_base = offset + curve
-    if point == 0:
-        endpoint_w = _cable_capsule_endpoint_world(
-            shape_ids[offset], -1.0, shape_body, body_q, shape_transform, shape_scale
-        )
-    elif point == segment_count:
-        endpoint_w = _cable_capsule_endpoint_world(
-            shape_ids[offset + segment_count - 1], 1.0, shape_body, body_q, shape_transform, shape_scale
-        )
-    else:
-        left_w = _cable_capsule_endpoint_world(
-            shape_ids[offset + point - 1], 1.0, shape_body, body_q, shape_transform, shape_scale
-        )
-        right_w = _cable_capsule_endpoint_world(
-            shape_ids[offset + point], -1.0, shape_body, body_q, shape_transform, shape_scale
-        )
-        endpoint_w = (left_w + right_w) * 0.5
-    points_out[point_base + point] = endpoint_w
+def normalize_mesh_normals(normals: wp.array(dtype=wp.vec3)):
+    i = wp.tid()
+    normals[i] = wp.normalize(normals[i])

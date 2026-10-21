@@ -6,12 +6,15 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.from_files import UsdFileCfg
+from isaaclab.utils import replace
+
+from ..from_files import UsdFileCfg
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
@@ -24,8 +27,8 @@ def spawn_multi_asset(
     cfg: wrappers_cfg.MultiAssetSpawnerCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    clone_in_fabric: bool = False,
-    replicate_physics: bool = False,
+    *,
+    replicate_physics: bool | None = None,
 ) -> Usd.Prim:
     """Spawn multiple assets into numbered prim paths derived from the provided configuration.
 
@@ -37,12 +40,13 @@ def spawn_multi_asset(
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (x, y, z, w) order. Default is None.
-        clone_in_fabric: Whether to clone in fabric. Default is False.
-        replicate_physics: Whether to replicate physics. Default is False.
+        replicate_physics: Deprecated and ignored.
 
     Returns:
         The created prim at the first prim path.
     """
+    if replicate_physics is not None:
+        warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
     if cfg.spawn_paths is not None:
         if len(cfg.spawn_paths) != len(cfg.assets_cfg):
             raise ValueError(
@@ -75,14 +79,21 @@ def spawn_multi_asset(
     for asset_prim_path, asset_cfg in zip(asset_prim_paths, cfg.assets_cfg):
         if asset_prim_path is None:
             continue
-        # append semantic tags if specified
         if cfg.semantic_tags is not None:
             if asset_cfg.semantic_tags is None:
                 asset_cfg.semantic_tags = cfg.semantic_tags
             else:
                 asset_cfg.semantic_tags += cfg.semantic_tags
         # override settings for properties
-        attr_names = ["mass_props", "rigid_props", "collision_props", "activate_contact_sensors", "deformable_props"]
+        attr_names = [
+            "mass_props",
+            "rigid_props",
+            "collision_props",
+            "activate_contact_sensors",
+            "deformable_props",
+            "volume_deformable_props",
+            "surface_deformable_props",
+        ]
         for attr_name in attr_names:
             attr_value = getattr(cfg, attr_name)
             if hasattr(asset_cfg, attr_name) and attr_value is not None:
@@ -93,8 +104,6 @@ def spawn_multi_asset(
             asset_cfg,
             translation=translation,
             orientation=orientation,
-            clone_in_fabric=clone_in_fabric,
-            replicate_physics=replicate_physics,
         )
         spawned_prim_paths.append(asset_prim_path)
     if not spawned_prim_paths:
@@ -107,8 +116,8 @@ def spawn_multi_usd_file(
     cfg: wrappers_cfg.MultiUsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    clone_in_fabric: bool = False,
-    replicate_physics: bool = False,
+    *,
+    replicate_physics: bool | None = None,
 ) -> Usd.Prim:
     """Spawn multiple USD files based on the provided configurations.
 
@@ -120,22 +129,19 @@ def spawn_multi_usd_file(
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (x, y, z, w) order. Default is None.
-        clone_in_fabric: Whether to clone in fabric. Default is False.
-        replicate_physics: Whether to replicate physics. Default is False.
+        replicate_physics: Deprecated and ignored.
 
     Returns:
         The created prim at the first prim path.
     """
+    if replicate_physics is not None:
+        warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
     # needed here to avoid circular imports
     from .wrappers_cfg import MultiAssetSpawnerCfg
 
-    # parse all the usd files
-    if isinstance(cfg.usd_path, str):
-        usd_paths = [cfg.usd_path]
-    else:
-        usd_paths = cfg.usd_path
+    usd_paths = [cfg.usd_path] if isinstance(cfg.usd_path, str) else cfg.usd_path
 
-    # make a template usd config
+    # every file shares the same settings, differing only in its usd path
     usd_template_cfg = UsdFileCfg()
     for attr_name, attr_value in cfg.__dict__.items():
         # skip names we know are not present
@@ -144,19 +150,12 @@ def spawn_multi_usd_file(
         # set the attribute into the template
         setattr(usd_template_cfg, attr_name, attr_value)
 
-    # create multi asset configuration of USD files
-    multi_asset_cfg = MultiAssetSpawnerCfg(assets_cfg=[], spawn_paths=cfg.spawn_paths)
-    for usd_path in usd_paths:
-        usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
-        multi_asset_cfg.assets_cfg.append(usd_cfg)
-
-    # propagate the contact sensor settings
-    # note: the default value for activate_contact_sensors in MultiAssetSpawnerCfg is False.
-    #  This ends up overwriting the usd-template-cfg's value when the `spawn_multi_asset`
-    #  function is called. We hard-code the value to the usd-template-cfg's value to ensure
-    #  that the contact sensor settings are propagated correctly.
-    if hasattr(cfg, "activate_contact_sensors"):
-        multi_asset_cfg.activate_contact_sensors = cfg.activate_contact_sensors
+    multi_asset_cfg = MultiAssetSpawnerCfg(
+        assets_cfg=[replace(usd_template_cfg, usd_path=usd_path) for usd_path in usd_paths],
+        spawn_paths=cfg.spawn_paths,
+        # the wrapper's default (False) would otherwise override the per-file setting in spawn_multi_asset
+        activate_contact_sensors=cfg.activate_contact_sensors,
+    )
 
     # call the original function
-    return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation, clone_in_fabric, replicate_physics)
+    return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation)

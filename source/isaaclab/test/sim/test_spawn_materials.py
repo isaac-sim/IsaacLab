@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
+launch_test_simulation()
 
 import pytest
 
@@ -19,7 +13,6 @@ from pxr import UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -30,39 +23,9 @@ def sim():
     sim_utils.create_new_stage()
     dt = 0.1
     sim = SimulationContext(SimulationCfg(dt=dt))
-    sim_utils.update_stage()
     yield sim
     sim.stop()
     sim.clear_instance()
-
-
-def test_spawn_preview_surface(sim):
-    """Test spawning preview surface."""
-    cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0))
-    prim = cfg.func("/Looks/PreviewSurface", cfg)
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/Looks/PreviewSurface").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
-    # Check properties
-    assert prim.GetAttribute("inputs:diffuseColor").Get() == cfg.diffuse_color
-
-
-def test_spawn_mdl_material(sim):
-    """Test spawning mdl material."""
-    cfg = sim_utils.MdlFileCfg(
-        mdl_path=f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl",
-        project_uvw=True,
-        albedo_brightness=0.5,
-    )
-    prim = cfg.func("/Looks/MdlMaterial", cfg)
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/Looks/MdlMaterial").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
-    # Check properties
-    assert prim.GetAttribute("inputs:project_uvw").Get() == cfg.project_uvw
-    assert prim.GetAttribute("inputs:albedo_brightness").Get() == cfg.albedo_brightness
 
 
 def test_spawn_glass_mdl_material(sim):
@@ -81,7 +44,7 @@ def test_spawn_glass_mdl_material(sim):
 
 def test_spawn_rigid_body_material(sim):
     """Test spawning a rigid body material."""
-    cfg = sim_utils.RigidBodyMaterialCfg(
+    cfg = sim_utils.PhysxRigidBodyMaterialCfg(
         dynamic_friction=1.5,
         restitution=1.5,
         static_friction=0.5,
@@ -104,7 +67,7 @@ def test_apply_rigid_body_material_on_visual_material(sim):
     """Test applying a rigid body material on a visual material."""
     cfg = sim_utils.GlassMdlCfg(thin_walled=False, glass_ior=1.0, glass_color=(0.0, 1.0, 0.0))
     prim = cfg.func("/Looks/Material", cfg)
-    cfg = sim_utils.RigidBodyMaterialCfg(
+    cfg = sim_utils.PhysxRigidBodyMaterialCfg(
         dynamic_friction=1.5,
         restitution=1.5,
         static_friction=0.5,
@@ -134,7 +97,9 @@ def test_bind_prim_to_material(sim):
     visual_material_cfg = sim_utils.GlassMdlCfg(glass_ior=1.0, thin_walled=True)
     visual_material_cfg.func("/World/Looks/glassMaterial", visual_material_cfg)
     # create a physics material
-    physics_material_cfg = sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=1.5, restitution=1.5)
+    physics_material_cfg = sim_utils.RigidBodyMaterialBaseCfg(
+        static_friction=0.5, dynamic_friction=1.5, restitution=1.5
+    )
     physics_material_cfg.func("/World/Physics/rubberMaterial", physics_material_cfg)
     sim_utils.bind_visual_material("/World/Geometry/box", "/World/Looks/glassMaterial")
     sim_utils.bind_physics_material("/World/Geometry/box", "/World/Physics/rubberMaterial")

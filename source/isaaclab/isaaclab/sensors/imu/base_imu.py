@@ -42,14 +42,6 @@ class BaseImu(SensorBase):
     __backend_name__: str = "base"
     """The name of the backend for the IMU sensor."""
 
-    def __init__(self, cfg: ImuCfg):
-        """Initializes the IMU sensor.
-
-        Args:
-            cfg: The configuration parameters.
-        """
-        super().__init__(cfg)
-
     """
     Properties
     """

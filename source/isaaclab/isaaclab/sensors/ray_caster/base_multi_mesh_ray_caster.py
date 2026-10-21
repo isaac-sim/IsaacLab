@@ -15,20 +15,18 @@ import warp as wp
 
 from pxr import Usd, UsdPhysics
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
-from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
-from isaaclab.utils.warp import kernels as warp_kernels
-
+from ... import cloner
+from ... import sim as sim_utils
+from ...sim.simulation_context import SimulationContext
+from ...utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+from ...utils.string import resolve_matching_names
+from ...utils.warp import ProxyArray, convert_to_warp_mesh
+from ...utils.warp import kernels as warp_kernels
 from .base_ray_caster import BaseRayCaster
 from .kernels import copy_mesh_poses_to_table_kernel, fill_ray_hits_distance_inf_kernel
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
-
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 
 logger = logging.getLogger(__name__)
@@ -197,10 +195,10 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         self._mesh_positions_w = wp.array2d(mesh_positions, dtype=wp.vec3f, device=self.device)
         self._mesh_orientations_w = wp.array2d(mesh_orientations, dtype=wp.quatf, device=self.device)
 
-    def _build_mesh_records(
+    def _build_mesh_records(  # noqa: C901
         self,
         target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg,
-        plan: ClonePlan | None,
+        plan: cloner.ClonePlan | None,
         dummy_mesh_id: int | None,
     ):
         """Build mesh records for the target configuration."""
@@ -209,10 +207,30 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
         has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
-        if plan is not None and target_cfg.track_mesh_transforms:
+        if plan is not None:
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
             plan_tracked_target_exprs: list[str] = []
-            prim_expr = target_cfg.prim_expr
-            for source_root, destination_template, source_path, env_ids in cloner.query.iter_sources(plan, prim_expr):
+            matches = []
+            # Match populated world prototypes, excluding the shared-world slice.
+            for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(target_cfg.prim_expr, templates[index])) is not None:
+                        matches.append((group, index, matched))
+            suffix = min((matched.suffix for _, _, matched in matches), key=len, default=None)
+            for group, index, matched in matches:
+                if matched.suffix != suffix:
+                    continue
+                env_ids = worlds[world_starts[group] : world_starts[group + 1]]
+                env_ids = env_ids[
+                    resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
+                ]
+                if not len(env_ids):
+                    continue
+                source_root, destination_template = sources[plan.topology.world_prototypes[index]], templates[index]
+                source_path = source_root + suffix
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.
@@ -221,7 +239,37 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     source_root, lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None
                 )
                 if not source_prims:
+                    # A static target may exist in only some prototypes; their environments hold no copy.
+                    if not target_cfg.track_mesh_transforms:
+                        continue
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
+                if not target_cfg.track_mesh_transforms:
+                    stage = source_prims[0].GetStage()
+                    source_env = cloner.path.match(source_root, plan.env_template)
+                    source_anchor = (
+                        stage.GetPrimAtPath(plan.env_template.format(source_env.instance)) if source_env else None
+                    )
+                    source_records = [
+                        (str(prim.GetPath()), prim, *sim_utils.resolve_prim_pose(prim, source_anchor))
+                        for prim in source_prims
+                    ]
+                    for env_id in env_ids:
+                        origin = plan.positions[env_id] if plan.positions is not None else 0.0
+                        for source_path, source_prim, local_pos, local_quat in source_records:
+                            dest_path = cloner.path.rebase(
+                                source_path, source_root, destination_template.format(env_id)
+                            )
+                            dest_prim = stage.GetPrimAtPath(dest_path)
+                            if dest_prim.IsValid() and dest_path != source_path:
+                                mesh_id = self._load_target_prim_warp_mesh(dest_prim, target_cfg)
+                                pos, quat = sim_utils.resolve_prim_pose(dest_prim)
+                            else:
+                                # The source USD prim is a prototype, even if its path is a destination.
+                                mesh_id = self._load_target_prim_warp_mesh(source_prim, target_cfg)
+                                pos, quat = tuple(np.add(local_pos, origin)), local_quat
+                            dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
+                            records_per_env[env_id].append((mesh_id, pos, quat))
+                    continue
 
                 mesh_ids: list[int] = []
                 row_tracked_target_exprs: list[str] = []
@@ -250,11 +298,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
                         mesh_ids.append(mesh_id)
                         owner_path = str(owner_prim.GetPath())
-                        if owner_path == source_root:
-                            owner_suffix = ""
-                        elif owner_path.startswith(source_root + "/"):
-                            owner_suffix = owner_path[len(source_root) :]
-                        else:
+                        owner_suffix = cloner.path.relative_to(owner_path, source_root)
+                        if owner_suffix is None:
                             raise RuntimeError(
                                 f"Tracked target owner '{owner_path}' is not under ClonePlan source root "
                                 f"'{source_root}'."
@@ -270,7 +315,9 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         records_per_env[env_id].append((mesh_id, (1.0e9, 1.0e9, 1.0e9), (0.0, 0.0, 0.0, 1.0)))
 
             if target_in_plan:
-                if not plan_tracked_target_exprs:
+                if not target_cfg.track_mesh_transforms and not any(records_per_env):
+                    raise RuntimeError(f"No ClonePlan source prims matched '{target_cfg.prim_expr}'.")
+                if target_cfg.track_mesh_transforms and not plan_tracked_target_exprs:
                     raise RuntimeError(
                         f"No tracked body expressions were resolved for target '{target_cfg.prim_expr}'."
                     )
@@ -286,11 +333,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         for target_prim in target_prims:
             reference_prim = target_prim
             if target_cfg.track_mesh_transforms:
-                while reference_prim and reference_prim.IsValid() and str(reference_prim.GetPath()) != "/":
-                    if reference_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                        break
-                    reference_prim = reference_prim.GetParent()
-                if reference_prim is None or not reference_prim.IsValid() or not has_rigid_body_api(reference_prim):
+                reference_prim = sim_utils.get_first_matching_ancestor_prim(target_prim.GetPath(), has_rigid_body_api)
+                if reference_prim is None:
                     raise RuntimeError(
                         f"Cannot track non-physics ray-cast target '{target_cfg.prim_expr}'. "
                         "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI to dynamic targets."
@@ -434,15 +478,10 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             device=self._device,
         )
 
-        n_meshes = self._mesh_ids_wp.shape[1]
-        return_normal = False
-        return_face_id = False
-        write_mesh_ids = self.cfg.update_mesh_ids
-
         # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance.
         wp.launch(
             warp_kernels.raycast_dynamic_meshes_kernel,
-            dim=(n_meshes, self._num_envs, self.num_rays),
+            dim=(self._mesh_ids_wp.shape[1], self._num_envs, self.num_rays),
             inputs=[
                 env_mask,
                 self._mesh_ids_wp,
@@ -456,9 +495,9 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 self._mesh_positions_w,
                 self._mesh_orientations_w,
                 float(self.cfg.max_distance),
-                int(return_normal),
-                int(return_face_id),
-                int(write_mesh_ids),
+                int(False),  # return_normal
+                int(False),  # return_face_id
+                int(self.cfg.update_mesh_ids),
             ],
             device=self._device,
         )

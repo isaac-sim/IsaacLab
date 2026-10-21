@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-
+from ..utils.warp import ProxyArray
 from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
@@ -42,9 +41,8 @@ Each key maps to a group-shaped ``torch.Tensor``:
 - ``friction``: backend-specific joint friction; see
   :attr:`isaaclab.assets.ArticulationData.joint_friction_coeff` for the active
   backend's convention.
-- ``dynamic_friction``: backend-specific dynamic friction. PhysX interprets these as
-  dynamic friction efforts [N or N·m, depending on joint type], OVPhysX as
-  dimensionless Coulomb friction coefficients; Newton has no separate
+- ``dynamic_friction``: dynamic friction efforts [N or N·m, depending on joint type]
+  on PhysX and OVPhysX; Newton has no separate
   dynamic-friction property, so its control adapter supplies zeros.
 - ``viscous_friction``: passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
 - ``joint_effort_limit``: joint effort limits [N or N·m, depending on joint type].

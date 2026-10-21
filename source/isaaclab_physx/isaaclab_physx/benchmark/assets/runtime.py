@@ -117,13 +117,14 @@ def create_test_articulation(
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
     object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
-    # Create ArticulationData instance (SimulationManager already mocked at module level)
-    data = ArticulationData(mock_view, device)
+    # Create ArticulationData instance (PhysxManager already mocked at module level)
+    object.__setattr__(articulation, "_backend_manager", PhysxManager)
+    data = ArticulationData(mock_view, device, backend_manager=PhysxManager)
     object.__setattr__(articulation, "_data", data)
 
     # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = WrenchComposer(articulation)
-    mock_perm_wrench = WrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(articulation, supports_world_at_com=True)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -220,7 +221,8 @@ def create_test_rigid_object(
     object.__setattr__(rigid_object, "_device", device)
 
     # Create RigidObjectData instance (mocks already set up at module level)
-    data = RigidObjectData(mock_view, device)
+    object.__setattr__(rigid_object, "_backend_manager", PhysxManager)
+    data = RigidObjectData(mock_view, device, backend_manager=PhysxManager)
     object.__setattr__(rigid_object, "_data", data)
 
     # Call _create_buffers to set up all internal buffers and wrench composers
@@ -263,7 +265,8 @@ def create_test_collection(
     object.__setattr__(collection, "_body_names_list", object_names)
 
     # Create RigidObjectCollectionData instance
-    data = RigidObjectCollectionData(mock_view, num_bodies, device)
+    object.__setattr__(collection, "_backend_manager", PhysxManager)
+    data = RigidObjectCollectionData(mock_view, num_bodies, device, backend_manager=PhysxManager)
     data.object_names = object_names
     object.__setattr__(collection, "_data", data)
 
@@ -279,7 +282,6 @@ def create_test_collection(
 
 def _refresh_articulation_data(data, _config) -> None:
     data._sim_timestamp += 1.0
-    data._fk_timestamp = data._sim_timestamp
 
 
 def _refresh_rigid_object_data(mock_view, data, config) -> None:
@@ -342,17 +344,17 @@ def _create_data_target(component, config):
         )
         mock_view.set_random_mock_data()
         _configure_articulation_view(mock_view, config)
-        data = ArticulationData(mock_view, config.device)
+        data = ArticulationData(mock_view, config.device, backend_manager=PhysxManager)
         data._apply_ordering_maps_after_resolve()
         return data, lambda cfg, _mock_view=mock_view: _refresh_articulation_data(data, cfg)
     if component == "rigid_object":
         mock_view = MockRigidBodyViewWarp(count=config.num_instances, device=config.device)
         mock_view.set_random_mock_data()
-        data = RigidObjectData(mock_view, config.device)
+        data = RigidObjectData(mock_view, config.device, backend_manager=PhysxManager)
         return data, lambda cfg: _refresh_rigid_object_data(mock_view, data, cfg)
     mock_view = MockRigidBodyViewWarp(count=config.num_instances * config.num_bodies, device=config.device)
     mock_view.set_random_mock_data()
-    data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device)
+    data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device, backend_manager=PhysxManager)
     return data, lambda cfg: _refresh_collection_data(mock_view, data, cfg)
 
 

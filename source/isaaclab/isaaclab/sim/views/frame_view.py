@@ -12,8 +12,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_frame_view import BaseFrameView
 
 
@@ -40,17 +39,12 @@ class FrameView(FactoryBase, BaseFrameView):
 
     @classmethod
     def _get_backend(cls, *args, **kwargs) -> str:
-        from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
+        from ..simulation_context import SimulationContext  # noqa: PLC0415
 
         ctx = SimulationContext.instance()
         if ctx is None:
             return "physx"
-        manager_name = ctx.physics_manager.__name__.lower()
-        if "newton" in manager_name:
-            return "newton"
-        if "ovphysx" in manager_name:
-            return "ovphysx"
-        return "physx"
+        return ctx.backend_manager.backend_name
 
     def __new__(cls, *args, **kwargs) -> BaseFrameView:
         """Create a new FrameView for the active physics backend."""

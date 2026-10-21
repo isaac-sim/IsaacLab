@@ -39,6 +39,6 @@ interpretation of the prim paths for different sensor types:
 
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

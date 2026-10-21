@@ -12,11 +12,12 @@ import warp as wp
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import split_path_expr
+from isaaclab.utils.version import has_kit
 
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonQueries
 
 from .frame_transformer_data import FrameTransformerData
-from .frame_transformer_kernels import compose_target_world_kernel, copy_from_newton_kernel
+from .frame_transformer_kernels import copy_from_newton_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
@@ -59,6 +60,8 @@ class FrameTransformer(BaseFrameTransformer):
         super().__init__(cfg)
 
         self._data: FrameTransformerData = FrameTransformerData()
+        self._update_graph = None
+        self._newton_sensor = None
         self._newton_transforms = None
         self._stride: int = 0
 
@@ -66,11 +69,11 @@ class FrameTransformer(BaseFrameTransformer):
         self._source_frame_body_name: str = split_path_expr(cfg.prim_path)[-1]
 
         # Register world-origin reference site
-        self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
+        self._world_origin_label = self._backend_manager.cl_register_site(None, wp.transform())
 
         # Register source site
         source_offset = wp.transform(cfg.source_frame_offset.pos, cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.cl_register_site(cfg.prim_path, source_offset)
+        self._source_label = self._backend_manager.cl_register_site(cfg.prim_path, source_offset)
 
         # Register target sites
         self._target_labels: list[str] = []
@@ -79,7 +82,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         for target_frame in cfg.target_frames:
             target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
+            label = self._backend_manager.cl_register_site(target_frame.prim_path, target_offset)
 
             self._target_labels.append(label)
             body_name = split_path_expr(target_frame.prim_path)[-1]
@@ -124,7 +127,7 @@ class FrameTransformer(BaseFrameTransformer):
         super()._initialize_impl()
 
         num_envs = self._num_envs
-        site_map = NewtonManager._cl_site_index_map
+        site_map = self._backend_manager._cl_site_index_map
 
         # Resolve and validate per-env site indices
         assert self._world_origin_label in site_map
@@ -143,7 +146,7 @@ class FrameTransformer(BaseFrameTransformer):
             source_indices,
             target_per_world,
             self._target_frame_body_names,
-            NewtonManager._builder.shape_label,
+            self._backend_manager.backend.model.shape_label,
             world_origin_idx,
             num_envs,
         )
@@ -155,11 +158,11 @@ class FrameTransformer(BaseFrameTransformer):
         self._data._target_frame_names = expanded_names
 
         # Create SensorFrameTransform via NewtonManager
-        self._sensor_index = NewtonManager.add_frame_transform_sensor(shapes_list, references_list)
+        self._sensor_index = self._backend_manager.add_frame_transform_sensor(shapes_list, references_list)
 
-        # Store reference to Newton sensor's flat transforms array
-        sensor = NewtonManager._newton_frame_transform_sensors[self._sensor_index]
-        self._newton_transforms = sensor.transforms
+        # Store the native sensor and its flat transforms array.
+        self._newton_sensor = self._backend_manager._newton_frame_transform_sensors[self._sensor_index]
+        self._newton_transforms = self._newton_sensor.transforms
         self._stride = 1 + self._num_targets
 
         # Allocate owned buffers
@@ -306,26 +309,29 @@ class FrameTransformer(BaseFrameTransformer):
         return expanded_names, target_indices_per_target, shapes_list, references_list
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        """Copies transforms from Newton sensor into owned buffers."""
+        """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
+        state = self._backend_manager.get_state_0()
+        device = state.body_q.device
+        if device.is_cuda and not device.is_capturing:
+            pointers = state.body_q.ptr, env_mask.ptr
+            if self._update_graph is None or self._update_graph[0] != pointers:
+                graph = NewtonQueries.capture_graph(
+                    self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit()
+                )
+                self._update_graph = pointers, graph
+            wp.capture_launch(self._update_graph[1])
+            return
+
+        self._newton_sensor.update(state)
         wp.launch(
             copy_from_newton_kernel,
             dim=(self._num_envs, 1 + self._num_targets),
             inputs=[env_mask, self._newton_transforms, self._stride],
-            outputs=[self._data._source_transforms, self._data._target_transforms],
+            outputs=[self._data._source_transforms, self._data._target_transforms, self._data._target_transforms_w],
             device=self._device,
         )
-
-        # Compose target world transforms: source_world * target_relative
-        if self._num_targets > 0:
-            wp.launch(
-                compose_target_world_kernel,
-                dim=(self._num_envs, self._num_targets),
-                inputs=[env_mask, self._data._source_transforms, self._data._target_transforms],
-                outputs=[self._data._target_transforms_w],
-                device=self._device,
-            )
 
     """
     Internal simulation callbacks.
@@ -339,17 +345,19 @@ class FrameTransformer(BaseFrameTransformer):
         stale registrations from old sensors cannot leak into the next context.
         """
         super()._invalidate_initialize_callback(event)
+        self._update_graph = None
+        self._newton_sensor = None
         self._newton_transforms = None
         self._sensor_index = None
 
         # Re-register sites so a subsequent start_simulation picks them up.
-        self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
+        self._world_origin_label = self._backend_manager.cl_register_site(None, wp.transform())
 
         source_offset = wp.transform(self.cfg.source_frame_offset.pos, self.cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.cl_register_site(self.cfg.prim_path, source_offset)
+        self._source_label = self._backend_manager.cl_register_site(self.cfg.prim_path, source_offset)
 
         self._target_labels = []
         for target_frame in self.cfg.target_frames:
             target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
+            label = self._backend_manager.cl_register_site(target_frame.prim_path, target_offset)
             self._target_labels.append(label)

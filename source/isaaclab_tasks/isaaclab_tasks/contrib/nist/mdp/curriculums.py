@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Curriculum terms for the NIST assembly environments."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -46,7 +48,7 @@ class DifficultyScheduler(ManagerTermBase):
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        init_difficulty = self.cfg.params.get("init_difficulty", 0)
+        init_difficulty = self.cfg.params["init_difficulty"]
         self.current_adr_difficulties = torch.ones(env.num_envs, device=env.device) * init_difficulty
         self.difficulty_frac = 0
 

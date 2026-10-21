@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from enum import StrEnum
 
-from isaaclab.utils.configclass import configclass
+from ...utils import configclass
 
 
 @configclass
@@ -53,7 +53,8 @@ class AssetConverterBaseCfg:
     force_usd_conversion: bool = False
     """Force the conversion of the asset file to usd. Defaults to False.
 
-    If True, then the USD file is always generated. It will overwrite the existing USD file if it exists.
+    If True, the USD file is always generated. Some importers write a new numbered output instead of overwriting
+    an existing one.
     """
 
     make_instanceable: bool = True

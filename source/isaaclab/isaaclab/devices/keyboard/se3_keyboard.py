@@ -82,7 +82,7 @@ class Se3Keyboard(DeviceBase):
         self._delta_pos = np.zeros(3)  # (x, y, z)
         self._delta_rot = np.zeros(3)  # (roll, pitch, yaw)
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
 
     def __del__(self):
         """Release the keyboard interface."""

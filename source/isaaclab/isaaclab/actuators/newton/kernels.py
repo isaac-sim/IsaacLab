@@ -6,9 +6,12 @@
 """Shared Warp kernels for the Newton actuator fast path."""
 
 from collections.abc import Sequence
+from typing import Any
 
 import torch
 import warp as wp
+
+from ...utils import index_fill_
 
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
@@ -25,8 +28,8 @@ def zero_at_indices_kernel(data: wp.array(dtype=wp.float32), indices: wp.array(d
 
 
 @wp.kernel(enable_backward=False)
-def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-    """Set ``mask[indices[i]] = True`` for each ``i``. The mask must be pre-zeroed."""
+def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=Any)):
+    """Set selected mask entries without converting or uploading the indices."""
     i = wp.tid()
     mask[indices[i]] = True
 
@@ -136,8 +139,5 @@ def build_implicit_dof_mask(
     """
     modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
     for j_ids in implicit_joint_indices:
-        if isinstance(j_ids, slice) or j_ids is None:
-            modes[:] = 1
-        else:
-            modes[j_ids.long()] = 1
+        index_fill_(modes, None if isinstance(j_ids, slice) else j_ids, 1)
     return wp.from_torch(modes, dtype=wp.int32), modes

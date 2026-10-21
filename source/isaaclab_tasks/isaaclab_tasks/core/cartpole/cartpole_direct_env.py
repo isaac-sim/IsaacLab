@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow cartpole balancing environment."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -10,15 +12,11 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+    from .cartpole_direct_env_cfg import CartpoleEnvCfg
 
 
 class CartpoleEnv(DirectRLEnv):
@@ -29,36 +27,19 @@ class CartpoleEnv(DirectRLEnv):
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
+        self.cartpole = self.scene["cartpole"]
+        cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
+        pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
+        # device indices avoid per-step host uploads
+        self._cart_dof_idx = torch.tensor(cart_dof_idx, device=self.device)
+        self._pole_dof_idx = torch.tensor(pole_dof_idx, device=self.device)
         self.action_scale = self.cfg.action_scale
 
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
 
-    def _setup_scene(self):
-        self.cartpole = Articulation(self.cfg.robot_cfg)
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
-        cloner.replicate(plan, stage=self.scene.stage)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[])
-
-        # add articulation to scene
-        self.scene.articulations["cartpole"] = self.cartpole
-
-        # add lights
-        light_cfg = sim_utils.DistantLightCfg(intensity=2000.0, color=(1.0, 1.0, 1.0))
-        # quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
-        light_orientation = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
-        light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
-
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        self.actions = self.action_scale * actions.clone()
+        self.actions = self.action_scale * actions
 
     def _apply_action(self) -> None:
         self.cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
@@ -68,30 +49,28 @@ class CartpoleEnv(DirectRLEnv):
         joint_vel_rel = self.joint_vel - self.cartpole.data.default_joint_vel.torch
         obs = torch.cat(
             (
-                joint_pos_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                joint_pos_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                joint_vel_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                joint_vel_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                joint_pos_rel[:, self._cart_dof_idx],
+                joint_pos_rel[:, self._pole_dof_idx],
+                joint_vel_rel[:, self._cart_dof_idx],
+                joint_vel_rel[:, self._pole_dof_idx],
             ),
             dim=-1,
         )
-        observations = {"policy": obs}
-        return observations
+        return {"policy": obs}
 
     def _get_rewards(self) -> torch.Tensor:
-        total_reward = compute_rewards(
+        return compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_pole_pos,
             self.cfg.rew_scale_cart_vel,
             self.cfg.rew_scale_pole_vel,
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
+            self.joint_pos[:, self._pole_dof_idx],
+            self.joint_vel[:, self._pole_dof_idx],
+            self.joint_vel[:, self._cart_dof_idx],
             self.reset_terminated,
             self.step_dt,
         )
-        return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self.joint_pos = self.cartpole.data.joint_pos.torch
@@ -105,9 +84,10 @@ class CartpoleEnv(DirectRLEnv):
         if env_ids is None:
             env_ids = self.cartpole._ALL_INDICES
 
-        # Log survival success rate before resetting
+        # log the survival success rate before resetting (survived = timed out without terminating early)
         survived = self.reset_time_outs[env_ids].float()
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
+        # no .item(): avoids a sync on every reset
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean()
 
         super()._reset_idx(env_ids)
 
@@ -169,12 +149,12 @@ def compute_rewards(
     cart_vel: torch.Tensor,
     reset_terminated: torch.Tensor,
     step_dt: float,
-):
+) -> torch.Tensor:
     pole_pos = wrap_to_pi(pole_pos)
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
+    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos), dim=-1)
+    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel), dim=-1)
+    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel), dim=-1)
     total_reward = (rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel) * step_dt
     return total_reward

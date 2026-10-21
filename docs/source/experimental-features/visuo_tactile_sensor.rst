@@ -6,7 +6,8 @@ Visuo-Tactile Sensor
 ====================
 
 
-The visuo-tactile sensor in Isaac Lab provides realistic tactile feedback through integration with TacSL (Tactile Sensor Learning) [Akinola2025]_. It is designed to simulate high-fidelity tactile interactions, generating both visual and force-based data that mirror real-world tactile sensors like GelSight devices. The sensor can provide tactile RGB images, force field distributions, and other intermediate tactile measurements essential for robotic manipulation tasks requiring fine tactile feedback.
+The visuo-tactile sensor uses TacSL [Akinola2025]_ to simulate sensors such as
+GelSight. It produces tactile RGB images and force fields for manipulation tasks.
 
 
 .. figure:: ../_static/overview/sensors/tacsl_diagram.jpg
@@ -15,10 +16,69 @@ The visuo-tactile sensor in Isaac Lab provides realistic tactile feedback throug
     :alt: Tactile sensor with RGB visualization and force fields
 
 
+Usage Example
+~~~~~~~~~~~~~
+
+To use the tactile sensor in a simulation environment, run the example:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run --extra isaacsim isaaclab example tactile-sensor --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
+
+Available command-line options include:
+
+* ``--use_tactile_rgb``: Enable camera-based tactile sensing
+* ``--use_tactile_ff``: Enable force field tactile sensing
+* ``--contact_object_type``: Specify the type of contact object (nut, cube, etc.)
+* ``--num_envs``: Number of parallel environments
+* ``--save_viz``: Save visualization outputs for analysis
+* ``--tactile_compliance_stiffness``: Override compliant contact stiffness (default: use USD asset values)
+* ``--tactile_compliant_damping``: Override compliant contact damping (default: use USD asset values)
+* ``--normal_contact_stiffness``: Normal contact stiffness for force field computation
+* ``--tangential_stiffness``: Tangential stiffness for shear forces
+* ``--friction_coefficient``: Friction coefficient for shear forces
+* ``--viz``: Select one or more visualizers, such as ``kit`` or ``newton``
+* ``--debug_sdf_closest_pts``: Visualize closest SDF points for debugging
+* ``--debug_tactile_sensor_pts``: Visualize tactile sensor points for debugging
+* ``--trimesh_vis_tactile_points``: Enable trimesh-based visualization of tactile points
+
+.. note::
+
+   Since Isaac Lab 3.0, visualizers are selected independently from the simulation backend. Use the ``--viz``
+   argument to choose the visualizer backend, such as ``kit`` or ``newton``. The TacSL example currently supports
+   only the PhysX simulation backend; running the tactile sensor simulation with the Newton backend is not
+   supported.
+
+
+For a complete list of available options:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run --extra isaacsim isaaclab example tactile-sensor -h
+
+.. note::
+   The examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
+
+.. figure:: ../_static/overview/sensors/tacsl_demo.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: TacSL tactile sensor demo showing RGB tactile images and force field visualizations
+
+The tactile sensor supports multiple data modalities that provide comprehensive information about contact interactions:
+
+
 Configuration
 ~~~~~~~~~~~~~
 
-Tactile sensors require specific configuration parameters to define their behavior and data collection properties. The sensor can be configured with various parameters including sensor resolution, force sensitivity, and output data types.
+Configure the sensor resolution, force parameters, and requested outputs:
 
 .. code-block:: python
 
@@ -107,77 +167,6 @@ Configuration Requirements
       If any parameter is set to ``None``, the corresponding property from the USD asset will be retained.
 
 
-Usage Example
-~~~~~~~~~~~~~
-
-To use the tactile sensor in a simulation environment, run the demo:
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-          uv run --extra isaacsim python scripts/demos/sensors/tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
-
-Available command-line options include:
-
-* ``--use_tactile_rgb``: Enable camera-based tactile sensing
-* ``--use_tactile_ff``: Enable force field tactile sensing
-* ``--contact_object_type``: Specify the type of contact object (nut, cube, etc.)
-* ``--num_envs``: Number of parallel environments
-* ``--save_viz``: Save visualization outputs for analysis
-* ``--tactile_compliance_stiffness``: Override compliant contact stiffness (default: use USD asset values)
-* ``--tactile_compliant_damping``: Override compliant contact damping (default: use USD asset values)
-* ``--normal_contact_stiffness``: Normal contact stiffness for force field computation
-* ``--tangential_stiffness``: Tangential stiffness for shear forces
-* ``--friction_coefficient``: Friction coefficient for shear forces
-* ``--viz``: Select one or more visualizers, such as ``kit`` or ``newton``
-* ``--debug_sdf_closest_pts``: Visualize closest SDF points for debugging
-* ``--debug_tactile_sensor_pts``: Visualize tactile sensor points for debugging
-* ``--trimesh_vis_tactile_points``: Enable trimesh-based visualization of tactile points
-
-.. note::
-
-   Since Isaac Lab 3.0, visualizers are selected independently from the simulation backend. Use the ``--viz``
-   argument to choose the visualizer backend, such as ``kit`` or ``newton``. The TacSL demo currently supports
-   only the PhysX simulation backend; running the tactile sensor simulation with the Newton backend is not
-   supported.
-
-
-For a complete list of available options:
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-          uv run --extra isaacsim python scripts/demos/sensors/tacsl_sensor.py -h
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py -h
-
-.. note::
-   The demo examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
-
-.. figure:: ../_static/overview/sensors/tacsl_demo.jpg
-    :align: center
-    :figwidth: 100%
-    :alt: TacSL tactile sensor demo showing RGB tactile images and force field visualizations
-
-The tactile sensor supports multiple data modalities that provide comprehensive information about contact interactions:
-
-
 Output Tactile Data
 ~~~~~~~~~~~~~~~~~~~
 **RGB Tactile Images**
@@ -204,7 +193,8 @@ Output Tactile Data
 Integration with Learning Frameworks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The tactile sensor is designed to integrate seamlessly with reinforcement learning and imitation learning frameworks. The structured tensor outputs can be directly used as observations in learning algorithms:
+Use the sensor's image and force tensors as observations for reinforcement or
+imitation learning:
 
 .. code-block:: python
 
@@ -223,7 +213,6 @@ The tactile sensor is designed to integrate seamlessly with reinforcement learni
         tactile_shear_force = tactile_data.tactile_shear_force
 
         return [tactile_rgb, tactile_depth, tactile_normal_force, tactile_shear_force]
-
 
 
 References

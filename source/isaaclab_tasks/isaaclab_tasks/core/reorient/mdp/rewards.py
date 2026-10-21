@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Functions specific to the in-hand dexterous manipulation environments."""
+"""Reward terms for the in-hand reorientation environments."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def success_bonus(
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
 
     # obtain the goal orientation
-    goal_quat_w = command_term.command[:, 3:7]
+    goal_quat_w = command_term.quat_command_w
     # obtain the threshold for the orientation error
     threshold = command_term.cfg.orientation_success_threshold
     # calculate the orientation error
@@ -57,7 +57,7 @@ def track_pos_l2(
 
     Args:
         env: The environment object.
-        command_term: The command term to be used for extracting the goal.
+        command_name: The command term to be used for extracting the goal.
         object_cfg: The configuration for the scene entity. Default is "object".
     """
     # extract useful elements
@@ -65,7 +65,7 @@ def track_pos_l2(
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
 
     # obtain the goal position
-    goal_pos_e = command_term.command[:, 0:3]
+    goal_pos_e = command_term.pos_command_e
     # obtain the object position in the environment frame
     object_pos_e = asset.data.root_pos_w.torch - env.scene.env_origins
 
@@ -93,7 +93,7 @@ def track_orientation_inv_l2(
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
 
     # obtain the goal orientation
-    goal_quat_w = command_term.command[:, 3:7]
+    goal_quat_w = command_term.quat_command_w
     # calculate the orientation error
     dtheta = math_utils.quat_error_magnitude(asset.data.root_quat_w.torch, goal_quat_w)
 

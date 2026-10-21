@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import ControllerHapticFeedbackCfg, IsaacTeleopCfg, XrCfg
-
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -16,11 +14,13 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
@@ -30,7 +30,7 @@ from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg imp
 
 
 def _build_g1_upper_body_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for G1 upper body teleoperation.
+    """Build an Isaac Capture retargeting pipeline for G1 upper body teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking
     and two TriHandMotionControllerRetargeters for left and right hand joint
@@ -244,7 +244,7 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -254,12 +254,14 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
     # Unitree G1 Humanoid robot - fixed base configuration
-    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+
+    robot_pov_cam = g1_robot_pov_camera_cfg()
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
@@ -290,7 +292,7 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     def __post_init__(self):
         """Post initialization."""
         # Set the robot to fixed base
-        self.robot.spawn.articulation_props.fix_root_link = True
+        self.robot.spawn.fix_root_link = True
 
 
 @configclass
@@ -373,9 +375,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     """
 
     # Scene settings
-    scene: FixedBaseUpperBodyIKG1SceneCfg = FixedBaseUpperBodyIKG1SceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=True
-    )
+    scene: FixedBaseUpperBodyIKG1SceneCfg = FixedBaseUpperBodyIKG1SceneCfg(num_envs=1, env_spacing=2.5)
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
     observations: ObservationsCfg = ObservationsCfg()
@@ -401,23 +401,44 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # Defer Nucleus path resolution to controller initialization at runtime.
         self.actions.upper_body_ik.controller.urdf_path = urdf_omniverse_path
 
-        # IsaacTeleop-based teleoperation pipeline (resolved lazily at runtime).
-        self.xr = XrCfg(
-            anchor_pos=(0.0, 0.0, -0.30),
-            anchor_rot=(0.0, 0.0, 0.0, 1.0),
-        )
-
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_g1_upper_body_pipeline()[0],
-            # retargeters_to_tune=lambda: _build_g1_upper_body_pipeline()[1],
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
-
-        # Enable contact reporting on the robot so the per-hand ContactSensors
-        # report finger forces, and drive controller haptics from them.
+        # The scene always contains hand contact sensors, so their target bodies must have the
+        # contact reporter API even when the optional teleop package is unavailable.
         self.scene.robot.spawn.activate_contact_sensors = True
-        self.haptic_feedback = ControllerHapticFeedbackCfg(
-            left_sensor_name="left_hand_contact",
-            right_sensor_name="right_hand_contact",
-        )
+
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import (
+                ControllerHapticFeedbackCfg,
+                IsaacTeleopCfg,
+                XrCameraFeedCfg,
+                XrCameraFeedLayoutCfg,
+                XrCfg,
+            )
+
+            # Isaac Capture-based teleoperation pipeline (resolved lazily at runtime).
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, -0.30),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_g1_upper_body_pipeline()[0],
+                # retargeters_to_tune=lambda: _build_g1_upper_body_pipeline()[1],
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+                xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
+                xr_camera_feeds=[
+                    XrCameraFeedCfg(
+                        camera_name="robot_pov_cam",
+                        enable_dlss_ray_reconstruction=True,
+                        dlss_exec_mode="quality",
+                        offset_m=(0.0, -0.15),
+                        max_update_hz=0.0,
+                    )
+                ],
+            )
+
+            # Drive controller haptics from the per-hand contact sensors.
+            self.haptic_feedback = ControllerHapticFeedbackCfg(
+                left_sensor_name="left_hand_contact",
+                right_sensor_name="right_hand_contact",
+            )

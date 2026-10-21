@@ -46,6 +46,29 @@
 Sensor Base
 -----------
 
+.. rubric:: Extending batch updates
+
+Sensors opt into eager batch updates by overriding
+:attr:`SensorBase.supports_batch_update`, which defaults to ``False``.
+Eager scene updates advance sensors in order, then batch the remaining buffer refreshes for
+sensors that opted in. Lazy data access remains per sensor.
+
+For standalone use, :meth:`SensorBase.update_batch` performs the complete eager update for a
+sequence of batch-capable sensors. It calls each sensor's ``update()`` once in the supplied order,
+then refreshes pending buffers together. Each call advances sensor clocks by ``dt``, so use it
+in place of separate ``sensor.update(dt)`` calls. An unsupported sensor raises ``ValueError``
+before any input is updated; update unsupported sensors individually.
+
+An implementation can override the static ``_update_buffers_batch_impl(sensors)`` hook to perform
+shared work. Sensors inheriting the same hook are grouped together, including instances of
+different subclasses. The hook must respect each sensor's outdated-environment mask and fill its
+buffers; ``SensorBase`` handles the update timestamps after the hook succeeds. The default hook
+calls each sensor's individual buffer implementation.
+
+Camera subclasses that override the individual buffer-update hooks retain individual updates by
+default. They must explicitly opt into batching and ensure their batch implementation preserves
+the custom behavior.
+
 .. autoclass:: SensorBase
     :members:
 

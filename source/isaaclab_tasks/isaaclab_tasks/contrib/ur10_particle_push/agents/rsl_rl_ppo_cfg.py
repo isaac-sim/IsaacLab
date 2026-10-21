@@ -7,7 +7,7 @@ import torch
 from rsl_rl.modules.distribution import GaussianDistribution
 from torch.distributions import Normal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,

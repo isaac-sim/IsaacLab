@@ -8,7 +8,7 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
@@ -107,7 +107,9 @@ class FrankaCubeStackSkillgenEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCf
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot_variants = self.scene.robot.spawn.variants
+        self.scene.robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants = robot_variants
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(

@@ -23,13 +23,8 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
-# Map of task IDs to the reason for marking the corresponding parametrized
-# test cases as expected failures.  Tests that consume :func:`setup_environment`
-# automatically pick up these marks via :class:`pytest.param`.
-XFAIL_TASKS: dict[str, str] = {}
-
-# Native crashes cannot be contained by xfail because the process exits before
-# pytest records an outcome. Temporarily skip these tasks in every environment smoke suite.
+# Native crashes cannot be contained by xfail because the process exits before pytest records an
+# outcome, so these tasks are skipped in every environment smoke suite.
 SKIP_TASKS: dict[str, str] = {
     "Isaac-Lift-Soft-Franka": "Temporarily skipped because the soft-lift environment can crash the test process.",
     "Isaac-Lift-Soft-Franka-Camera": (
@@ -128,22 +123,14 @@ def setup_environment(
     registered_tasks.sort()
 
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
-    # Apply skip before xfail so native-crash exclusions never execute.
-    marked_tasks = []
-    for task_id in registered_tasks:
-        if task_id in SKIP_TASKS:
-            marked_tasks.append(pytest.param(task_id, marks=pytest.mark.skip(reason=SKIP_TASKS[task_id])))
-        elif task_id in XFAIL_TASKS:
-            marked_tasks.append(
-                pytest.param(task_id, marks=pytest.mark.xfail(reason=XFAIL_TASKS[task_id], strict=False))
-            )
-        else:
-            marked_tasks.append(task_id)
-    return marked_tasks
+    return [
+        pytest.param(task_id, marks=pytest.mark.skip(reason=SKIP_TASKS[task_id])) if task_id in SKIP_TASKS else task_id
+        for task_id in registered_tasks
+    ]
 
 
 def _fire_all_interval_events_once(env) -> None:
@@ -249,7 +236,6 @@ def _run_environments(
     num_steps=20,
     multi_agent=False,
     create_stage_in_memory=False,
-    disable_clone_in_fabric=False,
     physics_preset_name: str | None = None,
 ):
     """Run all environments and check environments return valid signals.
@@ -261,7 +247,6 @@ def _run_environments(
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
-        disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
@@ -283,7 +268,6 @@ def _run_environments(
     if "Visuomotor" in task_name and num_envs == 32:
         return
 
-    print(f""">>> Running test for environment: {task_name}""")
     _check_random_actions(
         task_name,
         device,
@@ -291,11 +275,8 @@ def _run_environments(
         num_steps=num_steps,
         multi_agent=multi_agent,
         create_stage_in_memory=create_stage_in_memory,
-        disable_clone_in_fabric=disable_clone_in_fabric,
         physics_preset_name=physics_preset_name,
     )
-    print(f""">>> Closing environment: {task_name}""")
-    print("-" * 80)
 
 
 def _check_random_actions(
@@ -305,7 +286,6 @@ def _check_random_actions(
     num_steps: int = 20,
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
-    disable_clone_in_fabric: bool = False,
     physics_preset_name: str | None = None,
 ):
     """Run random actions and check environments return valid signals.
@@ -317,7 +297,6 @@ def _check_random_actions(
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
-        disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
@@ -326,7 +305,7 @@ def _check_random_actions(
         sim_utils.create_new_stage()
 
     # reset the rtx sensors setting to False
-    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+    get_settings_manager().set("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
         # Parse the requested physics preset before resolving the config. ``parse_env_cfg`` resolves every preset to
@@ -344,8 +323,6 @@ def _check_random_actions(
             reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
-        if disable_clone_in_fabric:
-            env_cfg.scene.clone_in_fabric = False
 
         # filter based off multi agents mode and create env
         if multi_agent:

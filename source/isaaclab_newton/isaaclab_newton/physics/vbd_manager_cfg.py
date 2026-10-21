@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -27,8 +27,18 @@ class VBDSolverCfg(NewtonSolverCfg):
     iterations: int = 10
     """Number of VBD iterations per substep."""
 
+    friction_epsilon: float = 1.0e-2
+    """Relative tangential speed used to smooth friction near rest [m/s]."""
+
     integrate_with_external_rigid_solver: bool = False
     """Whether an external solver integrates rigid bodies."""
+
+    update_joint_state: bool = True
+    """Derive standalone VBD joint positions and velocities after each physics tick.
+
+    Disable only when consumers use body state exclusively. External rigid integration and coupled
+    solvers retain ownership of their generalized joint state and skip this synchronization.
+    """
 
     particle_enable_self_contact: bool = False
     """Whether to enable particle self-contact."""
@@ -40,11 +50,7 @@ class VBDSolverCfg(NewtonSolverCfg):
     """Self-contact detection margin [m]."""
 
     particle_collision_detection_interval: int = -1
-    """How often particle self-contact detection is applied.
-
-    ``< 0``: once before initialization. ``0``: once before and once after
-    initialization. ``k >= 1``: before every ``k`` VBD iterations.
-    """
+    """Self-contact detection: <0 before init, 0 before and after init, k>=1 before every k VBD iterations."""
 
     particle_vertex_contact_buffer_size: int = 32
     """Preallocation size for each vertex contact buffer."""
@@ -58,12 +64,20 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
+    rigid_compliant_alm: bool | None = None
+    """Whether to use compliant ALM for rigid joints and contacts; ``None`` preserves Newton's default."""
+
+    rigid_joint_linear_ke: float = 1.0e5
+    """Structural linear stiffness of non-rod rigid joints [N/m], separate from joint-drive gains."""
+
+    rigid_joint_angular_ke: float = 1.0e5
+    """Structural angular stiffness of non-rod rigid joints [N m/rad], separate from joint-drive gains."""
+
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
 
-    rigid_body_particle_contact_buffer_size: int = 256
-    """Per-body capacity of the particle, edge, and face soft-contact list.
+    rigid_body_contact_buffer_size: int = 64
+    """Per-body body-body contact capacity when VBD integrates rigid bodies."""
 
-    Increase this value when Newton reports a per-body particle contact buffer overflow.
-    Only used when :attr:`integrate_with_external_rigid_solver` is ``False``.
-    """
+    rigid_body_particle_contact_buffer_size: int = 256
+    """Per-body particle, edge, and face soft-contact capacity when VBD integrates rigid bodies."""

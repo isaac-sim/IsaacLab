@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab.utils import instantiate
+
 from isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies import SamplingStrategy
 
 if TYPE_CHECKING:
@@ -22,8 +24,7 @@ class Sampler:
 
     def __init__(self, cfg: SamplerCfg, success_rates: torch.Tensor) -> None:
         self.strategies: list[tuple[SamplingStrategy, float]] = [
-            (strategy_cfg.class_type(strategy_cfg, success_rates), float(strategy_cfg.weight))
-            for strategy_cfg in cfg.strategies
+            (instantiate(strategy_cfg, success_rates), float(strategy_cfg.weight)) for strategy_cfg in cfg.strategies
         ]
         self.eps = float(cfg.eps)
         self.names = [strategy.name for strategy, _ in self.strategies]

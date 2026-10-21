@@ -6,7 +6,7 @@
 ##
 # Pre-defined configs
 ##
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib.drone_arl.navigation.config.arl_robot_1.navigation_env_cfg import (
     NavigationVelocityFloatingObstacleEnvCfg,
@@ -21,7 +21,7 @@ class FloatingObstacleEnvCfg(NavigationVelocityFloatingObstacleEnvCfg):
         # post init of parent
         super().__post_init__()
         # switch robot to arl_robot_1
-        self.scene.robot = ARL_ROBOT_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(ARL_ROBOT_1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
     def play_mode(self):
