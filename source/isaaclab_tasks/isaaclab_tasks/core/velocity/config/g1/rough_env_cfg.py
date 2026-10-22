@@ -33,7 +33,6 @@ from isaaclab.terrains import TerrainGeneratorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.modifiers import ModifierCfg
-from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -452,64 +451,42 @@ class G1DepthStudentSceneCfg(G1SceneCfg):
 
 
 @configclass
-class G1TeacherPolicyCfg(ObsGroup):
-    """Teacher observations, also used as noise-free supervision for distillation."""
-
-    base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-    base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-    projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
-    velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-    joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-    joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
-    actions = ObsTerm(func=mdp.last_action)
-    height_scan = ObsTerm(
-        func=mdp.height_scan,
-        params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-        noise=Unoise(n_min=-0.1, n_max=0.1),
-        clip=(-1.0, 1.0),
-    )
-    enable_corruption = True
-    concatenate_terms = True
-
-
-@configclass
-class G1StudentPolicyCfg(G1TeacherPolicyCfg):
-    """Five proprioceptive frames without privileged velocity or height observations."""
-
-    base_lin_vel = None
-    height_scan = None
-    history_length = 5
-
-
-@configclass
-class G1DepthObservationsCfg(ObsGroup):
-    """Normalized depth-frame stack in the calibrated G1 camera convention."""
-
-    depth = ObsTerm(
-        func=mdp.image_depth,
-        params={
-            "sensor_cfg": SceneEntityCfg("depth_camera"),
-            "data_type": "distance_to_image_plane",
-            "normalize": False,
-            "frame_stack": DEPTH_STACK,
-            "channel_first": True,
-        },
-        modifiers=[ModifierCfg(func=process_depth_image)],
-        clip=(0.0, DEPTH_MAX_RANGE),
-        scale=1.0 / DEPTH_MAX_RANGE,
-    )
-    enable_corruption = False
-    concatenate_terms = True
-
-
-@configclass
 class G1StudentObservationsCfg(velocity_env_cfg.ObservationsCfg):
     """Student inference inputs and teacher/reflected-camera supervision groups."""
 
-    policy: G1StudentPolicyCfg = G1StudentPolicyCfg()
-    teacher: G1TeacherPolicyCfg = G1TeacherPolicyCfg(enable_corruption=False)
-    depth: G1DepthObservationsCfg = G1DepthObservationsCfg()
-    depth_mirror: G1DepthObservationsCfg = G1DepthObservationsCfg()
+    @configclass
+    class PolicyCfg(velocity_env_cfg.ObservationsCfg.PolicyCfg):
+        """Five proprioceptive frames without privileged velocity or height observations."""
+
+        base_lin_vel = None
+        height_scan = None
+        history_length = 5
+
+    @configclass
+    class DepthCfg(ObsGroup):
+        """Normalized depth-frame stack in the calibrated G1 camera convention."""
+
+        depth = ObsTerm(
+            func=mdp.image_depth,
+            params={
+                "sensor_cfg": SceneEntityCfg("depth_camera"),
+                "data_type": "distance_to_image_plane",
+                "normalize": False,
+                "frame_stack": DEPTH_STACK,
+                "channel_first": True,
+            },
+            modifiers=[ModifierCfg(func=process_depth_image)],
+            clip=(0.0, DEPTH_MAX_RANGE),
+            scale=1.0 / DEPTH_MAX_RANGE,
+        )
+        enable_corruption = False
+        concatenate_terms = True
+
+    policy: PolicyCfg = PolicyCfg()
+    teacher: velocity_env_cfg.ObservationsCfg.PolicyCfg = velocity_env_cfg.ObservationsCfg.PolicyCfg()
+    teacher.enable_corruption = False
+    depth: DepthCfg = DepthCfg()
+    depth_mirror: DepthCfg = DepthCfg()
     depth_mirror.depth.params["sensor_cfg"] = SceneEntityCfg("depth_camera_mirror")
 
 
@@ -523,7 +500,6 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     events: G1EventsCfg = G1EventsCfg()
     curriculum: G1CurriculumCfg = G1CurriculumCfg()
     terminations: G1TerminationsCfg = G1TerminationsCfg()
-    observations: velocity_env_cfg.ObservationsCfg = velocity_env_cfg.ObservationsCfg(policy=G1TeacherPolicyCfg())
     sim = SimulationCfg(
         physics=velocity_env_cfg.RoughPhysicsCfg(),
         use_newton_actuators=False,
