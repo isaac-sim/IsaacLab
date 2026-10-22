@@ -30,7 +30,6 @@ import warp as wp
 from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import EventTermCfg
-from isaaclab.utils.seed import WarpRng
 
 from .manager_base import ManagerBase
 
@@ -274,7 +273,7 @@ class EventManager(ManagerBase):
                     inputs=[
                         env_mask,
                         self._interval_term_time_left_wp[i],
-                        WarpRng.state,
+                        self._env.rng_state_wp,
                         float(lower),
                         float(upper),
                     ],
@@ -332,6 +331,9 @@ class EventManager(ManagerBase):
             term_cfg.func(self._env, env_mask_wp, **term_cfg.params)
 
     def _apply_interval(self, dt: float) -> None:
+        if self._env.rng_state_wp is None:
+            raise RuntimeError("EventManager._apply_interval: env.rng_state_wp is not initialized.")
+
         # iterate over all the interval terms (fixed list; captured graph-friendly)
         for i, term_cfg in enumerate(self._mode_term_cfgs["interval"]):
             lower, upper = self._interval_term_ranges[i]
@@ -361,7 +363,7 @@ class EventManager(ManagerBase):
                     dim=self.num_envs,
                     inputs=[
                         self._interval_term_time_left_wp[i],
-                        WarpRng.state,
+                        self._env.rng_state_wp,
                         self._scratch_term_mask_wp,
                         float(dt),
                         float(lower),
@@ -448,11 +450,13 @@ class EventManager(ManagerBase):
                 if term_cfg.is_global_time:
                     # allocate and seed scalar global RNG state if needed (avoid consuming env0 RNG stream)
                     if self._interval_global_rng_state_wp is None:
+                        if self._env.rng_state_wp is None:
+                            raise RuntimeError("EventManager._prepare_terms: env.rng_state_wp is not initialized.")
                         self._interval_global_rng_state_wp = wp.zeros((1,), dtype=wp.uint32, device=self.device)
                         wp.launch(
                             kernel=_seed_global_rng_from_env_rng,
                             dim=1,
-                            inputs=[WarpRng.state, self._interval_global_rng_state_wp],
+                            inputs=[self._env.rng_state_wp, self._interval_global_rng_state_wp],
                             device=self.device,
                         )
                     time_left = wp.zeros((1,), dtype=wp.float32, device=self.device)
@@ -469,7 +473,7 @@ class EventManager(ManagerBase):
                     wp.launch(
                         kernel=_interval_init_per_env,
                         dim=self.num_envs,
-                        inputs=[time_left, WarpRng.state, float(lower), float(upper)],
+                        inputs=[time_left, self._env.rng_state_wp, float(lower), float(upper)],
                         device=self.device,
                     )
                     self._interval_term_time_left_wp.append(time_left)
