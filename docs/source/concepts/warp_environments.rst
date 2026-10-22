@@ -73,6 +73,7 @@ implementation:
 - ``Isaac-Ant-Direct`` — Ant locomotion
 - ``Isaac-Humanoid-Direct`` — Humanoid locomotion
 - ``Isaac-Reorient-Cube-Allegro-Direct`` — Allegro hand cube reorient
+- ``Isaac-Reorient-Cube-Shadow-Direct`` — Shadow hand cube reorient
 
 
 Manager-Based Warp Execution (``--frontend warp``)
@@ -493,7 +494,8 @@ checks the mask to skip non-selected environments:
            return
        # ... modify state for selected envs only
 
-- RNG uses per-env ``env.rng_state_wp`` (``wp.uint32``) instead of ``torch.rand``
+- RNG uses the per-env :attr:`WarpRng.state <isaaclab.utils.seed.WarpRng.state>` (``wp.uint32``) instead of
+  ``torch.rand``
 - **Startup/prestartup** events use the torch convention ``(env, env_ids, **params)``
 - **Reset/interval** events use the warp convention ``(env, env_mask, **params)``
 

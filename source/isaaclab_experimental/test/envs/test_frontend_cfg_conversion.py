@@ -201,6 +201,7 @@ _DIRECT_WARP_TASKS = [
     "Isaac-Ant-Direct",
     "Isaac-Humanoid-Direct",
     "Isaac-Reorient-Cube-Allegro-Direct",
+    "Isaac-Reorient-Cube-Shadow-Direct",
 ]
 
 
