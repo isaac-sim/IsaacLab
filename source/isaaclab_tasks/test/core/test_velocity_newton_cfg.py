@@ -41,6 +41,14 @@ def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
     assert "Isaac-Velocity-Rough-G1-Teacher" not in gym.registry
     assert not hasattr(rough_env_cfg, "G1RoughEnvCfg")
     assert not hasattr(rsl_rl_ppo_cfg, "G1RoughPPORunnerCfg")
+    assert not hasattr(rsl_rl_ppo_cfg, "G1_SYMMETRY_CFG")
+    student_env_cfg = load_cfg_from_registry("Isaac-Velocity-Rough-G1-Depth-Student", "env_cfg_entry_point")
+    student_runner_cfg = load_cfg_from_registry("Isaac-Velocity-Rough-G1-Depth-Student", "rsl_rl_cfg_entry_point")
+    assert student_runner_cfg.obs_groups["teacher"] == runner_cfg.obs_groups["actor"]
+    for cfg, runner in ((env_cfg, runner_cfg), (student_env_cfg, student_runner_cfg)):
+        assert not {"policy", "teacher"} & vars(cfg.observations).keys()
+        for groups in runner.obs_groups.values():
+            assert all(isinstance(getattr(cfg.observations, group), rough_env_cfg.ObsGroup) for group in groups)
 
     # Generic manager terms belong to core MDP; task modules must not duplicate or alias them.
     for func, module_name in (
@@ -75,7 +83,9 @@ def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
     student_class = ast.parse(getsource(rough_env_cfg.G1RoughDepthStudentEnvCfg)).body[0]
     assert not any(isinstance(node, ast.FunctionDef) and node.name == "__post_init__" for node in student_class.body)
     assert not any(
-        isinstance(cfg, type) and cfg.__module__ == rough_env_cfg.__name__ and issubclass(cfg, rough_env_cfg.ObsGroup)
+        isinstance(cfg, type)
+        and cfg.__module__ == rough_env_cfg.__name__
+        and issubclass(cfg, (rough_env_cfg.ObsGroup, rough_env_cfg.CameraCfg))
         for cfg in vars(rough_env_cfg).values()
     )
 

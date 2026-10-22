@@ -15,13 +15,6 @@ from isaaclab_rl.rsl_rl import (
     RslRlSymmetryCfg,
 )
 
-G1_SYMMETRY_CFG = RslRlSymmetryCfg(
-    use_data_augmentation=True,
-    use_mirror_loss=False,
-    data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
-    mirror_loss_coeff=0.0,
-)
-
 
 @configclass
 class G1RoughTeacherPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -30,7 +23,7 @@ class G1RoughTeacherPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 6000
     save_interval = 250
     experiment_name = "g1_rough_teacher"
-    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
+    obs_groups = {"actor": ["proprio", "height_scan"], "critic": ["proprio", "height_scan"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",
@@ -55,7 +48,12 @@ class G1RoughTeacherPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.01,
         max_grad_norm=1.0,
-        symmetry_cfg=G1_SYMMETRY_CFG,
+        symmetry_cfg=RslRlSymmetryCfg(
+            use_data_augmentation=True,
+            use_mirror_loss=False,
+            data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
+            mirror_loss_coeff=0.0,
+        ),
     )
 
 
@@ -64,6 +62,7 @@ class G1FlatPPORunnerCfg(G1RoughTeacherPPORunnerCfg):
     max_iterations = 1500
     save_interval = 50
     experiment_name = "g1_flat"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
 
     def __post_init__(self):
         super().__post_init__()
@@ -79,7 +78,7 @@ class G1RoughDepthStudentRunnerCfg(RslRlDistillationRunnerCfg):
     max_iterations = 24000
     save_interval = 250
     experiment_name = "g1_rough_depth_student"
-    obs_groups = {"student": ["policy", "depth"], "teacher": ["teacher"]}
+    obs_groups = {"student": ["proprio_history", "depth"], "teacher": ["proprio", "height_scan"]}
     student = RslRlCNNModelCfg(
         cnn_cfg=RslRlCNNModelCfg.CNNCfg(
             output_channels=[16, 32, 32],

@@ -20,11 +20,12 @@ class Mirror:
 
     @torch.no_grad()
     def observations(self, obs):
-        assert set(obs.keys()) == {"policy", "teacher", "depth", "depth_mirror"}
+        assert set(obs.keys()) == {"proprio", "height_scan", "proprio_history", "depth", "depth_mirror"}
         return TensorDict(
             {
-                "policy": _mirror_group(self.env, "policy", obs["policy"]),
-                "teacher": _mirror_group(self.env, "teacher", obs["teacher"]),
+                "proprio": _mirror_group(self.env, "proprio", obs["proprio"]),
+                "height_scan": _mirror_group(self.env, "height_scan", obs["height_scan"]),
+                "proprio_history": _mirror_group(self.env, "proprio_history", obs["proprio_history"]),
                 "depth": obs["depth_mirror"].flip(-1),
                 "depth_mirror": obs["depth"].flip(-1),
             },
@@ -66,7 +67,8 @@ class MirrorDistillation(Distillation):
 
     def process_env_step(self, obs, rewards, dones, extras):
         mirrored = TensorDict(
-            {"policy": _mirror_group(self.mirror.env, "policy", obs["policy"])}, batch_size=obs.batch_size
+            {"proprio_history": _mirror_group(self.mirror.env, "proprio_history", obs["proprio_history"])},
+            batch_size=obs.batch_size,
         )
         self.student.update_normalization(mirrored)
         self.student.update_normalization(obs)
