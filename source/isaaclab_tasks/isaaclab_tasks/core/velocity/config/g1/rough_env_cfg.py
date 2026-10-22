@@ -17,7 +17,6 @@ import torch
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
-import isaaclab.terrains as terrain_gen
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
@@ -29,7 +28,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg, RayCasterCfg, patterns
 from isaaclab.sim import PinholeCameraCfg, SimulationCfg, UsdFileCfg
-from isaaclab.terrains import TerrainGeneratorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.modifiers import ModifierCfg
@@ -43,6 +41,14 @@ from ...velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
 )
+from .terrains import G1_ROUGH_TERRAINS_CFG
+
+DEPTH_WIDTH = 64
+DEPTH_HEIGHT = 38
+DEPTH_STACK = 3
+DEPTH_MAX_RANGE = 3.0
+DEPTH_OFFSET_POS = (0.0576, 0.0175, 0.4299)
+DEPTH_OFFSET_ROT = (0.9150, 0.0, -0.4035, 0.0)
 
 
 @configclass
@@ -151,19 +157,6 @@ class G1Rewards(RewardsCfg):
             "sole_offset": MISSING,
         },
     )
-
-
-DEPTH_WIDTH = 64
-
-DEPTH_HEIGHT = 38
-
-DEPTH_STACK = 3
-
-DEPTH_MAX_RANGE = 3.0
-
-DEPTH_OFFSET_POS = (0.0576, 0.0175, 0.4299)
-
-DEPTH_OFFSET_ROT = (0.9150, 0.0, -0.4035, 0.0)
 
 
 def process_depth_image(data: torch.Tensor) -> torch.Tensor:
@@ -358,64 +351,7 @@ class G1SceneCfg(velocity_env_cfg.MySceneCfg):
         global_world_only=True,
     )
     terrain = velocity_env_cfg.MySceneCfg().terrain
-    terrain.terrain_generator = TerrainGeneratorCfg(
-        size=(8.0, 8.0),
-        border_width=20.0,
-        num_rows=10,
-        num_cols=20,
-        horizontal_scale=0.1,
-        vertical_scale=0.005,
-        slope_threshold=0.75,
-        use_cache=False,
-        sub_terrains={
-            "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
-                proportion=0.2,
-                step_height_range=(0.05, 0.35),
-                step_width=0.3,
-                platform_width=3.0,
-                border_width=1.0,
-                holes=False,
-                convert_to_heightfield=False,
-            ),
-            "pyramid_stairs_inv": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
-                proportion=0.2,
-                step_height_range=(0.05, 0.35),
-                step_width=0.3,
-                platform_width=3.0,
-                border_width=1.0,
-                holes=False,
-                convert_to_heightfield=False,
-            ),
-            "boxes": terrain_gen.MeshRandomGridTerrainCfg(
-                proportion=0.2,
-                grid_width=0.45,
-                grid_height_range=(0.05, 0.2),
-                platform_width=2.0,
-                convert_to_heightfield=False,
-            ),
-            "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-                proportion=0.2,
-                noise_range=(0.02, 0.10),
-                noise_step=0.02,
-                border_width=0.25,
-                convert_to_heightfield=False,
-            ),
-            "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
-                proportion=0.1,
-                slope_range=(0.0, 0.4),
-                platform_width=2.0,
-                border_width=0.25,
-                convert_to_heightfield=False,
-            ),
-            "hf_pyramid_slope_inv": terrain_gen.HfInvertedPyramidSlopedTerrainCfg(
-                proportion=0.1,
-                slope_range=(0.0, 0.4),
-                platform_width=2.0,
-                border_width=0.25,
-                convert_to_heightfield=False,
-            ),
-        },
-    )
+    terrain.terrain_generator = G1_ROUGH_TERRAINS_CFG
 
 
 @configclass

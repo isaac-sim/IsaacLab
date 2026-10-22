@@ -13,7 +13,7 @@ from isaaclab_assets import G1_MINIMAL_CFG
 
 from ... import mdp
 from ...velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from .rough_env_cfg import G1EventsCfg, G1Rewards
+from .rough_env_cfg import G1EventsCfg, G1ObservationsCfg, G1Rewards
 
 
 @configclass
@@ -21,6 +21,7 @@ class G1FlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for the Unitree G1 velocity-tracking environment on flat terrain."""
 
     events: G1EventsCfg = G1EventsCfg()
+    observations: G1ObservationsCfg = G1ObservationsCfg(height_scan=None)
     rewards: G1Rewards = G1Rewards(
         track_lin_vel_xy_exp=RewTerm(
             func=mdp.track_lin_vel_xy_yaw_frame_exp,
@@ -121,8 +122,6 @@ class G1FlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         self.scene.height_scanner = None
-        # observations
-        self.observations.policy.height_scan = None
         # commands
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 0.75)

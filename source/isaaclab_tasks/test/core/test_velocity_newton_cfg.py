@@ -40,6 +40,7 @@ def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
     assert runner_cfg.algorithm.symmetry_cfg.use_data_augmentation
     assert "Isaac-Velocity-Rough-G1-Teacher" not in gym.registry
     assert not hasattr(rough_env_cfg, "G1RoughEnvCfg")
+    assert not hasattr(rough_env_cfg, "TerrainGeneratorCfg")
     assert not hasattr(rsl_rl_ppo_cfg, "G1RoughPPORunnerCfg")
     assert not hasattr(rsl_rl_ppo_cfg, "G1_SYMMETRY_CFG")
     student_env_cfg = load_cfg_from_registry("Isaac-Velocity-Rough-G1-Depth-Student", "env_cfg_entry_point")
@@ -98,6 +99,10 @@ def test_g1_flat_keeps_its_robot_and_ppo_settings():
     assert env_cfg.scene.robot.spawn.usd_path == G1_MINIMAL_CFG.spawn.usd_path
     assert env_cfg.scene.terrain.terrain_type == "plane"
     assert env_cfg.scene.height_scanner is None
+    assert not hasattr(env_cfg.observations, "policy")
+    assert env_cfg.observations.height_scan is None
+    assert runner_cfg.obs_groups == {"actor": ["proprio"], "critic": ["proprio"]}
+    assert "skrl_cfg_entry_point" not in gym.spec("Isaac-Velocity-Flat-G1").kwargs
     assert runner_cfg.algorithm.symmetry_cfg is None
     assert runner_cfg.actor.hidden_dims == runner_cfg.critic.hidden_dims == [256, 128, 128]
     assert runner_cfg.max_iterations == 1500
