@@ -508,13 +508,15 @@ class G1StudentObservationsCfg(G1ObservationsCfg):
         enable_corruption = False
         concatenate_terms = True
 
-    proprio: G1ObservationsCfg.ProprioCfg = G1ObservationsCfg.ProprioCfg()
-    proprio.enable_corruption = False
     height_scan: G1ObservationsCfg.HeightScanCfg = G1ObservationsCfg.HeightScanCfg(enable_corruption=False)
     proprio_history: ProprioHistoryCfg = ProprioHistoryCfg()
     depth: DepthCfg = DepthCfg()
     depth_mirror: DepthCfg = DepthCfg()
-    depth_mirror.depth.params["sensor_cfg"] = SceneEntityCfg("depth_camera_mirror")
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.proprio.enable_corruption = False
+        self.depth_mirror.depth.params["sensor_cfg"] = SceneEntityCfg("depth_camera_mirror")
 
 
 @configclass
