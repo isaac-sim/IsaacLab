@@ -124,6 +124,29 @@ def update_ray_caster_kernel(
 
 
 @wp.kernel(enable_backward=False)
+def fill_vec3_inf_kernel(
+    # input
+    env_mask: wp.array(dtype=wp.bool),
+    inf_val: wp.float32,
+    # output
+    data: wp.array2d(dtype=wp.vec3f),
+):
+    """Fill a 2D vec3f array with a given value for masked environments.
+
+    Launch with dim=(num_envs, num_rays).
+
+    Args:
+        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
+        inf_val: Value to fill with (typically inf).
+        data: Array to fill. Shape is (num_envs, num_rays).
+    """
+    env, ray = wp.tid()
+    if not env_mask[env]:
+        return
+    data[env, ray] = wp.vec3f(inf_val, inf_val, inf_val)
+
+
+@wp.kernel(enable_backward=False)
 def apply_z_drift_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),

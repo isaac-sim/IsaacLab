@@ -84,24 +84,6 @@ def test_ray_caster_binding_ownership(source_checkout_root):
     ]
     assert len(lookups) == 1
 
-    # Noncamera sensors publish the query's range buffer directly through their shared data owner.
-    for path in (root, consumers[0]):
-        for node in ast.walk(ast.parse(path.read_text())):
-            if isinstance(node, ast.Attribute):
-                assert node.attr not in {"_dummy_ray_distance", "_ray_distance_wp", "_dummy_normal_wp"}, path
-    newton_data = source / "isaaclab_newton/isaaclab_newton/sensors/ray_caster/newton_raycast_sensor_data.py"
-    for node in ast.walk(ast.parse(newton_data.read_text())):
-        if isinstance(node, ast.FunctionDef):
-            assert node.name != "ray_distances"
-        if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):
-            assert node.attr not in {"_ray_distances", "_ray_distances_ta"}
-    kernels = root.with_name("kernels.py")
-    assert all(
-        node.name != "fill_vec3_inf_kernel"
-        for node in ast.walk(ast.parse(kernels.read_text()))
-        if isinstance(node, ast.FunctionDef)
-    )
-
 
 # ---------------------------------------------------------------------------
 # Wrapper kernel for quat_yaw_only (@wp.func cannot be launched directly)

@@ -9,7 +9,7 @@
 
 from typing import Literal
 
-from isaaclab.test.utils import launch_test_simulation, resolve_test_sim_device
+from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation()
 
@@ -36,7 +36,7 @@ def _make_sim_and_ground():
     """Create a blank stage with a flat ground plane at z=0 and return the SimulationContext."""
     sim_utils.create_new_stage()
     dt = 0.01
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=resolve_test_sim_device())
+    sim_cfg = sim_utils.SimulationCfg(dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh(_GROUND_PATH, mesh)
@@ -291,14 +291,6 @@ def test_offset_does_not_affect_pos_w(sim_ground):
         f"height_scan observation = {height_obs:.2f}, expected near 0."
         f" If ≈{offset_z}, the offset leaked into data.pos_w."
     )
-
-    # Ranges start at each offset ray origin and exclude the bias added to projected hit heights.
-    expected_distances = torch.full_like(sensor.data.ray_distances.torch, body_pos[2] + offset_z)
-    torch.testing.assert_close(sensor.data.ray_distances.torch, expected_distances)
-    sensor.ray_cast_drift.torch[:, 2] = 0.25
-    sensor.update(dt)
-    torch.testing.assert_close(sensor.data.ray_hits_w.torch[:, :, 2], torch.full_like(expected_distances, 0.25))
-    torch.testing.assert_close(sensor.data.ray_distances.torch, expected_distances)
 
 
 @pytest.mark.isaacsim_ci

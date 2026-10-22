@@ -256,7 +256,12 @@ class BaseRayCaster(SensorBase):
         # Data buffers
         self._data.create_buffers(self._view_count, self.num_rays, self._device)
 
-        # The query does not write its unused normal output.
+        # Dummy distance/normal buffers required by the merged raycast_mesh_masked_kernel signature.
+        # Sized (1, 1) even though the kernel is launched at (num_envs, num_rays): the kernel only
+        # writes to these buffers when return_distance==1 or return_normal==1 respectively, and
+        # RayCaster always passes 0 for both flags. If those flags are ever enabled here, these
+        # buffers must be resized to (num_envs, num_rays) to avoid an out-of-bounds write.
+        self._dummy_ray_distance = wp.empty((1, 1), dtype=wp.float32, device=self._device)
         self._dummy_ray_normal = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
 
     def _get_view_transforms_wp(self) -> wp.array:
@@ -304,12 +309,11 @@ class BaseRayCaster(SensorBase):
         """Fills the buffers of the sensor data."""
         self._update_ray_infos(env_mask)
 
-        # Fill hits and ranges with inf before raycasting.
+        # Fill ray hits with inf before raycasting
         wp.launch(
-            ray_caster_kernels.fill_ray_hits_distance_inf_kernel,
+            ray_caster_kernels.fill_vec3_inf_kernel,
             dim=(self._num_envs, self.num_rays),
-            inputs=[env_mask, False],
-            outputs=[self._data._ray_hits_w, self._data._ray_distances, self._dummy_ray_normal],
+            inputs=[env_mask, wp.inf, self._data._ray_hits_w],
             device=self._device,
         )
 
@@ -323,10 +327,10 @@ class BaseRayCaster(SensorBase):
                 self._ray_starts_w,
                 self._ray_directions_w,
                 float(self.cfg.max_distance),
-                int(True),  # return_distance
+                int(False),  # return_distance: not needed by RayCaster
                 int(False),  # return_normal: not needed by RayCaster
                 self._data._ray_hits_w,
-                self._data._ray_distances,
+                self._dummy_ray_distance,
                 self._dummy_ray_normal,
             ],
             device=self._device,

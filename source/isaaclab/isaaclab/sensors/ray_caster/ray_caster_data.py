@@ -27,9 +27,8 @@ class RayCasterData:
         self._pos_w: wp.array | None = None
         self._quat_w: wp.array | None = None
         self._ray_hits_w: wp.array | None = None
-        self._ray_distances: wp.array | None = None
 
-        # ProxyArray wrappers are created in create_buffers().
+        # _pos_w_ta / _quat_w_ta / _ray_hits_w_ta are created in create_buffers().
         # Accessing the public properties before create_buffers() raises AttributeError.
 
     @property
@@ -66,19 +65,6 @@ class RayCasterData:
         """
         return self._ray_hits_w_ta
 
-    @property
-    @leapp_tensor_semantics(kind="state/sensor/ray_hit_distance")
-    def ray_distances(self) -> ProxyArray:
-        """Geometric ray query distances [m] for unit ray directions.
-
-        Shape is (N, B), dtype ``wp.float32``, where N is the number of sensors and B is the
-        number of rays per sensor. Contains ``inf`` for misses, including hits beyond ``max_distance``.
-        Distances start at each actual ray origin, including pattern offsets and origin drift,
-        and exclude any vertical bias added to the reported hit points after the query.
-        Ray patterns must provide unit-length directions.
-        """
-        return self._ray_distances_ta
-
     def create_buffers(self, num_envs: int, num_rays: int, device: str) -> None:
         """Create internal warp buffers and their :class:`ProxyArray` wrappers.
 
@@ -92,9 +78,7 @@ class RayCasterData:
         self._pos_w = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._quat_w = wp.zeros(num_envs, dtype=wp.quatf, device=device)
         self._ray_hits_w = wp.zeros((num_envs, num_rays), dtype=wp.vec3f, device=device)
-        self._ray_distances = wp.zeros((num_envs, num_rays), dtype=wp.float32, device=device)
 
         self._pos_w_ta = ProxyArray(self._pos_w)
         self._quat_w_ta = ProxyArray(self._quat_w)
         self._ray_hits_w_ta = ProxyArray(self._ray_hits_w)
-        self._ray_distances_ta = ProxyArray(self._ray_distances)

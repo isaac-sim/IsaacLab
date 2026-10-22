@@ -85,18 +85,13 @@ class RayCasterCfg(SensorBaseCfg):
     """The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).
 
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
-    The sampled translation shifts both ``data.pos_w`` and the ray origins.
     """
 
     ray_cast_drift_range: dict[str, tuple[float, float]] = {"x": (0.0, 0.0), "y": (0.0, 0.0), "z": (0.0, 0.0)}
     """The range of drift (in meters) to add to the projected ray points in local projection frame. Defaults to
     a dictionary with zero drift for each x, y and z axis.
 
-    The vector is rotated according to :attr:`ray_alignment`, then its world x/y components shift
-    the ray origins. :class:`~isaaclab.sensors.RayCaster` and Newton's BVH ray caster add the original z component
-    to the reported hit heights after intersection, making the bias visible in projected points.
-    This post-hit bias does not change ``data.ray_distances``. :class:`~isaaclab.sensors.MultiMeshRayCaster` applies
-    the origin shift only.
+    For floating base robots, this is useful for simulating drift in the robot's pose estimation.
     """
 
     visualizer_cfg: VisualizationMarkersCfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster")

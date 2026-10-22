@@ -145,9 +145,8 @@ def test_rigid_body_view_path(sim_ground):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("cfg_type", [RayCasterCfg, MultiMeshRayCasterCfg], ids=["single-mesh", "multi-mesh"])
-def test_polygon_mesh_hits_and_ray_distances(sim_ground, cfg_type):
-    """A six-quad box reports its outer surface and ranges from the offset grid's actual ray origins."""
+def test_polygon_mesh_hits_outer_surface(sim_ground):
+    """A six-quad box reports outer surfaces rather than artificial faces across the box interior."""
     stage = sim_utils.get_current_stage()
     mesh = UsdGeom.Mesh.Define(stage, "/World/QuadBox")
     mesh.CreatePointsAttr(
@@ -166,7 +165,7 @@ def test_polygon_mesh_hits_and_ray_distances(sim_ground, cfg_type):
     mesh.CreateFaceVertexIndicesAttr([0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7])
     sim_utils.create_prim("/World/Scanner", "Xform", translation=(0.0, 0.0, 3.0))
     sensor = instantiate(
-        cfg_type(
+        RayCasterCfg(
             prim_path="/World/Scanner",
             mesh_prim_paths=["/World/QuadBox"],
             offset=RayCasterCfg.OffsetCfg(pos=(0.2, 0.0, 0.3)),
@@ -185,14 +184,11 @@ def test_polygon_mesh_hits_and_ray_distances(sim_ground, cfg_type):
     expected_hits[:, 2] = 1.0
     torch.testing.assert_close(data.ray_hits_w.torch[inside], expected_hits)
     assert torch.isinf(data.ray_hits_w.torch[~inside]).all()
-    torch.testing.assert_close(data.ray_distances.torch[inside], torch.full((4,), 2.3, device=sensor.device))
-    assert torch.isinf(data.ray_distances.torch[~inside]).all()
 
-    # Move origins beyond the configured range; misses must replace the previous hits and ranges.
+    # Move origins beyond the configured range; misses must replace the previous hits.
     sensor.drift.warp.fill_(wp.vec3f(0.0, 0.0, 0.5))
     sensor.update(_DT)
     assert torch.isinf(sensor.data.ray_hits_w.torch).all()
-    assert torch.isinf(sensor.data.ray_distances.torch).all()
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +455,6 @@ def test_multi_mesh_env_mask_preserves_masked_buffers(sim_ground):
     # First update: populate buffers with real values
     sensor.update(_DT)
     hits_before = sensor.data.ray_hits_w.torch.clone()
-    distances_before = sensor.data.ray_distances.torch.clone()
 
     # Second update with env masked out: buffers must not change
     mask_all_false = wp.array([False], dtype=wp.bool, device=sensor.device)
@@ -473,7 +468,6 @@ def test_multi_mesh_env_mask_preserves_masked_buffers(sim_ground):
         rtol=0.0,
         msg="Masked env: ray_hits_w must be unchanged after update with env masked out",
     )
-    torch.testing.assert_close(sensor.data.ray_distances.torch, distances_before, atol=0.0, rtol=0.0)
 
 
 # ---------------------------------------------------------------------------

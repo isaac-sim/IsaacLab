@@ -79,7 +79,13 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
         )
 
     def _initialize_rays_impl(self):
-        # CameraData owns image outputs; initialize its raw ray buffers directly for projection into those images.
+        # NOTE: This method intentionally does NOT call super()._initialize_rays_impl() through the MRO
+        # chain. The intermediate classes (RayCasterCamera, MultiMeshRayCaster) use different internal
+        # buffer names and orderings that are incompatible with the camera's full init path:
+        #   - RayCasterCamera creates single-mesh ray buffers (_ray_distance, _ray_normal_w, etc.)
+        #   - MultiMeshRayCaster creates _ray_distance_wp / _ray_mesh_id_wp for multi-mesh use
+        # The camera replaces all of these with its own camera-named equivalents below.
+        # If either parent class gains new shared buffers, they must be added here explicitly.
 
         # Camera-specific bookkeeping buffers
         self._frame_wp = wp.zeros(self._view.count, dtype=wp.int64, device=self._device)

@@ -404,6 +404,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
 
     def _initialize_rays_impl(self):
         super()._initialize_rays_impl()
+        # Persistent buffer for tracking closest-hit distance across meshes (for atomic_min)
+        self._ray_distance_wp = wp.empty((self._view_count, self.num_rays), dtype=wp.float32, device=self._device)
         if self.cfg.update_mesh_ids:
             self._data.ray_mesh_ids = ProxyArray(
                 wp.zeros((self._view_count, self.num_rays), dtype=wp.int16, device=self._device)
@@ -412,6 +414,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             # Dummy 1×1 buffer so the kernel launch always has a valid array to bind
             self._ray_mesh_id_wp = wp.empty((1, 1), dtype=wp.int16, device=self._device)
         # Persistent dummy buffers for unused kernel outputs; allocated once to avoid per-step allocations.
+        self._dummy_normal_wp = wp.empty((1, 1), dtype=wp.vec3, device=self._device)
         self._dummy_face_id_wp = wp.empty((1, 1), dtype=wp.int32, device=self._device)
 
     def _update_mesh_transforms(self) -> None:
@@ -437,7 +440,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             fill_ray_hits_distance_inf_kernel,
             dim=(self._num_envs, self.num_rays),
             inputs=[env_mask, False],
-            outputs=[self._data._ray_hits_w, self._data._ray_distances, self._dummy_ray_normal],
+            outputs=[self._data._ray_hits_w, self._ray_distance_wp, self._dummy_normal_wp],
             device=self._device,
         )
 
@@ -451,8 +454,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 self._ray_starts_w,
                 self._ray_directions_w,
                 self._data._ray_hits_w,
-                self._data._ray_distances,
-                self._dummy_ray_normal,
+                self._ray_distance_wp,
+                self._dummy_normal_wp,
                 self._dummy_face_id_wp,
                 self._data.ray_mesh_ids.warp if self.cfg.update_mesh_ids else self._ray_mesh_id_wp,
                 self._mesh_positions_w,
