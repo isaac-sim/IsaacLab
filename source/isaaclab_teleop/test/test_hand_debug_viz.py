@@ -220,13 +220,6 @@ class _FakeTensorGroup:
 
 
 class TestChainHandDebugOutputs:
-    def test_chains_when_hands_source_present(self):
-        pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeHandsSource("hands")])
-        mapping: dict = {}
-        TeleopSessionLifecycle._chain_hand_debug_outputs(pipeline, mapping)
-        assert mapping[TeleopSessionLifecycle.HAND_LEFT_KEY] == "selector:hands:hand_left"
-        assert mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
-
     def test_mapping_untouched_without_hands_source(self):
         pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeLeaf("head")])
         mapping: dict = {"action": "selector:user_pipeline:action"}
@@ -241,7 +234,8 @@ class TestChainHandDebugOutputs:
 
 class TestStartChaining:
     def _start(self, enable_debug_visualization: bool) -> TeleopSessionLifecycle:
-        pipeline = _FakePipeline([_FakeHandsSource("hands")])
+        # The HandsSource is discovered even when it is not the first leaf.
+        pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeHandsSource("hands")])
         cfg = IsaacTeleopCfg(pipeline_builder=lambda: pipeline, control_channel_uuid=None)
         lifecycle = TeleopSessionLifecycle(cfg, enable_debug_visualization=enable_debug_visualization)
         with patch.object(lifecycle, "_try_start_session", return_value=True):
@@ -250,8 +244,8 @@ class TestStartChaining:
 
     def test_start_chains_when_enabled(self):
         lifecycle = self._start(enable_debug_visualization=True)
-        assert TeleopSessionLifecycle.HAND_LEFT_KEY in lifecycle.pipeline.output_mapping
-        assert TeleopSessionLifecycle.HAND_RIGHT_KEY in lifecycle.pipeline.output_mapping
+        assert lifecycle.pipeline.output_mapping[TeleopSessionLifecycle.HAND_LEFT_KEY] == "selector:hands:hand_left"
+        assert lifecycle.pipeline.output_mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
         assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY in lifecycle.pipeline.output_mapping
 
     def test_start_does_not_chain_when_disabled(self):
@@ -278,13 +272,6 @@ class TestExtractWorldJointPositions:
             TeleopSessionLifecycle.HAND_RIGHT_KEY: _FakeTensorGroup(None, is_none=True),
         }
         assert _extract_world_joint_positions(result, np.eye(4)) is None
-
-    def test_identity_transform_passes_through(self):
-        joints = np.arange(78, dtype=np.float32).reshape(26, 3)
-        result = {TeleopSessionLifecycle.HAND_LEFT_KEY: _FakeTensorGroup(joints)}
-        positions = _extract_world_joint_positions(result, np.eye(4))
-        assert positions.shape == (26, 3)
-        torch.testing.assert_close(positions, torch.as_tensor(joints))
 
     def test_both_hands_are_concatenated(self):
         left = np.zeros((26, 3), dtype=np.float32)

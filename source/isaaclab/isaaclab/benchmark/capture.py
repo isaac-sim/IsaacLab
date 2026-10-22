@@ -12,24 +12,22 @@ raw measurements and metadata to the typed schema dataclasses
 :class:`~isaaclab.benchmark.schema.Resources`.
 
 Import-time dependencies stay light: no torch, isaacsim, or RL-library
-imports. Preset metadata is imported lazily when run_config_from_presets()
-needs it. The benchmark object is accepted at call time; its recorder classes
+imports. The benchmark object is accepted at call time; its recorder classes
 are never imported here.
 """
 
 from __future__ import annotations
 
 import socket
-from collections.abc import Sequence
+from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Any, get_args
+from typing import Any
 
-from isaaclab.benchmark.schema import (
+from .schema import (
     GpuDeviceInfo,
     GpuResources,
     Hardware,
     MeanStd,
-    PhysicsBackend,
     Resources,
     RunConfig,
     Versions,
@@ -97,7 +95,7 @@ def synth_run_id(
     Args:
         framework: RL framework name, or ``None`` for non-learning runs
             (substituted with ``"runtime"``).
-        physics_backend: Physics backend preset string.
+        physics_backend: Physics backend name.
         task: Gym task id.
         seed: Environment/agent seed.
         stamp: Timestamp string (e.g. ``"20260612-150000"``).
@@ -231,66 +229,16 @@ def capture_hardware(bm: Any) -> Hardware:
     )
 
 
-def _preset_target_metadata() -> tuple[str, str, str, dict[str, str]]:
-    """Return preset selector labels and physics aliases from the preset CLI layer."""
-    from isaaclab_tasks.utils.preset_target import PresetTarget
-
-    return (
-        PresetTarget.PHYSICS.value,
-        PresetTarget.RENDERER.value,
-        PresetTarget.DOMAIN.value,
-        dict(PresetTarget.PHYSICS.legacy_aliases),
-    )
-
-
-def _physics_backend_names() -> set[str]:
-    """Return physics backend names accepted by the benchmark schema."""
-    return set(get_args(PhysicsBackend))
-
-
-def _rendering_backend_by_preset() -> dict[str, str]:
-    """Return renderer preset names mapped to benchmark rendering backend names."""
-    try:
-        from isaaclab_tasks.utils.hydra import _preset_fields
-        from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-    except ImportError:
-        return {}
-
-    return {
-        name: name.removesuffix("_renderer") for name in _preset_fields(MultiBackendRendererCfg()) if name != "default"
-    }
-
-
-def _backend_defaults_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
-    """Return active backend names from a resolved environment configuration."""
-    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
-    physics_descriptor = (
-        f"{type(physics_cfg).__module__}.{type(physics_cfg).__name__} {getattr(physics_cfg, 'class_type', '')}"
-    ).lower()
-    physics = next(
-        (
-            name
-            for marker, name in (
-                ("ovphysx", "ovphysx"),
-                ("kamino", "newton_kamino"),
-                ("mjwarp", "newton_mjwarp"),
-                ("physx", "physx"),
-            )
-            if marker in physics_descriptor
-        ),
-        None,
-    )
-
-    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
-    rendering = None
-    stack = [env_cfg]
+def _iter_config_nodes(root: object) -> Iterator[object]:
+    """Yield non-scalar nodes from a concrete configuration tree."""
+    stack = [root]
     visited: set[int] = set()
-    while stack and rendering is None:
+    while stack:
         node = stack.pop()
         if id(node) in visited:
             continue
         visited.add(id(node))
-        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        yield node
         if isinstance(node, dict):
             children = node.values()
         elif isinstance(node, (list, tuple)):
@@ -305,94 +253,86 @@ def _backend_defaults_from_env_cfg(env_cfg: object) -> tuple[str | None, str | N
             for child in children
             if child is not None and not isinstance(child, (str, bytes, int, float, bool, type))
         )
-    return physics, rendering
 
 
-def _expand_preset_tokens(tokens: Sequence[str]) -> list[tuple[str | None, str]]:
-    """Expand Hydra-style preset tokens into ``(selector, value)`` pairs."""
-    physics_label, renderer_label, domain_label, _ = _preset_target_metadata()
-    expanded: list[tuple[str | None, str]] = []
-    for token in tokens:
-        selector, has_value, raw_value = token.partition("=")
-        if not has_value:
-            value = token.strip()
-            if value:
-                expanded.append((None, value))
-            continue
-
-        selector = selector.strip()
-        if selector == domain_label:
-            expanded.extend((selector, value) for value in (v.strip() for v in raw_value.split(",")) if value)
-        elif selector in (physics_label, renderer_label):
-            value = raw_value.strip()
-            if value:
-                expanded.append((selector, value))
-        else:
-            value = token.strip()
-            if value:
-                expanded.append((None, value))
-    return expanded
-
-
-def run_config_from_presets(tokens: Sequence[str], *, env_cfg: object | None = None) -> RunConfig:
-    """Build a :class:`~isaaclab.benchmark.RunConfig` from presets and resolved task config.
-
-    Picks backend defaults from ``env_cfg`` when provided, then applies recognised
-    preset tokens. Without a resolved config, physics defaults to ``"physx"`` and
-    rendering to ``"none"``. Accepts bare preset names as well as Hydra-style
-    ``physics=...``, ``renderer=...``, and ``presets=...`` tokens.
+def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
+    """Build a :class:`~isaaclab.benchmark.RunConfig` from a concrete task config.
 
     Args:
-        tokens: Active preset tokens (e.g. ``["newton_mjwarp", "rgb"]``).
-        env_cfg: Optional resolved task environment configuration. Its active physics
-            and renderer configurations take precedence over token inference.
+        env_cfg: Concrete task environment configuration.
 
     Returns:
         Populated :class:`~isaaclab.benchmark.RunConfig`.
+
+    Raises:
+        ValueError: If the config does not contain a supported concrete physics backend.
     """
-    if not tokens and env_cfg is None:
-        return RunConfig(physics_backend="physx", rendering_backend="none", presets=[])
-
-    physics = "physx"
-    rendering = "none"
-    expanded_tokens = _expand_preset_tokens(tokens)
-    physics_label, renderer_label, _, physics_aliases = _preset_target_metadata()
-    physics_backends = _physics_backend_names()
-    rendering_backends: dict[str, str] | None = None
-
-    def rendering_backend_for(preset_name: str) -> str | None:
-        nonlocal rendering_backends
-        if rendering_backends is None:
-            rendering_backends = _rendering_backend_by_preset()
-        if preset_name in rendering_backends:
-            return rendering_backends[preset_name]
-        if preset_name.endswith("_renderer"):
-            return preset_name.removesuffix("_renderer")
-        return None
-
-    for selector, token in expanded_tokens:
-        if selector == physics_label:
-            physics = physics_aliases.get(token, token)
-        elif selector == renderer_label:
-            rendering = rendering_backend_for(token) or token
+    # Config identities keep this lookup independent of optional simulator imports.
+    # Ordering preserves the existing Kamino-before-MJWarp primary backend label.
+    physics_names = {
+        "isaaclab_newton.physics.kamino_manager_cfg._KaminoSolverCfgBase": "newton_kamino",
+        "isaaclab_newton.physics.mjwarp_manager_cfg.MJWarpSolverCfg": "newton_mjwarp",
+        "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
+        "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
+        "isaaclab_newton.physics.featherstone_manager_cfg.FeatherstoneSolverCfg": "newton_featherstone",
+        "isaaclab_newton.physics.xpbd_manager_cfg.XPBDSolverCfg": "newton_xpbd",
+        "isaaclab_newton.physics.vbd_manager_cfg.VBDSolverCfg": "newton_vbd",
+        "isaaclab_newton.physics.mpm_manager_cfg.MPMSolverCfg": "newton_mpm",
+        "isaaclab_newton.physics.newton_manager_cfg.NewtonCfg": "newton",
+        "isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
+        "isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
+        "isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg": "custom",
+    }
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    solvers = set()
+    coupling = None
+    stack = [physics_cfg]
+    visited = set()
+    while stack:
+        node = stack.pop()
+        if node is None and physics_cfg is None:
+            # Match SimulationContext's existing default without importing PhysX.
+            solvers.add("physx")
+            continue
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        name = next(
+            (
+                physics_names[key]
+                for cls in type(node).__mro__
+                if (key := f"{cls.__module__}.{cls.__name__}") in physics_names
+            ),
+            None,
+        )
+        if name == "newton":
+            stack.append(node.solver_cfg)
+        elif name in ("proxy", "admm"):
+            coupling = name
+            stack.extend(entry.solver_cfg for entry in node.entries)
+        elif name == "custom":
+            coupling = f"custom_{node.coupling_mode}"
+            stack.extend((node.rigid_solver_cfg, node.soft_solver_cfg))
+        elif name is not None:
+            solvers.add(name)
         else:
-            canonical = physics_aliases.get(token, token)
-            if canonical in physics_backends:
-                physics = canonical
-            elif token.endswith("_renderer"):
-                renderer = rendering_backend_for(token)
-                if renderer is not None:
-                    rendering = renderer
+            kind = "concrete physics" if node is physics_cfg else "Newton solver"
+            raise ValueError(f"Unsupported {kind} config: {type(node).__name__}.")
+    if not solvers:
+        raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
+    physics = next(name for name in physics_names.values() if name in solvers)
 
-    if env_cfg is not None:
-        active_physics, active_rendering = _backend_defaults_from_env_cfg(env_cfg)
-        physics = active_physics or physics
-        rendering = active_rendering or rendering
-
+    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    rendering = None
+    for node in _iter_config_nodes(env_cfg):
+        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        if rendering is not None:
+            break
     return RunConfig(
         physics_backend=physics,
-        rendering_backend=rendering,
-        presets=[token for _, token in expanded_tokens],
+        rendering_backend=rendering or "none",
+        physics_solvers=sorted(solvers),
+        physics_coupling=coupling,
     )
 
 

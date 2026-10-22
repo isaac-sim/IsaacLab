@@ -5,7 +5,8 @@
 
 from abc import ABC, abstractmethod
 
-from isaaclab.utils.warp import ProxyArray
+from ...utils.leapp import leapp_tensor_semantics
+from ...utils.warp import ProxyArray
 
 
 class BaseCableObjectData(ABC):
@@ -35,6 +36,7 @@ class BaseCableObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/pose")
     def segment_pose_w(self) -> ProxyArray:
         """Segment actor-frame poses in the simulation world frame.
 
@@ -45,6 +47,7 @@ class BaseCableObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/velocity")
     def segment_velocity_w(self) -> ProxyArray:
         """Segment center-of-mass velocities in the simulation world frame.
 

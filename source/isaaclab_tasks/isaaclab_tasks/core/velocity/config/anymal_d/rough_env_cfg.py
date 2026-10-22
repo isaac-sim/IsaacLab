@@ -3,23 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the ANYmal-D velocity-tracking environment on rough terrain."""
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
+from ...velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 
 @configclass
 class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Configuration for the ANYmal-D velocity-tracking environment on rough terrain."""
+
     def __post_init__(self):
         super().__post_init__()
 
         # scene
-        self.scene.robot = ANYMAL_D_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot", init_state=ANYMAL_D_CFG.init_state.replace(pos=(0.0, 0.0, 0.65))
+        self.scene.robot = replace(
+            ANYMAL_D_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=replace(ANYMAL_D_CFG.init_state, pos=(0.0, 0.0, 0.65)),
         )

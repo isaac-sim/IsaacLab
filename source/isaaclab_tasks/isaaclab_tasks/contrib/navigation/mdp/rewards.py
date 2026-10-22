@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Reward terms for the navigation environment."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

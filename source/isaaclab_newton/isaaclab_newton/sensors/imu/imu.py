@@ -13,8 +13,6 @@ import warp as wp
 
 from isaaclab.sensors.imu import BaseImu
 
-from isaaclab_newton.physics import NewtonManager
-
 from .imu_data import ImuData
 from .kernels import imu_copy_kernel, imu_reset_kernel
 
@@ -57,8 +55,8 @@ class Imu(BaseImu):
         self._newton_sensor: NewtonSensorIMU | None = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
-        self._site_label: str = NewtonManager.cl_register_site(cfg.prim_path, offset_xform)
-        NewtonManager.request_extended_state_attribute("body_qdd")
+        self._site_label: str = self._backend_manager.cl_register_site(cfg.prim_path, offset_xform)
+        self._backend_manager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"IMU '{cfg.prim_path}': site registered (label='{self._site_label}')")
 
@@ -112,7 +110,7 @@ class Imu(BaseImu):
         """PHYSICS_READY callback: resolves site indices and creates the native SensorIMU."""
         super()._initialize_impl()
 
-        site_map = NewtonManager._cl_site_index_map
+        site_map = self._backend_manager._cl_site_index_map
         num_envs = self._num_envs
 
         if self._site_label not in site_map:
@@ -141,8 +139,8 @@ class Imu(BaseImu):
                     )
                 site_indices.append(world_sites[0])
 
-        self._sensor_index = NewtonManager.add_imu_sensor(site_indices)
-        self._newton_sensor = NewtonManager._newton_imu_sensors[self._sensor_index]
+        self._sensor_index = self._backend_manager.add_imu_sensor(site_indices)
+        self._newton_sensor = self._backend_manager._newton_imu_sensors[self._sensor_index]
 
         self._data.create_buffers(num_envs=num_envs, device=self._device)
 
@@ -169,13 +167,7 @@ class Imu(BaseImu):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references to the native Newton sensor and re-registers site/attributes.
-
-        Re-registering here ensures the site and ``body_qdd`` attribute survive a
-        non-teardown stop/reinit cycle. During ``NewtonManager.close()``, Newton
-        state is cleared after ``STOP`` so stale registrations from old sensors
-        cannot leak into the next context.
-        """
+        """Release native handles and renew the model's ``body_qdd`` request, retaining the builder-owned site."""
         super()._invalidate_initialize_callback(event)
         self._newton_sensor = None
         self._sensor_index = None
@@ -186,7 +178,4 @@ class Imu(BaseImu):
         if self._data._lin_acc_b is not None:
             self._data._lin_acc_b.zero_()
 
-        # Re-register so a subsequent start_simulation picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = NewtonManager.cl_register_site(self.cfg.prim_path, offset_xform)
-        NewtonManager.request_extended_state_attribute("body_qdd")
+        self._backend_manager.request_extended_state_attribute("body_qdd")

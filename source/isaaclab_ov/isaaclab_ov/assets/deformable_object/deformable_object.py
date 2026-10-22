@@ -24,7 +24,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov import tensor_types as TT
-from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .deformable_object_data import DeformableObjectData
@@ -68,7 +67,7 @@ class DeformableObject(BaseDeformableObject):
             cfg: Configuration instance for the deformable object.
         """
         super().__init__(cfg)
-        OvPhysxManager.require_full_stage()
+        self._backend_manager.require_full_stage()
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
         self._deformable_type: str | None = None
         self._root_physx_view: OvPhysxDeformableBodyView | None = None
@@ -233,6 +232,7 @@ class DeformableObject(BaseDeformableObject):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         self.root_view.set_attribute(self._sim_nodal_position_type, self._get_nodal_pos_w_f32(), indices=env_ids)
+        self._backend_manager.get_scene_data_backend().geometry_timestamp += 1
 
     def write_nodal_velocity_to_sim_index(
         self,
@@ -322,11 +322,11 @@ class DeformableObject(BaseDeformableObject):
         )
 
     def _initialize_impl(self) -> None:
-        physx_instance = OvPhysxManager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
-        self._device = OvPhysxManager.get_device()
+        self._device = self._backend_manager.get_device()
         if not wp.get_device(self._device).is_cuda:
             raise RuntimeError(
                 f"OVPhysX deformable tensors require a CUDA simulation device; received {self._device!r}."
@@ -414,7 +414,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         root_pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_path_expr)
-        root_pattern = re.sub(r"\.\*", "*", root_pattern)
+        root_pattern = sim_utils.path_expr_to_glob(root_pattern)
         try:
             self._root_physx_view = OvPhysxDeformableBodyView(
                 physx_instance,
@@ -440,7 +440,7 @@ class DeformableObject(BaseDeformableObject):
                 else material_path
             )
             material_pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", material_path_expr)
-            material_pattern = re.sub(r"\.\*", "*", material_pattern)
+            material_pattern = sim_utils.path_expr_to_glob(material_pattern)
             material_tensor_types = [
                 TT.DEFORMABLE_MATERIAL_DYNAMIC_FRICTION,
                 TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS,
@@ -530,6 +530,9 @@ class DeformableObject(BaseDeformableObject):
         """Resolve environment indices to a device-resident int32 Warp array."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            # OVPhysX consumes these IDs directly and requires contiguous DLPack tensors.
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids].contiguous())
         if isinstance(env_ids, torch.Tensor):
             values = env_ids.to(device=self.device, dtype=torch.int32).contiguous()
             return wp.from_torch(values, dtype=wp.int32)

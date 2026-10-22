@@ -10,7 +10,7 @@ kitless against the OVPhysX backend. Also times the blocking native
 ``LINK_INCOMING_JOINT_FORCE`` read in isolation.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_joint_wrench.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_joint_wrench.py --num_envs 4096
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets import CARTPOLE_CFG
 
@@ -51,7 +51,7 @@ wp.init()
 class JointWrenchBenchmarkSceneCfg(InteractiveSceneCfg):
     """One cartpole articulation and JointWrench sensor per environment."""
 
-    robot = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 

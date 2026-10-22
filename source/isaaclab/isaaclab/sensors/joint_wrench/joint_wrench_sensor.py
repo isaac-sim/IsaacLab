@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_joint_wrench_sensor import BaseJointWrenchSensor
 from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 

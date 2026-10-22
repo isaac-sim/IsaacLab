@@ -32,6 +32,4 @@ The MDP implementation is heavily inspired by OmniReset:
   year={2026},
   url={https://arxiv.org/abs/2603.15789},
 }
-
-
 """

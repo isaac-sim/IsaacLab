@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import shlex
 import signal
@@ -24,6 +25,8 @@ import sys
 import time
 from dataclasses import dataclass
 from types import FrameType
+
+logger = logging.getLogger(__name__)
 
 TORCHRUN_ARGS = (
     "nnodes",
@@ -219,8 +222,12 @@ def run_multigpu_cli(argv: list[str] | None, cfg: MultiGpuLauncherCfg) -> int:
     Returns:
         Process exit code.
     """
+    # imported here so that importing the CLI does not require the runtime dependencies
+    from ..app.logging_utils import configure_console_logging
+
     if argv is None:
         argv = sys.argv[1:]
+    configure_console_logging()
 
     args_cli, worker_args = parse_launcher_args(argv, cfg)
     command = build_launch_command(args_cli, worker_args, cfg)
@@ -229,7 +236,7 @@ def run_multigpu_cli(argv: list[str] | None, cfg: MultiGpuLauncherCfg) -> int:
         print(shlex.join(command))
         return 0
 
-    print(f"[INFO] Launching distributed workers with: {shlex.join(command)}")
+    logger.info(f"Launching distributed workers with: {shlex.join(command)}")
     return run_launch_command(command)
 
 
@@ -374,7 +381,7 @@ def _reap_group(pgid: int) -> None:
     deadline = time.monotonic() + _STRAGGLER_GRACE_S
     while _group_is_alive(pgid):
         if time.monotonic() >= deadline:
-            print("[WARNING] Killing distributed workers that outlived the launcher.", file=sys.stderr)
+            logger.warning("Killing distributed workers that outlived the launcher.")
             _signal_group(pgid, signal.SIGKILL)
             return
         time.sleep(_POLL_INTERVAL_S)
@@ -393,15 +400,14 @@ def _run_supervised(command: list[str]) -> int:
 
     def _forward(signum: int, _frame: FrameType | None) -> None:
         if deadlines:
-            print("[WARNING] Second interrupt received; killing distributed workers now.", file=sys.stderr)
+            logger.warning("Second interrupt received; killing distributed workers now.")
             _signal_group(pgid, signal.SIGKILL)
             return
         now = time.monotonic()
         deadlines.update(terminate=now + _GRACEFUL_SHUTDOWN_S, kill=now + _GRACEFUL_SHUTDOWN_S + _FORCED_SHUTDOWN_S)
-        print(
-            f"\n[INFO] Received {signal.Signals(signum).name}; shutting down distributed workers."
-            " Press Ctrl-C again to kill them immediately.",
-            file=sys.stderr,
+        logger.info(
+            f"Received {signal.Signals(signum).name}; shutting down distributed workers."
+            " Press Ctrl-C again to kill them immediately."
         )
         _signal_group(pgid, signum)
 

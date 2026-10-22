@@ -13,7 +13,7 @@ from typing import Any
 
 import torch
 from golden_image import RTX_COLOR_PIXEL_L2_THRESHOLD, camera_output_image, compare_to_golden
-from rendering_cases import KIT_RENDERING_CASES, RenderCase
+from rendering_cases import RenderCase
 from rendering_runtime import SEMANTIC_COLORS, build_rendering_scene
 from rendering_scene_cfgs import make_rendering_scene_spec
 
@@ -50,10 +50,7 @@ def run_rendering_case(
         renderer=case.renderer,
         data_types=case.aovs,
         background_color=case.background_color,
-        camera_eye=scene.camera_eye,
-        camera_target=scene.camera_target,
         physics_cfg=scene.physics_cfg,
-        preserve_fixed_articulation_roots=scene.preserve_fixed_articulation_roots,
     ) as runtime:
         runtime.stabilize_camera()
         outputs, info = runtime.camera_outputs()
@@ -64,20 +61,10 @@ def run_rendering_case(
             motion_outputs, _ = runtime.camera_outputs()
             assert runtime.sim.get_physics_step_count() == 1
             motion = motion_outputs[RenderBufferKind.MOTION_VECTORS]
-            motion = motion if torch.is_tensor(motion) else motion.torch
-            assert torch.isfinite(motion).all(), "Motion vectors contain non-finite values."
-            magnitude = motion[..., :2].abs().amax(dim=-1)
-            peak = magnitude.amax(dim=(1, 2))
-            raw_moving_pixels = (magnitude > 1.0e-6).flatten(1).sum(dim=1)
-            support_pixels = (magnitude >= peak[:, None, None] * 0.99).flatten(1).sum(dim=1)
-            view_pixels = magnitude.shape[1] * magnitude.shape[2]
-            assert torch.all(peak > 1.0e-6), f"Motion-vector peaks stayed zero after one step: {peak.tolist()}"
-            assert torch.all(raw_moving_pixels > 20), f"Too few moving pixels: {raw_moving_pixels.tolist()}"
-            assert torch.all(support_pixels > 0), f"No high-confidence motion: {support_pixels.tolist()}"
-            assert torch.all(support_pixels < view_pixels // 2), f"Motion is not localized: {support_pixels.tolist()}"
+            validate_motion_vectors(motion)
             outputs[RenderBufferKind.MOTION_VECTORS] = motion
 
-        _validate_segmentation(
+        validate_segmentation(
             outputs,
             info,
             scene.expected_instances,
@@ -111,18 +98,7 @@ def run_rendering_case(
         assert not failures, "\n".join([f"{case.id} failed:", *failures])
 
 
-def generate_kit_test_cases() -> Any:
-    """Generate the parametrized Kit test cases from the centrally owned matrix."""
-    import pytest
-
-    @pytest.mark.parametrize("case", KIT_RENDERING_CASES, ids=[case.id for case in KIT_RENDERING_CASES])
-    def test_rendering_scene(case: RenderCase, request: pytest.FixtureRequest) -> None:
-        run_rendering_case(case, request)
-
-    return test_rendering_scene
-
-
-def _validate_segmentation(
+def validate_segmentation(
     outputs: dict[str, torch.Tensor],
     info: dict[str, Any] | None,
     expected_instances: dict[str, str],
@@ -225,3 +201,14 @@ def _validate_segmentation(
             f"Instance-segmentation metadata is not a scene-valid subset.\n"
             f"  expected: {expected_instances}\n  actual: {actual_instances}"
         )
+
+
+def validate_motion_vectors(motion: torch.Tensor) -> None:
+    """Require finite, non-zero motion confined to a minority of pixels in each fixed view."""
+    assert torch.isfinite(motion).all(), "Motion vectors contain non-finite values."
+    magnitude = motion[..., :2].abs().amax(dim=-1)
+    # Static RTX pixels have roundoff near 1e-5 pixels; visible motion is well above that floor.
+    moving_pixels = (magnitude > 1.0e-3).flatten(1).sum(dim=1)
+    view_pixels = magnitude.shape[1] * magnitude.shape[2]
+    assert torch.all(moving_pixels > 20), f"Too few moving pixels: {moving_pixels.tolist()}"
+    assert torch.all(moving_pixels < view_pixels // 2), f"Motion is not localized: {moving_pixels.tolist()}"

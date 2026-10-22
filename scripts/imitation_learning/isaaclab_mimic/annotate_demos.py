@@ -10,13 +10,12 @@ Script to add mimic annotations to demos to be used as source demos for mimic da
 import argparse
 import math
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
 
-# Launching Isaac Sim Simulator first.
+# Parse CLI first so we can decide whether to launch Isaac Sim Kit.
 
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Annotate demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
@@ -37,14 +36,8 @@ parser.add_argument(
 )
 
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+add_launcher_args(parser)
 args_cli, remaining_args = parser.parse_known_args()
-
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 # Call an external callback if requested.
 remaining_args_env_registration = None
@@ -52,33 +45,35 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
+# Extras of the form "key=value" are Hydra-style task config overrides forwarded to
+# parse_env_cfg(); everything else must be consumed by the external callback or is an error.
+hydra_overrides = [arg for arg in remaining_args if "=" in arg]
+unrecognized_args = list_intersection(
+    [arg for arg in remaining_args if arg not in hydra_overrides], remaining_args_env_registration
+)
 if unrecognized_args:
     parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
 
-"""Rest everything follows."""
-
 import contextlib
 import os
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import torch
 
-import isaaclab_mimic.envs  # noqa: F401
-
-# Only enables inputs if this script is NOT headless mode
-if not args_cli.headless and not os.environ.get("HEADLESS", 0):
-    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
-
-from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+
+import isaaclab_mimic.envs  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+if TYPE_CHECKING:
+    # the environment class loads USD, so it is only imported at runtime once the simulation is launched
+    from isaaclab.envs import ManagerBasedRLMimicEnv
 
 is_paused = False
 current_action_index = 0
@@ -195,7 +190,7 @@ def main():
     if env_name is None:
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
 
     env_cfg.env_name = env_name
 
@@ -222,6 +217,20 @@ def main():
 
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
+
+    with launch_simulation(env_cfg, args_cli):
+        return annotate_dataset(env_cfg, dataset_file_handler, success_term)
+
+
+def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, success_term: TerminationTermCfg) -> int:
+    """Create the environment and annotate every episode of the loaded dataset.
+
+    Returns:
+        The number of successfully annotated episodes.
+    """
+    global is_paused, current_action_index, marked_subtask_action_indices
+
+    from isaaclab.envs import ManagerBasedRLMimicEnv
 
     # create environment from loaded config
     env: ManagerBasedRLMimicEnv = gym.make(args_cli.task, cfg=env_cfg).unwrapped
@@ -272,8 +281,10 @@ def main():
     # reset environment
     env.reset()
 
-    # Only enables inputs if this script is NOT headless mode
-    if not args_cli.headless and not os.environ.get("HEADLESS", 0):
+    # Only enables inputs if this script runs with a GUI
+    if env.sim.has_gui:
+        from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+
         keyboard_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
         keyboard_interface.add_callback("N", play_cb)
         keyboard_interface.add_callback("B", pause_cb)
@@ -287,7 +298,7 @@ def main():
     processed_episode_count = 0
     successful_task_count = 0  # Counter for successful task completions
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while simulation_app.is_running() and not simulation_app.is_exiting():
+        while env.sim.is_running():
             # Iterate over the episodes in the loaded dataset file
             for episode_index, episode_name in enumerate(dataset_file_handler.get_episode_names()):
                 processed_episode_count += 1
@@ -331,7 +342,7 @@ def main():
 
 
 def replay_episode(
-    env: ManagerBasedRLMimicEnv,
+    env: "ManagerBasedRLMimicEnv",
     episode: EpisodeData,
     success_term: TerminationTermCfg | None = None,
 ) -> bool:
@@ -376,7 +387,7 @@ def replay_episode(
 
 
 def annotate_episode_in_auto_mode(
-    env: ManagerBasedRLMimicEnv,
+    env: "ManagerBasedRLMimicEnv",
     episode: EpisodeData,
     success_term: TerminationTermCfg | None = None,
 ) -> bool:
@@ -421,7 +432,7 @@ def annotate_episode_in_auto_mode(
 
 
 def annotate_episode_in_manual_mode(
-    env: ManagerBasedRLMimicEnv,
+    env: "ManagerBasedRLMimicEnv",
     episode: EpisodeData,
     success_term: TerminationTermCfg | None = None,
     subtask_term_signal_names: dict[str, list[str]] = {},
@@ -529,9 +540,6 @@ def annotate_episode_in_manual_mode(
 
 
 if __name__ == "__main__":
-    # run the main function
     successful_task_count = main()
-    # close sim app
-    simulation_app.close()
     # exit with the number of successful task completions as return code
     exit(successful_task_count)

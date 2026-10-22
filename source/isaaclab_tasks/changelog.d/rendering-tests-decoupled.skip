@@ -1,1 +1,1 @@
-Test-only: moved golden rendering coverage out of tasks and retained a lightweight camera-task registration smoke test.
+Moved static rendering checks to direct scenes in the private testing project.

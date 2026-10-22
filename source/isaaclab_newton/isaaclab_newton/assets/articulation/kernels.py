@@ -23,6 +23,40 @@ Articulation-specific warp functions.
 
 
 @wp.func
+def incoming_joint_wrench(
+    wrench: wp.spatial_vectorf, link_pose: wp.transformf, com: wp.vec3f, joint_pose: wp.transformf
+) -> wp.spatial_vectorf:
+    """Shift a world-frame COM wrench to the child joint anchor and express it in that frame."""
+    force = wp.spatial_top(wrench)
+    joint_world = link_pose * joint_pose
+    com_world = wp.transform_point(link_pose, com)
+    torque = wp.spatial_bottom(wrench) + wp.cross(com_world - wp.transform_get_translation(joint_world), force)
+    rotation = wp.transform_get_rotation(joint_world)
+    return wp.spatial_vector(wp.quat_rotate_inv(rotation, force), wp.quat_rotate_inv(rotation, torque))
+
+
+@wp.kernel
+def update_body_joint_wrench(
+    body_parent_f: wp.array(dtype=wp.spatial_vectorf, ndim=2),
+    body_q: wp.array(dtype=wp.transformf, ndim=2),
+    body_com: wp.array(dtype=wp.vec3f, ndim=2),
+    body_joint_pose: wp.array(dtype=wp.transformf, ndim=2),
+    report_body: wp.array(dtype=wp.bool),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    out: wp.array(dtype=wp.spatial_vectorf, ndim=2),
+):
+    """Convert reportable tree-joint wrenches into the articulation's public body order."""
+    env, user_body = wp.tid()
+    body = resolve_backend_index(user_body, user_to_backend, has_ordering)
+    out[env, user_body] = wp.spatial_vectorf(0.0)
+    if report_body[body]:
+        out[env, user_body] = incoming_joint_wrench(
+            body_parent_f[env, body], body_q[env, body], body_com[env, body], body_joint_pose[env, body]
+        )
+
+
+@wp.func
 def compute_soft_joint_pos_limits_func(
     joint_pos_limits: wp.vec2f,
     soft_limit_factor: wp.float32,
@@ -631,52 +665,6 @@ def update_targets(
 
 
 @wp.kernel
-def update_actuator_state_model(
-    source_computed_effort: wp.array2d(dtype=wp.float32),
-    source_applied_effort: wp.array2d(dtype=wp.float32),
-    source_gear_ratio: wp.array2d(dtype=wp.float32),
-    source_vel_limits: wp.array2d(dtype=wp.float32),
-    joint_indices: wp.array(dtype=wp.int32),
-    target_computed_effort: wp.array2d(dtype=wp.float32),
-    target_applied_effort: wp.array2d(dtype=wp.float32),
-    target_gear_ratio: wp.array2d(dtype=wp.float32),
-    target_soft_joint_vel_limits: wp.array2d(dtype=wp.float32),
-):
-    """Update actuator state model parameters from source arrays using joint indices.
-
-    This kernel copies actuator state model parameters (computed effort, applied effort,
-    gear ratio, and velocity limits) from source arrays to target arrays, remapping
-    joint indices using the provided joint_indices array.
-
-    Args:
-        source_computed_effort: Input array of source computed effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_applied_effort: Input array of source applied effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_gear_ratio: Input array of source gear ratio values. Shape is
-            (num_envs, num_selected_joints). Can be None if not provided.
-        source_vel_limits: Input array of source velocity limit values. Shape is
-            (num_envs, num_selected_joints).
-        joint_indices: Input array of joint indices for remapping. Shape is
-            (num_selected_joints,). Specifies which joints in the target arrays to update.
-        target_computed_effort: Output array where computed effort values are written.
-            Shape is (num_envs, num_joints).
-        target_applied_effort: Output array where applied effort values are written.
-            Shape is (num_envs, num_joints).
-        target_gear_ratio: Output array where gear ratio values are written. Shape is
-            (num_envs, num_joints).
-        target_soft_joint_vel_limits: Output array where soft joint velocity limits are
-            written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    target_computed_effort[i, joint_indices[j]] = source_computed_effort[i, j]
-    target_applied_effort[i, joint_indices[j]] = source_applied_effort[i, j]
-    target_soft_joint_vel_limits[i, joint_indices[j]] = source_vel_limits[i, j]
-    if source_gear_ratio:
-        target_gear_ratio[i, joint_indices[j]] = source_gear_ratio[i, j]
-
-
-@wp.kernel
 def extract_friction_properties(
     friction_props: wp.array3d(dtype=wp.float32),
     out_friction: wp.array2d(dtype=wp.float32),
@@ -1114,3 +1102,21 @@ def write_joint_state_data_mask(
         joint_vel[i, j] = vel_data[i, j]
         prev_joint_vel[i, j] = vel_data[i, j]
         joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def scatter_fixed_tendon_position_targets(
+    position_target: wp.array2d(dtype=wp.float32),
+    actuator_columns: wp.array(dtype=wp.int32),
+    target_tendon_ids: wp.array(dtype=wp.int32),
+    commands: wp.array3d(dtype=wp.float32),
+) -> None:
+    """Scatter buffered fixed-tendon targets into the view-shaped MuJoCo control buffer.
+
+    ``commands`` is the buffer the articulation view writes to ``mujoco.ctrl``, so the view owns
+    the mapping onto the flat control array and this kernel does no layout arithmetic. One thread
+    per *actuator* that transmits to a tendon: a tendon nothing drives has no entry, and several
+    actuators may name the same tendon.
+    """
+    env_id, entry = wp.tid()
+    commands[env_id, 0, actuator_columns[entry]] = position_target[env_id, target_tendon_ids[entry]]

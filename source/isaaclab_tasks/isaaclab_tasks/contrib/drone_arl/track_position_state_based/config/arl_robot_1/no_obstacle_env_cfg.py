@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
@@ -20,7 +20,7 @@ class NoObstacleEnvCfg(TrackPositionNoObstaclesEnvCfg):
         # post init of parent
         super().__post_init__()
         # switch robot to arl_robot_1
-        self.scene.robot = ARL_ROBOT_1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(ARL_ROBOT_1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["thrusters"].dt = self.sim.dt
 
     def play_mode(self):

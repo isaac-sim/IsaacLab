@@ -19,6 +19,8 @@ from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
 # global variable to keep track of the data generation statistics
 num_success = 0
 num_failures = 0
@@ -140,6 +142,18 @@ def env_loop(
                     print(f"Reached {generation_num_trials} successes/attempts. Exiting.")
                     break
 
+                # with the success guarantee on, nothing else bounds the run: a task that rarely
+                # succeeds retries forever. max_num_failures is the opt-in bound on that. Without the
+                # guarantee the check above already stops on generation_num_trials attempts, so the
+                # cap has nothing to add and must not cut a fixed-attempt run short.
+                max_num_failures = env.cfg.datagen_config.max_num_failures
+                if generation_guarantee and max_num_failures is not None and num_failures >= max_num_failures:
+                    print(
+                        f"Reached {num_failures} failures (max_num_failures={max_num_failures}) after"
+                        f" {num_success}/{generation_num_trials} successes. Exiting."
+                    )
+                    break
+
             # check that simulation is stopped or not
             if env.sim.is_stopped():
                 break
@@ -157,6 +171,7 @@ def setup_env_config(
     generation_num_trials: int | None = None,
     recorder_cfg: RecorderManagerBaseCfg | None = None,
     dataset_compression: bool = True,
+    env_cfg: Any | None = None,
 ) -> tuple[Any, Any]:
     """Configure the environment for data generation.
 
@@ -169,6 +184,8 @@ def setup_env_config(
         generation_num_trials: Optional override for number of trials
         recorder_cfg: Recorder manager configuration. Overrides recorder configurations supplied by the environment.
         dataset_compression: Whether to enable dataset compression
+        env_cfg: Environment configuration to configure in place, e.g. the one passed to
+            :func:`~isaaclab.app.launch_simulation`. Parsed from *env_name* when None.
 
     Returns:
         tuple containing:
@@ -178,9 +195,8 @@ def setup_env_config(
     Raises:
         NotImplementedError: If no success termination term found
     """
-    from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
-
-    env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
+    if env_cfg is None:
+        env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
 
     if generation_num_trials is not None:
         env_cfg.datagen_config.generation_num_trials = generation_num_trials

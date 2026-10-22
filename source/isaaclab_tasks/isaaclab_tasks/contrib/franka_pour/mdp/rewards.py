@@ -13,9 +13,10 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, TerminationTermCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 
-from .observations import _nearest_grasp_to_tcp_quat
+from .observations import nearest_grasp_to_tcp_quat
 
 if TYPE_CHECKING:
     from ..pour_env import FrankaPourEnv
@@ -57,7 +58,7 @@ def tcp_cup_grasp_pose_tanh(
     distance = torch.linalg.vector_norm(env.tcp_pose_e()[:, :3] - env.cup_grasp_point_e(), dim=-1)
     position_quality = 1.0 - torch.tanh(distance / float(position_std))
 
-    error_quat = _nearest_grasp_to_tcp_quat(env)
+    error_quat = nearest_grasp_to_tcp_quat(env)
     orientation_error = torch.linalg.vector_norm(math_utils.axis_angle_from_quat(error_quat), dim=-1)
     orientation_quality = 1.0 - torch.tanh(orientation_error / float(orientation_std))
 
@@ -229,9 +230,9 @@ class PourResetLearningProgress(ManagerTermBase):
 
         self._target_potential[env_ids] = target
         self._requires_terminal_success[env_ids] = target >= 1.0 - 1.0e-6
-        self.is_success[env_ids] = False
-        self.new_success[env_ids] = False
-        self.ever_success[env_ids] = False
+        index_fill_(self.is_success, env_ids, False)
+        index_fill_(self.new_success, env_ids, False)
+        index_fill_(self.ever_success, env_ids, False)
 
     def __call__(
         self,

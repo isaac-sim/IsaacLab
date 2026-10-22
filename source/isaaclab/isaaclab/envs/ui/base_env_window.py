@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.stage import resolve_paths
-from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.ui.widgets.ui_visualizer_base import UiVisualizerBase
-from isaaclab.utils.version import has_kit
+from ...sim.utils.stage import resolve_paths
+from ...ui.widgets import ManagerLiveVisualizer
+from ...ui.widgets.ui_visualizer_base import UiVisualizerBase
+from ...utils.version import has_kit
 
 if has_kit():
     import isaacsim
@@ -80,7 +80,7 @@ class BaseEnvWindow:
 
         # keep a dictionary of stacks so that child environments can add their own UI elements
         # this can be done by using the `with` context manager
-        self.ui_window_elements = dict()
+        self.ui_window_elements = {}
         # create main frame
         self.ui_window_elements["main_frame"] = self.ui_window.frame
         with self.ui_window_elements["main_frame"]:
@@ -212,7 +212,7 @@ class BaseEnvWindow:
                 viewport_origin_cfg = {
                     "label": "Environment Index",
                     "type": "button",
-                    "default_val": (_viz.cfg.origin_env_index if _viz is not None else 0) + 1,
+                    "default_val": (_viz.cfg.backend.origin_env_index if _viz is not None else 0) + 1,
                     "min": 1,
                     "max": self.env.num_envs,
                     "tooltip": "The environment index to follow. Only effective if follow mode is not 'World'.",
@@ -422,14 +422,14 @@ class BaseEnvWindow:
             return
 
         if value == "World":
-            viz.cfg.origin_type = "world"
+            viz.cfg.backend.origin_type = "world"
         elif value == "Env":
-            viz.cfg.origin_type = "env"
+            viz.cfg.backend.origin_type = "env"
         else:
             fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
             viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
-            viz.cfg.origin_type = "asset"
-            viz.cfg.origin_track_path = viewer_asset_name
+            viz.cfg.backend.origin_type = "asset"
+            viz.cfg.backend.origin_track_path = viewer_asset_name
 
         # Reposition the viewport camera immediately so the new origin is reflected
         # without waiting for the next env.step() call.
@@ -461,11 +461,11 @@ class BaseEnvWindow:
         viz = self._get_kit_visualizer()
         env_index = model.as_int - 1
         if viz is not None:
-            viz.cfg.origin_env_index = env_index
+            viz.cfg.backend.origin_env_index = env_index
             # For "env" origin the camera must be repositioned immediately; for asset-tracking
             # origins reapply_origin() defers the update to the next step() call (asset state
             # is needed to compute the new position).
-            if viz.cfg.origin_type == "env":
+            if viz.cfg.backend.origin_type == "env":
                 viz.reapply_origin()
         # notify additional listeners
         for listener in self._ui_listeners:

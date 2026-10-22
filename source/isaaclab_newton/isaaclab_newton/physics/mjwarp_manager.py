@@ -14,9 +14,8 @@ import warp as wp
 from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
-from isaaclab.physics import PhysicsManager
-
 from .mjwarp_manager_cfg import MJWarpSolverCfg
+from .mjwarp_tendon_control import MjWarpTendonControl
 from .newton_manager import NewtonManager
 
 logger = logging.getLogger(__name__)
@@ -31,17 +30,23 @@ class NewtonMJWarpManager(NewtonManager):
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
 
+    _builder_attribute_solvers = (SolverMuJoCo,)
+
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
+    def _create_solver(
+        cls,
+        model: Model,
+        solver_cfg: MJWarpSolverCfg,
+        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+    ) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver."""
-        kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
+        kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg, deterministic_mode)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
         return SolverMuJoCo(model, **kwargs)
 
-    @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
-        """Construct :class:`SolverMuJoCo` and populate the base-class slots.
+    def _build_solver(self, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
+        """Construct :class:`SolverMuJoCo` and populate the solver slots.
 
         Filters cfg fields against the solver's ``__init__`` signature so
         non-constructor metadata (``solver_type``, ``class_type``) and the
@@ -49,12 +54,12 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        NewtonManager._solver = cls._create_solver(model, solver_cfg)
-        NewtonManager._use_single_state = True
-        NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
-        NewtonManager._supports_rigid_body_force_input = True
+        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self._use_single_state = True
+        self._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+        self._supports_rigid_body_force_input = True
 
-        cfg = PhysicsManager._cfg
+        cfg = self._cfg
         # Cross-config validation that needs both halves.
         if solver_cfg.use_mujoco_contacts and cfg.collision_cfg is not None:
             raise ValueError(
@@ -63,8 +68,18 @@ class NewtonMJWarpManager(NewtonManager):
                 "use_mujoco_contacts=False or remove collision_cfg."
             )
 
-    @classmethod
-    def _initialize_contacts(cls) -> None:
+    def create_fixed_tendon_control(self, articulation):
+        """Build the MuJoCo tendon adapter for ``articulation``.
+
+        Args:
+            articulation: Newton articulation to drive.
+
+        Returns:
+            The adapter, or None when no MuJoCo actuator transmits to any of its tendons.
+        """
+        return MjWarpTendonControl.create(articulation, self.get_model())
+
+    def _initialize_contacts(self) -> None:
         """Allocate contact buffers.
 
         Delegates to the base implementation when Newton's
@@ -74,19 +89,18 @@ class NewtonMJWarpManager(NewtonManager):
         maximum contact count; ``solver.update_contacts`` later populates it
         from MuJoCo data for contact-sensor reporting.
         """
-        if cls._needs_collision_pipeline:
+        if self._needs_collision_pipeline:
             super()._initialize_contacts()
             return
-        if cls._solver is not None:
-            NewtonManager._contacts = Contacts(
-                rigid_contact_max=cls._solver.get_max_contact_count(),
+        if self._solver is not None:
+            self._contacts = Contacts(
+                rigid_contact_max=self._solver.get_max_contact_count(),
                 soft_contact_max=0,
-                device=PhysicsManager._device,
-                requested_attributes=cls._model.get_requested_contact_attributes(),
+                device=self._device,
+                requested_attributes=self.backend.model.get_requested_contact_attributes(),
             )
 
-    @classmethod
-    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+    def _reset_solver_internals(self, world_mask: wp.array | None) -> None:
         """Clear MuJoCo Warp solver-internal state for flagged worlds.
 
         Specializes the base hook, whose :meth:`SolverBase.reset` call resolves
@@ -101,10 +115,10 @@ class NewtonMJWarpManager(NewtonManager):
 
         With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
         and its reset path is not mask-aware — it clears the buffers for every
-        world.  Since this hook fires on every step/forward boundary (usually
-        with an all-``False`` mask), the CPU path is gated on at least one
-        world actually being flagged so warm-starting is not defeated on every
-        step.
+        world.  Since this hook can fire with an all-``False`` mask (e.g. on
+        every forward boundary after a graph-captured write), the CPU path is
+        gated on at least one world actually being flagged so warm-starting is
+        not defeated on every step.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
@@ -113,30 +127,28 @@ class NewtonMJWarpManager(NewtonManager):
         """
         if world_mask is None:
             return
-        if cls._solver.use_mujoco_cpu and not world_mask.numpy().any():
+        if self._solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
-        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        self._solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
 
-    @classmethod
-    def _log_solver_debug(cls) -> None:
+    def _log_solver_debug(self) -> None:
         """Optionally log MuJoCo solver convergence at the end of step."""
-        cfg = PhysicsManager._cfg
+        cfg = self._cfg
         if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
-            data = cls._get_solver_convergence_steps()
+            data = self._get_solver_convergence_steps()
             logger.info(f"Solver convergence data: {data}")
-            if data["max"] == cls._solver.mjw_model.opt.iterations:
+            if data["max"] == self._solver.mjw_model.opt.iterations:
                 logger.warning(f"Solver didn't converge! max_iter={data['max']}")
 
-    @classmethod
-    def _get_solver_convergence_steps(cls) -> dict[str, float | int]:
+    def _get_solver_convergence_steps(self) -> dict[str, float | int]:
         """Return MuJoCo Warp solver convergence statistics.
 
         Reads ``mjw_data.solver_niter`` (only available on
         :class:`SolverMuJoCo`) and summarizes per-environment iteration counts.
         """
-        niter = cls._solver.mjw_data.solver_niter.numpy()
+        niter = self._solver.mjw_data.solver_niter.numpy()
         return {
             "max": np.max(niter),
             "mean": np.mean(niter),

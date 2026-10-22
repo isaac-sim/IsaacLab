@@ -17,13 +17,12 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from .commands_cfg import NormalVelocityCommandCfg, UniformVelocityCommandCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -131,7 +130,7 @@ class UniformVelocityCommand(CommandTerm):
         self._error_yaw_sum += error_yaw
         self._step_count += 1.0
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         # Finalize the just-ended episode's metrics into ``self.metrics`` BEFORE the base
         # class reads them. ``success_rate`` is per-env binary: the *episode-mean* error
         # is below both thresholds. Then super().reset() logs and zeros ``self.metrics``;
@@ -151,14 +150,15 @@ class UniformVelocityCommand(CommandTerm):
         # / wandb card across tasks); pop it from the returned dict so CommandManager does
         # not additionally log it under ``Metrics/<term_name>/success_rate``.
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
-        self._error_xy_sum[env_ids] = 0.0
-        self._error_yaw_sum[env_ids] = 0.0
-        self._step_count[env_ids] = 0.0
+        index_fill_(self._error_xy_sum, env_ids, 0.0)
+        index_fill_(self._error_yaw_sum, env_ids, 0.0)
+        index_fill_(self._step_count, env_ids, 0.0)
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample velocity commands
-        r = torch.empty(len(env_ids), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        r = torch.empty(num_envs, device=self.device)
         # -- linear velocity - x direction
         self.vel_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
         # -- linear velocity - y direction
@@ -181,21 +181,15 @@ class UniformVelocityCommand(CommandTerm):
         """
         # Compute angular velocity from heading direction
         if self.cfg.heading_command:
-            # resolve indices of heading envs
-            env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
-            # compute angular velocity
-            heading_error = math_utils.wrap_to_pi(
-                self.heading_target[env_ids] - self.robot.data.heading_w.torch[env_ids]
-            )
-            self.vel_command_b[env_ids, 2] = torch.clip(
+            heading_error = math_utils.wrap_to_pi(self.heading_target - self.robot.data.heading_w.torch)
+            heading_ang_vel = torch.clip(
                 self.cfg.heading_control_stiffness * heading_error,
                 min=self.cfg.ranges.ang_vel_z[0],
                 max=self.cfg.ranges.ang_vel_z[1],
             )
+            self.vel_command_b[:, 2] = torch.where(self.is_heading_env, heading_ang_vel, self.vel_command_b[:, 2])
         # Enforce standing (i.e., zero velocity command) for standing envs
-        # TODO: check if conversion is needed
-        standing_env_ids = self.is_standing_env.nonzero(as_tuple=False).flatten()
-        self.vel_command_b[standing_env_ids, :] = 0.0
+        index_fill_(self.vel_command_b, self.is_standing_env, 0.0)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
@@ -233,8 +227,19 @@ class UniformVelocityCommand(CommandTerm):
             self.robot.data.root_lin_vel_b.torch[:, :2]
         )
         # display markers
-        self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
-        self.current_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
+        environment_ids = self._env.scene._ALL_INDICES
+        self.goal_vel_visualizer.visualize(
+            base_pos_w,
+            vel_des_arrow_quat,
+            vel_des_arrow_scale,
+            environment_ids=environment_ids,
+        )
+        self.current_vel_visualizer.visualize(
+            base_pos_w,
+            vel_arrow_quat,
+            vel_arrow_scale,
+            environment_ids=environment_ids,
+        )
 
     """
     Internal helpers.
@@ -294,7 +299,8 @@ class NormalVelocityCommand(UniformVelocityCommand):
 
     def _resample_command(self, env_ids):
         # sample velocity commands
-        r = torch.empty(len(env_ids), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        r = torch.empty(num_envs, device=self.device)
         # -- linear velocity - x direction
         self.vel_command_b[env_ids, 0] = r.normal_(mean=self.cfg.ranges.mean_vel[0], std=self.cfg.ranges.std_vel[0])
         self.vel_command_b[env_ids, 0] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
@@ -317,14 +323,9 @@ class NormalVelocityCommand(UniformVelocityCommand):
     def _update_command(self):
         """Sets velocity command to zero for standing envs."""
         # Enforce standing (i.e., zero velocity command) for standing envs
-        standing_env_ids = self.is_standing_env.nonzero(as_tuple=False).flatten()  # TODO check if conversion is needed
-        self.vel_command_b[standing_env_ids, :] = 0.0
+        index_fill_(self.vel_command_b, self.is_standing_env, 0.0)
 
         # Enforce zero velocity for individual elements
-        # TODO: check if conversion is needed
-        zero_vel_x_env_ids = self.is_zero_vel_x_env.nonzero(as_tuple=False).flatten()
-        zero_vel_y_env_ids = self.is_zero_vel_y_env.nonzero(as_tuple=False).flatten()
-        zero_vel_yaw_env_ids = self.is_zero_vel_yaw_env.nonzero(as_tuple=False).flatten()
-        self.vel_command_b[zero_vel_x_env_ids, 0] = 0.0
-        self.vel_command_b[zero_vel_y_env_ids, 1] = 0.0
-        self.vel_command_b[zero_vel_yaw_env_ids, 2] = 0.0
+        index_fill_(self.vel_command_b[:, 0], self.is_zero_vel_x_env, 0.0)
+        index_fill_(self.vel_command_b[:, 1], self.is_zero_vel_y_env, 0.0)
+        index_fill_(self.vel_command_b[:, 2], self.is_zero_vel_yaw_env, 0.0)

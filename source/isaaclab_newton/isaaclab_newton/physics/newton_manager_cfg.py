@@ -8,17 +8,44 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
+    from newton import ModelBuilder
+
     from isaaclab_newton.physics import NewtonManager
 
+    from .newton_manager import NewtonBackend
+
 logger = logging.getLogger(__name__)
+
+
+@configclass
+class NewtonBuilderCfg:
+    """Share mutable construction data, populated before model allocation and retained across hard resets."""
+
+    class_type: Callable[[NewtonBuilderCfg], ModelBuilder] | str = "{DIR}.newton_manager:create_newton_builder"
+    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
+    """Selected physics settings; non-Newton physics requires a render-only Newton representation."""
+
+
+@configclass
+class NewtonBackendCfg(BackendCfg):
+    """Allocate model and state from the matching builder; closing them leaves the builder intact."""
+
+    class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
+    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
+    """Selected physics settings, also identifying the shared construction builder."""
+    device: str = MISSING
+    """Device on which to allocate the model and native buffers."""
 
 
 @configclass
@@ -50,6 +77,28 @@ class NewtonSolverCfg:
         Manager dispatch is now driven by :attr:`class_type`; this field is
         retained as metadata for logging and debugging only.  Do not branch on
         ``solver_type`` in new code.
+    """
+
+
+@configclass
+class NewtonSoftContactCfg:
+    """Global soft-contact parameters applied to the finalized Newton model."""
+
+    soft_contact_ke: float = 1.0e3
+    """Body-particle and particle self-contact stiffness [N/m].
+
+    Effective body-particle stiffness is ``0.5 * (soft_contact_ke + shape_ke)``,
+    where ``shape_ke`` is the rigid shape's material stiffness.
+    """
+
+    soft_contact_kd: float = 10.0
+    """Body-particle contact damping [N*s/m]."""
+
+    soft_contact_mu: float = 0.5
+    """Body-particle contact friction coefficient [dimensionless].
+
+    Effective body-particle friction is ``sqrt(soft_contact_mu * shape_mu)``,
+    where ``shape_mu`` is the rigid shape's material friction coefficient.
     """
 
 
@@ -131,6 +180,10 @@ class NewtonCfg(PhysicsCfg):
     use_cuda_graph: bool = True
     """Whether to use CUDA graphing when simulating.
 
+    Graphs are captured immediately after the first eager physics step, after reset and decimation
+    setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
+    capture mode; kitless simulation uses Warp's standard capture mode.
+
     If set to False, the simulation performance will be severely degraded.
     """
 
@@ -158,6 +211,12 @@ class NewtonCfg(PhysicsCfg):
     solver_cfg: NewtonSolverCfg | None = None
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
 
+    soft_contact_cfg: NewtonSoftContactCfg | None = None
+    """Global soft-contact parameters applied after model finalization.
+
+    If ``None``, Newton model defaults are preserved.
+    """
+
     collision_cfg: NewtonCollisionPipelineCfg | None = None
     """Newton collision pipeline configuration.
 
@@ -168,6 +227,7 @@ class NewtonCfg(PhysicsCfg):
     - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
+    - :class:`VBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
@@ -247,6 +307,7 @@ class NewtonCfg(PhysicsCfg):
             from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
+
         self.class_type = self.solver_cfg.class_type
 
         # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.

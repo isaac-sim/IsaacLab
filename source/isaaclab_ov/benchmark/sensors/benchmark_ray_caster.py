@@ -7,11 +7,10 @@
 
 Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_ray_caster.py`` but runs
 kitless against the OVPhysX backend. By default, matched sensors cast against a
-plane and deterministic rough terrain. The script also times each blocking
-native ``RIGID_BODY_POSE`` binding read in isolation.
+plane and deterministic rough terrain, including shared scene-pose refresh.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
 """
 
 from __future__ import annotations
@@ -45,6 +44,7 @@ if args_cli.grid_resolution <= 0:
 import torch
 import warp as wp
 from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -54,7 +54,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.seed import configure_seed
 
 wp.init()
@@ -71,8 +71,11 @@ def _sensor_body_cfg(prim_path: str, position: tuple[float, float, float] = (0.0
         prim_path=prim_path,
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                PhysxRigidBodyCfg(disable_gravity=True),
+            ],
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=position),
     )
@@ -165,15 +168,11 @@ def main() -> None:
             # Intentionally drain warm-up work before any timed boundary.
             wp.synchronize_device(sim.device)
 
-            native_read = None
-            if sensor._ovphysx_body_view is not None:
-                native_read = partial(sensor._ovphysx_body_view.read, sensor._pose_buf)
             samples_by_workload[workload] = collect_sensor_latency_samples(
                 num_steps=args_cli.num_steps,
                 step=sim.step,
                 update=lambda sensor=sensor: sensor.update(sim_dt, force_recompute=True),
                 synchronize=synchronize_device,
-                native_read=native_read,
             )
 
             ray_hits = sensor.data.ray_hits_w.torch
@@ -233,7 +232,6 @@ def main() -> None:
                 update_phase=f"{workload}_sensor_update",
                 observer_phase=f"{workload}_observer",
                 validation_phase=f"{workload}_validation",
-                native_read_phase=f"{workload}_native_read",
             )
         benchmark.finalize()
 

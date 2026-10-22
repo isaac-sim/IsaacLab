@@ -18,10 +18,8 @@ from pxr import UsdPhysics
 
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .frame_transformer_data import FrameTransformerData
 from .kernels import frame_transformer_update_kernel
@@ -165,7 +163,7 @@ class FrameTransformer(BaseFrameTransformer):
         # create unnecessary views.
         body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
         # The offsets associated with each target frame
-        target_offsets: dict[str, dict[str, torch.Tensor]] = {}
+        target_offsets: dict[tuple[str, str], dict[str, torch.Tensor]] = {}
         # The frames whose offsets are not identity (use set to avoid duplicates across envs)
         non_identity_offset_frames: set[str] = set()
 
@@ -185,17 +183,20 @@ class FrameTransformer(BaseFrameTransformer):
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
         frame_types = ["source"] + ["target"] * len(self.cfg.target_frames)
         for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
-            # Resolve the source-side env prims (filtered to rigid bodies) and their destination
-            # expressions. Plan-aware: with an active ``ClonePlan``, only env-0 representatives
-            # are walked and dest expressions are rebuilt against the plan's destination glob.
-            def has_rigid_body_api(prim) -> bool:
-                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
-
-            matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, raise_if_no_matches=False)
+            matches = [
+                (prim, destination)
+                for prim, destination in resolve_matching_prims_from_source(prim_path, raise_if_no_matches=False)
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ]
             if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
                     " No matching rigid-body prims were found."
+                )
+            if frame_type == "source" and len(matches) != 1:
+                raise ValueError(
+                    f"Expected one source rigid-body prim for frame '{frame}' with path '{prim_path}',"
+                    f" found {len(matches)}."
                 )
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
@@ -226,7 +227,7 @@ class FrameTransformer(BaseFrameTransformer):
                     if not is_identity_pose(offset_pos, offset_quat):
                         non_identity_offset_frames.add(frame_name)
                         self._apply_target_frame_offset = True
-                    target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
+                    target_offsets[(body_name, frame_name)] = {"pos": offset_pos, "quat": offset_quat}
 
         if not self._apply_target_frame_offset:
             logger.info(
@@ -247,11 +248,11 @@ class FrameTransformer(BaseFrameTransformer):
         # Plan-mode dest expressions use ``env_.*`` (regex), legacy mode produces concrete
         # ``env_0`` paths; chain both substitutions so each mode normalises to ``env_*``.
         body_names_regex = [
-            tracked_prim_path.replace(".*", "*").replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
+            path_expr_to_glob(tracked_prim_path).replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
         ]
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
@@ -298,8 +299,8 @@ class FrameTransformer(BaseFrameTransformer):
         # -- target frames: use relative prim path for unique identification
         self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
 
-        # -- source frame: use relative prim path for unique identification
-        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
+        # -- source frame: retain the concrete body resolved from the configured expression
+        self._source_frame_body_name = tracked_body_names[0]
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame
@@ -333,9 +334,9 @@ class FrameTransformer(BaseFrameTransformer):
         for i, body_name in enumerate(self._target_frame_body_names):
             for frame in body_names_to_frames[body_name]["frames"]:
                 # Only need to handle target frames here as source frame is handled separately
-                if frame in target_offsets:
-                    target_frame_offset_pos.append(target_offsets[frame]["pos"])
-                    target_frame_offset_quat.append(target_offsets[frame]["quat"])
+                if (body_name, frame) in target_offsets:
+                    target_frame_offset_pos.append(target_offsets[(body_name, frame)]["pos"])
+                    target_frame_offset_quat.append(target_offsets[(body_name, frame)]["quat"])
                     self._target_frame_names.append(frame)
                     duplicate_frame_indices.append(i)
 
@@ -486,6 +487,7 @@ class FrameTransformer(BaseFrameTransformer):
                 self.frame_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        self._update_outdated_buffers()
         # Convert warp -> torch at the boundary for visualization
         source_pos_w = wp.to_torch(self._data._source_pos_w)
         source_quat_w = wp.to_torch(self._data._source_quat_w)
@@ -605,5 +607,8 @@ class FrameTransformer(BaseFrameTransformer):
         Returns:
             The prim path with `/envs/env_<id>/` removed, preserving `/envs/`.
         """
-        pattern = re.compile(r"/envs/env_[^/]+/")
+        # the input may be a concrete path or an expression, so the environment segment can be a
+        # concrete id or a wildcard standing for one; a wildcard written as a character class holds
+        # a '/' that is not a separator and would otherwise be split by the one-segment alternative
+        pattern = re.compile(r"/envs/env_(?:\[\^/\][*+]|\.\*|[^/]+)/")
         return pattern.sub("/envs/", prim_path)

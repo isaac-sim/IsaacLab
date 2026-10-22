@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""IsaacTeleop-based teleoperation device for Isaac Lab."""
+"""Isaac Capture-based teleoperation device for Isaac Lab."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+from scipy.spatial.transform import Rotation
+
+from isaaclab.sim.utils.stage import get_current_stage_id
 
 from .command_handler import CommandHandler
 from .control_events import ControlEvents
@@ -30,9 +33,9 @@ logger = logging.getLogger(__name__)
 
 
 class IsaacTeleopDevice:
-    """A IsaacTeleop-based teleoperation device for Isaac Lab.
+    """An Isaac Capture-based teleoperation device for Isaac Lab.
 
-    This device provides an interface between IsaacTeleop's retargeting pipeline
+    This device provides an interface between Isaac Capture's retargeting pipeline
     and Isaac Lab environments.  It composes three focused collaborators:
 
     * :class:`XrAnchorManager` -- XR anchor prim setup, synchronization,
@@ -45,10 +48,10 @@ class IsaacTeleopDevice:
     Together they manage:
 
     1. XR anchor configuration and synchronization
-    2. IsaacTeleop session lifecycle
+    2. Isaac Capture session lifecycle
     3. Action tensor generation from the retargeting pipeline
 
-    The device uses IsaacTeleop's TensorReorderer to flatten pipeline outputs
+    The device uses Isaac Capture's TensorReorderer to flatten pipeline outputs
     into a single action tensor matching the environment's action space.
 
     Frame rebasing:
@@ -114,10 +117,10 @@ class IsaacTeleopDevice:
         enable_debug_visualization: bool = False,
         haptic_cfg: HapticFeedbackCfg | None = None,
     ):
-        """Initialize the IsaacTeleop device.
+        """Initialize the Isaac Capture device.
 
         Args:
-            cfg: Configuration object for IsaacTeleop settings.
+            cfg: Configuration object for Isaac Capture settings.
             cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
                 When provided and *auto_launch_cloudxr* is ``True``, the
                 CloudXR runtime is launched automatically during session
@@ -151,6 +154,7 @@ class IsaacTeleopDevice:
                 ...).  ``None`` disables haptics.
         """
         self._cfg = cfg
+        self._target_world_matrix = None
 
         self._anchor_manager = XrAnchorManager(cfg.xr_cfg)
         self._command_handler = CommandHandler()
@@ -185,9 +189,9 @@ class IsaacTeleopDevice:
             self._anchor_manager.cleanup()
 
     def __str__(self) -> str:
-        """Returns a string containing information about the IsaacTeleop device."""
+        """Returns a string containing information about the Isaac Capture device."""
         xr_cfg = self._cfg.xr_cfg
-        msg = f"IsaacTeleop Device: {self.__class__.__name__}\n"
+        msg = f"Isaac Capture Device: {self.__class__.__name__}\n"
         msg += f"\tAnchor Position: {xr_cfg.anchor_pos}\n"
         msg += f"\tAnchor Rotation: {xr_cfg.anchor_rot}\n"
         if xr_cfg.anchor_prim_path is not None:
@@ -210,21 +214,34 @@ class IsaacTeleopDevice:
         return msg
 
     def __enter__(self) -> IsaacTeleopDevice:
-        """Enter the context manager and prepare the IsaacTeleop session.
+        """Enter the context manager and prepare the Isaac Capture session.
 
-        Builds the retargeting pipeline and attempts to acquire OpenXR handles
+        Binds the configured target frame, builds the retargeting pipeline, and acquires OpenXR handles
         from Kit's XR bridge extension.  If the handles are not yet available
         (e.g. the user has not clicked "Start AR"), session creation is deferred
         and will be retried automatically on each :meth:`advance` call.
 
         Returns:
             Self for context manager protocol.
+
+        Raises:
+            ValueError: If the configured target frame does not exist.
         """
+        if self._cfg.target_frame_prim_path is not None:
+            import usdrt
+            from usdrt import Rt
+
+            stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
+            prim = stage.GetPrimAtPath(self._cfg.target_frame_prim_path)
+            if not prim.IsValid():
+                raise ValueError(f"No target frame at {self._cfg.target_frame_prim_path!r}.")
+            self._target_world_matrix = Rt.Xformable(prim).GetFabricHierarchyWorldMatrixAttr()
         self._session_lifecycle.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit the context manager and clean up the IsaacTeleop session."""
+        """Exit the context manager and clean up the Isaac Capture session."""
+        self._target_world_matrix = None
         self._anchor_manager.cleanup()
         self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
         return False
@@ -290,7 +307,7 @@ class IsaacTeleopDevice:
     def advance(self, target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None) -> torch.Tensor | None:
         """Process current device state and return control commands.
 
-        If the IsaacTeleop session has not been started yet (because the OpenXR
+        If the Isaac Capture session has not been started yet (because the OpenXR
         handles were not available at ``__enter__`` time), this method will
         attempt to start it on each call.  Once the user clicks "Start AR" and
         the handles become available, the session is created transparently.
@@ -324,9 +341,13 @@ class IsaacTeleopDevice:
         Raises:
             RuntimeError: If called outside of a context manager.
         """
-        # Auto-compute target_T_world from config if not explicitly provided
-        if target_T_world is None and self._cfg.target_frame_prim_path is not None:
-            target_T_world = self._get_target_frame_T_world()
+        if target_T_world is None and self._target_world_matrix is not None:
+            matrix = self._target_world_matrix.Get()
+            quaternion = matrix.ExtractRotationQuat()
+            inverse_rotation = Rotation.from_quat([*quaternion.GetImaginary(), quaternion.GetReal()]).as_matrix().T
+            target_T_world = np.eye(4, dtype=np.float32)
+            target_T_world[:3, :3] = inverse_rotation
+            target_T_world[:3, 3] = -inverse_rotation @ np.asarray(matrix.ExtractTranslation())
 
         # Step the session (handles lazy start and action extraction)
         action = self._session_lifecycle.step(
@@ -441,75 +462,6 @@ class IsaacTeleopDevice:
             self._prev_control_is_active = events.is_active
 
     # ------------------------------------------------------------------
-    # Target frame transform (config-driven rebase)
-    # ------------------------------------------------------------------
-
-    def _get_target_frame_T_world(self) -> np.ndarray | None:
-        """Read the target-frame prim's world matrix from Fabric and return its inverse.
-
-        Uses USDRT to read the prim's hierarchical world matrix, matching the
-        pattern used by :class:`XrAnchorSynchronizer` for anchor prim reads.
-
-        Returns:
-            A (4, 4) float32 :class:`numpy.ndarray` representing the inverse
-            of the prim's world transform (i.e. ``target_T_world``), or
-            ``None`` if the prim cannot be read.
-        """
-        try:
-            import omni.usd
-            import usdrt
-            from pxr import UsdUtils
-            from usdrt import Rt
-
-            stage = omni.usd.get_context().get_stage()
-            stage_cache = UsdUtils.StageCache.Get()
-            stage_id = stage_cache.GetId(stage).ToLongInt()
-            if stage_id < 0:
-                stage_id = stage_cache.Insert(stage).ToLongInt()
-            rt_stage = usdrt.Usd.Stage.Attach(stage_id)
-            if rt_stage is None:
-                return None
-
-            rt_prim = rt_stage.GetPrimAtPath(self._cfg.target_frame_prim_path)
-            if not rt_prim.IsValid():
-                return None
-
-            rt_xformable = Rt.Xformable(rt_prim)
-            if not rt_xformable.GetPrim().IsValid():
-                return None
-
-            world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
-            if world_matrix_attr is None:
-                return None
-
-            rt_matrix = world_matrix_attr.Get()
-            if rt_matrix is None:
-                return None
-
-            pos = rt_matrix.ExtractTranslation()
-            rt_quat = rt_matrix.ExtractRotationQuat()
-
-            from scipy.spatial.transform import Rotation
-
-            quat_xyzw = [
-                float(rt_quat.GetImaginary()[0]),
-                float(rt_quat.GetImaginary()[1]),
-                float(rt_quat.GetImaginary()[2]),
-                float(rt_quat.GetReal()),
-            ]
-
-            R = Rotation.from_quat(quat_xyzw).as_matrix().astype(np.float32)
-            t = np.array([float(pos[0]), float(pos[1]), float(pos[2])], dtype=np.float32)
-
-            inv_mat = np.eye(4, dtype=np.float32)
-            inv_mat[:3, :3] = R.T
-            inv_mat[:3, 3] = -(R.T @ t)
-            return inv_mat
-        except Exception as e:
-            logger.warning(f"Failed to read target frame prim '{self._cfg.target_frame_prim_path}': {e}")
-            return None
-
-    # ------------------------------------------------------------------
     # Controller button polling (glue between session and anchor manager)
     # ------------------------------------------------------------------
 
@@ -537,7 +489,7 @@ class IsaacTeleopDevice:
 def _enable_teleop_bridge() -> None:
     """Enable the XR teleop bridge extension and configure carb settings.
 
-    Must be called after the Omniverse AppLauncher has started.
+    Must be called after the Kit launcher has started.
     """
     import carb.settings
     import omni.kit.app
@@ -577,7 +529,7 @@ def create_isaac_teleop_device(
         before the device is constructed.
 
     Args:
-        cfg: IsaacTeleop configuration.
+        cfg: Isaac Capture configuration.
         sim_device: If provided, overrides ``cfg.sim_device`` so action tensors
             are placed on the requested torch device (e.g. ``"cuda:0"``).
         callbacks: Optional mapping of command keys (e.g. ``"START"``, ``"STOP"``,
@@ -634,9 +586,9 @@ def create_isaac_teleop_device(
         cfg.sim_device = sim_device
 
     if mcap_replay_path is not None:
-        logger.info("Using IsaacTeleop stack for teleoperation (REPLAY mode)")
+        logger.info("Using Isaac Capture stack for teleoperation (REPLAY mode)")
     else:
-        logger.info("Using IsaacTeleop stack for teleoperation")
+        logger.info("Using Isaac Capture stack for teleoperation")
     device = IsaacTeleopDevice(
         cfg,
         cloudxr_env_file=cloudxr_env_file,

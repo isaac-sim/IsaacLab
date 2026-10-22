@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""XR anchor management for IsaacTeleop-based teleoperation."""
+"""XR anchor management for Isaac Capture-based teleoperation."""
 
 from __future__ import annotations
 
@@ -13,12 +13,14 @@ import logging
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-import carb
-
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrCfg
 
-# Import XR components with fallback for testing
+# Import Kit components with fallback for sessions without Kit
+carb = None
+with contextlib.suppress(ModuleNotFoundError):
+    import carb
+
 XRCore = None
 XRCoreEventType = None
 with contextlib.suppress(ModuleNotFoundError):
@@ -116,7 +118,7 @@ class XrAnchorManager:
                 logger.warning(f"Failed to create XR anchor prim: {e}")
 
         # Configure carb settings for XR rendering
-        if hasattr(carb, "settings"):
+        if carb is not None and hasattr(carb, "settings"):
             carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
             carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
             carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
@@ -158,7 +160,7 @@ class XrAnchorManager:
         """Build the combined 4x4 transform from OpenXR local space to Isaac Lab world.
 
         This matrix performs two operations on every pose that comes out of
-        IsaacTeleop's DeviceIO pipeline:
+        Isaac Capture's DeviceIO pipeline:
 
         1. **Axis conversion** -- rotates from the OpenXR coordinate convention
            (Y-up, +X right, +Z back) to the Isaac Lab convention

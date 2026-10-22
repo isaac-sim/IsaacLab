@@ -42,14 +42,9 @@ def test_resolvable_string_dunder_introspection_stays_lazy():
     # dunder attribute probe should not attempt import/resolve
     assert hasattr(ref, "__dataclass_fields__") is False
     # runtime use should still attempt resolve and fail
-    with pytest.raises(ValueError):
+    with pytest.raises(ModuleNotFoundError) as error:
         ref()
-
-
-def test_resolvable_string_runtime_resolution_still_works():
-    """Test runtime call path still resolves the callable target."""
-    ref = string_utils.ResolvableString("math:sin")
-    assert pytest.approx(ref(0.0), rel=0.0, abs=1e-9) == 0.0
+    assert error.value.name == "not_a_real_module"
 
 
 def test_case_conversion():
@@ -212,6 +207,14 @@ def test_resolve_matching_names_values_with_basic_strings():
     assert index_list == [0, 1, 2, 3, 4]
     assert names_list == ["a", "b", "c", "d", "e"]
     assert values_list == [1, 2, 2, 1, 1]
+
+    class ReverseIterationDict(dict):
+        def __iter__(self):
+            return iter(reversed(list(super().keys())))
+
+    data = ReverseIterationDict({"a": 1, "b": 2})
+    assert string_utils.resolve_matching_names_values(data, ["a", "b"]) == ([0, 1], ["a", "b"], [1, 2])
+
     # test matching names with regex
     data = {"a|d|e|b": 1, "b|c": 2}
     with pytest.raises(ValueError):

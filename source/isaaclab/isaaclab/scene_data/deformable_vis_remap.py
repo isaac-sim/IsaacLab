@@ -15,7 +15,6 @@ import warp as wp
 
 logger = logging.getLogger(__name__)
 
-_BARY_EPS = 1e-5
 _SPATIAL_ACCEL_MIN_OPS = 10_000
 
 
@@ -48,31 +47,6 @@ def _det3(
 ) -> float:
     """Return the determinant of a 3×3 matrix."""
     return m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20)
-
-
-@wp.func
-def _tet_barycentric_weights(a: wp.vec3f, b: wp.vec3f, c: wp.vec3f, d: wp.vec3f, point: wp.vec3f) -> wp.vec4f:
-    """Return barycentric weights for ``point`` in tet ``(a,b,c,d)``, or ``(-1,...)`` when degenerate."""
-    ba = b - a
-    ca = c - a
-    da = d - a
-    rhs = point - a
-
-    det = _det3(ba[0], ca[0], da[0], ba[1], ca[1], da[1], ba[2], ca[2], da[2])
-    if wp.abs(det) < 1.0e-12:
-        return wp.vec4f(-1.0, -1.0, -1.0, -1.0)
-
-    w1 = _det3(rhs[0], ca[0], da[0], rhs[1], ca[1], da[1], rhs[2], ca[2], da[2]) / det
-    w2 = _det3(ba[0], rhs[0], da[0], ba[1], rhs[1], da[1], ba[2], rhs[2], da[2]) / det
-    w3 = _det3(ba[0], ca[0], rhs[0], ba[1], ca[1], rhs[1], ba[2], ca[2], rhs[2]) / det
-    w0 = 1.0 - w1 - w2 - w3
-    return wp.vec4f(w0, w1, w2, w3)
-
-
-@wp.func
-def _min_bary_weight(weights: wp.vec4f) -> float:
-    """Return the minimum barycentric weight (inside-hull indicator)."""
-    return wp.min(wp.min(weights[0], weights[1]), wp.min(weights[2], weights[3]))
 
 
 @wp.func
@@ -177,162 +151,6 @@ def _build_volume_vis_barycentric_remap_kernel(
     bary_weights[vis_idx, 1] = best_w1
     bary_weights[vis_idx, 2] = best_w2
     bary_weights[vis_idx, 3] = best_w3
-
-
-@wp.kernel
-def _remap_volume_vis_positions_kernel(
-    sim_particle_q: wp.array(dtype=wp.vec3f),
-    render_particle_q: wp.array(dtype=wp.vec3f),
-    sim_offset: int,
-    render_offset: int,
-    tet_vertex_indices: wp.array2d(dtype=wp.int32),
-    bary_weights: wp.array2d(dtype=wp.float32),
-):
-    """Interpolate sim tet nodal positions into visual mesh vertex positions."""
-    vis_idx = wp.tid()
-    w0 = bary_weights[vis_idx, 0]
-    w1 = bary_weights[vis_idx, 1]
-    w2 = bary_weights[vis_idx, 2]
-    w3 = bary_weights[vis_idx, 3]
-    i0 = sim_offset + tet_vertex_indices[vis_idx, 0]
-    i1 = sim_offset + tet_vertex_indices[vis_idx, 1]
-    i2 = sim_offset + tet_vertex_indices[vis_idx, 2]
-    i3 = sim_offset + tet_vertex_indices[vis_idx, 3]
-    p = w0 * sim_particle_q[i0] + w1 * sim_particle_q[i1] + w2 * sim_particle_q[i2] + w3 * sim_particle_q[i3]
-    render_particle_q[render_offset + vis_idx] = p
-
-
-@wp.kernel
-def _batch_remap_volume_vis_positions_kernel(
-    sim_particle_q: wp.array(dtype=wp.vec3f),
-    render_particle_q: wp.array(dtype=wp.vec3f),
-    entity_ids: wp.array(dtype=wp.int32),
-    sim_offsets: wp.array(dtype=wp.int32),
-    render_offsets: wp.array(dtype=wp.int32),
-    vis_counts: wp.array(dtype=wp.int32),
-    vis_prefix: wp.array(dtype=wp.int32),
-    tet_vertex_indices: wp.array2d(dtype=wp.int32),
-    bary_weights: wp.array2d(dtype=wp.float32),
-):
-    """Batched barycentric remap for multiple volume shadow entities."""
-    vis_idx = wp.tid()
-    entity_id = entity_ids[vis_idx]
-    local_vis = vis_idx - vis_prefix[entity_id]
-    w0 = bary_weights[local_vis, 0]
-    w1 = bary_weights[local_vis, 1]
-    w2 = bary_weights[local_vis, 2]
-    w3 = bary_weights[local_vis, 3]
-    sim_offset = sim_offsets[entity_id]
-    render_offset = render_offsets[entity_id]
-    i0 = sim_offset + tet_vertex_indices[local_vis, 0]
-    i1 = sim_offset + tet_vertex_indices[local_vis, 1]
-    i2 = sim_offset + tet_vertex_indices[local_vis, 2]
-    i3 = sim_offset + tet_vertex_indices[local_vis, 3]
-    p = w0 * sim_particle_q[i0] + w1 * sim_particle_q[i1] + w2 * sim_particle_q[i2] + w3 * sim_particle_q[i3]
-    render_particle_q[render_offset + local_vis] = p
-
-
-@wp.kernel
-def _batch_copy_particle_slices_kernel(
-    src: wp.array(dtype=wp.vec3f),
-    dst: wp.array(dtype=wp.vec3f),
-    entity_ids: wp.array(dtype=wp.int32),
-    src_offsets: wp.array(dtype=wp.int32),
-    dst_offsets: wp.array(dtype=wp.int32),
-    counts: wp.array(dtype=wp.int32),
-    count_prefix: wp.array(dtype=wp.int32),
-):
-    """Copy contiguous sim particle slices into render slots for multiple entities."""
-    tid = wp.tid()
-    entity_id = entity_ids[tid]
-    local_idx = tid - count_prefix[entity_id]
-    dst[dst_offsets[entity_id] + local_idx] = src[src_offsets[entity_id] + local_idx]
-
-
-def launch_volume_vis_remap(
-    sim_particle_q: wp.array(dtype=wp.vec3f),
-    render_particle_q: wp.array(dtype=wp.vec3f),
-    sim_offset: int,
-    render_offset: int,
-    remap: VolumeVisRemap,
-) -> None:
-    """Barycentrically interpolate sim tet nodes into visual render slots.
-
-    Args:
-        sim_particle_q: Live sim particle positions [m], shape ``[sim_count]``, ``wp.vec3f``.
-        render_particle_q: Shadow render buffer [m], shape ``[render_count]``, ``wp.vec3f``.
-        sim_offset: Starting index of this body's sim particles in ``sim_particle_q``.
-        render_offset: Starting index of this body's visual particles in ``render_particle_q``.
-        remap: Pre-built device-resident barycentric tables for this body.
-    """
-    vis_count = remap.tet_vertex_indices.shape[0]
-    wp.launch(
-        _remap_volume_vis_positions_kernel,
-        dim=vis_count,
-        inputs=[
-            sim_particle_q,
-            render_particle_q,
-            sim_offset,
-            render_offset,
-            remap.tet_vertex_indices,
-            remap.bary_weights,
-        ],
-        device=sim_particle_q.device,
-    )
-
-
-def launch_batch_volume_vis_remap(
-    sim_particle_q: wp.array(dtype=wp.vec3f),
-    render_particle_q: wp.array(dtype=wp.vec3f),
-    entity_ids: wp.array(dtype=wp.int32),
-    sim_offsets: wp.array(dtype=wp.int32),
-    render_offsets: wp.array(dtype=wp.int32),
-    vis_counts: wp.array(dtype=wp.int32),
-    vis_prefix: wp.array(dtype=wp.int32),
-    tet_vertex_indices: wp.array2d(dtype=wp.int32),
-    bary_weights: wp.array2d(dtype=wp.float32),
-) -> None:
-    """Barycentrically remap multiple volume entities in one launch."""
-    total_vis = int(entity_ids.shape[0])
-    if total_vis == 0:
-        return
-    wp.launch(
-        _batch_remap_volume_vis_positions_kernel,
-        dim=total_vis,
-        inputs=[
-            sim_particle_q,
-            render_particle_q,
-            entity_ids,
-            sim_offsets,
-            render_offsets,
-            vis_counts,
-            vis_prefix,
-            tet_vertex_indices,
-            bary_weights,
-        ],
-        device=sim_particle_q.device,
-    )
-
-
-def launch_batch_particle_slice_copy(
-    src: wp.array(dtype=wp.vec3f),
-    dst: wp.array(dtype=wp.vec3f),
-    entity_ids: wp.array(dtype=wp.int32),
-    src_offsets: wp.array(dtype=wp.int32),
-    dst_offsets: wp.array(dtype=wp.int32),
-    counts: wp.array(dtype=wp.int32),
-    count_prefix: wp.array(dtype=wp.int32),
-) -> None:
-    """Copy multiple contiguous particle slices from ``src`` into ``dst`` in one launch."""
-    total = int(entity_ids.shape[0])
-    if total == 0:
-        return
-    wp.launch(
-        _batch_copy_particle_slices_kernel,
-        dim=total,
-        inputs=[src, dst, entity_ids, src_offsets, dst_offsets, counts, count_prefix],
-        device=src.device,
-    )
 
 
 def build_volume_vis_barycentric_remap(

@@ -8,16 +8,22 @@
   .. autosummary::
 
     NewtonManager
+    MjWarpActuatorBridge
     NewtonCfg
+    NewtonBackendCfg
+    NewtonBuilderCfg
+    NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
     NewtonFeatherstoneManager
     NewtonKaminoManager
     NewtonMPMManager
     NewtonMJWarpManager
+    NewtonVBDManager
     NewtonShapeCfg
     NewtonSolverCfg
     NewtonXPBDManager
     MJWarpSolverCfg
+    VBDSolverCfg
     XPBDSolverCfg
     FeatherstoneSolverCfg
     KaminoCollisionDetectorCfg
@@ -42,10 +48,34 @@ Physics Manager
   :inherited-members:
   :show-inheritance:
 
+Actuator Solver Access
+----------------------
+
+.. autoclass:: MjWarpActuatorBridge
+  :members:
+  :show-inheritance:
+
 Physics Configuration
 ---------------------
 
 .. autoclass:: NewtonCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonBackendCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonBuilderCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autofunction:: create_newton_builder
+
+.. autoclass:: NewtonSoftContactCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -56,6 +86,11 @@ Physics Configuration
   :exclude-members: __init__
 
 .. autoclass:: MJWarpSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: VBDSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -139,6 +174,11 @@ Solver Managers
 ---------------
 
 .. autoclass:: NewtonMJWarpManager
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: NewtonVBDManager
   :members:
   :inherited-members:
   :show-inheritance:

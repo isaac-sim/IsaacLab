@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Golden-image comparison shared by renderer and visualizer tests."""
+"""Golden-image comparison for direct renderer tests."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from typing import Any
 
 import numpy as np
 import torch
-import warp as wp
 from PIL import Image, ImageChops
 
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -54,32 +53,10 @@ class ImageComparison:
                 ]
             )
 
-    def assert_passed(self) -> None:
-        """Raise a focused assertion after diagnostics have been recorded."""
-        assert self.passed, self.error
 
-
-def frame_image(frame: Image.Image | np.ndarray | torch.Tensor | wp.array) -> Image.Image:
-    """Convert a visualizer frame to an RGB PIL image."""
-    if isinstance(frame, Image.Image):
-        return frame.convert("RGB")
-    if isinstance(frame, wp.array):
-        frame = wp.to_torch(frame)
-    if torch.is_tensor(frame):
-        frame = frame.detach().cpu().numpy()
-    array = np.asarray(frame)
-    if array.ndim == 2:
-        array = np.repeat(array[..., None], 3, axis=-1)
-    array = array[..., :3]
-    if array.size and np.nanmax(array) <= 1.0 + 1.0e-6:
-        array = array * 255.0
-    return Image.fromarray(np.nan_to_num(array).clip(0, 255).astype(np.uint8), mode="RGB")
-
-
-def camera_output_image(output: torch.Tensor | wp.array | Any, data_type: str) -> Image.Image:
+def camera_output_image(output: torch.Tensor, data_type: str) -> Image.Image:
     """Normalize a batched camera AOV and compose its views into a PIL image."""
-    tensor = output if torch.is_tensor(output) else output.torch
-    tensor = torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
+    tensor = torch.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
     if tensor.numel() == 0 or tensor.abs().max().item() == 0:
         raise AssertionError(f"Camera output '{data_type}' is empty or contains only zeroes.")
     grid = make_camera_output_grid(normalize_camera_output_for_display(tensor, data_type))

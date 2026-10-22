@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
@@ -20,7 +20,7 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = UNITREE_A1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(UNITREE_A1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/trunk"
         # scale down the terrains because the robot is small
         self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)
@@ -41,4 +41,4 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "trunk"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "trunk"
-        self.events.base_com.default.params["asset_cfg"].body_names = "trunk"
+        self.events.base_com.params["asset_cfg"].body_names = "trunk"

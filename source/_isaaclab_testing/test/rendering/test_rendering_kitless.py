@@ -3,11 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""All golden scenes rendered through Kit-less renderer/backend pairs."""
+"""Golden scenes rendered without Kit."""
 
 import pytest
-from kitless_rendering_runner import generate_kitless_test_cases
+from rendering_cases import KITLESS_RENDERING_CASES, RenderCase
+from rendering_runner import run_rendering_case
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci, pytest.mark.cold_cache]
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
-test_rendering = generate_kitless_test_cases()
+
+@pytest.mark.parametrize(
+    "stage_variant,case",
+    KITLESS_RENDERING_CASES,
+    ids=[f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES],
+)
+def test_rendering(
+    stage_variant: str, case: RenderCase, request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Compare both OVRTX scene readers against the same expected images."""
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(stage_variant == "ovstage")))
+    run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)

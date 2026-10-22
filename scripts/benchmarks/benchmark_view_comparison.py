@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView backends and PhysX RigidBodyView.")
 
@@ -52,13 +54,8 @@ parser.add_argument(
     help="Directory to save profile results. Default: ./profile_results",
 )
 
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 args_cli = parser.parse_args()
-
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import cProfile
 import time
@@ -66,14 +63,11 @@ import time
 import torch
 import warp as wp
 
-from pxr import Gf
-
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import FrameView
 
 try:
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_newton.sim.views import NewtonSiteFrameView
 
     HAS_NEWTON = True
 except ImportError:
@@ -88,22 +82,23 @@ except ImportError:
 @torch.no_grad()
 def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, float]:
     """Benchmark USD or Fabric FrameView."""
+    from pxr import Gf
+
     timing_results = {}
 
     print("  Setting up scene")
     sim_utils.create_new_stage()
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=(view_type == "fabric"))
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim = sim_utils.SimulationContext(sim_cfgs[view_type])
     stage = sim_utils.get_current_stage()
     print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
 
     object_cfg = sim_utils.ConeCfg(
         radius=0.15,
         height=0.5,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     for i in range(args_cli.num_envs):
@@ -138,10 +133,14 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
 @torch.no_grad()
 def benchmark_newton(num_iterations: int) -> dict[str, float]:
     """Benchmark Newton FrameView."""
+    from isaaclab_newton.sim.views import NewtonSiteFrameView
+
+    from pxr import Gf
+
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.sim import build_simulation_context
+    from isaaclab.utils import configclass
 
     timing_results = {}
 
@@ -151,17 +150,16 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )
 
     print("  Setting up Newton scene")
-    newton_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()), device=args_cli.device)
     start_time = time.perf_counter()
-    ctx = build_simulation_context(device=args_cli.device, sim_cfg=newton_cfg, add_ground_plane=True)
+    ctx = build_simulation_context(device=args_cli.device, sim_cfg=sim_cfgs["newton"], add_ground_plane=True)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
     InteractiveScene(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
@@ -199,17 +197,16 @@ def benchmark_physx(num_iterations: int) -> dict[str, float]:
     print("  Setting up scene")
     sim_utils.create_new_stage()
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=False)
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim = sim_utils.SimulationContext(sim_cfgs["physx"])
     stage = sim_utils.get_current_stage()
     print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
 
     object_cfg = sim_utils.ConeCfg(
         radius=0.15,
         height=0.5,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     for i in range(args_cli.num_envs):
@@ -220,7 +217,7 @@ def benchmark_physx(num_iterations: int) -> dict[str, float]:
 
     pattern = "/World/Env_*/Object"
     start_time = time.perf_counter()
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     view = physics_sim_view.create_rigid_body_view(pattern)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
@@ -446,4 +443,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # each backend builds its own simulation context; the USD, Fabric, and PhysX views need Kit
+    sim_cfgs = {
+        name: sim_utils.SimulationCfg(
+            dt=1.0 / 60.0 if name == "newton" else 0.01,
+            device=args_cli.device,
+            use_fabric=name == "fabric",
+            physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()) if name == "newton" else PhysxCfg(),
+        )
+        for name in args_cli.backends
+        if name != "newton" or HAS_NEWTON
+    }
+    with launch_simulation(sim_cfgs, args_cli):
+        main()

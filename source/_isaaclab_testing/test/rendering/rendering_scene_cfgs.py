@@ -9,13 +9,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+import torch
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonSoftContactCfg,
+    VBDSolverCfg,
+)
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
-from rendering_runtime import CAMERA_EYE, CAMERA_TARGET
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -26,14 +32,15 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG, SHADOW_HAND_NEWTON_CFG
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG, SHADOW_HAND_PHYSX_CFG
+
 
 @configclass
 class _RenderingMaterialCfg(sim_utils.MdlFileCfg):
@@ -43,6 +50,7 @@ class _RenderingMaterialCfg(sim_utils.MdlFileCfg):
     diffuse_color_constant: tuple[float, float, float] = (0.2, 0.2, 0.2)
     reflection_roughness_constant: float = 0.5
     metallic_constant: float = 0.0
+
 
 _CARTPOLE_ROBOT = CARTPOLE_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
@@ -62,7 +70,28 @@ class RenderingSceneCfg(InteractiveSceneCfg):
         prim_path="/World/Ground",
         spawn=sim_utils.GroundPlaneCfg(size=(6.0, 6.0), color=None, semantic_tags=[("class", "ground")]),
     )
-    camera: CameraCfg | None = None
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        width=256,
+        height=256,
+        offset=CameraCfg.OffsetCfg(
+            pos=(3.8, -4.2, 3.4),
+            rot=tuple(
+                quat_from_matrix(
+                    create_rotation_matrix_from_view(
+                        torch.tensor([[3.8, -4.2, 3.4]]), torch.tensor([[0.05, 0.05, 1.25]])
+                    )
+                )[0].tolist()
+            ),
+            convention="opengl",
+        ),
+        update_latest_camera_pose=True,
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=5.0, horizontal_aperture=20.955, clipping_range=(0.05, 50.0)
+        ),
+        # Pin the material used by constant-diffuse mode, independently of native reader defaults.
+        render_settings={"omni:rtx:minimal:constantColor": ("Color3f", (0.5, 0.5, 0.5))},
+    )
     key_light = AssetBaseCfg(
         prim_path="/World/KeyLight",
         spawn=sim_utils.DistantLightCfg(intensity=2400.0, color=(1.0, 0.91, 0.78), angle=0.7),
@@ -110,7 +139,7 @@ class CartpoleRenderingSceneCfg(RenderingSceneCfg):
 
 @configclass
 class RenderingTestSceneCfg(RenderingSceneCfg):
-    """Small deterministic scene shared by renderer and visualizer integration tests."""
+    """Small deterministic scene covering renderer outputs and textured materials."""
 
     robot: ArticulationCfg = _RENDERING_CARTPOLE_CFG.copy()
     moving_cube = RigidObjectCfg(
@@ -303,7 +332,7 @@ _CLOTH_NEWTON = DeformableObjectCfg(
     prim_path="{ENV_REGEX_NS}/Deformable",
     spawn=sim_utils.MeshRectangleCfg(
         size=(0.2, 0.2),
-        resolution=(8, 8),
+        edge_refinement=8.0,
         deformable_props=NewtonDeformableBodyPropertiesCfg(),
         physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
             density=1.0,
@@ -355,8 +384,8 @@ def _make_franka_newton_physics(
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(soft_contact_ke=8.0e3, soft_contact_mu=10.0),
         ),
+        soft_contact_cfg=NewtonSoftContactCfg(soft_contact_ke=8.0e3, soft_contact_mu=10.0),
         num_substeps=2,
     )
 
@@ -469,12 +498,10 @@ class KukaHeterogeneousRenderingSceneCfg(RenderingSceneCfg):
     table: RigidObjectCfg = _KUKA_TABLE.copy()
 
 
-_SHADOW_HAND_PHYSX = SHADOW_HAND_CFG.replace(
+_SHADOW_HAND_PHYSX = SHADOW_HAND_PHYSX_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
-    spawn=SHADOW_HAND_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
-    init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={".*": 0.0}),
+    spawn=SHADOW_HAND_PHYSX_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
 )
-_SHADOW_HAND_OVPHYSX = _SHADOW_HAND_PHYSX.replace(spawn=_SHADOW_HAND_PHYSX.spawn.replace(fixed_tendons_props=None))
 _SHADOW_HAND_NEWTON = SHADOW_HAND_NEWTON_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
@@ -535,12 +562,9 @@ class RenderingSceneSpec:
     """Scene-owned inputs and golden-image tolerances consumed by the shared runner."""
 
     cfg: InteractiveSceneCfg
-    camera_eye: tuple[float, float, float]
-    camera_target: tuple[float, float, float]
     expected_instances: dict[str, str] = field(default_factory=dict)
     min_semantic_pixels: dict[str, int] = field(default_factory=dict)
     physics_cfg: PhysicsCfg | None = None
-    preserve_fixed_articulation_roots: frozenset[str] = frozenset()
     image_max_diff_pct: float = 3.0
     min_ssim: float = 0.98
     image_tolerance_overrides: dict[tuple[str, RenderBufferKind], tuple[float, float]] = field(default_factory=dict)
@@ -555,8 +579,6 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
     if scene == "rendering_scene":
         return RenderingSceneSpec(
             cfg=RenderingTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=True),
-            camera_eye=CAMERA_EYE,
-            camera_target=CAMERA_TARGET,
             expected_instances={
                 "/World/Ground": "ground",
                 "/World/envs/env_0/Robot": "robot",
@@ -571,8 +593,6 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
     if scene == "cartpole":
         return RenderingSceneSpec(
             cfg=CartpoleRenderingSceneCfg(num_envs=4, env_spacing=20.0, lazy_sensor_update=True),
-            camera_eye=(-5.0, 0.0, 2.0),
-            camera_target=(0.0, 0.0, 2.0),
             expected_instances={f"/World/envs/env_{env_id}/Robot": "cartpole" for env_id in range(4)},
             # Isaac RTX color differs across GPU families while the reset pose remains structurally identical.
             image_tolerance_overrides={("isaac_rtx", RenderBufferKind.RGB): (8.0, 0.95)},
@@ -595,8 +615,6 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
         cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
         return RenderingSceneSpec(
             cfg=cfg,
-            camera_eye=(0.85, -0.55, 0.42),
-            camera_target=(0.20051, 0.099902, 0.025508),
             physics_cfg=physics_cfg,
             image_max_diff_pct=max_diff_pct,
             # Newton deformable surface edges varied by 0.81% after the Isaac Sim image update (SSIM 0.9965).
@@ -609,8 +627,6 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
         cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
         return RenderingSceneSpec(
             cfg=cfg,
-            camera_eye=(0.57, -0.8, 0.5),
-            camera_target=(-0.296179, -0.299998, 0.500133),
             expected_instances={
                 "/World/GroundPlane": "ground",
                 **{f"/World/envs/env_{env_id}/Robot": "robot" for env_id in range(4)},
@@ -625,20 +641,17 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
         )
     if scene == "shadow_hand":
         cfg = ShadowHandRenderingSceneCfg(num_envs=4, env_spacing=2.0, lazy_sensor_update=True)
-        cfg.robot = {"physx": _SHADOW_HAND_PHYSX, "ovphysx": _SHADOW_HAND_OVPHYSX, "newton": _SHADOW_HAND_NEWTON}[
+        cfg.robot = {"physx": _SHADOW_HAND_PHYSX, "ovphysx": _SHADOW_HAND_PHYSX, "newton": _SHADOW_HAND_NEWTON}[
             physics
         ].copy()
         cfg.object = _SHADOW_OBJECT.copy()
         return RenderingSceneSpec(
             cfg=cfg,
-            camera_eye=(0.0, -0.35, 1.0),
-            camera_target=(0.0, -0.35, 0.0),
             expected_instances={
                 f"/World/envs/env_{env_id}/{prim}": label
                 for env_id in range(4)
                 for prim, label in (("Robot", "robot"), ("object", "cube"))
             },
-            preserve_fixed_articulation_roots=frozenset({"robot"}),
             image_max_diff_pct=10.0,
         )
     raise ValueError(f"Unknown rendering scene: {scene!r}")

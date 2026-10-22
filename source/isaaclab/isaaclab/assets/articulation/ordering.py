@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import warp as wp
 
+from ...utils import replace
+
 if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
 
@@ -49,7 +51,7 @@ class ArticulationOrderingConvention(str, Enum):
     """Built-in non-default public articulation name-ordering conventions.
 
     Attributes:
-        PHYSX: Active PhysX or OVPhysX tensor-view order.
+        PHYSX: OVPhysX tensor-view order, resolved on every backend.
         MJWARP: Newton or MJWarp articulation-view order.
         ROBOT_SCHEMA: Authored target order of the ``isaac:physics:robotJoints``
             and ``isaac:physics:robotLinks`` relationships.
@@ -162,7 +164,7 @@ def apply_articulation_ordering_preset(
     parsed_ordering = parse_articulation_ordering_convention(ordering)
     if parsed_ordering is None:
         return cfg
-    return cfg.replace(joint_ordering=parsed_ordering, body_ordering=parsed_ordering)
+    return replace(cfg, joint_ordering=parsed_ordering, body_ordering=parsed_ordering)
 
 
 def build_articulation_name_map(

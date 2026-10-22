@@ -8,26 +8,28 @@ from collections.abc import Generator
 from typing import Any
 
 import pytest
+from isaaclab_newton.physics import NewtonCfg
 
 SEED: int = 42
 random.seed(SEED)
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
 headless = True
-app_launcher = AppLauncher(headless=headless)
-simulation_app: Any = app_launcher.app
+launch_test_simulation(cfg=NewtonCfg())
 
 import gymnasium as gym
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.utils.assets as _al_assets
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObjectCfg
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
 ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
@@ -35,7 +37,8 @@ ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
-from isaaclab_tasks.contrib.stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import parse_env_cfg
 
 # Predefined EE goals for the test
 # Each entry is a tuple of: (goal specification, goal ID)
@@ -54,13 +57,13 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
     random.seed(SEED)
     torch.manual_seed(SEED)
 
-    env_cfg = FrankaCubeStackEnvCfg()
-    env_cfg.scene.num_envs = 1
+    env_cfg = parse_env_cfg("IsaacContrib-Stack-Cube-Franka", num_envs=2, overrides=["physics=newton_mjwarp"])
+    env_cfg.scene.clone_cfg.clone_template = "/World/batches/batch_{}"
 
     # Add a static wall for the robot to avoid
-    wall_props = RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True)
+    wall_props = [UsdPhysicsRigidBodyCfg(kinematic_enabled=True), PhysxRigidBodyCfg(disable_gravity=True)]
     wall_cfg = RigidObjectCfg(
-        prim_path="/World/envs/env_0/moving_wall",
+        prim_path="{ENV_REGEX_NS}/moving_wall",
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
             scale=(0.5, 4.5, 7.0),
@@ -68,17 +71,29 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.80)),
     )
-    setattr(env_cfg.scene, "moving_wall", wall_cfg)
+    env_cfg.scene.moving_wall = wall_cfg
 
     env: ManagerBasedEnv = gym.make("IsaacContrib-Stack-Cube-Franka", cfg=env_cfg, headless=headless).unwrapped
     env.reset()
 
     robot = env.scene["robot"]
-    planner = CuroboPlanner(env=env, robot=robot, config=CuroboPlannerCfg.franka_config())
+    # The planner must import env 1's geometry even though only env 0 is authored in USD.
+    assert not env.scene.stage.GetPrimAtPath("/World/batches/batch_1/Robot")
+    planner = CuroboPlanner(env=env, robot=robot, config=CuroboPlannerCfg.franka_config(), env_id=1)
+    obstacles = planner.motion_gen.world_coll_checker.world_model.objects
+    wall = next(obstacle for obstacle in obstacles if "/batch_1/moving_wall/" in obstacle.name)
+    expected_pos, _ = math_utils.subtract_frame_transforms(
+        robot.data.root_pos_w.torch[1],
+        robot.data.root_quat_w.torch[1],
+        env.scene["moving_wall"].data.root_pos_w.torch[1],
+    )
+    torch.testing.assert_close(torch.tensor(wall.pose[:3]), expected_pos.cpu())
+    assert all("/batch_0/" not in obstacle.name and "/Robot/" not in obstacle.name for obstacle in obstacles)
+    assert not env.scene.stage.GetPrimAtPath("/World/batches/batch_1/Robot")
 
     goal_pose_visualizer = None
     if not headless:
-        goal_marker_cfg = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/goal_poses")
+        goal_marker_cfg = replace(FRAME_MARKER_CFG, prim_path="/World/Visuals/goal_poses")
         goal_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         goal_pose_visualizer = VisualizationMarkers(goal_marker_cfg)
 
@@ -142,7 +157,10 @@ class TestCuroboPlanner:
             q_full = torch.cat([q, fingers], dim=-1)
         else:
             q_full = q
-        self.robot.write_joint_position_to_sim(wp.from_torch(q_full.to(self.env.device)))
+        self.robot.write_joint_position_to_sim_index(
+            position=wp.from_torch(q_full.to(self.env.device)),
+            env_ids=wp.array([self.planner.env_id], dtype=wp.int32, device=self.env.device),
+        )
 
     @pytest.mark.parametrize("goal_spec, goal_id", predefined_ee_goals_and_ids)
     def test_plan_to_predefined_goal(self, goal_spec, goal_id) -> None:

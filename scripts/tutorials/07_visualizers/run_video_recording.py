@@ -15,7 +15,7 @@ Example 1 — Kit viewport (simplest)
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 1 --num_envs 4
+            --example 1 --num_envs 4 --viz kit
 
 Example 2 — scene sensor only, headless
     One clip captured directly from the scene's tiled-camera sensor.
@@ -32,10 +32,11 @@ Example 3 — Kit viewport + Kit tiled grid + Newton viewport + scene sensor
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 3 --num_envs 4
+            --example 3 --num_envs 4 --viz kit,newton_gl
 
 Clips are written to ``videos/recording_tutorial/example_<N>/`` in the working directory.
 Examples 1 and 2 each demonstrate one recording source; Example 3 combines all of them.
+``--viz`` selects the visualizers to record from; the configs below only set their camera and panels.
 """
 
 from __future__ import annotations
@@ -48,6 +49,8 @@ import sys
 import gymnasium as gym
 import torch
 
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
+
 import isaaclab_tasks  # noqa: F401
 
 with contextlib.suppress(ImportError):
@@ -56,7 +59,7 @@ with contextlib.suppress(ImportError):
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-from isaaclab_tasks.utils import setup_preset_cli
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -74,9 +77,6 @@ _SHADOW_EYE = (0.0, -2.2, 1.8)
 _SHADOW_LOOKAT = (0.0, -0.1, 0.4)
 _SHADOW_ENV_SPACING = 1.0
 
-# Tiled camera eye offset from each robot root for generated per-env cameras.
-_SHADOW_TILED_EYE = (0.0, 0.35, 0.8)
-
 # Skip the first few steps so the RTX renderer has warmed up before recording starts.
 _KIT_STEP_OFFSET = 5
 
@@ -87,13 +87,9 @@ def _output_dir(example: int) -> str:
 
 def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
-
-    env_cfg = ShadowHandCameraEnvCfg()
-    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb
-    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
-    env_cfg.tiled_camera.height = 256
-    env_cfg.tiled_camera.width = 256
+    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.scene.tiled_camera=rgb"))
+    env_cfg.scene.tiled_camera.height = 256
+    env_cfg.scene.tiled_camera.width = 256
     env_cfg.scene.num_envs = num_envs
     env_cfg.scene.env_spacing = env_spacing
     return env_cfg
@@ -106,17 +102,15 @@ def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
 
 def _build_env_cfg_example_1(num_envs: int):
     """Shadow Hand + Kit viewport: one clip from the interactive viewport."""
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
-
-    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
+    env_cfg.sim.visualizer_cfgs = [VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=KitBackendCfg())]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="visualizer:kit",
+            source="viz:kit",
             output_dir=out,
             output_filename_prefix="kit_viewport",
             video_length=_VIDEO_LENGTH,
@@ -130,8 +124,6 @@ def _build_env_cfg_example_1(num_envs: int):
 def _build_env_cfg_example_2(num_envs: int):
     """Shadow Hand + headless: scene tiled-camera sensor clip only."""
     env_cfg = _shadow_env_cfg(num_envs, env_spacing=2.0)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
-    env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
 
     out = _output_dir(2)
     env_cfg.video_recorders = [
@@ -149,39 +141,35 @@ def _build_env_cfg_example_2(num_envs: int):
 def _build_env_cfg_example_3(num_envs: int):
     """Shadow Hand + Kit viewport + Kit tiled grid + Newton viewport + sensor: four simultaneous streams.
 
-    Note: ``source='visualizer:newton'`` captures the full Newton GL window. When
-    ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`,
+    Note: ``source='viz:newton_gl'`` captures the full Newton GL window. When
+    ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg`,
     the GL window displays the per-environment camera panel, so this effectively records
     a Newton streaming view without a separate ``render_tiled_rgb_array()`` call.
     """
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
-
-    kit_cfg = KitVisualizerCfg(
+    kit_cfg = VisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # Reuse the existing scene camera sensor so the streaming panel shows
-        # the same RTX-rendered views as source="sensor:tiled_camera".
-        streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+        backend=KitBackendCfg(),
     )
-    newton_cfg = NewtonGLVisualizerCfg(
+    newton_cfg = VisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
-        window_width=1280,
-        window_height=720,
+        window=WindowCfg(size=(1280, 720)),
         focal_length=25.0,
+        backend=NewtonGLBackendCfg(),
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
     out = _output_dir(3)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="visualizer:kit",
+            source="viz:kit",
             output_dir=out,
             output_filename_prefix="kit_viewport",
             video_length=_VIDEO_LENGTH,
@@ -189,7 +177,7 @@ def _build_env_cfg_example_3(num_envs: int):
             step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
-            source="visualizer:kit:streaming_view",
+            source="viz:kit:streaming_view",
             output_dir=out,
             output_filename_prefix="tiled_kit_viewport",
             video_length=_VIDEO_LENGTH,
@@ -197,7 +185,7 @@ def _build_env_cfg_example_3(num_envs: int):
             step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
-            source="visualizer:newton",
+            source="viz:newton_gl",
             output_dir=out,
             output_filename_prefix="newton_viewport",
             video_length=_VIDEO_LENGTH,

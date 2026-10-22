@@ -8,29 +8,33 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher
-
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
 
-# Launch omniverse app.
-app_launcher = AppLauncher(headless=HEADLESS)
-simulation_app = app_launcher.app
+from isaaclab.test.utils import launch_test_simulation
+
+launch_test_simulation(headless=HEADLESS)
 
 import importlib
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 import torch
+from isaaclab_teleop import IsaacTeleopCfg
+from isaaclab_teleop.control_events import _NO_OP_EVENTS
 from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
+from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+from isaaclab_teleop.xr_anchor_utils import XrAnchorSynchronizer
 
 import carb
+import usdrt
 
 import isaaclab.sim as sim_utils
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 class NoOpRetargeter(RetargeterBase):
@@ -170,8 +174,8 @@ def empty_env():
 
 
 @pytest.mark.isaacsim_ci
-def test_xr_anchor(empty_env, mock_xrcore):
-    """Test XR anchor creation and configuration."""
+def test_xr_anchor(empty_env, mock_xrcore, monkeypatch):
+    """XR anchors preserve their configuration and bound frames follow live Fabric poses."""
     env, env_cfg = empty_env
     # Use xyzw format for quaternion: identity is (0, 0, 0, 1)
     env_cfg.xr = XrCfg(anchor_pos=(1, 2, 3), anchor_rot=(0, 0, 0, 1))
@@ -193,36 +197,50 @@ def test_xr_anchor(empty_env, mock_xrcore):
 
     device.reset()
 
-
-@pytest.mark.isaacsim_ci
-def test_xr_anchor_default(empty_env, mock_xrcore):
-    """Test XR anchor creation with default configuration."""
-    env, _ = empty_env
-    # Create a proper config object with default values
-    device = OpenXRDevice(OpenXRDeviceCfg())
-
-    # Check that the xr anchor prim is created with the correct default pose
-    xr_anchor_view = sim_utils.FrameView("/World/XRAnchor")
-    assert xr_anchor_view.count == 1
-
-    position, orientation = xr_anchor_view.get_world_poses()
-    np.testing.assert_almost_equal(position.torch.numpy().tolist(), [[0, 0, 0]])
-    np.testing.assert_almost_equal(orientation.torch.numpy().tolist(), [[0, 0, 0, 1]])
-
-    # Check that xr anchor mode and custom anchor are set correctly
-    assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
-    assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
-
-    device.reset()
+    session = MagicMock()
+    session.step.return_value = None
+    session.last_control_events = _NO_OP_EVENTS
+    monkeypatch.setattr("isaaclab_teleop.isaac_teleop_device.TeleopSessionLifecycle", lambda *args, **kwargs: session)
+    monkeypatch.setattr("isaaclab_teleop.xr_anchor_manager.XRCore", None)
+    sim_utils.create_prim("/World/Reference")
+    env.sim.reset()
+    stage = usdrt.Usd.Stage.Attach(sim_utils.get_current_stage_id())
+    reference = usdrt.Rt.Xformable(stage.GetPrimAtPath("/World/Reference"))
+    world_matrix = reference.CreateFabricHierarchyWorldMatrixAttr()
+    cfg = IsaacTeleopCfg(target_frame_prim_path="/World/Reference", sim_device="cpu")
+    with IsaacTeleopDevice(cfg, use_kit_xr_bridge=False) as device:
+        xr_cfg = XrCfg(anchor_prim_path="/World/Reference", fixed_anchor_height=False)
+        core = MagicMock()
+        sync = XrAnchorSynchronizer(core, xr_cfg, "/World/XRAnchor")
+        with monkeypatch.context() as bound:
+            bound.setattr(usdrt.Usd.Stage, "Attach", MagicMock(side_effect=AssertionError("Frame already bound")))
+            for position in ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0)):
+                world_matrix.Set(usdrt.Gf.Matrix4d(1.0).SetTranslate(usdrt.Gf.Vec3d(*position)))
+                device.advance()
+                sync.sync_headset_to_anchor()
+                expected = np.eye(4, dtype=np.float32)
+                expected[:3, 3] = -np.asarray(position)
+                target = session.step.call_args.kwargs["target_T_world"]
+                assert target is not None
+                np.testing.assert_allclose(target, expected)
+                np.testing.assert_allclose(sync.get_world_transform()[0], position)
+                displayed = core.set_world_transform_matrix.call_args.args[1]
+                np.testing.assert_allclose(displayed.ExtractTranslation(), position)
+    session.start.reset_mock()
+    cfg.target_frame_prim_path = "/World/Missing"
+    with pytest.raises(ValueError, match="No target frame"):
+        with IsaacTeleopDevice(cfg, use_kit_xr_bridge=False):
+            pass
+    session.start.assert_not_called()
 
 
 @pytest.mark.isaacsim_ci
 def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
-    """Test XR anchor behavior with multiple devices."""
+    """Test XR anchor behavior with multiple devices and the raw tracking data format."""
     env, _ = empty_env
-    # Create proper config objects with default values
+    # Create proper config objects with default values; the no-op retargeter triggers data collection
     device_1 = OpenXRDevice(OpenXRDeviceCfg())
-    device_2 = OpenXRDevice(OpenXRDeviceCfg())
+    device_2 = OpenXRDevice(OpenXRDeviceCfg(), retargeters=[NoOpRetargeter(RetargeterCfg())])
 
     # Check that the xr anchor prim is created with the correct default pose
     xr_anchor_view = sim_utils.FrameView("/World/XRAnchor")
@@ -236,20 +254,8 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
     assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
 
-    device_1.reset()
-    device_2.reset()
-
-
-@pytest.mark.isaacsim_ci
-def test_get_raw_data(empty_env, mock_xrcore):
-    """Test the _get_raw_data method returns correctly formatted tracking data."""
-    env, _ = empty_env
-    # Create a proper config object with default values and a no-op retargeter to trigger data collection
-    retargeter = NoOpRetargeter(RetargeterCfg())
-    device = OpenXRDevice(OpenXRDeviceCfg(), retargeters=[retargeter])
-
     # Get raw tracking data
-    raw_data = device._get_raw_data()
+    raw_data = device_2._get_raw_data()
 
     # Check that the data structure is as expected
     from isaaclab.devices.device_base import DeviceBase
@@ -274,3 +280,6 @@ def test_get_raw_data(empty_env, mock_xrcore):
     assert len(head_pose) == 7  # [x, y, z, qx, qy, qz, qw]
     np.testing.assert_almost_equal(head_pose[:3], [0.1, 0.2, 0.3])  # Position
     np.testing.assert_almost_equal(head_pose[3:], [0.1, 0.2, 0.3, 0.9])  # Orientation
+
+    device_1.reset()
+    device_2.reset()

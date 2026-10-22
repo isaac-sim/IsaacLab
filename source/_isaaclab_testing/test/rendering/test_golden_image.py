@@ -12,7 +12,7 @@ import pytest
 import torch
 from golden_image import RTX_COLOR_PIXEL_L2_THRESHOLD, compare_to_golden
 from PIL import Image
-from rendering_runner import _validate_segmentation
+from rendering_runner import validate_motion_vectors, validate_segmentation
 
 from isaaclab.renderers.output_contract import RenderBufferKind
 
@@ -119,9 +119,9 @@ def test_semantic_segmentation_enforces_minimum_visible_area() -> None:
     info = {kind: {"idToLabels": {table: {"class": "table"}}}}
     expected = {"/World/Table": "table"}
 
-    _validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 1})
+    validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 1})
     with pytest.raises(AssertionError, match="visible pixels"):
-        _validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 2})
+        validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 2})
 
 
 def _instance_segmentation_data():
@@ -144,12 +144,12 @@ def _instance_segmentation_data():
 def test_instance_segmentation_metadata_matches_pixels_and_scene() -> None:
     outputs, info, expected = _instance_segmentation_data()
 
-    _validate_segmentation(outputs, info, expected)
+    validate_segmentation(outputs, info, expected)
 
     invalid_info = copy.deepcopy(info)
     invalid_info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToSemantics"][(12, 34, 56, 255)] = {"class": "cube"}
     with pytest.raises(AssertionError, match="metadata mismatch"):
-        _validate_segmentation(outputs, invalid_info, expected)
+        validate_segmentation(outputs, invalid_info, expected)
 
 
 def test_instance_segmentation_rejects_metadata_colors_absent_from_pixels() -> None:
@@ -158,7 +158,7 @@ def test_instance_segmentation_rejects_metadata_colors_absent_from_pixels() -> N
     info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToSemantics"][(99, 88, 77, 255)] = {"class": "extra"}
 
     with pytest.raises(AssertionError, match="unrendered colors"):
-        _validate_segmentation(outputs, info, expected)
+        validate_segmentation(outputs, info, expected)
 
 
 def test_partial_instance_metadata_accepts_scene_valid_static_mapping() -> None:
@@ -168,7 +168,7 @@ def test_partial_instance_metadata_accepts_scene_valid_static_mapping() -> None:
     info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToSemantics"][occluded_color] = {"class": "cube"}
     expected.update({"/World/Occluded": "cube", "/World/Clone": "robot"})
 
-    _validate_segmentation(outputs, info, expected, exact_instance_metadata=False)
+    validate_segmentation(outputs, info, expected, exact_instance_metadata=False)
 
 
 def test_partial_instance_metadata_rejects_unknown_scene_instance() -> None:
@@ -176,4 +176,15 @@ def test_partial_instance_metadata_rejects_unknown_scene_instance() -> None:
     info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToLabels"][(12, 34, 56, 255)] = "/World/Unknown"
 
     with pytest.raises(AssertionError, match="scene-valid subset"):
-        _validate_segmentation(outputs, info, expected, exact_instance_metadata=False)
+        validate_segmentation(outputs, info, expected, exact_instance_metadata=False)
+
+
+def test_motion_vectors_require_localized_motion() -> None:
+    motion = torch.full((2, 16, 16, 4), 1.0e-5)
+    motion[:, 4:10, 4:10, :2] = 1.0
+    validate_motion_vectors(motion)
+    # A single larger vector must not hide otherwise uniform whole-frame motion.
+    motion[..., :2] = 1.0
+    motion[:, 0, 0, :2] = 2.0
+    with pytest.raises(AssertionError, match="not localized"):
+        validate_motion_vectors(motion)
