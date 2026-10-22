@@ -3,6 +3,21 @@ Changelog
 
 .. towncrier release notes start
 
+5.2.2 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Selected recording sources from composed visualizer configs while preserving shared image views
+  and headless, on-demand capture when no window was selected.
+
+Fixed
+^^^^^
+
+* Preserved physics, renderer, and visualizer selector aliases when filtering external task callback arguments.
+
+
 5.2.1 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 

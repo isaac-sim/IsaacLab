@@ -3,6 +3,41 @@ Changelog
 
 .. towncrier release notes start
 
+4.0.0 (2026-10-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Separated backend options into ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBackendCfg``,
+  ``RerunBackendCfg``, and ``ViserBackendCfg``. Constructors received shared ``VisualizerCfg``
+  declarations and read implementation options from ``cfg.backend``. Kept the previous
+  ``*VisualizerCfg`` names as deprecated configuration-only adapters; move shared camera/window
+  settings to ``VisualizerCfg`` and backend-specific options to its ``backend``.
+* Enabled Newton GL particle display by default. Set ``NewtonGLBackendCfg(show_particles=False)``
+  to hide particles; hidden MPM particles no longer updated their display buffers.
+
+
+3.4.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Declared runtime-launch requirements on concrete visualizer configurations.
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to read contacts and register callbacks through ``sim.backend_manager``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing :class:`~isaaclab_visualizers.newton.ParticleSurfaceRenderer` without
+  ``backend_manager``; the active simulation's Newton manager is used with a :class:`DeprecationWarning`.
+
+
 3.3.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 

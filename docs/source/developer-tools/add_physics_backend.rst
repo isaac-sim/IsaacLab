@@ -65,8 +65,6 @@ transforms in the Warp-native format consumed by renderers and visualizers.
 .. code-block:: python
 
     # isaaclab_mybackend/physics/mybackend_manager.py
-    from typing import ClassVar
-
     from isaaclab.physics import PhysicsEvent, PhysicsManager
     from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
@@ -92,36 +90,34 @@ transforms in the Warp-native format consumed by renderers and visualizers.
 
 
     class MyBackendManager(PhysicsManager):
-        _scene_data_backend: ClassVar[MyBackendSceneDataBackend | None] = None
+        backend_name = "mybackend"
 
-        @classmethod
-        def initialize(cls, sim_context):
+        def __init__(self):
+            super().__init__()
+            self._scene_data_backend: MyBackendSceneDataBackend | None = None
+
+        def initialize(self, sim_context):
             super().initialize(sim_context)
-            cls._scene_data_backend = MyBackendSceneDataBackend()
+            self._scene_data_backend = MyBackendSceneDataBackend()
             # Initialize the physics engine.
 
-        @classmethod
-        def get_scene_data_backend(cls) -> SceneDataBackend:
-            return cls._scene_data_backend
+        def get_scene_data_backend(self) -> SceneDataBackend:
+            return self._scene_data_backend
 
-        @classmethod
-        def step(cls):
+        def step(self):
             # Advance simulation by one timestep.
             ...
 
-        @classmethod
-        def forward(cls):
+        def forward(self):
             # Update kinematics without stepping.
             ...
 
-        @classmethod
-        def reset(cls, soft=False):
+        def reset(self, soft=False):
             if not soft:
-                cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
+                self.dispatch_event(PhysicsEvent.PHYSICS_READY)
             # Reset simulation state.
 
-        @classmethod
-        def close(cls):
+        def close(self):
             super().close()
             # Clean up resources.
 
@@ -146,29 +142,17 @@ manager class and holds backend-specific settings:
 Register the backend key
 ------------------------
 
-``FactoryBase`` does not derive a new backend key from an arbitrary physics
-manager class name. Add the manager prefix to the core selector in
-``isaaclab.utils.backend_utils`` before factories can resolve assets and
-sensors for the backend:
-
-.. code-block:: python
-
-    # source/isaaclab/isaaclab/utils/backend_utils.py
-    @classmethod
-    def _get_backend(cls, *args, **kwargs) -> str:
-        from isaaclab.sim.simulation_context import SimulationContext
-
-        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
-        if manager_name.startswith("mybackend"):
-            return "mybackend"
-        # Keep the existing newton, ovphysx, and physx cases below.
+``FactoryBase._get_backend()`` returns the ``backend_name`` class attribute of
+the active ``SimulationContext.backend_manager`` instance. The manager above sets
+``backend_name = "mybackend"``, so factories resolve its assets and sensors
+without changes to ``isaaclab.utils.backend_utils``.
 
 The existing ``_get_package_name()`` convention maps the ``mybackend`` key to
 the ``isaaclab_mybackend`` package used above. If the integration uses another
 package name, add an explicit case to ``_get_package_name()`` as well.
 ``FactoryBase.register()`` only caches the concrete class after this key and
 package mapping has selected and imported the backend module; calling it alone
-does not register a new physics-manager prefix.
+does not register a new backend key.
 
 Implement assets and sensors
 ----------------------------
