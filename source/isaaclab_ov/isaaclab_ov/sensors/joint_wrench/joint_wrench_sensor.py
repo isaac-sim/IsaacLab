@@ -199,7 +199,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[
                 env_mask,
                 self._wrench_buf,
-                self._timestamp,
                 self._data._force,
                 self._data._torque,
             ],

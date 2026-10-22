@@ -15,6 +15,8 @@ import logging
 
 import warp as wp
 
+from pxr import UsdGeom
+
 from ...utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,9 @@ class FabricXformSelection:
     instance's lifetime, keyed on a per-instance index attribute so their size follows the view
     rather than the stage. Accessors rebuild the view-index to Fabric-slot mapping from live Fabric
     data, so a bucket reorder can never leave it stale.
+
+    This selection owns matrix initialization. Seed modern Fabric matrices directly; views must not
+    add another USD seed pass or use legacy transform compatibility attributes.
     """
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
@@ -76,7 +81,7 @@ class FabricXformSelection:
         except ImportError:
             hierarchy = None
 
-        from ..utils import get_current_stage_id
+        from ..utils import get_current_stage, get_current_stage_id
 
         self._device = device
         self._owner = owner
@@ -111,38 +116,46 @@ class FabricXformSelection:
 
         # Tag children and parents with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
-        for paths, index_attr, is_child in (
-            (self._prim_paths, self.child_index_attr, True),
-            (self.unique_parent_paths, self._parent_index_attr, False),
-        ):
-            group_prims: list = []
-            for i, path in enumerate(paths):
-                rt_prim = self.stage.GetPrimAtPath(path)
-                if not rt_prim.IsValid():
-                    raise RuntimeError(f"{owner}: prim '{path}' does not exist in the Fabric stage.")
-                rt_xformable = Rt.Xformable(rt_prim)
-                if seed_from_usd:
-                    rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
-                    rt_xformable.CreateFabricHierarchyLocalMatrixAttr()
-                    rt_xformable.SetLocalXformFromUsd()
-                    rt_xformable.SetWorldXformFromUsd()
-                else:
-                    if not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME):
-                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
-                        rt_xformable.SetWorldXformFromUsd()
-                    if is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME):
-                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr()
-                        rt_xformable.SetLocalXformFromUsd()
-                rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
-                rt_prim.GetAttribute(index_attr).Set(i)
-                group_prims.append(rt_prim)
-            self._tagged_prims.append((index_attr, group_prims))
-
-        # usdrt's *XformFromUsd helpers write legacy transform attributes. Only the host Fabric Hierarchy
-        # update turns them into the omni:fabric matrices, and Kit runs it per frame only when the Fabric
-        # Scene Delegate is on.
-        if self.fabric_hierarchy is not None:
-            self.fabric_hierarchy.update_world_xforms()
+        usd_stage = get_current_stage()
+        xform_cache = UsdGeom.XformCache()
+        hierarchy = self.fabric_hierarchy
+        # Both spaces are seeded consistently; hierarchy must not reinterpret interdependent writes.
+        if seed_from_usd and hierarchy is not None:
+            hierarchy.update_world_xforms()
+            local_tracking = hierarchy.tracking_local_xform_changes
+            world_tracking = hierarchy.tracking_world_xform_changes
+            hierarchy.track_local_xform_changes(False)
+            hierarchy.track_world_xform_changes(False)
+        try:
+            for paths, index_attr, is_child in (
+                (self._prim_paths, self.child_index_attr, True),
+                (self.unique_parent_paths, self._parent_index_attr, False),
+            ):
+                group_prims: list = []
+                for i, path in enumerate(paths):
+                    rt_prim = self.stage.GetPrimAtPath(path)
+                    if not rt_prim.IsValid():
+                        raise RuntimeError(f"{owner}: prim '{path}' does not exist in the Fabric stage.")
+                    rt_xformable = Rt.Xformable(rt_prim)
+                    usd_prim = usd_stage.GetPrimAtPath(path)
+                    if seed_from_usd or not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME):
+                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr(
+                            usdrt.Gf.Matrix4d(xform_cache.GetLocalToWorldTransform(usd_prim))
+                        )
+                    if seed_from_usd or (is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME)):
+                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr(
+                            usdrt.Gf.Matrix4d(xform_cache.GetLocalTransformation(usd_prim)[0])
+                        )
+                    rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
+                    rt_prim.GetAttribute(index_attr).Set(i)
+                    group_prims.append(rt_prim)
+                self._tagged_prims.append((index_attr, group_prims))
+        finally:
+            if seed_from_usd and hierarchy is not None:
+                hierarchy.track_local_xform_changes(local_tracking)
+                hierarchy.track_world_xform_changes(world_tracking)
+        if not seed_from_usd and hierarchy is not None:
+            hierarchy.update_world_xforms()
 
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
         uint_type = usdrt.Sdf.ValueTypeNames.UInt
@@ -161,7 +174,6 @@ class FabricXformSelection:
         # View-side indices are uint32 to match the Fabric ``UInt`` tags; slot buffers must be
         # int32, the only index dtype ``wp.indexedfabricarray`` accepts.
         self.view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=device)
-        self.parent_view_indices = wp.array(list(range(len(self.unique_parent_paths))), dtype=wp.uint32, device=device)
         self._child_parent_map = wp.array(
             [parent_ordinal[path] for path in child_parent_paths], dtype=wp.uint32, device=device
         )
@@ -198,29 +210,6 @@ class FabricXformSelection:
         self.refresh_parent_selection()
         return wp.indexedfabricarray(
             fa=wp.fabricarray(self.sel_parent, self._WORLD_MATRIX_NAME), indices=self._parent_slot_of_child_buf
-        )
-
-    def parent_world_rw_ifa(self) -> wp.indexedfabricarray:
-        """Return writable parent world matrices, via a one-off selection so :attr:`sel_parent` stays read-only."""
-        import usdrt
-
-        selection = self.stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.UInt, self._parent_index_attr, usdrt.Usd.Access.Read),
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, self._WORLD_MATRIX_NAME, usdrt.Usd.Access.ReadWrite),
-            ],
-            device=self._device,
-        )
-        num_parents = len(self.unique_parent_paths)
-        self.check_count(selection.GetCount(), num_parents, self._parent_index_attr)
-        wp.launch(
-            kernel=fabric_utils.map_view_indices_to_fabric_slots,
-            dim=num_parents,
-            inputs=[wp.fabricarray(selection, self._parent_index_attr), self._parent_slots_buf],
-            device=self._device,
-        )
-        return wp.indexedfabricarray(
-            fa=wp.fabricarray(selection, self._WORLD_MATRIX_NAME), indices=self._parent_slots_buf
         )
 
     def check_count(self, found: int, expected: int, index_attr: str) -> None:

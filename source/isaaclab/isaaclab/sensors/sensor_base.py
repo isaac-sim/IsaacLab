@@ -50,6 +50,7 @@ class SensorBase(ABC):
 
     This base owns environment rows and their clocks. Backend sensors must validate native binding
     coverage rather than resize those rows when some environments have no matching sensor body.
+    Capture masks select ready and due rows; backend kernels must not repeat reset-readiness checks.
     """
 
     _requires_physics_step = False
@@ -202,6 +203,7 @@ class SensorBase(ABC):
                 self._timestamp,
                 self._timestamp_last_update,
                 self._elapsed_since_update,
+                self._requires_physics_step,
             ],
             device=self._device,
         )
@@ -222,6 +224,7 @@ class SensorBase(ABC):
                 self._elapsed_since_update,
                 dt,
                 self.cfg.update_period - 1e-6,
+                self._requires_physics_step,
             ],
             device=self._device,
         )
@@ -446,7 +449,7 @@ class SensorBase(ABC):
     def _create_timing_buffers(self) -> None:
         """Allocate the shared per-environment flags and clocks used to schedule captures."""
         # timestamp and outdated flags
-        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+        self._is_outdated = wp.full(self._num_envs, not self._requires_physics_step, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
@@ -469,7 +472,6 @@ class SensorBase(ABC):
                 self._timestamp,
                 self._timestamp_last_update,
                 self._elapsed_since_update,
-                self._requires_physics_step,
             ],
             device=self._device,
         )

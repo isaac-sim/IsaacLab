@@ -24,8 +24,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 pytestmark = pytest.mark.unit
 
 
-def test_native_sensors_preserve_shared_environment_count():
-    """Native bindings validate coverage; they must not resize SensorBase's environment rows and clocks."""
+def test_sensor_lifecycle_has_single_owners():
+    """Backends retain shared scheduling, lazy state reads, and one Fabric initialization owner."""
     for directory in (ISAACLAB_ROOT / "source").glob("isaaclab_*/isaaclab_*/sensors"):
         for path in directory.rglob("*.py"):
             if path.name.endswith("_data.py"):
@@ -33,6 +33,28 @@ def test_native_sensors_preserve_shared_environment_count():
             for node in ast.walk(ast.parse(path.read_text())):
                 if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):
                     assert node.attr != "_num_envs", f"{path}:{node.lineno} overrides SensorBase environment ownership"
+                if isinstance(node, ast.FunctionDef):
+                    assert all(arg.arg != "timestamp" for arg in node.args.args), (
+                        f"{path}:{node.lineno} duplicates SensorBase capture readiness"
+                    )
+                    if directory.parts[-2] == "isaaclab_newton" and node.name == "_update_buffers_impl":
+                        assert not any(
+                            isinstance(call, ast.Call)
+                            and isinstance(call.func, ast.Attribute)
+                            and call.func.attr == "forward"
+                            for call in ast.walk(node)
+                        ), f"{path}:{node.lineno} bypasses the lazy state read boundary"
+    for name in (
+        "isaaclab/isaaclab/sim/views/fabric_xform_selection.py",
+        "isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py",
+        "isaaclab_newton/isaaclab_newton/sim/views/newton_site_frame_view.py",
+    ):
+        path = ISAACLAB_ROOT / "source" / name
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.FunctionDef):
+                assert node.name not in {"_sync_fabric_from_usd_initial", "parent_world_rw_ifa"}, path
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                assert node.func.attr not in {"SetLocalXformFromUsd", "SetWorldXformFromUsd", "forward"}, path
 
 
 class _RefreshLogSensor(SensorBase):
@@ -62,10 +84,7 @@ class _RefreshLogSensor(SensorBase):
         pass
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        timestamps = self._timestamp.numpy() if self._requires_physics_step else None
         for env in np.flatnonzero(env_mask.numpy()):
-            if self._requires_physics_step and timestamps[env] == 0.0:
-                continue
             self.refreshes[env].append(self.step)
 
 
@@ -118,3 +137,19 @@ def test_reset_read_only_restarts_period_after_capture(device, requires_physics_
         _ = sensor.data
     assert sensor.refreshes[0] == ([1, 2, 6, 10] if requires_physics_step else [1, 1, 5, 9])
     assert sensor.refreshes[1] == [1, 5, 9]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.parametrize("period", [0.0, 0.02])
+def test_physics_capture_waits_for_positive_time_after_initialization_and_reset(device, period):
+    """Forced zero-dt reads preserve reset outputs; the first step captures even before a long period expires."""
+    sensor = _RefreshLogSensor(update_period=period, device=device, requires_physics_step=True)
+    for _ in range(2):
+        sensor.update(0.0, force_recompute=True)
+        _ = sensor.data
+        assert sensor.refreshes == [[], []]
+        _run(sensor, [0.005])
+        _ = sensor.data
+        assert sensor.refreshes == [[1], [1]]
+        sensor.reset(env_mask=wp.ones(2, dtype=wp.bool, device=device))
+        sensor.refreshes = [[], []]

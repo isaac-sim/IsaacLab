@@ -154,14 +154,17 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
         indices=wp.array([0], dtype=wp.int32, device=device),
     )
     sim.step(render=False)
+    sim_utils.create_prim("/World/Cube/LateMount", "Camera", translation=CHILD_OFFSET)
     # A view first opened after motion must preserve live native poses instead of seeding old USD poses.
     frame_view = FrameView(
-        "/World/Cube/CameraMount", device=device, scene_data_backend=sim.get_scene_data_provider().backend
+        "/World/Cube/(CameraMount|LateMount)", device=device, scene_data_backend=sim.get_scene_data_provider().backend
     )
     request.addfinalizer(frame_view.close)
     before = tuple(value.torch.clone() for value in frame_view.get_world_poses())
     offset = torch.tensor(CHILD_OFFSET, device=device)
-    torch.testing.assert_close(before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device) + offset)
+    torch.testing.assert_close(
+        before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device).expand(2, -1) + offset
+    )
     provider = SceneDataProvider(sim.get_scene_data_provider().backend)
     output = SceneDataFormat.FabricMatrix44()
     assert provider.get_transforms(output)
@@ -176,7 +179,8 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     )
     sim.backend_manager.invalidate_transforms()
     torch.testing.assert_close(
-        frame_view.get_world_poses()[0].torch, torch.tensor([[-2, 0.5, 4]], dtype=torch.float32, device=device) + offset
+        frame_view.get_world_poses()[0].torch,
+        torch.tensor([[-2, 0.5, 4]], dtype=torch.float32, device=device).expand(2, -1) + offset,
     )
     provider.get_transforms(output)
     assert not sim.get_setting("/physics/fabricUpdateTransformations")

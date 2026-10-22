@@ -276,7 +276,6 @@ def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 
     sensor._num_bodies = 1
     sensor._body_ordering = None
     sensor._root_view = root_view
-    sensor._timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
     sensor._data = JointWrenchSensorData()
     sensor._data.create_buffers(num_envs=num_envs, num_bodies=1, device=device)
     sensor._raw_incoming_joint_wrench = None

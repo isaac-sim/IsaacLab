@@ -217,7 +217,6 @@ class Imu(BaseImu):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_bias_w,
-                self._timestamp,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],

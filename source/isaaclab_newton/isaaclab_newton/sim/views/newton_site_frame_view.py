@@ -656,9 +656,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations."""
-        if not wp.get_device(self._device).is_capturing:
-            self._backend_manager.forward()
-        state = self._backend_manager.get_state_0()
+        state = self._backend_manager.get_scene_data_backend().state
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
         pos_buf = self._pos_buf if indices is None else wp.zeros(n, dtype=wp.vec3f, device=self._device)
@@ -691,10 +689,9 @@ class NewtonSiteFrameView(BaseFrameView):
                 positions = cur_pos_ta.warp
             if orientations is None:
                 orientations = cur_quat_ta.warp
-        elif not wp.get_device(self._device).is_capturing:
-            self._backend_manager.forward()
-
-        state = self._backend_manager.get_state_0()
+            state = self._backend_manager.get_state_0()
+        else:
+            state = self._backend_manager.get_scene_data_backend().state
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
         wp.launch(

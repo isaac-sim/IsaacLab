@@ -629,7 +629,6 @@ class ContactSensor(BaseContactSensor):
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
-                self._timestamp,
                 self._elapsed_since_update,
             ],
             outputs=[
@@ -676,7 +675,6 @@ class ContactSensor(BaseContactSensor):
                     self._num_envs,
                     True,
                     float("nan"),
-                    self._timestamp,
                 ],
                 outputs=[self._data._contact_pos_w],
                 device=self.device,
@@ -695,7 +693,6 @@ class ContactSensor(BaseContactSensor):
                     self._num_envs,
                     False,
                     0.0,
-                    self._timestamp,
                 ],
                 outputs=[self._data._friction_force_matrix_w],
                 device=self.device,

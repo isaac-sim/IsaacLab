@@ -414,7 +414,6 @@ class ContactSensor(BaseContactSensor):
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
-                self._timestamp,
                 self._elapsed_since_update,
             ],
             outputs=[
@@ -449,7 +448,6 @@ class ContactSensor(BaseContactSensor):
                     contact_buffers[-1],
                     env_mask,
                     self._num_envs,
-                    self._timestamp,
                 ],
                 outputs=[self._data._contact_pos_w],
                 device=self._device,

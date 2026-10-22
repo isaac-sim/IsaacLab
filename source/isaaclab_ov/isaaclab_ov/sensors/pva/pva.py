@@ -224,7 +224,6 @@ class Pva(BasePva):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_vec_w,
-                self._timestamp,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,

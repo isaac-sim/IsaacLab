@@ -1,2 +1,2 @@
-* Resolved pending forward kinematics before frame-transformer and PVA captures,
-  frame-view pose reads, and world-pose writes relative to a moved parent body.
+* Routed frame-transformer, PVA, and frame-view state reads through the existing lazy
+  scene-data state accessor so the Newton manager resolves pending kinematics.
