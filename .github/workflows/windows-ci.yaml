@@ -32,7 +32,6 @@ permissions:
   pull-requests: read
 
 env:
-  OMNI_KIT_ACCEPT_EULA: "yes"
   # Decode subprocess output as UTF-8 instead of the cp1252 code page.
   PYTHONUTF8: "1"
   # A test the orchestrator kills on timeout would otherwise lose its buffered output.
@@ -86,41 +85,7 @@ jobs:
       - name: Sync environment
         id: sync
         timeout-minutes: 30
-        run: uv sync --frozen --extra isaacsim --extra ovrtx --extra test
-
-      # ovrtx and Kit compile their shaders into .venv, which checkout's clean deletes.
-      # The blobs are only valid for the GPU and driver that compiled them.
-      - name: Shader cache keys
-        id: shader-cache
-        run: |
-          $gpu = @(nvidia-smi --query-gpu=compute_cap,driver_version --format=csv,noheader)
-          if ($LASTEXITCODE -ne 0 -or $gpu.Count -eq 0) { throw "nvidia-smi failed: $gpu" }
-          $gpu = "sm$($gpu[0] -replace '\s', '' -replace ',', '-drv')"
-          foreach ($name in "ovrtx", "isaacsim") {
-            $pin = @(Select-String -LiteralPath uv.lock -Pattern "^name = `"$name`"$" -Context 0,1)
-            if ($pin.Count -ne 1) { throw "uv.lock pins $name $($pin.Count) times" }
-            $version = $pin[0].Context.PostContext[0] -replace '^version = "(.+)"$', '$1'
-            "$name=windows-$name-$version-$gpu" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
-
-      # actions/cache archives with Git's tar, which finds gzip only on PATH (actions/cache#1297).
-      - name: Restore ovrtx shader cache
-        id: ovrtx-cache
-        uses: actions/cache/restore@v4
-        env:
-          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
-        with:
-          path: .venv/Lib/site-packages/ovrtx/bin/cache
-          key: ${{ steps.shader-cache.outputs.ovrtx }}
-
-      - name: Restore Kit shader cache
-        id: kit-cache
-        uses: actions/cache/restore@v4
-        env:
-          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
-        with:
-          path: .venv/Lib/site-packages/isaacsim/kit/cache
-          key: ${{ steps.shader-cache.outputs.isaacsim }}
+        run: uv sync --frozen --extra test
 
       - name: Run windows_ci marker tests
         env:
@@ -132,24 +97,6 @@ jobs:
       - name: Run Cartpole smoke tests
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py --junitxml=tests/windows-ci-smoke-report.xml
-
-      - name: Save ovrtx shader cache
-        if: ${{ success() && steps.ovrtx-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
-        env:
-          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
-        with:
-          path: .venv/Lib/site-packages/ovrtx/bin/cache
-          key: ${{ steps.shader-cache.outputs.ovrtx }}
-
-      - name: Save Kit shader cache
-        if: ${{ success() && steps.kit-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
-        env:
-          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
-        with:
-          path: .venv/Lib/site-packages/isaacsim/kit/cache
-          key: ${{ steps.shader-cache.outputs.isaacsim }}
 
       - name: Upload test reports
         if: always()
