@@ -6,3 +6,5 @@
   step and simulation time, simulation rate and real-time factor, and status badges
   for recording, pause, and Policy Ghosts. "Environments", "Visualization Markers", and "Model Overlays" are now
   grouped in one "Scene" section.
+* Renamed the Newton GL window and its HUD panel from "Newton Viewer" to "Newton Visualizer", and moved
+  "Visualization Markers" into a section of its own that is always shown, with a note when a task registers none.

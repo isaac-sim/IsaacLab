@@ -117,6 +117,8 @@ class NewtonViewerGL(ViewerGL):
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        if hasattr(self.renderer, "set_title"):
+            self.renderer.set_title("Newton Visualizer")  # Newton's default caption is "Newton Viewer".
         self._paused_training = False
         self._reset_requested = False
         self._metadata = metadata or {}
@@ -190,11 +192,12 @@ class NewtonViewerGL(ViewerGL):
 
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
         2. **View** (open) — renderer (OpenGL or RTX), camera, VSync, and renderer-specific options.
-        3. **Scene** (open) — visible environments, visualization markers, and model overlays.
-        4. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
-        5. **Recording** (closed) — output settings, video, ``.viser`` scene, and simulation-state checkpoint.
-        6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        7. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
+        3. **Scene** (open) — visible environments and model overlays.
+        4. **Visualization Markers** (open) — a toggle per marker group of the task, shared with Kit and Viser.
+        5. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
+        6. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
+        7. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        8. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -224,7 +227,7 @@ class NewtonViewerGL(ViewerGL):
                 imgui.ImVec2(io.display_size[0], panel_h),
             )
 
-            if not imgui.begin(f"Newton Viewer v{nt.__version__}"):
+            if not imgui.begin(f"Newton Visualizer v{nt.__version__}"):
                 imgui.end()
                 return
 
@@ -257,6 +260,9 @@ class NewtonViewerGL(ViewerGL):
 
             # --- Scene ------------------------------------------------------
             viewer._draw_scene_controls(imgui)
+
+            # --- Visualization Markers --------------------------------------
+            viewer._draw_marker_controls(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
             if viewer._policy_ghost_panel is not None:
@@ -323,7 +329,7 @@ class NewtonViewerGL(ViewerGL):
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and model overlays."""
         has_environments = self._has_environment_controls()
-        if not (has_environments or self.marker_groups or self.model is not None):
+        if not (has_environments or self.model is not None):
             return
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         if not imgui.collapsing_header("Scene"):
@@ -331,13 +337,6 @@ class NewtonViewerGL(ViewerGL):
         imgui.separator()
         if has_environments:
             self._render_environment_controls(imgui)
-        if self.marker_groups:
-            imgui.separator_text("Markers")
-            for marker in self.marker_groups:
-                name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
-                changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
-                if changed:
-                    marker.set_visibility(visible)
         if self.model is not None:
             imgui.separator_text("Model Overlays")
             if self._fullscreen_image_active or self.image_matches_camera:
@@ -347,6 +346,34 @@ class NewtonViewerGL(ViewerGL):
             elif imgui.tree_node("Overlay options"):
                 self._draw_model_overlays(imgui)
                 imgui.tree_pop()
+
+    def _draw_marker_controls(self, imgui) -> None:
+        """Draw the Visualization Markers section: one toggle per marker group the task registers."""
+        imgui.set_next_item_open(True, imgui.Cond_.appearing)
+        if not imgui.collapsing_header("Visualization Markers"):
+            return
+        imgui.separator()
+        groups = list(self.marker_groups)
+        if not groups:
+            imgui.text_disabled("This task registers no visualization markers")
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "Markers such as velocity-command arrows appear when a task enables debug visualization"
+                )
+            return
+        for marker in groups:
+            name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
+            changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
+            if changed:
+                marker.set_visibility(visible)
+        if len(groups) > 1:
+            if imgui.button("Show All##markers"):
+                for marker in groups:
+                    marker.set_visibility(True)
+            imgui.same_line()
+            if imgui.button("Hide All##markers"):
+                for marker in groups:
+                    marker.set_visibility(False)
 
     def _draw_model_overlays(self, imgui) -> None:
         """Draw Newton's per-overlay toggles."""
@@ -743,7 +770,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             else view.cfg.source
             for i, view in enumerate(self._image_views)
         ]
-        changed, index = imgui.combo("Camera", self._image_views.index(self.current_image_view), labels)
+        changed, index = imgui.combo("Camera Source", self._image_views.index(self.current_image_view), labels)
         if changed:
             self._select_camera(index)
         if imgui.is_item_hovered():
