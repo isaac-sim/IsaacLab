@@ -19,6 +19,7 @@ from isaaclab.sensors import FrameTransformerCfg, ImuCfg, PvaCfg, RayCasterCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.utils.warp.math_ops import transform_to_vec_quat
 
@@ -114,8 +115,9 @@ class SiteSensorSceneCfg(InteractiveSceneCfg):
 
 
 @pytest.mark.parametrize("num_envs", [1, 2], ids=["one_env", "two_envs"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.integration
-def test_hard_resets_keep_sensor_sites(num_envs):
+def test_hard_resets_keep_sensor_sites(num_envs, device):
     """Site sensors stay on their bodies through hard resets, which leave one native IMU and frame transform sensor.
 
     Sensors registered their sites again on ``STOP`` and the kept builder received them a second time: the second
@@ -123,7 +125,7 @@ def test_hard_resets_keep_sensor_sites(num_envs):
     once, followed the IMU's cube. When the frame transformer initialized again, its single target also took the
     name of the wildcard target's second match.
     """
-    sim_cfg = SimulationCfg(dt=0.005, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+    sim_cfg = SimulationCfg(device=device, dt=0.005, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(SiteSensorSceneCfg(num_envs=num_envs))
         spin = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 2.0]] * num_envs, device=sim.device)

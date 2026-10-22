@@ -367,7 +367,7 @@ class CuroboPlanner(MotionPlannerBase):
         world_stage = Usd.Stage.Open(source_stage.Flatten())
         usd_replicate(world_stage, source_paths, destinations, np.array([self.env_id]))
         source_xforms = UsdGeom.XformCache()
-        env_transform = Gf.Matrix4d().SetTranslate(Gf.Vec3d(*map(float, self.env.scene.env_origins[self.env_id].cpu())))
+        env_transform = Gf.Matrix4d().SetTranslate(Gf.Vec3d(*self.env.scene.env_origins[self.env_id].cpu().tolist()))
         for source, destination in zip(source_paths, destinations, strict=True):
             source_prim = self.env.scene.stage.GetPrimAtPath(source)
             if not UsdGeom.Xformable(source_prim):

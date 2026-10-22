@@ -392,8 +392,8 @@ def test_sensor_no_contact_object(setup_nut_rgb_ff):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("contact_path", ["/World/Missing", "/World/Cube", "/World/Nut"])
-def test_sensor_force_field_requires_one_contact_sdf(setup_nut_rgb_ff, contact_path):
+@pytest.mark.parametrize("contact_path, sdf_count", [("/World/Missing", 0), ("/World/Cube", 0), ("/World/Nut", 2)])
+def test_sensor_force_field_requires_one_contact_sdf(setup_nut_rgb_ff, contact_path, sdf_count):
     """Reject missing contact objects, objects without an SDF, and ambiguous SDF matches."""
     sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
     sensor_cfg.enable_camera_tactile = False
@@ -409,5 +409,5 @@ def test_sensor_force_field_requires_one_contact_sdf(setup_nut_rgb_ff, contact_p
             and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf",
         )
         sim.stage.DefinePrim(str(mesh.GetPath()) + "Copy").GetReferences().AddInternalReference(mesh.GetPath())
-    with pytest.raises(RuntimeError, match="Expected 1 prims.*found (0|2)"):
+    with pytest.raises(RuntimeError, match=rf"Expected 1 prims.*found {sdf_count}\b"):
         sim.reset()

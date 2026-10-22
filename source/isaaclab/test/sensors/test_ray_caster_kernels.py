@@ -45,15 +45,26 @@ DEVICE = "cuda:0" if wp.is_cuda_available() else "cpu"
 ATOL = 1e-5
 
 
-def test_mesh_tracking_has_one_provider_owner_and_persistent_indices(source_checkout_root):
-    """Leaf consumers must not rediscover the provider or replace their index arrays with None."""
+def test_ray_caster_binding_ownership(source_checkout_root):
+    """Keep provider ownership centralized, indices persistent, and retired wrappers absent."""
     source = source_checkout_root / "source"
     consumers = (
         source / "isaaclab/isaaclab/sensors/ray_caster/base_multi_mesh_ray_caster.py",
         source / "isaaclab_ov/isaaclab_ov/sensors/ray_caster/ray_caster.py",
+        source / "isaaclab_newton/isaaclab_newton/sensors/ray_caster/newton_raycast_sensor.py",
+        source / "isaaclab_physx/isaaclab_physx/sensors/ray_caster/ray_caster.py",
     )
     for path in consumers:
         for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.FunctionDef):
+                assert node.name not in {
+                    "_newton_body_pattern",
+                    "_identity_offsets",
+                    "_register_sites_for_expr",
+                    "_resolve_site_indices",
+                    "_physx_body_glob",
+                    "_initialize_static_pose_tracking",
+                }, path
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 assert node.func.attr not in {"instance", "get_scene_data_provider"}, path
             if isinstance(node, ast.Assign) and any(

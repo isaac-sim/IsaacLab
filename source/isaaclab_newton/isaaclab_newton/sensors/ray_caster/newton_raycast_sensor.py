@@ -71,20 +71,6 @@ _ENV_SLOT_NS = DEFAULT_ENV_TEMPLATE.format("[^/]+")
 _CONCRETE_ENV_NS = re.compile(rf"^{re.escape(DEFAULT_ENV_TEMPLATE.format(''))}\d+/")
 
 
-def _newton_body_pattern(body_path: str) -> str:
-    """Convert a concrete environment index to a prototype body pattern."""
-    body_path = body_path.replace("{}", "[^/]+")
-    return _CONCRETE_ENV_NS.sub(_ENV_SLOT_NS + "/", body_path)
-
-
-def _identity_offsets(count: int, device: str) -> tuple[wp.array, wp.array]:
-    """Create identity offsets for site poses that already include frame placement."""
-    offset_pos = wp.zeros(count, dtype=wp.vec3f, device=device)
-    identity_quat = np.zeros((count, 4), dtype=np.float32)
-    identity_quat[:, 3] = 1.0
-    return offset_pos, wp.array(identity_quat, dtype=wp.quatf, device=device)
-
-
 class _NewtonRayCasterPoseMixin:
     """Register Newton sensor sites and update ray poses from a shared backend."""
 
@@ -96,50 +82,51 @@ class _NewtonRayCasterPoseMixin:
     def __init__(self: Any, cfg):
         """Register the sensor site before Newton model finalization."""
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
-        self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
-        sim = sim_utils.SimulationContext.instance()
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-
-    def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
-        """Register Newton sites for a prim expression."""
-        plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        if plan is not None:
-            matched = cloner.path.match(prim_expr, plan.env_template)
-            if matched is not None and not matched.suffix:
-                return [self._backend_manager.cl_register_site(None, wp.transform(), per_world=True)]
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=self._sim.cfg.physics, device=self._sim.device)
+        plan = self._sim.get_clone_plan()
+        matched = cloner.path.match(self.cfg.prim_path, plan.env_template) if plan is not None else None
+        if matched is not None and not matched.suffix:
+            self._sensor_site_label = self._backend_manager.cl_register_site(None, wp.transform(), per_world=True)
+            return
 
         try:
             body_expr, fixed_pos, fixed_quat = self._resolve_rigid_body_ancestor_expr()
         except RuntimeError:
             # Preserve support for sensor paths registered before their USD prim
             # exists. Known camera/raycaster child names attach to their parent.
-            body_expr = prim_expr
-            *parent_segments, leaf_segment = sim_utils.split_path_expr(prim_expr)
+            body_expr = self.cfg.prim_path
+            *parent_segments, leaf_segment = sim_utils.split_path_expr(body_expr)
             if leaf_segment.lower() in ("camera", "raycaster"):
                 body_expr = "/".join(parent_segments)
             fixed_pos = None
             fixed_quat = None
 
-        pos = fixed_pos or (0.0, 0.0, 0.0)
-        quat = fixed_quat or (0.0, 0.0, 0.0, 1.0)
-        site_transform = wp.transform(wp.vec3(*pos), wp.quat(*quat))
-
-        return [self._backend_manager.cl_register_site(_newton_body_pattern(body_expr), site_transform)]
+        body_expr = _CONCRETE_ENV_NS.sub(_ENV_SLOT_NS + "/", body_expr.replace("{}", "[^/]+"))
+        site_transform = wp.transform(fixed_pos or (0.0, 0.0, 0.0), fixed_quat or (0.0, 0.0, 0.0, 1.0))
+        self._sensor_site_label = self._backend_manager.cl_register_site(body_expr, site_transform)
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
-        sim = sim_utils.SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
-        self._scene_data_provider = sim.get_scene_data_provider()
+        self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
-        site_indices = self._resolve_site_indices(self._sensor_site_labels, self.cfg.prim_path, self._num_envs)
+        site_map = self._backend_manager._cl_site_index_map
+        if self._sensor_site_label not in site_map:
+            raise ValueError(
+                f"RayCaster target '{self.cfg.prim_path}' site label '{self._sensor_site_label}'"
+                " was not found in NewtonManager._cl_site_index_map."
+            )
+        global_index, per_world = site_map[self._sensor_site_label]
+        site_indices = (
+            [global_index] * self._num_envs if per_world is None else [site for sites in per_world for site in sites]
+        )
         self._view = self
         self._view_count = len(site_indices)
         self._sensor_site_indices = wp.array(site_indices, dtype=wp.int32, device=self._device)
         self._newton_pose_w = wp.empty(self._view_count, dtype=wp.transformf, device=self._device)
         self._newton_pos_w = ProxyArray(wp.empty(self._view_count, dtype=wp.vec3f, device=self._device))
         self._newton_quat_w = ProxyArray(wp.empty(self._view_count, dtype=wp.quatf, device=self._device))
-        self._offset_pos_wp, self._offset_quat_wp = _identity_offsets(self._view_count, self._device)
+        self._offset_pos_wp = wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device)
+        self._offset_quat_wp = wp.full(self._view_count, wp.quatf(0.0, 0.0, 0.0, 1.0), device=self._device)
 
     def _update_ray_infos(self: Any, env_mask: wp.array) -> None:
         """Update site poses and transform local rays into world space."""
@@ -204,20 +191,6 @@ class _NewtonRayCasterPoseMixin:
         )
         return ProxyArray(pos_w), ProxyArray(quat_w)
 
-    def _resolve_site_indices(self, labels: list[str], prim_expr: str, num_envs: int) -> list[int]:
-        """Expand registered site labels into per-environment Newton site indices."""
-        site_map = self._backend_manager._cl_site_index_map
-        site_indices: list[int] = []
-        for env_index in range(num_envs):
-            for label in labels:
-                error_prefix = f"RayCaster target '{prim_expr}' site label '{label}'"
-                if label not in site_map:
-                    raise ValueError(f"{error_prefix} was not found in NewtonManager._cl_site_index_map.")
-                global_index, per_world = site_map[label]
-                env_site_indices = [global_index] if per_world is None else per_world[env_index]
-                site_indices.extend(env_site_indices)
-        return site_indices
-
 
 @wp.kernel(enable_backward=False)
 def _resolve_bvh_hits_kernel(
@@ -273,8 +246,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         if cfg.max_distance <= 0.0:
             raise ValueError(f"max_distance must be positive, received {cfg.max_distance}.")
         super().__init__(cfg)
-        sim = sim_utils.SimulationContext.instance()
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._sim.cfg.physics))
         builder.default_bvh_cfg.shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         self._data = NewtonRaycastSensorData()
         self._graph = None

@@ -171,11 +171,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         mesh_orientations = np.zeros((self._num_envs, total_meshes_per_env, 4), dtype=np.float32)
         mesh_orientations[..., 3] = 1.0
         body_indices = np.full(mesh_ids.shape, -1, dtype=np.int32)
-        body_indices_by_path = {}
-        if self._track_mesh_transforms:
-            body_indices_by_path = {
-                path: index for index, path in enumerate(self._scene_data_provider.backend.transform_paths)
-            }
+        body_paths = self._scene_data_provider.backend.transform_paths if self._track_mesh_transforms else ()
+        body_indices_by_path = {path: index for index, path in enumerate(body_paths)}
 
         mesh_offset = 0
         for target_cfg, records_per_env in zip(self._raycast_targets_cfg, target_records, strict=True):
@@ -206,9 +203,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         self._mesh_body_indices = wp.array2d(body_indices, dtype=wp.int32, device=self.device)
 
     def _build_mesh_records(  # noqa: C901
-        self,
-        target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg,
-        plan: cloner.ClonePlan | None,
+        self, target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg, plan: cloner.ClonePlan | None
     ):
         """Build mesh records for the target configuration."""
         records_per_env = [[] for _ in range(self._num_envs)]

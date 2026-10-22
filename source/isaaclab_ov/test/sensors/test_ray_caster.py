@@ -24,10 +24,14 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass, instantiate
 
+pytestmark = pytest.mark.integration
 
-def test_multi_mesh_tracks_multiple_body_types():
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_multi_mesh_tracks_multiple_body_types(device):
     """Cloned sensor offsets and distinct targets follow native bodies without destination USD prims."""
 
     @configclass
@@ -61,7 +65,7 @@ def test_multi_mesh_tracks_multiple_body_types():
             ray_alignment="world",
         )
 
-    cfg = sim_utils.SimulationCfg(physics=OvPhysxCfg(), gravity=(0.0, 0.0, 0.0))
+    cfg = sim_utils.SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
     with sim_utils.build_simulation_context(sim_cfg=cfg) as sim:
         scene = instantiate(
             SceneCfg(
@@ -100,7 +104,8 @@ def test_multi_mesh_tracks_multiple_body_types():
         torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
 
 
-def test_ray_caster_rejects_partial_native_mounts():
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_ray_caster_rejects_partial_native_mounts(device):
     """A native mount missing from some cloned worlds raises a sensor-level count error."""
     scene_cfg = InteractiveSceneCfg(
         num_envs=4,
@@ -120,7 +125,8 @@ def test_ray_caster_rejects_partial_native_mounts():
         mesh_prim_paths=[MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Mount")],
         pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
     )
-    with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
+    cfg = sim_utils.SimulationCfg(physics=OvPhysxCfg(), device=device)
+    with sim_utils.build_simulation_context(sim_cfg=cfg) as sim:
         scene = instantiate(scene_cfg)
         with pytest.raises(RuntimeError, match="found 2 instances in 4 environments"):
             sim.reset()
