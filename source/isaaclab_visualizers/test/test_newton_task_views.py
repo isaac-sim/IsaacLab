@@ -112,3 +112,44 @@ def test_switching_the_followed_environment_re_aims_the_camera():
     viz._apply_view_pose(view)
 
     assert viz._viewer.camera.pos.x == pytest.approx(12.0)
+
+
+def test_resetting_the_tracking_camera_restores_what_the_task_declared():
+    view = _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    viz = _visualizer([view])
+    cfg = view.cfg.source
+    viz._tracking_defaults = {
+        view: {
+            "eye": cfg.eye,
+            "lookat": cfg.lookat,
+            "focal_length": cfg.focal_length,
+            "track_path": cfg.track_path,
+            "follow_heading": cfg.follow_heading,
+            "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
+            "env": 0,
+        }
+    }
+    viz.current_image_view = view
+    viz._tracking_error = ""
+    follower = viz._followers[view]
+
+    cfg.eye, cfg.focal_length = (9.0, 9.0, 9.0), 60.0
+    follower.set_env(1)
+    assert viz._reset_tracking_camera(follower)
+
+    assert (cfg.eye, cfg.focal_length, follower.env) == ((2.0, 0.0, 1.0), 24.0, 0)
+
+
+def test_an_invalid_followed_asset_is_reported_not_raised():
+    view = _view(PerspectiveCameraCfg(env_index=0))
+    viz = _visualizer([view])
+    viz._tracking_error = ""
+
+    class Scene(_Scene):
+        def __getitem__(self, name):
+            raise KeyError(name)
+
+    viz._followers[view]._scene = Scene()
+
+    assert not viz._set_tracking_path(viz._followers[view], "ghost")
+    assert "unknown scene asset" in viz._tracking_error

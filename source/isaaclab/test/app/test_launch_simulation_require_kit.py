@@ -170,6 +170,28 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
 
 
+def test_kit_run_drops_the_implicit_ovrtx_viewer_camera():
+    """A Kit run cannot load the OVRTX runtime, so its Newton GL window keeps the OpenGL view only."""
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
+
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.visualizers import VisualizerCfg
+
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(
+            physics=sim_launcher.NewtonCfg(),
+            visualizer_cfgs=VisualizerCfg(backend=NewtonGLBackendCfg(rtx_camera=True)),
+        ),
+        scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
+    )
+
+    configs, kit_sources = sim_launcher.validate_launch(cfg, {"require_kit": True})
+
+    assert kit_sources
+    assert not [name for name in vars(cfg.scene) if name.startswith("viewer_camera_")]
+    assert not [node for node in configs if isinstance(node, sim_launcher.OVRTXRendererCfg)]
+
+
 @pytest.mark.parametrize("interrupt", [False, True])
 def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, interrupt):
     """A config-selected launcher closes on success or interruption with the correct exit status."""

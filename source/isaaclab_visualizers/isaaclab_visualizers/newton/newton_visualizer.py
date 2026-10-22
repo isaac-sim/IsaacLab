@@ -798,6 +798,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._followers: dict[object, CameraFollower] = {}
         """Followers of the task views, by image view."""
+        self._tracking_defaults: dict[object, dict] = {}
+        """What the task declared for each task view, for Reset to Task Default."""
+        self._tracking_error = ""
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -899,13 +902,87 @@ class NewtonVisualizerBase(BaseVisualizer):
             imgui.set_tooltip(labels[position])
         follower = self._followers.get(self.current_image_view)
         if follower is not None:
-            changed, env = imgui.input_int("Environment", follower.env)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("Environment the tracking camera follows")
-            if changed and 0 <= env < self._sim.get_scene_data_provider().num_envs:
-                follower.set_env(env)
-                self.current_image_view.invalidate()
-                self._last_render_step = -1
+            self._draw_tracking_camera_controls(imgui, follower)
+
+    def _draw_tracking_camera_controls(self, imgui, follower: CameraFollower) -> None:
+        """Edit the selected Tracking Camera: what it follows, where it sits, and where it looks."""
+        cfg = follower.cfg
+        edited = False
+
+        def tip(text: str) -> None:
+            hover_tooltip(imgui, text)
+
+        imgui.separator_text("Tracking Camera")
+        changed, env = imgui.input_int("Environment", follower.env)
+        tip("Environment the camera follows")
+        if changed and 0 <= env < self._sim.get_scene_data_provider().num_envs:
+            follower.set_env(env)
+            edited = True
+        asset_name, _, body_name = (cfg.track_path or "").partition("/")
+        assets = ["None (fixed in environment)", *follower.asset_names()]
+        changed, index = imgui.combo("Asset", assets.index(asset_name) if asset_name in assets else 0, assets)
+        tip("Scene asset the camera follows. None keeps it fixed relative to the environment")
+        if changed:
+            edited |= self._set_tracking_path(follower, assets[index] if index else None)
+        if asset_name:
+            bodies = ["Root", *follower.body_names(asset_name)]
+            changed, index = imgui.combo("Body", bodies.index(body_name) if body_name in bodies else 0, bodies)
+            tip("Body of the asset the camera follows. Root follows the asset itself")
+            if changed:
+                edited |= self._set_tracking_path(follower, f"{asset_name}/{bodies[index]}" if index else asset_name)
+        changed, eye = imgui.input_float3("Eye (m)", list(cfg.eye))
+        tip("Camera position, as an offset from the followed asset or the environment origin")
+        if changed:
+            cfg.eye, edited = tuple(float(v) for v in eye), True
+        changed, lookat = imgui.input_float3("Look At (m)", list(cfg.lookat))
+        tip("Point the camera looks at, as an offset from the followed asset or the environment origin")
+        if changed:
+            cfg.lookat, edited = tuple(float(v) for v in lookat), True
+        changed, focal = imgui.slider_float("Focal Length (mm)", float(cfg.focal_length), 5.0, 100.0, "%.0f")
+        tip("Lens focal length; smaller values see a wider area")
+        if changed:
+            cfg.focal_length, edited = focal, True
+        if asset_name:
+            changed, cfg.follow_heading = imgui.checkbox("Follow Heading", cfg.follow_heading)
+            tip("Turn with the asset's heading, so the camera stays behind it and level")
+            edited |= changed
+            if cfg.follow_heading:
+                changed, smoothing = imgui.slider_float(
+                    "Heading Smoothing (s)", cfg.heading_smoothing_time_constant, 0.0, 2.0
+                )
+                tip("Time constant of the heading filter; larger values damp turns more but lag")
+                if changed:
+                    cfg.heading_smoothing_time_constant, edited = smoothing, True
+        if imgui.button("Reset to Task Default"):
+            edited |= self._reset_tracking_camera(follower)
+        tip("Restore what the task declared for this camera")
+        if self._tracking_error:
+            imgui.text_colored(imgui.ImVec4(1.0, 0.35, 0.35, 1.0), self._tracking_error)
+        if edited:
+            self.current_image_view.invalidate()
+            self._last_render_step = -1
+
+    def _set_tracking_path(self, follower: CameraFollower, track_path: str | None) -> bool:
+        """Follow ``track_path``, reporting an unknown asset or ambiguous body instead of raising."""
+        try:
+            follower.set_track_path(track_path)
+        except ValueError as exc:
+            self._tracking_error = str(exc)
+            return False
+        self._tracking_error = ""
+        return True
+
+    def _reset_tracking_camera(self, follower: CameraFollower) -> bool:
+        """Restore the camera's declared pose, optics, and target; returns whether anything changed."""
+        defaults = self._tracking_defaults.get(self.current_image_view)
+        if defaults is None:
+            return False
+        cfg = follower.cfg
+        cfg.eye, cfg.lookat, cfg.focal_length = defaults["eye"], defaults["lookat"], defaults["focal_length"]
+        cfg.follow_heading = defaults["follow_heading"]
+        cfg.heading_smoothing_time_constant = defaults["heading_smoothing_time_constant"]
+        follower.set_env(defaults["env"])
+        return self._set_tracking_path(follower, defaults["track_path"]) or True
 
     def _view_labels(self, indices: list[int]) -> list[str]:
         """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
@@ -1061,6 +1138,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
         self._followers.clear()
+        self._tracking_defaults.clear()
         for view in self._image_views:
             if view.render == self._capture_frame:
                 view.render = None
@@ -1248,7 +1326,17 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         for view in self._image_views:
             if scene is not None and self._is_task_view(view):
                 # Fail at initialization, not on a frame: a bad env_index or track_path raises here.
-                self._followers[view] = CameraFollower(view.cfg.source, scene)
+                self._followers[view] = follower = CameraFollower(view.cfg.source, scene)
+                cfg = view.cfg.source
+                self._tracking_defaults[view] = {
+                    "eye": cfg.eye,
+                    "lookat": cfg.lookat,
+                    "focal_length": cfg.focal_length,
+                    "track_path": cfg.track_path,
+                    "follow_heading": cfg.follow_heading,
+                    "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
+                    "env": follower.env,
+                }
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.

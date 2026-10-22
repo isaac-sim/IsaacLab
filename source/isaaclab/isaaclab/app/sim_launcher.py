@@ -345,6 +345,7 @@ def validate_launch(  # noqa: C901
     # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
     scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
     # A Newton GL window can switch its main view to an OVRTX camera, which must already exist in the scene.
+    implicit_viewer_cameras: list[str] = []
     for viewer_index, visualizer in enumerate(viewers):
         if scene_cfg is None or not _wants_rtx_viewer_camera(visualizer, simulations):
             continue
@@ -355,6 +356,7 @@ def validate_launch(  # noqa: C901
         rotation = quat_from_matrix(create_rotation_matrix_from_view(
             torch.tensor([visualizer.eye]), torch.tensor([visualizer.lookat]), "Z", device="cpu"
         ))[0].tolist()  # fmt: skip
+        implicit_viewer_cameras.append(name)
         vars(scene_cfg)[name] = CameraCfg(
             prim_path=f"/World/{name}", width=width, height=height, data_types=["rgba"],
             spawn=PinholeCameraCfg(
@@ -446,6 +448,11 @@ def validate_launch(  # noqa: C901
             node.max_visible_envs = max_visible
 
     configs = _walk_runtime_configs(cfg, replacements)
+    if kit_sources and implicit_viewer_cameras:
+        # The OVRTX runtime cannot share a process with Kit, so a Kit run keeps the OpenGL view only.
+        for name in implicit_viewer_cameras:
+            vars(scene_cfg).pop(name, None)
+        configs = _walk_runtime_configs(cfg, replacements)
     if kit_sources:
         for node in configs:
             if isinstance(node, OvPhysxCfg):
