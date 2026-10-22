@@ -53,8 +53,11 @@ class SensorBase(ABC):
     Capture masks select ready and due rows; backend kernels must not repeat reset-readiness checks.
     """
 
-    _requires_physics_step = False
-    """Whether reset values must be retained until the next physics step produces a measurement."""
+    _capture_on_reset = True
+    """Whether data reads may capture immediately after initialization or reset.
+
+    False retains reset outputs until the first update with positive elapsed time.
+    """
 
     def __init__(self, cfg: SensorBaseCfg):
         """Initialize the sensor class.
@@ -203,7 +206,7 @@ class SensorBase(ABC):
                 self._timestamp,
                 self._timestamp_last_update,
                 self._elapsed_since_update,
-                self._requires_physics_step,
+                self._capture_on_reset,
             ],
             device=self._device,
         )
@@ -224,7 +227,7 @@ class SensorBase(ABC):
                 self._elapsed_since_update,
                 dt,
                 self.cfg.update_period - 1e-6,
-                self._requires_physics_step,
+                self._capture_on_reset,
             ],
             device=self._device,
         )
@@ -449,7 +452,7 @@ class SensorBase(ABC):
     def _create_timing_buffers(self) -> None:
         """Allocate the shared per-environment flags and clocks used to schedule captures."""
         # timestamp and outdated flags
-        self._is_outdated = wp.full(self._num_envs, not self._requires_physics_step, dtype=wp.bool, device=self._device)
+        self._is_outdated = wp.full(self._num_envs, self._capture_on_reset, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)

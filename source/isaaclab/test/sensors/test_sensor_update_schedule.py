@@ -60,12 +60,12 @@ def test_sensor_lifecycle_has_single_owners():
 class _RefreshLogSensor(SensorBase):
     """Sensor that records the step index of every buffer refresh, per environment."""
 
-    def __init__(self, update_period: float, device: str, num_envs: int = 2, requires_physics_step: bool = False):
+    def __init__(self, update_period: float, device: str, num_envs: int = 2, capture_on_reset: bool = True):
         # SensorBase.__init__ needs a USD stage; only the timing state is under test here.
         self.cfg = SensorBaseCfg(prim_path="/World/envs/env_.*/sensor", update_period=update_period)
         self._device = device
         self._num_envs = num_envs
-        self._requires_physics_step = requires_physics_step
+        self._capture_on_reset = capture_on_reset
         self._is_initialized = True
         self._is_visualizing = False
         self._create_timing_buffers()
@@ -124,10 +124,10 @@ def test_refresh_follows_the_time_passed_to_update(device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("requires_physics_step", [False, True], ids=["capture-on-reset", "capture-after-step"])
-def test_reset_read_only_restarts_period_after_capture(device, requires_physics_step):
+@pytest.mark.parametrize("capture_on_reset", [True, False], ids=["capture-on-reset", "capture-after-update"])
+def test_reset_read_only_restarts_period_after_capture(device, capture_on_reset):
     """A skipped reset read leaves the sensor due; a completed capture starts its normal period."""
-    sensor = _RefreshLogSensor(update_period=0.02, device=device, requires_physics_step=requires_physics_step)
+    sensor = _RefreshLogSensor(update_period=0.02, device=device, capture_on_reset=capture_on_reset)
     _run(sensor, [0.005])
     sensor.reset(env_mask=wp.array([True, False], dtype=wp.bool, device=device))
     _ = sensor.data
@@ -135,15 +135,15 @@ def test_reset_read_only_restarts_period_after_capture(device, requires_physics_
         sensor.step = step
         sensor.update(0.005)
         _ = sensor.data
-    assert sensor.refreshes[0] == ([1, 2, 6, 10] if requires_physics_step else [1, 1, 5, 9])
+    assert sensor.refreshes[0] == ([1, 1, 5, 9] if capture_on_reset else [1, 2, 6, 10])
     assert sensor.refreshes[1] == [1, 5, 9]
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize("period", [0.0, 0.02])
-def test_physics_capture_waits_for_positive_time_after_initialization_and_reset(device, period):
-    """Forced zero-dt reads preserve reset outputs; the first step captures even before a long period expires."""
-    sensor = _RefreshLogSensor(update_period=period, device=device, requires_physics_step=True)
+def test_deferred_capture_waits_for_positive_update_after_initialization_and_reset(device, period):
+    """Zero-dt reads retain reset outputs; the first positive update captures before a long period expires."""
+    sensor = _RefreshLogSensor(update_period=period, device=device, capture_on_reset=False)
     for _ in range(2):
         sensor.update(0.0, force_recompute=True)
         _ = sensor.data

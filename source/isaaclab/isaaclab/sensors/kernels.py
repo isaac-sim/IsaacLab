@@ -13,7 +13,7 @@ def update_timestamp_kernel(
     elapsed_since_update: wp.array(dtype=wp.float64),
     dt: wp.float64,
     due_threshold: wp.float64,
-    requires_physics_step: bool,
+    capture_on_reset: bool,
 ):
     """Advances the sensor clocks and marks environments as outdated if the update period elapsed.
 
@@ -27,14 +27,14 @@ def update_timestamp_kernel(
         elapsed_since_update: Time since the last refresh per env [s].
         dt: Simulation time step [s].
         due_threshold: Elapsed time at which the sensor is due, ``update_period - 1e-6`` [s].
-        requires_physics_step: Whether capture must wait for the first positive time step after reset.
+        capture_on_reset: Whether capture is allowed before the first positive update after reset.
     """
     env = wp.tid()
-    first_step = requires_physics_step and timestamp[env] == 0.0
+    first_update = not capture_on_reset and timestamp[env] == 0.0
     timestamp[env] = timestamp[env] + wp.float32(dt)
     elapsed = elapsed_since_update[env] + dt
     elapsed_since_update[env] = elapsed
-    if (not requires_physics_step or timestamp[env] > 0.0) and (first_step or elapsed >= due_threshold):
+    if (capture_on_reset or timestamp[env] > 0.0) and (first_update or elapsed >= due_threshold):
         is_outdated[env] = True
 
 
@@ -67,7 +67,7 @@ def reset_envs_kernel(
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
     elapsed_since_update: wp.array(dtype=wp.float64),
-    requires_physics_step: bool,
+    capture_on_reset: bool,
 ):
     """Reset clocks and make rows eligible for capture according to the sensor's readiness requirement.
 
@@ -77,7 +77,7 @@ def reset_envs_kernel(
         timestamp: Current timestamp per env. Will be set to 0.0 for reset envs.
         timestamp_last_update: Last update timestamp per env. Will be set to 0.0 for reset envs.
         elapsed_since_update: Time since the last refresh per env. Will be set to 0.0 for reset envs.
-        requires_physics_step: Whether capture must wait for the first positive time step after reset.
+        capture_on_reset: Whether capture is allowed before the first positive update after reset.
     """
     env = wp.tid()
     if not reset_mask[env]:
@@ -88,4 +88,4 @@ def reset_envs_kernel(
 
     timestamp_last_update[env] = 0.0
     elapsed_since_update[env] = wp.float64(0.0)
-    is_outdated[env] = not requires_physics_step
+    is_outdated[env] = capture_on_reset

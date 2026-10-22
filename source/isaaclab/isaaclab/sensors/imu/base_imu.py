@@ -39,7 +39,7 @@ class BaseImu(SensorBase):
     cfg: ImuCfg
     """The configuration parameters."""
 
-    _requires_physics_step = True
+    _capture_on_reset = False
 
     __backend_name__: str = "base"
     """The name of the backend for the IMU sensor."""
