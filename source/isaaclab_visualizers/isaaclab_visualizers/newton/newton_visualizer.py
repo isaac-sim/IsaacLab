@@ -81,12 +81,21 @@ _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "New
 
 
 @contextlib.contextmanager
-def _header_tooltips(imgui, tips: dict[str, str]):
-    """Add tooltips to the collapsing headers that another panel draws while this context is open."""
+def _header_tooltips(imgui, tips: dict[str, str], titles: dict[str, str] | None = None):
+    """Add tooltips and titles to the collapsing headers that another panel draws while this context is open.
+
+    Args:
+        imgui: The ``imgui`` module.
+        tips: Tooltip text by the header's original label.
+        titles: Displayed title by the header's original label. The original label stays the header's ID, so its
+            open state and saved layout carry over.
+    """
     draw_header = imgui.collapsing_header
+    titles = titles or {}
 
     def with_tooltip(label, *args, **kwargs):
-        expanded = draw_header(label, *args, **kwargs)
+        shown = f"{titles[label]}###{label}" if label in titles else label
+        expanded = draw_header(shown, *args, **kwargs)
         if label in tips:
             hover_tooltip(imgui, tips[label])
         return expanded
@@ -216,7 +225,8 @@ class NewtonViewerGL(ViewerGL):
         4. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
         5. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
         6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        7. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
+        7. **Controls** and **Articulation Inspector** (closed) — camera keyboard reference and Newton's articulation
+           selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -333,7 +343,11 @@ class NewtonViewerGL(ViewerGL):
 
             # --- Selection API ----------------------------------------------
             with _header_tooltips(
-                imgui, {"Selection API": "Newton's panel for selecting and inspecting parts of the model"}
+                imgui,
+                {
+                    "Selection API": "Inspect the robot's articulations: match them by name and filter their joints and links"
+                },
+                {"Selection API": "Articulation Inspector"},
             ):
                 _g._render_selection_panel()
 

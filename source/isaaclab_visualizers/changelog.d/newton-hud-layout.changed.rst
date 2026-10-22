@@ -15,3 +15,4 @@
   recording output folder is now ``recording`` in the working directory, which Git ignores.
 * Renamed the Newton GL HUD "View" section to "Camera View", moved "Visualization Markers" back into "Scene"
   (after Visible Envs), and added tooltips to the section headers.
+* Renamed Newton's "Selection API" panel to "Articulation Inspector" in the Newton GL HUD.
