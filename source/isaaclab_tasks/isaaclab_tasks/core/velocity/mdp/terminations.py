@@ -48,17 +48,3 @@ def terrain_out_of_bounds(
         return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
     else:
         raise ValueError("Received unsupported terrain type, must be either 'plane' or 'generator'.")
-
-
-def pelvis_below_terrain_clearance(
-    env,
-    minimum_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("height_scanner"),
-) -> torch.Tensor:
-    """Terminate when the root sits less than ``minimum_height`` above the ground beneath it."""
-    asset = env.scene[asset_cfg.name]
-    sensor = env.scene[sensor_cfg.name]
-    hits = sensor.data.ray_hits_w.torch[..., 2]
-    ground = torch.nan_to_num(hits, nan=0.0, posinf=0.0, neginf=0.0).median(dim=1).values
-    return asset.data.root_pos_w.torch[:, 2] - ground < minimum_height
