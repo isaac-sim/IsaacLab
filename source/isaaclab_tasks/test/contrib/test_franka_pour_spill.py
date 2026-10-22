@@ -8,8 +8,9 @@
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourResetDatasetEnvCfg
+from isaaclab_tasks.utils import resolve_presets
 
-ENV_CFG = FrankaPourResetDatasetEnvCfg()
+ENV_CFG = resolve_presets(FrankaPourResetDatasetEnvCfg())
 ENV_CFG.play_mode()
 ENV_CFG.scene.num_envs = 1
 launch_test_simulation(ENV_CFG)

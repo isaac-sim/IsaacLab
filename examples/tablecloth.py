@@ -1308,7 +1308,7 @@ def main() -> None:
             collision_cfg=collision_cfg,
             solver_cfg=solver_cfg,
         ),
-        default_visualizer_cfg=VisualizerCfg(
+        visualizer_cfgs=VisualizerCfg(
             eye=(camera_distance, -1.5, 2.1),
             lookat=(-0.25, 0.0, 0.95),
             focal_length=27.0 if len(speeds) <= 3 else 20.0,

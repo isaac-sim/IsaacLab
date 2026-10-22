@@ -171,13 +171,16 @@ from collections.abc import Callable
 import gymnasium as gym
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
 
+from isaaclab.devices import Se3KeyboardCfg, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.utils._manual_success import _prepare_success_term
 from isaaclab.managers import CommandTermCfg, DatasetExportMode
+from isaaclab.utils import instantiate
 
 import isaaclab_mimic.envs  # noqa: F401
 
@@ -187,32 +190,20 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 logger = logging.getLogger(__name__)
 
-_CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
+# Resolve CLI profile names once; runtime construction receives a path or None.
+if args_cli.cloudxr_env is None:
+    args_cli.cloudxr_env = "cloudxrjs" if args_cli.xr else "standalone"
+if not args_cli.cloudxr_env.strip() or args_cli.cloudxr_env.lower() == "none":
+    args_cli.cloudxr_env = None
+else:
+    args_cli.cloudxr_env = {
+        "cloudxrjs": CLOUDXR_JS_ENV,
+        "avp": CLOUDXR_AVP_ENV,
+        "standalone": CLOUDXR_STANDALONE_ENV,
+    }.get(args_cli.cloudxr_env.lower(), args_cli.cloudxr_env)
 
 # CommandTerm samples its timer with uniform_, which requires finite bounds.
 _RECORDING_COMMAND_RESAMPLING_TIME_S = 1.0e9
-
-
-def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
-    """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
-
-    Accepts ``"cloudxrjs"`` (Quest/Pico), ``"avp"`` (Apple Vision Pro),
-    ``"standalone"`` (headless, no XR client), ``"none"`` (disable), or an
-    arbitrary file path. When *value* is ``None`` (flag unset), defaults to
-    ``"cloudxrjs"`` when *xr_enabled* else ``"standalone"`` -- so a run without
-    ``--xr`` uses the clientless headless profile.
-    """
-    if value is None:
-        value = "cloudxrjs" if xr_enabled else "standalone"
-    if value.strip() == "" or value.lower() == "none":
-        return None
-    if not _CLOUDXR_ENV_SHORTHANDS:
-        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
-
-        _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
-        _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
-        _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
-    return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
 class RateLimiter:
@@ -357,46 +348,16 @@ def create_environment_config(
     return env_cfg, success_term, use_isaac_teleop
 
 
-def create_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> gym.Env:
-    """Create the environment from the configuration.
-
-    Args:
-        env_cfg: The environment configuration object that defines the environment properties.
-            This should be an instance of EnvCfg created by resolve_task_config().
-
-    Returns:
-        gym.Env: A Gymnasium environment instance for the specified task.
-
-    Raises:
-        Exception: If environment creation fails for any reason.
-    """
-    try:
-        env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
-        return env
-    except Exception as e:
-        logger.error(f"Failed to create environment: {e}")
-        exit(1)
-
-
-def _create_builtin_device(device_name: str) -> object | None:
-    """Create a built-in teleop device by name, or return None if unrecognized."""
-    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
-
-    name = device_name.lower()
-    if name == "keyboard":
-        return Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-    elif name == "spacemouse":
-        return Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-    return None
-
-
-def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool = False) -> object:
+def setup_teleop_device(
+    env_cfg: ManagerBasedRLEnvCfg, callbacks: dict[str, Callable], use_isaac_teleop: bool = False
+) -> object:
     """Set up the teleoperation device based on configuration.
 
     Attempts to create a teleoperation device based on the environment configuration.
     Falls back to default devices if the specified device is not found in the configuration.
 
     Args:
+        env_cfg: Environment configuration containing the selected teleop devices.
         callbacks: Dictionary mapping callback keys to functions that will be
                    attached to the teleop device
         use_isaac_teleop: Whether to use Isaac Capture stack instead of native stack
@@ -407,8 +368,6 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
     Raises:
         Exception: If teleop device creation fails
     """
-    teleop_device_explicitly_set = args_cli.teleop_device is not None
-    teleop_interface = None
     try:
         if use_isaac_teleop:
             from isaaclab_teleop import create_isaac_teleop_device
@@ -417,7 +376,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 env_cfg.isaac_teleop,
                 sim_device=args_cli.device,
                 callbacks=callbacks,
-                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env, args_cli.xr),
+                cloudxr_env_file=args_cli.cloudxr_env,
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 use_kit_xr_bridge=args_cli.xr,
                 mcap_record_path=args_cli.mcap_record_path,
@@ -427,36 +386,31 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
             if args_cli.mcap_record_path is not None:
                 logger.info("Recording live Isaac Capture session to MCAP (debug-only): %s", args_cli.mcap_record_path)
 
-        elif teleop_device_explicitly_set:
-            device_name = args_cli.teleop_device
-            if hasattr(env_cfg, "teleop_devices") and device_name in env_cfg.teleop_devices.devices:
-                teleop_interface = create_teleop_device(device_name, env_cfg.teleop_devices.devices, callbacks)
+        else:
+            if args_cli.teleop_device is not None and args_cli.teleop_device in env_cfg.teleop_devices.devices:
+                teleop_interface = create_teleop_device(
+                    args_cli.teleop_device, env_cfg.teleop_devices.devices, callbacks
+                )
             else:
-                teleop_interface = _create_builtin_device(device_name)
-                if teleop_interface is None:
+                device_name = "keyboard" if args_cli.teleop_device is None else args_cli.teleop_device.lower()
+                device_cfgs = {
+                    "keyboard": Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
+                    "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
+                }
+                if device_name not in device_cfgs:
                     logger.error(
-                        f"--teleop_device={device_name} was passed but no matching entry exists in"
+                        f"--teleop_device={args_cli.teleop_device} was passed but no matching entry exists in"
                         " env_cfg.teleop_devices and it is not a built-in device name. Either remove"
                         " --teleop_device to use the Isaac Capture pipeline, or add a"
-                        f" '{device_name}' entry under teleop_devices in the environment config."
+                        f" '{args_cli.teleop_device}' entry under teleop_devices in the environment config."
                         " Built-in devices: keyboard, spacemouse."
                     )
                     exit(1)
+                teleop_interface = instantiate(device_cfgs[device_name])
                 for key, callback in callbacks.items():
                     teleop_interface.add_callback(key, callback)
-        else:
-            from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
-
-            # No --teleop_device and no isaac_teleop: fall back to keyboard
-            teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-            for key, callback in callbacks.items():
-                teleop_interface.add_callback(key, callback)
     except Exception as e:
         logger.error(f"Failed to create teleop device: {e}")
-        exit(1)
-
-    if teleop_interface is None:
-        logger.error("Failed to create teleop interface")
         exit(1)
 
     return teleop_interface
@@ -564,7 +518,6 @@ def handle_reset(
 
 def run_simulation_loop(  # noqa: C901
     env: gym.Env,
-    teleop_interface: object | None,
     success_term: object | None,
     rate_limiter: RateLimiter | None,
     camera_feed_session: "XrCameraFeedSession",
@@ -578,7 +531,6 @@ def run_simulation_loop(  # noqa: C901
 
     Args:
         env: The environment instance
-        teleop_interface: Optional teleop interface (will be created if None)
         success_term: The success termination object or None if not available
         rate_limiter: Optional rate limiter to control simulation speed
         camera_feed_session: Shared XR camera-feed lifecycle
@@ -628,37 +580,21 @@ def run_simulation_loop(  # noqa: C901
         "RESET": reset_recording_instance,
     }
 
-    teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
+    teleop_interface = setup_teleop_device(env.cfg, teleoperation_callbacks, use_isaac_teleop)
 
-    # Optional controller haptics: no-ops unless the env declares a
-    # ``haptic_feedback`` config and the device can render it (Isaac Capture).
-    # ``haptic_update`` renders the current contact force; ``haptic_stop`` zeroes
-    # it so a stale pulse does not persist while recording is paused.
-    haptic_update, haptic_stop = (lambda: None), (lambda: None)
+    haptic_driver = None
     if use_isaac_teleop:
         from isaaclab_teleop import create_haptic_feedback_driver
 
-        _haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
-        if _haptic_driver is not None:
-            haptic_update, haptic_stop = _haptic_driver.update, _haptic_driver.stop
+        haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env.cfg)
 
-    # Optional keyboard for headset-free Isaac Capture control (start / pause / reset).
-    # Captured through the app window, so only wired when one is present; a
-    # windowless run still auto-starts in ``inner_loop``. Kept in a local so its carb
-    # input subscription is not garbage-collected. ``R`` is an operator reset:
-    # ``reset(pause=True)`` injects a single RESET pulse (the control-event handler
-    # turns it into one env reset) and pauses the session -- binding it straight to
-    # ``reset_recording_instance`` would reset the env twice.
-    control_keyboard = None
-    # a local window exists (GUI or livestream) unless XR runs headless without a viewport
-    has_window = env.sim.has_gui and not env.sim.get_setting("/isaaclab/xr/auto_start")
-    if use_isaac_teleop and has_window:
-        from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
-
+    # Retain the keyboard so its input subscription lives for the whole session.
+    if use_isaac_teleop and env.sim.has_gui and not env.sim.get_setting("/isaaclab/xr/auto_start"):
         try:
-            control_keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
+            control_keyboard = instantiate(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
             control_keyboard.add_callback("B", teleop_interface.request_start)
             control_keyboard.add_callback("P", teleop_interface.request_stop)
+            # Inject a reset pulse; the loop owns the environment reset.
             control_keyboard.add_callback("R", lambda: teleop_interface.reset(pause=True))
             print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
         except Exception as e:
@@ -708,7 +644,8 @@ def run_simulation_loop(  # noqa: C901
 
                 if action is None:
                     env.sim.render()
-                    haptic_stop()
+                    if haptic_driver is not None:
+                        haptic_driver.stop()
                     continue
                 # Expand to batch dimension
                 actions = action.repeat(env.num_envs, 1)
@@ -718,7 +655,8 @@ def run_simulation_loop(  # noqa: C901
                     # Compute actions based on environment
                     obv = env.step(actions)
                     # render controller haptics from post-step contact forces
-                    haptic_update()
+                    if haptic_driver is not None:
+                        haptic_driver.update()
                     if subtasks is not None:
                         if subtasks == {}:
                             subtasks = obv[0].get("subtask_terms")
@@ -727,7 +665,8 @@ def run_simulation_loop(  # noqa: C901
                 else:
                     env.sim.render()
                     # not stepping: zero haptics so a paused grip stops buzzing
-                    haptic_stop()
+                    if haptic_driver is not None:
+                        haptic_driver.stop()
 
                 # Check for success condition
                 success_step_count_new, success_reset_needed = process_success_condition(
@@ -802,14 +741,15 @@ def main() -> None:
     output_dir, output_file_name = setup_output_directories()
 
     # Create and configure environment
-    global env_cfg  # Make env_cfg available to setup_teleop_device
     env_cfg, success_term, use_isaac_teleop = create_environment_config(output_dir, output_file_name)
 
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
-        record_demos(success_term, use_isaac_teleop, cleanup)
+        record_demos(env_cfg, success_term, use_isaac_teleop, cleanup)
 
 
-def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: contextlib.ExitStack) -> None:
+def record_demos(
+    env_cfg: ManagerBasedRLEnvCfg, success_term: object | None, use_isaac_teleop: bool, cleanup: contextlib.ExitStack
+) -> None:
     """Create the environment and record demonstrations until the session ends."""
     from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
     from isaaclab_teleop import XrCameraFeedSession
@@ -847,11 +787,15 @@ def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: c
         rate_limiter = RateLimiter(args_cli.step_hz)
 
     # Create environment
-    env = create_environment(env_cfg)
+    try:
+        env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    except Exception as e:
+        logger.error(f"Failed to create environment: {e}")
+        exit(1)
 
     # Run simulation loop
     current_recorded_demo_count = run_simulation_loop(
-        env, None, success_term, rate_limiter, camera_feed_session, use_isaac_teleop
+        env, success_term, rate_limiter, camera_feed_session, use_isaac_teleop
     )
 
     # Clean up
