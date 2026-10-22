@@ -171,6 +171,6 @@ def test_reset_cache_refreshes_on_positive_update_or_explicit_invalidation(devic
         sensor.reset()
         sensor.refreshes = [[], []]
 
-    sensor._invalidate_buffers(sensor._ALL_ENV_MASK)
+    sensor._invalidate_buffers()
     sensor.update(0.0, force_recompute=True)
     assert sensor.refreshes == [[1], [1]]

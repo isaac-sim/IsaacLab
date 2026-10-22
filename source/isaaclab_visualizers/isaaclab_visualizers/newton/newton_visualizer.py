@@ -1172,7 +1172,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         for renderer in self._renderers:
             renderer.log_mesh(f"Viewer_{id(self)}/{name.lstrip('/')}", *args, **kwargs)
         for view in self._image_views:
-            view.camera.update(0.0)
+            view.camera._invalidate_buffers()
             view.invalidate()
 
     def _render_frame(self) -> None:
@@ -1183,7 +1183,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 self._navigate_scene_camera()
                 if self.cfg.enable_markers and self._marker_revision != self._sim.vis_marker_registry.revision:
                     for view in self._image_views:
-                        view.camera.update(0.0)
+                        view.camera._invalidate_buffers()
                         view.invalidate()
                     self._marker_revision = self._sim.vis_marker_registry.revision
             self._log_streaming_image()

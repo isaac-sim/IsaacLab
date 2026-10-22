@@ -146,6 +146,8 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     sim = sim_utils.SimulationContext(
         sim_utils.SimulationCfg(physics=PhysxCfg(), device=device, gravity=(0, 0, 0), use_fabric=True)
     )
+    if not sim.get_setting("/physics/fabricUseGPUInterop"):
+        pytest.skip("Native GPU Fabric transforms require GPU interop.")
     sim.set_setting("/physics/fabricUpdateTransformations", False)
     sim.reset()
     view = sim.backend_manager.get_physics_sim_view().create_rigid_body_view("/World/Cube")

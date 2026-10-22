@@ -212,6 +212,7 @@ class SensorBase(ABC):
             self._data_dirty = False
 
     def update(self, dt: float, force_recompute: bool = False):
+        """Advance the sampling clock and optionally refresh due data."""
         # Skip update if sensor is not initialized
         if not self._is_initialized:
             return
@@ -457,9 +458,9 @@ class SensorBase(ABC):
         self._timestamp_last_update = wp.full(self._num_envs, -1.0, dtype=wp.float32, device=self._device)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
 
-    def _invalidate_buffers(self, env_mask: wp.array) -> None:
-        """Mark selected derived results stale without changing their sampling clocks."""
-        if env_mask is self._ALL_ENV_MASK:
+    def _invalidate_buffers(self, env_mask: wp.array | None = None) -> None:
+        """Invalidate selected results without advancing sampling clocks; None selects all environments."""
+        if env_mask is None or env_mask is self._ALL_ENV_MASK:
             self._is_outdated.fill_(True)
         else:
             wp.launch(
