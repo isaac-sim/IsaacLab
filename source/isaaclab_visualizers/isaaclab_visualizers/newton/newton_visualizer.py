@@ -253,6 +253,11 @@ class NewtonViewerGL(ViewerGL):
                 if viewer._view_controls is not None:
                     viewer._view_controls(imgui)
                 _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip(
+                        "Wait for the monitor's refresh before showing each frame. Prevents screen tearing,"
+                        " but can lower the window rate."
+                    )
                 if _g._ui_callbacks.get("rendering") and imgui.tree_node("Appearance"):
                     for callback in _g._ui_callbacks["rendering"]:
                         callback(imgui)
@@ -479,13 +484,6 @@ class NewtonViewerGL(ViewerGL):
             imgui.text(f"Step: {steps:,}   Sim time: {steps * dt:.1f} s")
             imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
         badges = []
-        if self._recording_panel is not None and self._recording_panel.recording_video:
-            panel = self._recording_panel
-            badges.append((f"REC video {panel._video_frames / max(panel._video_rate, 1):.0f}s", (1.0, 0.25, 0.25, 1.0)))
-        if self._recording_panel is not None and self._recording_panel.recording_scene:
-            badges.append((f"REC scene {self._recording_panel._scene_frames}f", (1.0, 0.25, 0.25, 1.0)))
-        if self._recording_panel is not None and self._recording_panel.unsaved_video:
-            badges.append(("video unsaved", (1.0, 0.8, 0.2, 1.0)))
         if owner is not None and owner.replay_mode:
             badges.append((f"REPLAY {self._recording_panel.replay.name}", (0.5, 0.85, 1.0, 1.0)))
         if self._paused_training or self._paused:

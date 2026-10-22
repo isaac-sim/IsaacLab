@@ -28,6 +28,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_RED = (1.0, 0.35, 0.35, 1.0)
+_YELLOW = (1.0, 0.8, 0.2, 1.0)
+_GREEN = (0.45, 0.9, 0.5, 1.0)
+
 REPLAY_VIEWS = {"only": "Replay only", "overlay": "Overlay on live", "side": "Side by side"}
 """Ways to show a loaded animation, as view name to label."""
 
@@ -109,7 +113,12 @@ class NewtonRecordingPanel:
     def draw(self, imgui: Any) -> None:
         """Draw the Recording section."""
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
-        expanded = imgui.collapsing_header("Recording")
+        active = self.recording_video or self.recording_scene
+        if active:  # Keep the state visible when the section is collapsed.
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*_RED))
+        expanded = imgui.collapsing_header("Recording  (REC)###recording" if active else "Recording###recording")
+        if active:
+            imgui.pop_style_color()
         if self._replay_window_open:
             self._draw_replay_window(imgui)
         if not expanded:
@@ -131,9 +140,6 @@ class NewtonRecordingPanel:
         if self.recording_video:
             if imgui.button("Stop##video"):
                 self.stop_video()
-            imgui.same_line()
-            rate = max(self._video_rate, 1)
-            imgui.text(f"{self._video_frames / rate:.1f} s ({self._video_frames} frames)")
         else:
             if imgui.button("Start##video"):
                 self.start_video()
@@ -148,17 +154,17 @@ class NewtonRecordingPanel:
                 imgui.end_disabled()
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip("Keep the stopped video in the output folder")
-            if self.unsaved_video:
-                imgui.same_line()
-                imgui.text(f"{self._video_frames} frames, unsaved")
+        elapsed = f"{self._video_frames / max(self._video_rate, 1):.2f} s ({self._video_frames} frames)"
+        if self.recording_video:
+            imgui.text_colored(imgui.ImVec4(*_RED), f"REC  {elapsed}")
+        elif self.unsaved_video:
+            imgui.text_colored(imgui.ImVec4(*_YELLOW), f"Unsaved  {elapsed}")
         imgui.separator()
 
         imgui.text("Animation (.viser)")
         if self.recording_scene:
             if imgui.button("Stop##scene"):
                 self.stop_scene()
-            imgui.same_line()
-            imgui.text(f"Recording {self._scene_frames} frames")
         elif imgui.button("Record##scene"):
             self.start_scene()
         if imgui.is_item_hovered() and not self.recording_scene:
@@ -168,6 +174,8 @@ class NewtonRecordingPanel:
             self._open_replay_window()
         if imgui.is_item_hovered():
             imgui.set_tooltip("Load a .viser animation and play it in this window, next to the simulation")
+        if self.recording_scene:
+            imgui.text_colored(imgui.ImVec4(*_RED), f"REC  {self._scene_frames} frames")
         self._draw_replay_controls(imgui)
         imgui.separator()
 
@@ -203,7 +211,14 @@ class NewtonRecordingPanel:
 
         if self._message:
             imgui.separator()
-            imgui.text_wrapped(self._message)
+            failed = any(word in self._message for word in ("failed", "Could not", "needs ffmpeg", "no policy"))
+            color = _GREEN if self._message.startswith("Saved") else _RED if failed else None
+            if color is None:
+                imgui.text_wrapped(self._message)
+            else:
+                imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*color))
+                imgui.text_wrapped(self._message)
+                imgui.pop_style_color()
 
     def _open_replay_window(self) -> None:
         self._replay_window_open = True
