@@ -185,7 +185,7 @@ class NewtonViewerGL(ViewerGL):
         """Replace Newton's left panel with an IsaacLab-oriented layout.
 
         An always-visible header (task and run, physics backend and device, environment counts, step and simulation
-        time, simulation rate and real-time factor, renderer, status badges, and a documentation link) sits above the
+        time, simulation rate and real-time factor, status badges, and a documentation link) sits above the
         sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
@@ -454,8 +454,6 @@ class NewtonViewerGL(ViewerGL):
             imgui.text(f"Envs: {total}" + (f" ({shown} shown)" if shown != total else ""))
             imgui.text(f"Step: {steps:,}   Sim time: {steps * dt:.1f} s")
             imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
-            imgui.text(f"Window: {imgui.get_io().framerate:.0f} FPS")
-            imgui.text(f"Renderer: {'RTX' if owner.rtx_rendering else 'OpenGL'}")
         badges = []
         if self._recording_panel is not None and self._recording_panel.recording_video:
             panel = self._recording_panel
