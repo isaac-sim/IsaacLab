@@ -18,6 +18,7 @@ import warp as wp
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.replicator.core as rep
+from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
@@ -382,33 +383,22 @@ def test_sensor_no_contact_object(setup_nut_rgb_ff):
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_force_field_contact_object_not_found(setup_nut_rgb_ff):
-    """Test sensor initialization fails when contact object prim path is not found."""
-    sim, sensor_cfg, dt, robot_cfg, cube_cfg, NutCfg = setup_nut_rgb_ff
-
+@pytest.mark.parametrize("contact_path", ["/World/Missing", "/World/Cube", "/World/Nut"])
+def test_sensor_force_field_requires_one_contact_sdf(setup_nut_rgb_ff, contact_path):
+    """Reject missing contact objects, objects without an SDF, and ambiguous SDF matches."""
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
     sensor_cfg.enable_camera_tactile = False
-    sensor_cfg.contact_object_prim_path_expr = "/World/Nut/wrong_prim"
-    robot = Articulation(cfg=robot_cfg)
-    sensor = VisuoTactileSensor(cfg=sensor_cfg)
-    with pytest.raises(RuntimeError) as excinfo:
+    sensor_cfg.contact_object_prim_path_expr = contact_path
+    objects = [instantiate(robot_cfg), instantiate(sensor_cfg)]
+    if contact_path == "/World/Cube":
+        objects.append(instantiate(cube_cfg))
+    elif contact_path == "/World/Nut":
+        objects.append(instantiate(nut_cfg))
+        mesh = sim_utils.get_first_matching_child_prim(
+            contact_path,
+            predicate=lambda prim: prim.HasAPI(UsdPhysics.MeshCollisionAPI)
+            and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf",
+        )
+        sim.stage.DefinePrim(str(mesh.GetPath()) + "Copy").GetReferences().AddInternalReference(mesh.GetPath())
+    with pytest.raises(RuntimeError, match="Expected 1 prims.*found (0|2)"):
         sim.reset()
-        robot.update(dt)
-        sensor.update(dt)
-    assert "No prim found at" in str(excinfo.value)
-
-
-@pytest.mark.isaacsim_ci
-def test_sensor_force_field_contact_object_no_sdf(setup_nut_rgb_ff):
-    """Test sensor initialization fails when contact object has no SDF mesh."""
-    sim, sensor_cfg, dt, robot_cfg, cube_cfg, NutCfg = setup_nut_rgb_ff
-    sensor_cfg.enable_camera_tactile = False
-    sensor_cfg.contact_object_prim_path_expr = "/World/Cube"
-    robot = Articulation(cfg=robot_cfg)
-    sensor = VisuoTactileSensor(cfg=sensor_cfg)
-    cube = RigidObject(cfg=cube_cfg)
-    with pytest.raises(RuntimeError) as excinfo:
-        sim.reset()
-        robot.update(dt)
-        sensor.update(dt)
-        cube.update(dt)
-    assert "No SDF mesh found under contact object at path" in str(excinfo.value)

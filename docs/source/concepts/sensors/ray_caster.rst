@@ -15,8 +15,8 @@ A ray caster reports the first collision along each ray in a chosen pattern. Ray
 do not bounce or respond to materials and opacity. Quadruped tasks use this sensor
 to measure terrain height around the robot.
 
-The ray-casting implementation depends on the physics backend. With PhysX and
-OV PhysX, configured meshes are loaded into `Warp <https://nvidia.github.io/warp/>`_
+The single-mesh :class:`~sensors.RayCaster` implementation depends on the physics
+backend. With PhysX and OV PhysX, configured meshes are loaded into `Warp <https://nvidia.github.io/warp/>`_
 when the sensor initializes and must remain static. With Newton, the sensor
 queries the live scene BVH and therefore sees every collision shape in its
 environment, global terrain, and dynamic bodies. Newton ignores

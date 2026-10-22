@@ -212,7 +212,7 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
 
 
 @configclass
-class StaticTargetSceneCfg(RaycastTestSceneCfg):
+class MultiMeshTargetSceneCfg(RaycastTestSceneCfg):
     """Read the same box through a static target and a tracked target."""
 
     scanner = MultiMeshRayCasterCfg(
@@ -231,9 +231,9 @@ class StaticTargetSceneCfg(RaycastTestSceneCfg):
 
 # The legacy adapter does not use the Newton manager graph.
 @pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
-def test_legacy_multi_mesh_hits_static_target_of_each_env(sim):
+def test_legacy_multi_mesh_tracks_cloned_targets(sim):
     """Cloned targets keep their per-env bindings across writes and CUDA graph replay."""
-    scene = InteractiveScene(StaticTargetSceneCfg(num_envs=4))
+    scene = InteractiveScene(MultiMeshTargetSceneCfg(num_envs=4))
     sim.reset()
     sim.step()
     scene.update(sim.get_physics_dt())

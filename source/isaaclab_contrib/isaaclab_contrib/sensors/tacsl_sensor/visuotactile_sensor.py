@@ -333,19 +333,14 @@ class VisuoTactileSensor(SensorBase):
         if self.cfg.contact_object_prim_path_expr is None:
             return
 
-        contact_prim, contact_expr = sim_utils.resolve_matching_prims_from_source(
-            self.cfg.contact_object_prim_path_expr
-        )[0]
-        mesh = sim_utils.get_first_matching_child_prim(
-            contact_prim.GetPath(),
+        mesh, mesh_expr = sim_utils.resolve_matching_prims_from_source(
+            self.cfg.contact_object_prim_path_expr,
             predicate=lambda prim: prim.HasAPI(UsdPhysics.MeshCollisionAPI)
             and UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "sdf",
-        )
-        if mesh is None:
-            raise RuntimeError(f"No SDF mesh found under contact object at path: {contact_prim.GetPath()}")
+            expected_num_matches=1,
+        )[0]
 
         # Discover geometry in the authored source, then bind the corresponding native copies.
-        mesh_expr = contact_expr + mesh.GetPath().pathString[len(contact_prim.GetPath().pathString) :]
         body, body_expr = mesh, mesh_expr
         while body and not body.HasAPI(UsdPhysics.RigidBodyAPI):
             body, body_expr = body.GetParent(), body_expr.rsplit("/", 1)[0]

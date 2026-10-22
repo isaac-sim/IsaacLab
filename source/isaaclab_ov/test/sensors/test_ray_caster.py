@@ -7,11 +7,21 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import numpy as np
+import pytest
 import torch
+
+pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
 from isaaclab_ov.physics import OvPhysxCfg
 
+from pxr import UsdGeom, UsdPhysics
+
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils import configclass, instantiate
@@ -32,15 +42,20 @@ def test_multi_mesh_tracks_multiple_body_types():
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.75, 0.0, 0.0)),
         )
-        right = left.replace(
-            prim_path="{ENV_REGEX_NS}/Right", init_state=RigidObjectCfg.InitialStateCfg(pos=(0.75, 0.0, 0.0))
+        right = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Right",
+            spawn=sim_utils.MultiUsdFileCfg(
+                usd_path=[str(Path(__file__).parents[1] / "assets/data/articulation_ordering_branching.usda")] * 2
+            ),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(0.75, 0.0, 0.0)),
+            actuators={},
         )
         scanner = MultiMeshRayCasterCfg(
-            prim_path="{ENV_REGEX_NS}/Left/Mount",
-            offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.65, -0.2, 1.7)),
+            prim_path="{ENV_REGEX_NS}/Right/left_tip/Mount",
+            offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(-0.85, -0.2, 1.2)),
             mesh_prim_paths=[
                 MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr=f"{{ENV_REGEX_NS}}/{body}")
-                for body in ("Left", "Right")
+                for body in ("Left", "Right/[^/]*/visuals")
             ],
             pattern_cfg=patterns.GridPatternCfg(resolution=1.5, size=(1.5, 0.0)),
             ray_alignment="world",
@@ -48,26 +63,38 @@ def test_multi_mesh_tracks_multiple_body_types():
 
     cfg = sim_utils.SimulationCfg(physics=OvPhysxCfg(), gravity=(0.0, 0.0, 0.0))
     with sim_utils.build_simulation_context(sim_cfg=cfg) as sim:
-        scene = instantiate(SceneCfg(num_envs=2, env_spacing=4.0))
-        sim_utils.create_prim(
-            "/World/envs/env_0/Left/Mount", translation=(0.1, 0.2, 0.3), orientation=(0.0, 0.0, 1.0, 0.0)
+        scene = instantiate(
+            SceneCfg(
+                num_envs=16,
+                env_spacing=4.0,
+                clone_cfg=CloneCfg(clone_strategy=lambda weights, count: np.arange(count) % 2),
+            )
         )
+        for env_id in (0, 1):
+            link_path = f"/World/envs/env_{env_id}/Right/left_tip"
+            UsdGeom.Xformable(sim.stage.GetPrimAtPath(link_path)).AddTranslateOp().Set((0.0, 0.0, 0.5))
+            UsdPhysics.Joint.Get(sim.stage, f"/World/envs/env_{env_id}/Right/left_elbow").CreateLocalPos0Attr(
+                (0.0, 0.0, 0.5)
+            )
+            UsdGeom.Cube.Define(sim.stage, link_path + "/visuals").CreateSizeAttr(0.5)
+            sim_utils.create_prim(link_path + "/Mount", translation=(0.1, 0.2, 0.3), orientation=(0.0, 0.0, 1.0, 0.0))
         sim.reset()
         sensor = scene["scanner"]
-        assert not sim.stage.GetPrimAtPath("/World/envs/env_1/Left/Mount")
+        assert not sim.stage.GetPrimAtPath("/World/envs/env_2/Right/left_tip/Mount")
         torch.testing.assert_close(
-            sensor.data.pos_w.torch, scene.env_origins + torch.tensor([-0.65, 0.2, 0.3], device=sim.device)
+            sensor.data.pos_w.torch, scene.env_origins + torch.tensor([0.85, 0.2, 0.8], device=sim.device)
         )
         torch.testing.assert_close(
-            sensor.data.quat_w.torch, torch.tensor([[0.0, 0.0, 1.0, 0.0]], device=sim.device).expand(2, -1)
+            sensor.data.quat_w.torch, torch.tensor([[0.0, 0.0, 1.0, 0.0]], device=sim.device).expand(16, -1)
         )
-        expected = torch.tensor([[[-0.75, 0.0, 0.25], [0.75, 0.0, 0.25]]], device=sim.device)
+        expected = torch.tensor([[[-0.75, 0.0, 0.25], [0.75, 0.0, 0.75]]], device=sim.device)
         expected = expected + scene.env_origins[:, None, :]
         torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
 
         pose = scene["right"].data.root_link_pose_w.torch.clone()
-        pose[:, 2] += torch.tensor([0.25, 0.5], device=sim.device)
+        heights = torch.linspace(0.25, 0.5, scene.num_envs, device=sim.device)
+        pose[:, 2] += heights
         scene["right"].write_root_link_pose_to_sim_index(root_pose=pose)
         sensor.reset()
-        expected[:, 1, 2] += torch.tensor([0.25, 0.5], device=sim.device)
+        expected[:, 1, 2] += heights
         torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
