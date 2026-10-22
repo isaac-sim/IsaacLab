@@ -36,6 +36,7 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
+    describe_run,
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
@@ -162,6 +163,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
             cleanup.callback(lambda: close_env(env))
+            describe_run(env, args_cli.task, "train", log_dir)
             env = wrap_sensor_capture(env, rank_dir, args_cli)
 
             screen.stage("Preparing agent")

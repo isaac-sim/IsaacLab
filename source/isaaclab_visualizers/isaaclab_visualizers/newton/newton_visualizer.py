@@ -79,21 +79,6 @@ _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
 
-def _draw_info_strip(imgui, viewer) -> None:
-    """Draw the physics backend, up axis, gravity, and the link to the visualizer documentation."""
-    imgui.text(f"Physics: {viewer._backend_display}")
-    if viewer.model is not None:
-        axis_names = ["X", "Y", "Z"]
-        gravity = viewer._metadata["gravity"]
-        imgui.text(
-            f"Up: {axis_names[viewer.model.up_axis]}   Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
-        )
-    if imgui.text_link("Visualizer docs"):
-        webbrowser.open(VISUALIZER_DOCS_URL)
-    if imgui.is_item_hovered():
-        imgui.set_tooltip(VISUALIZER_DOCS_URL)
-
-
 def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str) -> bool:
     """Render a checkbox greyed out with a tooltip when *available* is False."""
     if not available:
@@ -124,6 +109,10 @@ class NewtonViewerGL(ViewerGL):
     image_matches_camera = False
     """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
     _view_controls = None
+    _run_info: dict = {}
+    _steps_per_second = 0.0
+    _real_time_factor = 0.0
+    _rate_sample = (0.0, 0)
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -194,18 +183,17 @@ class NewtonViewerGL(ViewerGL):
     def _patch_viewer_panel(self) -> None:
         """Replace Newton's left panel with an IsaacLab-oriented layout.
 
-        A compact info strip (physics backend, up axis, gravity, and a documentation link) sits above the sections,
-        which are ordered by how often they are used:
+        An always-visible header (task and run, physics backend and device, environment counts, step and simulation
+        time, simulation rate and real-time factor, renderer, status badges, and a documentation link) sits above the
+        sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
         2. **View** (open) — renderer (OpenGL or RTX), camera, VSync, and renderer-specific options.
-        3. **Environments** (open) — how many environments are drawn; shown when more than one is available.
+        3. **Scene** (open) — visible environments, visualization markers, and model overlays.
         4. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
-        5. **Recording** (closed) — video, ``.viser`` scene, and simulation-state checkpoint output.
+        5. **Recording** (closed) — output settings, video, ``.viser`` scene, and simulation-state checkpoint.
         6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        7. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls; the marker name is
-           shared with the Kit and Viser visualizers.
-        8. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
+        7. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -245,7 +233,7 @@ class NewtonViewerGL(ViewerGL):
             for callback in _g._ui_callbacks.get("panel", []):
                 callback(imgui)
 
-            _draw_info_strip(imgui, viewer)
+            viewer._draw_header(imgui)
 
             # --- Playback ---------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
@@ -261,15 +249,13 @@ class NewtonViewerGL(ViewerGL):
                 if viewer._view_controls is not None:
                     viewer._view_controls(imgui)
                 _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
-                for callback in _g._ui_callbacks.get("rendering", []):
-                    callback(imgui)
+                if _g._ui_callbacks.get("rendering") and imgui.tree_node("Appearance"):
+                    for callback in _g._ui_callbacks["rendering"]:
+                        callback(imgui)
+                    imgui.tree_pop()
 
-            # --- Environments -----------------------------------------------
-            if viewer._has_environment_controls():
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Environments"):
-                    imgui.separator()
-                    viewer._render_environment_controls(imgui)
+            # --- Scene ------------------------------------------------------
+            viewer._draw_scene_controls(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
             if viewer._policy_ghost_panel is not None:
@@ -285,76 +271,6 @@ class NewtonViewerGL(ViewerGL):
             live_plots_cb = viewer._live_plots_callback
             if live_plots_cb is not None:
                 live_plots_cb(imgui)
-
-            # --- Model overlays ---------------------------------------------
-            if viewer.model is not None and not viewer._fullscreen_image_active:
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Model Overlays"):
-                    imgui.separator()
-                    renderer = viewer.renderer
-                    _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
-                    if viewer.show_joints:
-                        _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
-                    _contacts_available = viewer._contacts_available
-                    viewer.show_contacts = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Contacts",
-                        viewer.show_contacts,
-                        _contacts_available,
-                        "No contact sensors in this environment",
-                    )
-                    if viewer.show_contacts and _contacts_available:
-                        _, renderer.arrow_length_scale = imgui.slider_float(
-                            "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
-                        )
-                        _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
-                    _model = viewer.model
-                    _has_particles = _model.particle_count > 0
-                    _has_springs = _model.spring_count > 0
-                    _has_cloth = _model.tri_count > 0
-                    viewer.show_particles = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Particles",
-                        viewer.show_particles,
-                        _has_particles,
-                        "No particle bodies in this environment",
-                    )
-                    viewer.show_springs = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Springs",
-                        viewer.show_springs,
-                        _has_springs,
-                        "No spring constraints in this environment",
-                    )
-                    _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
-                    if viewer.show_com:
-                        _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
-                    viewer.show_triangles = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Cloth",
-                        viewer.show_triangles,
-                        _has_cloth,
-                        "No cloth/triangle meshes in this environment",
-                    )
-                    _c, viewer.show_collision = imgui.checkbox("Show Collision", viewer.show_collision)
-                    _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
-                    _sdf_labels = ["Off", "Margin", "Margin + Gap"]
-                    _, new_sdf_idx = imgui.combo("Gap + Margin", int(viewer.sdf_margin_mode), _sdf_labels)
-                    viewer.sdf_margin_mode = viewer.SDFMarginMode(new_sdf_idx)
-                    if viewer.sdf_margin_mode != viewer.SDFMarginMode.OFF:
-                        _, renderer.wireframe_line_width = imgui.slider_float(
-                            "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
-                        )
-                    _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
-                    _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
-            if viewer.marker_groups:
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Visualization Markers"):
-                    for marker in viewer.marker_groups:
-                        name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
-                        changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
-                        if changed:
-                            marker.set_visibility(visible)
 
             # --- Controls ---------------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
@@ -402,6 +318,162 @@ class NewtonViewerGL(ViewerGL):
             owner.set_visible_env_count(new_count)
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
+
+    def _draw_scene_controls(self, imgui) -> None:
+        """Draw what can be shown in the scene: environments, visualization markers, and model overlays."""
+        has_environments = self._has_environment_controls()
+        if not (has_environments or self.marker_groups or self.model is not None):
+            return
+        imgui.set_next_item_open(True, imgui.Cond_.appearing)
+        if not imgui.collapsing_header("Scene"):
+            return
+        imgui.separator()
+        if has_environments:
+            self._render_environment_controls(imgui)
+        if self.marker_groups:
+            imgui.separator_text("Markers")
+            for marker in self.marker_groups:
+                name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
+                changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
+                if changed:
+                    marker.set_visibility(visible)
+        if self.model is not None:
+            imgui.separator_text("Model Overlays")
+            if self._fullscreen_image_active or self.image_matches_camera:
+                imgui.text_disabled("OpenGL only")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("Switch View > Renderer to OpenGL to draw joints, contacts, and other overlays")
+            elif imgui.tree_node("Overlay options"):
+                self._draw_model_overlays(imgui)
+                imgui.tree_pop()
+
+    def _draw_model_overlays(self, imgui) -> None:
+        """Draw Newton's per-overlay toggles."""
+        renderer = self.renderer
+        _c, self.show_joints = imgui.checkbox("Show Joints", self.show_joints)
+        if self.show_joints:
+            _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
+        _contacts_available = self._contacts_available
+        self.show_contacts = _imgui_optional_checkbox(
+            imgui,
+            "Show Contacts",
+            self.show_contacts,
+            _contacts_available,
+            "No contact sensors in this environment",
+        )
+        if self.show_contacts and _contacts_available:
+            _, renderer.arrow_length_scale = imgui.slider_float(
+                "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
+            )
+            _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
+        _model = self.model
+        _has_particles = _model.particle_count > 0
+        _has_springs = _model.spring_count > 0
+        _has_cloth = _model.tri_count > 0
+        self.show_particles = _imgui_optional_checkbox(
+            imgui,
+            "Show Particles",
+            self.show_particles,
+            _has_particles,
+            "No particle bodies in this environment",
+        )
+        self.show_springs = _imgui_optional_checkbox(
+            imgui,
+            "Show Springs",
+            self.show_springs,
+            _has_springs,
+            "No spring constraints in this environment",
+        )
+        _c, self.show_com = imgui.checkbox("Show Center of Mass", self.show_com)
+        if self.show_com:
+            _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
+        self.show_triangles = _imgui_optional_checkbox(
+            imgui,
+            "Show Cloth",
+            self.show_triangles,
+            _has_cloth,
+            "No cloth/triangle meshes in this environment",
+        )
+        _c, self.show_collision = imgui.checkbox("Show Collision", self.show_collision)
+        _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
+        _sdf_labels = ["Off", "Margin", "Margin + Gap"]
+        _, new_sdf_idx = imgui.combo("Gap + Margin", int(self.sdf_margin_mode), _sdf_labels)
+        self.sdf_margin_mode = self.SDFMarginMode(new_sdf_idx)
+        if self.sdf_margin_mode != self.SDFMarginMode.OFF:
+            _, renderer.wireframe_line_width = imgui.slider_float(
+                "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
+            )
+        _c, self.show_visual = imgui.checkbox("Show Visual", self.show_visual)
+        _c, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", self.show_inertia_boxes)
+
+    def _update_rates(self, steps: int, dt: float) -> None:
+        """Refresh the simulation rate and real-time factor from the step counter, about twice a second."""
+        now = time.perf_counter()
+        wall, last_steps = self._rate_sample
+        if wall == 0.0:
+            self._rate_sample = (now, steps)
+        elif now - wall >= 0.5:
+            self._steps_per_second = max(0, steps - last_steps) / (now - wall)
+            self._real_time_factor = self._steps_per_second * dt
+            self._rate_sample = (now, steps)
+
+    def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
+        """Name the run in the HUD header.
+
+        Args:
+            task: Task name.
+            mode: How the run uses the task, such as ``"play"`` or ``"train"``.
+            run: Name of the run's log directory.
+        """
+        self._run_info = {key: value for key, value in (("task", task), ("mode", mode), ("run", run)) if value}
+
+    def _draw_header(self, imgui) -> None:
+        """Draw the always-visible summary: run, physics, scale, progress, rates, and status badges."""
+        owner = self._owner
+        info = self._run_info
+        if "task" in info:
+            imgui.text_wrapped(f"Task: {info['task']}")
+        if "run" in info or "mode" in info:
+            imgui.text(f"Run: {' · '.join(info[key] for key in ('mode', 'run') if key in info)}")
+        device = getattr(getattr(owner, "_sim", None), "device", None)
+        imgui.text(f"Physics: {self._backend_display}" + (f" ({device})" if device else ""))
+        if self.model is not None:
+            axis_names = ["X", "Y", "Z"]
+            gravity = self._metadata["gravity"]
+            imgui.text(
+                f"Up: {axis_names[self.model.up_axis]}   "
+                f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
+            )
+        if owner is not None and owner._sim is not None:
+            sim = owner._sim
+            steps, dt = sim.get_physics_step_count(), sim.get_physics_dt()
+            self._update_rates(steps, dt)
+            total = self._metadata.get("num_envs")
+            shown = owner.visible_env_count if owner.visible_env_limit > 1 else total
+            imgui.text(f"Envs: {total}" + (f" ({shown} shown)" if shown != total else ""))
+            imgui.text(f"Step: {steps:,}   Sim time: {steps * dt:.1f} s")
+            imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
+            imgui.text(f"Window: {imgui.get_io().framerate:.0f} FPS")
+            imgui.text(f"Renderer: {'RTX' if owner.rtx_rendering else 'OpenGL'}")
+        badges = []
+        if self._recording_panel is not None and self._recording_panel.recording_video:
+            panel = self._recording_panel
+            badges.append((f"REC video {panel._video_frames / max(panel._video_rate, 1):.0f}s", (1.0, 0.25, 0.25, 1.0)))
+        if self._recording_panel is not None and self._recording_panel.recording_scene:
+            badges.append((f"REC scene {self._recording_panel._scene_frames}f", (1.0, 0.25, 0.25, 1.0)))
+        if self._paused_training or self._paused:
+            badges.append(("PAUSED", (1.0, 0.8, 0.2, 1.0)))
+        if self._policy_ghost_panel is not None:
+            ghosts = sum(slot.active for slot in self._policy_ghost_panel.layout.slots[1:])
+            badges.append((f"{ghosts} ghost{'s' * (ghosts != 1)}", (0.5, 0.8, 1.0, 1.0)))
+        for index, (text, color) in enumerate(badges):
+            if index:
+                imgui.same_line()
+            imgui.text_colored(imgui.ImVec4(*color), f"[{text}]")
+        if imgui.text_link("Visualizer docs"):
+            webbrowser.open(VISUALIZER_DOCS_URL)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(VISUALIZER_DOCS_URL)
 
     def _render_training_controls(self, imgui):
         """Render the Isaac Lab playback controls inside the Playback section."""
@@ -651,7 +723,11 @@ class NewtonVisualizerBase(BaseVisualizer):
             if imgui.is_item_hovered():
                 imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without model overlays")
         labels = [
-            f"Perspective {i + 1}" if view.camera is None else view.cfg.source
+            f"Perspective {i + 1}"
+            if view.camera is None
+            else "RTX viewer camera"
+            if i == rtx_index
+            else view.cfg.source
             for i, view in enumerate(self._image_views)
         ]
         changed, index = imgui.combo("Camera", self._image_views.index(self.current_image_view), labels)
@@ -1066,6 +1142,17 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLVisualizerCfg.rtx_camera.")
         perspective = next(i for i, view in enumerate(self._image_views) if view.camera is None)
         self._select_camera(rtx_index if enabled else perspective, keep_pose=True)
+
+    def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
+        """Name the run in the HUD header.
+
+        Args:
+            task: Task name.
+            mode: How the run uses the task, such as ``"play"`` or ``"train"``.
+            run: Name of the run's log directory.
+        """
+        if self._viewer is not None:
+            self._viewer.set_run_info(task, mode, run)
 
     def attach_policy_ghost_restart(self, restart: Callable[[bool], None]) -> None:
         """Offer an Enable Policy Ghosts button in the HUD of a run that started without the feature.

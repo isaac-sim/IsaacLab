@@ -37,6 +37,7 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
+    describe_run,
     enable_cameras_for_video,
     normalize_task_name,
     pre_launch_video_config,
@@ -263,6 +264,7 @@ def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
             cleanup.callback(lambda: close_env(env))
+            describe_run(env, args_cli.task, "play", log_dir)
 
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
