@@ -1,5 +1,5 @@
-Training a G1 Visual Locomotion Policy for Real Robot Deployment
-================================================================
+Training and Deploying a G1 Visual Locomotion Policy
+====================================================
 
 .. currentmodule:: isaaclab
 
@@ -124,7 +124,7 @@ Running on the Robot
 --------------------
 
 Resolving the Connections Against Hardware
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :class:`~envs.LeappDeploymentEnv` resolves each ``isaaclab_connection`` in the exported YAML
 against a simulated scene. Hardware deployment resolves the same connections against the robot:
