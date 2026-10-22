@@ -146,7 +146,7 @@ class InteractiveScene:
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
             # Direct tasks may use regex spawners before declaring their clone plan.
-            self.stage.DefinePrim(self.env_prim_paths[0])
+            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
         self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
 

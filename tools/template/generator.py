@@ -6,6 +6,7 @@
 import glob
 import importlib.metadata
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -16,6 +17,8 @@ import jinja2
 import tomllib
 from common import MULTI_AGENT_ALGORITHMS, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
 
+logger = logging.getLogger(__name__)
+
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
     trim_blocks=True,
@@ -25,7 +28,7 @@ jinja_env = jinja2.Environment(
 
 
 def _setup_git_repo(project_dir: str) -> None:
-    """Setup the git repository.
+    """Set up the git repository with an initial commit, warning with the commands left to run if one fails.
 
     Args:
         project_dir: The directory of the project.
@@ -35,10 +38,19 @@ def _setup_git_repo(project_dir: str) -> None:
         ["git", "add", "-f", "."],
         ["git", "commit", "-q", "-m", "Initial commit"],
     ]
-    for command in commands:
+    for index, command in enumerate(commands):
         result = subprocess.run(command, capture_output=True, text=True, cwd=project_dir)
         for line in result.stdout.splitlines():
             print(f"  |  {line}")
+        if result.returncode != 0:
+            remaining = "\n".join(
+                " ".join(f'"{arg}"' if " " in arg else arg for arg in pending) for pending in commands[index:]
+            )
+            logger.warning(
+                f"'{' '.join(command[:2])}' failed with exit code {result.returncode}:\n{result.stderr.strip()}\n"
+                f"Fix the error above, then run in {project_dir}:\n{remaining}"
+            )
+            return
 
 
 def _write_file(dst: str, content: str) -> None:
@@ -240,6 +252,9 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
     specification = specification.copy()
     source_path = specification.get("isaaclab_source_path")
     if not source_path:
+        # Accept patch releases of the installed version, without its local label such as "+build7".
+        installed_version = specification.get("isaaclab_version")
+        specification["isaaclab_release"] = installed_version.split("+", 1)[0] if installed_version else None
         specification["isaaclab_dependency"] = "isaaclab"
         specification["isaaclab_environments"] = []
         specification["isaaclab_indexes"] = []
@@ -275,6 +290,7 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
         }
     )
     specification["isaaclab_dependency"] = source_config["project"]["name"]
+    specification["isaaclab_release"] = None
     specification["isaaclab_optional_extras"] = sorted(source_config["project"].get("optional-dependencies", {}).keys())
     specification["isaaclab_environments"] = uv_config.get("environments", [])
     specification["isaaclab_indexes"] = uv_config.get("index", [])
