@@ -5,6 +5,6 @@
 * Composed the G1 environments from scene, event, curriculum, termination and observation configurations,
   leaving initialization to supply asset-derived action scales and sole geometry.
 * Moved G1 symmetry helpers alongside the other velocity-task robot symmetry modules.
-* Reused the common depth-image observation with a G1 image-processing modifier, assembling observation
-  groups directly in the student environment configuration.
+* Reused the common depth-image observation with a G1 image-processing modifier, keeping observation
+  group definitions inline in the student observations configuration and reusing the shared teacher policy.
 * Read G1 sole geometry and reference torques from the asset, reusing configured actuator stiffnesses.

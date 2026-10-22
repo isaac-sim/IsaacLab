@@ -74,6 +74,10 @@ def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
                 )
     student_class = ast.parse(getsource(rough_env_cfg.G1RoughDepthStudentEnvCfg)).body[0]
     assert not any(isinstance(node, ast.FunctionDef) and node.name == "__post_init__" for node in student_class.body)
+    assert not any(
+        isinstance(cfg, type) and cfg.__module__ == rough_env_cfg.__name__ and issubclass(cfg, rough_env_cfg.ObsGroup)
+        for cfg in vars(rough_env_cfg).values()
+    )
 
 
 def test_g1_flat_keeps_its_robot_and_ppo_settings():
