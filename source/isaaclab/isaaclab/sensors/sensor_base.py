@@ -30,7 +30,7 @@ from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
 from ..utils import index_fill_
-from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
+from .kernels import invalidate_buffers_kernel, reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -50,13 +50,9 @@ class SensorBase(ABC):
 
     This base owns environment rows and their clocks. Backend sensors must validate native binding
     coverage rather than resize those rows when some environments have no matching sensor body.
-    Capture masks select ready and due rows; backend kernels must not repeat reset-readiness checks.
-    """
-
-    _capture_on_reset = True
-    """Whether data reads may capture immediately after initialization or reset.
-
-    False retains reset outputs until the first update with positive elapsed time.
+    Reset leaves cleared sensor outputs valid. Derived-query sensors explicitly invalidate their
+    cached results after initialization or reset. Backend kernels consume the resulting masks;
+    they must not repeat reset-readiness checks or introduce class-level reset policies.
     """
 
     def __init__(self, cfg: SensorBaseCfg):
@@ -188,7 +184,10 @@ class SensorBase(ABC):
         return True
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
-        """Resets the sensor internals.
+        """Reset timing for the cleared outputs established by the sensor's reset implementation.
+
+        Reset values remain cached until the next positive-time update. Subclasses that retain
+        derived results instead of clearing them must invalidate those results explicitly.
 
         Args:
             env_ids: The environment indices to reset. Defaults to None, in which case all
@@ -206,17 +205,17 @@ class SensorBase(ABC):
                 self._timestamp,
                 self._timestamp_last_update,
                 self._elapsed_since_update,
-                self._capture_on_reset,
             ],
             device=self._device,
         )
-        self._data_dirty = True
+        if env_mask is self._ALL_ENV_MASK:
+            self._data_dirty = False
 
     def update(self, dt: float, force_recompute: bool = False):
         # Skip update if sensor is not initialized
         if not self._is_initialized:
             return
-        self._data_dirty = True
+        self._data_dirty |= dt > 0.0
         # Update the timestamp for the sensors
         wp.launch(
             update_timestamp_kernel,
@@ -224,16 +223,16 @@ class SensorBase(ABC):
             inputs=[
                 self._is_outdated,
                 self._timestamp,
+                self._timestamp_last_update,
                 self._elapsed_since_update,
                 dt,
                 self.cfg.update_period - 1e-6,
-                self._capture_on_reset,
             ],
             device=self._device,
         )
         # Update the buffers; debug visualization refreshes lazily from its callback.
         if force_recompute:
-            self._update_outdated_buffers(force_recompute=force_recompute)
+            self._update_outdated_buffers()
 
     @staticmethod
     def update_batch(sensors: Sequence[SensorBase], dt: float) -> None:
@@ -292,7 +291,7 @@ class SensorBase(ABC):
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
         self._create_timing_buffers()
-        self._data_dirty = True
+        self._data_dirty = False
 
         # Initialize debug visualization handle
         if self._debug_vis_handle is None:
@@ -452,14 +451,22 @@ class SensorBase(ABC):
     def _create_timing_buffers(self) -> None:
         """Allocate the shared per-environment flags and clocks used to schedule captures."""
         # timestamp and outdated flags
-        self._is_outdated = wp.full(self._num_envs, self._capture_on_reset, dtype=wp.bool, device=self._device)
+        self._is_outdated = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-        self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        # A negative timestamp means no backend sample has been read since initialization/reset.
+        self._timestamp_last_update = wp.full(self._num_envs, -1.0, dtype=wp.float32, device=self._device)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
 
-    def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
+    def _invalidate_buffers(self, env_mask: wp.array) -> None:
+        """Mark selected derived results stale without changing their sampling clocks."""
+        wp.launch(
+            invalidate_buffers_kernel, dim=self._num_envs, inputs=[env_mask, self._is_outdated], device=self._device
+        )
+        self._data_dirty = True
+
+    def _update_outdated_buffers(self) -> None:
         """Fills the sensor data for the outdated sensors."""
-        if not force_recompute and not self._data_dirty:
+        if not self._data_dirty:
             return
         self._update_buffers_impl(self._is_outdated)
         self._mark_buffers_updated()
@@ -470,12 +477,7 @@ class SensorBase(ABC):
         wp.launch(
             update_outdated_envs_kernel,
             dim=self._num_envs,
-            inputs=[
-                self._is_outdated,
-                self._timestamp,
-                self._timestamp_last_update,
-                self._elapsed_since_update,
-            ],
+            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, self._elapsed_since_update],
             device=self._device,
         )
         self._data_dirty = False

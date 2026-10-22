@@ -658,7 +658,9 @@ class Camera(SensorBase):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
-        super().reset(env_ids, env_mask)
+        reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=reset_mask)
+        self._invalidate_buffers(reset_mask)
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
@@ -739,6 +741,7 @@ class Camera(SensorBase):
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     def _prepare_camera(self, env_mask: wp.array) -> None:
         """Advance capture frames and refresh requested poses before rendering."""
@@ -1065,7 +1068,7 @@ class Camera(SensorBase):
 
     def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""
-        # A zero update period marks every camera outdated.
+        # A zero update period makes every positive-time update due.
         return self.cfg.update_period <= 0.0 or bool(np.any(env_mask.numpy()))
 
     """

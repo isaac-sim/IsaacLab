@@ -26,11 +26,15 @@ pytestmark = pytest.mark.unit
 
 def test_sensor_lifecycle_has_single_owners():
     """Backends retain shared scheduling, lazy state reads, and one Fabric initialization owner."""
-    for directory in (ISAACLAB_ROOT / "source").glob("isaaclab_*/isaaclab_*/sensors"):
+    for directory in (ISAACLAB_ROOT / "source").glob("isaaclab*/isaaclab*/sensors"):
         for path in directory.rglob("*.py"):
-            if path.name.endswith("_data.py"):
-                continue
             for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.Name):
+                    assert node.id not in {"_capture_on_reset", "_requires_physics_step"}, path
+                if isinstance(node, ast.Attribute):
+                    assert node.attr not in {"_capture_on_reset", "_requires_physics_step"}, path
+                if directory.parent.name == "isaaclab" or path.name.endswith("_data.py"):
+                    continue
                 if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):
                     assert node.attr != "_num_envs", f"{path}:{node.lineno} overrides SensorBase environment ownership"
                 if isinstance(node, ast.FunctionDef):
@@ -60,16 +64,17 @@ def test_sensor_lifecycle_has_single_owners():
 class _RefreshLogSensor(SensorBase):
     """Sensor that records the step index of every buffer refresh, per environment."""
 
-    def __init__(self, update_period: float, device: str, num_envs: int = 2, capture_on_reset: bool = True):
+    def __init__(self, update_period: float, device: str, num_envs: int = 2):
         # SensorBase.__init__ needs a USD stage; only the timing state is under test here.
         self.cfg = SensorBaseCfg(prim_path="/World/envs/env_.*/sensor", update_period=update_period)
         self._device = device
         self._num_envs = num_envs
-        self._capture_on_reset = capture_on_reset
+        self._ALL_ENV_MASK = wp.ones(num_envs, dtype=wp.bool, device=device)
         self._is_initialized = True
         self._is_visualizing = False
         self._create_timing_buffers()
-        self._data_dirty = True
+        self._data_dirty = False
+        self.backend_calls = 0
         self.step = 0
         self.refreshes = [[] for _ in range(num_envs)]
 
@@ -84,6 +89,7 @@ class _RefreshLogSensor(SensorBase):
         pass
 
     def _update_buffers_impl(self, env_mask: wp.array):
+        self.backend_calls += 1
         for env in np.flatnonzero(env_mask.numpy()):
             self.refreshes[env].append(self.step)
 
@@ -124,32 +130,57 @@ def test_refresh_follows_the_time_passed_to_update(device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("capture_on_reset", [True, False], ids=["capture-on-reset", "capture-after-update"])
-def test_reset_read_only_restarts_period_after_capture(device, capture_on_reset):
-    """A skipped reset read leaves the sensor due; a completed capture starts its normal period."""
-    sensor = _RefreshLogSensor(update_period=0.02, device=device, capture_on_reset=capture_on_reset)
+@pytest.mark.parametrize("invalidate", [False, True], ids=["cleared-output", "derived-query"])
+def test_reset_read_only_restarts_period_after_capture(device, invalidate):
+    """Cleared output stays cached; explicitly invalidated queries refresh and restart their period."""
+    sensor = _RefreshLogSensor(update_period=0.02, device=device)
     _run(sensor, [0.005])
-    sensor.reset(env_mask=wp.array([True, False], dtype=wp.bool, device=device))
+    reset_mask = wp.array([True, False], dtype=wp.bool, device=device)
+    sensor.reset(env_mask=reset_mask)
+    if invalidate:
+        sensor._invalidate_buffers(reset_mask)
     _ = sensor.data
     for step in range(2, 11):
         sensor.step = step
         sensor.update(0.005)
         _ = sensor.data
-    assert sensor.refreshes[0] == ([1, 1, 5, 9] if capture_on_reset else [1, 2, 6, 10])
+    assert sensor.refreshes[0] == ([1, 1, 5, 9] if invalidate else [1, 2, 6, 10])
     assert sensor.refreshes[1] == [1, 5, 9]
+
+    # A partial reset must preserve a pending refresh for the other environment.
+    sensor.reset()
+    sensor.update(0.02)
+    sensor.reset(env_mask=reset_mask)
+    before = list(sensor.refreshes[0])
+    sensor.step = 11
+    _ = sensor.data
+    assert sensor.refreshes[0] == before
+    assert sensor.refreshes[1][-1] == 11
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize("period", [0.0, 0.02])
-def test_deferred_capture_waits_for_positive_update_after_initialization_and_reset(device, period):
+def test_reset_cache_refreshes_on_positive_update_or_explicit_invalidation(device, period):
     """Zero-dt reads retain reset outputs; the first positive update captures before a long period expires."""
-    sensor = _RefreshLogSensor(update_period=period, device=device, capture_on_reset=False)
-    for _ in range(2):
+    sensor = _RefreshLogSensor(update_period=period, device=device)
+    for iteration in range(2):
         sensor.update(0.0, force_recompute=True)
         _ = sensor.data
         assert sensor.refreshes == [[], []]
+        assert sensor.backend_calls == 2 * iteration
         _run(sensor, [0.005])
         _ = sensor.data
         assert sensor.refreshes == [[1], [1]]
-        sensor.reset(env_mask=wp.ones(2, dtype=wp.bool, device=device))
+        sensor.update(0.0, force_recompute=True)
+        _ = sensor.data
+        assert sensor.refreshes == [[1], [1]]
+        assert sensor.backend_calls == 2 * iteration + 1
+        sensor._invalidate_buffers(wp.array([True, False], dtype=wp.bool, device=device))
+        sensor.update(0.0, force_recompute=True)
+        assert sensor.refreshes == [[1, 1], [1]]
+        sensor.reset()
         sensor.refreshes = [[], []]
+
+    sensor._invalidate_buffers(sensor._ALL_ENV_MASK)
+    sensor.update(0.0, force_recompute=True)
+    assert sensor.refreshes == [[1], [1]]

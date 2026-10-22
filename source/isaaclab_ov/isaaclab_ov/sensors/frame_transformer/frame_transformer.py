@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import re
 import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -112,14 +111,6 @@ class FrameTransformer(BaseFrameTransformer):
             stacklevel=2,
         )
         return self._target_frame_body_names
-
-    """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        super().reset(None, env_mask)
 
     """
     Implementation.

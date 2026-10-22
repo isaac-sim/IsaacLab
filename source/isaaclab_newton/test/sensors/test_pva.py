@@ -193,17 +193,20 @@ def test_offset_and_rotated_body(sim):
 def test_no_stale_data_after_scene_reset(sim):
     """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset PVA values (Newton).
 
-    Mirrors the PhysX equivalent. The PVA sensor's lazy ``data`` accessor must not refetch from
-    the Newton rigid-body view here (the velocity buffer reflects the previous step and would
-    produce spurious finite-difference accelerations). A partial reset leaves other envs untouched
-    and a full sensor reset zeroes every output.
+    The lazy ``data`` accessor retains cleared measurements while Newton's solver buffers still
+    contain the previous step. A partial reset leaves other environments untouched; initialization
+    and full reset establish zero measurements and identity orientations.
     """
     scene_cfg = PvaTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
+    pva: Pva = scene["pva"]
+    reset_pose = torch.zeros((2, 7), device=scene.device)
+    reset_pose[:, 6] = 1.0
+    torch.testing.assert_close(pva.data.pose_w.torch, reset_pose)
+    torch.testing.assert_close(pva.data.quat_w.torch, reset_pose[:, 3:])
     scene.reset()
 
-    pva: Pva = scene["pva"]
     cube: RigidObject = scene["cube"]
 
     # Let the cube fall so the PVA sensor has a non-zero velocity to read.

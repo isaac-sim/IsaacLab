@@ -10,10 +10,10 @@ import warp as wp
 def update_timestamp_kernel(
     is_outdated: wp.array(dtype=wp.bool),
     timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
     elapsed_since_update: wp.array(dtype=wp.float64),
     dt: wp.float64,
     due_threshold: wp.float64,
-    capture_on_reset: bool,
 ):
     """Advances the sensor clocks and marks environments as outdated if the update period elapsed.
 
@@ -24,17 +24,16 @@ def update_timestamp_kernel(
     Args:
         is_outdated: Boolean array indicating which envs need update.
         timestamp: Current timestamp per env [s].
+        timestamp_last_update: Last backend sample time, or -1 if no sample has been read since reset.
         elapsed_since_update: Time since the last refresh per env [s].
         dt: Simulation time step [s].
         due_threshold: Elapsed time at which the sensor is due, ``update_period - 1e-6`` [s].
-        capture_on_reset: Whether capture is allowed before the first positive update after reset.
     """
     env = wp.tid()
-    first_update = not capture_on_reset and timestamp[env] == 0.0
     timestamp[env] = timestamp[env] + wp.float32(dt)
     elapsed = elapsed_since_update[env] + dt
     elapsed_since_update[env] = elapsed
-    if (capture_on_reset or timestamp[env] > 0.0) and (first_update or elapsed >= due_threshold):
+    if dt > 0.0 and (timestamp_last_update[env] < 0.0 or elapsed >= due_threshold):
         is_outdated[env] = True
 
 
@@ -67,17 +66,15 @@ def reset_envs_kernel(
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
     elapsed_since_update: wp.array(dtype=wp.float64),
-    capture_on_reset: bool,
 ):
-    """Reset clocks and make rows eligible for capture according to the sensor's readiness requirement.
+    """Reset clocks and retain the sensor's cleared cached output until the next update.
 
     Args:
         reset_mask: Boolean array indicating which envs to reset.
         is_outdated: Boolean array indicating which environments are ready and due to capture.
         timestamp: Current timestamp per env. Will be set to 0.0 for reset envs.
-        timestamp_last_update: Last update timestamp per env. Will be set to 0.0 for reset envs.
+        timestamp_last_update: Last backend sample time. Set to -1 for reset environments.
         elapsed_since_update: Time since the last refresh per env. Will be set to 0.0 for reset envs.
-        capture_on_reset: Whether capture is allowed before the first positive update after reset.
     """
     env = wp.tid()
     if not reset_mask[env]:
@@ -86,6 +83,14 @@ def reset_envs_kernel(
     # Reset the timestamp for the sensors
     timestamp[env] = 0.0
 
-    timestamp_last_update[env] = 0.0
+    timestamp_last_update[env] = -1.0
     elapsed_since_update[env] = wp.float64(0.0)
-    is_outdated[env] = capture_on_reset
+    is_outdated[env] = False
+
+
+@wp.kernel
+def invalidate_buffers_kernel(env_mask: wp.array(dtype=wp.bool), is_outdated: wp.array(dtype=wp.bool)):
+    """Invalidate selected derived results while preserving pending work for other environments."""
+    env = wp.tid()
+    if env_mask[env]:
+        is_outdated[env] = True
