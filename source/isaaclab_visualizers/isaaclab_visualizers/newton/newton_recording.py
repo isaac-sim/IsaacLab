@@ -126,6 +126,7 @@ class NewtonRecordingPanel:
         expanded = imgui.collapsing_header("Recording  (REC)###recording" if active else "Recording###recording")
         if active:
             imgui.pop_style_color()
+        hover_tooltip(imgui, "Record a video or an animation, save a policy checkpoint, and play animations back")
         if self._replay_window_open:
             self._draw_replay_window(imgui)
         if not expanded:

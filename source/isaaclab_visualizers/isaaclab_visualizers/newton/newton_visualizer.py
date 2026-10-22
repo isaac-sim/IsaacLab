@@ -80,6 +80,24 @@ _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
 
+@contextlib.contextmanager
+def _header_tooltips(imgui, tips: dict[str, str]):
+    """Add tooltips to the collapsing headers that another panel draws while this context is open."""
+    draw_header = imgui.collapsing_header
+
+    def with_tooltip(label, *args, **kwargs):
+        expanded = draw_header(label, *args, **kwargs)
+        if label in tips:
+            hover_tooltip(imgui, tips[label])
+        return expanded
+
+    imgui.collapsing_header = with_tooltip
+    try:
+        yield
+    finally:
+        imgui.collapsing_header = draw_header
+
+
 def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str, hint: str = "") -> bool:
     """Render a checkbox greyed out with the reason as tooltip when *available* is False, else with *hint*."""
     if not available:
@@ -192,13 +210,13 @@ class NewtonViewerGL(ViewerGL):
         sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
-        2. **View** (open) — renderer (OpenGL or RTX), camera, VSync, and renderer-specific options.
-        3. **Scene** (open) — visible environments and model overlays.
-        4. **Visualization Markers** (open) — a toggle per marker group of the task, shared with Kit and Viser.
-        5. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
-        6. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
-        7. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        8. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
+        2. **Camera View** (open) — renderer (OpenGL or RTX), camera source, VSync, and renderer-specific options.
+        3. **Scene** (open) — visible environments, visualization markers (a toggle per marker group, shared with Kit
+           and Viser), and model overlays.
+        4. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
+        5. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
+        6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        7. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -242,14 +260,18 @@ class NewtonViewerGL(ViewerGL):
 
             # --- Playback ---------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Playback"):
+            playback_open = imgui.collapsing_header("Playback")
+            hover_tooltip(imgui, "Pause, resume, or reset the simulation, and set how often the window updates")
+            if playback_open:
                 imgui.separator()
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
 
-            # --- View -------------------------------------------------------
+            # --- Camera View ------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("View"):
+            view_open = imgui.collapsing_header("Camera View")
+            hover_tooltip(imgui, "Choose the renderer and camera source, and adjust how the window draws")
+            if view_open:
                 imgui.separator()
                 if viewer._view_controls is not None:
                     viewer._view_controls(imgui)
@@ -266,9 +288,6 @@ class NewtonViewerGL(ViewerGL):
 
             # --- Scene ------------------------------------------------------
             viewer._draw_scene_controls(imgui)
-
-            # --- Visualization Markers --------------------------------------
-            viewer._draw_marker_controls(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
             if viewer._policy_ghost_panel is not None:
@@ -287,7 +306,9 @@ class NewtonViewerGL(ViewerGL):
 
             # --- Controls ---------------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Controls"):
+            controls_open = imgui.collapsing_header("Controls")
+            hover_tooltip(imgui, "Camera and keyboard shortcuts")
+            if controls_open:
                 imgui.separator()
                 _g._render_camera_info()
                 imgui.separator()
@@ -311,7 +332,10 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("F - Frame camera around model")
 
             # --- Selection API ----------------------------------------------
-            _g._render_selection_panel()
+            with _header_tooltips(
+                imgui, {"Selection API": "Newton's panel for selecting and inspecting parts of the model"}
+            ):
+                _g._render_selection_panel()
 
             imgui.end()
 
@@ -334,38 +358,35 @@ class NewtonViewerGL(ViewerGL):
 
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and model overlays."""
-        has_environments = self._has_environment_controls()
-        if not (has_environments or self.model is not None):
-            return
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if not imgui.collapsing_header("Scene"):
+        expanded = imgui.collapsing_header("Scene")
+        hover_tooltip(imgui, "Choose which environments, markers, and model overlays are drawn")
+        if not expanded:
             return
         imgui.separator()
-        if has_environments:
+        if self._has_environment_controls():
             self._render_environment_controls(imgui)
+        self._draw_marker_controls(imgui)
         if self.model is not None:
             imgui.separator_text("Model Overlays")
             if self._fullscreen_image_active or self.image_matches_camera:
                 imgui.text_disabled("OpenGL only")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("Switch View > Renderer to OpenGL to draw joints, contacts, and other overlays")
+                hover_tooltip(
+                    imgui, "Switch Camera View > Renderer to OpenGL to draw joints, contacts, and other overlays"
+                )
             elif imgui.tree_node("Overlay options"):
                 self._draw_model_overlays(imgui)
                 imgui.tree_pop()
 
     def _draw_marker_controls(self, imgui) -> None:
-        """Draw the Visualization Markers section: one toggle per marker group the task registers."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if not imgui.collapsing_header("Visualization Markers"):
-            return
-        imgui.separator()
+        """Draw one toggle per visualization marker group the task registers."""
+        imgui.separator_text("Visualization Markers")
         groups = list(self.marker_groups)
         if not groups:
             imgui.text_disabled("This task registers no visualization markers")
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "Markers such as velocity-command arrows appear when a task enables debug visualization"
-                )
+            hover_tooltip(
+                imgui, "Markers such as velocity-command arrows appear when a task enables debug visualization"
+            )
             return
         for marker in groups:
             name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
@@ -1547,7 +1568,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if not plots._scalar_buffers and not plots._array_buffers:
             return
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
-        if not imgui.collapsing_header("Live Plots"):
+        expanded = imgui.collapsing_header("Live Plots")
+        hover_tooltip(imgui, "Plot task values such as rewards and observations while it runs")
+        if not expanded:
             return
         imgui.separator()
         scale = viewer.gui.ui.dpi_scale

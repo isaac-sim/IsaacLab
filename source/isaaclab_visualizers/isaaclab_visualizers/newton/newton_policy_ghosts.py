@@ -61,7 +61,10 @@ class NewtonPolicyGhostPanel:
     def draw(self, imgui: Any) -> None:
         """Draw the Policy Ghosts section and, when open, the checkpoint discovery window."""
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if imgui.collapsing_header("Policy Ghosts"):
+        ghosts_open = imgui.collapsing_header("Policy Ghosts")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Compare several checkpoints of this task in one window")
+        if ghosts_open:
             imgui.separator()
             layout = self.layout
             imgui.text(f"Simulating {layout.num_slots} slots x {layout.slice_size} envs")
@@ -233,7 +236,10 @@ def draw_policy_ghost_launcher(imgui: Any, restart: Callable[[bool], None]) -> N
         restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
     """
     imgui.set_next_item_open(False, imgui.Cond_.appearing)
-    if imgui.collapsing_header("Policy Ghosts"):
+    ghosts_open = imgui.collapsing_header("Policy Ghosts")
+    if imgui.is_item_hovered():
+        imgui.set_tooltip("Compare several checkpoints of this task in one window")
+    if ghosts_open:
         imgui.separator()
         imgui.text_wrapped(
             "Compare several checkpoints of this task side by side. Enabling restarts the viewer with several"

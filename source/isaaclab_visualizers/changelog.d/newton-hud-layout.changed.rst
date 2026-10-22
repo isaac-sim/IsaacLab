@@ -13,3 +13,5 @@
 * Removed the up axis and gravity line from the Newton GL HUD header and added tooltips to the header lines, the
   model overlay options, the visualization marker toggles, and the Policy Ghosts slot controls. The default
   recording output folder is now ``recording`` in the working directory, which Git ignores.
+* Renamed the Newton GL HUD "View" section to "Camera View", moved "Visualization Markers" back into "Scene"
+  (after Visible Envs), and added tooltips to the section headers.
