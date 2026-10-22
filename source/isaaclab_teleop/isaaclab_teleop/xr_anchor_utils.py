@@ -7,20 +7,24 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 from typing import Any
 
 import numpy as np
 
-from pxr import Gf as pxrGf
+logger = logging.getLogger(__name__)
 
-from isaaclab.sim import FrameView, SimulationContext
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 
 from .xr_cfg import XrAnchorRotationMode
 
-logger = logging.getLogger(__name__)
+with contextlib.suppress(ModuleNotFoundError):
+    import usdrt
+    from pxr import Gf as pxrGf
+    from usdrt import Rt
 
 
 class XrAnchorSynchronizer:
@@ -36,7 +40,6 @@ class XrAnchorSynchronizer:
         self.__smoothed_anchor_quat = None
         self.__last_anchor_quat = None
         self.__anchor_rotation_enabled = True
-        self._previous_headpose = np.zeros(7, dtype=np.float64)
 
         # Cached anchor world transform (pos, quat_xyzw) set by sync_headset_to_anchor().
         # Reading back from the prim hierarchy is unreliable when the anchor is a child of a
@@ -49,22 +52,13 @@ class XrAnchorSynchronizer:
         stage = get_current_stage()
         anchor = stage.GetPrimAtPath(xr_anchor_headset_path)
         self.__anchor_headset_layer_identifier = anchor.GetPrimStack()[0].layer.identifier
-        self._reference_frame = None
+        self._reference_world_matrix = None
         if xr_cfg.anchor_prim_path is not None:
-            self._reference_frame = FrameView(
-                xr_cfg.anchor_prim_path, device=SimulationContext.instance().device, validate_xform_ops=False
-            )
-            if self._reference_frame.count != 1:
-                self._reference_frame.close()
-                self._reference_frame = None
-                raise ValueError(f"Expected one XR reference frame at {xr_cfg.anchor_prim_path!r}.")
-            self._reference_frame.get_world_poses()
-
-    def close(self) -> None:
-        """Release the reference frame when XR synchronization stops."""
-        if self._reference_frame is not None:
-            self._reference_frame.close()
-            self._reference_frame = None
+            rt_stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
+            reference = rt_stage.GetPrimAtPath(xr_cfg.anchor_prim_path)
+            if not reference.IsValid():
+                raise ValueError(f"No XR reference frame at {xr_cfg.anchor_prim_path!r}.")
+            self._reference_world_matrix = Rt.Xformable(reference).GetFabricHierarchyWorldMatrixAttr()
 
     def reset(self):
         self.__anchor_prim_initial_quat = None
@@ -104,7 +98,7 @@ class XrAnchorSynchronizer:
         """Sync XR anchor pose in USD for both dynamic and static anchoring.
 
         For **dynamic** anchoring (``anchor_prim_path`` is set), the reference
-        prim's world position is read through its frame view and ``anchor_pos`` is added
+        prim's world position is read from Fabric and ``anchor_pos`` is added
         as an offset.  For **static** anchoring (no prim path), ``anchor_pos``
         is used directly as the world position.
 
@@ -114,22 +108,21 @@ class XrAnchorSynchronizer:
         world transform for :meth:`get_world_transform`.
         """
         try:
-            if self._reference_frame is not None:
-                position, orientation = self._reference_frame.get_world_poses()
-                reference_pos = position.warp.numpy()[0].astype(np.float64)
-                x, y, z, w = orientation.warp.numpy()[0].astype(np.float64)
-                reference_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
+            if self._reference_world_matrix is not None:
+                rt_matrix = self._reference_world_matrix.Get()
+                rt_pos = rt_matrix.ExtractTranslation()
 
                 if self.__anchor_prim_initial_quat is None:
-                    self.__anchor_prim_initial_quat = reference_quat
+                    self.__anchor_prim_initial_quat = rt_matrix.ExtractRotationQuat()
 
                 if self._xr_cfg.fixed_anchor_height:
                     if self.__anchor_prim_initial_height is None:
-                        self.__anchor_prim_initial_height = reference_pos[2]
-                    reference_pos[2] = self.__anchor_prim_initial_height
+                        self.__anchor_prim_initial_height = rt_pos[2]
+                    rt_pos[2] = self.__anchor_prim_initial_height
 
-                pxr_anchor_pos = pxrGf.Vec3d(*reference_pos) + pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
+                pxr_anchor_pos = pxrGf.Vec3d(*rt_pos) + pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
             else:
+                rt_matrix = None
                 pxr_anchor_pos = pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
 
             x, y, z, w = self._xr_cfg.anchor_rot
@@ -137,16 +130,18 @@ class XrAnchorSynchronizer:
 
             pxr_anchor_quat = pxr_cfg_quat
 
-            if self._reference_frame is not None:
+            if rt_matrix is not None:
                 if self._xr_cfg.anchor_rotation_mode in (
                     XrAnchorRotationMode.FOLLOW_PRIM,
                     XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED,
                 ):
-                    delta_quat = reference_quat * self.__anchor_prim_initial_quat.GetInverse()
+                    rt_prim_quat = rt_matrix.ExtractRotationQuat()
+                    rt_delta_quat = rt_prim_quat * self.__anchor_prim_initial_quat.GetInverse()
+                    pxr_delta_quat = pxrGf.Quatd(rt_delta_quat.GetReal(), pxrGf.Vec3d(*rt_delta_quat.GetImaginary()))
 
                     # yaw-only about Z (right-handed, Z-up)
-                    wq = delta_quat.GetReal()
-                    ix, iy, iz = delta_quat.GetImaginary()
+                    wq = pxr_delta_quat.GetReal()
+                    ix, iy, iz = pxr_delta_quat.GetImaginary()
                     yaw = math.atan2(2.0 * (wq * iz + ix * iy), 1.0 - 2.0 * (iy * iy + iz * iz))
                     cy = math.cos(yaw * 0.5)
                     sy = math.sin(yaw * 0.5)
@@ -167,12 +162,21 @@ class XrAnchorSynchronizer:
 
                 elif self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.CUSTOM:
                     if self._xr_cfg.anchor_rotation_custom_func is not None:
+                        rt_prim_quat = rt_matrix.ExtractRotationQuat()
                         anchor_prim_pose = np.array(
-                            [*reference_pos, *reference_quat.GetImaginary(), reference_quat.GetReal()], dtype=np.float64
+                            [
+                                rt_pos[0],
+                                rt_pos[1],
+                                rt_pos[2],
+                                rt_prim_quat.GetImaginary()[0],
+                                rt_prim_quat.GetImaginary()[1],
+                                rt_prim_quat.GetImaginary()[2],
+                                rt_prim_quat.GetReal(),
+                            ],
+                            dtype=np.float64,
                         )
-                        np_array_quat = self._xr_cfg.anchor_rotation_custom_func(
-                            self._previous_headpose, anchor_prim_pose
-                        )
+                        prev_head = getattr(self, "_previous_headpose", np.zeros(7, dtype=np.float64))
+                        np_array_quat = self._xr_cfg.anchor_rotation_custom_func(prev_head, anchor_prim_pose)
                         x, y, z, w = np_array_quat
                         pxr_anchor_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
 

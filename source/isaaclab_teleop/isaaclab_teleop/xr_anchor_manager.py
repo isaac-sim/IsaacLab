@@ -230,7 +230,5 @@ class XrAnchorManager:
             self._anchor_sync.toggle_anchor_rotation()
 
     def cleanup(self) -> None:
-        """Release event subscriptions and the bound reference frame."""
+        """Release event subscriptions."""
         self._xr_pre_sync_update_subscription = None
-        if self._anchor_sync is not None:
-            self._anchor_sync.close()
