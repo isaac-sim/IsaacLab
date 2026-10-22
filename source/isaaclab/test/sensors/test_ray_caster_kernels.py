@@ -16,6 +16,7 @@ See ``test_update_ray_caster_kernel.py`` for tests of
 
 from __future__ import annotations
 
+import ast
 import math
 
 import numpy as np
@@ -42,6 +43,46 @@ from isaaclab.utils.warp.ops import convert_to_warp_mesh
 wp.init()
 DEVICE = "cuda:0" if wp.is_cuda_available() else "cpu"
 ATOL = 1e-5
+
+
+def test_ray_caster_binding_ownership(source_checkout_root):
+    """Keep provider ownership centralized, indices persistent, and retired wrappers absent."""
+    source = source_checkout_root / "source"
+    consumers = (
+        source / "isaaclab/isaaclab/sensors/ray_caster/base_multi_mesh_ray_caster.py",
+        source / "isaaclab_ov/isaaclab_ov/sensors/ray_caster/ray_caster.py",
+        source / "isaaclab_newton/isaaclab_newton/sensors/ray_caster/newton_raycast_sensor.py",
+        source / "isaaclab_physx/isaaclab_physx/sensors/ray_caster/ray_caster.py",
+    )
+    for path in consumers:
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.FunctionDef):
+                assert node.name not in {
+                    "_newton_body_pattern",
+                    "_identity_offsets",
+                    "_register_sites_for_expr",
+                    "_resolve_site_indices",
+                    "_physx_body_glob",
+                    "_initialize_static_pose_tracking",
+                }, path
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                assert node.func.attr not in {"instance", "get_scene_data_provider"}, path
+            if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Attribute) and target.attr == "_mesh_body_indices" for target in node.targets
+            ):
+                assert not any(
+                    isinstance(value, ast.Constant) and value.value is None for value in ast.walk(node.value)
+                )
+
+    root = source / "isaaclab/isaaclab/sensors/ray_caster/base_ray_caster.py"
+    lookups = [
+        node
+        for node in ast.walk(ast.parse(root.read_text()))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get_scene_data_provider"
+    ]
+    assert len(lookups) == 1
 
 
 # ---------------------------------------------------------------------------

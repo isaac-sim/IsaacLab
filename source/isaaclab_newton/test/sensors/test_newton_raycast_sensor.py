@@ -166,24 +166,28 @@ def test_rays_hit_ground_plane(sim, generic_cfg):
 # The legacy adapter does not use the Newton manager graph.
 @pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
 def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
-    """Tracked target registration remains valid when discovery returns concrete owner paths."""
+    """Separate target meshes on one body follow its live pose without duplicate body bindings."""
     obstacle_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 1.0),
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         mass_props=sim_utils.MassCfg(mass=1.0),
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
-    obstacle_cfg.func("/World/Origin_00/Obstacle", obstacle_cfg)
+    obstacle = RigidObject(RigidObjectCfg(prim_path="/World/Origin_00/Obstacle", spawn=obstacle_cfg))
+    part_cfg = sim_utils.CuboidCfg(size=(0.5, 0.5, 0.5))
+    for index, x in enumerate((-0.75, 0.75)):
+        part_cfg.func(f"/World/Origin_00/Obstacle/part_{index}", part_cfg, translation=(x, 0.0, 0.0))
 
     sensor_cfg = MultiMeshRayCasterCfg(
         prim_path="/World/Origin_[^/]+/Obstacle",
         mesh_prim_paths=[
             MultiMeshRayCasterCfg.RaycastTargetCfg(
-                prim_expr="/World/Origin_[^/]+/Obstacle",
+                prim_expr="/World/Origin_[^/]+/Obstacle/part_[01]",
                 track_mesh_transforms=True,
             )
         ],
-        pattern_cfg=GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 2.0)),
+        pattern_cfg=GridPatternCfg(resolution=1.5, size=(1.5, 0.0)),
     )
     sensor = MultiMeshRayCaster(sensor_cfg)
 
@@ -195,7 +199,17 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     sensor.update(sim.get_physics_dt(), force_recompute=True)
 
     assert sensor.num_instances == 1
-    assert sensor.data.ray_hits_w.shape[0] == 1
+    expected = torch.tensor([[[-0.75, 0.0, 0.25], [0.75, 0.0, 0.25]]], device=sim.device)
+    torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
+
+    pose = obstacle.data.root_link_pose_w.torch.clone()
+    translation = torch.tensor([0.5, 0.0, 0.5], device=sim.device)
+    pose[:, :3] += translation
+    obstacle.write_root_link_pose_to_sim_index(root_pose=pose)
+    sensor.reset()
+    expected += translation
+    torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
+    torch.testing.assert_close(sensor.data.pos_w.torch, pose[:, :3])
 
 
 @pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
@@ -245,8 +259,8 @@ def test_partial_reset_resamples_drift_of_selected_envs_only(sim):
 
 
 @configclass
-class StaticTargetSceneCfg(RaycastTestSceneCfg):
-    """Adds a multi-mesh ray caster with one ray straight down onto the box, a static target."""
+class MultiMeshTargetSceneCfg(RaycastTestSceneCfg):
+    """Read the same box through a static target and a tracked target."""
 
     scanner = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/SensorBody",
@@ -257,13 +271,16 @@ class StaticTargetSceneCfg(RaycastTestSceneCfg):
         pattern_cfg=GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
         ray_alignment="world",
     )
+    tracked_scanner = scanner.replace(
+        mesh_prim_paths=[MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Box")]
+    )
 
 
 # The legacy adapter does not use the Newton manager graph.
 @pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
-def test_legacy_multi_mesh_hits_static_target_of_each_env(sim):
-    """Each environment's ray hits its own copy of a static environment-local target."""
-    scene = InteractiveScene(StaticTargetSceneCfg(num_envs=4))
+def test_legacy_multi_mesh_tracks_cloned_targets(sim):
+    """Cloned targets keep their per-env bindings across writes and CUDA graph replay."""
+    scene = InteractiveScene(MultiMeshTargetSceneCfg(num_envs=4))
     sim.reset()
     sim.step()
     scene.update(sim.get_physics_dt())
@@ -271,6 +288,26 @@ def test_legacy_multi_mesh_hits_static_target_of_each_env(sim):
     hits = scene["scanner"].data.ray_hits_w.torch[:, 0]
     box_top = scene["box"].data.root_pos_w.torch + torch.tensor([0.0, 0.0, 0.5], device=sim.device)
     torch.testing.assert_close(hits, box_top, atol=1e-3, rtol=0)
+    tracked = scene["tracked_scanner"]
+    torch.testing.assert_close(tracked.data.ray_hits_w.torch[:, 0], box_top, atol=1e-3, rtol=0)
+
+    pose = scene["box"].data.root_link_pose_w.torch.clone()
+    pose[:, 2] += torch.linspace(0.1, 0.4, scene.num_envs, device=sim.device)
+    scene["box"].write_root_link_pose_to_sim_index(root_pose=pose)
+    tracked.update(sim.get_physics_dt(), force_recompute=True)
+    expected = pose[:, :3] + torch.tensor([0.0, 0.0, 0.5], device=sim.device)
+    torch.testing.assert_close(tracked.data.ray_hits_w.torch[:, 0], expected, atol=1e-3, rtol=0)
+    torch.testing.assert_close(scene["scanner"].data.ray_hits_w.torch[:, 0], box_top, atol=1e-3, rtol=0)
+
+    # Replay must read the current body arrays after native publication.
+    with wp.ScopedCapture(device=sim.device) as capture:
+        tracked.update(sim.get_physics_dt(), force_recompute=True)
+    pose[:, 2] += 0.2
+    scene["box"].write_root_link_pose_to_sim_index(root_pose=pose)
+    sim.forward()
+    wp.capture_launch(capture.graph)
+    expected[:, 2] += 0.2
+    torch.testing.assert_close(tracked.data.ray_hits_w.torch[:, 0], expected, atol=1e-3, rtol=0)
 
 
 def test_bvh_refit_tracks_moving_geometry(sim):

@@ -370,12 +370,19 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Put common configuration in the shared owner and document backend capabilities explicitly. Name
   collections in the plural. Remove empty hooks and expired compatibility aliases during their
   announced removal release instead of maintaining unused extension points.
+  Use one representation for an empty selection; do not give ``None`` and ``[]`` the same meaning.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
   Customize existing preset alternatives with configured instances; do not introduce a preset
   subclass just to change a backend's settings. Preset declarations and selection belong in
   ``isaaclab_tasks`` and scripts. Complete selection before runtime launch; core simulation and backend
-  packages must not import, declare, or resolve presets.
+  packages must not import, declare, or resolve presets. Compose task configurations with
+  ``resolve_task_config`` and standalone declarations with ``resolve_presets`` during initial configuration,
+  then call ``isaaclab.app.launch_simulation`` directly. Do not add another launcher to hide preset composition.
+  Preserve the distinction between available preset alternatives and a list of active backends;
+  do not replace one with the other to avoid a configuration boundary.
+  Keep view declarations separate from backend selections: select backends for each declared view,
+  preserving its camera and window settings rather than using the first view as a global template.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
   not import renderer implementations or manipulate their attachment state.

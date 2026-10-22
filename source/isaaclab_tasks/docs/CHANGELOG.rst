@@ -3,6 +3,33 @@ Changelog
 
 .. towncrier release notes start
 
+29.0.1 (2026-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept the coffee demo's kitchen presentation out of the Newton physics model.
+
+
+29.0.0 (2026-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved task visualizer presets into ``VisualizerCfg.backend``. Configure common view
+  settings once with ``VisualizerCfg(..., backend=MultiBackendVisualizerCfg())`` instead of backend-specific
+  viewer declarations or ``SimulationCfg.default_visualizer_cfg``. Unselected visualizer presets resolved to ``[]``.
+* Composed standalone visualizer declarations before calling the core launcher, preserving declared backend options.
+
+Fixed
+^^^^^
+
+* Preserved selected visualizers when copying Franka Pour and UR10 Particle Push task configurations.
+* Preserved selected backends and window settings when reorientation play mode changed the camera pose.
+
+
 28.3.0 (2026-10-20)
 ~~~~~~~~~~~~~~~~~~~
 

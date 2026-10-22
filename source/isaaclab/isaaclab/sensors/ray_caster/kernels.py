@@ -364,47 +364,19 @@ def copy_int16_2d_to_image1_masked_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def copy_mesh_poses_to_table_kernel(
-    # input
-    positions_src: wp.array(dtype=wp.vec3f),
-    orientations_src: wp.array(dtype=wp.quatf),
-    meshes_per_env: int,
-    mesh_offset: int,
-    broadcast_single_source: bool,
-    # output
-    positions_dst: wp.array2d(dtype=wp.vec3f),
-    orientations_dst: wp.array2d(dtype=wp.quatf),
-):
-    """Copy flat tracked-mesh poses into the rectangular per-env mesh table."""
-    env, local_mesh = wp.tid()
-    src_index = local_mesh
-    if not broadcast_single_source:
-        src_index = env * meshes_per_env + local_mesh
-    dst_index = mesh_offset + local_mesh
-    positions_dst[env, dst_index] = positions_src[src_index]
-    orientations_dst[env, dst_index] = orientations_src[src_index]
-
-
-@wp.kernel(enable_backward=False)
 def copy_mesh_transforms_to_table_kernel(
-    # input
     transforms_src: wp.array(dtype=wp.transformf),
-    meshes_per_env: int,
-    mesh_offset: int,
-    broadcast_single_source: bool,
-    # output
+    body_indices: wp.array2d(dtype=wp.int32),
     positions_dst: wp.array2d(dtype=wp.vec3f),
     orientations_dst: wp.array2d(dtype=wp.quatf),
 ):
-    """Copy flat tracked-mesh transforms into the rectangular per-env mesh table."""
-    env, local_mesh = wp.tid()
-    src_index = local_mesh
-    if not broadcast_single_source:
-        src_index = env * meshes_per_env + local_mesh
-    dst_index = mesh_offset + local_mesh
-    xform = transforms_src[src_index]
-    positions_dst[env, dst_index] = wp.transform_get_translation(xform)
-    orientations_dst[env, dst_index] = wp.transform_get_rotation(xform)
+    """Gather shared body poses into mesh slots, preserving static and padded slots."""
+    env, mesh = wp.tid()
+    body = body_indices[env, mesh]
+    if body >= 0:
+        pose = transforms_src[body]
+        positions_dst[env, mesh] = wp.transform_get_translation(pose)
+        orientations_dst[env, mesh] = wp.transform_get_rotation(pose)
 
 
 @wp.kernel(enable_backward=False)

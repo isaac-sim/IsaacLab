@@ -95,7 +95,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_vel = -0.005
 
     def __post_init__(self):
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
 
 ###
