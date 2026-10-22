@@ -3,6 +3,25 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Derived Kit viewport and streaming requirements from composed visualizer configs. Honored
+  windowed or headless viewer configuration uniformly, including with XR, and retained
+  ``--viz`` / ``--visualizer`` as preset-selection aliases.
+* **Breaking:** :class:`~isaaclab_physx.physics.PhysxManager` is used as an instance (``sim.backend_manager``). The
+  PhysX asset data classes take the manager as a keyword-only ``backend_manager`` argument.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing PhysX asset data classes without ``backend_manager``; the active simulation's manager is
+  used with a :class:`DeprecationWarning`.
+
+
 8.0.1 (2026-10-18)
 ~~~~~~~~~~~~~~~~~~
 
