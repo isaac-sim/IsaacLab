@@ -11,4 +11,7 @@
   proprioception, proprioception history, ray-cast height scans and depth images. Apply student supervision
   noise and reflected-camera overrides in the observations configuration's post-initialization hook.
 * Declared the teacher's symmetry settings directly in its PPO algorithm configuration.
+* **Breaking:** Renamed the flat G1 observation group from ``policy`` to ``proprio``. Update observation-group
+  references and configuration overrides to use ``proprio``.
+* Moved the G1 mesh-terrain preset into the G1 terrain configuration module.
 * Read G1 sole geometry and reference torques from the asset, reusing configured actuator stiffnesses.

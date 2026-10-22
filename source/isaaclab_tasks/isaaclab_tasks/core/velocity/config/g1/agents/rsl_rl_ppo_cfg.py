@@ -62,7 +62,7 @@ class G1FlatPPORunnerCfg(G1RoughTeacherPPORunnerCfg):
     max_iterations = 1500
     save_interval = 50
     experiment_name = "g1_flat"
-    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
+    obs_groups = {"actor": ["proprio"], "critic": ["proprio"]}
 
     def __post_init__(self):
         super().__post_init__()
