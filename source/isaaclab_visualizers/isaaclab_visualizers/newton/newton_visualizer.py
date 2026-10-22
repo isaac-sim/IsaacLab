@@ -938,7 +938,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         tip("Point the camera looks at, as an offset from the followed asset or the environment origin")
         if changed:
             cfg.lookat, edited = tuple(float(v) for v in lookat), True
-        changed, focal = imgui.slider_float("Focal Length (mm)", float(cfg.focal_length), 5.0, 100.0, "%.0f")
+        changed, focal = imgui.slider_float("Focal Length", float(cfg.focal_length), 5.0, 100.0, "%.0f mm")
         tip("Lens focal length; smaller values see a wider area")
         if changed:
             cfg.focal_length, edited = focal, True
@@ -948,16 +948,18 @@ class NewtonVisualizerBase(BaseVisualizer):
             edited |= changed
             if cfg.follow_heading:
                 changed, smoothing = imgui.slider_float(
-                    "Heading Smoothing (s)", cfg.heading_smoothing_time_constant, 0.0, 2.0
+                    "Smoothing", cfg.heading_smoothing_time_constant, 0.0, 2.0, "%.2f s"
                 )
-                tip("Time constant of the heading filter; larger values damp turns more but lag")
+                tip("Heading filter time constant; larger values damp turns more but lag")
                 if changed:
                     cfg.heading_smoothing_time_constant, edited = smoothing, True
         if imgui.button("Reset to Task Default"):
             edited |= self._reset_tracking_camera(follower)
         tip("Restore what the task declared for this camera")
         if self._tracking_error:
-            imgui.text_colored(imgui.ImVec4(1.0, 0.35, 0.35, 1.0), self._tracking_error)
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0))
+            imgui.text_wrapped(self._tracking_error)
+            imgui.pop_style_color()
         if edited:
             self.current_image_view.invalidate()
             self._last_render_step = -1
