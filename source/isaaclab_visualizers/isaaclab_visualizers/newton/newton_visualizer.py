@@ -460,6 +460,8 @@ class NewtonViewerGL(ViewerGL):
             badges.append((f"REC video {panel._video_frames / max(panel._video_rate, 1):.0f}s", (1.0, 0.25, 0.25, 1.0)))
         if self._recording_panel is not None and self._recording_panel.recording_scene:
             badges.append((f"REC scene {self._recording_panel._scene_frames}f", (1.0, 0.25, 0.25, 1.0)))
+        if self._recording_panel is not None and self._recording_panel.unsaved_video:
+            badges.append(("video unsaved", (1.0, 0.8, 0.2, 1.0)))
         if self._paused_training or self._paused:
             badges.append(("PAUSED", (1.0, 0.8, 0.2, 1.0)))
         if self._policy_ghost_panel is not None:
@@ -1155,6 +1157,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """
         if self._viewer is not None:
             self._viewer.set_run_info(task, mode, run)
+
+    def attach_checkpoint_saver(self, save: Callable[[str], None]) -> None:
+        """Enable the HUD's Checkpoint button for a run that has a policy.
+
+        Args:
+            save: Callable that writes the policy checkpoint to the given path.
+        """
+        if self._recording is not None:
+            self._recording.set_checkpoint_saver(save)
 
     def attach_policy_ghost_restart(self, restart: Callable[[bool], None]) -> None:
         """Offer an Enable Policy Ghosts button in the HUD of a run that started without the feature.

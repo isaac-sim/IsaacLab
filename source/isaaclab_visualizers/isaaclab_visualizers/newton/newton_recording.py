@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 import socket
 import subprocess
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,9 +27,6 @@ if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer
 
 logger = logging.getLogger(__name__)
-
-_STATE_FIELDS = ("body_q", "body_qd", "joint_q", "joint_qd", "particle_q", "particle_qd")
-"""Newton state arrays written by a checkpoint."""
 
 
 def _ffmpeg_executable() -> str | None:
@@ -51,7 +50,7 @@ class NewtonRecordingPanel:
 
     * **Video** streams the displayed frames (OpenGL or RTX) to an ``mp4`` through ffmpeg, like ``--video``.
     * **Scene** writes a ``.viser`` recording of the visible environments that the Viser player opens.
-    * **Checkpoint** saves the current simulation state arrays to an ``npz`` file with one button press.
+    * **Checkpoint** saves the policy being played or trained to a ``.pt`` file with one button press.
     """
 
     def __init__(self, owner: NewtonGLVisualizer):
@@ -74,6 +73,10 @@ class NewtonRecordingPanel:
         """Files written by the latest recording of each kind."""
         self._video_rate = 0
         self._video_limit: int | None = None
+        self._checkpoint_saver: Callable[[str], None] | None = None
+        self._video_temp: Path | None = None
+        self._video_unsaved: Path | None = None
+        """Finished clip that stays in a temporary file until :meth:`save_video` keeps it."""
         self.replay = NewtonReplayPlayer(lambda: owner._viewer)
         self.replay_folder = str(Path(self.output_dir) / "scene")
         self._replay_window_open = False
@@ -91,6 +94,11 @@ class NewtonRecordingPanel:
         return self._video is not None
 
     @property
+    def unsaved_video(self) -> bool:
+        """Whether a stopped video is waiting for :meth:`save_video`."""
+        return self._video_unsaved is not None
+
+    @property
     def recording_scene(self) -> bool:
         """Whether a ``.viser`` recording is open."""
         return self._scene is not None
@@ -104,21 +112,7 @@ class NewtonRecordingPanel:
         if not expanded:
             return
         imgui.separator()
-        imgui.text("Output")
-        _c, self.output_dir = imgui.input_text("Folder##recording", self.output_dir)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Root folder; files go to <folder>/video, <folder>/scene, and <folder>/checkpoint")
-        _c, self.filename_prefix = imgui.input_text("Prefix##recording", self.filename_prefix)
-        _c, self.auto_increment = imgui.checkbox("Auto-number", self.auto_increment)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Add _0001, _0002, ... so a new recording never overwrites an earlier one")
-        imgui.same_line()
-        _c, self.timestamp = imgui.checkbox("Timestamp", self.timestamp)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Add the start date and time to the file name")
-        imgui.separator()
-
-        imgui.text("Video")
+        imgui.text("Video (.mp4)")
         if self.recording_video:
             imgui.begin_disabled()
         _c, fps = imgui.input_int("FPS##video", self.video_fps)
@@ -137,13 +131,26 @@ class NewtonRecordingPanel:
             imgui.same_line()
             rate = max(self._video_rate, 1)
             imgui.text(f"{self._video_frames / rate:.1f} s ({self._video_frames} frames)")
-        elif imgui.button("Start##video"):
-            self.start_video()
-        if imgui.is_item_hovered() and not self.recording_video:
-            imgui.set_tooltip("Record the window like --video; needs ffmpeg")
+        else:
+            if imgui.button("Start##video"):
+                self.start_video()
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Record the window like --video; needs ffmpeg. Starting replaces an unsaved video.")
+            imgui.same_line()
+            if not self.unsaved_video:
+                imgui.begin_disabled()
+            if imgui.button("Save##video"):
+                self.save_video()
+            if not self.unsaved_video:
+                imgui.end_disabled()
+            if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+                imgui.set_tooltip("Keep the stopped video in the output folder")
+            if self.unsaved_video:
+                imgui.same_line()
+                imgui.text(f"{self._video_frames} frames, unsaved")
         imgui.separator()
 
-        imgui.text("Animation")
+        imgui.text("Animation (.viser)")
         if self.recording_scene:
             if imgui.button("Stop##scene"):
                 self.stop_scene()
@@ -161,11 +168,36 @@ class NewtonRecordingPanel:
         self._draw_replay_controls(imgui)
         imgui.separator()
 
-        imgui.text("Checkpoint")
+        imgui.text("Checkpoint (.pt)")
+        available = self._checkpoint_saver is not None
+        if not available:
+            imgui.begin_disabled()
         if imgui.button("Save##checkpoint"):
             self.save_checkpoint()
+        if not available:
+            imgui.end_disabled()
+        if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+            imgui.set_tooltip(
+                "Save the policy being played or trained to the output folder"
+                if available
+                else "Not available in this run: it has no policy to save"
+            )
+        imgui.separator()
+
+        imgui.text("Output")
+        _c, self.output_dir = imgui.input_text("Folder##recording", self.output_dir)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("Save the current simulation state to an npz file")
+            imgui.set_tooltip("Root folder; files go to <folder>/video, <folder>/scene, and <folder>/checkpoint")
+        _c, self.filename_prefix = imgui.input_text("Prefix##recording", self.filename_prefix)
+        _c, self.auto_increment = imgui.checkbox("Auto-number", self.auto_increment)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Add _0001, _0002, ... so a new recording never overwrites an earlier one")
+        imgui.same_line()
+        _c, self.timestamp = imgui.checkbox("Timestamp", self.timestamp)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Add the start date and time to the file name")
+        imgui.separator()
+
         if self._message:
             imgui.separator()
             imgui.text_wrapped(self._message)
@@ -260,14 +292,17 @@ class NewtonRecordingPanel:
         self._video_frames, self._video_shape = 0, None
         self._video_rate = self.video_fps or max(1, round(self._owner.cfg.window.fps))
         self._video_limit = round(self.video_length * self._video_rate) if self.video_length > 0 else None
-        self.video_path = str(self._output_path("video", ".mp4"))
+        self._discard_unsaved_video()
+        folder = Path(self.output_dir) / "video"
+        folder.mkdir(parents=True, exist_ok=True)
+        self._video_temp = folder / ".unsaved_video.mp4"
         self._video = True  # Opened on the first frame, once the framebuffer size is known.
-        self._message = f"Recording video to {self.video_path}"
+        self._message = "Recording video. Stop, then Save to keep it."
 
     def _write_video_frame(self, frame: np.ndarray) -> None:
         if self._video is True:
             height, width = frame.shape[:2]
-            path = Path(self.video_path)
+            path = self._video_temp
             fps = self._video_rate
             self._video_shape = (height, width)
             self._video = subprocess.Popen(  # noqa: S603
@@ -285,22 +320,39 @@ class NewtonRecordingPanel:
             self._video_frames += 1
             if self._video_limit is not None and self._video_frames >= self._video_limit:
                 self.stop_video()
+                self.save_video()  # A fixed length is meant to need no further clicks.
         except (BrokenPipeError, OSError):
             self._message = "ffmpeg stopped unexpectedly; video recording ended."
             self._video = None
 
     def stop_video(self) -> None:
-        """Finish the video file."""
+        """End the capture. The clip stays in a temporary file until :meth:`save_video` keeps it."""
         video, self._video = self._video, None
         if video is None:
             return
-        if video is not True:
-            video.stdin.close()
-            video.wait()
-            self._message = f"Saved {self._video_frames} frames to {self.video_path}"
-            logger.info("[NewtonRecording] Wrote %d video frames to %s", self._video_frames, self.video_path)
-        else:
+        if video is True:
             self._message = "No frame was recorded."
+            return
+        video.stdin.close()
+        video.wait()
+        self._video_unsaved = self._video_temp
+        self._message = f"Stopped after {self._video_frames} frames. Press Save to keep the video."
+
+    def save_video(self) -> None:
+        """Move the stopped video to its numbered file in the output folder."""
+        temp, self._video_unsaved = self._video_unsaved, None
+        if temp is None:
+            return
+        path = self._output_path("video", ".mp4")
+        os.replace(temp, path)
+        self.video_path = str(path)
+        self._message = f"Saved {self._video_frames} frames to {self.video_path}"
+        logger.info("[NewtonRecording] Wrote %d video frames to %s", self._video_frames, self.video_path)
+
+    def _discard_unsaved_video(self) -> None:
+        temp, self._video_unsaved = self._video_unsaved, None
+        if temp is not None:
+            temp.unlink(missing_ok=True)
 
     # ------------------------------------------------------------------
     # Scene (.viser)
@@ -343,14 +395,28 @@ class NewtonRecordingPanel:
     # Checkpoint
     # ------------------------------------------------------------------
 
+    def set_checkpoint_saver(self, save: Callable[[str], None] | None) -> None:
+        """Offer the policy of this run to the Checkpoint button.
+
+        Args:
+            save: Callable that writes the policy checkpoint to the given path, or None when the run has no policy.
+        """
+        self._checkpoint_saver = save
+
     def save_checkpoint(self) -> None:
-        """Write the simulation state arrays to :attr:`checkpoint_path`."""
-        state = self._owner._update_state()
-        arrays = {name: array.numpy() for name in _STATE_FIELDS if (array := getattr(state, name, None)) is not None}
-        path = self._output_path("checkpoint", ".npz")
+        """Write the run's policy checkpoint to a numbered file in the output folder."""
+        if self._checkpoint_saver is None:
+            self._message = "This run has no policy to save."
+            return
+        path = self._output_path("checkpoint", ".pt")
+        try:
+            self._checkpoint_saver(str(path))
+        except Exception as exc:
+            logger.exception("[NewtonRecording] Could not save the policy checkpoint.")
+            self._message = f"Checkpoint failed: {exc}"
+            return
         self.checkpoint_path = str(path)
-        np.savez(path, **arrays)
-        self._message = f"Saved checkpoint ({', '.join(arrays)}) to {self.checkpoint_path}"
+        self._message = f"Saved policy checkpoint to {self.checkpoint_path}"
 
     # ------------------------------------------------------------------
     # Per-frame capture
@@ -370,6 +436,7 @@ class NewtonRecordingPanel:
             self._write_video_frame(owner._viewer.get_frame(render_ui=False).numpy())
 
     def close(self) -> None:
-        """Finish all open recordings."""
+        """Finish all open recordings, keeping a video that was running or stopped but not yet saved."""
         self.stop_video()
+        self.save_video()
         self.stop_scene()
