@@ -171,25 +171,6 @@ def apply_z_drift_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def init_rng_state_kernel(
-    # input
-    seed: wp.int32,
-    # output
-    rng_state: wp.array(dtype=wp.uint32),
-):
-    """Initialize one random number generator state per environment.
-
-    Launch with dim=(num_envs,).
-
-    Args:
-        seed: Seed shared by all environments; each environment uses its index as the offset.
-        rng_state: Random number generator states. Shape is (num_envs,).
-    """
-    env = wp.tid()
-    rng_state[env] = wp.rand_init(seed, env)
-
-
-@wp.kernel(enable_backward=False)
 def resample_drift_masked_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),
