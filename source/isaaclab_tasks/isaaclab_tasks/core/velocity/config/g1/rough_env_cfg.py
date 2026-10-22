@@ -466,12 +466,7 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     curriculum: G1CurriculumCfg = G1CurriculumCfg()
     terminations: G1TerminationsCfg = G1TerminationsCfg()
     observations: G1ObservationsCfg = G1ObservationsCfg()
-    sim = SimulationCfg(
-        physics=velocity_env_cfg.RoughPhysicsCfg(),
-        use_newton_actuators=False,
-        visualizer_cfgs=[],
-        default_visualizer_cfg=None,
-    )
+    sim = SimulationCfg(physics=velocity_env_cfg.RoughPhysicsCfg(), use_newton_actuators=False)
     sim.physics.newton_mjwarp.solver_cfg.njmax = 300
     commands = velocity_env_cfg.CommandsCfg()
     commands.base_velocity.vel_yaw_success_threshold = 0.8
