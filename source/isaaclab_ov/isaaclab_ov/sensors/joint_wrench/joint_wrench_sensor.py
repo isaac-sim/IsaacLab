@@ -140,17 +140,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._num_bodies = self._wrench_binding.body_count
         self._data._body_names = list(self._wrench_binding.body_names)
 
-        # OVPhysX clone_usd=False means SensorBase's USD-glob count only saw env_0;
-        # the binding's ``count`` reports the true number of articulation instances
-        # (one per env).  Mirrors how OVPhysX Articulation reads ``sample.count``
-        # directly as ``num_instances``.
-        binding_num_envs = self._wrench_binding.count
-        if binding_num_envs != self._num_envs:
-            self._num_envs = binding_num_envs
-            self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask_torch = wp.to_torch(self._reset_mask)
-            self._create_timing_buffers()
+        self._check_env_count(self._wrench_binding.count, self.cfg.prim_path)
 
         # Wrench storage as (N, L) spatial_vectorf, read each step via the view. The view
         # reinterprets this structured buffer off the binding's flat float32 shape and caches

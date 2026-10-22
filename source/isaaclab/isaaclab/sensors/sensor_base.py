@@ -47,7 +47,13 @@ class SensorBase(ABC):
 
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
+
+    This base owns environment rows and their clocks. Backend sensors must validate native binding
+    coverage rather than resize those rows when some environments have no matching sensor body.
     """
+
+    _requires_physics_step = False
+    """Whether reset values must be retained until the next physics step produces a measurement."""
 
     def __init__(self, cfg: SensorBaseCfg):
         """Initialize the sensor class.
@@ -259,9 +265,7 @@ class SensorBase(ABC):
     def _initialize_impl(self):
         """Initializes the sensor-related handles and internal buffers."""
         # Obtain Simulation Context
-        sim = sim_utils.SimulationContext.instance()
-        if sim is None:
-            raise RuntimeError("Simulation Context is not initialized!")
+        sim = self._sim
         # Obtain device and backend
         self._device = sim.device
         self._backend = sim.backend
@@ -431,12 +435,16 @@ class SensorBase(ABC):
     Helper functions.
     """
 
-    def _create_timing_buffers(self) -> None:
-        """Allocates the per-environment outdated flags, timestamps and elapsed times used to schedule updates.
+    def _check_env_count(self, count: int, prim_path: str, instances_per_env: int = 1) -> None:
+        """Reject native bindings that cannot be indexed with the scene's environment masks."""
+        if count != self._num_envs * instances_per_env:
+            raise RuntimeError(
+                f"{type(self).__name__} at '{self.cfg.prim_path}' requires {instances_per_env} instance(s) in each"
+                f" of {self._num_envs} environments; '{prim_path}' matched {count} instances."
+            )
 
-        Sensors that change :attr:`_num_envs` after :meth:`_initialize_impl` must call this again, after
-        reallocating their environment masks.
-        """
+    def _create_timing_buffers(self) -> None:
+        """Allocate the shared per-environment flags and clocks used to schedule captures."""
         # timestamp and outdated flags
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
@@ -456,7 +464,13 @@ class SensorBase(ABC):
         wp.launch(
             update_outdated_envs_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, self._elapsed_since_update],
+            inputs=[
+                self._is_outdated,
+                self._timestamp,
+                self._timestamp_last_update,
+                self._elapsed_since_update,
+                self._requires_physics_step,
+            ],
             device=self._device,
         )
         self._data_dirty = False

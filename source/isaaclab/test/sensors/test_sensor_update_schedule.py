@@ -11,24 +11,39 @@ the ``1e-6`` due tolerance.
 
 from __future__ import annotations
 
+import ast
+
 import numpy as np
 import pytest
 import warp as wp
 
+from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
 
+def test_native_sensors_preserve_shared_environment_count():
+    """Native bindings validate coverage; they must not resize SensorBase's environment rows and clocks."""
+    for directory in (ISAACLAB_ROOT / "source").glob("isaaclab_*/isaaclab_*/sensors"):
+        for path in directory.rglob("*.py"):
+            if path.name.endswith("_data.py"):
+                continue
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):
+                    assert node.attr != "_num_envs", f"{path}:{node.lineno} overrides SensorBase environment ownership"
+
+
 class _RefreshLogSensor(SensorBase):
     """Sensor that records the step index of every buffer refresh, per environment."""
 
-    def __init__(self, update_period: float, device: str, num_envs: int = 2):
+    def __init__(self, update_period: float, device: str, num_envs: int = 2, requires_physics_step: bool = False):
         # SensorBase.__init__ needs a USD stage; only the timing state is under test here.
         self.cfg = SensorBaseCfg(prim_path="/World/envs/env_.*/sensor", update_period=update_period)
         self._device = device
         self._num_envs = num_envs
+        self._requires_physics_step = requires_physics_step
         self._is_initialized = True
         self._is_visualizing = False
         self._create_timing_buffers()
@@ -47,7 +62,10 @@ class _RefreshLogSensor(SensorBase):
         pass
 
     def _update_buffers_impl(self, env_mask: wp.array):
+        timestamps = self._timestamp.numpy() if self._requires_physics_step else None
         for env in np.flatnonzero(env_mask.numpy()):
+            if self._requires_physics_step and timestamps[env] == 0.0:
+                continue
             self.refreshes[env].append(self.step)
 
 
@@ -84,3 +102,19 @@ def test_refresh_follows_the_time_passed_to_update(device):
     sensor = _RefreshLogSensor(update_period=0.02, device=device)
     refreshes = _run(sensor, [0.005, 0.015] * 2000)
     assert refreshes == [list(range(1, 4001, 2))] * 2
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("requires_physics_step", [False, True], ids=["capture-on-reset", "capture-after-step"])
+def test_reset_read_only_restarts_period_after_capture(device, requires_physics_step):
+    """A skipped reset read leaves the sensor due; a completed capture starts its normal period."""
+    sensor = _RefreshLogSensor(update_period=0.02, device=device, requires_physics_step=requires_physics_step)
+    _run(sensor, [0.005])
+    sensor.reset(env_mask=wp.array([True, False], dtype=wp.bool, device=device))
+    _ = sensor.data
+    for step in range(2, 11):
+        sensor.step = step
+        sensor.update(0.005)
+        _ = sensor.data
+    assert sensor.refreshes[0] == ([1, 2, 6, 10] if requires_physics_step else [1, 1, 5, 9])
+    assert sensor.refreshes[1] == [1, 5, 9]

@@ -41,6 +41,7 @@ def update_outdated_envs_kernel(
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
     elapsed_since_update: wp.array(dtype=wp.float64),
+    requires_physics_step: bool,
 ):
     """Updates timestamp and clears outdated flag for outdated environments.
 
@@ -49,9 +50,10 @@ def update_outdated_envs_kernel(
         timestamp: Current timestamp per env.
         timestamp_last_update: Last update timestamp per env. Will be set to current timestamp.
         elapsed_since_update: Time since the last refresh per env. Will be set to 0.0.
+        requires_physics_step: Whether a reset read skips capture until a physics step produces data.
     """
     env = wp.tid()
-    if is_outdated[env]:
+    if is_outdated[env] and (not requires_physics_step or timestamp[env] > 0.0):
         timestamp_last_update[env] = timestamp[env]
         elapsed_since_update[env] = wp.float64(0.0)
         is_outdated[env] = False

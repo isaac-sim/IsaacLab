@@ -688,10 +688,9 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is None:
-            raise RuntimeError("SimulationContext is not initialized.")
-        sim_ctx.get_scene_data_provider().cameras[self.cfg.prim_path] = self
+        sim_ctx = self._sim
+        provider = sim_ctx.get_scene_data_provider()
+        provider.cameras[self.cfg.prim_path] = self
 
         # Runtime paths and instance counts are available after physics initialization.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
@@ -705,9 +704,11 @@ class Camera(SensorBase):
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        sim_ctx.render_context.ensure_prepare_stage(self.stage, sim_ctx.get_scene_data_provider().num_envs)
+        sim_ctx.render_context.ensure_prepare_stage(self.stage, provider.num_envs)
 
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        self._view = FrameView(
+            self.cfg.prim_path, device=self._device, stage=self.stage, scene_data_backend=provider.backend
+        )
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

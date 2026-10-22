@@ -580,6 +580,7 @@ class ContactSensor(BaseContactSensor):
 
         # PhysX returns (B*N, 7) float32 -> viewed as (B*N,) transformf, body-major
         if self.cfg.track_pose and include_pose:
+            self._backend_manager.update_kinematics()
             poses = self.body_physx_view.get_transforms()
             self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
 

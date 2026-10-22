@@ -164,6 +164,8 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
+        if not wp.get_device(self._device).is_capturing:
+            self._backend_manager.forward()
         state = self._backend_manager.backend.state_0
 
         wp.launch(

@@ -202,6 +202,7 @@ class Pva(BasePva):
 
         # ``OvPhysxView.read_into`` fills the structured-dtype buffer in place via a
         # cached float32 reinterpret; no manual float32 alias is needed.
+        self._backend_manager.update_kinematics()
         self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
         self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
         self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)

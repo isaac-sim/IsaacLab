@@ -256,6 +256,7 @@ class FrameTransformer(BaseFrameTransformer):
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
+        self._check_env_count(self._frame_physx_view.count, " or ".join(body_names_regex), len(tracked_body_names))
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
         # by frame name correctly
@@ -421,6 +422,7 @@ class FrameTransformer(BaseFrameTransformer):
         # the getter lazily allocates its output buffer and refreshes the same memory in place
         # on every call, so the cached view (and the recorded launch that consumes it) stays
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        self._backend_manager.update_kinematics()
         transforms = self._frame_physx_view.get_transforms()
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)

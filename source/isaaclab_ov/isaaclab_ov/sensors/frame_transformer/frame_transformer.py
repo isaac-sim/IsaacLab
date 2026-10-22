@@ -257,22 +257,7 @@ class FrameTransformer(BaseFrameTransformer):
                     " Verify the prim has UsdPhysics.RigidBodyAPI."
                 ) from exc
 
-            if binding.count != self._num_envs:
-                # OVPhysX's InteractiveScene defaults to clone_usd=True on the default branch, so this branch is
-                # unexpected in current flows. Mirror ContactSensor's clone_usd=False fallback so the
-                # sensor stays correct if a future scene runs with clone_usd=False.
-                logger.warning(
-                    "FrameTransformer: binding.count=%d for pattern %r differs from self._num_envs=%d;"
-                    " overriding env count from binding (clone_usd=False scene).",
-                    binding.count,
-                    pattern,
-                    self._num_envs,
-                )
-                self._num_envs = binding.count
-                self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask_torch = wp.to_torch(self._reset_mask)
-                self._create_timing_buffers()
+            self._check_env_count(binding.count, pattern)
 
             read_buf = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
             dst_torch = torch.tensor(
@@ -430,6 +415,7 @@ class FrameTransformer(BaseFrameTransformer):
         # Step 1: refresh each per-body RIGID_BODY_POSE view and gather rows into _raw_transforms.
         # read_into fills the structured (num_envs,) wp.transformf buffer directly via a cached
         # float32 reinterpret, so no manual .view(wp.transformf) is needed here.
+        self._backend_manager.update_kinematics()
         for view, read_buf, dst_indices in zip(self._body_views, self._body_read_bufs, self._body_dst_flat_indices):
             view.read_into(TT.RIGID_BODY_POSE, read_buf)
             wp.launch(

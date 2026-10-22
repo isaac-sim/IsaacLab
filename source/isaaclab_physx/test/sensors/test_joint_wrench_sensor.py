@@ -22,7 +22,11 @@ from isaaclab_physx.sensors.joint_wrench import joint_wrench_sensor as joint_wre
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor as PhysxJointWrenchSensor
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from joint_wrench_contract import test_joint_wrench_body_ordering, test_joint_wrench_frame  # noqa: F401
+from joint_wrench_contract import (  # noqa: F401
+    assert_sensors_reject_partial_environment_coverage,
+    test_joint_wrench_body_ordering,
+    test_joint_wrench_frame,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -87,6 +91,11 @@ def sim():
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim_ctx:
         sim_ctx._app_control_on_stop_handle = None
         yield sim_ctx
+
+
+def test_sensors_reject_partial_environment_coverage(sim):
+    """Native bindings must cover the scene's environment rows before sensors allocate/index data."""
+    assert_sensors_reject_partial_environment_coverage(sim, _SingleJointSceneCfg(num_envs=4))
 
 
 def _physx_incoming_joint_wrench(sensor: JointWrenchSensor) -> torch.Tensor:

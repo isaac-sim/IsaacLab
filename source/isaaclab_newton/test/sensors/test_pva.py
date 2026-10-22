@@ -176,6 +176,19 @@ def test_offset_and_rotated_body(sim):
     expected_grav = torch.tensor([[0.0, -1.0, 0.0]], dtype=proj_grav.dtype, device=proj_grav.device).repeat(2, 1)
     torch.testing.assert_close(proj_grav, expected_grav, atol=0.05, rtol=0.0)
 
+    # Read the sensor first after a write, before asset getters can resolve pending FK.
+    cube = scene["cube"]
+    pose = torch.tensor([[1.0, 2.0, 6.0, 0.0, 0.0, 0.0, 1.0]], device=scene.device).repeat(2, 1)
+    velocity = torch.tensor([[2.0, 0.0, 0.0, 0.0, 1.0, 0.0]], device=scene.device).repeat(2, 1)
+    cube.write_root_pose_to_sim_index(root_pose=pose)
+    cube.write_root_velocity_to_sim_index(root_velocity=velocity)
+    pva.update(sim.get_physics_dt())
+    data = pva.data
+    torch.testing.assert_close(data.pos_w.torch, pose[:, :3] + torch.tensor([0.0, 0.0, 0.5], device=scene.device))
+    torch.testing.assert_close(data.quat_w.torch, pose[:, 3:])
+    torch.testing.assert_close(data.lin_vel_b.torch, torch.tensor([[2.5, 0.0, 0.0]], device=scene.device).repeat(2, 1))
+    torch.testing.assert_close(data.ang_vel_b.torch, velocity[:, 3:])
+
 
 def test_no_stale_data_after_scene_reset(sim):
     """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset PVA values (Newton).
