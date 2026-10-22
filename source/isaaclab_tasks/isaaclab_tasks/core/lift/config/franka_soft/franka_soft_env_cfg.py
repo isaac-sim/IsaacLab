@@ -633,7 +633,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
 
     def play_mode(self):
         super().play_mode()

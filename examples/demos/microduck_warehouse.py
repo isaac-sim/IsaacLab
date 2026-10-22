@@ -60,37 +60,11 @@ from isaaclab.utils import configclass, instantiate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
-from isaaclab_tasks.utils import PresetCfg, preset
+from isaaclab_tasks.utils import preset
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 WAREHOUSE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/MicroDuckWarehouse/microduck_warehouse_static.usdc"
-
-
-@configclass
-class WarehousePhysicsCfg(PresetCfg):
-    """Initialize the static scene with MJWarp, or PhysX for Isaac Sim RTX."""
-
-    newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False, load_visual_shapes=True)
-    isaacsim_physx = PhysxCfg()
-    default = preset(default=newton_mjwarp, isaacsim_rtx=isaacsim_physx)
-
-
-@configclass
-class WarehouseRendererCfg(MultiBackendRendererCfg):
-    """Select the default RTX renderer from the physics and visualizer runtimes."""
-
-    ovrtx = OVRTXRendererCfg(enable_shadows=True)
-    newton_renderer = NewtonWarpRendererCfg(enable_textures=True, enable_shadows=True)
-    isaacsim_rtx = IsaacRtxRendererCfg(
-        global_settings=preset(
-            default=IsaacRtxRendererGlobalSettingsCfg(carb_settings={"/rtx/rendermode": "RealTimePathTracing"}),
-            path_traced=IsaacRtxRendererGlobalSettingsCfg(
-                carb_settings={"/rtx/rendermode": "PathTracing", "/rtx/pathtracing/spp": 128}
-            ),
-        )
-    )
-    default = MultiBackendRendererCfg().rtx
 
 
 @configclass
@@ -113,7 +87,19 @@ class WarehouseSceneCfg(InteractiveSceneCfg):
             semantic_segmentation=["semantic_segmentation"],
             instance_segmentation=["instance_segmentation"],
         ),
-        renderer_cfg=WarehouseRendererCfg(),
+        renderer_cfg=MultiBackendRendererCfg(
+            ovrtx=OVRTXRendererCfg(enable_shadows=True),
+            newton_renderer=NewtonWarpRendererCfg(enable_textures=True, enable_shadows=True),
+            isaacsim_rtx=IsaacRtxRendererCfg(
+                global_settings=preset(
+                    default=IsaacRtxRendererGlobalSettingsCfg(carb_settings={"/rtx/rendermode": "RealTimePathTracing"}),
+                    path_traced=IsaacRtxRendererGlobalSettingsCfg(
+                        carb_settings={"/rtx/rendermode": "PathTracing", "/rtx/pathtracing/spp": 128}
+                    ),
+                )
+            ),
+            default=MultiBackendRendererCfg().rtx,
+        ),
     )
 
 
@@ -128,8 +114,15 @@ class WarehouseDemoCfg(ManagerBasedEnvCfg):
     ui_window_class_type = None
     scene: WarehouseSceneCfg = WarehouseSceneCfg(num_envs=1, env_spacing=0.0)
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
-        physics=WarehousePhysicsCfg(),
-        default_visualizer_cfg=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
+        physics=preset(
+            newton_mjwarp=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False, load_visual_shapes=True),
+            isaacsim_physx=PhysxCfg(),
+            default=preset(
+                default=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False, load_visual_shapes=True),
+                isaacsim_rtx=PhysxCfg(),
+            ),
+        ),
+        visualizer_cfgs=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
     )
     camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_renderer=None)
     camera_path = preset(
@@ -154,7 +147,8 @@ def main() -> None:
         "semantic_segmentation": "segmentation",
         "instance_segmentation": "segmentation",
     }.get(output, output)
-    cfg.sim.default_visualizer_cfg.streaming_gt_types = (channel,)
+    for viewer in cfg.sim.visualizer_cfgs:
+        viewer.streaming_gt_types = (channel,)
     with launch_simulation(cfg, args_cli):
         from pxr import UsdGeom
 

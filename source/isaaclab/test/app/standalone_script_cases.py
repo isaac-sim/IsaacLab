@@ -243,7 +243,7 @@ OVERRIDES = {
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
         fixed_physics_backend="newton_coupler",
-        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+        visualizers=(None, "newton_gl"),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
@@ -348,9 +348,18 @@ OVERRIDES = {
 
 def discover_specs() -> list[ScriptSpec]:
     """Discover executable packaged programs, tutorials, and tools and their literal CLI choices."""
+    # Deprecated direct paths delegate to canonical examples already in this matrix.
+    # Their warnings and argument forwarding are covered by test_installed_workflow_entrypoints.py.
+    deprecated_paths = {
+        DEMO_ROOT / "newton_viewer_block_and_tackle.py",
+        DEMO_ROOT / "snowball_smash.py",
+        DEMO_ROOT / "teapot_fill.py",
+    }
     specs = []
     for group in (*(sorted(root.rglob("*.py")) for root in SCRIPT_ROOTS), EXTRA_SCRIPTS):
         for path in group:
+            if path in deprecated_paths:
+                continue
             source = path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(path))
             if not _has_main_guard(tree):
