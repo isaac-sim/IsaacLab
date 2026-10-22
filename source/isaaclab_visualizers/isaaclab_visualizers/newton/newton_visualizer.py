@@ -53,6 +53,8 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
+from .newton_key_event_source import NewtonKeyEventSource, viewer_window
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,6 +97,10 @@ class NewtonViewerGL(ViewerGL):
 
     _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
+    camera_keys_suspended = False
+    """Set while keyboard camera movement is disabled (see :meth:`NewtonVisualizerBase.set_camera_keys_enabled`)."""
+    keyboard_frame_hook: Callable[[], object] | None = None
+    """Called after every frame while a :class:`NewtonKeyEventSource` listens, to track ImGui keyboard ownership."""
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -389,6 +395,8 @@ class NewtonViewerGL(ViewerGL):
             super().end_frame()
         finally:
             self._fullscreen_image_active = False
+        if self.keyboard_frame_hook is not None:
+            self.keyboard_frame_hook()
         if self._close_requested:
             self.close()
 
@@ -407,6 +415,12 @@ class NewtonViewerGL(ViewerGL):
         """Image coordinates must not pick objects in the hidden perspective scene."""
         if not self._fullscreen_image_active:
             super().on_mouse_press(x, y, button, modifiers)
+
+    def _update_camera(self, dt: float):
+        """Move the camera from held keys, unless keyboard camera movement is disabled."""
+        if self.camera_keys_suspended:
+            return
+        super()._update_camera(dt)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply configured model-particle appearance while preserving Newton's point logging.
@@ -487,6 +501,17 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
+        self._key_event_source: NewtonKeyEventSource | None = None
+        self._camera_keys_enabled = True
+
+    @property
+    def key_event_source(self) -> NewtonKeyEventSource | None:
+        """Keys typed into the viewer window; ``None`` before initialization, after close, or when headless."""
+        if self._key_event_source is None and self._viewer is not None:
+            window = viewer_window(self._viewer)
+            if window is not None:
+                self._key_event_source = NewtonKeyEventSource(self._viewer, window)
+        return self._key_event_source
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -508,6 +533,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 window_cfg=self.cfg.window,
             )  # fmt: skip
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        self._viewer.camera_keys_suspended = not self._camera_keys_enabled
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
 
     def log_mesh(
@@ -663,12 +689,36 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
+        self._key_event_source = None
         self._pending_mesh_submissions.clear()
         for view in self._image_views:
             if view.render == self._capture_frame:
                 view.render = None
                 view.invalidate()
         super().close()
+
+    def set_camera_keys_enabled(self, enabled: bool) -> None:
+        """Enable or disable the window's WASD/QE and arrow-key camera movement.
+
+        Mouse camera control and the viewer's other hotkeys keep working. The setting also applies to a
+        window opened later by :meth:`initialize`.
+        """
+        self._camera_keys_enabled = enabled
+        if self._viewer is not None:
+            self._viewer.camera_keys_suspended = not enabled
+
+    def _close_key_event_source(self) -> None:
+        """Unhook keyboard input while the window is still open; subclasses call this first in ``close()``.
+
+        The reference stays until :meth:`close` finishes, so a focus-loss callback reading
+        :attr:`key_event_source` during shutdown gets the closing source instead of a new one.
+        """
+        if self._key_event_source is not None:
+            try:
+                self._key_event_source.close()
+            except Exception:
+                # keyboard input must not keep the viewer resources from being released
+                logger.exception("[%s] Keyboard input cleanup failed", type(self).__name__)
 
     def supports_markers(self) -> bool:
         """Return whether visualization markers are enabled for this viewer."""
@@ -936,6 +986,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Release picking and scene references without destroying Kit's shared GL context."""
         if self._is_closed:
             return
+        self._close_key_event_source()
         try:
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
@@ -1195,6 +1246,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         """Close the window; scene cameras retain their render products and shared renderer."""
         if self._is_closed:
             return
+        self._close_key_event_source()
         try:
             if self._viewer is not None:
                 self._viewer.close()

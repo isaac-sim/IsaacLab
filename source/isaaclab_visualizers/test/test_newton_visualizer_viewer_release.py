@@ -72,3 +72,32 @@ def test_close_releases_owned_resources_even_on_failure(failure):
     assert visualizer._sim is visualizer.current_image_view is None
     assert not visualizer._image_views
     assert visualizer._is_closed
+
+
+@pytest.mark.parametrize(
+    ("visualizer_type", "backend_cfg"),
+    [(NewtonGLVisualizer, NewtonGLBackendCfg), (NewtonRTXVisualizer, NewtonRTXBackendCfg)],
+)
+@pytest.mark.parametrize("failure", [False, True])
+def test_close_unhooks_keyboard_before_releasing_the_viewer(visualizer_type, backend_cfg, failure, caplog):
+    """Keyboard input closes while the window is open, and a failure there must not leak the viewer."""
+    visualizer = visualizer_type(VisualizerCfg(backend=backend_cfg()))
+    viewer = visualizer._viewer = Mock()
+    events: list[str] = []
+    key_event_source = visualizer._key_event_source = Mock()
+
+    def close_keys() -> None:
+        events.append(f"keys closed, viewer bound: {visualizer._viewer is viewer}")
+        if failure:
+            raise RuntimeError("keyboard cleanup failed")
+
+    key_event_source.close.side_effect = close_keys
+
+    visualizer.close()
+
+    assert events == ["keys closed, viewer bound: True"]
+    assert ("Keyboard input cleanup failed" in caplog.text) == failure
+    assert visualizer._viewer is None
+    assert visualizer._key_event_source is None
+    assert visualizer.key_event_source is None
+    assert visualizer._is_closed
