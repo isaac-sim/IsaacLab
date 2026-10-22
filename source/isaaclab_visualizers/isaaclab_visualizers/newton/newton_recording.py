@@ -12,11 +12,14 @@ import re
 import shutil
 import socket
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+from .newton_replay import NewtonReplayPlayer, list_recordings
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer
@@ -71,6 +74,10 @@ class NewtonRecordingPanel:
         """Files written by the latest recording of each kind."""
         self._video_rate = 0
         self._video_limit: int | None = None
+        self.replay = NewtonReplayPlayer(lambda: owner._viewer)
+        self.replay_folder = str(Path(self.output_dir) / "scene")
+        self._replay_window_open = False
+        self._replay_files: list[Path] = []
         self._video: subprocess.Popen | None = None
         self._video_frames = 0
         self._video_shape: tuple[int, int] | None = None
@@ -91,7 +98,10 @@ class NewtonRecordingPanel:
     def draw(self, imgui: Any) -> None:
         """Draw the Recording section."""
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
-        if not imgui.collapsing_header("Recording"):
+        expanded = imgui.collapsing_header("Recording")
+        if self._replay_window_open:
+            self._draw_replay_window(imgui)
+        if not expanded:
             return
         imgui.separator()
         imgui.text("Output")
@@ -133,16 +143,22 @@ class NewtonRecordingPanel:
             imgui.set_tooltip("Record the window like --video; needs ffmpeg")
         imgui.separator()
 
-        imgui.text("Scene")
+        imgui.text("Animation")
         if self.recording_scene:
             if imgui.button("Stop##scene"):
                 self.stop_scene()
             imgui.same_line()
-            imgui.text(f"{self._scene_frames} frames")
-        elif imgui.button("Start##scene"):
+            imgui.text(f"Recording {self._scene_frames} frames")
+        elif imgui.button("Record##scene"):
             self.start_scene()
         if imgui.is_item_hovered() and not self.recording_scene:
-            imgui.set_tooltip("Record the visible environments to a .viser file for the Viser player")
+            imgui.set_tooltip("Record the visible environments to a .viser file")
+        imgui.same_line()
+        if imgui.button("Open...##replay"):
+            self._open_replay_window()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Load a .viser animation and play it in this window, next to the simulation")
+        self._draw_replay_controls(imgui)
         imgui.separator()
 
         imgui.text("Checkpoint")
@@ -153,6 +169,69 @@ class NewtonRecordingPanel:
         if self._message:
             imgui.separator()
             imgui.text_wrapped(self._message)
+
+    def _open_replay_window(self) -> None:
+        self._replay_window_open = True
+        self._replay_files = list_recordings(self.replay_folder)
+
+    def _draw_replay_window(self, imgui: Any) -> None:
+        """Draw the file browser listing the ``.viser`` animations below a folder."""
+        imgui.set_next_window_pos(imgui.ImVec2(400, 60), imgui.Cond_.first_use_ever)
+        imgui.set_next_window_size(imgui.ImVec2(520, 360), imgui.Cond_.first_use_ever)
+        expanded, self._replay_window_open = imgui.begin("Open Animation", self._replay_window_open)
+        if expanded:
+            changed, self.replay_folder = imgui.input_text("Folder##replay", self.replay_folder)
+            if changed or imgui.button("Refresh##replay"):
+                self._replay_files = list_recordings(self.replay_folder)
+            imgui.separator()
+            if not self._replay_files:
+                imgui.text_wrapped("No .viser files found. Record one with Animation > Record.")
+            for file in self._replay_files:
+                stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(file.stat().st_mtime))
+                label = f"{file.name}   {file.stat().st_size / 1e6:.1f} MB   {stamp}##{file}"
+                clicked, _ = imgui.selectable(
+                    label, str(file) == (self.replay.recording.path if self.replay.active else "")
+                )
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip(str(file))
+                if clicked:
+                    self.replay.load(str(file))
+                    self._replay_window_open = False
+        imgui.end()
+
+    def _draw_replay_controls(self, imgui: Any) -> None:
+        """Draw play, scrub, and display controls for the loaded animation."""
+        replay = self.replay
+        if replay.message:
+            imgui.text_wrapped(replay.message)
+        if not replay.active:
+            return
+        if self._owner.rtx_rendering:
+            imgui.text_disabled("Animations are drawn in the OpenGL view only")
+        if imgui.button("Pause##replay" if replay.playing else "Play##replay"):
+            replay.playing = not replay.playing
+        imgui.same_line()
+        if imgui.button("Unload##replay"):
+            replay.unload()
+            self._owner.set_simulation_hidden(False)
+            return
+        imgui.same_line()
+        _c, replay.loop = imgui.checkbox("Loop##replay", replay.loop)
+        duration = replay.recording.duration
+        changed, value = imgui.slider_float(
+            "Time##replay", replay.time, 0.0, max(duration, 1e-3), f"%.2f / {duration:.2f} s"
+        )
+        if changed:
+            replay.seek(value)
+            replay.playing = False
+        _c, replay.speed = imgui.slider_float("Speed##replay", replay.speed, 0.1, 4.0, "%.2fx")
+        _c, replay.opacity = imgui.slider_float("Opacity##replay", replay.opacity, 0.05, 1.0)
+        _c, offset = imgui.input_float3("Offset (m)##replay", replay.offset.tolist())
+        replay.offset[:] = offset
+        hidden = self._owner.simulation_hidden
+        changed, hidden = imgui.checkbox("Hide simulation##replay", hidden)
+        if changed:
+            self._owner.set_simulation_hidden(hidden)
 
     def _output_path(self, kind: str, suffix: str) -> Path:
         """Return the next file of ``kind`` from the output settings, creating its folder."""

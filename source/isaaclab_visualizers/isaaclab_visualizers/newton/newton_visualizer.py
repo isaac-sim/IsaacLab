@@ -924,6 +924,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
     _recording: NewtonRecordingPanel | None = None
+    _simulation_hidden = False
 
     @property
     def visual_material_writer(self):
@@ -1090,6 +1091,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+            if self._recording is not None and self.current_image_view.camera is None:
+                self._recording.replay.update()
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -1234,12 +1237,25 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self._env_ids = self._select_visible_env_ids()
         self._drop_shape_instancers()
-        self._viewer.set_visible_worlds(self._env_ids)
+        self._viewer.set_visible_worlds([] if self._simulation_hidden else self._env_ids)
         self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
         if self._policy_ghost_panel is not None and getattr(self._viewer, "world_offsets", None) is not None:
             offsets = self._viewer.world_offsets.numpy() + self._policy_ghost_panel.controller.env_origin_offsets()
             self._viewer.world_offsets = wp.array(offsets, dtype=wp.vec3, device=self._viewer.world_offsets.device)
         self._apply_rtx_visible_envs()
+        if self._recording is not None:
+            self._recording.replay.invalidate()
+
+    @property
+    def simulation_hidden(self) -> bool:
+        """Whether the simulation's environments are hidden, so only a replayed animation shows."""
+        return self._simulation_hidden
+
+    def set_simulation_hidden(self, hidden: bool) -> None:
+        """Hide or show the simulation's environments in the viewer; the simulation itself keeps running."""
+        if hidden != self._simulation_hidden:
+            self._simulation_hidden = hidden
+            self._apply_visible_worlds()
 
     def _apply_rtx_visible_envs(self) -> None:
         """Hide the environments outside the visible set in the OVRTX viewer camera's scene."""
