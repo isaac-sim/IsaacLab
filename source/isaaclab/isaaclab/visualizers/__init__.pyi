@@ -15,6 +15,7 @@ __all__ = [
     "PolicyGhostSlot",
     "SceneCameraCfg",
     "VisualizerCfg",
+    "VisualizerBackendCfg",
     "WindowCfg",
 ]
 
@@ -27,4 +28,4 @@ from .policy_ghost import (
     PolicyGhostLayout,
     PolicyGhostSlot,
 )
-from .visualizer_cfg import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+from .visualizer_cfg import WindowCfg, ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, VisualizerBackendCfg

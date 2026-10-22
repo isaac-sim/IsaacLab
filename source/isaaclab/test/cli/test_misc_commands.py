@@ -197,7 +197,7 @@ def test_build_docs_multi_rejects_missing_default_ref(tmp_path, monkeypatch):
         misc.command_build_docs(multi_version=True)
 
     print_error.assert_called_once_with(
-        "Default docs ref 'v3.0.0-EA' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF."
+        "Default docs ref 'main' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF."
     )
     assert redirect.read_text(encoding="utf-8") == "previous redirect"
 

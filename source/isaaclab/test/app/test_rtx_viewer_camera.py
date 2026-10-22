@@ -11,9 +11,10 @@ import types
 
 import pytest
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
+from isaaclab.visualizers import VisualizerCfg
 
 
 def _fake_display(monkeypatch: pytest.MonkeyPatch, width: int = 1920, height: int = 1080) -> None:
@@ -65,7 +66,7 @@ def test_viewer_camera_is_declared_only_where_it_can_be_used(
     monkeypatch: pytest.MonkeyPatch, rtx_camera, headless, physics, ovrtx_installed, expected
 ) -> None:
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: object() if ovrtx_installed else None)
-    visualizer = NewtonGLVisualizerCfg(rtx_camera=rtx_camera, headless=headless)
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(rtx_camera=rtx_camera), headless=headless)
     simulations = [types.SimpleNamespace(physics=physics)]
 
     assert sim_launcher._wants_rtx_viewer_camera(visualizer, simulations) is expected

@@ -14,8 +14,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .newton_visualizer_cfg import (
+    NewtonGLBackendCfg,
     NewtonGLVisualizerCfg,
     NewtonRecordingCfg,
+    NewtonRTXBackendCfg,
     NewtonRTXVisualizerCfg,
     NewtonVisualizerCfg,
 )
@@ -25,15 +27,18 @@ if TYPE_CHECKING:
     from .particle_surface import ParticleSurfaceRenderer
 
 __all__ = [
-    # Deprecated GL configuration
+    # Deprecated combined configurations
+    "NewtonGLVisualizerCfg",
+    "NewtonRTXVisualizerCfg",
     "NewtonVisualizerCfg",
     # GL backend
     "NewtonGLVisualizer",
+    "NewtonGLBackendCfg",
     "NewtonGLVisualizerCfg",
     "NewtonRecordingCfg",
     # RTX backend
     "NewtonRTXVisualizer",
-    "NewtonRTXVisualizerCfg",
+    "NewtonRTXBackendCfg",
     # MPM particle-surface rendering
     "ParticleSurfaceRenderer",
 ]

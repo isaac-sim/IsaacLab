@@ -58,7 +58,7 @@ class NewtonRecordingPanel:
             owner: Visualizer whose window and simulation state are recorded.
         """
         self._owner = owner
-        cfg = owner.cfg.recording
+        cfg = owner.cfg.backend.recording
         self.output_dir = cfg.output_dir
         self.filename_prefix = cfg.filename_prefix
         self.auto_increment = cfg.auto_increment

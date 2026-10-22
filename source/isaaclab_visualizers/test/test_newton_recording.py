@@ -30,7 +30,9 @@ def _owner(frames=(), **recording):
         _update_state=lambda: state,
         _viewer=viewer,
         _sim_time=0.0,
-        cfg=SimpleNamespace(window=SimpleNamespace(fps=10.0), recording=NewtonRecordingCfg(**recording)),
+        cfg=SimpleNamespace(
+            window=SimpleNamespace(fps=10.0), backend=SimpleNamespace(recording=NewtonRecordingCfg(**recording))
+        ),
     )
 
 

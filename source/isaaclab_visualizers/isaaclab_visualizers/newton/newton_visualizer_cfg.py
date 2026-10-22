@@ -7,100 +7,15 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
-
-
-@configclass
-class NewtonVisualizerCfg(VisualizerCfg):
-    """Deprecated configuration base for the Newton GL visualizer.
-
-    .. deprecated::
-        :class:`NewtonVisualizerCfg` is deprecated. Use :class:`NewtonGLVisualizerCfg` for the
-        OpenGL rasterizer or :class:`NewtonRTXVisualizerCfg` for the OVRTX path tracer.
-    """
-
-    class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
-    """Deprecated alias for the Newton GL visualizer implementation."""
-
-    # Deprecated alias: "newton" routes to the GL backend via visualizer_cfg.VISUALIZER_ALIASES.
-    visualizer_type: str = "newton_gl"
-
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if type(self) is NewtonVisualizerCfg:
-            warnings.warn(
-                "NewtonVisualizerCfg is deprecated and will be removed in a future release. "
-                "Use NewtonGLVisualizerCfg (OpenGL rasterizer) or NewtonRTXVisualizerCfg (OVRTX path tracer) instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-
-    world_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Visual spacing between simulation worlds along each axis [m].
-
-    Non-zero axes arrange visible worlds in a compact grid without changing their simulated poses.
-    """
-
-    show_joints: bool = False
-    """Show joint visualization."""
-
-    show_contacts: bool = False
-    """Show contact visualization."""
-
-    show_collision: bool = False
-    """Show collision visualization."""
-
-    show_springs: bool = False
-    """Show spring visualization."""
-
-    show_inertia_boxes: bool = False
-    """Show inertia box visualization."""
-
-    show_com: bool = False
-    """Show center of mass visualization."""
-
-    show_particles: bool = False
-    """Show particle visualization."""
-
-    particle_color: tuple[float, float, float] | None = None
-    """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""
-
-    enable_picking: bool = True
-    """Enable right-click dragging with Newton rigid-body solvers.
-
-    Supported coupled solvers may expose dragging through a rigid-body entry.
-    Disabled automatically for headless viewers, standalone MPM, and non-Newton
-    physics. MPM particles are not pickable.
-    """
-
-    enable_shadows: bool = True
-    """Enable shadow rendering."""
-
-    enable_sky: bool = True
-    """Enable procedural sky rendering when ``background_color`` is ``None``."""
-
-    enable_wireframe: bool = False
-    """Enable wireframe rendering."""
-
-    sky_upper_color: tuple[float, float, float] = (0.2, 0.4, 0.6)
-    """Sky upper color RGB [0, 1]."""
-
-    sky_lower_color: tuple[float, float, float] = (0.5, 0.6, 0.7)
-    """Sky lower color RGB [0, 1]."""
-
-    light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    """Light color RGB [0, 1]."""
 
 
 @configclass
@@ -131,27 +46,68 @@ class NewtonRecordingCfg:
 
 
 @configclass
-class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
-    """Configuration for the Newton OpenGL rasterizer visualizer.
-
-    Selects Newton's OpenGL backend — fast local window with the full Isaac Lab
-    feature set: scene-camera display, particle color override, and live scalar/array plots.
-
-    A scene-camera view replaces perspective rendering. With no explicit camera selection,
-    the viewer starts in perspective mode and the sidebar can switch to a scene camera.
-    """
+class NewtonGLBackendCfg(VisualizerBackendCfg):
+    """Newton OpenGL rendering and model display options."""
 
     class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
-    """Visualizer implementation class."""
-
     visualizer_type: str = "newton_gl"
-    """Visualizer selector identifier. Do not change."""
+    cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
-    streaming_view: bool = True
-    """Make scene cameras available in the view selector.
+    world_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Visual spacing between simulation worlds along each axis [m].
 
-    A SceneCameraCfg selection enables this automatically. Otherwise the viewer starts in perspective.
+    Non-zero axes arrange visible worlds in a compact grid without changing their simulated poses.
     """
+
+    show_joints: bool = False
+    """Show joint visualization."""
+
+    show_contacts: bool = False
+    """Show contact visualization."""
+
+    show_collision: bool = False
+    """Show collision visualization."""
+
+    show_springs: bool = False
+    """Show spring visualization."""
+
+    show_inertia_boxes: bool = False
+    """Show inertia box visualization."""
+
+    show_com: bool = False
+    """Show center of mass visualization."""
+
+    show_particles: bool = True
+    """Show simulation particles. Set to False to hide them, for example in a surface-only view."""
+
+    particle_color: tuple[float, float, float] | None = None
+    """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""
+
+    enable_picking: bool = True
+    """Enable right-click dragging with Newton rigid-body solvers.
+
+    Supported coupled solvers may expose dragging through a rigid-body entry.
+    Disabled automatically for headless viewers, standalone MPM, and non-Newton
+    physics. MPM particles are not pickable.
+    """
+
+    enable_shadows: bool = True
+    """Enable shadow rendering."""
+
+    enable_sky: bool = True
+    """Enable procedural sky rendering when ``background_color`` is ``None``."""
+
+    enable_wireframe: bool = False
+    """Enable wireframe rendering."""
+
+    sky_upper_color: tuple[float, float, float] = (0.2, 0.4, 0.6)
+    """Sky upper color RGB [0, 1]."""
+
+    sky_lower_color: tuple[float, float, float] = (0.5, 0.6, 0.7)
+    """Sky lower color RGB [0, 1]."""
+
+    light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """Light color RGB [0, 1]."""
 
     recording: NewtonRecordingCfg = NewtonRecordingCfg()
     """Defaults of the HUD's Recording section."""
@@ -172,7 +128,7 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
 
 
 @configclass
-class NewtonRTXVisualizerCfg(VisualizerCfg):
+class NewtonRTXBackendCfg(VisualizerBackendCfg):
     """Simulation-owned OVRTX rendering displayed in a Newton GL window.
 
     Launch preparation expands perspective sources into ordinary scene CameraCfg entries.
@@ -205,5 +161,29 @@ class NewtonRTXVisualizerCfg(VisualizerCfg):
     Used when declaring perspective CameraCfg entries. SceneCameraCfg retains its sensor's renderer.
     """
 
+
+@configclass
+class NewtonGLVisualizerCfg(NewtonGLBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=NewtonGLBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: NewtonGLBackendCfg = NewtonGLBackendCfg()
     streaming_view: bool = True
-    """Display the cameras declared by :attr:`view` or :attr:`cameras`; default to a perspective camera."""
+
+
+@configclass
+class NewtonRTXVisualizerCfg(NewtonRTXBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=NewtonRTXBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: NewtonRTXBackendCfg = NewtonRTXBackendCfg()
+    streaming_view: bool = True
+
+
+@configclass
+class NewtonVisualizerCfg(NewtonGLVisualizerCfg):
+    """Deprecated Newton GL configuration; use ``VisualizerCfg(backend=NewtonGLBackendCfg())``."""
