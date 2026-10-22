@@ -124,6 +124,14 @@ class NewtonRecordingPanel:
         if not expanded:
             return
         imgui.separator()
+        self._draw_video(imgui)
+        self._draw_animation(imgui)
+        self._draw_checkpoint(imgui)
+        self._draw_output(imgui)
+        self._draw_message(imgui)
+
+    def _draw_video(self, imgui: Any) -> None:
+        """Draw the video group: frame rate, length, Start, Stop, Save, and status."""
         imgui.text("Video (.mp4)")
         if self.recording_video:
             imgui.begin_disabled()
@@ -161,6 +169,8 @@ class NewtonRecordingPanel:
             imgui.text_colored(imgui.ImVec4(*_YELLOW), f"Unsaved  {elapsed}")
         imgui.separator()
 
+    def _draw_animation(self, imgui: Any) -> None:
+        """Draw the animation group: Record, Open, status, and the loaded animation's controls."""
         imgui.text("Animation (.viser)")
         if self.recording_scene:
             if imgui.button("Stop##scene"):
@@ -179,6 +189,8 @@ class NewtonRecordingPanel:
         self._draw_replay_controls(imgui)
         imgui.separator()
 
+    def _draw_checkpoint(self, imgui: Any) -> None:
+        """Draw the policy checkpoint group."""
         imgui.text("Checkpoint (.pt)")
         available = self._checkpoint_saver is not None
         if not available:
@@ -195,6 +207,8 @@ class NewtonRecordingPanel:
             )
         imgui.separator()
 
+    def _draw_output(self, imgui: Any) -> None:
+        """Draw the output folder, file prefix, and numbering options."""
         imgui.text("Output")
         _c, self.output_dir = imgui.input_text("Folder##recording", self.output_dir)
         if imgui.is_item_hovered():
@@ -209,6 +223,8 @@ class NewtonRecordingPanel:
             imgui.set_tooltip("Add the start date and time to the file name")
         imgui.separator()
 
+    def _draw_message(self, imgui: Any) -> None:
+        """Draw the latest result message, green when saved and red when something failed."""
         if self._message:
             imgui.separator()
             failed = any(word in self._message for word in ("failed", "Could not", "needs ffmpeg", "no policy"))
