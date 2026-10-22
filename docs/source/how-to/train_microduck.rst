@@ -37,11 +37,9 @@ failures and poor tracking lower it.
 Distributed training
 --------------------
 
-MicroDuck automatically scales the training budget and fixed-step curricula using ``WORLD_SIZE``,
-the total rank count set by Isaac Lab's native distributed launcher. With 4,096 environments per GPU,
-this preserves the single-GPU sample budget without an additional preset. Every rank uses the same
-count, including when nodes have different numbers of workers. Without ``WORLD_SIZE``, the count
-defaults to one and the single-GPU budgets and schedules are unchanged.
+With 4,096 environments per GPU, MicroDuck preserves the single-GPU sample budget, rounded up to full
+rollouts, by automatically scaling with global ``WORLD_SIZE`` (default: 1). This also handles nodes
+with unequal worker counts.
 
 .. code-block:: bash
 
@@ -49,28 +47,14 @@ defaults to one and the single-GPU budgets and schedules are unchanged.
         --task IsaacContrib-Velocity-Rough-MicroDuck --rl_library rsl_rl \
         --num_envs 4096 --seed 42 presets=backlash
 
-``--num_gpus`` selects workers per node and ``--nnodes`` selects nodes. Two nodes with
-``--nnodes 2 --num_gpus 8`` use 16 ranks in total; four nodes with ``--nnodes 4 --num_gpus 4`` also use
-16 ranks. See :ref:`multi-node-training` for the rendezvous options.
+For N ranks, training uses ``ceil(50000 / N)`` iterations and a ``ceil(250 / N)`` checkpoint interval.
+All six fixed-step curriculum boundaries are divided by N, rounding up. Explicit iteration, checkpoint
+and curriculum overrides take precedence. To override N, supply both ``env.ngpus`` (GPUs per node) and
+``env.nnodes``; their product affects recipe scaling only. Both default to ``None``; incomplete pairs raise an error.
 
-To override recipe scaling through Hydra, pass both ``env.ngpus`` (GPUs per node) and
-``env.nnodes``. For example, ``env.ngpus=8 env.nnodes=2`` and
-``env.ngpus=4 env.nnodes=4`` both scale the recipe for 16 GPUs. These fields change the training
-budget and schedules; they do not change the number of launched workers. Both fields default to
-``None``, which selects ``WORLD_SIZE``. Supplying only one raises an error instead of combining an
-override with a rank's local topology.
-
-For a scaling count N (``WORLD_SIZE``, or the explicit ``env.ngpus * env.nnodes``), the recipe selects
-50,000 / N iterations and saves every 250 / N iterations, rounding both up. Eight GPUs use 6,250
-iterations and save every 32 iterations; 16 GPUs use 3,125 iterations and save every 16 iterations.
-All six fixed-step curricula divide their boundaries by N,
-rounding up to a whole step. These values are computed after Hydra applies overrides, so an explicit
-``agent.max_iterations``, ``agent.save_interval``, or curriculum-stage override still takes precedence.
-
-With automatic rank detection and 4,096 environments per GPU, the total sample budget matches the
-single-GPU run, rounded up to a full distributed rollout. Larger optimizer batches can still change
-convergence. Terrain progression remains episode-based, and the 24-step rollout length and PPO
-settings are unchanged.
+Select actual workers with ``--num_gpus`` (per node) and ``--nnodes``; see :ref:`multi-node-training`.
+Single-GPU defaults, the 24-step rollout and PPO settings are unchanged. Terrain progression remains
+episode-based. Larger optimizer batches can change convergence despite the matching sample budget.
 
 Previous walking recipe
 -----------------------

@@ -466,12 +466,7 @@ def resolve_task_config(
 
     @hydra.main(config_path=None, config_name=task, version_base="1.3")
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
-        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        update_from_dict(env_cfg, hydra_cfg["env"])
-        if isinstance(agent_cfg, dict) or agent_cfg is None:
-            agent_cfg = hydra_cfg["agent"]
-        else:
-            agent_cfg.from_dict(hydra_cfg["agent"])
+        env_cfg, agent_cfg = _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg)
         resolved.update(env_cfg=replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg=agent_cfg)
 
     try:
@@ -618,17 +613,23 @@ def register_task(
     hydra_cfg = OmegaConf.create(cfg_dict)
 
     if not hydra_args:
-        cfg_dict = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        update_from_dict(env_cfg, cfg_dict["env"])
-        if isinstance(agent_cfg, dict) or agent_cfg is None:
-            agent_cfg = cfg_dict["agent"]
-        else:
-            update_from_dict(agent_cfg, cfg_dict["agent"])
+        env_cfg, agent_cfg = _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg)
         return env_cfg, agent_cfg, hydra_args
 
     # Register plain config (no groups) - Hydra only handles global scalars
     ConfigStore.instance().store(name=task_name, node=hydra_cfg)
     return env_cfg, agent_cfg, hydra_args
+
+
+def _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg) -> tuple:
+    """Apply resolved values while preserving environment and agent configclass instances."""
+    cfg_dict = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
+    update_from_dict(env_cfg, cfg_dict["env"])
+    if isinstance(agent_cfg, dict) or agent_cfg is None:
+        agent_cfg = cfg_dict["agent"]
+    else:
+        update_from_dict(agent_cfg, cfg_dict["agent"])
+    return env_cfg, agent_cfg
 
 
 def _setattr(obj, path: str, val):
