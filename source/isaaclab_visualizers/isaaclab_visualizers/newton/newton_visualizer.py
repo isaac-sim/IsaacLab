@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import logging
 import math
 import os
@@ -75,6 +76,56 @@ VISUALIZER_DOCS_URL = "https://isaac-sim.github.io/IsaacLab/main/source/concepts
 """Published documentation of the visualizers, opened from the viewer's HUD."""
 
 _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
+
+
+_MARKER_TIPS = {
+    "velocity_goal": "Commanded base velocity",
+    "velocity_current": "Current base velocity",
+    "goal_pose": "Commanded goal pose",
+    "pose_goal": "Commanded goal pose",
+    "body_pose": "Current pose of the commanded body",
+    "current_pose": "Current pose of the commanded body",
+    "goal_marker": "Goal the task asks the object to reach",
+    "Goal": "Goal position",
+    "ee_goal": "Goal pose of the end effector",
+    "ee_current": "Current pose of the end effector",
+    "SuccessMarkers": "Marks environments that succeeded",
+    "Policy_Heightmap": "Height scan the policy observes",
+    "TerrainOrigin": "Origin of each terrain tile",
+    "DeformableTarget": "Target of the deformable object",
+    "RayCaster": "Points hit by the ray-caster sensor",
+    "ContactSensor": "Contact points reported by a contact sensor",
+    "FrameTransformer": "Frames tracked by a frame transformer sensor",
+    "EndEffectorFrameTransformer": "End-effector frame tracked by a frame transformer sensor",
+    "CabinetFrameTransformer": "Cabinet frames tracked by a frame transformer sensor",
+    "HandJointMarkers": "Hand joint positions from the hand tracker",
+}
+"""What each marker group shows, by the last component of its prim path."""
+
+
+def marker_tooltip(prim_path: str) -> str:
+    """Return a short description of the marker group at ``prim_path``, or a generic line when unknown."""
+    return _MARKER_TIPS.get(prim_path.rsplit("/", 1)[-1], "Show or hide this marker group")
+
+
+def term_summary(manager, term: str) -> str:
+    """Return the first docstring line of a manager term's function, or an empty string when it has none.
+
+    Args:
+        manager: Environment manager that owns the term.
+        term: Name of the term within the manager.
+    """
+    for getter in ("get_term_cfg", "get_term"):
+        try:
+            found = getattr(manager, getter)(term)
+        except Exception:  # Not every manager has the accessor, and some take a group as well.
+            continue
+        target = getattr(found, "func", found)
+        doc = inspect.getdoc(target) or ""
+        line = next((line.strip() for line in doc.splitlines() if line.strip()), "")
+        if line and not line.startswith(("Initialize self", "Initialise self")):
+            return line if len(line) <= 120 else line[:117] + "..."
+    return ""
 
 
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
@@ -405,7 +456,7 @@ class NewtonViewerGL(ViewerGL):
         for marker in groups:
             name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
             changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
-            hover_tooltip(imgui, "Show or hide this marker group")
+            hover_tooltip(imgui, marker_tooltip(marker.cfg.prim_path))
             if changed:
                 marker.set_visibility(visible)
         if len(groups) > 1:
@@ -1600,7 +1651,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         for base_name in sorted(groups, key=lambda name: not name.startswith("episode/")):
             term_label = base_name.rsplit("/", 1)[-1]
-            if not imgui.collapsing_header(term_label):
+            shown = imgui.collapsing_header(term_label)
+            hover_tooltip(imgui, self._live_plot_tooltip(base_name))
+            if not shown:
                 continue
             if implot.begin_plot(f"##{base_name}", imgui.ImVec2(-1, 180 * scale)):
                 auto = implot.AxisFlags_.auto_fit.value
@@ -1618,8 +1671,19 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         panel_width = imgui.get_content_region_avail().x
         for name, array in plots._array_buffers.items():
-            if imgui.collapsing_header(name):
+            shown = imgui.collapsing_header(name)
+            hover_tooltip(imgui, self._live_plot_tooltip(name))
+            if shown:
                 plots._render_array_heatmap(imgui, name, array, panel_width - 20 * scale, dpi_scale=scale)
+
+    def _live_plot_tooltip(self, name: str) -> str:
+        """Describe a plotted ``<manager>/<term>`` from the term's docstring, or name where it comes from."""
+        manager_name, _, term = name.partition("/")
+        source = next((source for source in self._live_plot_sources if source.manager_name == manager_name), None)
+        if source is None or not term:
+            return name
+        summary = term_summary(getattr(source, "_manager", None), term)
+        return summary or f"{term} from the {manager_name.replace('_', ' ')}"
 
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Newton viewer's built-in plot panel."""

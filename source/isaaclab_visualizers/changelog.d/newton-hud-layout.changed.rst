@@ -20,3 +20,5 @@
   Newton GL HUD as "Keyboard & Mouse", and removed the OVRTX viewer camera from the Camera Source list, since the
   Renderer toggle selects it. A relative recording output folder now lands in the repository when running from a
   source checkout.
+* Added tooltips to each visualization marker group, from a short description of the core markers, and to each live
+  plot, from the first docstring line of the plotted manager term.

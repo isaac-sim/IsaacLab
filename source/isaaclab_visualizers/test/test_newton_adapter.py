@@ -1349,3 +1349,35 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])
+
+
+def test_marker_tooltip_describes_known_markers_and_falls_back():
+    from isaaclab_visualizers.newton.newton_visualizer import marker_tooltip
+
+    assert marker_tooltip("/Visuals/Command/velocity_goal") == "Commanded base velocity"
+    assert marker_tooltip("/Visuals/Brand_New_Marker") == "Show or hide this marker group"
+
+
+def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
+    from isaaclab_visualizers.newton.newton_visualizer import term_summary
+
+    def track_velocity(env):
+        """Reward tracking of the commanded velocity.
+
+        More detail that the tooltip leaves out.
+        """
+
+    def undocumented(env):
+        pass
+
+    class Manager:
+        terms = {"track": SimpleNamespace(func=track_velocity), "plain": SimpleNamespace(func=undocumented)}
+
+        def get_term_cfg(self, name):
+            return self.terms[name]
+
+    manager = Manager()
+    assert term_summary(manager, "track") == "Reward tracking of the commanded velocity."
+    assert term_summary(manager, "plain") == ""
+    assert term_summary(manager, "missing") == ""
+    assert term_summary(object(), "anything") == ""  # Managers without a term accessor.
