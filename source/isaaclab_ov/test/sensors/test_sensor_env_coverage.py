@@ -22,8 +22,6 @@ from isaaclab.sensors import (  # noqa: E402
     ContactSensorCfg,
     FrameTransformerCfg,
     JointWrenchSensorCfg,
-    RayCasterCfg,
-    patterns,
 )
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
@@ -31,7 +29,7 @@ from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
-SENSORS = ("contact", "frame_transformer", "joint_wrench", "ray_caster")
+SENSORS = ("contact", "frame_transformer", "joint_wrench")
 
 
 @configclass
@@ -65,12 +63,6 @@ class _PartialAssetSceneCfg(InteractiveSceneCfg):
         target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Crate", name="crate")],
     )
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-    # the ray caster's check is shared with PhysX, but its frame count comes from the OVPhysX binding
-    ray_caster = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Crate",
-        mesh_prim_paths=["/World/ground"],
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(0.0, 0.0)),
-    )
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))

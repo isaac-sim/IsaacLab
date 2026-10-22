@@ -62,8 +62,8 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
 
 # Default development branch referenced by installation documentation.
 isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "main")
-isaaclab_wheel_version = "3.0.0rc1"
-isaaclab_wheel_source_tag = "v3.0.0-EA"
+isaaclab_wheel_version = "3.0.0"
+isaaclab_wheel_source_tag = "v3.0.0"
 
 
 def _read_pinned_versions() -> dict:
@@ -356,6 +356,10 @@ html_js_files = [
 ]
 
 html_theme_options = {
+    "announcement": (
+        '<a href="https://docs.nvidia.com/isaaclab">Explore our AI-friendly Fern documentation</a>'
+        " &mdash; Chat with AI about Isaac Lab and access machine-readable docs."
+    ),
     "path_to_docs": "docs/",
     "navbar_persistent": [],
     "collapse_navigation": True,
@@ -400,7 +404,7 @@ templates_path = [
 # Whitelist pattern for remotes
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
-smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop|release/.*)$")
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop)$")
 # Whitelist pattern for tags (set to None to ignore all tags).
 # Matches vMAJOR.MINOR.PATCH with an optional pre-release suffix like -beta or -rc1,
 # so tags like v3.0.0-beta show up in the version selector.

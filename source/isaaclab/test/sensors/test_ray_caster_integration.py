@@ -23,6 +23,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(enable_cameras=True)
 
 import copy
+import math
 from typing import Any, cast
 
 import numpy as np
@@ -33,7 +34,10 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab.cloner import CloneCfg, ClonePlan, InclusionSet, PrototypeWorldTopology
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
@@ -45,6 +49,8 @@ from isaaclab.sensors.ray_caster import (
 )
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.utils import instantiate
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
 
@@ -274,37 +280,39 @@ def test_multi_mesh_camera_d2ip_and_d2c_independent(sim_ground_camera):
 
 
 @pytest.mark.isaacsim_ci
-def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground):
-    """ClonePlan supplies source geometry while PhysX supplies per-env object poses."""
+def test_multi_mesh_tracks_heterogeneous_links_from_clone_sources(sim_ground):
+    """Exact body bindings preserve reordered links, missing target slots and static ground geometry."""
     sim = sim_ground
     num_envs = 3
     stage = sim_utils.get_current_stage()
-
-    def _create_object_body(path: str) -> None:
-        sim_utils.create_prim(path, "Xform", stage=stage)
-        body_prim = cast(Any, stage.GetPrimAtPath(path))
-        UsdPhysics.RigidBodyAPI.Apply(body_prim)
-        mass_api = cast(Any, UsdPhysics.MassAPI.Apply(body_prim))
-        mass_api.CreateMassAttr().Set(1.0)
-        body_prim.GetAttribute("physics:kinematicEnabled").Set(True)
-        collision = cast(Any, UsdGeom.Cube.Define(stage, f"{path}/Collision"))
-        collision.CreateSizeAttr().Set(0.1)
-        UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(f"{path}/Collision"))
+    link_x = {"base": 0.0, "link_a": 0.5, "link_b": 1.0}
+    link_size = {"base": 0.1, "link_a": 0.1, "link_b": 0.2}
 
     sim_utils.create_prim("/World/envs", "Xform", stage=stage)
-    for env_id in range(num_envs):
-        sim_utils.create_prim(f"/World/envs/env_{env_id}", "Xform", translation=(3.0 * env_id, 0.0, 0.0), stage=stage)
-        sim_utils.create_prim(f"/World/envs/env_{env_id}/Sensor", "Xform", translation=(0.0, 0.0, 3.0), stage=stage)
-        _create_object_body(f"/World/envs/env_{env_id}/Object")
+    for env_id, links in enumerate((("link_a", "link_b"), ("link_a",), ("link_b", "link_a"))):
+        env_path = f"/World/envs/env_{env_id}"
+        sim_utils.create_prim(env_path, "Xform", translation=(3.0 * env_id, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"{env_path}/Sensor", "Xform", translation=(0.75, 0.0, 2.0), stage=stage)
+        sim_utils.create_prim(f"{env_path}/Chain", "Xform", stage=stage)
+        UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath(f"{env_path}/Chain"))
+        for link in ("base", *links):
+            link_path = f"{env_path}/Chain/{link}"
+            sim_utils.create_prim(link_path, "Xform", translation=(link_x[link], 0.0, 1.0), stage=stage)
+            UsdPhysics.RigidBodyAPI.Apply(stage.GetPrimAtPath(link_path))
+            box = UsdGeom.Cube.Define(stage, f"{link_path}/Collision")
+            box.CreateSizeAttr(link_size[link])
+            UsdPhysics.CollisionAPI.Apply(box.GetPrim())
+            # Env 2 has native bodies but takes its visual geometry from the env 0 prototype.
+            if env_id != 2:
+                UsdGeom.Cube.Define(stage, f"{link_path}/visuals").CreateSizeAttr(link_size[link])
+            joint = UsdPhysics.FixedJoint.Define(stage, f"{env_path}/Chain/joint_{link}")
+            if link == "base":
+                joint.CreateLocalPos0Attr((3.0 * env_id, 0.0, 1.0))
+            else:
+                joint.CreateBody0Rel().SetTargets([f"{env_path}/Chain/base"])
+                joint.CreateLocalPos0Attr((link_x[link], 0.0, 0.0))
+            joint.CreateBody1Rel().SetTargets([link_path])
 
-    # Representative source assets live in the first concrete cloned instances,
-    # matching the scene convention used by the cloner. Env 2 has an object
-    # body for backend pose tracking, but intentionally has no destination mesh.
-    _spawn_cube_part("/World/envs/env_0/Object/part_0", (0.0, 0.0, 0.0))
-    _spawn_cube_part("/World/envs/env_1/Object/part_0", (0.0, 0.0, 0.0))
-
-    # This test intentionally does not author /env_2/Object/part_0. ClonePlan
-    # selects source geometry; the object body view supplies env_2's live pose.
     plan = ClonePlan(
         PrototypeWorldTopology(
             num_asset_prototypes=2,
@@ -312,46 +320,64 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
             world_prototype_starts=np.array([0, 0, 1, 2]),
             world_prototype_layout=np.array([0, 1, 0]),
         ),
-        asset_cfgs=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2,
+        asset_cfgs=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Chain"),) * 2,
     )
     sim.set_clone_plan(plan)
 
     cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Sensor",
         mesh_prim_paths=[
+            _GROUND_PATH,
             MultiMeshRayCasterCfg.RaycastTargetCfg(
-                prim_expr="{ENV_REGEX_NS}/Object/part_[^/]*",
+                prim_expr="{ENV_REGEX_NS}/Chain/link_[^/]*/visuals",
                 track_mesh_transforms=True,
             ),
         ],
         update_period=0,
-        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
         debug_vis=False,
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.5, size=(1.0, 0.0), direction=(0.0, 0.0, -1.0)),
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.5, size=(0.5, 0.0), direction=(0.0, 0.0, -1.0)),
         ray_alignment="world",
     )
     sensor = MultiMeshRayCaster(cfg)
     sim.reset()
     sensor.update(_DT, force_recompute=True)
 
-    env0_object = stage.GetPrimAtPath("/World/envs/env_0/Object")
-    env1_object = stage.GetPrimAtPath("/World/envs/env_1/Object")
-    assert env0_object is not None and env0_object.IsValid()
-    assert env1_object is not None and env1_object.IsValid()
-    env2_part = stage.GetPrimAtPath("/World/envs/env_2/Object/part_0")
-    assert env2_part is None or not env2_part.IsValid()
+    assert not stage.GetPrimAtPath("/World/envs/env_2/Chain/link_a/visuals")
+    expected = torch.tensor(
+        [[[3.0 * env_id + 0.5, 0.0, 1.05], [3.0 * env_id + 1.0, 0.0, 1.1]] for env_id in range(num_envs)]
+    )
+    expected[1, 1, 2] = 0.0
+    torch.testing.assert_close(sensor.data.ray_hits_w.torch.cpu(), expected, atol=1e-3, rtol=0.0)
 
-    # Geometry is selected from ClonePlan entries, but poses come from the batched object view.
-    mesh_ids = wp.to_torch(sensor._mesh_ids_wp).cpu()
-    mesh_positions = wp.to_torch(sensor._mesh_positions_w).cpu()
-    assert sensor._mesh_ids_wp.shape == (num_envs, 1)
-    assert mesh_ids[2, 0] == mesh_ids[0, 0]
-    torch.testing.assert_close(mesh_positions[:, 0, 0], torch.tensor([0.0, 3.0, 6.0]), atol=0.15, rtol=0.0)
 
-    hits = sensor.data.ray_hits_w.torch
-    assert torch.isfinite(hits[0]).any(), "env_0 should hit the env_0 source geometry"
-    assert torch.isfinite(hits[1]).any(), "env_1 should hit the env_1 source geometry"
-    assert torch.isfinite(hits[2]).any(), "env_2 should hit env_0 geometry at env_2's backend object pose"
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("rigid_mount", [False, True], ids=["static_frames", "rigid_bodies"])
+def test_ray_caster_rejects_mounts_missing_from_environments(sim_ground, rigid_mount):
+    """Mounts from a subset of worlds cannot fill the sensor rows used by environment resets."""
+    scene_cfg = InteractiveSceneCfg(
+        num_envs=4,
+        env_spacing=2.0,
+        clone_cfg=CloneCfg(clone_combinations=[InclusionSet(assets=["frame_a", "frame_b"]), InclusionSet(assets=[])]),
+    )
+    for name in ("a", "b"):
+        setattr(
+            scene_cfg,
+            f"frame_{name}",
+            AssetBaseCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Frame{name.upper()}",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.1, 0.1, 0.1),
+                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg() if rigid_mount else None,
+                    mass_props=sim_utils.MassCfg(mass=1.0) if rigid_mount else None,
+                    collision_props=sim_utils.UsdPhysicsCollisionCfg() if rigid_mount else None,
+                ),
+            ),
+        )
+    scene_cfg.scanner = _single_downward_ray_cfg("{ENV_REGEX_NS}/Frame[AB]")
+    scene = instantiate(scene_cfg)
+    with pytest.raises(RuntimeError, match="found 2 instances in 4 environments"):
+        sim_ground.reset()
+    assert not scene["scanner"].is_initialized
 
 
 @pytest.mark.isaacsim_ci
@@ -485,3 +511,72 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
         atol=0.15,
         err_msg="Ray hit should include the child mesh offset baked into the Warp geometry.",
     )
+
+
+# ---------------------------------------------------------------------------
+# Articulation child links after state writes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_ray_casters_read_link_pose_after_joint_write(sim_ground):
+    """Ray casters report an articulation child link at its written pose before the next step.
+
+    Environments reset inside ``step()`` and read observations before the next physics step, while the
+    GPU pipeline defers the child-link pose update of articulation writes. ``Arm`` is a 2 m bar on a
+    revolute joint about the Y axis, with the pivot fixed at (0, 0, 1).
+    """
+    sim = sim_ground
+    robot = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd"
+            ),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+        )
+    )
+    # The standard and the multi-mesh ray casters read their mount pose through separate paths.
+    ray_caster = RayCaster(_single_downward_ray_cfg("/World/Robot/Arm"))
+    multi_mesh_ray_caster = MultiMeshRayCaster(
+        MultiMeshRayCasterCfg(
+            prim_path="/World/Robot/Arm",
+            mesh_prim_paths=[_GROUND_PATH],
+            pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(0.0, 0.0), direction=(0.0, 0.0, -1.0)),
+            ray_alignment="world",
+        )
+    )
+    # A static scanner tracks the arm mesh with downward rays at x = -1 m and x = 1 m.
+    sim_utils.create_prim("/World/Scanner", "Xform", translation=(0.0, 0.0, 3.0))
+    scanner = MultiMeshRayCaster(
+        MultiMeshRayCasterCfg(
+            prim_path="/World/Scanner",
+            mesh_prim_paths=[
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/Robot/Arm", track_mesh_transforms=True)
+            ],
+            pattern_cfg=patterns.GridPatternCfg(resolution=2.0, size=(2.0, 0.0), direction=(0.0, 0.0, -1.0)),
+            ray_alignment="world",
+        )
+    )
+    sim.reset()
+    arm = robot.find_bodies("Arm")[0][0]
+
+    def step_and_write_joint_position(position: float) -> None:
+        sim.step(render=False)
+        robot.update(_DT)
+        for sensor in (ray_caster, multi_mesh_ray_caster, scanner):
+            sensor.update(_DT)
+        robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, position))
+
+    # Read one sensor first after each write: an asset body getter would update the kinematics itself.
+    for sensor, position in ((ray_caster, 0.5), (multi_mesh_ray_caster, -0.5)):
+        step_and_write_joint_position(position)
+        pose_w = torch.cat([sensor.data.pos_w.torch, sensor.data.quat_w.torch], dim=-1)
+        torch.testing.assert_close(pose_w, robot.data.body_link_pose_w.torch[:, arm])
+
+    # Pointing the arm along -x puts its top face (z = 1.05 m) under the first ray only.
+    step_and_write_joint_position(math.pi)
+    hits = scanner.data.ray_hits_w.torch[0]
+    torch.testing.assert_close(hits[0], torch.tensor([-1.0, 0.0, 1.05], device=hits.device), atol=1e-3, rtol=0.0)
+    assert torch.isinf(hits[1]).all()

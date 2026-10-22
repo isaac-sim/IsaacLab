@@ -17,6 +17,7 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -34,8 +35,11 @@ from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 from isaaclab_assets.robots.universal_robots import UR10_CFG
 
@@ -610,7 +614,15 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     heightmap_shape: tuple[int, int] = (50, 86)
     heightmap_history_steps: int = 4
     scene: UR10ParticlePushSceneCfg = UR10ParticlePushSceneCfg(num_envs=64, env_spacing=3.0)
-    sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        render_interval=decimation,
+        visualizer_cfgs=VisualizerCfg(
+            eye=(1.7, 1.5, 1.0),
+            lookat=(0.55, 0.0, 0.0),
+            backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
+        ),
+    )
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
     rewards: RewardsCfg = RewardsCfg()
@@ -955,14 +967,6 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         self._validate_runtime_config()
 
     def __post_init__(self) -> None:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        self.sim.default_visualizer_cfg = KitVisualizerCfg(
-            eye=(1.7, 1.5, 1.0),
-            lookat=(0.55, 0.0, 0.0),
-            origin_type="env",
-            origin_env_index=0,
-        )
         self.sim.physics = NewtonCfg(
             solver_cfg=CouplerProxyCfg(
                 entries=[

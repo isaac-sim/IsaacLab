@@ -150,12 +150,16 @@ class BaseRayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
+        self._scene_data_provider = self._sim.get_scene_data_provider()
         self._initialize_pose_tracking()
         if not hasattr(self, "_view_count"):
             view: Any = self._view
             self._view_count = view.count
-        # the update kernels run over the environments, one sensor frame each
-        self._check_env_count(self._view_count)
+        if self._view_count != self._num_envs:
+            raise RuntimeError(
+                f"{type(self).__name__} at '{self.cfg.prim_path}' found {self._view_count} instances in"
+                f" {self._num_envs} environments, expected one mount in every environment."
+            )
 
         # Resolve alignment mode to integer constant for kernel dispatch
         alignment_map = {"world": 0, "yaw": 1, "base": 2}
