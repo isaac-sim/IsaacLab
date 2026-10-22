@@ -26,7 +26,7 @@ continues from there onto hardware. The inference stage is unchanged — it is t
 
 .. raw:: html
 
-   <div style="display: flex; gap: 1rem; margin: 1rem 0;">
+   <div style="display: flex; flex-direction: column; gap: 1rem; margin: 1rem 0;">
      <a href="https://github.com/Double7sBurger/IsaacLab/releases/download/g1-visual-locomotion-media/block_physx_vs_newton_vs_real.gif" style="flex: 1; min-width: 0;">
        <img src="https://github.com/Double7sBurger/IsaacLab/releases/download/g1-visual-locomotion-media/block_physx_vs_newton_vs_real.gif" alt="G1 on blocks: PhysX, Newton (MJWarp), and real robot" style="width: 100%; height: auto;">
      </a>
