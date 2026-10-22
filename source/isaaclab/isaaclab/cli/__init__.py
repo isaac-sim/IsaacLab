@@ -5,6 +5,7 @@
 
 import argparse
 import importlib.metadata
+import logging
 import os
 import sys
 from pathlib import Path
@@ -28,6 +29,8 @@ from .utils import (
     run_python_command,
 )
 
+logger = logging.getLogger(__name__)
+
 _TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
 
 
@@ -42,9 +45,16 @@ def load_external_tasks() -> None:
 
     Load the ``isaaclab.tasks`` entry points before looking up registered task IDs.
     Entry points should reference modules so repeated discovery uses Python's import cache.
+    A package that fails to import is reported with a warning, so one broken package cannot stop
+    every workflow.
     """
     for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
-        entry_point.load()
+        try:
+            entry_point.load()
+        except Exception:
+            logger.warning(
+                f"The '{entry_point.name}' task entry point of {entry_point.dist.name} failed to load.", exc_info=True
+            )
 
 
 def train(args: list[str] | None = None) -> None:

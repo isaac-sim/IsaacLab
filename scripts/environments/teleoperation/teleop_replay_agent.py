@@ -402,7 +402,14 @@ from typing import Protocol, runtime_checkable
 import gymnasium as gym
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_control_events
+from isaaclab_teleop import (
+    CLOUDXR_AVP_ENV,
+    CLOUDXR_JS_ENV,
+    CLOUDXR_STANDALONE_ENV,
+    IsaacTeleopDevice,
+    create_isaac_teleop_device,
+    poll_control_events,
+)
 
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -413,7 +420,16 @@ from isaaclab_tasks.utils import parse_env_cfg
 
 logger = logging.getLogger(__name__)
 
-_CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
+# Resolve CLI profile names once; runtime construction receives a path or None.
+if args_cli.cloudxr_env is not None:
+    if not args_cli.cloudxr_env.strip() or args_cli.cloudxr_env.lower() == "none":
+        args_cli.cloudxr_env = None
+    else:
+        args_cli.cloudxr_env = {
+            "cloudxrjs": CLOUDXR_JS_ENV,
+            "avp": CLOUDXR_AVP_ENV,
+            "standalone": CLOUDXR_STANDALONE_ENV,
+        }.get(args_cli.cloudxr_env.lower(), args_cli.cloudxr_env)
 
 
 # ----------------------------------------------------------------------
@@ -943,26 +959,6 @@ def _exit_code_for_outcomes(all_runs: list[_RunStats]) -> int:
     if "timeout" in outcomes:
         return 2
     return 1  # any "failure" or "incomplete"
-
-
-def _resolve_cloudxr_env(value: str | None) -> str | None:
-    """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
-
-    Resolves the same short names (``"cloudxrjs"``, ``"avp"``, ``"standalone"``) to
-    the same absolute paths as :func:`scripts.tools.record_demos._resolve_cloudxr_env`.
-    The two differ on ``None``: that function auto-defaults a profile from ``--xr``,
-    whereas replay treats ``None`` (like ``"none"`` / empty) as "no CloudXR". Any other
-    value is returned unchanged.
-    """
-    if value is None or value.strip() == "" or value.lower() == "none":
-        return None
-    if not _CLOUDXR_ENV_SHORTHANDS:
-        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
-
-        _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
-        _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
-        _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
-    return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
 def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
@@ -1544,9 +1540,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
         # ``_run_single_replay``). This is what lets ``--num_replays > 1``
         # work in XR-active mode without losing the OpenXR runtime
         # IPC between runs.
-        cloudxr_launcher = _maybe_launch_cloudxr(
-            _resolve_cloudxr_env(args_cli.cloudxr_env), args_cli.auto_launch_cloudxr
-        )
+        cloudxr_launcher = _maybe_launch_cloudxr(args_cli.cloudxr_env, args_cli.auto_launch_cloudxr)
 
         if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
             from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
