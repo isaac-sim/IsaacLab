@@ -26,6 +26,12 @@ def test_rendering_is_downstream_and_task_independent() -> None:
         for extra in runtime.get("optional-dependencies", {}).values():
             dependencies.extend(extra)
         assert project["project"]["name"] not in {Requirement(dep).name for dep in dependencies}
+    for obsolete in (
+        "isaaclab_tasks/test/rendering_test_utils.py",
+        "isaaclab_visualizers/test/visualizer_integration_utils.py",
+        "isaaclab_visualizers/test/visualizer_golden_utils.py",
+    ):
+        assert not (_SOURCE / obsolete).exists(), obsolete
     for file in _SUITE.glob("*.py"):
         for node in ast.walk(ast.parse(file.read_text())):
             imports = [alias.name for alias in node.names] if isinstance(node, ast.Import) else []

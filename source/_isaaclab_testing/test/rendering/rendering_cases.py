@@ -124,14 +124,16 @@ SPECIALIZED_SCENE_COVERAGE = {
             RenderBufferKind.SEMANTIC_SEGMENTATION,
         ),
         ("physx",),
-        (),
+        ("ovphysx", "newton"),
     ),
     "shadow_hand": SceneCoverage(
         (RenderBufferKind.RGB, RenderBufferKind.SEMANTIC_SEGMENTATION, RenderBufferKind.INSTANCE_SEGMENTATION),
         ("physx", "newton"),
         ("ovphysx", "newton"),
     ),
-    "kuka_heterogeneous": SceneCoverage((RenderBufferKind.RGB, RenderBufferKind.INSTANCE_SEGMENTATION), ("physx",), ()),
+    "kuka_heterogeneous": SceneCoverage(
+        (RenderBufferKind.RGB, RenderBufferKind.INSTANCE_SEGMENTATION), ("physx",), ("newton",)
+    ),
     "franka_cloth": SceneCoverage((RenderBufferKind.RGB, RenderBufferKind.MOTION_VECTORS), ("newton",), ("newton",)),
     "franka_soft": SceneCoverage((RenderBufferKind.RGB, RenderBufferKind.MOTION_VECTORS), ("newton",), ("newton",)),
 }
@@ -168,5 +170,49 @@ SPECIALIZED_KITLESS_CASES = tuple(
     )
     for stage in (("legacy", "ovstage") if case.renderer == "ovrtx" else ("legacy",))
 )
-KIT_RENDERING_CASES = KIT_CASES + SPECIALIZED_KIT_CASES
-KITLESS_RENDERING_CASES = KITLESS_CASES + SPECIALIZED_KITLESS_CASES
+# Cable instance segmentation crashes native OVRTX (NVBUG#6463802); exercise its other channels.
+_CABLE_AOVS = (RenderBufferKind.RGB, RenderBufferKind.ALBEDO, RenderBufferKind.DEPTH, RenderBufferKind.NORMALS)
+KIT_RENDERING_CASES = (
+    KIT_CASES
+    + SPECIALIZED_KIT_CASES
+    + (
+        RenderCase(
+            "newton",
+            "isaac_rtx",
+            (RenderBufferKind.RGB, RenderBufferKind.INSTANCE_SEGMENTATION),
+            scene="kuka_heterogeneous",
+        ),
+        *(
+            RenderCase("physx", renderer, (RenderBufferKind.RGB,), scene="franka_cloth")
+            for renderer in ("isaac_rtx", "newton_warp")
+        ),
+        RenderCase(
+            "newton", "isaac_rtx", _CABLE_AOVS + (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST,), scene="franka_cable"
+        ),
+        RenderCase("newton", "newton_warp", (RenderBufferKind.RGB, RenderBufferKind.DEPTH), scene="franka_cable"),
+        RenderCase(
+            "newton", "isaac_rtx", (RenderBufferKind.RGB, RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST), scene="mpm"
+        ),
+        RenderCase("physx", "isaac_rtx", (RenderBufferKind.RGB,), scene="kuka_materials"),
+    )
+)
+KITLESS_RENDERING_CASES = (
+    KITLESS_CASES
+    + SPECIALIZED_KITLESS_CASES
+    + (
+        *((stage, RenderCase("newton", "ovrtx", _CABLE_AOVS, scene="franka_cable")) for stage in ("legacy", "ovstage")),
+        ("legacy", RenderCase("newton", "newton_warp", (RenderBufferKind.RGB,), scene="kuka_materials")),
+        (
+            "legacy",
+            RenderCase("newton", "newton_warp", (RenderBufferKind.RGB, RenderBufferKind.DEPTH), scene="franka_cable"),
+        ),
+        *(
+            (stage, RenderCase("newton", "ovrtx", (RenderBufferKind.RGB,), scene="kuka_materials"))
+            for stage in ("legacy", "ovstage")
+        ),
+        *(
+            ("legacy", RenderCase(physics, "ovrtx", (RenderBufferKind.RGB,), scene="cartpole", variant="async"))
+            for physics in ("newton", "ovphysx")
+        ),
+    )
+)

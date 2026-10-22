@@ -17,6 +17,7 @@ from rendering_cases import RenderCase
 from rendering_runtime import SEMANTIC_COLORS, build_rendering_scene
 from rendering_scene_cfgs import make_rendering_scene_spec
 
+from isaaclab.assets import VisualMaterial
 from isaaclab.renderers.output_contract import RenderBufferKind
 from isaaclab.utils.seed import configure_seed
 
@@ -51,9 +52,34 @@ def run_rendering_case(
         data_types=case.aovs,
         background_color=case.background_color,
         physics_cfg=scene.physics_cfg,
+        async_rendering=case.variant == "async",
     ) as runtime:
+        if case.scene in ("franka_cable", "mpm"):
+            for _ in range(3):
+                runtime.step(render=False)
         runtime.stabilize_camera()
+        if case.scene == "kuka_materials":
+            before = runtime.camera.data.output["rgb"].torch.clone()
+            materials = tuple(runtime.scene.visual_materials.values())
+            if case.renderer == "isaac_rtx":
+                usd_inputs = tuple(
+                    runtime.sim.stage.GetAttributeAtPath(f"{path}.inputs:{material._input_names['color']}")
+                    for material in materials
+                    for path in material._shader_paths
+                )
+                authored_colors = tuple(attribute.Get() for attribute in usd_inputs)
+            colors = (torch.rand((len(materials), runtime.scene.num_envs, 3)) * 0.9 + 0.05).to(runtime.sim.device)
+            VisualMaterial.write_channels(materials, {"color": colors})
+            runtime.stabilize_camera()
+            assert (before != runtime.camera.data.output["rgb"].torch).any(), "Material writes did not reach pixels"
+            if case.renderer == "isaac_rtx":
+                assert tuple(attribute.Get() for attribute in usd_inputs) == authored_colors
         outputs, info = runtime.camera_outputs()
+        if case.scene == "mpm":
+            rgb = outputs["rgb"].to(torch.int16)
+            blue = (rgb[..., 2] - rgb[..., 0] > 50) & (rgb[..., 2] - rgb[..., 1] > 20)
+            assert blue.flatten(1).sum(dim=1).min() > 20, "Every camera must see simulated particles"
+            assert outputs["instance_id_segmentation_fast"][..., 3][blue].count_nonzero() > 20
         if RenderBufferKind.MOTION_VECTORS in case.aovs:
             assert runtime.sim.get_physics_step_count() == 0
             runtime.step(render=False)

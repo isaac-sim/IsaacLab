@@ -10,10 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import torch
+from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
+    MPMSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
@@ -22,10 +25,21 @@ from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
+from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from isaaclab.assets import (
+    ArticulationCfg,
+    AssetBaseCfg,
+    CableObjectCfg,
+    DeformableObjectCfg,
+    RigidObjectCfg,
+    VisualMaterialCfg,
+)
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.output_contract import RenderBufferKind
 from isaaclab.scene import InteractiveSceneCfg
@@ -36,6 +50,7 @@ from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matr
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
+from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
@@ -557,6 +572,60 @@ class ShadowHandRenderingSceneCfg(RenderingSceneCfg):
     object: RigidObjectCfg = _SHADOW_OBJECT.copy()
 
 
+@configclass
+class FrankaCableRenderingSceneCfg(FrankaSoftRenderingSceneCfg):
+    """Simulated cable curves beside the rigid arm, without task reset/command machinery."""
+
+    deformable = None
+    cable = CableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cable",
+        spawn=sim_utils.CableCfg(
+            positions=[(0.03 * index, 0.0, 0.0) for index in range(13)],
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
+            physics_material=sim_utils.CableMaterialCfg(
+                thickness=0.01,
+                density=1000.0,
+                stretch_stiffness=1.0e6,
+                bend_stiffness=1.0e5,
+            ),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+        ),
+        init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
+    )
+
+
+@configclass
+class ParticleRenderingSceneCfg(RenderingSceneCfg):
+    """A visible MPM point cloud; cameras must consume its simulated geometry."""
+
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        width=128,
+        height=128,
+        offset=CameraCfg.OffsetCfg(pos=(0.0, -1.0, 0.5), rot=(2**-0.5, 0.0, 0.0, 2**-0.5), convention="opengl"),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 10.0)),
+    )
+    media = MPMObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Sand",
+        spawn=MPMGridCfg(
+            lower=(-0.1, -0.1, -0.1),
+            upper=(0.1, 0.1, 0.1),
+            voxel_size=0.04,
+            particle_placement="cell_center",
+            radius=0.015,
+            visual_color=(0.1, 0.4, 1.0),
+        ),
+        init_state=MPMObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+    )
+
+
+@configclass
+class AnymalRenderingSceneCfg(RenderingSceneCfg):
+    """Standing ANYmal used to compare viewport and tiled presentation."""
+
+    robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+
 @dataclass(frozen=True)
 class RenderingSceneSpec:
     """Scene-owned inputs and golden-image tolerances consumed by the shared runner."""
@@ -576,6 +645,58 @@ class RenderingSceneSpec:
 
 def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
     """Resolve scene-owned configuration while leaving lifecycle behavior to the runner."""
+    if scene == "franka_cable":
+        physics_cfg = NewtonCfg(
+            solver_cfg=CouplerProxyCfg(
+                entries=[
+                    CouplerEntryCfg(name="rigid", solver_cfg=MJWarpSolverCfg(), bodies=[r"/World/envs/env_.*/Robot"]),
+                    CouplerEntryCfg(
+                        name="cable",
+                        solver_cfg=VBDSolverCfg(iterations=10),
+                        bodies=[r"/World/envs/env_.*/Cable"],
+                        include_static_shapes=True,
+                    ),
+                ],
+                proxies=[CouplerProxyMappingCfg(source="rigid", destination="cable", bodies=_FRANKA_HAND_PROXY_BODIES)],
+                iterations=1,
+            ),
+            default_shape_cfg=NewtonShapeCfg(ke=2.5e3, kd=100.0, mu=10.0),
+            num_substeps=4,
+        )
+        cfg = FrankaCableRenderingSceneCfg(num_envs=4, env_spacing=3.0)
+        cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
+        return RenderingSceneSpec(cfg, physics_cfg=physics_cfg, image_max_diff_pct=8.0)
+    if scene == "mpm":
+        return RenderingSceneSpec(
+            ParticleRenderingSceneCfg(num_envs=4, env_spacing=3.0),
+            physics_cfg=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05), use_cuda_graph=False),
+        )
+    if scene == "kuka_materials":
+        cfg = KukaHeterogeneousRenderingSceneCfg(num_envs=4, env_spacing=3.0)
+        cfg.object = cfg.table = None
+        cfg.camera.offset = CameraCfg.OffsetCfg(
+            pos=(1.2, -1.2, 1.1),
+            rot=(0.5149, 0.2650, 0.3730, 0.7249),
+            convention="opengl",
+        )
+        cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
+        links = [
+            *(f"iiwa7_link_{i}/visuals" for i in range(8)),
+            "ee_link/palm_link/visuals",
+            *(
+                f"ee_link/{finger}_link_{i}/visuals"
+                for finger in ("index", "middle", "ring", "thumb")
+                for i in range(4)
+            ),
+        ]
+        bindings = {}
+        for index, link in enumerate(links):
+            name = f"link_{index}"
+            vars(cfg)[name] = VisualMaterialCfg(prim_path=f"{{ENV_REGEX_NS}}/Robot/{name}", spawn=sim_utils.PbrMdlCfg())
+            bindings[link] = f"./{name}"
+        spawn = cfg.robot.spawn.replace(activate_contact_sensors=False, visual_material_bindings=bindings)
+        cfg.robot.spawn = sim_utils.MultiAssetSpawnerCfg(assets_cfg=[spawn, spawn.copy()], random_choice=False)
+        return RenderingSceneSpec(cfg, image_max_diff_pct=10.0, min_ssim=0.95)
     if scene == "rendering_scene":
         return RenderingSceneSpec(
             cfg=RenderingTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=True),
@@ -598,8 +719,6 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
             image_tolerance_overrides={("isaac_rtx", RenderBufferKind.RGB): (8.0, 0.95)},
         )
     if scene in {"franka_soft", "franka_cloth"}:
-        if physics != "newton":
-            raise ValueError(f"{scene} rendering requires its shared Newton task composition.")
         scene_cfg_type, deformable, physics_cfg, max_diff_pct = {
             "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_NEWTON_PHYSICS, 12.0),
             "franka_cloth": (
@@ -612,6 +731,22 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
         # Match the former golden harness override so neighboring task markers stay outside every camera view.
         cfg = scene_cfg_type(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)
         cfg.deformable = deformable.copy()
+        if physics == "physx":
+            cfg.deformable.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
+            cfg.deformable.spawn.deformable_props = PhysxDeformableBodyPropertiesCfg()
+            cfg.deformable.spawn.collision_props = PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)
+            cfg.deformable.spawn.physics_material = PhysxSurfaceDeformableBodyMaterialCfg(
+                density=1000.0,
+                surface_thickness=0.001,
+                poissons_ratio=0.25,
+                youngs_modulus=1e6,
+                surface_bend_stiffness=1e6,
+                elasticity_damping=0.1,
+                bend_damping=0.1,
+                static_friction=10.0,
+                dynamic_friction=10.0,
+            )
+            physics_cfg = PhysxCfg(gpu_found_lost_pairs_capacity=2**22)
         cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
         return RenderingSceneSpec(
             cfg=cfg,

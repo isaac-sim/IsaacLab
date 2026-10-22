@@ -529,7 +529,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_visualizers"
+        filter-pattern: "isaaclab_visualizers,test_visualizers_kit.py,test_visualizers_rtx.py"
         warp-cache: restore
         ovrtx-shader-cache: restore
         test-jobs: "4"
@@ -821,9 +821,7 @@ jobs:
         include-files: >-
           test_rendering_kit.py,
           test_rendering_architecture.py,
-          test_golden_image.py,
-          test_rendering_franka_cable.py,
-          test_rendering_registered_tasks.py
+          test_golden_image.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         ovrtx-shader-cache: restore
@@ -866,9 +864,7 @@ jobs:
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_kitless.py,
-          test_rendering_cartpole_kitless.py,
-          test_rendering_franka_cable_kitless.py
+          test_rendering_kitless.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
@@ -910,9 +906,7 @@ jobs:
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_kitless.py,
-          test_rendering_cartpole_kitless.py,
-          test_rendering_franka_cable_kitless.py
+          test_rendering_kitless.py
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
@@ -1275,9 +1269,7 @@ jobs:
         extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_kit.py,
-          test_rendering_kitless.py,
-          test_rendering_cartpole_kitless.py,
-          test_rendering_franka_cable_kitless.py
+          test_rendering_kitless.py
         # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
         # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
         # which populates neither tree. The nodes are pinned by exact ID rather

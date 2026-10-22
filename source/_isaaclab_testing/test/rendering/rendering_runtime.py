@@ -11,6 +11,7 @@ import copy
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import torch
@@ -21,11 +22,13 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+from isaaclab.app import launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.utils import instantiate
+from isaaclab.visualizers import VisualizerCfg
 
 SEMANTIC_COLORS = {
     "class:ground": (94, 112, 131, 255),
@@ -91,9 +94,11 @@ def build_rendering_scene(
     background_color: tuple[float, float, float] | None = None,
     physics_cfg: PhysicsCfg | None = None,
     device: str = "cuda:0",
+    visualizer_cfgs: Sequence[VisualizerCfg] = (),
+    async_rendering: bool = False,
 ) -> Iterator[RenderingScene]:
     """Build a caller-owned rendering scene without an RL/task environment."""
-    scene_cfg = scene_cfg.copy()
+    scene_cfg = copy.deepcopy(scene_cfg)
     scene_cfg.camera.data_types = list(data_types)
     scene_cfg.camera.background_color = background_color
     scene_cfg.camera.renderer_cfg = {
@@ -101,7 +106,7 @@ def build_rendering_scene(
         "newton_warp": NewtonWarpRendererCfg(
             render_order="pixel_priority", semantic_filter=["class"], semantic_segmentation_mapping=SEMANTIC_COLORS
         ),
-        "ovrtx": OVRTXRendererCfg(enable_shadows=True),
+        "ovrtx": OVRTXRendererCfg(enable_shadows=True, async_rendering=async_rendering),
     }[renderer]
     if physics_cfg is None:
         physics_cfg = {
@@ -113,9 +118,12 @@ def build_rendering_scene(
         dt=1.0 / 60.0,
         device=device,
         physics=copy.deepcopy(physics_cfg),
-        visualizer_cfgs=[],
+        visualizer_cfgs=list(visualizer_cfgs),
     )
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+    with (
+        launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg)),
+        build_simulation_context(sim_cfg=sim_cfg) as sim,
+    ):
         runtime = RenderingScene(sim, instantiate(scene_cfg))
         sim.reset()
         runtime.scene.reset()
