@@ -995,7 +995,8 @@ def test_quat_apply(device, inverse, quat_shape, vec_shape):
     vec_np = np.broadcast_to(vec.cpu().numpy(), shape).reshape(-1, 3)
     expected = scipy_tf.Rotation.from_quat(quat_np).apply(vec_np, inverse=inverse).reshape(shape)
     result = apply(quat, vec)
-    torch.testing.assert_close(result, torch.tensor(expected, device=device, dtype=vec.dtype), atol=2e-4, rtol=2e-4)
+    # Float32 rotation of vectors up to 1000 can accumulate a few 1e-4 of absolute error.
+    torch.testing.assert_close(result, torch.tensor(expected, device=device, dtype=vec.dtype), atol=5e-4, rtol=2e-4)
 
 
 @pytest.mark.parametrize("device", test_devices())

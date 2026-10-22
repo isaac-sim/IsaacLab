@@ -3,6 +3,28 @@ Changelog
 
 .. towncrier release notes start
 
+4.2.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** The Newton coupler managers are used as instances, like the Newton managers they extend; subclasses
+  override their runtime hooks as instance methods.
+
+
+4.1.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed and adaptive relaxation settings to
+  :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` for stabilizing
+  lagged and staggered two-way proxy feedback and expressing one-way coupling
+  with zero relaxation from an initial state.
+
+
 4.0.1 (2026-10-05)
 ~~~~~~~~~~~~~~~~~~
 

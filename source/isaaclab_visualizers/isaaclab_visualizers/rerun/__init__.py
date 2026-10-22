@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .rerun_visualizer_cfg import RerunVisualizerCfg
+from .rerun_visualizer_cfg import RerunBackendCfg, RerunVisualizerCfg
 
 if TYPE_CHECKING:
     from .rerun_visualizer import RerunVisualizer
 
-__all__ = ["RerunVisualizer", "RerunVisualizerCfg"]
+__all__ = ["RerunVisualizer", "RerunBackendCfg", "RerunVisualizerCfg"]
 
 
 def __getattr__(name: str):

@@ -24,10 +24,15 @@ from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -46,12 +51,14 @@ GRAVITY = (0.0, 0.0, -9.81)
 PARTICLES_PER_VOXEL_AXIS = 2.0
 PARTICLE_SPACING = args_cli.voxel_size / PARTICLES_PER_VOXEL_AXIS
 COLLIDER_MARGIN = 0.5 * args_cli.voxel_size
-PARTICLE_COLOR = (0.7, 0.6, 0.4)
+PARTICLE_COLOR = (0.76, 0.48, 0.18)
 SPHERE_BODY_PATTERN = r"/World/envs/env_.*/Sphere_[0-9]+"
 SPHERE_RADIUS = 0.30
 SPHERE_MASS = 450.0
-SPHERE_COLORS = ((0.20, 0.45, 0.85), (0.85, 0.25, 0.20), (0.25, 0.70, 0.30))
+SPHERE_COLORS = ((0.08, 0.36, 0.92), (0.92, 0.14, 0.08), (0.08, 0.66, 0.22))
 SPHERE_POSITIONS = ((-3.392, 0.0, 2.167), (0.0, 2.872, 2.167), (3.392, 0.0, 2.167))
+CAMERA_EYE = (6.0, -7.0, 5.0)
+CAMERA_TARGET = (0.0, 0.4, 1.3)
 
 BATH_INTERIOR_SIZE = (3.6, 2.6)
 BATH_WALL_HEIGHT = 1.2
@@ -60,7 +67,8 @@ SAND_LOWER = (-1.65, -1.15, 0.05)
 SAND_UPPER = (1.65, 1.15, 0.72)
 
 CHUTE_PANEL_SIZE = (2.4, 0.62, 0.08)
-CHUTE_COLOR = (0.25, 0.28, 0.32)
+CHUTE_COLOR = (0.15, 0.19, 0.25)
+BATH_COLOR = (0.10, 0.13, 0.18)
 # Paired poses form the left, back, and right V-shaped chutes.
 CHUTE_PANEL_POSES = (
     ((-2.933, -0.274, 1.771), (-0.23957, 0.13504, 0.03367, 0.96085)),
@@ -89,22 +97,6 @@ def _spawn_colored_shape(
     mesh = UsdGeom.Gprim(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh"))
     mesh.CreateDisplayColorAttr().Set([Gf.Vec3f(*color)])
     return prim
-
-
-def create_visualizer_cfgs():
-    """Create the example-specific Newton visualizer configuration."""
-    requested = args_cli.visualizer or []
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
-        return []
-
-    cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            streaming_view=False,
-            show_particles=True,
-            particle_color=PARTICLE_COLOR,
-        )
-    ]
 
 
 def create_sim_cfg():
@@ -152,7 +144,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
+        ),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )
 
@@ -166,7 +160,6 @@ def create_scene_cfg():
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-    from isaaclab.utils import configclass
 
     def bath_collider(
         prim_path: str,
@@ -175,6 +168,7 @@ def create_scene_cfg():
         orientation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
         color: tuple[float, float, float] | None = None,
     ) -> AssetBaseCfg:
+        visual_color = color or BATH_COLOR
         return AssetBaseCfg(
             prim_path=prim_path,
             spawn=sim_utils.CuboidCfg(
@@ -188,6 +182,11 @@ def create_scene_cfg():
                 physics_material=UsdPhysicsRigidBodyMaterialCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=visual_color,
+                    roughness=0.24,
+                    metallic=0.18,
                 ),
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=position, rot=orientation),
@@ -210,6 +209,11 @@ def create_scene_cfg():
                 physics_material=UsdPhysicsRigidBodyMaterialCfg(
                     static_friction=0.5,
                     dynamic_friction=0.5,
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=SPHERE_COLORS[index],
+                    roughness=0.20,
+                    metallic=0.12,
                 ),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=position),
@@ -304,12 +308,12 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch the two-way rigid-MPM coupling example."""
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     with launch_simulation(sim_cfg, args_cli):
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        sim.set_camera_view(eye=(6.0, -7.0, 5.0), target=(0.0, 0.4, 1.3))
+        sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         scene = InteractiveScene(create_scene_cfg())
         sim.reset()
         sand = scene["sand"]

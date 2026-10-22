@@ -156,11 +156,22 @@ jobs:
         uses: ./.github/actions/install-ci-collect
         with:
           test-filter: ${{ inputs.test_filter }}
+      # GB10 allocates GPU memory from host RAM; page cache left by earlier jobs starves CUDA init.
+      - name: Runner Health and Page-Cache Drop (Pre)
+        run: |
+          .github/scripts/runner_health.sh pre-test
+          docker run --rm --privileged ubuntu:24.04 sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
+          .github/scripts/runner_health.sh after-cache-drop
       - name: Run Tests
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
+      - name: Runner Health (Post)
+        if: always()
+        continue-on-error: true
+        run: |
+          .github/scripts/runner_health.sh post-test
 
   # Windows has no Docker, so the suite runs natively. The composite actions above are
   # bash and pin setup-uv v6, which crashes on exit on these runners
