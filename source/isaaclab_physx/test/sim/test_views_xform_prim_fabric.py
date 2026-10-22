@@ -147,9 +147,6 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     )
     sim.set_setting("/physics/fabricUpdateTransformations", True)
     sim.reset()
-    frame_view = FrameView("/World/Cube", device=device)
-    request.addfinalizer(frame_view.close)
-    frame_view.get_world_poses()  # Initialize its authored pose before the native pose write.
     view = sim.backend_manager.get_physics_sim_view().create_rigid_body_view("/World/Cube")
     view.set_transforms(
         wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.float32, device=device),
@@ -157,6 +154,8 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     )
     sim.step(render=False)
     sim.forward()
+    frame_view = FrameView("/World/Cube", device=device)
+    request.addfinalizer(frame_view.close)
     before = tuple(value.torch.clone() for value in frame_view.get_world_poses())
     torch.testing.assert_close(before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device))
     provider = SceneDataProvider(sim.get_scene_data_provider().backend)
@@ -816,3 +815,47 @@ def test_zero_match_view_is_usable(device):
             )
     finally:
         view.close()
+
+
+ENV_ORIGINS = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0), (2.0, 2.0, 0.0))
+CAMERA_OFFSET = (0.5, -0.5, 1.0)
+# 90 degrees about x in (x, y, z, w), with a non-uniform scale, so a wrong matrix order changes the result.
+ENV_ORIENTATION = (0.7071068, 0.0, 0.0, 0.7071068)
+ENV_SCALE = (2.0, 1.0, 1.0)
+# CAMERA_OFFSET scaled by ENV_SCALE, then rotated by ENV_ORIENTATION.
+CAMERA_OFFSET_IN_WORLD = (1.0, -1.0, -0.5)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_hierarchy_update_keeps_seeded_world_poses(device, request):
+    """Verify that the Fabric Hierarchy update in ``sim.forward()`` keeps the world poses the view seeds.
+
+    The update recomposes the world matrices from the local matrices. The seed must therefore leave the
+    parents' local matrices consistent with their world matrices.
+    """
+    _skip_if_unavailable(device)
+    stage = sim_utils.get_current_stage()
+    for i, origin in enumerate(ENV_ORIGINS):
+        sim_utils.create_prim(
+            f"/World/envs/env_{i}",
+            "Xform",
+            translation=origin,
+            orientation=ENV_ORIENTATION,
+            scale=ENV_SCALE,
+            stage=stage,
+        )
+        sim_utils.create_prim(f"/World/envs/env_{i}/Camera", "Camera", translation=CAMERA_OFFSET, stage=stage)
+    sim = sim_utils.SimulationContext(
+        sim_utils.SimulationCfg(dt=0.01, device=device, physics=PhysxCfg(), use_fabric=True)
+    )
+    sim.reset()
+    view = FrameView("/World/envs/env_[^/]*/Camera", device=device)
+    request.addfinalizer(view.close)
+    expected = torch.tensor(ENV_ORIGINS, device=device) + torch.tensor(CAMERA_OFFSET_IN_WORLD, device=device)
+
+    view.get_world_poses()
+    sim.forward()
+    view.get_world_poses(wp.array([1, 2], dtype=wp.int32, device=device))
+    sim.forward()
+    world_pos, _ = view.get_world_poses()
+    torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected, atol=1e-5, rtol=0)

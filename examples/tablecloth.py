@@ -54,15 +54,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import newton
 import warp as wp
-from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.controllers.ik import (
-    NewtonIKJointLimitObjectiveCfg,
-    NewtonIKPoseObjectiveCfg,
-    NewtonIKSolver,
-    NewtonIKSolverCfg,
-)
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -81,8 +73,9 @@ from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg, NewtonSurf
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import clone, configclass, instantiate
@@ -90,16 +83,19 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
+    import newton
     from newton import Mesh, ModelBuilder
 
     from pxr import Usd
+
+    from isaaclab.assets import Articulation
 
 
 # Scene configuration and native contact preparation.
 
 RIGID_GAP = 0.001
 CLOTH_FRICTION = 0.20
-GRIP_FRICTION = 1.2
+GRIP_FRICTION = 8.0
 # Pin the manufacturer's articulated H2 Plus / SHARPA model; do not vendor its meshes.
 H2_PLUS_USD = (
     "https://media.githubusercontent.com/media/unitreerobotics/unitree_model/"
@@ -279,12 +275,12 @@ class _TablewareCfg(sim_utils.UsdFileCfg):
 
 
 FPS = 60
-SUBSTEPS = 64
+SUBSTEPS = 16
 # Table height calibrated for the fixed-pelvis H2 stance and native fingertip pinch.
 TABLE_TOP_Z = 1.0352
-TABLEWARE_CLEARANCE = 0.008
-# Start above the thin table contact skin and the cloth's 1 mm particle radius.
-CLOTH_Z = TABLE_TOP_Z + 0.004
+TABLEWARE_CLEARANCE = 0.011
+# Start above the table contact skin and the cloth's 4 mm particle radius.
+CLOTH_Z = TABLE_TOP_Z + 0.007
 
 TABLE_SCALE = (
     TABLE_SIZE[0] / TABLE_ASSET_SIZE[0],
@@ -294,24 +290,24 @@ TABLE_SCALE = (
 TABLETOP_THICKNESS = TABLE_ASSET_TOP_THICKNESS * TABLE_SCALE[2]
 
 H2_HAND_OFFSETS = (
-    (0.0854352130714941, -0.004956624352234765, 0.11747110476887199),
-    (0.08528776908502764, 0.0060654248588878044, 0.11775531545430512),
+    (0.08611124818088065, -0.005675509582575613, 0.11567062942496234),
+    (0.08611175437468235, 0.006718550527126339, 0.1156889716558436),
 )
-# Measured native pulp pinch, inside native joint limits.
+# Measured native pulp pinch with room for the thicker contact skin, inside native joint limits.
 H2_PINCH_JOINT_POS = {
-    "left_thumb_CMC_FE": 1.8898998498916626,
-    "left_thumb_CMC_AA": 0.31909996271133423,
+    "left_thumb_CMC_FE": 1.8749698686599732,
+    "left_thumb_CMC_AA": 0.27846200197935106,
     "left_thumb_MCP_FE": -0.49359992146492004,
-    "left_thumb_MCP_AA": -0.041234519332647324,
+    "left_thumb_MCP_AA": -0.0139111201092601,
     "left_thumb_IP": 0.030000001192092896,
     "left_index_MCP_FE": 0.9650716781616211,
     "left_index_MCP_AA": 0.30174076557159424,
     "left_index_PIP": 0.5233824253082275,
     "left_index_DIP": 0.029999999329447746,
-    "right_thumb_CMC_FE": 1.8898998498916626,
-    "right_thumb_CMC_AA": 0.31909996271133423,
+    "right_thumb_CMC_FE": 1.8719424211978912,
+    "right_thumb_CMC_AA": 0.2733340892195702,
     "right_thumb_MCP_FE": -0.49359992146492004,
-    "right_thumb_MCP_AA": -0.021861376240849495,
+    "right_thumb_MCP_AA": 0.0021895832382142384,
     "right_thumb_IP": 0.029999999329447746,
     "right_index_MCP_FE": 0.9501051306724548,
     "right_index_MCP_AA": 0.2907813787460327,
@@ -338,13 +334,13 @@ H2_PARKED_JOINT_POS = {
 }
 H2_OPEN_JOINT_POS = {
     **H2_PINCH_JOINT_POS,
-    # The index stays stationary while the pre-unfolded thumb closes from this near-pinch reset.
-    "left_thumb_CMC_FE": 1.8749698686599732,
-    "left_thumb_CMC_AA": 0.27846200197935106,
-    "left_thumb_MCP_AA": -0.0139111201092601,
-    "right_thumb_CMC_FE": 1.8719424211978912,
-    "right_thumb_CMC_AA": 0.2733340892195702,
-    "right_thumb_MCP_AA": 0.0021895832382142384,
+    # The index stays stationary; the open thumb admits the cloth's 8 mm contact diameter.
+    "left_thumb_CMC_FE": 1.830179924964905,
+    "left_thumb_CMC_AA": 0.15654811978340155,
+    "left_thumb_MCP_AA": 0.06805907756090157,
+    "right_thumb_CMC_FE": 1.8180701351165771,
+    "right_thumb_CMC_AA": 0.1360364687442781,
+    "right_thumb_MCP_AA": 0.07434246167540544,
 }
 
 
@@ -531,26 +527,19 @@ TABLECLOTH_ASSETS = {
         actuators={
             "body": ImplicitActuatorCfg(
                 joint_names_expr=[r"(left|right)_(hip|knee|ankle|shoulder|elbow)_.*", r"(waist|head)_.*"],
-                stiffness=5.0e4,
-                damping=5.0e2,
+                stiffness=5.0e5,
+                damping=1.5e3,
             ),
             "wrists": ImplicitActuatorCfg(
                 joint_names_expr=[r"(left|right)_wrist_.*"],
-                stiffness=None,
-                damping={
-                    "left_wrist_roll_joint": 32.0,
-                    "left_wrist_pitch_joint": 21.7,
-                    "left_wrist_yaw_joint": 16.2,
-                    "right_wrist_roll_joint": 29.7,
-                    "right_wrist_pitch_joint": 19.4,
-                    "right_wrist_yaw_joint": 14.8,
-                },
+                stiffness=5.0e4,
+                damping=1.0e2,
             ),
             "fingers": ImplicitActuatorCfg(
                 joint_names_expr=[r"(left|right)_(thumb|index|middle|ring|pinky)_.*"],
                 # Simulation drives only: direct VBD does not enforce native hardware torque caps.
-                stiffness=400.0,
-                damping=0.3,
+                stiffness=4.0e3,
+                damping=1.0,
             ),
         },
     ),
@@ -575,12 +564,13 @@ TABLECLOTH_ASSETS = {
         spawn=sim_utils.MeshRectangleCfg(
             # A 4 cm free hem settles before the scripted hands approach.
             size=(0.46, TABLE_SIZE[1]),
-            edge_refinement=64,
+            # 289 particles per cloth; render subdivision smooths the coarse surface in Kit.
+            edge_refinement=16,
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.76, 0.05, 0.05)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
                 density=0.24,
-                particle_radius=0.001,
+                particle_radius=0.004,
                 edge_ke=0.01,
                 edge_kd=5.0e-3,
             ),
@@ -679,6 +669,12 @@ TABLECLOTH_ASSETS = {
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
     ),
+    # Illuminate the pull stations below the cantina's opaque ceiling.
+    "interior_light": AssetBaseCfg(
+        prim_path="/World/InteriorLight",
+        spawn=sim_utils.DiskLightCfg(radius=1.5, intensity=16000.0),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.8, 0.0, 3.0), rot=(0.0, 0.3007058, 0.0, 0.95371695)),
+    ),
     "backdrop": AssetBaseCfg(
         prim_path="/World/Backdrop",
         spawn=sim_utils.UsdFileCfg(usd_path=CANTINA_USD),
@@ -698,21 +694,22 @@ STATE_HOLD = wp.constant(len(H2_PHASE_DURATIONS) + 1)
 
 # Positions are expressed in the fixed pelvis frame.
 # Ready, clearance, precontact, insertion, pinch, withdrawal, and lift poses [m].
+# Center each pinch on a boundary vertex of the coarse cloth.
 H2_HAND_KEYFRAMES = (
-    (0.45, 0.2475379991, 0.16),
-    (0.45, -0.2475441579, 0.16),
-    (0.55, 0.2475379991, 0.15),
-    (0.55, -0.2475441579, 0.15),
-    (0.55, 0.2475379991, 0.065),
-    (0.55, -0.2475441579, 0.065),
-    (0.577, 0.2475379991, 0.070),
-    (0.577, -0.2475441579, 0.070),
-    (0.578403, 0.247525, 0.078011),
-    (0.577649, -0.247555, 0.078554),
-    (0.558403, 0.247525, 0.087011),
-    (0.557649, -0.247555, 0.087554),
-    (0.5628056417, 0.2475379991, 0.1270655547),
-    (0.5628101729, -0.2475441579, 0.1270715950),
+    (0.45, 0.2625379991, 0.163),
+    (0.45, -0.2625441579, 0.163),
+    (0.55, 0.2625379991, 0.153),
+    (0.55, -0.2625441579, 0.153),
+    (0.55, 0.2625379991, 0.068),
+    (0.55, -0.2625441579, 0.068),
+    (0.577, 0.2625379991, 0.073),
+    (0.577, -0.2625441579, 0.073),
+    (0.578403, 0.262525, 0.081011),
+    (0.577649, -0.262555, 0.081554),
+    (0.558403, 0.262525, 0.090011),
+    (0.557649, -0.262555, 0.090554),
+    (0.5628056417, 0.2625379991, 0.1300655547),
+    (0.5628101729, -0.2625441579, 0.130071595),
 )
 # Control the complete wrist pose: a free roll can put the proximal fingers inside the table.
 H2_READY_HAND_ROTATIONS = (
@@ -723,12 +720,9 @@ H2_GRASP_HAND_ROTATIONS = (
     (-0.807865338839, -0.006732944032, -0.579201247457, 0.108785002508),
     (0.812353708056, 0.024445186614, 0.570667120832, 0.117570927880),
 )
-H2_PULL_HAND_ROTATIONS = (
-    (-0.9524211656, 0.0290508089, -0.2846303110, 0.1050502728),
-    (0.9514495724, 0.0604877516, 0.2834135157, 0.1037387205),
-)
-# Align with the settled hem, then return to the flat pull attitude after withdrawal.
-H2_HAND_ROTATIONS = (*H2_READY_HAND_ROTATIONS, *(H2_GRASP_HAND_ROTATIONS * 5), *H2_READY_HAND_ROTATIONS)
+H2_PULL_HAND_ROTATIONS = H2_GRASP_HAND_ROTATIONS
+# Keep the pinch attitude during lift and pull so the coarse hem stays between the pads.
+H2_HAND_ROTATIONS = (*H2_READY_HAND_ROTATIONS, *(H2_GRASP_HAND_ROTATIONS * 6))
 # The index joints are identical in the asset's open and closed poses; only the thumbs close.
 STATE_CLOSE = wp.constant(5)
 
@@ -930,6 +924,14 @@ class _Controller:
         control: newton.Control,
         substeps: int,
     ) -> None:
+        import newton  # noqa: PLC0415
+        from isaaclab_newton.controllers.ik import (  # noqa: PLC0415
+            NewtonIKJointLimitObjectiveCfg,
+            NewtonIKPoseObjectiveCfg,
+            NewtonIKSolver,
+            NewtonIKSolverCfg,
+        )
+
         from pxr import Gf, Usd, UsdPhysics  # noqa: PLC0415
 
         self.robot = robot
@@ -1280,7 +1282,7 @@ def main() -> None:
         enable_rigid_soft_full_surface_contact=True,
     )
     solver_cfg = VBDSolverCfg(
-        iterations=60,
+        iterations=10,
         friction_epsilon=1.0e-3,
         rigid_compliant_alm=True,
         rigid_joint_linear_ke=1.0e7,
@@ -1306,14 +1308,20 @@ def main() -> None:
             collision_cfg=collision_cfg,
             solver_cfg=solver_cfg,
         ),
-        default_visualizer_cfg=VisualizerCfg(
+        visualizer_cfgs=VisualizerCfg(
             eye=(camera_distance, -1.5, 2.1),
             lookat=(-0.25, 0.0, 0.95),
             focal_length=27.0 if len(speeds) <= 3 else 20.0,
         ),
     )
-    with launch_simulation(cfg=sim_cfg, launcher_args=args_cli):
+    viewer_scene_cfg = InteractiveSceneCfg(num_envs=len(speeds), env_spacing=1.5)
+    with launch_simulation(cfg={"sim": sim_cfg, "scene": viewer_scene_cfg}, launcher_args=args_cli):
+        # Kit must select its OpenUSD runtime before importing native scene and Newton code.
+        from isaaclab_newton.cloner import newton_builder_world_hook  # noqa: PLC0415
+
         from pxr import UsdGeom  # noqa: PLC0415
+
+        from isaaclab.scene import InteractiveScene  # noqa: PLC0415
 
         usd_path = retrieve_file_path(H2_PLUS_USD)
         sim = sim_utils.SimulationContext(sim_cfg)
@@ -1325,6 +1333,8 @@ def main() -> None:
             scene.stage.GetPrimAtPath(scene.env_prim_paths[0]), translation=tuple(map(float, positions[0]))
         )
         cfgs = {name: clone(cfg) for name, cfg in TABLECLOTH_ASSETS.items()}
+        # Include cameras declared by launch in the same topology as the manually constructed assets.
+        cfgs.update({name: cfg for name, cfg in vars(viewer_scene_cfg).items() if isinstance(cfg, CameraCfg)})
         cfgs["robot"].spawn.usd_path = usd_path
         plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, cfgs.values(), len(speeds), 1.5, positions=positions)
         scene.articulations["robot"] = instantiate(cfgs["robot"])
@@ -1338,7 +1348,9 @@ def main() -> None:
         for name in ("bowl", "glass", "fork"):
             scene.rigid_objects[name] = instantiate(cfgs[name])
         for name, cfg in cfgs.items():
-            if name not in ("robot", "cloth", "bowl", "glass", "fork"):
+            if isinstance(cfg, CameraCfg):
+                scene.sensors[name] = instantiate(cfg)
+            elif name not in ("robot", "cloth", "bowl", "glass", "fork"):
                 scene.extras[name] = instantiate(cfg)
         contact_hook = partial(_prepare_contacts, device=sim.device, mesh_sdf_cache={})
         with newton_builder_world_hook(contact_hook):
