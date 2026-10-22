@@ -39,16 +39,37 @@ continues from there onto hardware. The inference stage is unchanged — it is t
 Prerequisites
 -------------
 
-In addition to the ``leapp`` extra required by export, hardware deployment needs
-``unitree_sdk2py`` with ``cyclonedds==0.10.2``, a wired connection to the robot's subnet, and a
-depth publisher running on the robot's onboard computer.
+Start with the :doc:`Isaac Lab installation </source/isaaclab/installation>`. From the repository
+root, install the export and inference dependencies into its Python environment:
 
-.. note::
+.. code-block:: bash
 
-   The ``cyclonedds`` pin is load-bearing. A newer CycloneDDS enforces XTypes type consistency at
-   match time, and the SDK's Python IDL hashes differently from the robot's C++ IDL. Readers then
-   never match. This passes every simulation test, because both ends share the Python serializer,
-   and fails only against hardware.
+   uv sync --extra leapp
+
+For hardware deployment on Ubuntu, install CycloneDDS and the Unitree Python SDK in the same
+environment. Use version ``0.10.2`` for compatibility with the robot. Python 3.12 requires building
+the DDS library first, following the `Unitree SDK installation instructions
+<https://github.com/unitreerobotics/unitree_sdk2_python#installation>`__:
+
+.. code-block:: bash
+
+   sudo apt-get install -y build-essential cmake git
+   git clone --depth 1 --branch 0.10.2 https://github.com/eclipse-cyclonedds/cyclonedds.git /tmp/cyclonedds-0.10.2
+   export CYCLONEDDS_HOME="$HOME/.local/cyclonedds-0.10.2"
+   cmake -S /tmp/cyclonedds-0.10.2 -B /tmp/cyclonedds-0.10.2/build -DCMAKE_INSTALL_PREFIX="$CYCLONEDDS_HOME"
+   cmake --build /tmp/cyclonedds-0.10.2/build --target install --parallel
+   uv pip install --python .venv/bin/python "cyclonedds==0.10.2" \
+       "git+https://github.com/unitreerobotics/unitree_sdk2_python.git"
+
+Set ``CYCLONEDDS_HOME`` to the same path in each deployment terminal. Check the SDK import before
+connecting to the robot:
+
+.. code-block:: bash
+
+   uv run --extra leapp python -c "from unitree_sdk2py.core.channel import ChannelFactoryInitialize; print('SDK ready')"
+
+Connect the workstation to the robot's subnet over Ethernet. The robot's onboard computer also
+needs the RealSense drivers and a depth publisher, as described in `Starting the Camera`_ below.
 
 
 Training the Teacher
