@@ -144,9 +144,6 @@ previous action and the observation normalization all live inside the graph, and
 ``_initial_values.safetensors`` file holds their reset state. Nothing outside the graph recomputes
 any of it.
 
-The gains are graph outputs, not configuration: the deployment writes the Kp and Kd the policy
-asks for on each step.
-
 
 Running on the Robot
 --------------------
