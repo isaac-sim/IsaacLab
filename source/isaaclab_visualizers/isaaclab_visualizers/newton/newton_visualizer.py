@@ -184,7 +184,7 @@ class NewtonViewerGL(ViewerGL):
     def _patch_viewer_panel(self) -> None:
         """Replace Newton's left panel with an IsaacLab-oriented layout.
 
-        An always-visible header (task and run, physics backend and device, environment counts, step and simulation
+        An always-visible header (task and run, physics backend and device, step and simulation
         time, simulation rate and real-time factor, status badges, and a documentation link) sits above the
         sections, which are ordered by how often they are used:
 
@@ -449,9 +449,6 @@ class NewtonViewerGL(ViewerGL):
             sim = owner._sim
             steps, dt = sim.get_physics_step_count(), sim.get_physics_dt()
             self._update_rates(steps, dt)
-            total = self._metadata.get("num_envs")
-            shown = owner.visible_env_count if owner.visible_env_limit > 1 else total
-            imgui.text(f"Envs: {total}" + (f" ({shown} shown)" if shown != total else ""))
             imgui.text(f"Step: {steps:,}   Sim time: {steps * dt:.1f} s")
             imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
         badges = []
