@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+REPLAY_VIEWS = {"only": "Replay only", "overlay": "Overlay on live", "side": "Side by side"}
+"""Ways to show a loaded animation, as view name to label."""
+
 
 def _ffmpeg_executable() -> str | None:
     """Return an ffmpeg binary, preferring the one bundled with ``imageio-ffmpeg`` (the ``video`` extra)."""
@@ -231,22 +234,23 @@ class NewtonRecordingPanel:
                     self._replay_window_open = False
         imgui.end()
 
-    def _draw_replay_controls(self, imgui: Any) -> None:
-        """Draw play, scrub, and display controls for the loaded animation."""
+    def draw_transport(self, imgui: Any) -> None:
+        """Draw play, step, loop, scrub, and speed controls for the loaded animation."""
         replay = self.replay
-        if replay.message:
-            imgui.text_wrapped(replay.message)
         if not replay.active:
             return
-        if self._owner.rtx_rendering:
-            imgui.text_disabled("Animations are drawn in the OpenGL view only")
         if imgui.button("Pause##replay" if replay.playing else "Play##replay"):
             replay.playing = not replay.playing
         imgui.same_line()
-        if imgui.button("Unload##replay"):
-            replay.unload()
-            self._owner.set_simulation_hidden(False)
-            return
+        if imgui.button("<##replay"):
+            replay.step(-1)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Previous frame")
+        imgui.same_line()
+        if imgui.button(">##replay"):
+            replay.step(1)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Next frame")
         imgui.same_line()
         _c, replay.loop = imgui.checkbox("Loop##replay", replay.loop)
         duration = replay.recording.duration
@@ -257,13 +261,34 @@ class NewtonRecordingPanel:
             replay.seek(value)
             replay.playing = False
         _c, replay.speed = imgui.slider_float("Speed##replay", replay.speed, 0.1, 4.0, "%.2fx")
+
+    def _draw_replay_controls(self, imgui: Any) -> None:
+        """Draw the view choice and display settings of the loaded animation."""
+        replay, owner = self.replay, self._owner
+        if replay.message:
+            imgui.text_wrapped(replay.message)
+        if not replay.active:
+            return
+        if owner.rtx_rendering:
+            imgui.text_disabled("Animations are drawn in the OpenGL view only")
+        views = list(REPLAY_VIEWS)
+        changed, index = imgui.combo("View##replay", views.index(owner.replay_view), list(REPLAY_VIEWS.values()))
+        if changed:
+            owner.set_replay_view(views[index])
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "Replay only pauses and hides the simulation. Overlay lines up with the live robots only for the"
+                " same task, environment count, and seed. Overlay and Side by side skip the animation's terrain and"
+                " ground, which the live scene already draws."
+            )
         _c, replay.opacity = imgui.slider_float("Opacity##replay", replay.opacity, 0.05, 1.0)
         _c, offset = imgui.input_float3("Offset (m)##replay", replay.offset.tolist())
         replay.offset[:] = offset
-        hidden = self._owner.simulation_hidden
-        changed, hidden = imgui.checkbox("Hide simulation##replay", hidden)
-        if changed:
-            self._owner.set_simulation_hidden(hidden)
+        if imgui.button("Frame##replay"):
+            owner.frame_replay()
+        imgui.same_line()
+        if imgui.button("Exit Replay##replay"):
+            replay.unload()
 
     def _output_path(self, kind: str, suffix: str) -> Path:
         """Return the next file of ``kind`` from the output settings, creating its folder."""

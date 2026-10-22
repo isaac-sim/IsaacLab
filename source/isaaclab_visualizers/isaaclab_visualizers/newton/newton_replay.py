@@ -62,6 +62,11 @@ class ReplayShape:
     xforms: np.ndarray = field(default=None, repr=False)
     """Newton transforms (position, then xyzw quaternion) per frame, shape (T, N, 7)."""
 
+    @property
+    def static(self) -> bool:
+        """Whether no instance ever moves, as for terrain and ground planes."""
+        return bool(np.all(self.xforms == self.xforms[:1]))
+
 
 @dataclass
 class ViserRecording:
@@ -80,6 +85,11 @@ class ViserRecording:
     @property
     def num_frames(self) -> int:
         return len(self.times)
+
+    def bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return the (min, max) corners of all instance positions in the first frame [m]."""
+        points = np.concatenate([shape.positions[0] for shape in self.shapes])
+        return points.min(axis=0), points.max(axis=0)
 
     def frame_at(self, time_s: float) -> int:
         """Return the last frame at or before ``time_s``."""
@@ -244,6 +254,8 @@ class NewtonReplayPlayer:
         self.speed = 1.0
         self.time = 0.0
         self.opacity = 1.0
+        self.hide_static = False
+        """Skip shapes that never move, which the live scene already draws."""
         self.offset = np.zeros(3, np.float32)
         self.message = ""
         self._thread: threading.Thread | None = None
@@ -261,6 +273,11 @@ class NewtonReplayPlayer:
     def active(self) -> bool:
         """Whether a recording is loaded."""
         return self.recording is not None
+
+    @property
+    def name(self) -> str:
+        """File name of the loaded recording, or an empty string."""
+        return Path(self.recording.path).name if self.recording is not None else ""
 
     def load(self, path: str) -> None:
         """Start decoding ``path`` in the background, replacing any loaded recording once it is ready."""
@@ -291,6 +308,13 @@ class NewtonReplayPlayer:
     def invalidate(self) -> None:
         """Publish the current frame again, for example after the viewer cleared its instance batches."""
         self._drawn = None
+
+    def step(self, frames: int) -> None:
+        """Pause and move by ``frames`` recorded frames."""
+        if self.recording is not None:
+            self.playing = False
+            frame = int(np.clip(self.recording.frame_at(self.time) + frames, 0, self.recording.num_frames - 1))
+            self.time = float(self.recording.times[frame])
 
     def seek(self, time_s: float) -> None:
         """Move to ``time_s`` [s] within the recording."""
@@ -325,7 +349,7 @@ class NewtonReplayPlayer:
                 self.time = 0.0 if self.loop else recording.duration
                 self.playing = self.loop
         frame = recording.frame_at(self.time)
-        state = (frame, self.opacity, tuple(self.offset))
+        state = (frame, self.opacity, self.hide_static, tuple(self.offset))
         if state != self._drawn:
             self._publish(viewer, recording, frame)
             self._drawn = state
@@ -368,6 +392,7 @@ class NewtonReplayPlayer:
                     np.ones((count, 3), np.float32) if textured else shape.colors, dtype=wp.vec3, device=viewer.device
                 ),
                 wp.array(np.tile(np.asarray(material, np.float32), (count, 1)), dtype=wp.vec4, device=viewer.device),
+                hidden=self.hide_static and shape.static,
                 opacities=None
                 if self.opacity >= 1.0
                 else wp.full(count, self.opacity, dtype=wp.float32, device=viewer.device),

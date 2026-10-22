@@ -74,3 +74,18 @@ def test_listing_finds_nested_files_newest_first(tmp_path):
 
     assert list_recordings(str(tmp_path)) == [newer, older]
     assert list_recordings(str(tmp_path / "missing")) == []
+
+
+def test_static_shapes_are_detected_from_their_poses(recording_path):
+    (shape,) = load_viser_recording(str(recording_path)).shapes
+    assert not shape.static  # The fixture moves its instances.
+
+    shape.xforms[:] = shape.xforms[:1]
+    assert shape.static
+
+
+def test_bounds_cover_the_first_frame_positions(recording_path):
+    low, high = load_viser_recording(str(recording_path)).bounds()
+
+    np.testing.assert_allclose(low, [0.0, 0.0, 0.0])
+    np.testing.assert_allclose(high, [0.0, 0.0, 0.0])  # Both instances start at the origin.

@@ -462,6 +462,8 @@ class NewtonViewerGL(ViewerGL):
             badges.append((f"REC scene {self._recording_panel._scene_frames}f", (1.0, 0.25, 0.25, 1.0)))
         if self._recording_panel is not None and self._recording_panel.unsaved_video:
             badges.append(("video unsaved", (1.0, 0.8, 0.2, 1.0)))
+        if owner is not None and owner.replay_mode:
+            badges.append((f"REPLAY {self._recording_panel.replay.name}", (0.5, 0.85, 1.0, 1.0)))
         if self._paused_training or self._paused:
             badges.append(("PAUSED", (1.0, 0.8, 0.2, 1.0)))
         if self._policy_ghost_panel is not None:
@@ -478,16 +480,29 @@ class NewtonViewerGL(ViewerGL):
 
     def _render_training_controls(self, imgui):
         """Render the Isaac Lab playback controls inside the Playback section."""
+        owner, panel = self._owner, self._recording_panel
+        replaying = owner is not None and owner.replay_mode and panel is not None
+        if replaying:
+            imgui.text_colored(imgui.ImVec4(0.5, 0.85, 1.0, 1.0), f"REPLAY  {panel.replay.name}")
+            panel.draw_transport(imgui)
+            if imgui.button("Exit Replay"):
+                panel.replay.unload()
+            imgui.separator()
+        # Replay only pauses the simulation, so its controls would do nothing.
+        sim_idle = replaying and owner.replay_view == "only"
+        if sim_idle:
+            imgui.begin_disabled()
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
+        if imgui.button("Reset Episode"):
+            self._reset_requested = True
+        if sim_idle:
+            imgui.end_disabled()
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused = not self._paused
-
-        if imgui.button("Reset Episode"):
-            self._reset_requested = True
 
         _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():
@@ -925,6 +940,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     _recording: NewtonRecordingPanel | None = None
     _simulation_hidden = False
+    _replay_mode = False
+    _replay_view = "only"
+    _replay_saved: dict | None = None
 
     @property
     def visual_material_writer(self):
@@ -1093,6 +1111,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
             if self._recording is not None and self.current_image_view.camera is None:
                 self._recording.replay.update()
+                self._sync_replay_mode()
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -1254,6 +1273,56 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._apply_rtx_visible_envs()
         if self._recording is not None:
             self._recording.replay.invalidate()
+
+    @property
+    def replay_mode(self) -> bool:
+        """Whether a loaded animation is the focus of the window."""
+        return self._replay_mode
+
+    @property
+    def replay_view(self) -> str:
+        """How the loaded animation is shown: ``"only"``, ``"overlay"``, or ``"side"``."""
+        return self._replay_view
+
+    def _sync_replay_mode(self) -> None:
+        """Enter Replay mode when an animation finishes loading and leave it when it is unloaded."""
+        active = self._recording.replay.active
+        if active and not self._replay_mode:
+            self._replay_mode = True
+            self._replay_saved = {"paused": self._viewer._paused_training, "hidden": self._simulation_hidden}
+            self.set_replay_view("only")
+            self.frame_replay()
+        elif not active and self._replay_mode:
+            saved, self._replay_mode, self._replay_saved = self._replay_saved, False, None
+            self._viewer._paused_training = saved["paused"]
+            self.set_simulation_hidden(saved["hidden"])
+
+    def set_replay_view(self, view: str) -> None:
+        """Show the loaded animation alone, over the live simulation, or beside it.
+
+        Args:
+            view: ``"only"`` pauses and hides the simulation, ``"overlay"`` draws the animation on top of the live
+                robots, and ``"side"`` offsets it beside the simulation. The last two resume the simulation.
+        """
+        player = self._recording.replay
+        self._replay_view = view
+        self._viewer._paused_training = True if view == "only" else self._replay_saved["paused"]
+        player.offset[:] = 0.0
+        player.hide_static = view != "only"
+        if view == "side":
+            low, high = player.recording.bounds()
+            player.offset[1] = (high[1] - low[1]) + 2.0
+        player.invalidate()
+        self.set_simulation_hidden(view == "only")
+
+    def frame_replay(self) -> None:
+        """Point the camera at the loaded animation."""
+        player = self._recording.replay
+        if player.recording is None or self._viewer.model.up_axis != 2:
+            return
+        low, high = player.recording.bounds()
+        center, extent = (low + high) / 2.0 + player.offset, max(float((high - low).max()), 2.0)
+        self.set_camera_view(tuple(center + np.array([-1.0, -1.0, 0.6]) * extent), tuple(center))
 
     @property
     def simulation_hidden(self) -> bool:

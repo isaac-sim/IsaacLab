@@ -8,3 +8,7 @@
 * Added animation playback to the Newton GL Recording section: "Open..." lists ``.viser`` recordings, and a loaded
   animation plays next to the simulation with play, pause, scrub, speed, loop, opacity, and offset controls, and an
   option to hide the simulation. The animation is drawn as separate shapes and does not touch the Newton model.
+* Loading an animation in the Newton GL window enters a Replay mode: the simulation is hidden and paused, the
+  Playback section shows the replay transport (play, step, loop, scrub, speed) with an Exit Replay button, a header
+  badge names the clip, and the camera frames it. The View choice switches between Replay only, Overlay on live, and
+  Side by side, and leaving the mode restores the previous pause and visibility state.
