@@ -60,7 +60,7 @@ class NewtonPolicyGhostPanel:
 
     def draw(self, imgui: Any) -> None:
         """Draw the Policy Ghosts section and, when open, the checkpoint discovery window."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
         ghosts_open = imgui.collapsing_header("Policy Ghosts")
         if imgui.is_item_hovered():
             imgui.set_tooltip("Compare several checkpoints of this task in one window")

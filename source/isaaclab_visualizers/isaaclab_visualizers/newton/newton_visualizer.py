@@ -50,6 +50,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.camera_follower import CameraFollower
 from isaaclab.visualizers.policy_ghost import PolicyGhostController
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
@@ -270,10 +271,10 @@ class NewtonViewerGL(ViewerGL):
         sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
-        2. **Camera View** (open) — renderer (OpenGL or RTX), camera source, VSync, and renderer-specific options.
-        3. **Scene** (open) — visible environments, visualization markers (a toggle per marker group, shared with Kit
+        2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, VSync, and renderer-specific options.
+        3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
-        4. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
+        4. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
         5. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
         6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
         7. **Articulation Inspector** (closed) — Newton's articulation selection panel.
@@ -329,7 +330,7 @@ class NewtonViewerGL(ViewerGL):
                     callback(imgui)
 
             # --- Camera View ------------------------------------------------
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            imgui.set_next_item_open(False, imgui.Cond_.appearing)
             view_open = imgui.collapsing_header("Camera View")
             hover_tooltip(imgui, "Choose the renderer and camera source, and adjust how the window draws")
             if view_open:
@@ -421,7 +422,7 @@ class NewtonViewerGL(ViewerGL):
 
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
         expanded = imgui.collapsing_header("Scene")
         hover_tooltip(imgui, "Choose which environments, markers, and visual overlays are drawn")
         if not expanded:
@@ -795,6 +796,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
+        self._followers: dict[object, CameraFollower] = {}
+        """Followers of the task views, by image view."""
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -884,12 +887,9 @@ class NewtonVisualizerBase(BaseVisualizer):
                 imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without visual overlays")
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
         indices = [i for i in range(len(self._image_views)) if i != rtx_index]
-        labels = [
-            f"Perspective {i + 1}" if self._image_views[i].camera is None else self._image_views[i].cfg.source
-            for i in indices
-        ]
+        labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
-        if current == rtx_index:  # RTX renders the perspective source.
+        if current == rtx_index:  # RTX renders the free perspective source.
             current = next(i for i in indices if self._image_views[i].camera is None)
         position = indices.index(current)
         changed, chosen = imgui.combo("Camera Source", position, labels)
@@ -897,6 +897,54 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._select_camera(indices[chosen])
         if imgui.is_item_hovered():
             imgui.set_tooltip(labels[position])
+        follower = self._followers.get(self.current_image_view)
+        if follower is not None:
+            changed, env = imgui.input_int("Environment", follower.env)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Environment the tracking camera follows")
+            if changed and 0 <= env < self._sim.get_scene_data_provider().num_envs:
+                follower.set_env(env)
+                self.current_image_view.invalidate()
+                self._last_render_step = -1
+
+    def _view_labels(self, indices: list[int]) -> list[str]:
+        """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
+        views = [self._image_views[i] for i in indices]
+        free = [v for v in views if v.camera is None and not self._is_task_view(v)]
+        tracking = [v for v in views if self._is_task_view(v)]
+        labels = []
+        for view in views:
+            if view.camera is not None:
+                labels.append(view.cfg.source)
+            elif self._is_task_view(view):
+                labels.append(
+                    "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
+                )
+            else:
+                labels.append("Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}")
+        return labels
+
+    @staticmethod
+    def _is_task_view(view) -> bool:
+        """Whether *view* is a perspective view tied to an environment or an asset."""
+        return isinstance(view.cfg.source, PerspectiveCameraCfg) and view.cfg.source.is_task_view
+
+    def _apply_view_pose(self, view) -> bool:
+        """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
+
+        Returns:
+            Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
+        """
+        follower = self._followers.get(view)
+        pose = follower and follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
+        if pose is None or follower is None:
+            return False
+        camera = self._viewer.camera
+        camera.pos = PygletVec3(*pose[0])
+        camera.look_at(pose[1])
+        self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+        camera.fov = self._focal_length_to_vertical_fov_degrees(view.cfg.source.focal_length)
+        return True
 
     def _select_camera(self, index: int, *, keep_pose: bool = False) -> None:
         """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle.
@@ -912,7 +960,9 @@ class NewtonVisualizerBase(BaseVisualizer):
             if self.current_image_view.render is not None and self.current_image_view.render != self._capture_frame:
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
             self.current_image_view.render = self._capture_frame
-            if not keep_pose:
+            if camera.is_task_view:
+                self._apply_view_pose(self.current_image_view)
+            elif not keep_pose:
                 self.set_camera_view(camera.eye, camera.lookat)
                 self.cfg.focal_length = camera.focal_length
                 self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
@@ -1010,6 +1060,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
+        self._followers.clear()
         for view in self._image_views:
             if view.render == self._capture_frame:
                 view.render = None
@@ -1193,6 +1244,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.picking_enabled = self._picking_enabled
         self._configure_viewer()
 
+        scene = self._sim.get_scene_data_provider().get_interactive_scene()
+        for view in self._image_views:
+            if scene is not None and self._is_task_view(view):
+                # Fail at initialization, not on a frame: a bad env_index or track_path raises here.
+                self._followers[view] = CameraFollower(view.cfg.source, scene)
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
@@ -1241,6 +1297,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         viewer.begin_frame(self._sim_time)
         try:
             viewer.image_matches_camera = self.rtx_rendering
+            if self._is_task_view(self.current_image_view):
+                self._apply_view_pose(self.current_image_view)
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
                 self._log_streaming_image()
@@ -1309,8 +1367,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         rtx_index = self.rtx_view_index
         if rtx_index is None:
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
-        perspective = next(i for i, view in enumerate(self._image_views) if view.camera is None)
-        self._select_camera(rtx_index if enabled else perspective, keep_pose=True)
+        free = [i for i, view in enumerate(self._image_views) if view.camera is None and not self._is_task_view(view)]
+        self._select_camera(rtx_index if enabled else free[0], keep_pose=True)
 
     def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
         """Name the run in the HUD header.

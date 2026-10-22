@@ -369,8 +369,13 @@ def validate_launch(  # noqa: C901
     for viewer_index, visualizer in enumerate(viewers):
         if not isinstance(visualizer.backend, NewtonRTXBackendCfg) or scene_cfg is None:
             continue
+        # Task views belong to the Newton GL window; an RTX window gets an ordinary perspective camera instead.
+        declared = [
+            camera for camera in visualizer.cameras or []
+            if not (isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view)
+        ]  # fmt: skip
         sources = (
-            [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
+            [visualizer.view.source] if visualizer.view is not None else list(declared or [
                 PerspectiveCameraCfg(eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length)
             ])
         )  # fmt: skip
