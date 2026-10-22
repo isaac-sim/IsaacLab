@@ -502,8 +502,10 @@ class FabricFrameView(BaseFrameView):
             list(self.prim_paths),
             self._device,
             owner=type(self).__name__,
-            seed_from_usd=self._scene_data_backend is None,
         )
+        if self._scene_data_backend is not None and self._fabric_sel.fabric_hierarchy is not None:
+            # New mounts need their world matrices derived from the published native parent poses.
+            self._fabric_sel.fabric_hierarchy.update_world_xforms()
 
         # Pre-allocated reusable output buffers (world + local + scales).
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)

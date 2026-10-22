@@ -55,7 +55,6 @@ class FabricXformSelection:
         device: str,
         *,
         owner: str,
-        seed_from_usd: bool,
         skip_missing_prims: bool = False,
     ):
         """Tag the prims, build the selections, and allocate the mapping buffers.
@@ -64,9 +63,6 @@ class FabricXformSelection:
             prim_paths: Prim paths to select, in the owner's view order.
             device: Warp device for the index and slot buffers.
             owner: Owning class name, used in error messages and the attribute namespace.
-            seed_from_usd: Whether to seed both matrices on every prim from USD, for an owner whose
-                source of truth is Fabric. ``False`` seeds only absent attributes, leaving a
-                transform another system drives neither reset nor overwritten.
             skip_missing_prims: Whether prims absent from the Fabric stage are dropped instead of
                 raising, as reported by :attr:`kept_indices`.
 
@@ -88,6 +84,8 @@ class FabricXformSelection:
         self.read_write = False
         self._tagged_prims: list[tuple[str, list]] = []
 
+        usd_stage = get_current_stage()
+        usd_xforms = UsdGeom.XformCache()
         self.stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
         fabric_id = self.stage.GetFabricId()
         self.fabric_hierarchy = (
@@ -116,46 +114,30 @@ class FabricXformSelection:
 
         # Tag children and parents with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
-        usd_stage = get_current_stage()
-        xform_cache = UsdGeom.XformCache()
-        hierarchy = self.fabric_hierarchy
-        # Both spaces are seeded consistently; hierarchy must not reinterpret interdependent writes.
-        if seed_from_usd and hierarchy is not None:
-            hierarchy.update_world_xforms()
-            local_tracking = hierarchy.tracking_local_xform_changes
-            world_tracking = hierarchy.tracking_world_xform_changes
-            hierarchy.track_local_xform_changes(False)
-            hierarchy.track_world_xform_changes(False)
-        try:
-            for paths, index_attr, is_child in (
-                (self._prim_paths, self.child_index_attr, True),
-                (unique_parent_paths, self._parent_index_attr, False),
-            ):
-                group_prims: list = []
-                for i, path in enumerate(paths):
-                    rt_prim = self.stage.GetPrimAtPath(path)
-                    if not rt_prim.IsValid():
-                        raise RuntimeError(f"{owner}: prim '{path}' does not exist in the Fabric stage.")
-                    rt_xformable = Rt.Xformable(rt_prim)
-                    usd_prim = usd_stage.GetPrimAtPath(path)
-                    if seed_from_usd or not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME):
-                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr(
-                            usdrt.Gf.Matrix4d(xform_cache.GetLocalToWorldTransform(usd_prim))
-                        )
-                    if seed_from_usd or (is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME)):
-                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr(
-                            usdrt.Gf.Matrix4d(xform_cache.GetLocalTransformation(usd_prim)[0])
-                        )
-                    rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
-                    rt_prim.GetAttribute(index_attr).Set(i)
-                    group_prims.append(rt_prim)
-                self._tagged_prims.append((index_attr, group_prims))
-        finally:
-            if seed_from_usd and hierarchy is not None:
-                hierarchy.track_local_xform_changes(local_tracking)
-                hierarchy.track_world_xform_changes(world_tracking)
-        if not seed_from_usd and hierarchy is not None:
-            hierarchy.update_world_xforms()
+        for paths, index_attr in (
+            (unique_parent_paths, self._parent_index_attr),
+            (self._prim_paths, self.child_index_attr),
+        ):
+            group_prims: list = []
+            for i, path in enumerate(paths):
+                rt_prim = self.stage.GetPrimAtPath(path)
+                if not rt_prim.IsValid():
+                    raise RuntimeError(f"{owner}: prim '{path}' does not exist in the Fabric stage.")
+                rt_xformable = Rt.Xformable(rt_prim)
+                if not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME):
+                    matrix = usd_xforms.GetLocalToWorldTransform(usd_stage.GetPrimAtPath(path))
+                    rt_xformable.CreateFabricHierarchyWorldMatrixAttr().Set(
+                        usdrt.Gf.Matrix4d(*itertools.chain.from_iterable(matrix))
+                    )
+                if not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME):
+                    matrix, _ = usd_xforms.GetLocalTransformation(usd_stage.GetPrimAtPath(path))
+                    rt_xformable.CreateFabricHierarchyLocalMatrixAttr().Set(
+                        usdrt.Gf.Matrix4d(*itertools.chain.from_iterable(matrix))
+                    )
+                rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
+                rt_prim.GetAttribute(index_attr).Set(i)
+                group_prims.append(rt_prim)
+            self._tagged_prims.append((index_attr, group_prims))
 
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
         uint_type = usdrt.Sdf.ValueTypeNames.UInt
