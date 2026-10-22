@@ -11,6 +11,12 @@ This experimental example uses a fixed index grasp and motion.
 
     # Newton GL:
     uv run isaaclab example rizon-sharpa-teapot
+    # Include the full room in Newton GL:
+    uv run isaaclab example rizon-sharpa-teapot --backdrop room
+    # Kit:
+    uv run --extra isaacsim isaaclab example rizon-sharpa-teapot --visualizer kit
+    # OVRTX:
+    uv run --extra ovrtx isaaclab example rizon-sharpa-teapot --visualizer newton_rtx
 
 
 The pinned robot USD and textures are downloaded and verified on first use.

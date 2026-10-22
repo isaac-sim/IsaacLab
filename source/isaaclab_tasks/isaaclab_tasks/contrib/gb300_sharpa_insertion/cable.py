@@ -359,6 +359,7 @@ def add_connectors(
     ordinary contacts [N/m]; the spring clip and native VBD path are unchanged.
     """
     import newton
+    from newton.utils import color_linear_to_srgb
 
     from isaaclab.utils.mesh import convert_faces_to_triangles
 
@@ -378,6 +379,11 @@ def add_connectors(
         raise ValueError(f"Expected one native cable in world {world_idx}, found {len(groups)}.")
     group = groups[0]
     root = str(builder.curve_label[group]).removesuffix("/geometry/mesh")
+    # Native rod import does not transfer the USD material to its GL capsules.
+    jacket_color = color_linear_to_srgb(PATCH_CABLE_COLOR)
+    for body in range(int(builder._curve_body_start[group]), int(builder._curve_body_end[group])):
+        for shape in builder.body_shapes[body]:
+            builder.shape_color[shape] = jacket_color
     # Give the fixed workcell one owner and mirror it into VBD like the robot.
     # A shape cannot belong to two coupled entries, even when it is static.
     env_root = root.rsplit("/", 1)[0]

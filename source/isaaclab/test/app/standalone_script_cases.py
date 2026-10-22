@@ -241,7 +241,11 @@ OVERRIDES = {
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
-    "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
+    "examples/demos/teapot_fill.py": ScriptOverride(
+        args=("--voxel_size", "0.006"),
+        fixed_physics_backend="newton_mpm",
+        visualizers=(None, "kit", "newton_gl", "newton_rtx"),
+    ),
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
         fixed_physics_backend="newton_coupler",

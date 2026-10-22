@@ -96,7 +96,11 @@ class NewtonViewerGL(ViewerGL):
     _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
 
-    def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
+    def __init__(
+        self, *args, window_cfg: WindowCfg, metadata: dict | None = None, texture_max_size: int | None = None, **kwargs
+    ):
+        self._texture_max_size = texture_max_size
+        self._model_texture_cache: dict[str, np.ndarray | None] | None = None
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._reset_requested = False
@@ -126,6 +130,36 @@ class NewtonViewerGL(ViewerGL):
             # Live plots are drawn in the sidebar, not Newton's floating window.
             self.gui._render_scalar_plots = lambda: None
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def set_model(self, model: newton.Model | None) -> None:
+        """Decode shared textures once while the native viewer uploads the model's meshes."""
+        self._model_texture_cache = {}
+        try:
+            return super().set_model(model)
+        finally:
+            self._model_texture_cache = None
+
+    def log_mesh(self, name, points, indices, normals=None, uvs=None, texture=None, *args, **kwargs):
+        """Reuse decoded images during model upload and preserve ordinary mesh logging."""
+        if self._model_texture_cache is not None and isinstance(texture, (str, os.PathLike)):
+            from newton.utils import load_texture
+
+            path = os.fspath(texture)
+            if path not in self._model_texture_cache:
+                image = load_texture(texture)
+                if (
+                    image is not None
+                    and self._texture_max_size is not None
+                    and max(image.shape[:2]) > self._texture_max_size
+                ):
+                    from PIL import Image
+
+                    resized = Image.fromarray(image)
+                    resized.thumbnail((self._texture_max_size, self._texture_max_size), Image.Resampling.LANCZOS)
+                    image = np.array(resized)
+                self._model_texture_cache[path] = image
+            texture = self._model_texture_cache[path]
+        return super().log_mesh(name, points, indices, normals, uvs, texture, *args, **kwargs)
 
     @property
     def camera_speed(self) -> float:
@@ -506,6 +540,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                     "gravity": sim.cfg.gravity,
                 },
                 window_cfg=self.cfg.window,
+                texture_max_size=getattr(self.cfg.backend, "texture_max_size", None),
             )  # fmt: skip
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")

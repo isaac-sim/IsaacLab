@@ -56,6 +56,13 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     particle_color: tuple[float, float, float] | None = None
     """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""
 
+    texture_max_size: int | None = None
+    """Maximum edge length [px] for file textures uploaded with the Newton model.
+
+    Images retain their aspect ratio and smaller textures are unchanged. ``None`` preserves
+    the source resolution. Array textures and meshes logged after model upload are unchanged.
+    """
+
     enable_picking: bool = True
     """Enable right-click dragging with Newton rigid-body solvers.
 
@@ -81,6 +88,11 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
 
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0, 1]."""
+
+    def validate_config(self) -> None:
+        """Require a positive integer texture limit when specified."""
+        if self.texture_max_size is not None and (type(self.texture_max_size) is not int or self.texture_max_size < 1):
+            raise ValueError("NewtonGLBackendCfg.texture_max_size must be a positive integer or None.")
 
 
 @configclass
@@ -127,6 +139,11 @@ class NewtonGLVisualizerCfg(NewtonGLBackendCfg, VisualizerCfg):
 
     backend: NewtonGLBackendCfg = NewtonGLBackendCfg()
     streaming_view: bool = True
+
+    def validate_config(self) -> None:
+        """Validate both parts of the deprecated combined configuration."""
+        NewtonGLBackendCfg.validate_config(self)
+        VisualizerCfg.validate_config(self)
 
 
 @configclass
