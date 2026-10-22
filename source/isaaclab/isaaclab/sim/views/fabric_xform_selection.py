@@ -111,8 +111,8 @@ class FabricXformSelection:
         # A zero-prim selection is legal: the owning views allow a pattern that matches nothing, and
         # everything below degenerates to empty selections, buffers, and launches.
         child_parent_paths = [_parent_path(path) for path in self._prim_paths]
-        self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
-        parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
+        unique_parent_paths = list(dict.fromkeys(child_parent_paths))
+        parent_ordinal = {path: i for i, path in enumerate(unique_parent_paths)}
 
         # Tag children and parents with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
@@ -129,7 +129,7 @@ class FabricXformSelection:
         try:
             for paths, index_attr, is_child in (
                 (self._prim_paths, self.child_index_attr, True),
-                (self.unique_parent_paths, self._parent_index_attr, False),
+                (unique_parent_paths, self._parent_index_attr, False),
             ):
                 group_prims: list = []
                 for i, path in enumerate(paths):
@@ -178,7 +178,7 @@ class FabricXformSelection:
             [parent_ordinal[path] for path in child_parent_paths], dtype=wp.uint32, device=device
         )
         self._child_slots_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
-        self._parent_slots_buf = wp.empty((len(self.unique_parent_paths),), dtype=wp.int32, device=device)
+        self._parent_slots_buf = wp.empty((len(unique_parent_paths),), dtype=wp.int32, device=device)
         self._parent_slot_of_child_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
 
     def world_ifa(self) -> wp.indexedfabricarray:

@@ -1050,7 +1050,10 @@ def test_forward_consumes_existing_reset_masks():
 
     scene_backend = newton_manager_module.NewtonSceneDataBackend(manager)
     assert manager.get_state_0() is manager.backend.state_0
+    with wp.ScopedCapture(device="cpu"):
+        assert scene_backend.state is manager.backend.state_0
     assert observed == []
+    assert solver_resets == []
     assert scene_backend.state is manager.backend.state_0
     assert scene_backend.state is manager.backend.state_0
 

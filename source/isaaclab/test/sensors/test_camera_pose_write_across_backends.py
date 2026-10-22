@@ -180,6 +180,9 @@ def test_physx_mounted_warp_camera_tracks_motion_and_state_writes(device):
         camera.cfg.update_latest_camera_pose = False
         pose[:, 2] = 3.0
         cube.write_root_pose_to_sim_index(root_pose=pose)
+        frame = camera.frame.torch.clone()
         torch.testing.assert_close(camera.get_world_poses()[0], torch.tensor([[1.0, 0.0, 3.5]], device=device))
+        torch.testing.assert_close(camera.data.pos_w.torch, torch.tensor([[1.0, 0.0, FAR_M + 0.5]], device=device))
+        torch.testing.assert_close(camera.frame.torch, frame)
         if device.startswith("cuda"):
             assert not sim.get_setting("/physics/fabricUpdateTransformations")

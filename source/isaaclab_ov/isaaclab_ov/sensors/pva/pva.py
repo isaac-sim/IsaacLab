@@ -141,12 +141,7 @@ class Pva(BasePva):
         self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
         self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count
 
-        if self._num_bodies != self._num_envs:
-            raise ValueError(
-                f"OvPhysx Pva: pattern '{pattern}' matched {self._num_bodies} rigid bodies; expected exactly one"
-                f" body per environment (num_envs={self._num_envs}). Check that the prim path or its rigid-body"
-                " ancestor is unique per env."
-            )
+        self._check_env_count(self._num_bodies, pattern)
 
         # PVA reports projected gravity as the unit direction vector (not the bias the IMU uses).
         # The scene value can change at runtime, so it is refreshed on every update.

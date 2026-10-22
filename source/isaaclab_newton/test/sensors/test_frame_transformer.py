@@ -327,22 +327,22 @@ def test_frame_transformer_sources_and_targets(sim):
             data.target_quat_source.torch,
         )
 
-    # Each raw-state reader must resolve joint FK itself, before an asset getter can publish child poses.
-    for index, reader in enumerate(("sensor", "view"), start=1):
-        joint_pos = default_actions.clone()
-        joint_pos[:, 0] += 0.5 * index
-        robot.write_joint_position_to_sim_index(position=joint_pos)
-        if reader == "sensor":
-            scene.sensors["ft_all"].reset()
-            measured = scene.sensors["ft_all"].data.target_pos_w.torch.clone()
-            torch.testing.assert_close(measured[:, all_reordering_indices], robot.data.body_pos_w.torch)
-        else:
-            measured = frame_view.get_world_poses()[0].torch.clone()
-            offset = torch.tensor([[0.0, 0.0, 0.1]], device=sim.device).repeat(scene.num_envs, 1)
-            expected = robot.data.body_pos_w.torch[:, thigh_index] + math_utils.quat_apply(
-                robot.data.body_quat_w.torch[:, thigh_index], offset
-            )
-            torch.testing.assert_close(measured, expected)
+    # Each reader must resolve pending joint FK before an asset getter can publish child poses.
+    joint_pos = default_actions.clone()
+    joint_pos[:, 0] += 0.5
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    scene.sensors["ft_all"].reset()
+    measured = scene.sensors["ft_all"].data.target_pos_w.torch.clone()
+    torch.testing.assert_close(measured[:, all_reordering_indices], robot.data.body_pos_w.torch)
+
+    joint_pos[:, 0] += 0.5
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    measured = frame_view.get_world_poses()[0].torch.clone()
+    offset = torch.tensor([[0.0, 0.0, 0.1]], device=sim.device).repeat(scene.num_envs, 1)
+    expected = robot.data.body_pos_w.torch[:, thigh_index] + math_utils.quat_apply(
+        robot.data.body_quat_w.torch[:, thigh_index], offset
+    )
+    torch.testing.assert_close(measured, expected)
     frame_view.close()
 
     # A cached update must honor changes to the reset mask.

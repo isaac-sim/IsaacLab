@@ -161,9 +161,6 @@ class FabricFrameView(BaseFrameView):
     accept :class:`wp.array`.
     """
 
-    _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
-    _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
-
     def __init__(
         self,
         prim_path: str,

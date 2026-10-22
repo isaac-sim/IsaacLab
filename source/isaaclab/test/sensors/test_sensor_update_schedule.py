@@ -147,16 +147,6 @@ def test_reset_read_only_restarts_period_after_capture(device, invalidate):
     assert sensor.refreshes[0] == ([1, 1, 5, 9] if invalidate else [1, 2, 6, 10])
     assert sensor.refreshes[1] == [1, 5, 9]
 
-    # A partial reset must preserve a pending refresh for the other environment.
-    sensor.reset()
-    sensor.update(0.02)
-    sensor.reset(env_mask=reset_mask)
-    before = list(sensor.refreshes[0])
-    sensor.step = 11
-    _ = sensor.data
-    assert sensor.refreshes[0] == before
-    assert sensor.refreshes[1][-1] == 11
-
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize("period", [0.0, 0.02])

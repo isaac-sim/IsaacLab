@@ -57,11 +57,7 @@ def assert_sensors_reject_partial_environment_coverage(sim, cfg) -> None:
         sensor = instantiate(sensor_cfg)
         try:
             # Sensors added after reset have not received PHYSICS_READY; exercise real native initialization.
-            coverage_error = (
-                f"{type(sensor).__name__} .*requires .* of 4 environments"
-                r"|expected exactly one body per environment|View body count\s*: 2 \(4 envs"
-            )
-            with pytest.raises((RuntimeError, ValueError), match=coverage_error) as error:
+            with pytest.raises(RuntimeError, match=f"{type(sensor).__name__} .*requires .* of 4 environments") as error:
                 sensor._initialize_callback(None)
             assert ("Robot" if isinstance(sensor_cfg, JointWrenchSensorCfg) else "Crate") in str(error.value)
             assert not sensor.is_initialized
