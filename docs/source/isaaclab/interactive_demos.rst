@@ -86,8 +86,10 @@ WebAssembly, and policy inference also runs in your browser.
 
    .. _interactive-demo-franka-reach:
 
-   **Franka reach** — Move a target and watch a pretrained joint-position
-   policy reach for it, or take over with Manual end-effector control.
+   .. _interactive-demo-ur10-reach:
+
+   **UR10 reach** — Move target sliders to test a pretrained reach policy, or
+   switch to Manual end-effector control with inverse kinematics.
 
    .. _interactive-demo-franka-lift:
 
@@ -96,8 +98,9 @@ WebAssembly, and policy inference also runs in your browser.
 
    .. _interactive-demo-franka-drawer:
 
-   **Franka drawer opening** — Play a pretrained drawer-opening policy or
-   switch to Manual to control the arm and gripper.
+   **Franka drawer control** — Open runs the published opening policy; Close
+   uses a separate physical controller. The lower drawer and cabinet doors stay
+   fixed. Switch to Manual to control the arm and gripper.
 
    .. _interactive-demo-franka-soft:
 
