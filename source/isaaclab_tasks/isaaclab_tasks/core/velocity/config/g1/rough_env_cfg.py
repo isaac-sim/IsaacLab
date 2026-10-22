@@ -33,6 +33,7 @@ from isaaclab.terrains import TerrainGeneratorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.modifiers import ModifierCfg
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -418,29 +419,28 @@ class G1SceneCfg(velocity_env_cfg.MySceneCfg):
 
 
 @configclass
-class G1DepthCameraCfg(CameraCfg):
-    """Chest-mounted depth camera shared by the student and its reflected view."""
-
-    update_period = 0.0
-    update_latest_camera_pose = True
-    renderer_cfg = MultiBackendRendererCfg()
-    width = DEPTH_WIDTH
-    height = DEPTH_HEIGHT
-    data_types = ["distance_to_image_plane"]
-    spawn = PinholeCameraCfg(
-        focal_length=1.93,
-        horizontal_aperture=2.0 * 1.93 * math.tan(math.radians(87.0 / 2.0)),
-        clipping_range=(0.05, 10.0),
-    )
-    offset = CameraCfg.OffsetCfg(pos=DEPTH_OFFSET_POS, rot=DEPTH_OFFSET_ROT, convention="world")
-
-
-@configclass
 class G1DepthStudentSceneCfg(G1SceneCfg):
     """Teacher scene extended with the student's depth and reflected-depth cameras."""
 
-    depth_camera = G1DepthCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera")
-    depth_camera_mirror = G1DepthCameraCfg(
+    @configclass
+    class DepthCameraCfg(CameraCfg):
+        """Chest-mounted depth camera shared by the student and its reflected view."""
+
+        update_period = 0.0
+        update_latest_camera_pose = True
+        renderer_cfg = MultiBackendRendererCfg()
+        width = DEPTH_WIDTH
+        height = DEPTH_HEIGHT
+        data_types = ["distance_to_image_plane"]
+        spawn = PinholeCameraCfg(
+            focal_length=1.93,
+            horizontal_aperture=2.0 * 1.93 * math.tan(math.radians(87.0 / 2.0)),
+            clipping_range=(0.05, 10.0),
+        )
+        offset = CameraCfg.OffsetCfg(pos=DEPTH_OFFSET_POS, rot=DEPTH_OFFSET_ROT, convention="world")
+
+    depth_camera = DepthCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera")
+    depth_camera_mirror = DepthCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera_mirror",
         offset=CameraCfg.OffsetCfg(
             pos=(DEPTH_OFFSET_POS[0], -DEPTH_OFFSET_POS[1], DEPTH_OFFSET_POS[2]),
@@ -451,15 +451,41 @@ class G1DepthStudentSceneCfg(G1SceneCfg):
 
 
 @configclass
-class G1StudentObservationsCfg(velocity_env_cfg.ObservationsCfg):
-    """Student inference inputs and teacher/reflected-camera supervision groups."""
+class G1ObservationsCfg:
+    """Current proprioception and ray-cast terrain heights."""
 
     @configclass
-    class PolicyCfg(velocity_env_cfg.ObservationsCfg.PolicyCfg):
+    class ProprioCfg(velocity_env_cfg.ObservationsCfg.PolicyCfg):
+        """Current robot state and velocity commands."""
+
+        height_scan = None
+
+    @configclass
+    class HeightScanCfg(ObsGroup):
+        """Ray-cast terrain heights relative to the robot."""
+
+        height_scan = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
+        )
+        enable_corruption = True
+        concatenate_terms = True
+
+    proprio: ProprioCfg = ProprioCfg()
+    height_scan: HeightScanCfg = HeightScanCfg()
+
+
+@configclass
+class G1StudentObservationsCfg(G1ObservationsCfg):
+    """Proprioception history and depth inputs, with noise-free state/height supervision."""
+
+    @configclass
+    class ProprioHistoryCfg(G1ObservationsCfg.ProprioCfg):
         """Five proprioceptive frames without privileged velocity or height observations."""
 
         base_lin_vel = None
-        height_scan = None
         history_length = 5
 
     @configclass
@@ -482,9 +508,10 @@ class G1StudentObservationsCfg(velocity_env_cfg.ObservationsCfg):
         enable_corruption = False
         concatenate_terms = True
 
-    policy: PolicyCfg = PolicyCfg()
-    teacher: velocity_env_cfg.ObservationsCfg.PolicyCfg = velocity_env_cfg.ObservationsCfg.PolicyCfg()
-    teacher.enable_corruption = False
+    proprio: G1ObservationsCfg.ProprioCfg = G1ObservationsCfg.ProprioCfg()
+    proprio.enable_corruption = False
+    height_scan: G1ObservationsCfg.HeightScanCfg = G1ObservationsCfg.HeightScanCfg(enable_corruption=False)
+    proprio_history: ProprioHistoryCfg = ProprioHistoryCfg()
     depth: DepthCfg = DepthCfg()
     depth_mirror: DepthCfg = DepthCfg()
     depth_mirror.depth.params["sensor_cfg"] = SceneEntityCfg("depth_camera_mirror")
@@ -500,6 +527,7 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     events: G1EventsCfg = G1EventsCfg()
     curriculum: G1CurriculumCfg = G1CurriculumCfg()
     terminations: G1TerminationsCfg = G1TerminationsCfg()
+    observations: G1ObservationsCfg = G1ObservationsCfg()
     sim = SimulationCfg(
         physics=velocity_env_cfg.RoughPhysicsCfg(),
         use_newton_actuators=False,
