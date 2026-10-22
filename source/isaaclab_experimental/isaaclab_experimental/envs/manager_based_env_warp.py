@@ -36,7 +36,7 @@ from isaaclab.envs.utils.io_descriptors import (
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
-from isaaclab.utils.seed import configure_seed
+from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
@@ -45,17 +45,6 @@ from isaaclab_experimental.utils.warp import resolve_1d_mask
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@wp.kernel
-def initialize_rng_state(
-    # input
-    seed: wp.int32,
-    # output
-    state: wp.array(dtype=wp.uint32),
-):
-    env_id = wp.tid()
-    state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 
 
 class ManagerBasedEnvWarp:
@@ -97,7 +86,7 @@ class ManagerBasedEnvWarp:
 
         # set the seed for the environment
         if self.cfg.seed is not None:
-            self.cfg.seed = self.seed(self.cfg.seed)
+            self.cfg.seed = configure_seed(self.cfg.seed)
         else:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
@@ -149,16 +138,8 @@ class ManagerBasedEnvWarp:
                 # attach_stage_to_usd_context()
         logger.info(f"Scene manager: {self.scene}")
 
-        # Shared per-env Warp RNG state (accessible to all managers/terms via `env`).
-        # This is a single stream per env (no lookup) and is initialized once when `num_envs` is known.
-        self.rng_state_wp = wp.zeros((self.num_envs,), dtype=wp.uint32, device=self.device)
-        seed_val = int(self.cfg.seed) if self.cfg.seed is not None else -1
-        wp.launch(
-            kernel=initialize_rng_state,
-            dim=self.num_envs,
-            inputs=[seed_val, self.rng_state_wp],
-            device=self.device,
-        )
+        # Process-wide per-env Warp RNG state (isaaclab.utils.seed.WarpRng), shared by terms, tasks and sensors.
+        WarpRng.initialize(self.num_envs, self.device)
 
         # TODO(jichuanh): this is problematic as warp capture requires stable pointers,
         #                 using different masks for different managers/terms will cause problems.
@@ -442,16 +423,10 @@ class ManagerBasedEnvWarp:
 
         # set the seed
         if seed is not None:
-            used_seed = self.seed(seed)
+            # also reseeds the per-env Warp RNG state in place (stable pointer for capture)
+            used_seed = configure_seed(seed)
             # keep cfg seed in sync for downstream users
             self.cfg.seed = used_seed
-            # re-initialize per-env Warp RNG state without reallocating (stable pointer for capture)
-            wp.launch(
-                kernel=initialize_rng_state,
-                dim=self.num_envs,
-                inputs=[int(used_seed), self.rng_state_wp],
-                device=self.device,
-            )
 
         # reset state of scene
         self._reset_idx(env_ids)
@@ -506,7 +481,7 @@ class ManagerBasedEnvWarp:
 
         # set the seed
         if seed is not None:
-            self.seed(seed)
+            configure_seed(seed)
 
         self._reset_idx(env_ids)
 

@@ -11,6 +11,8 @@ import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
 
+from isaaclab.utils.seed import WarpRng
+
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
@@ -174,16 +176,6 @@ def reset(
         state[env_index] = rng_state
 
 
-@wp.kernel
-def initialize_state(
-    state: wp.array(dtype=wp.uint32),
-    seed: wp.int32,
-):
-    """Initialize each env's random number generator state from the seed."""
-    env_index = wp.tid()
-    state[env_index] = wp.rand_init(seed, env_index)
-
-
 class CartpoleWarpEnv(DirectRLEnvWarp):
     cfg: CartpoleEnvCfg
 
@@ -206,19 +198,6 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         self.observations = wp.zeros((self.num_envs), dtype=wp.vec4f, device=self.device)
         self.actions = wp.zeros((self.num_envs, self.cartpole.num_joints), dtype=wp.float32, device=self.device)
         self.rewards = wp.zeros((self.num_envs), dtype=wp.float32, device=self.device)
-        self.states = wp.zeros((self.num_envs), dtype=wp.uint32, device=self.device)
-
-        if self.cfg.seed is None:
-            self.cfg.seed = -1
-
-        wp.launch(
-            initialize_state,
-            dim=self.num_envs,
-            inputs=[
-                self.states,
-                self.cfg.seed,
-            ],
-        )
 
         # Bind torch buffers to warp buffers
         self.torch_obs_buf = wp.to_torch(self.observations)
@@ -317,6 +296,6 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
                 self.cfg.initial_pole_angle_range,
                 self.cfg.initial_pole_velocity_range,
                 mask,
-                self.states,
+                WarpRng.state,
             ],
         )
