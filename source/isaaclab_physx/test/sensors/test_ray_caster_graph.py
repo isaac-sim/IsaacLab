@@ -70,8 +70,8 @@ def _make_ray_caster(use_graph: bool = True, cache_raw_transforms: bool = True):
     sensor = RayCaster.__new__(RayCaster)
     sensor.cfg = SimpleNamespace(prim_path="/World/Sensor")
     sensor._device = device
-    sensor._physx_body_view = transform_view
     sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)
+    sensor._physx_body_view = transform_view
     sensor._raw_transforms = transforms if cache_raw_transforms else None
     sensor._compute_graph = None
     sensor._use_graph = use_graph

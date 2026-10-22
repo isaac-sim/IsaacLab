@@ -1,4 +1,4 @@
-* Fixed the OVPhysX ray casters, :class:`~isaaclab_ov.sensors.FrameTransformer`, the tracked poses of
+* Fixed the OVPhysX :class:`~isaaclab_ov.sensors.FrameTransformer`, the tracked poses of
   :class:`~isaaclab_ov.sensors.ContactSensor` and :class:`~isaaclab_ov.sim.views.OvPhysxFrameView` reporting the
   previous pose of articulation child links after joint or root state writes on GPU simulation, such as in the
   first observation after a reset inside ``step()``. :class:`~isaaclab_ov.sensors.Imu` and

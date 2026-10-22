@@ -1,4 +1,4 @@
-* Fixed the PhysX ray casters, :class:`~isaaclab_physx.sensors.FrameTransformer` and the tracked poses of
+* Fixed the PhysX :class:`~isaaclab_physx.sensors.FrameTransformer` and the tracked poses of
   :class:`~isaaclab_physx.sensors.ContactSensor` reporting the previous pose of articulation child links after
   joint or root state writes on GPU simulation, such as in the first observation after a reset inside ``step()``.
   :class:`~isaaclab_physx.sensors.Imu` and :class:`~isaaclab_physx.sensors.Pva` likewise reported the previous pose

@@ -238,7 +238,7 @@ class Pva(BasePva):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references for re-initialization and re-registers with NewtonManager."""
+        """Release native handles and renew the model's ``body_qdd`` request, retaining the builder-owned site."""
         super()._invalidate_initialize_callback(event)
         self._newton_model = None
         self._site_indices = None
@@ -257,7 +257,4 @@ class Pva(BasePva):
             if buf is not None:
                 buf.zero_()
 
-        # Re-register so a subsequent start_simulation picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = self._backend_manager.cl_register_site(self.cfg.prim_path, offset_xform)
         self._backend_manager.request_extended_state_attribute("body_qdd")
