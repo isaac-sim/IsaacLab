@@ -176,6 +176,8 @@ class OpenXRDevice(DeviceBase):
             self._vc_subscription = None
         if hasattr(self, "_xr_pre_sync_update_subscription") and self._xr_pre_sync_update_subscription is not None:
             self._xr_pre_sync_update_subscription = None
+        if hasattr(self, "_anchor_sync") and self._anchor_sync is not None:
+            self._anchor_sync.close()
         # clear button subscriptions
         if hasattr(self, "__button_subscriptions"):
             self._unbind_all_buttons()

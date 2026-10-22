@@ -17,10 +17,11 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
 from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle, _to_numpy_4x4
 
-from pxr import Gf
+from isaaclab.utils.warp import ProxyArray
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -163,8 +164,11 @@ def test_advance_selects_target_frame(configured, explicit, expected):
     """An explicit transform wins; otherwise invert the bound frame's current pose."""
     device = object.__new__(IsaacTeleopDevice)
     reference = MagicMock()
-    reference.Get.return_value = Gf.Matrix4d(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1)
-    device._target_world_matrix = reference if configured else None
+    reference.get_world_poses.return_value = (
+        ProxyArray(wp.array([[1, 2, 3]], dtype=wp.vec3f, device="cpu")),
+        ProxyArray(wp.array([[0, 0, np.sqrt(0.5), np.sqrt(0.5)]], dtype=wp.quatf, device="cpu")),
+    )
+    device._target_frame = reference if configured else None
     device._session_lifecycle = MagicMock()
     device._session_lifecycle.step.return_value = None
     device._anchor_manager = MagicMock()

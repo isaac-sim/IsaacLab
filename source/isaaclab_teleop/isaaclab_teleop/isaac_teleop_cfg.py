@@ -284,7 +284,7 @@ class IsaacTeleopCfg:
     """Optional USD prim path whose world frame becomes the target coordinate
     frame for all output poses.
 
-    The prim must exist when entering the device context. Its Fabric attribute is bound
+    The prim must exist when entering the device context. Its backend frame view is bound
     once at that point; a missing prim raises :class:`ValueError` before the session starts.
     Each frame reads its current world transform and uses its inverse as the
     ``target_T_world`` rebase matrix in

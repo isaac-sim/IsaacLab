@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
 
-from isaaclab.sim.utils.stage import get_current_stage_id
+from isaaclab.sim import FrameView, SimulationContext
 
 from .command_handler import CommandHandler
 from .control_events import ControlEvents
@@ -154,7 +154,7 @@ class IsaacTeleopDevice:
                 ...).  ``None`` disables haptics.
         """
         self._cfg = cfg
-        self._target_world_matrix = None
+        self._target_frame = None
 
         self._anchor_manager = XrAnchorManager(cfg.xr_cfg)
         self._command_handler = CommandHandler()
@@ -228,20 +228,22 @@ class IsaacTeleopDevice:
             ValueError: If the configured target frame does not exist.
         """
         if self._cfg.target_frame_prim_path is not None:
-            import usdrt
-            from usdrt import Rt
-
-            stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
-            prim = stage.GetPrimAtPath(self._cfg.target_frame_prim_path)
-            if not prim.IsValid():
-                raise ValueError(f"No target frame at {self._cfg.target_frame_prim_path!r}.")
-            self._target_world_matrix = Rt.Xformable(prim).GetFabricHierarchyWorldMatrixAttr()
+            self._target_frame = FrameView(
+                self._cfg.target_frame_prim_path, device=SimulationContext.instance().device, validate_xform_ops=False
+            )
+            if self._target_frame.count != 1:
+                self._target_frame.close()
+                self._target_frame = None
+                raise ValueError(f"Expected one target frame at {self._cfg.target_frame_prim_path!r}.")
+            self._target_frame.get_world_poses()
         self._session_lifecycle.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context manager and clean up the Isaac Capture session."""
-        self._target_world_matrix = None
+        if self._target_frame is not None:
+            self._target_frame.close()
+            self._target_frame = None
         self._anchor_manager.cleanup()
         self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
         return False
@@ -341,13 +343,12 @@ class IsaacTeleopDevice:
         Raises:
             RuntimeError: If called outside of a context manager.
         """
-        if target_T_world is None and self._target_world_matrix is not None:
-            matrix = self._target_world_matrix.Get()
-            quaternion = matrix.ExtractRotationQuat()
-            inverse_rotation = Rotation.from_quat([*quaternion.GetImaginary(), quaternion.GetReal()]).as_matrix().T
+        if target_T_world is None and self._target_frame is not None:
+            position, orientation = self._target_frame.get_world_poses()
+            inverse_rotation = Rotation.from_quat(orientation.warp.numpy()[0]).as_matrix().T
             target_T_world = np.eye(4, dtype=np.float32)
             target_T_world[:3, :3] = inverse_rotation
-            target_T_world[:3, 3] = -inverse_rotation @ np.asarray(matrix.ExtractTranslation())
+            target_T_world[:3, 3] = -inverse_rotation @ position.warp.numpy()[0]
 
         # Step the session (handles lazy start and action extraction)
         action = self._session_lifecycle.step(

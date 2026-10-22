@@ -226,9 +226,10 @@ def test_xr_anchor(empty_env, mock_xrcore, monkeypatch):
                 np.testing.assert_allclose(sync.get_world_transform()[0], position)
                 displayed = core.set_world_transform_matrix.call_args.args[1]
                 np.testing.assert_allclose(displayed.ExtractTranslation(), position)
+        sync.close()
     session.start.reset_mock()
     cfg.target_frame_prim_path = "/World/Missing"
-    with pytest.raises(ValueError, match="No target frame"):
+    with pytest.raises(ValueError, match="Expected one target frame"):
         with IsaacTeleopDevice(cfg, use_kit_xr_bridge=False):
             pass
     session.start.assert_not_called()
