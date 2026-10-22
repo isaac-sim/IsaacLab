@@ -200,19 +200,15 @@ The Control Loop
 
 Two details about the ends of this loop.
 
-The graph writes **every joint of the articulation**, fingers included, so its 43 outputs are
-matched to the 29 motors ``rt/lowcmd`` carries by name, using the ``element_names`` the export
-records. The two orders agree for the first 22 joints and then diverge, which is the kind of
-mismatch that produces a walking robot with the wrong arm.
+Joint targets are mapped to the 29 body motors by joint name using the exported ``element_names``.
 
-The ramp target is a fixed constant, not something read back from the policy. The operator squares
-the robot up in that pose and it has to be the same on every run.
+Before enabling the policy, the robot transitions to the predefined starting pose over three seconds
+and holds it until the operator confirms.
 
 Conversions
 ^^^^^^^^^^^
 
-Four conversions sit between the robot and the graph. Each is silent when wrong: the arrays keep
-their shapes and the robot simply walks badly.
+The following conversions adapt robot sensor data to the graph's input format.
 
 **Quaternion order.** The IMU publishes ``(w, x, y, z)`` and the graph expects ``(x, y, z, w)``.
 
