@@ -24,6 +24,17 @@ continues from there onto hardware. The inference stage is unchanged — it is t
    3. export     pipeline .yaml + .onnx + _initial_values.safetensors
    4. deploy     scripts/deploy/g1_deploy.py
 
+.. raw:: html
+
+   <div style="display: flex; gap: 1rem; margin: 1rem 0;">
+     <a href="https://github.com/Double7sBurger/IsaacLab/releases/download/g1-visual-locomotion-media/block_physx_vs_newton_vs_real.gif" style="flex: 1; min-width: 0;">
+       <img src="https://github.com/Double7sBurger/IsaacLab/releases/download/g1-visual-locomotion-media/block_physx_vs_newton_vs_real.gif" alt="G1 on blocks: PhysX, Newton (MJWarp), and real robot" style="width: 100%; height: auto;">
+     </a>
+     <a href="https://github.com/Double7sBurger/IsaacLab/releases/download/g1-visual-locomotion-media/ramp_physx_vs_newton_vs_real.gif" style="flex: 1; min-width: 0;">
+       <img src="https://github.com/Double7sBurger/IsaacLab/releases/download/g1-visual-locomotion-media/ramp_physx_vs_newton_vs_real.gif" alt="G1 on ramps: PhysX, Newton (MJWarp), and real robot" style="width: 100%; height: auto;">
+     </a>
+   </div>
+
 
 Prerequisites
 -------------
