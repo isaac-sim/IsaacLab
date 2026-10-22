@@ -257,7 +257,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")
     for backdrop in backdrops:
         cfg.scene.presentation = AssetBaseCfg(
-            prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop)
+            prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop), cloning_contexts=()
         )
     cfg.scene.robot = get_robot_cfg()
     cfg.scene.table = AssetBaseCfg(
