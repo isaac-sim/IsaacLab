@@ -8,11 +8,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.envs.mdp import modify_term_cfg
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -51,10 +50,3 @@ def terrain_levels_vel(
     terrain.update_env_origins(env_ids, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
-
-
-def set_value_after_steps(env: ManagerBasedRLEnv, env_ids: Sequence[int], data: Any, value: Any, num_steps: int) -> Any:
-    """Set a term parameter on the first reset at or after ``num_steps`` global environment steps."""
-    if env.common_step_counter >= num_steps:
-        return value
-    return modify_term_cfg.NO_CHANGE

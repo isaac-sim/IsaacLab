@@ -3,8 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import ast
+from importlib import import_module
+from inspect import getsource
+
 import gymnasium as gym
 from isaaclab_newton.physics import MJWarpSolverCfg
+
+from isaaclab.envs import mdp as core_mdp
 
 from isaaclab_tasks.core.velocity.config.g1 import rough_env_cfg
 from isaaclab_tasks.core.velocity.config.g1.agents import rsl_rl_ppo_cfg
@@ -23,6 +29,11 @@ def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
 
     assert isinstance(env_cfg, rough_env_cfg.G1RoughTeacherEnvCfg)
     assert isinstance(runner_cfg, rsl_rl_ppo_cfg.G1RoughTeacherPPORunnerCfg)
+    assert isinstance(env_cfg.scene, rough_env_cfg.G1SceneCfg)
+    assert isinstance(env_cfg.rewards, rough_env_cfg.G1Rewards)
+    assert isinstance(env_cfg.events, rough_env_cfg.G1EventsCfg)
+    assert isinstance(env_cfg.curriculum, rough_env_cfg.G1CurriculumCfg)
+    assert isinstance(env_cfg.terminations, rough_env_cfg.G1TerminationsCfg)
     solver_cfg = env_cfg.sim.physics.newton_mjwarp.solver_cfg
     assert isinstance(solver_cfg, MJWarpSolverCfg)
     assert solver_cfg.njmax == 300
@@ -30,6 +41,39 @@ def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
     assert "Isaac-Velocity-Rough-G1-Teacher" not in gym.registry
     assert not hasattr(rough_env_cfg, "G1RoughEnvCfg")
     assert not hasattr(rsl_rl_ppo_cfg, "G1RoughPPORunnerCfg")
+
+    # Generic manager terms belong to core MDP; task modules must not duplicate or alias them.
+    for func, module_name in (
+        (env_cfg.rewards.joint_deviation_hip.func, "rewards"),
+        (env_cfg.rewards.pelvis_height.func, "rewards"),
+        (env_cfg.rewards.torso_ang_vel.func, "rewards"),
+        (env_cfg.rewards.root_downward_speed.func, "rewards"),
+        (env_cfg.terminations.base_height.func, "terminations"),
+        (env_cfg.curriculum.base_height.params["modify_fn"], "curriculums"),
+    ):
+        task_module = import_module(f"isaaclab_tasks.core.velocity.mdp.{module_name}")
+        assert func is getattr(core_mdp, func.__name__)
+        assert func.__module__ == f"isaaclab.envs.mdp.{module_name}"
+        assert func.__name__ not in vars(task_module)
+
+    # Scene and manager configs own static settings; initialization only supplies asset-derived values.
+    for node in ast.walk(ast.parse(getsource(rough_env_cfg.G1RoughTeacherEnvCfg))):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                assert not ast.unparse(target).startswith(
+                    (
+                        "self.scene.",
+                        "self.rewards.",
+                        "self.events.",
+                        "self.curriculum.",
+                        "self.terminations.",
+                        "self.commands.",
+                        "self.observations.",
+                        "self.sim.",
+                    )
+                )
+    student_class = ast.parse(getsource(rough_env_cfg.G1RoughDepthStudentEnvCfg)).body[0]
+    assert not any(isinstance(node, ast.FunctionDef) and node.name == "__post_init__" for node in student_class.body)
 
 
 def test_g1_flat_keeps_its_robot_and_ppo_settings():

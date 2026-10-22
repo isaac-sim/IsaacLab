@@ -156,48 +156,6 @@ def stand_still_joint_deviation_l1(
     return mdp.joint_deviation_l1(env, asset_cfg) * (torch.linalg.norm(command[:, :2], dim=1) < command_threshold)
 
 
-def pelvis_height_deficit_l2(
-    env,
-    target_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("height_scanner"),
-) -> torch.Tensor:
-    """Squared shortfall of the root below ``target_height`` above the ground beneath it."""
-    asset = env.scene[asset_cfg.name]
-    sensor = env.scene[sensor_cfg.name]
-    hits = sensor.data.ray_hits_w.torch[..., 2]
-    ground = torch.nan_to_num(hits, nan=0.0, posinf=0.0, neginf=0.0).median(dim=1).values
-    clearance = asset.data.root_pos_w.torch[:, 2] - ground
-    return torch.clamp(target_height - clearance, min=0.0).square()
-
-
-def joint_deviation_l2(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Squared deviation of the selected joints from their default angles."""
-    asset = env.scene[asset_cfg.name]
-    return torch.sum(
-        torch.square(
-            asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
-            - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
-        ),
-        dim=1,
-    )
-
-
-def body_ang_vel_xy_l2(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Squared world-frame roll/pitch angular velocity of a named body."""
-    asset = env.scene[asset_cfg.name]
-    omega = asset.data.body_ang_vel_w.torch[:, asset_cfg.body_ids, :].squeeze(1)
-    return torch.sum(torch.square(omega[:, :2]), dim=1)
-
-
-def root_downward_speed_l2(
-    env, speed_limit: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
-) -> torch.Tensor:
-    """Penalize world-frame downward root speed exceeding the limit [m/s]."""
-    velocity_z = env.scene[asset_cfg.name].data.root_lin_vel_w.torch[:, 2]
-    return torch.clamp(-velocity_z - speed_limit, min=0.0).square()
-
-
 def sole_edge_distances(sole_points, mesh, height_tolerance=0.04, max_distance=0.25):
     """Estimate horizontal sole-corner overhang [m] beyond the supporting terrain plane."""
     starts = sole_points.clone()
