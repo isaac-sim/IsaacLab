@@ -34,6 +34,7 @@ def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
     assert isinstance(env_cfg.events, rough_env_cfg.G1EventsCfg)
     assert isinstance(env_cfg.curriculum, rough_env_cfg.G1CurriculumCfg)
     assert isinstance(env_cfg.terminations, rough_env_cfg.G1TerminationsCfg)
+    assert env_cfg.sim.use_newton_actuators
     solver_cfg = env_cfg.sim.physics.newton_mjwarp.solver_cfg
     assert isinstance(solver_cfg, MJWarpSolverCfg)
     assert solver_cfg.njmax == 300
