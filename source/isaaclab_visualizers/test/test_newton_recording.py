@@ -11,8 +11,8 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from isaaclab_visualizers.newton import NewtonRecordingCfg
-from isaaclab_visualizers.newton.newton_recording import NewtonRecordingPanel, _ffmpeg_executable
+from isaaclab_visualizers.newton import NewtonRecordingCfg, newton_recording
+from isaaclab_visualizers.newton.newton_recording import NewtonRecordingPanel, _ffmpeg_executable, resolve_output_dir
 
 
 class _Array:
@@ -142,3 +142,24 @@ def test_closing_keeps_a_running_video(tmp_path):
     panel.close()
 
     assert (tmp_path / "video" / "newton_gl_0001.mp4").exists()
+
+
+def test_relative_output_folder_lands_in_the_repository_not_the_working_directory(tmp_path, monkeypatch):
+    repo, elsewhere = tmp_path / "repo", tmp_path / "elsewhere"
+    (repo / "source").mkdir(parents=True)
+    elsewhere.mkdir()
+    monkeypatch.setattr(newton_recording, "ISAACLAB_ROOT", repo)
+    monkeypatch.chdir(elsewhere)
+
+    assert resolve_output_dir("recording") == repo / "recording"
+    assert resolve_output_dir(str(tmp_path / "absolute")) == tmp_path / "absolute"
+
+
+def test_relative_output_folder_uses_the_working_directory_without_a_source_checkout(tmp_path, monkeypatch):
+    package, cwd = tmp_path / "site-packages" / "isaaclab", tmp_path / "cwd"
+    package.mkdir(parents=True)
+    cwd.mkdir()
+    monkeypatch.setattr(newton_recording, "ISAACLAB_ROOT", package)
+    monkeypatch.chdir(cwd)
+
+    assert resolve_output_dir("recording") == cwd / "recording"

@@ -21,12 +21,26 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from isaaclab.paths import ISAACLAB_ROOT
+
 from .newton_replay import NewtonReplayPlayer, list_recordings
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_output_dir(path: str) -> Path:
+    """Return the absolute recording folder for ``path``.
+
+    A relative path lands in the repository when running from a source checkout, wherever the run was started, and
+    in the working directory otherwise, such as with an installed wheel.
+    """
+    folder = Path(path).expanduser()
+    if folder.is_absolute():
+        return folder
+    return (ISAACLAB_ROOT if (ISAACLAB_ROOT / "source").is_dir() else Path.cwd()) / folder
 
 
 def hover_tooltip(imgui: Any, text: str) -> None:
@@ -92,7 +106,8 @@ class NewtonRecordingPanel:
         self._video_unsaved: Path | None = None
         """Finished clip that stays in a temporary file until :meth:`save_video` keeps it."""
         self.replay = NewtonReplayPlayer(lambda: owner._viewer)
-        self.replay_folder = str(Path(self.output_dir) / "scene")
+        self.replay_folder = ""
+        """Folder the Open window lists; empty follows the output folder's ``scene`` subfolder."""
         self._replay_window_open = False
         self._replay_files: list[Path] = []
         self._video: subprocess.Popen | None = None
@@ -223,7 +238,7 @@ class NewtonRecordingPanel:
         _c, self.output_dir = imgui.input_text("Folder##recording", self.output_dir)
         if imgui.is_item_hovered():
             imgui.set_tooltip(
-                f"Root folder, currently {Path(self.output_dir).expanduser().resolve()}."
+                f"Root folder, currently {resolve_output_dir(self.output_dir)}."
                 " Files go to <folder>/video, <folder>/scene, and <folder>/checkpoint"
             )
         _c, self.filename_prefix = imgui.input_text("Prefix##recording", self.filename_prefix)
@@ -251,7 +266,10 @@ class NewtonRecordingPanel:
 
     def _open_replay_window(self) -> None:
         self._replay_window_open = True
-        self._replay_files = list_recordings(self.replay_folder)
+        self._replay_files = list_recordings(self._replay_dir())
+
+    def _replay_dir(self) -> str:
+        return self.replay_folder or str(resolve_output_dir(self.output_dir) / "scene")
 
     def _draw_replay_window(self, imgui: Any) -> None:
         """Draw the file browser listing the ``.viser`` animations below a folder."""
@@ -259,9 +277,9 @@ class NewtonRecordingPanel:
         imgui.set_next_window_size(imgui.ImVec2(520, 360), imgui.Cond_.first_use_ever)
         expanded, self._replay_window_open = imgui.begin("Open Animation", self._replay_window_open)
         if expanded:
-            changed, self.replay_folder = imgui.input_text("Folder##replay", self.replay_folder)
+            changed, self.replay_folder = imgui.input_text("Folder##replay", self._replay_dir())
             if changed or imgui.button("Refresh##replay"):
-                self._replay_files = list_recordings(self.replay_folder)
+                self._replay_files = list_recordings(self._replay_dir())
             imgui.separator()
             if not self._replay_files:
                 imgui.text_wrapped("No .viser files found. Record one with Animation > Record.")
@@ -344,7 +362,7 @@ class NewtonRecordingPanel:
 
     def _output_path(self, kind: str, suffix: str) -> Path:
         """Return the next file of ``kind`` from the output settings, creating its folder."""
-        folder = Path(self.output_dir) / kind
+        folder = resolve_output_dir(self.output_dir) / kind
         folder.mkdir(parents=True, exist_ok=True)
         name = self.filename_prefix or "newton_gl"
         if self.timestamp:
@@ -370,7 +388,7 @@ class NewtonRecordingPanel:
         self._video_rate = self.video_fps or max(1, round(self._owner.cfg.window.fps))
         self._video_limit = round(self.video_length * self._video_rate) if self.video_length > 0 else None
         self._discard_unsaved_video()
-        folder = Path(self.output_dir) / "video"
+        folder = resolve_output_dir(self.output_dir) / "video"
         folder.mkdir(parents=True, exist_ok=True)
         self._video_temp = folder / ".unsaved_video.mp4"
         self._video = True  # Opened on the first frame, once the framebuffer size is known.

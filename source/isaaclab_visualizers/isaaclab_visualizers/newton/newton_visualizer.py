@@ -221,12 +221,12 @@ class NewtonViewerGL(ViewerGL):
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
         2. **Camera View** (open) — renderer (OpenGL or RTX), camera source, VSync, and renderer-specific options.
         3. **Scene** (open) — visible environments, visualization markers (a toggle per marker group, shared with Kit
-           and Viser), and model overlays.
+           and Viser), and visual overlays.
         4. **Policy Ghosts** (open) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
         5. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
         6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        7. **Controls** and **Articulation Inspector** (closed) — camera keyboard reference and Newton's articulation
-           selection panel.
+        7. **Articulation Inspector** (closed) — Newton's articulation selection panel.
+        8. **Keyboard & Mouse** (closed) — camera and window shortcuts.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -314,10 +314,18 @@ class NewtonViewerGL(ViewerGL):
             if live_plots_cb is not None:
                 live_plots_cb(imgui)
 
-            # --- Controls ---------------------------------------------------
+            # --- Articulation Inspector (Newton's Selection API) ------------
+            with _header_tooltips(
+                imgui,
+                {"Selection API": "Inspect the robot's articulations: filter them by name, joint, and link"},
+                {"Selection API": "Articulation Inspector"},
+            ):
+                _g._render_selection_panel()
+
+            # --- Keyboard & Mouse -------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
-            controls_open = imgui.collapsing_header("Controls")
-            hover_tooltip(imgui, "Camera and keyboard shortcuts")
+            controls_open = imgui.collapsing_header("Keyboard & Mouse###Controls")
+            hover_tooltip(imgui, "Camera, keyboard, and mouse shortcuts")
             if controls_open:
                 imgui.separator()
                 _g._render_camera_info()
@@ -341,14 +349,6 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("H - Toggle UI")
                 imgui.text("F - Frame camera around model")
 
-            # --- Articulation Inspector (Newton's Selection API) ------------
-            with _header_tooltips(
-                imgui,
-                {"Selection API": "Inspect the robot's articulations: filter them by name, joint, and link"},
-                {"Selection API": "Articulation Inspector"},
-            ):
-                _g._render_selection_panel()
-
             imgui.end()
 
         gui._render_left_panel = _render_left_panel
@@ -369,10 +369,10 @@ class NewtonViewerGL(ViewerGL):
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
 
     def _draw_scene_controls(self, imgui) -> None:
-        """Draw what can be shown in the scene: environments, visualization markers, and model overlays."""
+        """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         expanded = imgui.collapsing_header("Scene")
-        hover_tooltip(imgui, "Choose which environments, markers, and model overlays are drawn")
+        hover_tooltip(imgui, "Choose which environments, markers, and visual overlays are drawn")
         if not expanded:
             return
         imgui.separator()
@@ -380,15 +380,17 @@ class NewtonViewerGL(ViewerGL):
             self._render_environment_controls(imgui)
         self._draw_marker_controls(imgui)
         if self.model is not None:
-            imgui.separator_text("Model Overlays")
+            imgui.separator_text("Visual Overlays")
             if self._fullscreen_image_active or self.image_matches_camera:
                 imgui.text_disabled("OpenGL only")
                 hover_tooltip(
                     imgui, "Switch Camera View > Renderer to OpenGL to draw joints, contacts, and other overlays"
                 )
-            elif imgui.tree_node("Overlay options"):
-                self._draw_model_overlays(imgui)
-                imgui.tree_pop()
+            else:
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.tree_node("Overlay options"):
+                    self._draw_model_overlays(imgui)
+                    imgui.tree_pop()
 
     def _draw_marker_controls(self, imgui) -> None:
         """Draw one toggle per visualization marker group the task registers."""
@@ -823,25 +825,27 @@ class NewtonVisualizerBase(BaseVisualizer):
             if imgui.radio_button("OpenGL", not rtx_on) and rtx_on:
                 self.set_rtx_rendering(False)
             if imgui.is_item_hovered():
-                imgui.set_tooltip("Fast rasterizer with model overlays, markers, and Policy Ghosts")
+                imgui.set_tooltip("Fast rasterizer with visual overlays, markers, and Policy Ghosts")
             imgui.same_line()
             if imgui.radio_button("RTX", rtx_on) and not rtx_on:
                 self.set_rtx_rendering(True)
             if imgui.is_item_hovered():
-                imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without model overlays")
+                imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without visual overlays")
+        # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
+        indices = [i for i in range(len(self._image_views)) if i != rtx_index]
         labels = [
-            f"Perspective {i + 1}"
-            if view.camera is None
-            else "RTX viewer camera"
-            if i == rtx_index
-            else view.cfg.source
-            for i, view in enumerate(self._image_views)
+            f"Perspective {i + 1}" if self._image_views[i].camera is None else self._image_views[i].cfg.source
+            for i in indices
         ]
-        changed, index = imgui.combo("Camera Source", self._image_views.index(self.current_image_view), labels)
+        current = self._image_views.index(self.current_image_view)
+        if current == rtx_index:  # RTX renders the perspective source.
+            current = next(i for i in indices if self._image_views[i].camera is None)
+        position = indices.index(current)
+        changed, chosen = imgui.combo("Camera Source", position, labels)
         if changed:
-            self._select_camera(index)
+            self._select_camera(indices[chosen])
         if imgui.is_item_hovered():
-            imgui.set_tooltip(labels[self._image_views.index(self.current_image_view)])
+            imgui.set_tooltip(labels[position])
 
     def _select_camera(self, index: int, *, keep_pose: bool = False) -> None:
         """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle.
