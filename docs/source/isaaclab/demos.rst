@@ -151,6 +151,17 @@ No source checkout is required.
      </aside>
    </div>
 
+NIST peg insertion in the browser
+---------------------------------
+
+Try a compact version of the NIST policy with three loose, draggable pegs.
+The browser uses small convex peg colliders that preserve the tip chamfers
+and simplified socket walls. The native ``nist`` demo above runs the full
+ten-part assembly.
+
+.. isaaclab-demos:: alphanist
+   :title: Try AlphaNIST peg insertion
+
 More examples
 -------------
 

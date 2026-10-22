@@ -114,6 +114,12 @@ WebAssembly, and policy inference also runs in your browser.
    **Franka cable policy** — Grasp and lift a 12-segment VBD cable with a
    published policy, change target height, or use Manual control.
 
+   .. _interactive-demo-alphanist:
+
+   **AlphaNIST peg insertion** — Watch a pretrained policy insert one round
+   and two rectangular pegs, or drag a loose part to perturb its approach.
+   Small convex pegs and compound socket walls simplify the contacts.
+
    **Scripted manipulation**
 
    .. _interactive-demo-franka-stack:
