@@ -42,12 +42,19 @@ class _ThrusterCollection(dict):
     exposing the :meth:`reset` entry point that :meth:`isaaclab.assets.Articulation.reset` invokes.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset every thruster actuator for the given environments.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
+            env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
+        if env_mask is not None:
+            # thrusters index their buffers by environment
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         for actuator in self.values():
             actuator.reset(env_ids)
 

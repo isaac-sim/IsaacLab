@@ -171,6 +171,49 @@ def apply_z_drift_kernel(
 
 
 @wp.kernel(enable_backward=False)
+def resample_drift_masked_kernel(
+    # input
+    env_mask: wp.array(dtype=wp.bool),
+    drift_range: wp.vec2f,
+    ray_cast_drift_min: wp.vec3f,
+    ray_cast_drift_max: wp.vec3f,
+    # input/output
+    rng_state: wp.array(dtype=wp.uint32),
+    # output
+    drift: wp.array(dtype=wp.vec3f),
+    ray_cast_drift: wp.array(dtype=wp.vec3f),
+):
+    """Resample the position drift and ray-cast drift of the masked environments.
+
+    Launch with dim=(num_envs,).
+
+    Args:
+        env_mask: Boolean mask for which environments to resample. Shape is (num_envs,).
+        drift_range: Uniform range of every position drift component [m].
+        ray_cast_drift_min: Per-axis lower bound of the ray-cast drift [m].
+        ray_cast_drift_max: Per-axis upper bound of the ray-cast drift [m].
+        rng_state: Random number generator states, advanced for the resampled environments. Shape is (num_envs,).
+        drift: Position drift [m]. Shape is (num_envs,).
+        ray_cast_drift: Ray-cast drift [m]. Shape is (num_envs,).
+    """
+    env = wp.tid()
+    if not env_mask[env]:
+        return
+    state = rng_state[env]
+    drift[env] = wp.vec3f(
+        wp.randf(state, drift_range[0], drift_range[1]),
+        wp.randf(state, drift_range[0], drift_range[1]),
+        wp.randf(state, drift_range[0], drift_range[1]),
+    )
+    ray_cast_drift[env] = wp.vec3f(
+        wp.randf(state, ray_cast_drift_min[0], ray_cast_drift_max[0]),
+        wp.randf(state, ray_cast_drift_min[1], ray_cast_drift_max[1]),
+        wp.randf(state, ray_cast_drift_min[2], ray_cast_drift_max[2]),
+    )
+    rng_state[env] = state
+
+
+@wp.kernel(enable_backward=False)
 def fill_ray_hits_distance_inf_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),
