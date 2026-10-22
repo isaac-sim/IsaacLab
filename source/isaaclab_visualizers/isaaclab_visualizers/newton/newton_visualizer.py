@@ -341,12 +341,10 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("H - Toggle UI")
                 imgui.text("F - Frame camera around model")
 
-            # --- Selection API ----------------------------------------------
+            # --- Articulation Inspector (Newton's Selection API) ------------
             with _header_tooltips(
                 imgui,
-                {
-                    "Selection API": "Inspect the robot's articulations: match them by name and filter their joints and links"
-                },
+                {"Selection API": "Inspect the robot's articulations: filter them by name, joint, and link"},
                 {"Selection API": "Articulation Inspector"},
             ):
                 _g._render_selection_panel()
