@@ -365,6 +365,7 @@ def validate_launch(  # noqa: C901
             renderer_cfg=visualizer.backend.rtx_renderer_cfg, background_color=visualizer.background_color,
             render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.backend.rtx_render_settings},
         )  # fmt: skip
+        visualizer.streaming_view = True  # The window lists scene cameras, including this one, as view sources.
     for viewer_index, visualizer in enumerate(viewers):
         if not isinstance(visualizer.backend, NewtonRTXBackendCfg) or scene_cfg is None:
             continue
