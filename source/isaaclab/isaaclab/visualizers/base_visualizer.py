@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..sensors import Camera
     from ..sim import SimulationContext
+    from .key_event_source import KeyEventSource
 
 
 logger = logging.getLogger(__name__)
@@ -230,6 +231,29 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         return FactoryBase._get_backend(sim=self._sim) if self._sim is not None else None
+
+    @property
+    def key_event_source(self) -> KeyEventSource | None:
+        """Keyboard input from this visualizer's local window, or ``None`` when there is none.
+
+        Consumers subscribe to the keys pressed and released while the window has focus, e.g. for
+        keyboard teleoperation or script hotkeys. The source is created on first access after the
+        visualizer is initialized, and the visualizer closes it when the visualizer closes. ``None``
+        before initialization, after close, and for backends or modes with no local window that can
+        report keys (the default).
+        """
+        return None
+
+    def set_camera_keys_enabled(self, enabled: bool) -> None:
+        """Enable or disable moving this visualizer's camera with the keyboard.
+
+        A keyboard consumer such as keyboard teleoperation disables it, so the motion keys it uses
+        (e.g. WASD/QE and the arrow keys) do not also move the camera. Mouse camera control is
+        unaffected. Visualizers whose camera takes no keyboard input ignore it (the default).
+
+        Args:
+            enabled: Whether keyboard camera movement is enabled.
+        """
 
     def supports_markers(self) -> bool:
         """Check if visualizer supports VisualizationMarkers.
