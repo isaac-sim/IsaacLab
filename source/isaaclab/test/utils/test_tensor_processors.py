@@ -9,10 +9,12 @@ from dataclasses import MISSING
 
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.utils.tensor_processors as tensor_processors
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, to_dict
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
@@ -79,6 +81,54 @@ def test_stateless_tensor_processors(func, params, result):
     cfg = tensor_processors.TensorProcessorCfg(func=func, params=params)
     output = cfg.func(torch.tensor([1.0, 2.0, 3.0]), **cfg.params)
     assert torch.allclose(output, torch.tensor(result))
+
+
+class ScaledSumProcessor(tensor_processors.TensorProcessor):
+    """Combine named inputs into one persistent tensor without requiring dimensions."""
+
+    def __init__(self, cfg: tensor_processors.TensorProcessorCfg, data: list[dict[str, ProxyArray]]) -> None:
+        super().__init__(cfg)
+        self.output = torch.empty_like(data[0][cfg.inputs[0]].torch)
+
+    def __call__(self, data: list[dict[str, ProxyArray]]) -> torch.Tensor:
+        key = self._cfg.inputs[0]
+        torch.add(data[0][key].torch, data[1][key].torch, out=self.output)
+        return self.output.mul_(self._cfg.params["multiplier"])
+
+
+def test_structured_tensor_processor():
+    """Structured inputs share the processor lifecycle, configuration, and callable interface."""
+    first = torch.tensor([1.0, 2.0, 3.0])
+    second = torch.tensor([4.0, 5.0, 6.0])
+    data = [{"samples": ProxyArray(wp.from_torch(value))} for value in (first, second)]
+    cfg = tensor_processors.TensorProcessorCfg(
+        func=ScaledSumProcessor, inputs=["samples"], outputs=["sum"], params={"multiplier": 2.0}
+    )
+    processor = cfg.func(cfg, data)
+
+    output = processor(data)
+    torch.testing.assert_close(output, torch.tensor([10.0, 14.0, 18.0]))
+    torch.testing.assert_close(first, torch.tensor([1.0, 2.0, 3.0]))
+    torch.testing.assert_close(second, torch.tensor([4.0, 5.0, 6.0]))
+
+    first.add_(1.0)
+    assert processor(data) is output
+    torch.testing.assert_close(output, torch.tensor([12.0, 16.0, 20.0]))
+    torch.testing.assert_close(first, torch.tensor([2.0, 3.0, 4.0]))
+    torch.testing.assert_close(second, torch.tensor([4.0, 5.0, 6.0]))
+
+    processor.reset(env_ids=[0])
+    processor.reset()
+    processor.close()
+    processor.close()
+    torch.testing.assert_close(output, torch.tensor([12.0, 16.0, 20.0]))
+
+    restored_cfg = tensor_processors.TensorProcessorCfg(**to_dict(cfg))
+    assert isinstance(restored_cfg.func, str)
+    assert restored_cfg.inputs == ["samples"]
+    assert restored_cfg.outputs == ["sum"]
+    restored_processor = restored_cfg.func(restored_cfg, data)
+    torch.testing.assert_close(restored_processor(data), torch.tensor([12.0, 16.0, 20.0]))
 
 
 @pytest.mark.parametrize("device", test_devices())

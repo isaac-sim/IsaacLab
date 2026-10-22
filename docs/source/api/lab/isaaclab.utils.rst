@@ -127,21 +127,50 @@ Mesh operations
 Tensor processors
 ~~~~~~~~~~~~~~~~~
 
-Use :mod:`isaaclab.utils.tensor_processors` to transform observation tensors. Configure processors
-with ``TensorProcessorCfg`` through :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
+Use :mod:`isaaclab.utils.tensor_processors` to transform tensors or nested tensor collections.
+:class:`~isaaclab.utils.tensor_processors.TensorProcessor` and
+:class:`~isaaclab.utils.tensor_processors.TensorProcessorCfg` support ``torch.Tensor``,
+:class:`~isaaclab.utils.warp.ProxyArray`, and recursively nested lists, tuples, and dictionaries
+through ``TensorProcessorData``. Each implementation defines the structures it accepts and returns;
+the base class does not traverse collections automatically.
 
-For named tensor dictionaries, implement :class:`~isaaclab.utils.tensor_processors.DictTensorProcessor`
-and configure it with :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorCfg`.
-Set ``class_type`` to the implementation class or a resolvable import string, ``inputs`` and
-``outputs`` to the dictionary keys it reads and produces, and ``params`` to its settings.
-Construct the processor with ``instantiate(cfg, data)``, where ``data`` maps input names to
-:class:`~isaaclab.utils.warp.ProxyArray` values. String-valued ``class_type`` fields resolve lazily
-through ``configclass`` when the implementation is needed. Processors read settings from
-``cfg.params``; these settings are not forwarded as constructor keyword arguments.
+Set ``cfg.func`` to a function, a processor class, or a lazily resolved import string. Functions
+receive ``cfg.params`` as keyword arguments; classes read settings from their configuration.
+Optional ``inputs`` and ``outputs`` lists describe named keys but do not select or route data.
+For example, a subclass can stack a nonempty list of dictionaries whose ``position`` tensors
+share a shape, dtype, and device:
 
-Observation terms remain tensor-valued: ``ObservationTermCfg.tensor_processors`` accepts only
-``TensorProcessorCfg``. Dictionary processors are constructed directly; camera attachment and
-dictionary processor pipelines are not provided by this API.
+.. code-block:: python
+
+   import torch
+   from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+
+
+   class StackPositions(TensorProcessor):
+       def __init__(self, cfg: TensorProcessorCfg, data: list[dict[str, torch.Tensor]]) -> None:
+           super().__init__(cfg)
+           first = data[0]["position"]
+           self.output = torch.empty((len(data), *first.shape), dtype=first.dtype, device=first.device)
+
+       def __call__(self, data: list[dict[str, torch.Tensor]]) -> torch.Tensor:
+           return torch.stack([item["position"] for item in data], out=self.output)
+
+
+   data = [{"position": torch.zeros(3)}, {"position": torch.ones(3)}]
+   cfg = TensorProcessorCfg(func=StackPositions, inputs=["position"])
+   processor = cfg.func(cfg, data)
+   stacked_positions = processor(data)
+
+Construction uses input metadata without reading values or advancing state. Subsequent calls use
+the same number of input dictionaries and tensor shapes. Inputs are read-only and owned by the
+caller. This subclass owns its persistent output, which remains valid until the next call; copy
+results that must be retained. ``reset`` and ``close`` do nothing unless overridden. Processors
+using Warp launch work on the caller's current Warp stream.
+
+Observation terms continue to use shape-preserving single-tensor processors through
+:attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`. The observation manager constructs
+class processors with ``cfg.func(cfg, data_dim, device)``. Built-in filters retain this constructor
+and their single-tensor behavior; structured processors are constructed directly as above.
 
 Migration: import ``TensorProcessor`` and ``TensorProcessorCfg`` from
 ``isaaclab.utils.tensor_processors`` in place of ``ModifierBase`` and ``ModifierCfg`` from

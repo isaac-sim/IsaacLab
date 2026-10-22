@@ -9,24 +9,25 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
-import torch
-
 from .. import configclass
 
 if TYPE_CHECKING:
     from .processors import DigitalFilter, Integrator
-    from .tensor_processor import TensorProcessor
+    from .tensor_processor import TensorProcessor, TensorProcessorData
 
 
 @configclass
 class TensorProcessorCfg:
     """Configuration parameters for function and class tensor processors."""
 
-    func: Callable[..., torch.Tensor] | type[TensorProcessor] | str = MISSING
+    func: Callable[..., TensorProcessorData] | type[TensorProcessor] | str = MISSING
     """Function or :class:`TensorProcessor` class used by the processor.
 
-    Functions must take a tensor as their first argument. Classes must inherit from :class:`TensorProcessor`; the
-    observation manager constructs them with the configuration, observation dimensions, and device.
+    Functions take their input data as the first argument. Classes inherit from :class:`TensorProcessor`.
+    Each implementation defines the tensor or nested collection structures it accepts and returns.
+    Construct classes with ``cfg.func(cfg, ...)``, supplying the arguments their constructor requires.
+    Import strings resolve lazily through ``configclass``. The observation manager constructs
+    single-tensor processors with the configuration, observation dimensions, and device.
     """
 
     params: dict[str, Any] = {}
@@ -34,6 +35,18 @@ class TensorProcessorCfg:
 
     Functions receive them as keyword arguments on each call. Classes access them through this
     configuration during construction; they are not forwarded to the constructed instance.
+    """
+
+    inputs: list[str] = []
+    """Named input keys for callers that route dictionaries. Empty means unspecified.
+
+    This is metadata only; the configuration does not select or validate input data.
+    """
+
+    outputs: list[str] = []
+    """Named output keys for callers that route dictionaries. Empty means unspecified.
+
+    This is metadata only; the processor implementation defines the returned structure.
     """
 
 

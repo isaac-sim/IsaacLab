@@ -4,12 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "DictTensorProcessor",
-    "DictTensorProcessorCfg",
     "TensorProcessorCfg",
     "DigitalFilterCfg",
     "IntegratorCfg",
     "TensorProcessor",
+    "TensorProcessorData",
     "DigitalFilter",
     "Integrator",
     "bias",
@@ -18,8 +17,5 @@ __all__ = [
 ]
 
 from .tensor_processor_cfg import TensorProcessorCfg, DigitalFilterCfg, IntegratorCfg
-from .tensor_processor import TensorProcessor
+from .tensor_processor import TensorProcessor, TensorProcessorData
 from .processors import DigitalFilter, Integrator, bias, clip, scale
-
-from .dict_tensor_processor import DictTensorProcessor
-from .dict_tensor_processor_cfg import DictTensorProcessorCfg

@@ -35,8 +35,6 @@ __all__ = [
     "ModifierBase",
     "TensorProcessorCfg",
     "TensorProcessor",
-    "DictTensorProcessor",
-    "DictTensorProcessorCfg",
     "DigitalFilter",
     "DigitalFilterCfg",
     "Integrator",
@@ -93,8 +91,6 @@ from .mesh import (
 )
 from .modifiers import ModifierCfg, ModifierBase
 from .tensor_processors import (
-    DictTensorProcessor,
-    DictTensorProcessorCfg,
     TensorProcessorCfg,
     TensorProcessor,
     DigitalFilter,

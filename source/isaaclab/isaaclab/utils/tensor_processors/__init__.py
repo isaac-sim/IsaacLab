@@ -3,17 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Stateful and stateless processing for tensors and dictionaries of named tensors.
+"""Stateful and stateless processing for tensors and nested tensor collections.
 
-Single-tensor functions and :class:`TensorProcessor` subclasses take and return one tensor.
-They apply custom operations in the :class:`~isaaclab.managers.ObservationManager`, such as
-normalization or rolling averages. Configure them through
-:attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
+Functions and :class:`TensorProcessor` subclasses share :class:`TensorProcessorCfg`.
+``TensorProcessorData`` describes :class:`torch.Tensor`, :class:`~isaaclab.utils.warp.ProxyArray`,
+and recursively nested lists, tuples, and dictionaries of those values. Each implementation
+defines the types and structures it accepts; the base class does not traverse collections.
 
-:class:`DictTensorProcessor` and :class:`DictTensorProcessorCfg` define a separate interface
-for named :class:`~isaaclab.utils.warp.ProxyArray` buffers. Construct these processors with
-:func:`~isaaclab.utils.instantiate` and call them directly. Observation terms return one tensor
-and use :class:`TensorProcessorCfg`.
+Inputs belong to the caller and are read-only. Structured processors can inspect input metadata
+and allocate outputs during construction, without reading input values or advancing state.
+Subclasses own any persistent output buffers they allocate; their contents remain valid until
+the next call, so consumers must copy results they need to retain. Warp operations use the
+caller's current Warp stream. Override ``reset`` or ``close`` when a subclass owns state or
+external resources; both methods do nothing by default.
+
+The :class:`~isaaclab.managers.ObservationManager` uses shape-preserving single-tensor processors,
+configured through :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`. Built-in
+filters also operate on single tensors. Construct structured processors directly using their
+implementation's constructor. Configuration ``inputs`` and ``outputs`` fields describe named
+keys only; they do not select values or route data between processors.
 
 Usage with a function processor:
 
