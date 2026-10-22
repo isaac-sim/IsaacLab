@@ -22,7 +22,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera
 from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import quat_apply, quat_inv
 
 from .visuotactile_render import GelsightRender
@@ -180,8 +179,8 @@ class VisuoTactileSensor(SensorBase):
         """Initializes the sensor-related handles and internal buffers."""
         super()._initialize_impl()
 
-        # Obtain global simulation view
-        self._physics_sim_view = SimulationContext.instance().backend_manager.get_physics_sim_view()
+        # Obtain the backend simulation view.
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         # Initialize camera-based tactile sensing
         if self.cfg.enable_camera_tactile:
@@ -561,6 +560,7 @@ class VisuoTactileSensor(SensorBase):
             Requires both elastomer and contact object body views to be initialized. Returns
             early if tactile points or body views are not available.
         """
+        self._backend_manager.update_kinematics()
         # Step 1: Get elastomer pose and precompute pose components
         elastomer_pos_w, elastomer_quat_w = wp.to_torch(self._elastomer_body_view.get_transforms()).split(
             [3, 4], dim=-1

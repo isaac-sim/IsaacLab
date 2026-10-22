@@ -56,8 +56,7 @@ class _PhysXRayCasterMixin:
         sensor_prim, sensor_expr = matches[0]
         body = sim_utils.get_first_matching_ancestor_prim(sensor_prim.GetPath(), predicate=_has_rigid_body_api)
         if body is None:
-            # No rigid-body ancestor: nothing spans envs, so cache every concrete env frame.
-            self._initialize_static_pose_tracking(sim_utils.find_matching_prims(self.cfg.prim_path))
+            self._initialize_static_pose_tracking(sim_utils.find_matching_prims(sensor_expr))
             return
 
         # The body view is ``sensor_expr`` with the sensor-relative suffix trimmed off.
@@ -107,6 +106,7 @@ class _PhysXRayCasterMixin:
         """Return tracked sensor-frame transforms as ``wp.transformf``."""
         if self._physx_body_view is None:
             return self._static_view_transforms_wp
+        self._backend_manager.update_kinematics()
         transforms = self._physx_body_view.get_transforms()
         if isinstance(transforms, wp.array):
             return transforms.view(wp.transformf)
@@ -153,6 +153,7 @@ class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
                 self._raw_transforms = self._static_view_transforms_wp
             return self._raw_transforms
 
+        self._backend_manager.update_kinematics()
         transforms = self._physx_body_view.get_transforms()
         if self._raw_transforms is None:
             if isinstance(transforms, wp.array):

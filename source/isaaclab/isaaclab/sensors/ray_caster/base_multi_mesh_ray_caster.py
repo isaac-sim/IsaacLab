@@ -148,7 +148,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         """Initialize mesh buffers from the ClonePlan when env-scoped, else from the stage."""
         plan = self._sim.get_clone_plan()
         target_records = []
-        self._scene_data_provider = self._sim.get_scene_data_provider()
+        self._track_mesh_transforms = any(target.track_mesh_transforms for target in self._raycast_targets_cfg)
         self._mesh_transforms = SceneDataFormat.Transform()
 
         # Build one per-env mesh list for each configured raycast target.
@@ -172,7 +172,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         mesh_orientations[..., 3] = 1.0
         body_indices = np.full(mesh_ids.shape, -1, dtype=np.int32)
         body_indices_by_path = {}
-        if any(target.track_mesh_transforms for target in self._raycast_targets_cfg):
+        if self._track_mesh_transforms:
             body_indices_by_path = {
                 path: index for index, path in enumerate(self._scene_data_provider.backend.transform_paths)
             }
@@ -189,17 +189,21 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 mesh_ids[env_id, target_slice] = np.asarray(record_mesh_ids, dtype=np.uint64)
                 mesh_positions[env_id, target_slice] = np.asarray(record_positions, dtype=np.float32)
                 mesh_orientations[env_id, target_slice] = np.asarray(record_orientations, dtype=np.float32)
-                body_indices[env_id, target_slice] = [
-                    body_indices_by_path[path] if path is not None else -1 for path in record_bodies
-                ]
+                for mesh_index, path in enumerate(record_bodies, start=mesh_offset):
+                    if path is not None:
+                        try:
+                            body_indices[env_id, mesh_index] = body_indices_by_path[path]
+                        except KeyError:
+                            raise RuntimeError(
+                                f"Cannot track ray-cast target '{target_cfg.prim_expr}': body '{path}'"
+                                " has no scene-data transform."
+                            ) from None
             mesh_offset += target_width
 
         self._mesh_ids_wp = wp.array2d(mesh_ids, dtype=wp.uint64, device=self.device)
         self._mesh_positions_w = wp.array2d(mesh_positions, dtype=wp.vec3f, device=self.device)
         self._mesh_orientations_w = wp.array2d(mesh_orientations, dtype=wp.quatf, device=self.device)
-        self._mesh_body_indices = (
-            wp.array2d(body_indices, dtype=wp.int32, device=self.device) if np.any(body_indices >= 0) else None
-        )
+        self._mesh_body_indices = wp.array2d(body_indices, dtype=wp.int32, device=self.device)
 
     def _build_mesh_records(  # noqa: C901
         self,
@@ -420,7 +424,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
 
     def _update_mesh_transforms(self) -> None:
         """Gather live body poses into bound mesh slots; static and padded slots remain unchanged."""
-        if self._mesh_body_indices is None:
+        if not self._track_mesh_transforms:
             return
         self._scene_data_provider.get_transforms(self._mesh_transforms)
         wp.launch(

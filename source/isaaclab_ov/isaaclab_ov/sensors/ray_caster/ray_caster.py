@@ -38,7 +38,7 @@ class _OvPhysxRayCasterMixin:
             prim.GetPath(), predicate=lambda ancestor: ancestor.HasAPI(UsdPhysics.RigidBodyAPI)
         )
         if body is None:
-            prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+            prims = sim_utils.find_matching_prims(sensor_expr)
             self._static_view_transforms_wp = wp.array(
                 [(*pos, *quat) for pos, quat in map(sim_utils.resolve_prim_pose, prims)],
                 dtype=wp.transformf,
@@ -52,11 +52,15 @@ class _OvPhysxRayCasterMixin:
             plan = self._sim.get_clone_plan()
             matched = cloner.path.match(body_expr, plan.env_template) if plan is not None else None
             if matched is not None:
-                body_paths = [plan.env_template.format(i) + matched.suffix for i in range(self._num_envs)]
+                native_paths = set(self._scene_data_provider.backend.transform_paths)
+                body_paths = [
+                    path
+                    for i in range(self._num_envs)
+                    if (path := plan.env_template.format(i) + matched.suffix) in native_paths
+                ]
             else:
                 body_paths = sim_utils.find_matching_prim_paths(body_expr)
             self._view_count = len(body_paths)
-            self._scene_data_provider = self._sim.get_scene_data_provider()
             self._sensor_mapping = self._scene_data_provider.create_mapping(body_paths)
             self._sensor_transforms = SceneDataFormat.Transform()
             offset_pos, offset_quat = sim_utils.resolve_prim_pose(prim, body)

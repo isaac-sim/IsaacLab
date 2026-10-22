@@ -20,8 +20,8 @@ from isaaclab_ov.physics import OvPhysxCfg
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.cloner import CloneCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils import configclass, instantiate
@@ -98,3 +98,30 @@ def test_multi_mesh_tracks_multiple_body_types():
         sensor.reset()
         expected[:, 1, 2] += heights
         torch.testing.assert_close(sensor.data.ray_hits_w.torch, expected)
+
+
+def test_ray_caster_rejects_partial_native_mounts():
+    """A native mount missing from some cloned worlds raises a sensor-level count error."""
+    scene_cfg = InteractiveSceneCfg(
+        num_envs=4,
+        env_spacing=2.0,
+        clone_cfg=CloneCfg(clone_combinations=[InclusionSet(assets=["mount"]), InclusionSet(assets=[])]),
+    )
+    scene_cfg.mount = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Mount",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+        ),
+    )
+    scene_cfg.scanner = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Mount",
+        mesh_prim_paths=[MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Mount")],
+        pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
+    )
+    with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
+        scene = instantiate(scene_cfg)
+        with pytest.raises(RuntimeError, match="found 2 instances in 4 environments"):
+            sim.reset()
+        assert not scene["scanner"].is_initialized

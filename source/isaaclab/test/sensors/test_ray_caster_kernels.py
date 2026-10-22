@@ -16,6 +16,7 @@ See ``test_update_ray_caster_kernel.py`` for tests of
 
 from __future__ import annotations
 
+import ast
 import math
 
 import numpy as np
@@ -42,6 +43,35 @@ from isaaclab.utils.warp.ops import convert_to_warp_mesh
 wp.init()
 DEVICE = "cuda:0" if wp.is_cuda_available() else "cpu"
 ATOL = 1e-5
+
+
+def test_mesh_tracking_has_one_provider_owner_and_persistent_indices(source_checkout_root):
+    """Leaf consumers must not rediscover the provider or replace their index arrays with None."""
+    source = source_checkout_root / "source"
+    consumers = (
+        source / "isaaclab/isaaclab/sensors/ray_caster/base_multi_mesh_ray_caster.py",
+        source / "isaaclab_ov/isaaclab_ov/sensors/ray_caster/ray_caster.py",
+    )
+    for path in consumers:
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                assert node.func.attr not in {"instance", "get_scene_data_provider"}, path
+            if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Attribute) and target.attr == "_mesh_body_indices" for target in node.targets
+            ):
+                assert not any(
+                    isinstance(value, ast.Constant) and value.value is None for value in ast.walk(node.value)
+                )
+
+    root = source / "isaaclab/isaaclab/sensors/ray_caster/base_ray_caster.py"
+    lookups = [
+        node
+        for node in ast.walk(ast.parse(root.read_text()))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get_scene_data_provider"
+    ]
+    assert len(lookups) == 1
 
 
 # ---------------------------------------------------------------------------

@@ -358,14 +358,14 @@ def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
 
 @pytest.mark.isaacsim_ci
 def test_sensor_no_contact_object(setup_nut_rgb_ff):
-    """Test sensor with force field but no contact object specified."""
+    """Without a contact object, forces stay zero and tactile points follow immediate articulation writes."""
     sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
+    sensor_cfg.enable_camera_tactile = False
     sensor_cfg.contact_object_prim_path_expr = None
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     nut = RigidObject(cfg=nut_cfg)
     sim.reset()
-    sensor.get_initial_render()
     for _ in range(10):
         sim.step()
         sensor.update(dt, force_recompute=True)
@@ -373,13 +373,22 @@ def test_sensor_no_contact_object(setup_nut_rgb_ff):
         nut.update(dt)
 
     assert sensor.is_initialized
-    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
-    assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
+    assert sensor.data.tactile_depth_image is None
+    assert sensor.data.tactile_rgb_image is None
     assert sensor.data.tactile_points_pos_w.shape == (1, 50, 3)
     # check no forces are detected
     assert torch.all(torch.abs(sensor.data.penetration_depth) < 1e-9)
     assert torch.all(torch.abs(sensor.data.tactile_normal_force) < 1e-9)
     assert torch.all(torch.abs(sensor.data.tactile_shear_force) < 1e-9)
+
+    points_before = sensor.data.tactile_points_pos_w.clone()
+    root_pose = robot.data.root_link_pose_w.torch.clone()
+    root_pose[:, 0] += 1.0
+    robot.write_root_pose_to_sim_index(root_pose=root_pose)
+    sensor.reset()
+    torch.testing.assert_close(
+        sensor.data.tactile_points_pos_w, points_before + torch.tensor([1.0, 0.0, 0.0], device=sim.device)
+    )
 
 
 @pytest.mark.isaacsim_ci
