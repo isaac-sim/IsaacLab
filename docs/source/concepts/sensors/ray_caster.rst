@@ -91,6 +91,13 @@ Hit positions have shape ``(N, B, 3)``, where ``N`` is the number of sensors and
 this example come from rays at the bottom pole of the hemispherical lidar
 pattern: all 180 horizontal samples meet there.
 
+Read ``data.ray_distances.torch`` for ranges with shape ``(N, B)``. These distances
+start at each ray's actual origin, including pattern offsets and origin drift.
+Ray patterns must provide unit-length directions for ranges in meters. Misses and
+intersections beyond ``max_distance`` return ``inf``. The ranges describe the
+geometric intersection before any post-hit height bias from
+``ray_cast_drift_range`` is applied to ``data.ray_hits_w``.
+
 Try different patterns in the example below to inspect their hit positions.
 
 .. dropdown:: Code for raycaster_sensor.py

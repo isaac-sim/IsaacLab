@@ -15,19 +15,9 @@ from isaaclab.utils.warp import ProxyArray
 class NewtonRaycastSensorData(RayCasterData):
     """Data container for the Newton BVH ray-cast sensor.
 
-    Extends :class:`~isaaclab.sensors.RayCasterData` with hit distances and
-    surface normals, which the Newton BVH query provides at no extra cost.
+    Extends :class:`~isaaclab.sensors.RayCasterData` with surface normals,
+    which the Newton BVH query provides at no extra cost.
     """
-
-    @property
-    @leapp_tensor_semantics(kind="state/sensor/ray_hit_distance")
-    def ray_distances(self) -> ProxyArray:
-        """Ray hit distances from the ray origins [m].
-
-        Shape is (N, B), dtype ``wp.float32``, where N is the number of sensors
-        and B is the number of rays per sensor. Contains ``inf`` for missed hits.
-        """
-        return self._ray_distances_ta
 
     @property
     @leapp_tensor_semantics(kind="state/sensor/ray_hit_normal")
@@ -41,7 +31,5 @@ class NewtonRaycastSensorData(RayCasterData):
 
     def create_buffers(self, num_envs: int, num_rays: int, device: str) -> None:
         super().create_buffers(num_envs, num_rays, device)
-        self._ray_distances = wp.zeros((num_envs, num_rays), dtype=wp.float32, device=device)
         self._ray_normals_w = wp.zeros((num_envs, num_rays), dtype=wp.vec3f, device=device)
-        self._ray_distances_ta = ProxyArray(self._ray_distances)
         self._ray_normals_w_ta = ProxyArray(self._ray_normals_w)
