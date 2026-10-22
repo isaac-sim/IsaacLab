@@ -12,6 +12,7 @@ case creates one, each in a fresh interpreter so that the load order is the case
 
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -37,39 +38,21 @@ def _create_renderer():
     ovrtx.Renderer()
 
 
-def _render_cartpole_camera():
-    import torch
-
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.utils import resolve_task_config
-
-    env_cfg, _ = resolve_task_config(
-        "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=ovrtx")
-    )
-    env_cfg.scene.num_envs = 2
-    env_cfg.frame_stack = 1
-    env = CartpoleCameraEnv(cfg=env_cfg)
-    try:
-        obs, _ = env.reset()
-        image = obs["policy"]
-        assert torch.isfinite(image).all(), "Camera observation contains NaN or infinity"
-        assert image.amax() > image.amin(), "Camera observation is constant"
-    finally:
-        env.close()
-
-
 _CASES = {
     "ovrtx-alone": (_create_renderer,),
     "usd-first": (_load_usd, _create_renderer),
     "materialx-first": (_load_materialx, _create_renderer),
     "ovrtx-first": (_create_renderer, _load_materialx),
-    "isaaclab-render": (_render_cartpole_camera,),
 }
 
+# Renders camera Cartpole through Isaac Lab, which loads both libraries.
+_CARTPOLE_SMOKE = Path(__file__).resolve().parents[2] / "isaaclab/test/install_ci/misc/cartpole_training_smoke.py"
 
-@pytest.mark.parametrize("case", _CASES)
+
+@pytest.mark.parametrize("case", [*_CASES, "isaaclab-render"])
 def test_ovrtx_coexists_with_usd_exchange(case):
-    result = subprocess.run([sys.executable, __file__, case], capture_output=True, text=True, timeout=600, check=False)
+    script = [_CARTPOLE_SMOKE, "newton_mjwarp", "ovrtx"] if case == "isaaclab-render" else [__file__, case]
+    result = subprocess.run([sys.executable, *script], capture_output=True, text=True, timeout=600, check=False)
     assert result.returncode == 0, f"{case} exited with {result.returncode}:\n{result.stdout}\n{result.stderr}"
 
 

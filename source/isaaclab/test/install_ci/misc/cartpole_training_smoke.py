@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _STATE_TRAIN_CMD = [
     "train",
     "--rl_library",
@@ -77,18 +79,23 @@ def test_train_cartpole_state_completes() -> None:
     _run_training(_STATE_TRAIN_CMD, timeout=600)
 
 
-def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
-    """Verify that camera Cartpole renders varying pixels and produces finite rewards."""
-    import torch
+def _render_cartpole_camera(physics: str, renderer: str) -> None:
+    """Render and step camera Cartpole, starting the runtime the physics and renderer need."""
+    from isaaclab.test.utils import launch_test_simulation
 
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.utils import resolve_task_config
 
     env_cfg, _ = resolve_task_config(
-        "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=newton_renderer")
+        "Isaac-Cartpole-Camera-Direct", "", overrides=(f"physics={physics}", f"renderer={renderer}")
     )
     env_cfg.scene.num_envs = 2
     env_cfg.frame_stack = 1
+    launch_test_simulation(env_cfg)
+
+    import torch
+
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+
     env = None
     try:
         env = CartpoleCameraEnv(cfg=env_cfg)
@@ -109,6 +116,18 @@ def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
             env.close()
 
 
+@pytest.mark.parametrize(
+    ("physics", "renderer"), [("newton_mjwarp", "newton_renderer"), ("isaacsim_physx", "isaacsim_rtx")]
+)
+def test_render_cartpole_camera_produces_valid_observation_and_reward(physics: str, renderer: str) -> None:
+    """Verify that camera Cartpole renders varying pixels and produces finite rewards."""
+    # Kit stays up until its process exits, so each renderer runs in a fresh interpreter.
+    result = subprocess.run(
+        [sys.executable, __file__, physics, renderer], text=True, capture_output=True, timeout=1800, check=False
+    )
+    assert result.returncode == 0, f"Rendering failed (rc={result.returncode}):\n{result.stdout}{result.stderr}"
+
+
 def test_train_cartpole_camera_completes() -> None:
     """Verify that camera-observation Cartpole completes short RSL-RL training."""
     # A cold camera run compiles shaders before training begins.
@@ -116,6 +135,4 @@ def test_train_cartpole_camera_completes() -> None:
 
 
 if __name__ == "__main__":
-    test_train_cartpole_state_completes()
-    test_render_cartpole_camera_produces_valid_observation_and_reward()
-    test_train_cartpole_camera_completes()
+    _render_cartpole_camera(*sys.argv[1:])
