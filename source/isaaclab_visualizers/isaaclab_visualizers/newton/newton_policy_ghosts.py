@@ -78,6 +78,8 @@ class NewtonPolicyGhostPanel:
                 imgui.begin_disabled()
             if imgui.button(f"Add Checkpoint...  ({empty} free)"):
                 self._open_window()
+            if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+                imgui.set_tooltip("Load another checkpoint of this task into a free slot")
             if not empty:
                 imgui.end_disabled()
             if self._message:
@@ -170,12 +172,16 @@ class NewtonPolicyGhostPanel:
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
             if imgui.tree_node("Settings"):
                 _, slot.opacity = imgui.slider_float("Opacity", slot.opacity, 0.1, MAX_GHOST_OPACITY)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("Opacity of this ghost")
                 _, slot.tint = imgui.slider_float("Tint", slot.tint, 0.0, 1.0)
                 if imgui.is_item_hovered():
                     imgui.set_tooltip("1.0 replaces all native colors and textures with the ghost color")
                 if imgui.button("Remove"):
                     self.controller.remove_ghost(slot.index)
                     self._message = ""
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("Unload this checkpoint and free its slot")
                 imgui.tree_pop()
         imgui.pop_id()
 

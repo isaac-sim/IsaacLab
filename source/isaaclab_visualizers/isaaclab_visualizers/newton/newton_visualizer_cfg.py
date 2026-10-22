@@ -26,8 +26,9 @@ class NewtonRecordingCfg:
     The HUD edits a copy of these values while the window is open.
     """
 
-    output_dir: str = "recordings"
-    """Root folder of all recordings. Relative paths resolve against the working directory."""
+    output_dir: str = "recording"
+    """Root folder of all recordings. Relative paths resolve against the working directory, which is the repository
+    folder when the run starts there."""
 
     filename_prefix: str = "newton_gl"
     """Start of every recording's file name."""

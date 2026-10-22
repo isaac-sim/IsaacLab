@@ -80,16 +80,17 @@ _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
 
-def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str) -> bool:
-    """Render a checkbox greyed out with a tooltip when *available* is False."""
+def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str, hint: str = "") -> bool:
+    """Render a checkbox greyed out with the reason as tooltip when *available* is False, else with *hint*."""
     if not available:
         imgui.begin_disabled()
     _, new_val = imgui.checkbox(label, value)
     if not available:
         imgui.end_disabled()
-        if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
-            imgui.set_tooltip(tip)
+        hover_tooltip(imgui, tip)
         return value
+    if hint:
+        hover_tooltip(imgui, hint)
     return new_val
 
 
@@ -369,23 +370,32 @@ class NewtonViewerGL(ViewerGL):
         for marker in groups:
             name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
             changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
+            hover_tooltip(imgui, "Show or hide this marker group")
             if changed:
                 marker.set_visibility(visible)
         if len(groups) > 1:
             if imgui.button("Show All##markers"):
                 for marker in groups:
                     marker.set_visibility(True)
+            hover_tooltip(imgui, "Show every marker group")
             imgui.same_line()
             if imgui.button("Hide All##markers"):
                 for marker in groups:
                     marker.set_visibility(False)
+            hover_tooltip(imgui, "Hide every marker group")
 
     def _draw_model_overlays(self, imgui) -> None:
         """Draw Newton's per-overlay toggles."""
         renderer = self.renderer
+
+        def tip(text: str) -> None:
+            hover_tooltip(imgui, text)
+
         _c, self.show_joints = imgui.checkbox("Show Joints", self.show_joints)
+        tip("Draw the model's joints")
         if self.show_joints:
             _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
+            tip("Size of the joint drawings")
         _contacts_available = self._contacts_available
         self.show_contacts = _imgui_optional_checkbox(
             imgui,
@@ -393,12 +403,15 @@ class NewtonViewerGL(ViewerGL):
             self.show_contacts,
             _contacts_available,
             "No contact sensors in this environment",
+            "Draw contacts as arrows",
         )
         if self.show_contacts and _contacts_available:
             _, renderer.arrow_length_scale = imgui.slider_float(
                 "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
             )
+            tip("Length of the contact arrows")
             _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
+            tip("Width of the contact arrows")
         _model = self.model
         _has_particles = _model.particle_count > 0
         _has_springs = _model.spring_count > 0
@@ -409,6 +422,7 @@ class NewtonViewerGL(ViewerGL):
             self.show_particles,
             _has_particles,
             "No particle bodies in this environment",
+            "Draw simulation particles",
         )
         self.show_springs = _imgui_optional_checkbox(
             imgui,
@@ -416,28 +430,38 @@ class NewtonViewerGL(ViewerGL):
             self.show_springs,
             _has_springs,
             "No spring constraints in this environment",
+            "Draw spring constraints",
         )
         _c, self.show_com = imgui.checkbox("Show Center of Mass", self.show_com)
+        tip("Draw each body's center of mass")
         if self.show_com:
             _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
+            tip("Size of the center-of-mass markers")
         self.show_triangles = _imgui_optional_checkbox(
             imgui,
             "Show Cloth",
             self.show_triangles,
             _has_cloth,
             "No cloth/triangle meshes in this environment",
+            "Draw cloth and triangle meshes",
         )
         _c, self.show_collision = imgui.checkbox("Show Collision", self.show_collision)
+        tip("Draw collision shapes")
         _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
+        tip("Draw mesh edges")
         _sdf_labels = ["Off", "Margin", "Margin + Gap"]
         _, new_sdf_idx = imgui.combo("Gap + Margin", int(self.sdf_margin_mode), _sdf_labels)
+        tip("Draw the collision margin, and optionally the gap, around shapes")
         self.sdf_margin_mode = self.SDFMarginMode(new_sdf_idx)
         if self.sdf_margin_mode != self.SDFMarginMode.OFF:
             _, renderer.wireframe_line_width = imgui.slider_float(
                 "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
             )
+            tip("Line width of the margin and gap drawings")
         _c, self.show_visual = imgui.checkbox("Show Visual", self.show_visual)
+        tip("Draw the visual meshes")
         _c, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", self.show_inertia_boxes)
+        tip("Draw each body's inertia as a box")
 
     def _update_rates(self, steps: int, dt: float) -> None:
         """Refresh the simulation rate and real-time factor from the step counter, about twice a second."""
@@ -466,23 +490,21 @@ class NewtonViewerGL(ViewerGL):
         info = self._run_info
         if "task" in info:
             imgui.text_wrapped(f"Task: {info['task']}")
+            hover_tooltip(imgui, "Task this run was launched with")
         if "run" in info or "mode" in info:
             imgui.text(f"Run: {' · '.join(info[key] for key in ('mode', 'run') if key in info)}")
+            hover_tooltip(imgui, "How the task is used (play or train) and the name of the run's log directory")
         device = getattr(getattr(owner, "_sim", None), "device", None)
         imgui.text(f"Physics: {self._backend_display}" + (f" ({device})" if device else ""))
-        if self.model is not None:
-            axis_names = ["X", "Y", "Z"]
-            gravity = self._metadata["gravity"]
-            imgui.text(
-                f"Up: {axis_names[self.model.up_axis]}   "
-                f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
-            )
+        hover_tooltip(imgui, "Physics backend and the device it runs on")
         if owner is not None and owner._sim is not None:
             sim = owner._sim
             steps, dt = sim.get_physics_step_count(), sim.get_physics_dt()
             self._update_rates(steps, dt)
             imgui.text(f"Step: {steps:,}   Sim time: {steps * dt:.1f} s")
+            hover_tooltip(imgui, "Physics steps taken so far and the simulated time they add up to")
             imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
+            hover_tooltip(imgui, "Physics steps per second. 1.00x means simulated time passes as fast as real time")
         badges = []
         if owner is not None and owner.replay_mode:
             badges.append((f"REPLAY {self._recording_panel.replay.name}", (0.5, 0.85, 1.0, 1.0)))

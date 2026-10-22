@@ -221,7 +221,10 @@ class NewtonRecordingPanel:
         imgui.text("Output")
         _c, self.output_dir = imgui.input_text("Folder##recording", self.output_dir)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("Root folder; files go to <folder>/video, <folder>/scene, and <folder>/checkpoint")
+            imgui.set_tooltip(
+                f"Root folder, currently {Path(self.output_dir).expanduser().resolve()}."
+                " Files go to <folder>/video, <folder>/scene, and <folder>/checkpoint"
+            )
         _c, self.filename_prefix = imgui.input_text("Prefix##recording", self.filename_prefix)
         _c, self.auto_increment = imgui.checkbox("Auto-number", self.auto_increment)
         if imgui.is_item_hovered():

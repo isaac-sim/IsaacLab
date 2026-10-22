@@ -10,3 +10,6 @@
   "Visualization Markers" into a section of its own that is always shown, with a note when a task registers none.
 * Moved the recording status text out of the HUD header into the Recording section: a red REC line with the elapsed
   time, an unsaved-video note, and a green confirmation after saving. The section title turns red while recording.
+* Removed the up axis and gravity line from the Newton GL HUD header and added tooltips to the header lines, the
+  model overlay options, the visualization marker toggles, and the Policy Ghosts slot controls. The default
+  recording output folder is now ``recording`` in the working directory, which Git ignores.
