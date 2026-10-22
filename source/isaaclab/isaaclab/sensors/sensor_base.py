@@ -459,9 +459,12 @@ class SensorBase(ABC):
 
     def _invalidate_buffers(self, env_mask: wp.array) -> None:
         """Mark selected derived results stale without changing their sampling clocks."""
-        wp.launch(
-            invalidate_buffers_kernel, dim=self._num_envs, inputs=[env_mask, self._is_outdated], device=self._device
-        )
+        if env_mask is self._ALL_ENV_MASK:
+            self._is_outdated.fill_(True)
+        else:
+            wp.launch(
+                invalidate_buffers_kernel, dim=self._num_envs, inputs=[env_mask, self._is_outdated], device=self._device
+            )
         self._data_dirty = True
 
     def _update_outdated_buffers(self) -> None:

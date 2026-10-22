@@ -690,8 +690,7 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        sim_ctx = self._sim
-        provider = sim_ctx.get_scene_data_provider()
+        provider = self._sim.get_scene_data_provider()
         provider.cameras[self.cfg.prim_path] = self
 
         # Runtime paths and instance counts are available after physics initialization.
@@ -706,7 +705,7 @@ class Camera(SensorBase):
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        sim_ctx.render_context.ensure_prepare_stage(self.stage, provider.num_envs)
+        self._sim.render_context.ensure_prepare_stage(self.stage, provider.num_envs)
 
         self._view = FrameView(
             self.cfg.prim_path, device=self._device, stage=self.stage, scene_data_backend=provider.backend
