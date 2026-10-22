@@ -20,6 +20,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxManager
 
 from isaaclab.test.utils import launch_test_simulation
+from isaaclab.visualizers import VisualizerCfg
 
 launch_test_simulation(NewtonCfg(solver_cfg=MJWarpSolverCfg()), visualizer=["newton_rtx"])
 # This process exercises both physics backends; register schemas before the first native USD population.
@@ -30,7 +31,7 @@ import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg  # noqa: E402
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg  # noqa: E402
 
 from isaaclab.assets import AssetBaseCfg  # noqa: E402
 from isaaclab.cloner import ReplicateSession  # noqa: E402
@@ -81,11 +82,11 @@ def test_newton_rtx_mpm_points_follow_world_state():
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05), use_cuda_graph=False),
         visualizer_cfgs=[
-            NewtonRTXVisualizerCfg(
+            VisualizerCfg(
                 headless=True,
                 window=WindowCfg(size=(256, 256)),
                 cameras=[PerspectiveCameraCfg(eye=(0.0, -1.0, 1.1), lookat=(0.0, 0.0, 1.1))],
-                render_settings={"omni:rtx:quality": ("Int", 0)},
+                backend=NewtonRTXBackendCfg(render_settings={"omni:rtx:quality": ("Int", 0)}),
             )
         ],
     )
@@ -133,8 +134,9 @@ def test_directly_spawned_camera_drives_rtx_window():
     )  # fmt: skip
     sim_cfg = sim_utils.SimulationCfg(
         physics=OvPhysxCfg(),
-        visualizer_cfgs=[NewtonRTXVisualizerCfg(
-            headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64))
+        visualizer_cfgs=[VisualizerCfg(
+            headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64)),
+            backend=NewtonRTXBackendCfg(),
         )],
     )  # fmt: skip
     target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0)))
@@ -285,7 +287,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
         offset=CameraCfg.OffsetCfg(pos=(0.0, -6.0, 2.0), rot=(0.0, 0.0, 2**-0.5, 2**-0.5), convention="world"),
     )
     cfg.sim.visualizer_cfgs = [
-        NewtonRTXVisualizerCfg(
+        VisualizerCfg(
             headless=True,
             window=WindowCfg(size=(128, 128)),
             streaming_envs=[0],
@@ -294,6 +296,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
                 PerspectiveCameraCfg(eye=(0.0, -6.0, 2.0), lookat=(0.0, -2.0, 2.0), focal_length=24.0),
                 SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera"),
             ],
+            backend=NewtonRTXBackendCfg(),
         )
     ]
     with launch_simulation(cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):

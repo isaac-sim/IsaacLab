@@ -20,13 +20,12 @@ from isaaclab_physx.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 from isaaclab_tasks.utils.hydra import resolve_task_config, setup_preset_cli
 
@@ -45,6 +44,10 @@ def main() -> None:
     add_launcher_args(parser)
     parser.set_defaults(device=None, visualizer=None)
     args, overrides = setup_preset_cli(parser)
+    use_default_visualizer = not any(
+        arg.partition("=")[0] in ("visualizer", "env.sim.visualizer_cfgs", "env.sim.visualizer_cfgs.backend")
+        for arg in overrides
+    )
     if args.seconds is not None and (not math.isfinite(args.seconds) or args.seconds <= 0):
         parser.error("--seconds must be finite and positive")
     if args.max_steps is not None and args.max_steps <= 0:
@@ -56,19 +59,18 @@ def main() -> None:
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     if args.checkpoint is not None:
         cfg.policy.checkpoint = args.checkpoint
-    if not any(arg.startswith("visualizer=") for arg in overrides):
-        cfg.sim.visualizer_cfgs = [
-            KitVisualizerCfg() if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else NewtonGLVisualizerCfg()
-        ]
     aperture = 20.955 * args.height / args.width
-    cfg.sim.default_visualizer_cfg = VisualizerCfg(
-        window=WindowCfg(size=(args.width, args.height)),
-        eye=cfg.camera_eye,
-        lookat=cfg.camera_target,
-        focal_length=aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2)),
-        enable_markers=False,
-        enable_live_plots=False,
-    )
+    if not isinstance(cfg.sim.visualizer_cfgs, list):
+        cfg.sim.visualizer_cfgs = [cfg.sim.visualizer_cfgs]
+    for viewer in cfg.sim.visualizer_cfgs:
+        viewer.window.size = (args.width, args.height)
+        viewer.eye, viewer.lookat = cfg.camera_eye, cfg.camera_target
+        viewer.focal_length = aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2))
+        viewer.enable_markers = viewer.enable_live_plots = False
+        if use_default_visualizer and not viewer.backend:
+            viewer.backend = (
+                KitBackendCfg() if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else NewtonGLBackendCfg()
+            )
     duration = args.seconds or cfg.duration
     step_dt = cfg.sim.dt * cfg.decimation
     num_steps = math.ceil(duration / step_dt)
@@ -90,7 +92,8 @@ def main() -> None:
             env.reset()
             robot = env.scene["robot"]
             kit_visualizer = next(
-                (visualizer for visualizer in env.sim.visualizers if visualizer.cfg.visualizer_type == "kit"), None
+                (visualizer for visualizer in env.sim.visualizers if visualizer.cfg.backend.visualizer_type == "kit"),
+                None,
             )
             env.prepare_view(kit_visualizer)
             from isaaclab_tasks.contrib.g1_terrain.agents.depth_policy import DepthStudentPolicy  # noqa: PLC0415
