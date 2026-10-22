@@ -43,9 +43,9 @@ if not _MISSING_MODULES:
     )
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _resolve_env_light_partitions  # noqa: E402
 
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade  # noqa: E402
 else:
     OVRTXRenderer = None
     ovrtx_renderer_module = None
@@ -54,6 +54,7 @@ else:
     Sdf = None
     Usd = None
     UsdGeom = None
+    UsdLux = None
     UsdShade = None
 
 
@@ -260,6 +261,46 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     if dump_enabled:
         assert (output_dir / _PRE_OVRTX_STAGE_FILE).read_text(encoding="utf-8") == expected_pre_export
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is dump_enabled
+
+
+def test_resolve_env_light_partitions_maps_clones_and_skips_unsupported_sources(caplog):
+    """Resolve clone destinations while leaving shared, instanced, and missing sources alone."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/envs")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdLux.DomeLight.Define(stage, "/World/envs/env_0/Dome")
+    UsdLux.SphereLight.Define(stage, "/World/envs/env_0/Robot/Lamp")
+    UsdLux.DomeLight.Define(stage, "/World/SharedLight")
+    UsdGeom.Xform.Define(stage, "/LightPrototype")
+    UsdLux.RectLight.Define(stage, "/LightPrototype/Light")
+    fixture = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Fixture").GetPrim()
+    fixture.GetReferences().AddInternalReference("/LightPrototype")
+    fixture.SetInstanceable(True)
+    assert stage.GetPrimAtPath("/World/envs/env_0/Fixture/Light").IsInstanceProxy()
+
+    env_paths = [f"/World/envs/env_{env_id}" for env_id in range(3)]
+    actual = _resolve_env_light_partitions(
+        stage,
+        env_paths,
+        copies=(
+            (env_paths[0], env_paths[1:]),
+            ("/Visuals/ContactSensor", ["/Visuals/ContactSensor_1"]),
+        ),
+    )
+
+    expected = {
+        f"/World/envs/env_{env_id}/{light_path}": f"env_{env_id}"
+        for light_path in ("Dome", "Robot/Lamp")
+        for env_id in range(3)
+    }
+    assert actual == expected
+    assert "/World/SharedLight" not in actual
+    assert "/World/envs/env_0/Fixture/Light" not in actual
+    assert caplog.messages == [
+        "Lights inside USD instances cannot be assigned to environment scene partitions and may affect other"
+        " environments."
+    ]
 
 
 def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_path: Path, monkeypatch):
