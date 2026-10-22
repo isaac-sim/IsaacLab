@@ -56,7 +56,7 @@ from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
-from .newton_recording import NewtonRecordingPanel
+from .newton_recording import NewtonRecordingPanel, hover_tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -509,6 +509,7 @@ class NewtonViewerGL(ViewerGL):
             panel.draw_transport(imgui)
             if imgui.button("Exit Replay"):
                 panel.replay.unload()
+            hover_tooltip(imgui, "Remove the animation and restore the simulation")
             imgui.separator()
         # Replay only pauses the simulation, so its controls would do nothing.
         sim_idle = replaying and owner.replay_view == "only"
@@ -517,14 +518,27 @@ class NewtonViewerGL(ViewerGL):
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
+        hover_tooltip(
+            imgui,
+            "Paused while only the animation is shown"
+            if sim_idle
+            else "Stop or resume stepping the simulation. The window keeps updating",
+        )
         if imgui.button("Reset Episode"):
             self._reset_requested = True
+        hover_tooltip(
+            imgui,
+            "Not available while only the animation is shown"
+            if sim_idle
+            else "Reset every environment on the next step",
+        )
         if sim_idle:
             imgui.end_disabled()
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused = not self._paused
+        hover_tooltip(imgui, "Freeze or resume the window image. The simulation keeps running")
 
         _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():

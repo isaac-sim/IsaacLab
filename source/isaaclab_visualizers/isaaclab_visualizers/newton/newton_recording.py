@@ -28,6 +28,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def hover_tooltip(imgui: Any, text: str) -> None:
+    """Show ``text`` while the last item is hovered, including when it is disabled."""
+    if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+        imgui.set_tooltip(text)
+
+
 _RED = (1.0, 0.35, 0.35, 1.0)
 _YELLOW = (1.0, 0.8, 0.2, 1.0)
 _GREEN = (0.45, 0.9, 0.5, 1.0)
@@ -148,6 +155,7 @@ class NewtonRecordingPanel:
         if self.recording_video:
             if imgui.button("Stop##video"):
                 self.stop_video()
+            hover_tooltip(imgui, "Stop recording. Press Save to keep the video")
         else:
             if imgui.button("Start##video"):
                 self.start_video()
@@ -175,6 +183,7 @@ class NewtonRecordingPanel:
         if self.recording_scene:
             if imgui.button("Stop##scene"):
                 self.stop_scene()
+            hover_tooltip(imgui, "Stop recording and write the .viser file")
         elif imgui.button("Record##scene"):
             self.start_scene()
         if imgui.is_item_hovered() and not self.recording_scene:
@@ -272,6 +281,7 @@ class NewtonRecordingPanel:
             return
         if imgui.button("Pause##replay" if replay.playing else "Play##replay"):
             replay.playing = not replay.playing
+        hover_tooltip(imgui, "Play or pause the animation")
         imgui.same_line()
         if imgui.button("<##replay"):
             replay.step(-1)
@@ -284,14 +294,17 @@ class NewtonRecordingPanel:
             imgui.set_tooltip("Next frame")
         imgui.same_line()
         _c, replay.loop = imgui.checkbox("Loop##replay", replay.loop)
+        hover_tooltip(imgui, "Start over when the animation ends")
         duration = replay.recording.duration
         changed, value = imgui.slider_float(
             "Time##replay", replay.time, 0.0, max(duration, 1e-3), f"%.2f / {duration:.2f} s"
         )
+        hover_tooltip(imgui, "Drag to jump to a time. This pauses playback")
         if changed:
             replay.seek(value)
             replay.playing = False
         _c, replay.speed = imgui.slider_float("Speed##replay", replay.speed, 0.1, 4.0, "%.2fx")
+        hover_tooltip(imgui, "Playback speed relative to the recording")
 
     def _draw_replay_controls(self, imgui: Any) -> None:
         """Draw the view choice and display settings of the loaded animation."""
@@ -313,13 +326,17 @@ class NewtonRecordingPanel:
                 " ground, which the live scene already draws."
             )
         _c, replay.opacity = imgui.slider_float("Opacity##replay", replay.opacity, 0.05, 1.0)
+        hover_tooltip(imgui, "Make the animation translucent")
         _c, offset = imgui.input_float3("Offset (m)##replay", replay.offset.tolist())
         replay.offset[:] = offset
+        hover_tooltip(imgui, "Move the animation in the world [m]")
         if imgui.button("Frame##replay"):
             owner.frame_replay()
+        hover_tooltip(imgui, "Point the camera at the animation")
         imgui.same_line()
         if imgui.button("Exit Replay##replay"):
             replay.unload()
+        hover_tooltip(imgui, "Remove the animation and restore the simulation")
 
     def _output_path(self, kind: str, suffix: str) -> Path:
         """Return the next file of ``kind`` from the output settings, creating its folder."""

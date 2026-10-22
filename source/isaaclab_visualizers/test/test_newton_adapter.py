@@ -401,7 +401,10 @@ class _FakeTrainingControlsImgui:
     def slider_float(self, _label, value, _min_value, _max_value, _format):
         return False, value
 
-    def is_item_hovered(self):
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    def is_item_hovered(self, *_flags):
         return False
 
     def set_tooltip(self, _text):
