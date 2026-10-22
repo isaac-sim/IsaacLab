@@ -19,7 +19,7 @@ continues from there onto hardware. The inference stage is unchanged — it is t
 
 .. code-block:: text
 
-   1. train      Isaac-Velocity-Rough-G1-Teacher
+   1. train      Isaac-Velocity-Rough-G1
    2. distill    Isaac-Velocity-Rough-G1-Depth-Student
    3. export     pipeline .yaml + .onnx + _initial_values.safetensors
    4. deploy     scripts/deploy/g1_deploy.py
@@ -60,15 +60,11 @@ neither, which is why the second stage exists.
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl \
-       --task Isaac-Velocity-Rough-G1-Teacher
+       --task Isaac-Velocity-Rough-G1
 
-The teacher runs on ``g1_29dof.usd``, not on the ``G1_MINIMAL_CFG`` the stock
-``Isaac-Velocity-Rough-G1`` task uses. That asset comes from a superseded URDF whose waist is a
-single ``torso_joint`` and whose forearm is ``elbow_pitch``/``elbow_roll``; the hardware has a
-three-axis waist, one elbow and three wrist joints, and none of those names exist on the old
-model. A reward term whose joint regex matches nothing is silently inert, so the mismatch does not
-raise -- it just trains a different robot. ``G1RoughTeacherEnvCfg`` swaps the asset and respells
-the joint names of every reward that referred to the old ones.
+``Isaac-Velocity-Rough-G1`` uses ``G1RoughTeacherEnvCfg`` with ``g1_29dof.usd``. Its rewards
+reference that asset's three-axis waist, elbow, wrist and hand joints. The flat G1 task retains
+its existing ``G1_MINIMAL_CFG`` asset.
 
 
 The default configuration uses 4096 environments, 6000 PPO iterations, Newton mesh terrain

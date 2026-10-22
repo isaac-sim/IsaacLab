@@ -5,10 +5,9 @@
 
 """Configurations for the Unitree G1 velocity-tracking environment on rough terrain.
 
-Beside the standard environment this module holds the two stages of the depth pipeline: a teacher
-whose actor reads a terrain height scan and the base linear velocity, and a student that replaces
-both with a chest-mounted depth camera and is distilled from the teacher in the teacher's own
-environment.
+This module holds the two stages of the depth pipeline: a teacher whose actor reads a terrain
+height scan and the base linear velocity, and a student that replaces both with a chest-mounted
+depth camera and is distilled from the teacher in the teacher's own environment.
 """
 
 import math
@@ -34,8 +33,6 @@ from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-
-from isaaclab_assets import G1_MINIMAL_CFG
 
 from ... import mdp
 from ...velocity_env_cfg import (
@@ -126,48 +123,6 @@ class G1Rewards(RewardsCfg):
         weight=-0.1,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_joint")},
     )
-
-
-@configclass
-class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    """Configuration for the Unitree G1 velocity-tracking environment on rough terrain."""
-
-    rewards: G1Rewards = G1Rewards()
-
-    def __post_init__(self):
-        super().__post_init__()
-
-        # physics
-        self.sim.physics.newton_mjwarp.solver_cfg.njmax = 300
-        # scene
-        self.scene.robot = replace(G1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
-        # commands
-        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
-        self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 0.75)
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        # rewards
-        self.rewards.lin_vel_z_l2.weight = 0.0
-        self.rewards.undesired_contacts = None
-        self.rewards.flat_orientation_l2.weight = -1.0
-        self.rewards.action_rate_l2.weight = -0.005
-        self.rewards.dof_acc_l2.weight = -1.25e-7
-        self.rewards.dof_acc_l2.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
-        )
-        self.rewards.dof_torques_l2.weight = -1.5e-7
-        self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
-        )
-        # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
-        # events
-        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
-        self.events.base_com = None
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
 
 DEPTH_WIDTH = 64
@@ -299,12 +254,38 @@ G1_29DOF_VELOCITY_CFG = ArticulationCfg(
 
 
 @configclass
-class G1RoughTeacherEnvCfg(G1RoughEnvCfg):
+class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     """G1 teacher on mesh terrain with terrain-height observations."""
+
+    rewards: G1Rewards = G1Rewards()
 
     def __post_init__(self):
         super().__post_init__()
+        self.sim.physics.newton_mjwarp.solver_cfg.njmax = 300
         self.scene.robot = replace(G1_29DOF_VELOCITY_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
+        self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 0.75)
+        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
+        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+        self.rewards.lin_vel_z_l2.weight = 0.0
+        self.rewards.undesired_contacts = None
+        self.rewards.flat_orientation_l2.weight = -1.0
+        self.rewards.action_rate_l2.weight = -0.005
+        self.rewards.dof_acc_l2.weight = -1.25e-7
+        self.rewards.dof_acc_l2.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
+        )
+        self.rewards.dof_torques_l2.weight = -1.5e-7
+        self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
+        )
+        self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
+        self.events.base_com = None
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.rewards.joint_deviation_arms.params["asset_cfg"] = SceneEntityCfg(
             "robot",
             joint_names=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*_joint"],

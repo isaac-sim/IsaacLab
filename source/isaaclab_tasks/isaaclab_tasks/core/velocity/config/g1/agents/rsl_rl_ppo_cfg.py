@@ -15,13 +15,21 @@ from isaaclab_rl.rsl_rl import (
     RslRlSymmetryCfg,
 )
 
+G1_SYMMETRY_CFG = RslRlSymmetryCfg(
+    use_data_augmentation=True,
+    use_mirror_loss=False,
+    data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
+    mirror_loss_coeff=0.0,
+)
+
 
 @configclass
-class G1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class G1RoughTeacherPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    seed = 42
     num_steps_per_env = 24
-    max_iterations = 5000
-    save_interval = 50
-    experiment_name = "g1_rough"
+    max_iterations = 6000
+    save_interval = 250
+    experiment_name = "g1_rough_teacher"
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
@@ -47,35 +55,21 @@ class G1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.01,
         max_grad_norm=1.0,
+        symmetry_cfg=G1_SYMMETRY_CFG,
     )
 
 
 @configclass
-class G1FlatPPORunnerCfg(G1RoughPPORunnerCfg):
+class G1FlatPPORunnerCfg(G1RoughTeacherPPORunnerCfg):
+    max_iterations = 1500
+    save_interval = 50
+    experiment_name = "g1_flat"
+
     def __post_init__(self):
         super().__post_init__()
-
-        self.max_iterations = 1500
-        self.experiment_name = "g1_flat"
         self.actor.hidden_dims = [256, 128, 128]
         self.critic.hidden_dims = [256, 128, 128]
-
-
-@configclass
-class G1RoughTeacherPPORunnerCfg(G1RoughPPORunnerCfg):
-    seed = 42
-    max_iterations = 6000
-    save_interval = 250
-    experiment_name = "g1_rough_teacher"
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.algorithm.symmetry_cfg = RslRlSymmetryCfg(
-            use_data_augmentation=True,
-            use_mirror_loss=False,
-            data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
-            mirror_loss_coeff=0.0,
-        )
+        self.algorithm.symmetry_cfg = None
 
 
 @configclass
