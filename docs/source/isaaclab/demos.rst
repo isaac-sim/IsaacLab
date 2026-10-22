@@ -117,7 +117,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Teapot Fill" data-demo-id="teapot-fill"
                data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="newton_gl"
                data-demo-args="--device cuda:0"
                data-demo-description="Fill a Utah teapot with MPM water particles and pour them into a bowl.">
          <img src="../../_static/demos/teapot_fill.jpg" alt="Utah teapot pouring simulated water" loading="lazy">
@@ -236,9 +236,11 @@ Focused examples
 
    .. grid-item-card:: Tablecloth trick (Newton VBD, experimental)
 
-      .. image:: ../_static/examples/tablecloth_h2.jpg
+      .. figure:: ../_static/examples/tablecloth_h2.jpg
          :width: 100%
          :alt: Three H2 Plus robots comparing cloth pulls in the Cloth Pull Challenge cantina.
+
+         Native Kit viewport with the three pull stations aligned and interior lighting enabled.
 
       Three H2 Plus robots with SHARPA hands pull tablecloths at different speeds
       in the Cloth Pull Challenge cantina. Newton VBD simulates the cloth,

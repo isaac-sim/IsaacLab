@@ -258,15 +258,19 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         grid_positions = cloner.grid_transforms(4, 1.0)[0]
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
         env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
-        assert env_0 and not env_0.GetAttribute("xformOpOrder")
+        assert env_0 and not env_0.GetAttribute("xformOpOrder").Get()
         assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
+
+        # Direct tasks place the prototype before spawning assets with world-space joint anchors.
+        positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
+        assert sim_utils.standardize_xform_ops(env_0, translation=tuple(map(float, positions[0])))
+        np.testing.assert_allclose(sim_utils.resolve_prim_pose(env_0)[0], positions[0])
 
         cube_cfg = RigidObjectCfg(
             prim_path=f"{env_template.format('[^/]+')}/Cube",
             spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
             cloning_contexts=(cloner.UsdReplicateContext,),
         )
-        positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
         plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, (cube_cfg,), 4, 1.0, positions=positions)
         instantiate(cube_cfg)
         cloner.replicate(plan)

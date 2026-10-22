@@ -24,7 +24,7 @@ from .physics import CoffeeMPMSolver
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
-    from .demo_env_cfg import CoffeePresentationCfg, CoffeeRTXVisualizerCfg
+    from .demo_env_cfg import CoffeePresentationCfg
 
 COFFEE_COLOR = (0.095, 0.032, 0.012)
 WATER_COLOR = (0.66, 0.83, 0.88)
@@ -46,7 +46,6 @@ class CoffeeGLVisualizer(NewtonGLVisualizer):
 class CoffeeRTXVisualizer(NewtonRTXVisualizer):
     """Publish task geometry into the camera's shared RTX scene."""
 
-    cfg: CoffeeRTXVisualizerCfg
     rendering: CoffeeRendering | None = None
 
     def initialize(self, sim, *, cameras):
@@ -172,7 +171,7 @@ class CoffeeRendering:
             for visualizer in env.sim.visualizers
             if isinstance(visualizer, (CoffeeGLVisualizer, CoffeeRTXVisualizer))
         ]
-        if any(visualizer.cfg.visualizer_type == "kit" for visualizer in env.sim.visualizers):
+        if any(visualizer.cfg.backend.visualizer_type == "kit" for visualizer in env.sim.visualizers):
             # Defer the optional runtime implementation until Kit has launched.
             from .kit_rendering import CoffeeKitVisualizer
 
