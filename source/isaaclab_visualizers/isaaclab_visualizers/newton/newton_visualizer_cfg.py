@@ -104,6 +104,33 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
 
 @configclass
+class NewtonRecordingCfg:
+    """Output settings of the Recording section in the Newton GL HUD.
+
+    Every output lands in ``<output_dir>/<kind>/``, where ``kind`` is ``video``, ``scene``, or ``checkpoint``.
+    The HUD edits a copy of these values while the window is open.
+    """
+
+    output_dir: str = "recordings"
+    """Root folder of all recordings. Relative paths resolve against the working directory."""
+
+    filename_prefix: str = "newton_gl"
+    """Start of every recording's file name."""
+
+    auto_increment: bool = True
+    """Append a counter (``_0001``, ``_0002``, ...) so a new recording never overwrites an earlier one."""
+
+    timestamp: bool = False
+    """Append the start date and time (``YYYYmmdd-HHMMSS``) to the file name."""
+
+    video_fps: int | None = None
+    """Frame rate of the encoded video [Hz]. ``None`` uses the window's update rate (:attr:`WindowCfg.fps`)."""
+
+    video_length: float | None = None
+    """Duration of the video [s] after which recording stops by itself. ``None`` records until stopped."""
+
+
+@configclass
 class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     """Configuration for the Newton OpenGL rasterizer visualizer.
 
@@ -125,6 +152,9 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
 
     A SceneCameraCfg selection enables this automatically. Otherwise the viewer starts in perspective.
     """
+
+    recording: NewtonRecordingCfg = NewtonRecordingCfg()
+    """Defaults of the HUD's Recording section."""
 
     rtx_camera: bool | None = None
     """Declare an OVRTX viewer camera so the HUD can switch the main view between Newton GL and OVRTX.

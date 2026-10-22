@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
+from .newton_visualizer_cfg import (
+    NewtonGLVisualizerCfg,
+    NewtonRecordingCfg,
+    NewtonRTXVisualizerCfg,
+    NewtonVisualizerCfg,
+)
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
@@ -25,6 +30,7 @@ __all__ = [
     # GL backend
     "NewtonGLVisualizer",
     "NewtonGLVisualizerCfg",
+    "NewtonRecordingCfg",
     # RTX backend
     "NewtonRTXVisualizer",
     "NewtonRTXVisualizerCfg",

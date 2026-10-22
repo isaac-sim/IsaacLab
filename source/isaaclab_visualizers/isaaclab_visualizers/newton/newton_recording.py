@@ -8,9 +8,11 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import socket
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -56,9 +58,19 @@ class NewtonRecordingPanel:
             owner: Visualizer whose window and simulation state are recorded.
         """
         self._owner = owner
-        self.video_path = "videos/newton_gl.mp4"
-        self.scene_path = "recordings/newton_gl.viser"
-        self.checkpoint_path = "checkpoints/newton_state.npz"
+        cfg = owner.cfg.recording
+        self.output_dir = cfg.output_dir
+        self.filename_prefix = cfg.filename_prefix
+        self.auto_increment = cfg.auto_increment
+        self.timestamp = cfg.timestamp
+        self.video_fps = cfg.video_fps or 0
+        """Encoded frame rate [Hz]; ``0`` follows the window update rate."""
+        self.video_length = cfg.video_length or 0.0
+        """Video duration [s] after which recording stops by itself; ``0`` records until stopped."""
+        self.video_path = self.scene_path = self.checkpoint_path = ""
+        """Files written by the latest recording of each kind."""
+        self._video_rate = 0
+        self._video_limit: int | None = None
         self._video: subprocess.Popen | None = None
         self._video_frames = 0
         self._video_shape: tuple[int, int] | None = None
@@ -82,38 +94,78 @@ class NewtonRecordingPanel:
         if not imgui.collapsing_header("Recording"):
             return
         imgui.separator()
-        self._draw_row(
-            imgui, "Video", "video_path", self.recording_video, self.start_video, self.stop_video,
-            f"{self._video_frames} frames", "Record the window like --video; needs ffmpeg",
-        )  # fmt: skip
-        self._draw_row(
-            imgui, "Scene", "scene_path", self.recording_scene, self.start_scene, self.stop_scene,
-            f"{self._scene_frames} frames", "Record the visible environments to a .viser file for the Viser player",
-        )  # fmt: skip
-        self._draw_row(
-            imgui, "Checkpoint", "checkpoint_path", False, self.save_checkpoint, None, "",
-            "Save the current simulation state to an npz file",
-        )  # fmt: skip
+        imgui.text("Output")
+        _c, self.output_dir = imgui.input_text("Folder##recording", self.output_dir)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Root folder; files go to <folder>/video, <folder>/scene, and <folder>/checkpoint")
+        _c, self.filename_prefix = imgui.input_text("Prefix##recording", self.filename_prefix)
+        _c, self.auto_increment = imgui.checkbox("Auto-number", self.auto_increment)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Add _0001, _0002, ... so a new recording never overwrites an earlier one")
+        imgui.same_line()
+        _c, self.timestamp = imgui.checkbox("Timestamp", self.timestamp)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Add the start date and time to the file name")
+        imgui.separator()
+
+        imgui.text("Video")
+        if self.recording_video:
+            imgui.begin_disabled()
+        _c, fps = imgui.input_int("FPS##video", self.video_fps)
+        self.video_fps = max(0, fps)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Frame rate of the video; 0 uses the window update rate")
+        _c, length = imgui.input_float("Length (s)##video", self.video_length, 0.0, 0.0, "%.1f")
+        self.video_length = max(0.0, length)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Stop automatically after this many seconds of video; 0 records until stopped")
+        if self.recording_video:
+            imgui.end_disabled()
+        if self.recording_video:
+            if imgui.button("Stop##video"):
+                self.stop_video()
+            imgui.same_line()
+            rate = max(self._video_rate, 1)
+            imgui.text(f"{self._video_frames / rate:.1f} s ({self._video_frames} frames)")
+        elif imgui.button("Start##video"):
+            self.start_video()
+        if imgui.is_item_hovered() and not self.recording_video:
+            imgui.set_tooltip("Record the window like --video; needs ffmpeg")
+        imgui.separator()
+
+        imgui.text("Scene")
+        if self.recording_scene:
+            if imgui.button("Stop##scene"):
+                self.stop_scene()
+            imgui.same_line()
+            imgui.text(f"{self._scene_frames} frames")
+        elif imgui.button("Start##scene"):
+            self.start_scene()
+        if imgui.is_item_hovered() and not self.recording_scene:
+            imgui.set_tooltip("Record the visible environments to a .viser file for the Viser player")
+        imgui.separator()
+
+        imgui.text("Checkpoint")
+        if imgui.button("Save##checkpoint"):
+            self.save_checkpoint()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Save the current simulation state to an npz file")
         if self._message:
+            imgui.separator()
             imgui.text_wrapped(self._message)
 
-    def _draw_row(self, imgui, label, attribute, active, start, stop, status, tooltip) -> None:
-        imgui.text(label)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip(tooltip)
-        if active:
-            imgui.begin_disabled()
-        _changed, value = imgui.input_text(f"##{attribute}", getattr(self, attribute))
-        setattr(self, attribute, value)
-        if active:
-            imgui.end_disabled()
-        if active and stop is not None:
-            if imgui.button(f"Stop##{attribute}"):
-                stop()
-            imgui.same_line()
-            imgui.text(status)
-        elif imgui.button(f"{'Save' if stop is None else 'Start'}##{attribute}"):
-            start()
+    def _output_path(self, kind: str, suffix: str) -> Path:
+        """Return the next file of ``kind`` from the output settings, creating its folder."""
+        folder = Path(self.output_dir) / kind
+        folder.mkdir(parents=True, exist_ok=True)
+        name = self.filename_prefix or "newton_gl"
+        if self.timestamp:
+            name = f"{name}_{datetime.now():%Y%m%d-%H%M%S}"
+        if not self.auto_increment:
+            return folder / f"{name}{suffix}"
+        pattern = re.compile(rf"^{re.escape(name)}_(\d+){re.escape(suffix)}$")
+        indices = [int(match.group(1)) for file in folder.iterdir() if (match := pattern.match(file.name))]
+        return folder / f"{name}_{max(indices, default=0) + 1:04d}{suffix}"
 
     # ------------------------------------------------------------------
     # Video
@@ -127,6 +179,9 @@ class NewtonRecordingPanel:
             self._message = "Video needs ffmpeg: install it or the 'video' extra."
             return
         self._video_frames, self._video_shape = 0, None
+        self._video_rate = self.video_fps or max(1, round(self._owner.cfg.window.fps))
+        self._video_limit = round(self.video_length * self._video_rate) if self.video_length > 0 else None
+        self.video_path = str(self._output_path("video", ".mp4"))
         self._video = True  # Opened on the first frame, once the framebuffer size is known.
         self._message = f"Recording video to {self.video_path}"
 
@@ -134,8 +189,7 @@ class NewtonRecordingPanel:
         if self._video is True:
             height, width = frame.shape[:2]
             path = Path(self.video_path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fps = max(1, round(self._owner.cfg.window.fps))
+            fps = self._video_rate
             self._video_shape = (height, width)
             self._video = subprocess.Popen(  # noqa: S603
                 [
@@ -150,6 +204,8 @@ class NewtonRecordingPanel:
         try:
             self._video.stdin.write(np.ascontiguousarray(frame).tobytes())
             self._video_frames += 1
+            if self._video_limit is not None and self._video_frames >= self._video_limit:
+                self.stop_video()
         except (BrokenPipeError, OSError):
             self._message = "ffmpeg stopped unexpectedly; video recording ended."
             self._video = None
@@ -178,8 +234,8 @@ class NewtonRecordingPanel:
         from newton.viewer import ViewerViser  # noqa: PLC0415
 
         owner = self._owner
-        path = Path(self.scene_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path = self._output_path("scene", ".viser")
+        self.scene_path = str(path)
         try:
             viewer = ViewerViser(port=_free_port(), label="Isaac Lab", verbose=False, record_to_viser=str(path))
             viewer.set_model(owner.backend.model)
@@ -212,8 +268,8 @@ class NewtonRecordingPanel:
         """Write the simulation state arrays to :attr:`checkpoint_path`."""
         state = self._owner._update_state()
         arrays = {name: array.numpy() for name in _STATE_FIELDS if (array := getattr(state, name, None)) is not None}
-        path = Path(self.checkpoint_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path = self._output_path("checkpoint", ".npz")
+        self.checkpoint_path = str(path)
         np.savez(path, **arrays)
         self._message = f"Saved checkpoint ({', '.join(arrays)}) to {self.checkpoint_path}"
 
