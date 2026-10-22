@@ -82,10 +82,21 @@ jobs:
         with:
           version: "0.12.9"
 
+      # Checkout cleans the workspace, so the environment lives in the runner's tool cache, where a
+      # reused runner keeps the installed packages and their compiled bytecode between jobs.
+      - name: Locate environment
+        run: '"UV_PROJECT_ENVIRONMENT=$env:RUNNER_TOOL_CACHE\isaaclab-windows-ci" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
+
       - name: Sync environment
         id: sync
         timeout-minutes: 30
-        run: uv sync --frozen --extra test
+        run: |
+          uv sync --frozen --extra test
+          if ($LASTEXITCODE -ne 0) {
+            # A job killed mid-sync can leave the kept environment broken, so rebuild it once.
+            Remove-Item -Recurse -Force $env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
+            uv sync --frozen --extra test
+          }
 
       - name: Run windows_ci marker tests
         env:
