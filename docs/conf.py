@@ -60,10 +60,10 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
     full_version = f.read().strip()
     version = ".".join(full_version.split(".")[:3])
 
-# Latest release branch referenced by installation documentation.
-isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "develop")
-isaaclab_wheel_version = "3.0.0rc1"
-isaaclab_wheel_source_tag = "v3.0.0-EA"
+# Default development branch referenced by installation documentation.
+isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "main")
+isaaclab_wheel_version = "3.0.0"
+isaaclab_wheel_source_tag = "v3.0.0"
 
 
 def _read_pinned_versions() -> dict:
@@ -356,6 +356,10 @@ html_js_files = [
 ]
 
 html_theme_options = {
+    "announcement": (
+        '<a href="https://docs.nvidia.com/isaaclab">Explore our AI-friendly Fern documentation</a>'
+        " &mdash; Chat with AI about Isaac Lab and access machine-readable docs."
+    ),
     "path_to_docs": "docs/",
     "navbar_persistent": [],
     "collapse_navigation": True,
@@ -400,7 +404,7 @@ templates_path = [
 # Whitelist pattern for remotes
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
-smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop|release/.*)$")
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop)$")
 # Whitelist pattern for tags (set to None to ignore all tags).
 # Matches vMAJOR.MINOR.PATCH with an optional pre-release suffix like -beta or -rc1,
 # so tags like v3.0.0-beta show up in the version selector.
@@ -469,7 +473,91 @@ isaaclab_doc_redirects = {
     "source/tutorials/05_controllers/run_diff_ik": "source/how-to/run_diff_ik",
     "source/tutorials/05_controllers/run_osc": "source/how-to/run_osc",
     "source/tutorials/index": "source/how-to/index",
+    # Routes published by the 2.x main branch before the 3.x documentation reorganization.
+    "source/deployment/cloudxr_teleoperation_cluster": "source/how-to/cloudxr_teleoperation",
+    "source/deployment/cluster": "source/features/hpc_clusters",
+    "source/deployment/docker": "source/isaaclab/installation",
+    "source/deployment/index": "source/isaaclab/installation",
+    "source/deployment/run_docker_example": "source/isaaclab/installation",
+    "source/experimental-features/newton-physics-integration/visualization": "source/concepts/visualization",
+    "source/how-to/draw_markers": "source/how-to/create_visualization_markers",
+    "source/how-to/estimate_how_many_cameras_can_run": "source/how-to/simulation_performance",
+    "source/how-to/optimize_stage_creation": "source/how-to/simulation_performance",
+    "source/migration/comparing_simulation_isaacgym": "source/isaaclab/migrating",
+    "source/migration/migrating_from_isaacgymenvs": "source/isaaclab/migrating",
+    "source/migration/migrating_from_omniisaacgymenvs": "source/isaaclab/migrating",
+    "source/migration/migrating_from_orbit": "source/isaaclab/migrating",
+    "source/overview/core-concepts/actuators": "source/concepts/actuators",
+    "source/overview/core-concepts/index": "source/concepts/task_workflows",
+    "source/overview/core-concepts/motion_generators": "source/concepts/motion_generators",
+    "source/overview/core-concepts/sensors/camera": "source/concepts/sensors/camera",
+    "source/overview/core-concepts/sensors/contact_sensor": "source/concepts/sensors/contact_sensor",
+    "source/overview/core-concepts/sensors/frame_transformer": "source/concepts/sensors/frame_transformer",
+    "source/overview/core-concepts/sensors/imu": "source/concepts/sensors/imu",
+    "source/overview/core-concepts/sensors/index": "source/concepts/sensors/index",
+    "source/overview/core-concepts/sensors/ray_caster": "source/concepts/sensors/ray_caster",
+    "source/overview/core-concepts/sensors/visuo_tactile_sensor": "source/experimental-features/visuo_tactile_sensor",
+    "source/overview/core-concepts/task_workflows": "source/concepts/task_workflows",
+    "source/overview/developer-guide/development": "source/refs/contributing",
+    "source/overview/developer-guide/index": "source/refs/contributing",
+    "source/overview/developer-guide/vs_code": "source/developer-tools/editor_setup",
+    "source/overview/environments": "source/isaaclab/environments",
+    "source/overview/imitation-learning/augmented_imitation": "source/features/imitation-learning/augmented_imitation",
+    "source/overview/imitation-learning/index": "source/features/imitation-learning/index",
+    "source/overview/imitation-learning/skillgen": "source/features/imitation-learning/skillgen",
+    "source/overview/imitation-learning/teleop_imitation": "source/features/imitation-learning/teleop_imitation",
+    "source/overview/own-project/index": "source/developer-tools/template_generator",
+    "source/overview/own-project/project_structure": "source/developer-tools/template_generator",
+    "source/overview/own-project/template": "source/developer-tools/template_generator",
+    "source/overview/reinforcement-learning/index": "source/concepts/reinforcement_learning",
+    "source/overview/reinforcement-learning/rl_existing_scripts": "source/how-to/run_rl_training",
+    "source/overview/reinforcement-learning/rl_frameworks": "source/concepts/reinforcement_learning",
+    "source/overview/reinforcement-learning/training_guide": "source/how-to/configuring_rl_training",
+    "source/overview/showroom": "source/isaaclab/demos",
+    "source/refs/migration": "source/isaaclab/migrating",
+    "source/setup/installation/asset_caching": "source/how-to/manage_asset_downloads",
+    "source/setup/installation/binaries_installation": "source/isaaclab/installation",
+    "source/setup/installation/cloud_installation": "source/features/cloud_deployment",
+    "source/setup/installation/isaaclab_pip_installation": "source/isaaclab/installation",
+    "source/setup/installation/pip_installation": "source/isaaclab/installation",
+    "source/setup/installation/source_installation": "source/isaaclab/installation",
 }
+
+# Pages without a current equivalent remain available in the final 2.x documentation release.
+_isaaclab_v2_3_2_docs_root = "https://isaac-sim.github.io/IsaacLab/v2.3.2"
+_isaaclab_v2_3_2_only_docs = (
+    "source/experimental-features/newton-physics-integration/index",
+    "source/experimental-features/newton-physics-integration/installation",
+    "source/experimental-features/newton-physics-integration/isaaclab_newton-beta-2",
+    "source/experimental-features/newton-physics-integration/limitations-and-known-bugs",
+    "source/experimental-features/newton-physics-integration/sim-to-real",
+    "source/experimental-features/newton-physics-integration/sim-to-sim",
+    "source/experimental-features/newton-physics-integration/solver-transitioning",
+    "source/experimental-features/newton-physics-integration/training-environments",
+    "source/overview/developer-guide/repo_structure",
+    "source/overview/reinforcement-learning/performance_benchmarks",
+    "source/overview/simple_agents",
+    "source/policy_deployment/00_hover/hover_policy",
+    "source/policy_deployment/01_io_descriptors/io_descriptors_101",
+    "source/refs/reference_architecture/index",
+    "source/setup/installation/include/bin_verify_isaacsim",
+    "source/setup/installation/include/pip_python_virtual_env",
+    "source/setup/installation/include/pip_verify_isaacsim",
+    "source/setup/installation/include/src_build_isaaclab",
+    "source/setup/installation/include/src_clone_isaaclab",
+    "source/setup/installation/include/src_python_virtual_env",
+    "source/setup/installation/include/src_symlink_isaacsim",
+    "source/setup/installation/include/src_verify_isaaclab",
+    "source/setup/walkthrough/api_env_design",
+    "source/setup/walkthrough/concepts_env_design",
+    "source/setup/walkthrough/index",
+    "source/setup/walkthrough/technical_env_design",
+    "source/setup/walkthrough/training_jetbot_gt",
+    "source/setup/walkthrough/training_jetbot_reward_exploration",
+)
+isaaclab_doc_redirects.update(
+    {route: f"{_isaaclab_v2_3_2_docs_root}/{route}.html" for route in _isaaclab_v2_3_2_only_docs}
+)
 
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 

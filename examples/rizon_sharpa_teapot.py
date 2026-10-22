@@ -5,9 +5,13 @@
 
 """Physically grasp the Utah teapot and pour MPM water during a 25 cm rise.
 
-Run with ``uv run isaaclab example rizon-sharpa-teapot``. This experimental
-example uses a fixed index grasp and motion. Newton proxy coupling feeds water
-reaction forces back to the grasped teapot.
+This experimental example uses a fixed index grasp and motion. Newton proxy
+coupling feeds water reaction forces back to the grasped teapot.
+
+.. code-block:: bash
+
+    # Newton GL:
+    uv run isaaclab example rizon-sharpa-teapot
 
 
 The pinned robot USD and textures are downloaded and verified on first use.
@@ -25,7 +29,6 @@ import runpy
 import shutil
 import sys
 import tempfile
-from dataclasses import replace
 from functools import lru_cache
 from importlib.metadata import version
 from pathlib import Path
@@ -35,15 +38,16 @@ import numpy as np
 import warp as wp
 from filelock import FileLock
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
-from newton.solvers.experimental.coupled import SolverCoupledProxy
 from scipy.interpolate import CubicSpline
 from scipy.spatial.transform import Rotation
 
+from isaaclab.utils import configclass
+
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
 if TYPE_CHECKING:
     import mujoco
+    from _rizon_sharpa_teapot_coupler import _NewtonTeapotCouplerManager
 
     from isaaclab.assets import Articulation, ArticulationCfg, RigidObject
 
@@ -549,52 +553,6 @@ def _verify_asset_bundle(root: Path) -> None:
         raise ValueError(f"Rizon/Sharpa asset bundle at {root} differs from revision {ASSET_REVISION}.")
 
 
-class _TeapotProxySolver(SolverCoupledProxy):
-    """Use Newton's proxy algorithm with convex rigid contacts and the exact MPM shell.
-
-    Proxy bodies normally expose every attached shape in the destination. The
-    hollow pot needs a separate shell for MPM so its convex grasp colliders do not
-    fill the water cavity. Only geometry visibility differs from the standard solver.
-    """
-
-    def _apply_entry_shape_visibility(self, view, cfg, proxy_body_keep):
-        visible = self._entry_visible_shapes(cfg, set(cfg.bodies) | proxy_body_keep)
-        if cfg.name == "robot":
-            # MJWarp CCD requires zero margins; the fluid shell retains its margins.
-            view.shape_margin = wp.zeros_like(view.shape_margin)
-        super()._apply_entry_shape_visibility(view, replace(cfg, shapes=sorted(visible)), proxy_body_keep)
-
-    def _entry_visible_shapes(self, cfg, visible_bodies):
-        visible = super()._entry_visible_shapes(cfg, visible_bodies)
-        if cfg.name == "robot":
-            visible = {i for i in visible if "/PourContainer/geometry/" not in self.model.shape_label[i]}
-            visible.update(
-                i
-                for i, label in enumerate(self.model.shape_label)
-                if "/TabletopCollider/" in label or label.startswith("/World/Ground/")
-            )
-        else:
-            visible.update(i for i, label in enumerate(self.model.shape_label) if "/PourContainer/geometry/" in label)
-            visible = {
-                i
-                for i in visible
-                if "/PourContainer/" not in self.model.shape_label[i]
-                or "/PourContainer/geometry/" in self.model.shape_label[i]
-            }
-        return visible
-
-
-class NewtonTeapotCouplerManager(NewtonCouplerManager):
-    """Select the pot's solver-specific colliders for standard proxy coupling."""
-
-    def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
-        coupling = SolverCoupledProxy.Config(
-            proxies=[SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxy_cfgs],
-            iterations=solver_cfg.iterations,
-        )
-        return _TeapotProxySolver(model=model, entries=entries, coupling=coupling)
-
-
 class TeapotPourMotion:
     """Drive a simulated arm along an IK path with a contact-acquired grasp.
 
@@ -936,10 +894,16 @@ def _interpolate_joints(
         targets[0, joints[i]] = thumb_position[0, i - 7]
 
 
-def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> CouplerProxyCfg:
+@configclass
+class TeapotSolverCfg(CouplerProxyCfg):
+    """Select convex rigid contacts and the exact MPM shell after simulation launch."""
+
+    class_type: type[_NewtonTeapotCouplerManager] | str = "_rizon_sharpa_teapot_coupler:_NewtonTeapotCouplerManager"
+
+
+def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
     """Resolve rigid hand--pot contacts and return MPM reaction forces through a pot proxy."""
-    return CouplerProxyCfg(
-        class_type=NewtonTeapotCouplerManager,
+    return TeapotSolverCfg(
         entries=[
             CouplerEntryCfg(
                 name="robot",

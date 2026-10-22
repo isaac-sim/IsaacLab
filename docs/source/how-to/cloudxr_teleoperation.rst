@@ -42,7 +42,7 @@ Prerequisites
   * For driver requirements see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide.
   * Python 3.12 or newer
   * CUDA 12.8 (recommended)
-  * NVIDIA Driver 580.95.05 (recommended)
+  * NVIDIA Driver 595.58.03 (recommended)
 
 * **Wifi 6 capable router**
 
