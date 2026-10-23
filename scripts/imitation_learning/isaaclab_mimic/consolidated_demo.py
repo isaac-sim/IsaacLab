@@ -198,8 +198,11 @@ async def run_teleop_robot(
     env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface
 ):
     """Run teleop robot."""
+    from isaaclab_teleop import poll_control_events
+
     global num_recorded
     should_reset_teleop_instance = False
+    teleop_active = True
 
     # add teleoperation key for reset current recording instance
     def reset_teleop_instance():
@@ -226,8 +229,12 @@ async def run_teleop_robot(
 
         # get the device command [dx, dy, dz, drx, dry, drz, gripper]; every env submits one action per
         # round (see env_loop), so hold still with the gripper open while an Isaac Capture session starts
+        # or is paused (P / B pause and resume it)
         action = teleop_interface.advance()
-        if action is None:
+        ctrl = poll_control_events(teleop_interface)
+        if ctrl.is_active is not None:
+            teleop_active = ctrl.is_active
+        if action is None or not teleop_active:
             action = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         delta_pose = action[:6].to(dtype=torch.float, device=env.device).repeat(1, 1)
         # the gripper value is +1 to open and -1 to close; pre_process_actions takes "close" as True
