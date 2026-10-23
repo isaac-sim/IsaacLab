@@ -272,7 +272,7 @@ class NewtonViewerGL(ViewerGL):
         sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
-        2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, VSync, and renderer-specific options.
+        2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
         3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
         4. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
@@ -338,12 +338,6 @@ class NewtonViewerGL(ViewerGL):
                 imgui.separator()
                 if viewer._view_controls is not None:
                     viewer._view_controls(imgui)
-                _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip(
-                        "Wait for the monitor's refresh before showing each frame. Prevents screen tearing,"
-                        " but can lower the window rate."
-                    )
                 owner = viewer._owner
                 if owner is not None and owner.rtx_rendering:
                     owner._draw_rtx_appearance(imgui)
@@ -656,6 +650,16 @@ class NewtonViewerGL(ViewerGL):
             if sim_idle
             else "Stop or resume stepping the simulation. The window keeps updating",
         )
+        if sim_idle:
+            imgui.end_disabled()
+
+        rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
+        if imgui.button(rendering_label):
+            self._paused = not self._paused
+        hover_tooltip(imgui, "Freeze or resume the window image. The simulation keeps running")
+
+        if sim_idle:
+            imgui.begin_disabled()
         if imgui.button("Reset Episode"):
             self._reset_requested = True
         hover_tooltip(
@@ -666,11 +670,6 @@ class NewtonViewerGL(ViewerGL):
         )
         if sim_idle:
             imgui.end_disabled()
-
-        rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
-        if imgui.button(rendering_label):
-            self._paused = not self._paused
-        hover_tooltip(imgui, "Freeze or resume the window image. The simulation keeps running")
 
         _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():
@@ -820,6 +819,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._followers: dict[object, CameraFollower] = {}
+        self._rtx_pose_view = None
+        """Tracking Camera view that moves the OVRTX camera, or None when the free camera drives it."""
         """Followers of the task views, by image view."""
         self._tracking_defaults: dict[object, dict] = {}
         """What the task declared for each task view, for Reset to Task Default."""
@@ -923,15 +924,24 @@ class NewtonVisualizerBase(BaseVisualizer):
         )
         labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
-        if current == rtx_index:  # RTX renders the free perspective source.
-            current = next(i for i in indices if self._image_views[i].camera is None)
+        if current == rtx_index:  # RTX renders the free perspective source or follows a Tracking Camera.
+            pose_view = self._rtx_pose_view
+            current = (
+                self._image_views.index(pose_view)
+                if pose_view is not None
+                else next(
+                    i
+                    for i in indices
+                    if self._image_views[i].camera is None and not self._is_task_view(self._image_views[i])
+                )
+            )
         position = indices.index(current)
         changed, chosen = imgui.combo("Camera Source", position, labels)
         if changed:
-            self._select_camera(indices[chosen])
+            self._choose_camera_source(indices[chosen])
         if imgui.is_item_hovered():
             imgui.set_tooltip(labels[position])
-        follower = self._followers.get(self.current_image_view)
+        follower = self._followers.get(self._pose_source_view())
         if follower is not None:
             self._draw_tracking_camera_controls(imgui, follower)
         elif self.current_image_view in self._sensor_tiles:
@@ -1236,6 +1246,23 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Whether *view* is a perspective view tied to an environment or an asset."""
         return isinstance(view.cfg.source, PerspectiveCameraCfg) and view.cfg.source.is_task_view
 
+    def _pose_source_view(self):
+        """Return the view whose camera settings are shown: the one driving the OVRTX camera, or the current view."""
+        if self.rtx_rendering and self._rtx_pose_view is not None:
+            return self._rtx_pose_view
+        return self.current_image_view
+
+    def _choose_camera_source(self, index: int) -> None:
+        """Switch the camera source; a free or Tracking Camera source keeps the OVRTX renderer when it is on."""
+        view = self._image_views[index]
+        if self.rtx_rendering and view.camera is None:
+            self._rtx_pose_view = view if self._is_task_view(view) else None
+            if self._rtx_pose_view is not None:
+                self._apply_view_pose(view)
+            self.current_image_view.invalidate()
+            return
+        self._select_camera(index)
+
     def _apply_view_pose(self, view) -> bool:
         """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
 
@@ -1261,6 +1288,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             keep_pose: Continue from the viewer's current camera instead of the source's configured pose.
         """
         self.current_image_view = self._image_views[index]
+        if index != self.rtx_view_index:
+            self._rtx_pose_view = None
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
@@ -1625,8 +1654,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         viewer.begin_frame(self._sim_time)
         try:
             viewer.image_matches_camera = self.rtx_rendering
-            if self._is_task_view(self.current_image_view):
-                self._apply_view_pose(self.current_image_view)
+            pose_view = self._pose_source_view()
+            if self._is_task_view(pose_view):
+                self._apply_view_pose(pose_view)
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
                 self._log_streaming_image()
@@ -1701,7 +1731,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if rtx_index is None:
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
         free = [i for i, view in enumerate(self._image_views) if view.camera is None and not self._is_task_view(view)]
-        self._select_camera(rtx_index if enabled else free[0], keep_pose=True)
+        if enabled:
+            # A Tracking Camera keeps moving the OVRTX camera, which has no pose of its own.
+            current = self.current_image_view
+            self._rtx_pose_view = current if self._is_task_view(current) else None
+            self._select_camera(rtx_index, keep_pose=True)
+        else:
+            back = self._rtx_pose_view
+            self._rtx_pose_view = None
+            self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
 
     def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
         """Name the run in the HUD header.

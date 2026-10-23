@@ -1457,3 +1457,36 @@ def test_choosing_a_replay_view_before_an_animation_is_loaded_does_nothing():
     visualizer.set_replay_view("overlay")
 
     assert visualizer._replay_view == "only"
+
+
+def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    def view(source, camera=None):
+        return SimpleNamespace(camera=camera, cfg=SimpleNamespace(source=source), invalidate=Mock())
+
+    rtx_camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0"))
+    free, rtx, tracking = (
+        view(PerspectiveCameraCfg()),
+        view(PerspectiveCameraCfg(), rtx_camera),
+        view(PerspectiveCameraCfg(env_index=0)),
+    )
+    visualizer = object.__new__(NewtonGLVisualizer)
+    visualizer._image_views = [free, rtx, tracking]
+    visualizer.current_image_view = tracking
+    visualizer._rtx_pose_view = None
+
+    def select(index, keep_pose=False):
+        visualizer.current_image_view = visualizer._image_views[index]
+        if index != visualizer.rtx_view_index:
+            visualizer._rtx_pose_view = None
+
+    visualizer._select_camera = select
+
+    visualizer.set_rtx_rendering(True)
+
+    assert visualizer.rtx_rendering and visualizer._pose_source_view() is tracking
+
+    visualizer.set_rtx_rendering(False)
+
+    assert visualizer.current_image_view is tracking and visualizer._rtx_pose_view is None
