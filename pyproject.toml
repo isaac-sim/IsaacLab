@@ -410,7 +410,8 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
-    "numpy>=2",
+    # Numba requires <2.5; cmeel-boost used by teleop requires >=2.3,<2.4.
+    "numpy>=2.3,<2.4",
     "mujoco~=3.15.0",
     "mujoco-warp~=3.15.0",
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@71eeba16a717d4dcf0b9dd7056a7b6f863054dc3",

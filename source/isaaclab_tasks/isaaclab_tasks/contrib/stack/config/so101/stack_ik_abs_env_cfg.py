@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 import numpy as np
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.utils import configclass, replace
@@ -202,6 +203,13 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        self.sim.physics = preset(
+            default=self.sim.physics.default,
+            isaacsim_physx=self.sim.physics.isaacsim_physx,
+            physx=self.sim.physics.physx,
+            newton_mjwarp=self.sim.physics.newton_mjwarp,
+            ovphysx=OvPhysxCfg(),
+        )
 
         # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
         # configured by the parent so its task-specific seated root and stack joint pose are retained.
@@ -222,7 +230,9 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
-                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
+                    "Physics": preset(
+                        default="physx", isaacsim_physx="physx", physx="physx", ovphysx="physx", newton_mjwarp="physics"
+                    ),
                 },
             ),
             actuators={

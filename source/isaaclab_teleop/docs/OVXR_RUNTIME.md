@@ -7,10 +7,11 @@ Newton or OVPhysX physics and one environment.
 ## Installation
 
 Use Isaac Capture and Isaac Lab checkouts containing the OVXR integration.
-Build Isaac Capture with Python 3.12 using its
+Build Isaac Capture with Python 3.12, CMake 3.24 or newer, a C++20 compiler
+and `patchelf` available on `PATH`, using its
 [build guide](https://github.com/NVIDIA/IsaacCapture/blob/main/docs/source/development/build_from_source/index.rst).
-For camera panels, enable `BUILD_OVXR_CAMERA_QUADS=ON` and install the Vulkan
-and CUDA development SDKs described in the
+For camera panels, enable `BUILD_OVXR_CAMERA_QUADS=ON`; SDK discovery and
+optional build-managed acquisition are described in the
 [OVXR guide](https://github.com/NVIDIA/IsaacCapture/blob/main/docs/source/getting_started/ovxr.rst).
 Review the licenses supplied with the selected packages.
 
@@ -44,6 +45,20 @@ The general `teleop` extra selects an older Isaac Capture package. Use the local
 commits. To install the optional desktop mirror, include `desktop-mirror` among
 the extras on the same wheel requirement.
 
+Until the coordinated OV provider upgrade lands, a local premerge selection
+also needs the following entries in the existing `tool.uv.override-dependencies`
+list, preserving its other entries. These are consuming-checkout settings;
+do not change the repository's default provider pins or commit these overrides:
+
+```toml
+"ovphysx==0.7.0.74035321",
+"ovrtx==0.6.0.1791947691",
+"ovstage==0.3.0.1791986420",
+```
+
+The project selects NumPy `>=2.3,<2.4`, the compatible range for the selected
+Numba and cmeel-boost dependencies. Keep this range when adding local overrides.
+
 Resolve the selected environment and check its dependencies:
 
 ```bash
@@ -52,9 +67,11 @@ uv run --extra ovxr python -c 'import importlib.metadata as m; print(m.version("
 uv pip check
 ```
 
-OVPhysX requires `packaging<24`; the explicit lock selection above satisfies
-that requirement despite the project's global override. Isaac Sim uses a
-different packaging version and needs a separate environment or resolution.
+OVPhysX declares `packaging<24`; the explicit selection above satisfies its
+metadata in this non-Kit environment. The project deliberately widens this
+requirement to allow Isaac Sim's packaging version too; leave that upstream
+override unchanged. A metadata mismatch alone does not establish a runtime
+failure. Kit uses a different environment or resolution.
 Repeat this selection if a later lock upgrade replaces it. Isaac Capture's
 `ovxr` extra selects OVXR and its compatible OVRTX/OVStage dependencies; see its
 OVXR guide for application version overrides.
@@ -79,7 +96,12 @@ An explicit `ISAAC_LAB_OVRTX_USE_OVSTAGE=0` is incompatible with OVXR.
 No local window opens by default. Headset rendering still uses the GPU and works
 with `DISPLAY` unset. The teleoperation CLI does not need a `--headless` flag.
 `--ovxr_worker_timeout` bounds renderer startup; it does not bound waiting for a
-client to establish its OpenXR session.
+client to establish its OpenXR session. Building a Capture wheel and resolving
+Python packages do not warm application-specific RTX shaders or Newton/Warp
+physics kernels. First runtime preparation and the first physics step can take
+longer than subsequent runs. Retain startup logs and distinguish stage/render
+preparation from client connection and active simulation; do not treat a warm
+retry as proof that an earlier timeout was fixed.
 
 Use `--step_hz 20` to cap live control at 20 updates per second while XR rendering
 runs independently. Time spent reading input, stepping physics and publishing
