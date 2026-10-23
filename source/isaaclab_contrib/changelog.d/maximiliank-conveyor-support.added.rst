@@ -1,1 +1,1 @@
-* Added experimental straight and curved conveyor controls using Newton's upstream force model.
+* Added experimental straight and curved conveyor surfaces using Newton's upstream force model.
