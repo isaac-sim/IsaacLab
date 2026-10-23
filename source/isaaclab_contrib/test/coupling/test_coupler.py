@@ -569,7 +569,7 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
     assert events == [("finalize", builder)] + ([("color", False)] if vbd_entries else [])
 
 
-def test_nested_solvers_register_their_builder_attributes(monkeypatch):
+def test_nested_solvers_register_their_builder_attributes():
     """A coupled model declares the schemas consumed by each configured child solver."""
     builder = ModelBuilder()
     solver_cfg = CouplerProxyCfg(
@@ -578,9 +578,7 @@ def test_nested_solvers_register_their_builder_attributes(monkeypatch):
             CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg()),
         ]
     )
-    _set_active_solver_cfg(monkeypatch, solver_cfg)
-
-    NewtonCouplerManager._register_builder_attributes(builder)
+    NewtonCouplerManager._register_builder_attributes(builder, solver_cfg)
 
     assert builder.has_custom_attribute("mujoco:condim")
     assert builder.has_custom_attribute("mpm:young_modulus")
@@ -617,7 +615,7 @@ def test_nested_solver_scopes_mujoco_joint_properties(
     joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
-    builder = NewtonCouplerManager.create_builder(up_axis="Z")
+    builder = NewtonCouplerManager.create_builder(up_axis="Z", physics_cfg=physics_cfg)
     builder.add_usd(
         stage, root_path=root_path, schema_resolvers=NewtonCouplerManager._get_usd_import_schema_resolvers()
     )

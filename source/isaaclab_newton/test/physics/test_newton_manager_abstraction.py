@@ -563,7 +563,7 @@ def test_solver_registers_only_its_builder_attributes(manager, active, inactive)
     """A solver declares its own builder schema once and no inactive solver schema."""
     builder = ModelBuilder()
 
-    manager._register_builder_attributes(builder)
+    manager._register_builder_attributes(builder, None)
 
     assert builder.has_custom_attribute(active)
     assert all(not builder.has_custom_attribute(name) for name in inactive)
@@ -572,7 +572,7 @@ def test_solver_registers_only_its_builder_attributes(manager, active, inactive)
         assert "mujoco:tendon" in builder.custom_frequencies
 
     # A second registration on the same builder is a no-op.
-    manager._register_builder_attributes(builder)
+    manager._register_builder_attributes(builder, None)
     assert builder.has_custom_attribute(active)
 
 
@@ -620,7 +620,7 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     import newton
 
     builder = newton.ModelBuilder()
-    NewtonMPMManager._register_builder_attributes(builder)
+    NewtonMPMManager._register_builder_attributes(builder, None)
     body = builder.add_body(label="convex_mesh_collider")
     mesh = newton.Mesh(
         vertices=[(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (0.0, 1.0, 0.0)],
@@ -747,7 +747,7 @@ def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco):
 
     schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
     builder = ModelBuilder()
-    manager_cls._register_builder_attributes(builder)
+    manager_cls._register_builder_attributes(builder, None)
     builder.add_usd(stage, schema_resolvers=schema_resolvers)
     model = builder.finalize(device="cpu")
 

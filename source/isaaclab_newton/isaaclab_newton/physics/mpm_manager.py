@@ -190,7 +190,7 @@ class NewtonMPMManager(NewtonManager):
         _author_mpm_scene_config(scene_prim, self._cfg.solver_cfg)
 
     @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+    def _register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: MPMSolverCfg | None) -> None:
         """Register the particle custom attributes required by :class:`SolverImplicitMPM`.
 
         Implicit MPM materials are configured per-particle through Newton

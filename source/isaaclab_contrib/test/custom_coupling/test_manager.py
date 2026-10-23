@@ -37,7 +37,7 @@ def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
     builder = ModelBuilder()
-    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder)
+    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder, None)
     builder.add_usd(stage, schema_resolvers=NewtonCoupledMJWarpVBDManager._get_usd_import_schema_resolvers())
     model = builder.finalize(device="cpu")
 

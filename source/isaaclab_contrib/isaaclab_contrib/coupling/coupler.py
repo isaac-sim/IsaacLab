@@ -207,11 +207,11 @@ class NewtonCouplerManager(NewtonVBDManager):
             self._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
 
     @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+    def _register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: CouplerCfg) -> None:
         """Register custom attributes required by nested coupled entries."""
-        super()._register_builder_attributes(builder)
-        for entry in SimulationContext.instance().cfg.physics.solver_cfg.entries:
-            entry.solver_cfg.class_type._register_builder_attributes(builder)
+        super()._register_builder_attributes(builder, solver_cfg)
+        for entry in solver_cfg.entries:
+            entry.solver_cfg.class_type._register_builder_attributes(builder, entry.solver_cfg)
 
     @classmethod
     def _registers_builder_attributes_from_solver(cls, solver_cls: type[SolverBase]) -> bool:

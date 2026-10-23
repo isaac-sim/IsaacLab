@@ -215,7 +215,7 @@ Override anything else only when the solver needs it:
   substep while keeping the base simulation loop.
 * ``_simulate_physics_only()``: add per-step work around the substep loop.
 * ``_reset_solver_internals()``: clear solver-owned state for reset worlds.
-* ``_register_builder_attributes()``: register Newton custom particle, shape, or
+* ``_register_builder_attributes(builder, solver_cfg)``: register Newton custom particle, shape, or
   body attributes on the builder.
 * ``_prepare_builder_for_finalize()``: normalize imported or replicated builder
   data immediately before ``finalize()``.

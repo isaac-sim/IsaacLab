@@ -634,14 +634,14 @@ class NewtonManager(PhysicsManager):
             shape_flags=ShapeFlags.VISIBLE,
         )
 
-        cls._register_builder_attributes(builder)
+        cls._register_builder_attributes(builder, cfg.solver_cfg if isinstance(cfg, NewtonCfg) else None)
         shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
         checked_apply(shape_cfg, builder.default_shape_cfg)
         return builder
 
     @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Register custom attributes required by the active solver."""
+    def _register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: NewtonSolverCfg | None) -> None:
+        """Register custom attributes required by the solver configured by ``solver_cfg``."""
         for solver_cls in cls._builder_attribute_solvers:
             solver_cls.register_custom_attributes(builder)
 
