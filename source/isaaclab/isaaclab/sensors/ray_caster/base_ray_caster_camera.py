@@ -151,6 +151,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timestamps
         SensorBase.reset(self, env_mask=env_mask)
+        self._invalidate_buffers(env_mask)
         # reset the data through the same Warp path used by updates.
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_ray_infos(env_mask)

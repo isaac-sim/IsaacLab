@@ -153,31 +153,47 @@ def test_body_local_frame_resolves_from_body_labels_after_reset(device):
     contract tests.
     """
     num_envs = 3
-    ctx = _sim_context(device, num_envs=num_envs)
-    sim = ctx.__enter__()
-    sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
+    with _sim_context(device, num_envs=num_envs) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
 
-    stage = sim_utils.get_current_stage()
-    assert stage.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
-    assert not stage.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
-    sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
+        stage = sim_utils.get_current_stage()
+        assert stage.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+        assert not stage.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
+        sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
-    sim.reset()
-    label_view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
+        sim.reset()
+        label_view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
 
-    assert label_view.count == num_envs
-    assert not stage.GetPrimAtPath("/World/envs/env_1/Cube/CameraMount").IsValid()
-    expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
-    torch.testing.assert_close(label_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
-    ctx.__exit__(None, None, None)
+        assert label_view.count == num_envs
+        assert not stage.GetPrimAtPath("/World/envs/env_1/Cube/CameraMount").IsValid()
+        expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
+        torch.testing.assert_close(label_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
+
+        cube = scene["cube"]
+        pose = torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], device=device).repeat(num_envs, 1)
+        cube.write_root_pose_to_sim_index(root_pose=pose)
+        torch.testing.assert_close(
+            label_view.get_world_poses()[0].torch, pose[:, :3] + torch.tensor(CHILD_OFFSET, device=device)
+        )
+
+        # Complete world writes must use the latest parent pose even without a preceding getter.
+        pose[:, 0] += 2.0
+        cube.write_root_pose_to_sim_index(root_pose=pose)
+        positions = _wp_vec3f([[7.0, 8.0, 9.0]] * num_envs, device=device)
+        orientations = _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * num_envs, device=device)
+        with label_view.xform_world_space_writer() as writer:
+            writer.set_poses(positions, orientations)
+        torch.testing.assert_close(label_view.get_local_poses()[0].torch, wp.to_torch(positions) - pose[:, :3])
+        sim.forward()
+        torch.testing.assert_close(label_view.get_world_poses()[0].torch, wp.to_torch(positions))
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_close_before_reset_cancels_deferred_initialization(device):
     """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``.
 
-    After reset, new views over Newton bodies or collision shapes are rejected.
+    After reset, physics frames are readable but can only be written through their asset APIs.
     """
     num_envs = 3
     ctx = _sim_context(device, num_envs=num_envs)
@@ -194,13 +210,17 @@ def test_close_before_reset_cancels_deferred_initialization(device):
 
     assert view.count == 0, "a closed view still initialized from the physics-ready callback"
 
-    # FrameView rejects prim paths that resolve to a Newton physics body or collision shape.
-    with pytest.raises(ValueError, match="physics body"):
-        FrameView("/World/envs/env_[^/]+/Cube", device=device)
+    body_view = FrameView("/World/envs/env_[^/]+/Cube", device=device)
+    torch.testing.assert_close(body_view.get_world_poses()[0].torch, _get_body_positions(num_envs, device))
     shape_labels = list(sim.backend_manager.get_model().shape_label)
     assert shape_labels, "scene must contribute at least one collision shape"
-    with pytest.raises(ValueError, match="collision shape"):
-        FrameView(shape_labels[0], device=device)
+    shape_view = FrameView(shape_labels[0], device=device)
+    for physics_view in (body_view, shape_view):
+        for writer in (physics_view.xform_world_space_writer, physics_view.xform_local_space_writer):
+            with pytest.raises(ValueError, match="asset API"):
+                writer()
+        physics_view.get_world_poses()
+        physics_view.close()
     ctx.__exit__(None, None, None)
 
 
