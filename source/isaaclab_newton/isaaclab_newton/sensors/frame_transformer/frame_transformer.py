@@ -12,7 +12,6 @@ import warp as wp
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import split_path_expr
-from isaaclab.utils.version import has_kit
 
 from isaaclab_newton.physics import NewtonQueries
 
@@ -312,9 +311,7 @@ class FrameTransformer(BaseFrameTransformer):
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr
             if self._update_graph is None or self._update_graph[0] != pointers:
-                graph = NewtonQueries.capture_graph(
-                    self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit()
-                )
+                graph = NewtonQueries.capture_graph(self._device, lambda: self._update_buffers_impl(env_mask))
                 self._update_graph = pointers, graph
             wp.capture_launch(self._update_graph[1])
             return
