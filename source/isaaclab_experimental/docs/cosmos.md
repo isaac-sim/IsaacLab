@@ -192,11 +192,14 @@ from isaaclab_experimental.cosmos import apply_cosmos
 env_cfg.scene.num_envs = 1
 apply_cosmos(env_cfg, prompt="A robot picking an apple from a table.", camera="head_camera", near=0.15, far=0.9)
 env = gym.make(task, cfg=env_cfg)
-obs, _ = env.reset()
-camera = env.unwrapped.scene["head_camera"]
-while True:
-    rgb = camera.data.output["rgb"].torch  # generated images, (num_envs, height, width, 3) uint8
-    obs, *_ = env.step(policy(rgb, obs))
+try:
+    obs, _ = env.reset()
+    camera = env.unwrapped.scene["head_camera"]
+    while True:
+        rgb = camera.data.output["rgb"].torch  # generated images, (num_envs, height, width, 3) uint8
+        obs, *_ = env.step(policy(rgb, obs))
+finally:
+    env.close()  # closes the camera's Cosmos session; the service keeps running
 ```
 
 Cosmos receives a frame each time the camera captures. With lazy sensor updates, which Cosmos requires, a camera
@@ -208,7 +211,7 @@ tensors with `ModifierChain`. Without a simulation, the chain opens its own sess
 
 ```python
 from isaaclab.utils.modifiers import ModifierChain
-from isaaclab_experimental.cosmos import CosmosModelCfg, depth_processor
+from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
 
 _, modifiers = depth_processor(
     CosmosModelCfg(prompt="A robot picking an apple from a table.", max_episode_frames=601), near=0.15, far=0.9
