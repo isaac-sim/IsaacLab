@@ -54,6 +54,14 @@ class RecorderManagerBaseCfg:
     export_in_close: bool = False
     """Whether to export episodes in the close call."""
 
+    buffer_initial_capacity: int = 64
+    """Initial samples per world and field. Must be positive.
+
+    Fields allocate on first use and double their capacity when necessary, retaining all samples.
+    Resets reuse storage. Set this to the expected episode length (including decimation callbacks)
+    to avoid growth during recording. Each field has independent write indices.
+    """
+
     dataset_compression: bool = True
     """Enable dataset compression."""
 
@@ -69,6 +77,13 @@ class RecorderTerm(ManagerTermBase):
     * Pre-step recording: This callback is invoked at the beginning of `env.step()`, after the step action is processed
           and before the action is applied by the action manager.
     * Post-step recording: This callback is invoked at the end of `env.step()` when all the managers are processed.
+    """
+
+    requires_post_step_observations: bool = True
+    """Whether the RL environment must compute observations before this term's post-step callback.
+
+    Terms that only read physical tensors should set this to False. The default preserves the
+    observation access of existing terms; disabling it avoids extra noise draws and computation.
     """
 
     def __init__(self, cfg: RecorderTermCfg, env: ManagerBasedEnv):
@@ -163,6 +178,8 @@ class RecorderManager(ManagerBase):
         """
         self._term_names: list[str] = []
         self._terms: dict[str, RecorderTerm] = {}
+        self._dataset_file_handler = None
+        self._failed_episode_dataset_file_handler = None
 
         # Do nothing if cfg is None or an empty dict
         if not cfg:
@@ -177,29 +194,27 @@ class RecorderManager(ManagerBase):
         if not isinstance(cfg, RecorderManagerBaseCfg):
             raise TypeError("Configuration for the recorder manager is not of type RecorderManagerBaseCfg.")
 
-        # create episode data buffer indexed by environment id
-        self._episodes: dict[int, EpisodeData] = dict()
-        for env_id in range(env.num_envs):
-            self._episodes[env_id] = EpisodeData()
+        if cfg.buffer_initial_capacity < 1:
+            raise ValueError("buffer_initial_capacity must be positive.")
+        self._fields: list[_RecorderField] = []
+        self._env_ids = torch.arange(env.num_envs, device=env.device)
+        # -1 denotes an episode whose success has not been set.
+        self._success = torch.full((env.num_envs,), -1, dtype=torch.int8, device=env.device)
+        self._exported_counts = torch.zeros(2, dtype=torch.long, device=env.device)
 
         env_name = getattr(env.cfg, "env_name", None)
 
-        self._dataset_file_handler = None
         if cfg.dataset_export_mode != DatasetExportMode.EXPORT_NONE:
             self._dataset_file_handler = cfg.dataset_file_handler_class_type()
             self._dataset_file_handler.create(
                 os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename), env_name=env_name
             )
 
-        self._failed_episode_dataset_file_handler = None
         if cfg.dataset_export_mode == DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES:
             self._failed_episode_dataset_file_handler = cfg.dataset_file_handler_class_type()
             self._failed_episode_dataset_file_handler.create(
                 os.path.join(cfg.dataset_export_dir_path, f"{cfg.dataset_filename}_failed"), env_name=env_name
             )
-
-        self._exported_successful_episode_count = {}
-        self._exported_failed_episode_count = {}
 
     def __str__(self) -> str:
         """Returns: A string representation for recorder manager."""
@@ -232,36 +247,31 @@ class RecorderManager(ManagerBase):
         return self._term_names
 
     @property
-    def exported_successful_episode_count(self, env_id=None) -> int:
-        """Number of successful episodes.
+    def requires_post_step_observations(self) -> bool:
+        """Whether any active recorder term requires post-step observations."""
+        return any(term.requires_post_step_observations for term in self._terms.values())
 
-        Args:
-            env_id: The environment id. Defaults to None, in which case all environments are considered.
+    @property
+    def exported_successful_episode_count(self) -> int:
+        """Number of successful episodes.
 
         Returns:
             The number of successful episodes.
         """
-        if not hasattr(self, "_exported_successful_episode_count"):
+        if not hasattr(self, "_exported_counts"):
             return 0
-        if env_id is not None:
-            return self._exported_successful_episode_count.get(env_id, 0)
-        return sum(self._exported_successful_episode_count.values())
+        return int(self._exported_counts[1].item())
 
     @property
-    def exported_failed_episode_count(self, env_id=None) -> int:
+    def exported_failed_episode_count(self) -> int:
         """Number of failed episodes.
-
-        Args:
-            env_id: The environment id. Defaults to None, in which case all environments are considered.
 
         Returns:
             The number of failed episodes.
         """
-        if not hasattr(self, "_exported_failed_episode_count"):
+        if not hasattr(self, "_exported_counts"):
             return 0
-        if env_id is not None:
-            return self._exported_failed_episode_count.get(env_id, 0)
-        return sum(self._exported_failed_episode_count.values())
+        return int(self._exported_counts[0].item())
 
     """
     Operations.
@@ -280,96 +290,81 @@ class RecorderManager(ManagerBase):
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return {}
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = slice(None)
-        if isinstance(env_ids, slice):
-            env_ids = list(range(self._env.num_envs)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
-
-        for env_id in env_ids:
-            self._episodes[env_id] = EpisodeData()
-
-        # nothing to log here
+        self._reset_buffers(env_ids)
         return {}
 
+    def get_term(self, name: str) -> RecorderTerm:
+        """Return the configured recorder term with the given name."""
+        return self._terms[name]
+
     def get_episode(self, env_id: int) -> EpisodeData:
-        """Returns the episode data for the given environment id.
+        """Return an owned snapshot of a world's current episode.
 
-        Args:
-            env_id: The environment id.
-
-        Returns:
-            The episode data for the given environment id.
+        Leaves are tensors with a leading sample dimension, matching the exported dataset.
+        Reading synchronizes write indices and copies the recorded samples. Later recording,
+        reset, or snapshot mutation cannot affect the other copy. Add live data through
+        :meth:`add_to_episodes`, and set success through :meth:`set_success_to_episodes`.
         """
-        return self._episodes.get(env_id, EpisodeData())
+        episode = EpisodeData()
+        if not self.active_terms or not 0 <= env_id < self._env.num_envs:
+            return episode
+        for field in self._fields:
+            length = int(field.lengths[env_id].item())
+            if length:
+                data = episode.data
+                keys = field.name.split("/")
+                for key in keys[:-1]:
+                    data = data.setdefault(key, {})
+                data[keys[-1]] = field.data[:length, env_id].clone()
+        success = int(self._success[env_id].item())
+        episode.success = None if success < 0 else bool(success)
+        return episode
 
     def add_to_episodes(self, key: str, value: torch.Tensor | dict, env_ids: Sequence[int] | slice | None = None):
-        """Adds the given key-value pair to the episodes for the given environment ids.
+        """Append a batch to preallocated storage, advancing selected worlds' write indices.
 
         Args:
-            key: The key of the given value to be added to the episodes. The key can contain nested keys
-                separated by '/'. For example, "obs/joint_pos" would add the given value under ['obs']['policy']
-                in the underlying dictionary in the episode data.
-            value: The value to be added to the episodes. The value can be a tensor or a nested dictionary of tensors.
-                The shape of a tensor in the value is (env_ids, ...).
-            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+            key: Field path, with nested keys separated by '/'.
+            value: Tensor of shape (selected worlds, ...) or nested dictionary of tensors.
+                Warp arrays are also accepted. Storage copies the values and preserves dtype/device.
+                A field's shape, dtype, and device must remain constant while it contains samples.
+            env_ids: Unique world indices in the same order as the value batch. None selects all worlds.
         """
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
+        if not self.active_terms or key is None:
             return
-
-        # resolve environment ids
-        if key is None:
-            return
-        if env_ids is None:
-            env_ids = slice(None)
-        if isinstance(env_ids, slice):
-            env_ids = list(range(self._env.num_envs)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
         if isinstance(value, dict):
             for sub_key, sub_value in value.items():
-                if isinstance(sub_value, wp.array):
-                    sub_value = wp.to_torch(sub_value)
                 self.add_to_episodes(f"{key}/{sub_key}", sub_value, env_ids)
             return
-
         if isinstance(value, wp.array):
             value = wp.to_torch(value)
-        value = value.clone()  # Clone once for all envs
-        for value_index, env_id in enumerate(env_ids):
-            if env_id not in self._episodes:
-                self._episodes[env_id] = EpisodeData()
-                self._episodes[env_id].env_id = env_id
-            self._episodes[env_id].add(key, value[value_index], clone=False)
+        num_selected = (
+            self._env.num_envs
+            if env_ids is None
+            else (len(range(self._env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids))
+        )
+        if value.ndim < 1 or value.shape[0] != num_selected:
+            raise ValueError(f"Field '{key}' requires {num_selected} rows, got {tuple(value.shape)}.")
+        if not num_selected:
+            return
+        field = next((field for field in self._fields if field.name == key), None)
+        if field is None:
+            # Reject ambiguous leaf/subtree paths before allocating any storage.
+            if any(key.startswith(f"{f.name}/") or f.name.startswith(f"{key}/") for f in self._fields):
+                raise ValueError(f"Recorder field '{key}' conflicts with an existing field path.")
+            field = _RecorderField(key, value, self._env.num_envs, self.cfg.buffer_initial_capacity)
+            self._fields.append(field)
+        field.append(value, env_ids)
 
     def set_success_to_episodes(self, env_ids: Sequence[int] | slice | None, success_values: torch.Tensor):
-        """Sets the task success values to the episodes for the given environment ids.
-
-        Args:
-            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
-            success_values: The task success values to be set to the episodes. The shape of the tensor is (env_ids, 1).
-        """
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
+        """Set selected worlds' success flags from a tensor of shape (selected worlds,) or (selected worlds, 1)."""
+        if not self.active_terms:
             return
-
-        # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        if isinstance(env_ids, slice):
-            env_ids = list(range(self._env.num_envs)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
-        for value_index, env_id in enumerate(env_ids):
-            self._episodes[env_id].success = success_values[value_index].item()
+        self._success[env_ids] = success_values.reshape(-1).to(device=self._success.device, dtype=torch.int8)
 
     def record_pre_step(self) -> None:
         """Trigger recorder terms for pre-step functions."""
@@ -412,11 +407,9 @@ class RecorderManager(ManagerBase):
             return
 
         if env_ids is None:
-            env_ids = slice(None)
-        if isinstance(env_ids, slice):
-            env_ids = list(range(self._env.num_envs)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
+            env_ids = self._env_ids
+        elif isinstance(env_ids, slice):
+            env_ids = self._env_ids[env_ids]
 
         for term in self._terms.values():
             key, value = term.record_pre_reset(env_ids)
@@ -444,7 +437,7 @@ class RecorderManager(ManagerBase):
             return
 
         if isinstance(env_ids, slice):
-            env_ids = list(range(self._env.num_envs)[env_ids])
+            env_ids = self._env_ids[env_ids]
 
         for term in self._terms.values():
             key, value = term.record_post_reset(env_ids)
@@ -485,11 +478,11 @@ class RecorderManager(ManagerBase):
             return
 
         if env_ids is None:
-            env_ids = slice(None)
-        if isinstance(env_ids, slice):
-            env_ids = list(range(self._env.num_envs)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
+            env_ids = self._env_ids
+        elif isinstance(env_ids, slice):
+            env_ids = self._env_ids[env_ids]
+        else:
+            env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self._env_ids.device)
 
         # Handle demo_ids processing
         if demo_ids is not None:
@@ -502,53 +495,43 @@ class RecorderManager(ManagerBase):
                 duplicates = [x for i, x in enumerate(demo_ids) if demo_ids.index(x) != i]
                 raise ValueError(f"demo_ids must be unique. Found duplicates: {list(set(duplicates))}")
 
-        # Export episode data through dataset exporter
+        present = torch.zeros(self._env.num_envs, dtype=torch.bool, device=self._env_ids.device)
+        for field in self._fields:
+            present |= (field.lengths > 0).to(present.device)
+        succeeded = self._success == 1
+
+        # Only file export materializes per-world snapshots. EXPORT_NONE stays batched.
         need_to_flush = False
-
-        if any(env_id in self._episodes and not self._episodes[env_id].is_empty() for env_id in env_ids):
+        mode = self.cfg.dataset_export_mode
+        if mode != DatasetExportMode.EXPORT_NONE and present[env_ids].any().item():
             ep_meta = self.get_ep_meta()
-            if self._dataset_file_handler is not None:
-                self._dataset_file_handler.add_env_args(ep_meta)
-            if self._failed_episode_dataset_file_handler is not None:
-                self._failed_episode_dataset_file_handler.add_env_args(ep_meta)
+            for handler in (self._dataset_file_handler, self._failed_episode_dataset_file_handler):
+                if handler is not None:
+                    handler.add_env_args(ep_meta)
+            selected = env_ids.tolist()
+            selected_present = present[env_ids].tolist()
+            selected_success = succeeded[env_ids].tolist()
+            for i, env_id in enumerate(selected):
+                if not selected_present[i]:
+                    continue
+                handler = self._dataset_file_handler
+                if mode == DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES:
+                    if not selected_success[i]:
+                        handler = self._failed_episode_dataset_file_handler
+                elif mode == DatasetExportMode.EXPORT_SUCCEEDED_ONLY and not selected_success[i]:
+                    continue
+                episode = self.get_episode(env_id)
+                demo_id = demo_ids[i] if demo_ids is not None else None
+                handler.write_episode(episode, demo_id, self.cfg.dataset_compression)
+                need_to_flush = True
 
-        for i, env_id in enumerate(env_ids):
-            if env_id in self._episodes and not self._episodes[env_id].is_empty():
-                self._episodes[env_id].pre_export()
-
-                episode_succeeded = self._episodes[env_id].success
-                target_dataset_file_handler = None
-                if (self.cfg.dataset_export_mode == DatasetExportMode.EXPORT_ALL) or (
-                    self.cfg.dataset_export_mode == DatasetExportMode.EXPORT_SUCCEEDED_ONLY and episode_succeeded
-                ):
-                    target_dataset_file_handler = self._dataset_file_handler
-                elif self.cfg.dataset_export_mode == DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES:
-                    if episode_succeeded:
-                        target_dataset_file_handler = self._dataset_file_handler
-                    else:
-                        target_dataset_file_handler = self._failed_episode_dataset_file_handler
-                if target_dataset_file_handler is not None:
-                    # Use corresponding demo_id if provided, otherwise None
-                    current_demo_id = demo_ids[i] if demo_ids is not None else None
-                    target_dataset_file_handler.write_episode(
-                        self._episodes[env_id], current_demo_id, self.cfg.dataset_compression
-                    )
-                    need_to_flush = True
-                # Update episode count
-                if episode_succeeded:
-                    self._exported_successful_episode_count[env_id] = (
-                        self._exported_successful_episode_count.get(env_id, 0) + 1
-                    )
-                else:
-                    self._exported_failed_episode_count[env_id] = self._exported_failed_episode_count.get(env_id, 0) + 1
-            # Reset the episode buffer for the given environment after export
-            self._episodes[env_id] = EpisodeData()
-
+        self._exported_counts[0] += (present & ~succeeded)[env_ids].sum()
+        self._exported_counts[1] += (present & succeeded)[env_ids].sum()
+        self._reset_buffers(env_ids)
         if need_to_flush:
-            if self._dataset_file_handler is not None:
-                self._dataset_file_handler.flush()
-            if self._failed_episode_dataset_file_handler is not None:
-                self._failed_episode_dataset_file_handler.flush()
+            for handler in (self._dataset_file_handler, self._failed_episode_dataset_file_handler):
+                if handler is not None:
+                    handler.flush()
 
     def close(self):
         """Closes the recorder manager by exporting any remaining data to file as well as properly
@@ -570,6 +553,12 @@ class RecorderManager(ManagerBase):
     Helper functions.
     """
 
+    def _reset_buffers(self, env_ids):
+        """Discard selected samples by resetting indices; retain allocations for the next episodes."""
+        for field in self._fields:
+            field.reset(env_ids)
+        self._success[slice(None) if env_ids is None else env_ids] = -1
+
     def _prepare_terms(self):
         """Prepares a list of recorder terms."""
         # check if config is dict already
@@ -587,6 +576,7 @@ class RecorderManager(ManagerBase):
                 "export_in_record_pre_reset",
                 "export_in_close",
                 "dataset_compression",
+                "buffer_initial_capacity",
             ]:
                 continue
             # check if term config is None
@@ -605,3 +595,59 @@ class RecorderManager(ManagerBase):
             # add term name and parameters
             self._term_names.append(term_name)
             self._terms[term_name] = term
+
+
+class _RecorderField:
+    """One field's time-major allocation and independent per-world insertion indices.
+
+    No per-world Python containers or tensor views are created during append. The host upper
+    bound avoids reading device indices in steady state; only capacity exhaustion checks synchronize.
+    """
+
+    def __init__(self, name: str, value: torch.Tensor, num_envs: int, capacity: int):
+        self.name = name
+        self.data = torch.empty((capacity, num_envs, *value.shape[1:]), dtype=value.dtype, device=value.device)
+        self.lengths = torch.zeros(num_envs, dtype=torch.long, device=value.device)
+        self.worlds = torch.arange(num_envs, device=value.device)
+        self.upper_bound = 0
+
+    @torch.no_grad()
+    def append(self, value: torch.Tensor, env_ids):
+        if value.shape[1:] != self.data.shape[2:] or value.dtype != self.data.dtype or value.device != self.data.device:
+            if self.lengths.any().item():
+                raise ValueError(f"Recorder field '{self.name}' changed shape, dtype, or device with active samples.")
+            self.data = torch.empty((*self.data.shape[:2], *value.shape[1:]), dtype=value.dtype, device=value.device)
+            self.lengths = self.lengths.to(value.device)
+            self.worlds = self.worlds.to(value.device)
+            self.upper_bound = 0
+        if env_ids is None:
+            worlds, indices = self.worlds, self.lengths
+        else:
+            if not isinstance(env_ids, slice):
+                env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.data.device)
+            worlds = self.worlds[env_ids]
+            indices = self.lengths[worlds]
+        capacity = self.data.shape[0]
+        if self.upper_bound >= capacity:
+            self.upper_bound = int(self.lengths.max().item())
+            if self.upper_bound >= capacity:
+                data = self.data.new_empty((2 * capacity, *self.data.shape[1:]))
+                data[:capacity].copy_(self.data)
+                self.data = data
+        self.data[indices, worlds] = value
+        if env_ids is None:
+            self.lengths.add_(1)
+        else:
+            self.lengths[worlds] = indices + 1
+        self.upper_bound += 1
+
+    def reset(self, env_ids):
+        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
+            self.lengths.zero_()
+            self.upper_bound = 0
+        else:
+            if not isinstance(env_ids, slice):
+                env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.data.device)
+            self.lengths[env_ids] = 0
+            if not isinstance(env_ids, slice) and len(env_ids) == len(self.lengths):
+                self.upper_bound = 0
