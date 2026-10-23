@@ -283,12 +283,7 @@ def _run(
 
     if use_newton_actuators and decimation > 1:
         sim.backend_manager.set_decimation(decimation)
-    handles_dec = (
-        use_newton_actuators
-        and decimation > 1
-        and sim.backend_manager._is_all_graphable()
-        and sim.backend_manager._decimation > 1
-    )
+    handles_dec = use_newton_actuators and decimation > 1 and sim.backend_manager.handles_decimation()
 
     results = {}
     for name, island in islands.items():
@@ -907,7 +902,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
     }
     legs = groups["legs"][0]
-    assert newton_run.sim.backend_manager._adapter is not None
+    assert newton_run.sim.backend_manager.backend.actuators is not None
 
     def gains(name: str) -> torch.Tensor:
         """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
@@ -950,7 +945,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     islands' actuators share its state buffers; their state is not part of this articulation's contract.
     """
     articulation = newton_run.articulations["delayed"]
-    adapter = newton_run.sim.backend_manager._adapter
+    adapter = newton_run.sim.backend_manager.backend.actuators
     assert adapter is not None
     own_actuators = []
     for group_name in articulation.actuators._native_group_names:
@@ -969,14 +964,15 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
 
     articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
 
-    # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
-    # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
-    # stride.
+    # Map each entry of ``act.indices`` to its env via the model's per-world DOF count (worlds here share a layout,
+    # including free-joint DOFs on floating-base articulations).
+    model = newton_run.sim.backend_manager.backend.model
+    dofs_per_world = model.joint_dof_count // model.world_count
     for act, state in stateful_pairs:
         pushes_after = state.delay_state.num_pushes.numpy()
         indices_np = act.indices.numpy()
         for i, global_dof in enumerate(indices_np):
-            env = int(global_dof) // adapter.num_joints
+            env = int(global_dof) // dofs_per_world
             if env == 0:
                 assert int(pushes_after[i]) == 0, f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}"
             else:

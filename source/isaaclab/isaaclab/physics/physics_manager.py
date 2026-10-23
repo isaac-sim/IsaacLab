@@ -88,7 +88,7 @@ def _is_instance_method(cls: type, name: str) -> bool:
 class _PhysicsManagerMeta(ABCMeta):
     """Forward deprecated class-level runtime access to the active simulation's manager.
 
-    Runtime methods and state are per instance. Class-level calls such as ``NewtonManager.get_model()`` keep
+    Runtime methods and state are per instance. Class-level calls such as ``NewtonManager.forward()`` keep
     working with a :class:`DeprecationWarning` by binding to ``SimulationContext.instance().backend_manager``.
     Instance access and explicit unbound calls with any manager (``Manager.method(manager, ...)``) are unaffected.
     """

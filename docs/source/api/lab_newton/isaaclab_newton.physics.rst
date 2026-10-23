@@ -8,20 +8,18 @@
   .. autosummary::
 
     NewtonManager
+    SolverSpec
+    CapturedGraph
+    NewtonBackend
+    NewtonCloneRecord
     MjWarpActuatorBridge
     NewtonCfg
     NewtonBackendCfg
     NewtonBuilderCfg
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
-    NewtonFeatherstoneManager
-    NewtonKaminoManager
-    NewtonMPMManager
-    NewtonMJWarpManager
-    NewtonVBDManager
     NewtonShapeCfg
     NewtonSolverCfg
-    NewtonXPBDManager
     MJWarpSolverCfg
     VBDSolverCfg
     XPBDSolverCfg
@@ -47,6 +45,28 @@ Physics Manager
   :members:
   :inherited-members:
   :show-inheritance:
+
+.. autofunction:: create_builder
+
+.. autoclass:: CapturedGraph
+  :members:
+
+.. autoclass:: NewtonBackend
+  :members:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonCloneRecord
+  :members:
+
+Backend Functions
+-----------------
+
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: init_solver, forward, invalidate_fk, invalidate_body_state, mark_model_changed, notify_model_changes,
+    activate_actuators, add_contact_sensor, add_imu_sensor, handles_decimation, set_decimation, invalidate_graph,
+    step, capture_graph, run_query, refit_bvh
+
+.. currentmodule:: isaaclab_newton.physics
 
 Actuator Solver Access
 ----------------------
@@ -170,35 +190,36 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-Solver Managers
----------------
+Solver Specifications
+---------------------
 
-.. autoclass:: NewtonMJWarpManager
+.. autoclass:: SolverSpec
   :members:
-  :inherited-members:
-  :show-inheritance:
 
-.. autoclass:: NewtonVBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: solver_spec
 
-.. autoclass:: NewtonXPBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: build_from_cfg
 
-.. autoclass:: NewtonFeatherstoneManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: register_builder_attributes
 
-.. autoclass:: NewtonKaminoManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: usd_schema_resolvers
 
-.. autoclass:: NewtonMPMManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autodata:: MJWARP_SPEC
+  :annotation:
+
+.. autodata:: VBD_SPEC
+  :annotation:
+
+.. autodata:: XPBD_SPEC
+  :annotation:
+
+.. autodata:: FEATHERSTONE_SPEC
+  :annotation:
+
+.. autodata:: KAMINO_SPEC
+  :annotation:
+
+.. autodata:: MPM_SPEC
+  :annotation:
+
+.. autofunction:: reset_mpm_solver_state
