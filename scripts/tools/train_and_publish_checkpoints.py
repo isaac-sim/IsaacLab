@@ -23,6 +23,10 @@ not depend on rendering. This workflow targets core tasks only; other
 registered tasks do not receive published checkpoints from this matrix. The
 core matrix excludes Newton Kamino presets.
 
+Tasks can schedule unpublished presets through ``pretrained_checkpoint_training_presets``.
+These jobs supplement the published ``pretrained_checkpoint_preset_compatibility`` presets
+without advertising an available policy in the environment browser.
+
 Examples:
 
 .. code-block:: shell
@@ -96,9 +100,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
-from isaaclab_tasks.utils.hydra import resolve_task_config
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
+from isaaclab_tasks.utils.hydra import PresetTarget, enumerate_task_presets, resolve_task_config
 
 _TRAINING_COMPLETE_FILENAME = ".pretrained_checkpoint_training_complete"
 _CORE_WORKFLOWS = ("rl_games", "rsl_rl", "skrl")
@@ -339,10 +341,15 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
         env_cfg = parse_env_cfg(task_spec.id)
         preferred_workflow = _select_workflow(task_spec, env_cfg)
         checkpoint_compatibility = task_spec.kwargs.get("pretrained_checkpoint_preset_compatibility", {})
+        checkpoint_presets_by_workflow = dict(checkpoint_compatibility)
+        for workflow, preset_names in task_spec.kwargs.get("pretrained_checkpoint_training_presets", {}).items():
+            checkpoint_presets_by_workflow[workflow] = tuple(
+                dict.fromkeys((*checkpoint_presets_by_workflow.get(workflow, ()), *preset_names))
+            )
         workflow_selections = [preferred_workflow]
         workflow_selections.extend(
             (workflow, None, None)
-            for workflow in checkpoint_compatibility
+            for workflow in checkpoint_presets_by_workflow
             if workflow != preferred_workflow[0] and f"{workflow}_cfg_entry_point" in task_spec.kwargs
         )
         default_physics = None
@@ -358,7 +365,9 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
         render_selections = _select_render_variants(render_variants, render_backends)
         for workflow, agent, algorithm in workflow_selections:
             checkpoint_presets = [()] if workflow == preferred_workflow[0] else []
-            checkpoint_presets.extend((preset_name,) for preset_name in checkpoint_compatibility.get(workflow, ()))
+            checkpoint_presets.extend(
+                (preset_name,) for preset_name in checkpoint_presets_by_workflow.get(workflow, ())
+            )
             for _physics_family, physics_selector in physics_selections:
                 physics_backend = _resolve_physics_backend(task_spec.id, physics_selector, default_physics)
                 for render_backend, render_selector in render_selections:

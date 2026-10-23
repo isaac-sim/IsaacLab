@@ -54,7 +54,7 @@ def configure_articulations(env: ManagerBasedEnv, env_ids: torch.Tensor | None) 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
 def env(request: pytest.FixtureRequest) -> Iterator[ManagerBasedEnv]:
-    scene = InteractiveSceneCfg(num_envs=2, env_spacing=5.0, replicate_physics=False)
+    scene = InteractiveSceneCfg(num_envs=2, env_spacing=5.0)
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/identity",
         spawn=sim_utils.UsdFileCfg(
@@ -126,13 +126,19 @@ def test_material_selection(env: ManagerBasedEnv) -> None:
             for i in range(env.num_envs)
             for name in asset.body_names
         }
+        selected = selection.start if isinstance(selection, slice) else selection.item()
+        selected_view = views[selected, body_name]
+        materials = wp.to_torch(selected_view.get_material_properties()).clone()
+        materials[0, 0, 2] = -15700.0
+        selected_view.set_material_properties(wp.from_torch(materials), wp.zeros(1, dtype=wp.int32, device="cpu"))
         expected = {key: wp.to_torch(view.get_material_properties()).clone() for key, view in views.items()}
+        assert expected[selected, body_name][0, 0, 2] == -15700.0
         term = mdp.randomize_rigid_body_material(
             EventTermCfg(func=mdp.randomize_rigid_body_material, params=params), env
         )
         term(env, selection, **params)
-        selected = selection.start if isinstance(selection, slice) else selection.item()
         expected[selected, body_name][:] = expected[selected, body_name].new_tensor([0.4, 0.4, 0.1])
+        expected[selected, body_name][0, 0, 2] = -15700.0
         for key, view in views.items():
             torch.testing.assert_close(wp.to_torch(view.get_material_properties()), expected[key])
 

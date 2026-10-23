@@ -21,20 +21,20 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import RigidBodyMaterialBaseCfg, SimulationCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
-from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
     FINGERTIP_NAMES,
     JOINT_NAMES,
+    SHADOW_HAND_FRICTION_REPLACEMENTS,
     SHADOW_HAND_NEWTON_CFG,
     SHADOW_HAND_PHYSX_CFG,
     TENDON_NAMES,
     TENDON_POSITION_LIMITS,
 )
 
-from .handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
+from .handover_common import GOAL_MARKER_CFG, HOLD_POSITION_OFFSET, OBJECT_RADIUS, VISUALIZER_CFG
 
 
 def _hand_cfg(
@@ -153,7 +153,9 @@ class PhysicsCfg(PresetCfg):
         num_substeps=4,
         debug_mode=False,
     )
-    ovphysx = OvPhysxCfg()
+    ovphysx = OvPhysxCfg(
+        legacy_joint_friction_replacements=SHADOW_HAND_FRICTION_REPLACEMENTS,
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
@@ -190,9 +192,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
-        # Frame both hands and the object between them. Without this the visualizer looks at the
-        # origin from its default 4 m away, which renders the pair a few pixels wide.
-        default_visualizer_cfg=VisualizerCfg(eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0),
+        visualizer_cfgs=VISUALIZER_CFG,
     )
 
     actuated_joint_names = JOINT_NAMES
@@ -201,7 +201,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     fingertip_body_names = FINGERTIP_NAMES
 
     # scene
-    scene: HandoverSceneCfg = HandoverSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
+    scene: HandoverSceneCfg = HandoverSceneCfg(num_envs=2048, env_spacing=1.5)
 
     # reset
     reset_position_noise = 0.01  # range of position at reset
@@ -214,5 +214,14 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     # success criteria
     success_distance_threshold: float = 0.1
     """Object-to-goal distance below which the handover is considered successful [m]."""
+    success_steps_required: int = 20
+    """Cumulative steps inside the success distance required to switch goals; must be positive."""
+    hold_position_offset: tuple[float, float, float] = HOLD_POSITION_OFFSET
+    """Object hold position in each hand's local root frame [m]: the goal at the receiving hand and the start at the
+    holding hand. Resolved once at initialization."""
+    randomize_start_hand: bool = True
+    """Start each episode with the object in a random hand, the first goal at the other; else always right to left."""
     # reward-related scales
     dist_reward_scale = 20.0
+    action_rate_penalty_scale: float = 0.0
+    """Per-hand penalty on the squared change of its actions between policy steps; 0 disables it."""

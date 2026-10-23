@@ -10,10 +10,16 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
-from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
-from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+import warp as wp
+from isaaclab_visualizers.rerun import RerunBackendCfg
+from isaaclab_visualizers.rerun.rerun_visualizer import NewtonViewerRerun
+from isaaclab_visualizers.viser import ViserBackendCfg
 from isaaclab_visualizers.viser.viser_visualizer import NewtonViewerViser
+from newton.viewer import ViewerRerun
+
+from isaaclab.visualizers import VisualizerCfg
 
 
 def test_viser_missing_dependency_propagates_import_error(monkeypatch):
@@ -26,7 +32,8 @@ def test_viser_missing_dependency_propagates_import_error(monkeypatch):
 
 def test_rerun_visualizer_set_camera_view():
     # No viewer: must not raise.
-    visualizer = RerunVisualizer(RerunVisualizerCfg())
+    cfg = VisualizerCfg(backend=RerunBackendCfg())
+    visualizer = cfg.backend.class_type(cfg)
     visualizer.set_camera_view((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
 
     # A selected scene camera short-circuits _apply_camera_pose before it calls into the
@@ -39,8 +46,41 @@ def test_rerun_visualizer_set_camera_view():
     assert visualizer._viewer._camera_pose == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0))
 
 
+def test_rerun_viewer_skips_unchanged_instance_appearance(monkeypatch):
+    viewer = NewtonViewerRerun.__new__(NewtonViewerRerun)
+    viewer._instances = {}
+    viewer._instance_appearance = {}
+    viewer._qualify = lambda name: name
+    calls = []
+
+    def _log_instances(_self, name, mesh, xforms, scales, colors, materials, hidden=False, opacities=None):
+        calls.append(SimpleNamespace(colors=colors, opacities=opacities))
+        if hidden:
+            viewer._instances.pop(name, None)
+        else:
+            viewer._instances[name] = {}
+
+    monkeypatch.setattr(ViewerRerun, "log_instances", _log_instances)
+    colors = wp.array([(0.2, 0.4, 0.6)], dtype=wp.vec3, device="cpu")
+    opacities = wp.array([0.8], dtype=wp.float32, device="cpu")
+
+    viewer.log_instances("/robot", "/mesh", None, None, colors, None, opacities=opacities)
+    viewer.log_instances("/robot", "/mesh", None, None, colors, None, opacities=opacities)
+
+    assert calls[0].colors is colors
+    assert calls[0].opacities is opacities
+    assert calls[1].colors is None
+    assert calls[1].opacities is None
+
+    changed_colors = wp.array([(0.7, 0.4, 0.6)], dtype=wp.vec3, device="cpu")
+    viewer.log_instances("/robot", "/mesh", None, None, changed_colors, None, opacities=opacities)
+    np.testing.assert_array_equal(calls[2].colors.numpy(), changed_colors.numpy())
+    assert calls[2].opacities is None
+
+
 def test_viser_visualizer_set_camera_view():
-    visualizer = ViserVisualizer(ViserVisualizerCfg())
+    cfg = VisualizerCfg(backend=ViserBackendCfg())
+    visualizer = cfg.backend.class_type(cfg)
     visualizer.set_camera_view([1, 2, 3], [0, 0, 0])
     assert visualizer._pending_camera_pose == ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0))
 

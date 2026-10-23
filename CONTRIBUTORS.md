@@ -81,6 +81,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* cyanseek
 * David Cao-Mueller
 * David Leon
 * David Yang
@@ -123,6 +124,7 @@ Guidelines for modifications:
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jichuan Hu
+* jih0
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
