@@ -59,7 +59,7 @@ from isaaclab_visualizers.newton.newton_visualization_markers import render_newt
 
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
 from .newton_recording import NewtonRecordingPanel, hover_tooltip
-from .newton_rtx_appearance import BACKGROUNDS, RtxAppearance
+from .newton_rtx_appearance import BACKGROUNDS, LIGHTINGS, RtxAppearance
 
 logger = logging.getLogger(__name__)
 
@@ -961,7 +961,12 @@ class NewtonVisualizerBase(BaseVisualizer):
             if changed:
                 appearance.background_color = tuple(float(c) for c in color)
                 edited |= appearance.apply_background()
-        if appearance.lights:
+        changed, index = imgui.combo("Lighting", appearance.lighting, list(LIGHTINGS))
+        tip("Use the scene's lights, or replace them with a dome (sky) light, a distant (sun) light, or both")
+        if changed:
+            appearance.lighting = index
+            edited |= appearance.apply_lights()
+        if appearance.lights or appearance.lighting:
             changed, scale = imgui.slider_float("Intensity", appearance.light_scale, 0.0, 3.0, "%.2fx")
             tip("Light intensity of the whole scene, relative to what it was authored with")
             if changed:
@@ -1261,6 +1266,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._followers.clear()
         self._tracking_defaults.clear()
         self._sensor_tiles.clear()
+        if self._rtx_appearance is not None:
+            self._rtx_appearance.close()
+            self._rtx_appearance = None
         for view in self._image_views:
             if view.render == self._capture_frame:
                 view.render = None

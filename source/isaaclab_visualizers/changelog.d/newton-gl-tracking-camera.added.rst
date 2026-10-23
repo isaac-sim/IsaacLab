@@ -8,5 +8,5 @@
   (for example "Camera (sensor)"). A scene camera with one image per environment shows one environment at a time, with
   an Environment field to switch it and a Tile Environments option for the previous side-by-side layout.
 * Added an RTX Appearance section to the Newton GL Camera View, shown instead of the OpenGL Appearance options while
-  the Renderer is RTX. It changes the OVRTX view's background (scene sky or one color) and the intensity and tint of the
-  scene's lights while running. The OpenGL options (sky, shadows, wireframe, colors) do not affect the OVRTX image.
+  the Renderer is RTX. It changes the OVRTX view's background (scene sky or one color), the lighting (the scene's lights, a dome light,
+  a distant light, or both), and the intensity and tint of the lights while running. The OpenGL options (sky, shadows, wireframe, colors) do not affect the OVRTX image.

@@ -54,13 +54,23 @@ class _Stage:
 
 
 class _Native:
-    def __init__(self, fail: bool = False):
-        self.writes, self.fail = [], fail
+    def __init__(self, fail: bool = False, fail_add: bool = False):
+        self.writes, self.fail, self.fail_add = [], fail, fail_add
+        self.added, self.removed = [], []
 
     def write_attribute(self, **kwargs):
         if self.fail:
             raise RuntimeError("write refused")
         self.writes.append(kwargs)
+
+    def add_usd_reference_from_string(self, usd, path):
+        if self.fail_add:
+            raise RuntimeError("cannot add")
+        self.added.append((usd, path))
+        return f"reference:{path}"
+
+    def remove_usd(self, reference):
+        self.removed.append(reference)
 
 
 def _appearance(native=None, background_color=None, ovstage=False, prims=None):
@@ -92,7 +102,8 @@ def test_lights_are_written_scaled_and_tinted_in_one_call_per_attribute():
 
     assert appearance.apply_lights()
 
-    intensity, color = renderer.backend.renderer.writes
+    visibility, intensity, color = renderer.backend.renderer.writes
+    assert visibility["tensor"] == ["inherited", "inherited"]
     assert intensity["prim_paths"] == ["/World/sun", "/World/dome"]
     np.testing.assert_allclose(intensity["tensor"], [1500.0, 250.0])
     np.testing.assert_allclose(color["tensor"], [[0.75, 0.0, 0.0], [1.0, 0.0, 0.0]])
@@ -136,3 +147,69 @@ def test_the_controls_are_unavailable_on_the_shared_stage_path():
     appearance, _ = _appearance(ovstage=True)
 
     assert not appearance.available
+
+
+def _written(renderer, attribute):
+    return [w for w in renderer.backend.renderer.writes if w["attribute_name"] == attribute][-1]
+
+
+def test_a_dome_or_distant_lighting_adds_the_viewer_lights_once_and_hides_the_scene_lights():
+    appearance, renderer = _appearance()
+    native = renderer.backend.renderer
+    assert native.added == []  # Nothing is added while the scene's own lights are used.
+
+    appearance.lighting = 1  # Dome Light.
+    assert appearance.apply_lights()
+    appearance.lighting = 3  # Dome + Distant.
+    assert appearance.apply_lights()
+
+    assert [path for _, path in native.added] == ["/NewtonViewerLights"]  # Added once, on first use.
+    visibility = _written(renderer, "visibility")
+    assert dict(zip(visibility["prim_paths"], visibility["tensor"], strict=True)) == {
+        "/World/sun": "invisible",
+        "/World/dome": "invisible",
+        "/NewtonViewerLights/Dome": "inherited",
+        "/NewtonViewerLights/Sun": "inherited",
+    }
+
+
+def test_the_distant_lighting_shows_only_the_viewer_sun_and_scene_lights_return_with_the_scene_lighting():
+    appearance, renderer = _appearance()
+    appearance.lighting = 2
+    appearance.apply_lights()
+    visibility = _written(renderer, "visibility")
+    shown = [
+        path for path, state in zip(visibility["prim_paths"], visibility["tensor"], strict=True) if state == "inherited"
+    ]
+    assert shown == ["/NewtonViewerLights/Sun"]
+
+    appearance.lighting = 0
+    appearance.apply_lights()
+    visibility = _written(renderer, "visibility")
+    shown = [
+        path for path, state in zip(visibility["prim_paths"], visibility["tensor"], strict=True) if state == "inherited"
+    ]
+    assert shown == ["/World/sun", "/World/dome"]
+
+
+def test_a_lighting_that_cannot_add_its_lights_reports_it_and_closing_removes_them():
+    refused, _ = _appearance(native=_Native(fail_add=True))
+    refused.lighting = 1
+    assert not refused.apply_lights()
+    assert "cannot add" in refused.error
+
+    appearance, renderer = _appearance()
+    appearance.lighting = 1
+    appearance.apply_lights()
+    appearance.close()
+    appearance.close()  # A second close is harmless.
+    assert renderer.backend.renderer.removed == ["reference:/NewtonViewerLights"]
+
+
+def test_reset_returns_to_the_scene_lighting():
+    appearance, _ = _appearance()
+    appearance.lighting = 3
+
+    appearance.reset()
+
+    assert appearance.lighting == 0
