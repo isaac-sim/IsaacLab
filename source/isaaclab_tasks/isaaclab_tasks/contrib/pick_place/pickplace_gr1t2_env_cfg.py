@@ -21,6 +21,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -30,6 +31,7 @@ from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.steering_wheel import (
     condition_newton_steering_wheel_detail_collisions as _condition_newton_steering_wheel_detail_collisions,
 )
+from isaaclab_tasks.contrib.teleop_physics_cfg import TeleopPhysicsCfg
 
 from . import mdp
 from .gr1t2_kitless_action_cfg import GR1T2KitlessPinkInverseKinematicsActionCfg
@@ -595,6 +597,8 @@ class EventCfg:
 @configclass
 class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
+
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
 
     # Scene settings
     scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5)

@@ -13,6 +13,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -25,6 +26,7 @@ from isaaclab_tasks.contrib.locomanip_pick_place.configs.agile_locomotion_observ
 )
 from isaaclab_tasks.contrib.packing_table import condition_packing_table_for_kitless_ovphysx
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
+from isaaclab_tasks.contrib.teleop_physics_cfg import TeleopPhysicsCfg
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
@@ -430,6 +432,8 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     base and use its arms for manipulation tasks, enabling complex mobile manipulation
     behaviors.
     """
+
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
 
     # Scene settings
     scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5)

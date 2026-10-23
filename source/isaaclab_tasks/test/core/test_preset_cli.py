@@ -274,6 +274,9 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 @pytest.mark.parametrize(
     "task_name",
     [
+        "IsaacContrib-PickPlace-GR1T2-Abs",
+        "IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
         "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
     ],
 )
