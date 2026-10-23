@@ -15,14 +15,22 @@ A ray caster reports the first collision along each ray in a chosen pattern. Ray
 do not bounce or respond to materials and opacity. Quadruped tasks use this sensor
 to measure terrain height around the robot.
 
-The ray-casting implementation depends on the physics backend. With PhysX and
-OV PhysX, configured meshes are loaded into `Warp <https://nvidia.github.io/warp/>`_
+The single-mesh :class:`~sensors.RayCaster` implementation depends on the physics
+backend. With PhysX and OV PhysX, configured meshes are loaded into `Warp <https://nvidia.github.io/warp/>`_
 when the sensor initializes and must remain static. With Newton, the sensor
 queries the live scene BVH and therefore sees every collision shape in its
 environment, global terrain, and dynamic bodies. Newton ignores
 :attr:`~sensors.RayCasterCfg.mesh_prim_paths`; use
 :class:`isaaclab_newton.sensors.NewtonRaycastSensorCfg` to make that behavior
 explicit and to access Newton-specific options.
+
+For explicitly selected moving geometry, :class:`~sensors.MultiMeshRayCaster` and
+:class:`~sensors.MultiMeshRayCasterCamera` load their target meshes once and bind
+each tracked mesh to its owning rigid body during initialization. They read live
+body poses through the shared scene-data provider, including when several meshes
+belong to the same body. Targets with ``track_mesh_transforms=False`` retain their
+initial poses. The deprecated Newton multi-mesh adapters use this same path;
+Newton's native ray-cast sensor continues to use its scene BVH.
 
 Choose a ray pattern and a parent frame. The frame and sensor offset set the pose;
 the pattern sets the ray origins and directions. Built-in patterns include lidar

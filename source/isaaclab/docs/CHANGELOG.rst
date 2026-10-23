@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+41.0.1 (2026-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed shared scene assets ignoring explicit physics cloning overrides while preserving implicit physics
+  participation for shared terrain.
+
+
 41.0.0 (2026-10-21)
 ~~~~~~~~~~~~~~~~~~~
 
