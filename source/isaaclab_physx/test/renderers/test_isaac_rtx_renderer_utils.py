@@ -209,7 +209,7 @@ class TestEnsureIsaacRtxRenderUpdate:
         assert cfg.stage is mock_sim.stage and cfg.device is mock_sim.device
         mock_sim.get_or_create_backend.assert_called_once()
         update_transforms.assert_called_once_with(provider)
-        mock_sim.physics_manager.forward.assert_not_called()
+        mock_sim.backend_manager.forward.assert_not_called()
 
     def test_no_sim_is_noop(self, mock_sim_context, mock_omni_kit_app):
         """No-op when SimulationContext.instance() returns None."""
@@ -251,4 +251,4 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         assert mock_app.update.call_count == int(force)
         assert mock_sim.get_or_create_backend.return_value.update_transforms.call_count == int(force)
-        mock_sim.physics_manager.forward.assert_not_called()
+        mock_sim.backend_manager.forward.assert_not_called()

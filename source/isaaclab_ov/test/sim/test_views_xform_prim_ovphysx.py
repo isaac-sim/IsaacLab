@@ -115,7 +115,8 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 
     frame_view._root_view = PreviousRootView()
     frame_view._pose_binding = object()
-    monkeypatch.setattr(OvPhysxManager, "get_physx_instance", lambda: physx)
+    frame_view._backend_manager = OvPhysxManager()
+    monkeypatch.setattr(frame_view._backend_manager, "get_physx_instance", lambda: physx)
 
     def initialize(value):
         assert frame_view._root_view is None
@@ -171,6 +172,22 @@ class _OvPhysxFrameViewSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
+
+
+def test_body_frame_reads_native_pose():
+    """Body views follow native writes; only the asset API may move the physics body."""
+    with build_simulation_context(device="cpu", sim_cfg=OVPHYSX_SIM_CFG) as sim:
+        scene = InteractiveScene(_OvPhysxFrameViewSceneCfg(num_envs=2, env_spacing=2.0))
+        sim.reset()
+        view = FrameView("/World/envs/env_[^/]+/Cube", device="cpu")
+        pose = scene["cube"].data.root_link_pose_w.torch.clone()
+        pose[:, 0] += 0.75
+        scene["cube"].write_root_pose_to_sim_index(root_pose=pose)
+        torch.testing.assert_close(view.get_world_poses()[0].torch, pose[:, :3])
+        for writer in (view.xform_world_space_writer, view.xform_local_space_writer):
+            with pytest.raises(ValueError, match="asset API"):
+                writer()
+        view.close()
 
 
 @pytest.fixture

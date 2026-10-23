@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.interpolate as interpolate
 
-from .utils import height_field_to_mesh
+from .utils import height_field_to_mesh, to_discrete_units
 
 if TYPE_CHECKING:
     from . import hf_terrains_cfg
@@ -53,15 +53,15 @@ def random_uniform_terrain(
 
     # switch parameters to discrete units
     # -- horizontal scale
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- downsampled scale
-    width_downsampled = int(cfg.size[0] / cfg.downsampled_scale)
-    length_downsampled = int(cfg.size[1] / cfg.downsampled_scale)
+    width_downsampled = to_discrete_units(cfg.size[0], cfg.downsampled_scale)
+    length_downsampled = to_discrete_units(cfg.size[1], cfg.downsampled_scale)
     # -- height
-    height_min = int(cfg.noise_range[0] / cfg.vertical_scale)
-    height_max = int(cfg.noise_range[1] / cfg.vertical_scale)
-    height_step = int(cfg.noise_step / cfg.vertical_scale)
+    height_min = to_discrete_units(cfg.noise_range[0], cfg.vertical_scale)
+    height_max = to_discrete_units(cfg.noise_range[1], cfg.vertical_scale)
+    height_step = to_discrete_units(cfg.noise_step, cfg.vertical_scale)
 
     # create range of heights possible
     height_range = np.arange(height_min, height_max + height_step, height_step)
@@ -115,11 +115,11 @@ def pyramid_sloped_terrain(
 
     # switch parameters to discrete units
     # -- horizontal scale
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- height
     # we want the height to be 1/2 of the width since the terrain is a pyramid
-    height_max = int(slope * cfg.size[0] / 2 / cfg.vertical_scale)
+    height_max = to_discrete_units(slope * cfg.size[0] / 2, cfg.vertical_scale)
     # -- center of the terrain
     center_x = int(width_pixels / 2)
     center_y = int(length_pixels / 2)
@@ -139,7 +139,7 @@ def pyramid_sloped_terrain(
     hf_raw = height_max * xx * yy
 
     # create a flat platform at the center of the terrain
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale / 2)
+    platform_width = to_discrete_units(cfg.platform_width / 2, cfg.horizontal_scale)
     # get the height of the platform at the corner of the platform
     x_pf = width_pixels // 2 - platform_width
     y_pf = length_pixels // 2 - platform_width
@@ -181,13 +181,13 @@ def pyramid_stairs_terrain(
         step_height *= -1
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- stairs
-    step_width = int(cfg.step_width / cfg.horizontal_scale)
-    step_height = int(step_height / cfg.vertical_scale)
+    step_width = to_discrete_units(cfg.step_width, cfg.horizontal_scale)
+    step_height = to_discrete_units(step_height, cfg.vertical_scale)
     # -- platform
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale)
+    platform_width = to_discrete_units(cfg.platform_width, cfg.horizontal_scale)
 
     # create a terrain with a flat platform at the center
     hf_raw = np.zeros((width_pixels, length_pixels))
@@ -242,14 +242,14 @@ def discrete_obstacles_terrain(
 
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- obstacles
-    obs_height = int(obs_height / cfg.vertical_scale)
-    obs_width_min = int(cfg.obstacle_width_range[0] / cfg.horizontal_scale)
-    obs_width_max = int(cfg.obstacle_width_range[1] / cfg.horizontal_scale)
+    obs_height = to_discrete_units(obs_height, cfg.vertical_scale)
+    obs_width_min = to_discrete_units(cfg.obstacle_width_range[0], cfg.horizontal_scale)
+    obs_width_max = to_discrete_units(cfg.obstacle_width_range[1], cfg.horizontal_scale)
     # -- center of the terrain
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale)
+    platform_width = to_discrete_units(cfg.platform_width, cfg.horizontal_scale)
 
     # create discrete ranges for the obstacles
     # -- shape
@@ -330,9 +330,9 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> tu
     amplitude = cfg.amplitude_range[0] + difficulty * (cfg.amplitude_range[1] - cfg.amplitude_range[0])
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
-    amplitude_pixels = int(0.5 * amplitude / cfg.vertical_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
+    amplitude_pixels = to_discrete_units(0.5 * amplitude, cfg.vertical_scale)
 
     # compute the wave number: nu = 2 * pi / lambda
     wave_length = length_pixels / cfg.num_waves
@@ -380,16 +380,16 @@ def stepping_stones_terrain(
 
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- stones
-    stone_distance = int(stone_distance / cfg.horizontal_scale)
-    stone_width = int(stone_width / cfg.horizontal_scale)
-    stone_height_max = int(cfg.stone_height_max / cfg.vertical_scale)
+    stone_distance = to_discrete_units(stone_distance, cfg.horizontal_scale)
+    stone_width = to_discrete_units(stone_width, cfg.horizontal_scale)
+    stone_height_max = to_discrete_units(cfg.stone_height_max, cfg.vertical_scale)
     # -- holes
-    holes_depth = int(cfg.holes_depth / cfg.vertical_scale)
+    holes_depth = to_discrete_units(cfg.holes_depth, cfg.vertical_scale)
     # -- platform
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale)
+    platform_width = to_discrete_units(cfg.platform_width, cfg.horizontal_scale)
     # create range of heights
     stone_height_range = np.arange(-stone_height_max - 1, stone_height_max, step=1)
 
@@ -448,7 +448,7 @@ def _terrain_origin(
     center_x = height_field.shape[0] // 2
     center_y = height_field.shape[1] // 2
     if height is None:
-        radius = max(1, int(1.0 / cfg.horizontal_scale))
+        radius = max(1, to_discrete_units(1.0, cfg.horizontal_scale))
         height = np.max(
             height_field[
                 max(0, center_x - radius) : center_x + radius,

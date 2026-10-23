@@ -26,11 +26,12 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
 from isaaclab import cli
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg
 
 from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
 from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
-from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
+from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, create_zero_action_policy
 
 
 @pytest.mark.parametrize(
@@ -205,6 +206,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     )
     unwrapped = SimpleNamespace(
         action_manager=None,
+        cfg=DirectRLEnvCfg(),
         single_action_space=action_space,
         device="cpu",
         num_envs=2,
@@ -216,22 +218,43 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
 
 
-def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
-    """Direct multi-agent environments receive a zero action for every agent."""
+@pytest.mark.parametrize("policy_name", ["zero", "random"])
+def test_simple_agents_support_direct_multi_agent_action_spaces(policy_name: simple_agents.PolicyName) -> None:
+    """Direct MARL playback receives batched actions for every agent from either policy."""
     unwrapped = SimpleNamespace(
+        cfg=DirectMARLEnvCfg(),
         action_manager=None,
         action_spaces={
             "robot": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
-            "object": gym.spaces.Discrete(2),
+            "object": (
+                gym.spaces.Discrete(2)
+                if policy_name == "zero"
+                else gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32)
+            ),
         },
         device="cpu",
         num_envs=3,
     )
+    env = SimpleNamespace(unwrapped=unwrapped, action_space=unwrapped.action_spaces.__getitem__)
+    create_policy = create_zero_action_policy if policy_name == "zero" else create_random_action_policy
+    policy = create_policy(env)
+    actions = policy()
 
-    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
-
-    assert torch.equal(actions["robot"], torch.zeros(3, 2))
-    assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+    assert set(actions) == {"robot", "object"}
+    assert actions["robot"].shape == (3, 2)
+    assert actions["object"].shape == (3, 1)
+    if policy_name == "zero":
+        assert torch.equal(actions["robot"], torch.zeros(3, 2))
+        assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+    else:
+        next_actions = policy()
+        for agent in actions:
+            for sample in (actions[agent], next_actions[agent]):
+                assert sample.shape == actions[agent].shape
+                assert sample.dtype == torch.float32
+                assert sample.device == torch.device("cpu")
+                assert torch.all((sample >= -1) & (sample <= 1))
+            assert not torch.equal(actions[agent], next_actions[agent])
 
 
 def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -241,7 +264,8 @@ def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: py
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer == []
+    assert "visualizer" not in vars(args)
+    assert not any(arg.startswith("visualizer=") for arg in sys.argv)
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 
@@ -728,13 +752,14 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
-def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:
-    """RSL-RL parses tasks registered by its external callback."""
-    from isaaclab_rl.entrypoints.backends import train_rsl_rl
-
+@pytest.mark.parametrize("mode", ["train", "play"])
+def test_rsl_registers_external_task_before_agent_discovery(monkeypatch, mode) -> None:
+    """External task registration preserves selector aliases through callback filtering."""
+    entrypoint = importlib.import_module(f"isaaclab_rl.entrypoints.backends.{mode}_rsl_rl")
     task_name = "Isaac-ExternalCallbackOrderTest"
     callback_module_name = "_external_callback_order_test"
     callback_module = types.ModuleType(callback_module_name)
+    selections = ["--physics", "newton_mjwarp", "--renderer", "newton_renderer", "--viz", "kit"]
 
     def register_task() -> list[str]:
         gym.register(
@@ -742,31 +767,27 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
             entry_point="dummy:Env",
             kwargs={"rsl_rl_cfg_entry_point": "dummy:AgentCfg"},
         )
-        return []
+        return selections
 
     callback_module.register_task = register_task
     monkeypatch.setitem(sys.modules, callback_module_name, callback_module)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "train.py",
-            "--task",
-            task_name,
-            "--external_callback",
-            f"{callback_module_name}.register_task",
-            "--no-resume_optimizer_state",
-        ],
-    )
+    argv = [f"{mode}.py", "--task", task_name]
+    argv += ["--external_callback", f"{callback_module_name}.register_task", *selections, "--callback_option=42"]
+    if mode == "train":
+        argv.append("--no-resume_optimizer_state")
+    monkeypatch.setattr(sys, "argv", argv)
     gym.registry.pop(task_name, None)
 
     try:
-        args = train_rsl_rl._parse_args(sys.argv[1:])
+        args = entrypoint._parse_args(sys.argv[1:])
     finally:
         gym.registry.pop(task_name, None)
 
     assert args.task == task_name
-    assert not args.resume_optimizer_state
+    if mode == "train":
+        assert not args.resume_optimizer_state
+    assert sys.argv[1:] == ["physics=newton_mjwarp", "renderer=newton_renderer", "visualizer=kit"]
+    assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:

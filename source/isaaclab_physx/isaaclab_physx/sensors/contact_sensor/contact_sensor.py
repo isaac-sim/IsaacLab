@@ -25,8 +25,6 @@ from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVis
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
 from .contact_sensor_data import ContactSensorData
 from .kernels import (
     compute_first_transition_kernel,
@@ -361,7 +359,7 @@ class ContactSensor(BaseContactSensor):
     def _initialize_impl(self):
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         # Split the configured prim path into a parent expression and a leaf-name regex.
         # split on separators only: a trailing ``[^/]`` class holds a ``/`` that is not one
@@ -395,6 +393,8 @@ class ContactSensor(BaseContactSensor):
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
+        self._num_sensors = len(body_names)
+        self._check_env_count(self.body_physx_view.count, " or ".join(body_path_globs), self._num_sensors)
         # with a list of sensor patterns, the contact view expects one filter list per pattern;
         # keep the no-filter case as a flat empty list, matching the API default
         filter_patterns = [filter_prim_paths_glob] * len(body_path_globs) if filter_prim_paths_glob else []
@@ -404,18 +404,6 @@ class ContactSensor(BaseContactSensor):
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
         self._supports_total_contact_forces = hasattr(self.contact_view, "get_net_friction_contact_forces")
-        # resolve the true count of bodies
-        self._num_sensors = self.body_physx_view.count // self._num_envs
-        # check that contact reporter succeeded
-        if self._num_sensors != len(body_names):
-            raise RuntimeError(
-                "Failed to initialize contact reporter for specified bodies."
-                f"\n\tInput prim path    : {self.cfg.prim_path}"
-                f"\n\tResolved prim paths: {body_path_globs}"
-                f"\n\tView body count    : {self.body_physx_view.count} ({self._num_envs} envs,"
-                f" {self._num_sensors} per env), expected {len(body_names)} per env"
-            )
-
         # check if filter paths are valid
         if self.cfg.track_contact_points or (
             self.cfg.track_friction_forces and not self._supports_total_contact_forces
@@ -582,6 +570,7 @@ class ContactSensor(BaseContactSensor):
 
         # PhysX returns (B*N, 7) float32 -> viewed as (B*N,) transformf, body-major
         if self.cfg.track_pose and include_pose:
+            self._backend_manager.update_kinematics()
             poses = self.body_physx_view.get_transforms()
             self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
 
@@ -630,7 +619,6 @@ class ContactSensor(BaseContactSensor):
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
-                self._timestamp,
                 self._elapsed_since_update,
             ],
             outputs=[

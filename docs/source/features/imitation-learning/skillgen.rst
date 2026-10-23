@@ -3,19 +3,21 @@
 SkillGen for Automated Demonstration Generation
 ===============================================
 
-SkillGen is an advanced demonstration generation system that enhances Isaac Lab Mimic by integrating motion planning. It generates high-quality, adaptive, collision-free robot demonstrations by combining human-provided subtask segments with automated motion planning.
+SkillGen extends Isaac Lab Mimic with motion planning. It combines annotated human
+skill segments with cuRobo plans to generate demonstrations for new object placements.
 
 What is SkillGen?
 ~~~~~~~~~~~~~~~~~
 
-SkillGen addresses key limitations in traditional demonstration generation:
+SkillGen uses motion planning to control:
 
 * **Motion Quality**: Uses cuRobo's GPU-accelerated motion planner to generate smooth, collision-free trajectories
 * **Validity**: Generates kinematically feasible plans between skill segments
 * **Diversity**: Generates varied demonstrations through configurable sampling and planning parameters
 * **Adaptability**: Generates demonstrations that can be adapted to new object placements and scene configurations during data generation
 
-The system works by taking manually annotated human demonstrations, extracting localized subtask skills (see `Subtasks in SkillGen`_), and using cuRobo to plan feasible motions between these skill segments while respecting robot kinematics and collision constraints.
+SkillGen extracts local skills from annotated demonstrations (see `Subtasks in SkillGen`_),
+then uses cuRobo to connect them while respecting kinematics and collision constraints.
 
 Prerequisites
 ~~~~~~~~~~~~~
