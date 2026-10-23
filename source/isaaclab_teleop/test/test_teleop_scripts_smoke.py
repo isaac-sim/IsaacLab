@@ -830,24 +830,42 @@ def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
     assert agent.args_cli.auto_launch_cloudxr is True
 
 
-def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch):
-    """Launch validation must not replace task-specific settings on the selected backend."""
-    agent = _load_teleop_agent(monkeypatch)
-    from isaaclab_newton.physics import NewtonCfg
-
+@pytest.mark.parametrize(
+    "task_name,physics",
+    [
+        ("IsaacContrib-PickPlace-GR1T2-Abs", "isaacsim_physx"),
+        ("IsaacContrib-PickPlace-GR1T2-Abs", "ovphysx"),
+        ("IsaacContrib-PickPlace-GR1T2-Abs", "newton_mjwarp"),
+        ("IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "ovphysx"),
+        ("IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "newton_mjwarp"),
+        ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "ovphysx"),
+        ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "newton_mjwarp"),
+    ],
+)
+def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch, task_name, physics):
+    """Task preparation must reach launch validation without losing its backend settings."""
     from isaaclab.app.sim_launcher import validate_launch
 
-    physics_cfg = NewtonCfg()
-    physics_cfg.solver_cfg.nconmax = 4096
-    physics_cfg.solver_cfg.njmax = 1536
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics_cfg))
-    configs, _ = validate_launch(env_cfg, vars(agent.args_cli).copy())
+    from isaaclab_tasks.utils import parse_env_cfg
 
+    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics)
+    env_cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=[f"physics={physics}"])
+    physics_cfg = env_cfg.sim.physics
+    prepare_teleop_backend(env_cfg, physics_cfg)
+    if physics == "newton_mjwarp":
+        if "Locomanipulation-G1" in task_name:
+            assert physics_cfg.num_substeps == 2
+            assert physics_cfg.solver_cfg.integrator == "implicitfast"
+        else:
+            assert physics_cfg.solver_cfg.nconmax == 4096
+            assert physics_cfg.solver_cfg.njmax == 1536
+    else:
+        assert hasattr(env_cfg.scene.packing_table.spawn, "_packing_table_collision_prepared") == (physics == "ovphysx")
+
+    configs, _ = validate_launch(SimpleNamespace(sim=SimpleNamespace(physics=physics_cfg)), vars(agent.args_cli).copy())
     assert not hasattr(agent.args_cli, "physics")
     assert env_cfg.sim.physics is physics_cfg
     assert any(cfg is physics_cfg for cfg in configs)
-    assert physics_cfg.solver_cfg.nconmax == 4096
-    assert physics_cfg.solver_cfg.njmax == 1536
 
 
 def test_task_action_hook_validates_before_and_after_conditioning(monkeypatch):
