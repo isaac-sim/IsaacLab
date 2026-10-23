@@ -26,12 +26,21 @@ uv add --optional ovxr --frozen \
     "isaaclab-teleop ; platform_system == 'Linux' and platform_machine == 'x86_64'" \
     "isaaclab-mimic ; platform_system == 'Linux' and platform_machine == 'x86_64'" \
     "ipywidgets>=8.1.5 ; platform_system == 'Linux' and platform_machine == 'x86_64'" \
-    "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'"
+    "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'" \
+    "physx-usd-schemas==25.11.2.72696984 ; platform_system == 'Linux' and platform_machine == 'x86_64'"
 ```
 
 Add `extra = "ovxr"` to the generated `isaaccapture` entry in
-`tool.uv.sources`, preserving its wheel path and platform marker. Add the
-following pair to `tool.uv.conflicts`, preserving existing entries:
+`tool.uv.sources`, preserving its wheel path and platform marker. In the same
+table, map the optional external PhysX schemas to the existing public PyPI index:
+
+```toml
+physx-usd-schemas = { index = "pypi-public", extra = "ovxr" }
+```
+
+OvPhysX 0.7 loads these schemas at runtime but does not declare the package as
+a dependency, so the optional requirement above is explicit.
+Add the following pair to `tool.uv.conflicts`, preserving existing entries:
 
 ```toml
 [tool.uv]

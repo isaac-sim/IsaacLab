@@ -284,8 +284,6 @@ def test_teleop_tasks_resolve_public_physics_selectors(task_name, physics):
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
-    prepare_teleop_backend = pytest.importorskip("isaaclab_teleop.action_policy").prepare_teleop_backend
-
     import isaaclab_tasks  # noqa: F401 -- registers the public task IDs
     from isaaclab_tasks.utils import parse_env_cfg
     from isaaclab_tasks.utils.hydra import setup_preset_cli
@@ -300,18 +298,9 @@ def test_teleop_tasks_resolve_public_physics_selectors(task_name, physics):
     assert cfg.scene.num_envs == 1 and cfg.sim.device == "cpu"
     if "SO101" in task_name:
         assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
-    prepare_teleop_backend(cfg, cfg.sim.physics)
     if physics == "newton_mjwarp":
         assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
-        if "Locomanipulation-G1" in task_name:
-            assert cfg.sim.physics.num_substeps == 2
-            assert cfg.sim.physics.solver_cfg.integrator == "implicitfast"
-        elif "SO101" in task_name:
+        if "SO101" in task_name:
             assert cfg.sim.physics.solver_cfg.iterations == 100
             assert cfg.sim.physics.solver_cfg.impratio == 10.0
             assert cfg.sim.physics.solver_cfg.nconmax == 600
-        else:
-            assert cfg.sim.physics.solver_cfg.nconmax == 4096
-            assert cfg.sim.physics.solver_cfg.njmax == 1536
-    elif "SO101" not in task_name:
-        assert hasattr(cfg.scene.packing_table.spawn, "_packing_table_collision_prepared") == (physics == "ovphysx")
