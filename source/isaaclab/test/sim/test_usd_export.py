@@ -7,6 +7,7 @@
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
@@ -91,3 +92,37 @@ def test_pd_actuator_becomes_a_drive_of_single_axis_joints_only(joint_type, conv
 
     assert actuator.IsActive() != converted
     assert bool([schema for schema in joint.GetAppliedSchemas() if schema.startswith("PhysicsDriveAPI")]) == converted
+
+
+def test_collider_values_its_shapes_disagree_on_keep_their_usd_values():
+    """A body whose shapes report different values of a collider property keeps that property's USD values.
+
+    PhysX derives an unset contact offset per collider, so a body with several colliders reports several.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
+    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
+    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Table").GetPrim())
+    for name in ("Top", "Legs"):
+        UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, f"/Table/{name}").GetPrim())
+
+    class Exporter(PhysxUsdExporter):
+        def _read_rigid_body(self, path):
+            return {"contact_offset": np.array([0.002, 0.016, 0.016]), "rest_offset": np.full(3, 0.001)}
+
+    data = SimpleNamespace(
+        body_mass=SimpleNamespace(torch=torch.full((1, 1), 3.0)),
+        body_com_pose_b=SimpleNamespace(torch=torch.zeros(1, 1, 7)),
+        body_inertia=SimpleNamespace(torch=torch.eye(3).reshape(1, 1, 9)),
+    )
+    scene = _scene(rigid_objects={"table": SimpleNamespace(cfg=SimpleNamespace(prim_path="/Table"), data=data)})
+    scene.physics_scene_path = "/physicsScene"
+    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
+
+    edits = {(edit.path, edit.attribute): edit.value for edit in Exporter(scene).compute_diff(stage)}
+
+    assert edits["/Table", "physics:mass"] == pytest.approx(3.0)
+    for collider in ("/Table/Top", "/Table/Legs"):
+        assert (collider, "physxCollision:contactOffset") not in edits
+        assert edits[collider, "physxCollision:restOffset"] == pytest.approx(0.001)

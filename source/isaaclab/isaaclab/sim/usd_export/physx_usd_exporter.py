@@ -82,15 +82,15 @@ class PhysxUsdExporter(BaseUsdExporter):
             edits += self._mass_edits(prim, float(values["mass"]), values["com"], values["inertia"])
             colliders = self._colliders(stage, path)
             for name, attribute in COLLIDER_ATTRIBUTES.items():
-                if name in values:
-                    # The engine reports shapes per body, without their prim identities.
-                    value = self._uniform(values[name], path, name)
+                # The engine reports shapes per body, without their prim identities.
+                value = self._uniform(values[name], path, name) if name in values else None
+                if value is not None:
                     edits += [
                         self._value_edit(stage.GetPrimAtPath(c), attribute, value, schema="PhysxCollisionAPI")
                         for c in colliders
                     ]
-            if "material" in values:
-                material = self._uniform(values["material"], path, "material")
+            material = self._uniform(values["material"], path, "material") if "material" in values else None
+            if material is not None:
                 materials.update(
                     {
                         collider: dict(zip(USD_PHYSICS_MATERIAL_ATTRIBUTES.values(), material.tolist()))
@@ -237,9 +237,14 @@ class PhysxUsdExporter(BaseUsdExporter):
         return colliders
 
     @staticmethod
-    def _uniform(values: np.ndarray, path: str, name: str) -> np.ndarray:
-        """The one value of all shapes of a body; different values have no per-shape USD identity."""
+    def _uniform(values: np.ndarray, path: str, name: str) -> np.ndarray | None:
+        """The one value of all shapes of a body, or None if its shapes differ.
+
+        Shapes differ when the USD leaves the value to the engine, which derives it per collider, or
+        states it per collider; the USD then reproduces it.
+        """
         values = np.asarray(values)
         if not np.all(values == values[0]):
-            raise NotImplementedError(f"The {name} of body '{path}' differs between its shapes.")
+            logger.debug(f"The {name} of body '{path}' differs between its shapes; keeping its USD values.")
+            return None
         return values[0]
