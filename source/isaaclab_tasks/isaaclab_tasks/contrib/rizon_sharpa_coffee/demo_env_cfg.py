@@ -45,7 +45,7 @@ from .robot import (
 class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Native MPM with optional passive rendering grains."""
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:CoffeeMPMManager"
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:COFFEE_MPM_SPEC"
     solver: str | tuple[str, ...] | None = None
     """Pressure solver; ``None`` selects the final wet or dry task profile."""
     max_iterations: int | None = None
@@ -60,7 +60,6 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
     """Configure coupling with material defaults resolved after scene overrides."""
     return NewtonCfg(
         solver_cfg=CouplerProxyCfg(
-            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:NewtonCoffeeCouplerManager",
             entries=[
                 CouplerEntryCfg(
                     name="robot",

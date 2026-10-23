@@ -907,7 +907,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
     }
     legs = groups["legs"][0]
-    assert newton_run.sim.backend_manager._adapter is not None
+    assert newton_run.sim.backend_manager.backend.actuators is not None
 
     def gains(name: str) -> torch.Tensor:
         """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
@@ -950,7 +950,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     islands' actuators share its state buffers; their state is not part of this articulation's contract.
     """
     articulation = newton_run.articulations["delayed"]
-    adapter = newton_run.sim.backend_manager._adapter
+    adapter = newton_run.sim.backend_manager.backend.actuators
     assert adapter is not None
     own_actuators = []
     for group_name in articulation.actuators._native_group_names:
