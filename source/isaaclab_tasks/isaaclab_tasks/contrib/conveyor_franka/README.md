@@ -33,6 +33,19 @@ uv run isaaclab train --rl_library rsl_rl \
   --num_envs 256 --device cuda:0
 ```
 
+### CPU PhysX playback
+
+The optional PhysX task keeps the same policy inputs, actions, and reset recipes. It uses native
+surface velocity on CPU; enabled surface-velocity contacts are unsupported with GPU dynamics.
+Use an explicit local checkpoint and evaluate transferred policies on this backend:
+
+```bash
+DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
+  --task IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0 \
+  --checkpoint /path/to/model.pt --num_envs 1 --device cpu --viz kit --real-time \
+  agent.device=cpu
+```
+
 ### Curriculum and evaluation
 
 Racetrack training samples physically calibrated resets from release through moving-belt pickup.
@@ -58,16 +71,3 @@ uv run python -m isaaclab_tasks.contrib.conveyor_franka.evaluate \
 The report counts completed transfers in both directions, safety failures, non-finite observations,
 and transfers per simulated environment minute. Repeat with different seeds when comparing policies;
 intermediate-reset training reward alone does not establish deployment reliability.
-
-## CPU PhysX playback
-
-The optional PhysX task keeps the same policy inputs, actions, and reset recipes. It uses native
-surface velocity on CPU; enabled surface-velocity contacts are unsupported with GPU dynamics.
-Use an explicit local checkpoint and evaluate transferred policies on this backend:
-
-```bash
-DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0 \
-  --checkpoint /path/to/model.pt --num_envs 1 --device cpu --viz kit --real-time \
-  agent.device=cpu
-```
