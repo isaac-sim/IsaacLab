@@ -35,8 +35,6 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
 from isaaclab_physx.assets import SurfaceGripperCfg
-from isaaclab_teleop import poll_control_events
-from isaaclab_teleop.script_input import add_key_callbacks, open_teleop_device
 from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
@@ -46,9 +44,9 @@ from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass, index_fill_, replace
+from isaaclab.utils import configclass, index_fill_, instantiate, replace
 from isaaclab.utils.math import sample_uniform
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, add_key_callbacks
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
@@ -332,7 +330,12 @@ def main() -> None:
         teleop_device = contextlib.ExitStack()
         if pick_and_place.sim.has_gui:
             teleop_cfg = Se3KeyboardCfg(pos_sensitivity=10.0, sim_device=pick_and_place.device)
-            teleop = teleop_device.enter_context(open_teleop_device(teleop_cfg))
+            try:
+                from isaaclab_teleop.script_input import open_teleop_device
+            except ImportError:  # without the teleop or mimic extra
+                teleop = instantiate(teleop_cfg)
+            else:
+                teleop = teleop_device.enter_context(open_teleop_device(teleop_cfg))
             add_key_callbacks(
                 {"N": lambda: pick_and_place.auto_aim(cube=True), "M": lambda: pick_and_place.auto_aim(cube=False)}
             )
@@ -346,9 +349,9 @@ def main() -> None:
             while pick_and_place.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
                 cmd = teleop.advance() if teleop is not None else None
                 # P / B pause and resume an Isaac Capture device; paused, the scene renders without stepping
-                ctrl = poll_control_events(teleop)
-                if ctrl.is_active is not None:
-                    teleop_active = ctrl.is_active
+                events = getattr(teleop, "last_control_events", None)
+                if events is not None and events.is_active is not None:
+                    teleop_active = events.is_active
                 if not teleop_active:
                     pick_and_place.sim.render()
                     continue

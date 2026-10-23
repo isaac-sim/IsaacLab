@@ -304,7 +304,7 @@ def replay_dataset(
 ):
     """Create the environment and replay the selected episodes of the dataset."""
     # the keyboard device needs the Kit runtime, which is running at this point
-    from isaaclab_teleop.script_input import add_key_callbacks
+    from isaaclab.visualizers import add_key_callbacks
 
     num_envs = args_cli.num_envs
 
