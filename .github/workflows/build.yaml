@@ -742,15 +742,17 @@ jobs:
           exit 1
         fi
 
+  # No contributed environment needs cuRobo, so this job uses the base image and
+  # does not wait for the cuRobo image build.
   test-contrib-environments:
     name: test-contrib-environments
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build-curobo, config]
+    needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -758,11 +760,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        dockerfile-path: docker/Dockerfile.curobo
-        cache-tag: cache-curobo
         include-files: >-
           test_contrib_environments_kitless.py,
           test_contrib_environments_kit.py,
