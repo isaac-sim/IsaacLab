@@ -59,11 +59,13 @@ def test_ramp_reset_and_callback_lifecycle(monkeypatch: pytest.MonkeyPatch) -> N
         "isaaclab_physx.physics.physx_manager",
         SimpleNamespace(
             IsaacEvents=SimpleNamespace(POST_PHYSICS_STEP="step"),
-            PhysxManager=SimpleNamespace(register_callback=register),
         ),
     )
     adapter = surface_module.SurfaceVelocity(
-        2, (_surface_spec(),), stage=SimpleNamespace(GetPrimAtPath=lambda path: path)
+        2,
+        (_surface_spec(),),
+        stage=SimpleNamespace(GetPrimAtPath=lambda path: path),
+        manager=SimpleNamespace(register_callback=register),
     )
     adapter.start()
     adapter.start()
