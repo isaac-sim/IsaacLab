@@ -264,7 +264,7 @@ def _write_site_local_from_local_poses_indexed(
 
 
 class OvPhysxFrameView(BaseFrameView):
-    """Batched prim view for non-physics prims tracked as sites on OVPhysX bodies.
+    """Batched frame view with read-only access to OVPhysX body frames.
 
     Each matched USD prim is resolved at init to a ``(body_index, site_local)``
     pair via ancestor walk: the nearest ancestor carrying ``UsdPhysics.RigidBodyAPI``
@@ -273,10 +273,8 @@ class OvPhysxFrameView(BaseFrameView):
     frame (``body_index = WORLD_BODY_INDEX``) and ``site_local`` stores the prim's
     USD world transform.
 
-    Body world poses are read each step via an OVPhysX ``RIGID_BODY_POSE`` tensor
-    binding -- the same data path the contact sensor uses -- and **not** via the
-    scene data provider's Newton model. This keeps the view usable in scenes
-    that do not declare the ``NEWTON_MODEL`` scene-data requirement.
+    Body world poses are read through an OVPhysX ``RIGID_BODY_POSE`` tensor binding.
+    A view of the body itself supports reads; writes remain owned by the asset API.
 
     World poses are computed on GPU as ``body_q[body_index] * site_local`` via
     a Warp kernel, with the world-attached branch returning ``site_local``
@@ -392,18 +390,7 @@ class OvPhysxFrameView(BaseFrameView):
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         identity_xform7 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
-        # 0. Reject prim_paths that resolve to a rigid body itself: a FrameView
-        #    should track a non-physics child of a body (a sensor frame), not
-        #    the body. Mirrors the Newton guard at
-        #    ``newton_site_frame_view.py:572-584``.
-        for prim in self._prims:
-            if self._prim_or_template_has_rigid_body_api(prim):
-                raise ValueError(
-                    f"OvPhysxFrameView prim '{prim.GetPath().pathString}' resolves to a rigid body. "
-                    "FrameView should only be used for non-physics prims (cameras, sensor mounts, "
-                    "Xform markers). Use OvPhysX's RigidObject or Articulation APIs to control "
-                    "physics bodies directly, or point prim_path at a non-physics child of the body."
-                )
+        self._contains_physics_frames = any(self._prim_or_template_has_rigid_body_api(prim) for prim in self._prims)
 
         # 1. Resolve each (template) prim's ancestor body + the prim->ancestor offset.
         per_prim_ancestor: list[str | None] = []
@@ -694,6 +681,7 @@ class OvPhysxFrameView(BaseFrameView):
             buffer ``[num_bodies]``.
         """
         if self._pose_binding is not None:
+            self._backend_manager.update_kinematics()
             self._root_view.read_into("rigid_body_pose", self._pose_buf)
         return self._pose_buf.view(wp.transformf)
 
@@ -710,9 +698,13 @@ class OvPhysxFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        if self._contains_physics_frames:
+            raise ValueError("Use the asset API to write physics body transforms.")
         return _OvPhysxWorldSpaceWriter(self)
 
     def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        if self._contains_physics_frames:
+            raise ValueError("Use the asset API to write physics body transforms.")
         return _OvPhysxLocalSpaceWriter(self)
 
     # ------------------------------------------------------------------

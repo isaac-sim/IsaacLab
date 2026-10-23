@@ -356,6 +356,10 @@ html_js_files = [
 ]
 
 html_theme_options = {
+    "announcement": (
+        '<a href="https://docs.nvidia.com/isaaclab">Explore our AI-friendly Fern documentation</a>'
+        " &mdash; Chat with AI about Isaac Lab and access machine-readable docs."
+    ),
     "path_to_docs": "docs/",
     "navbar_persistent": [],
     "collapse_navigation": True,

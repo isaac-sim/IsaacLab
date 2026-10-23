@@ -34,6 +34,11 @@ import omni.usd
 import usdrt
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
+try:
+    from usdrt import hierarchy
+except ImportError:
+    hierarchy = None
+
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -208,6 +213,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._geometry = TimestampedBuffer()
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
+        self._fabric_hierarchy = None
         self._fabric_points = SceneDataFormat.FabricPoints()
         self._fabric_points_selection = None
 
@@ -299,9 +305,18 @@ class PhysxSceneDataBackend(SceneDataBackend):
             continuous = bool(sim.get_setting("/physics/fabricUpdateTransformations"))
             if not continuous:
                 sim.set_setting("/physics/fabricUpdateTransformations", True)
-            self._manager._fabric.force_update(0.0, 0.0)
-            if not continuous:
-                sim.set_setting("/physics/fabricUpdateTransformations", False)
+            try:
+                self._manager._fabric.force_update(0.0, 0.0)
+                if self._fabric_hierarchy is None and hierarchy is not None:
+                    stage = usdrt.Usd.Stage.Attach(self._manager._stage_id)
+                    self._fabric_hierarchy = hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                        stage.GetFabricId(), stage.GetStageIdAsStageId()
+                    )
+                if self._fabric_hierarchy is not None:
+                    self._fabric_hierarchy.update_world_xforms()
+            finally:
+                if not continuous:
+                    sim.set_setting("/physics/fabricUpdateTransformations", False)
             self._fabric_timestamp = timestamp
 
     @property
@@ -964,6 +979,9 @@ class PhysxManager(PhysicsManager):
             entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         is_gpu = "cuda" in self.get_device()
+        # CPU PhysX must publish Fabric transforms from startup; toggling it on demand only works on GPU.
+        if self._fabric is not None and not is_gpu:
+            sim.set_setting("/physics/fabricUpdateTransformations", True)
 
         physx = omni.physx.get_physx_interface()
         physx_sim = omni.physx.get_physx_simulation_interface()

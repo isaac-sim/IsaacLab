@@ -160,20 +160,13 @@ class Imu(BaseImu):
                 env_mask,
                 self._newton_sensor.accelerometer,
                 self._newton_sensor.gyroscope,
-                self._timestamp,
             ],
             outputs=[self._data._lin_acc_b, self._data._ang_vel_b],
             device=self._device,
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references to the native Newton sensor and re-registers site/attributes.
-
-        Re-registering here ensures the site and ``body_qdd`` attribute survive a
-        non-teardown stop/reinit cycle. During ``NewtonManager.close()``, Newton
-        state is cleared after ``STOP`` so stale registrations from old sensors
-        cannot leak into the next context.
-        """
+        """Release native handles and renew the model's ``body_qdd`` request, retaining the builder-owned site."""
         super()._invalidate_initialize_callback(event)
         self._newton_sensor = None
         self._sensor_index = None
@@ -184,7 +177,4 @@ class Imu(BaseImu):
         if self._data._lin_acc_b is not None:
             self._data._lin_acc_b.zero_()
 
-        # Re-register so a subsequent start_simulation picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = self._backend_manager.cl_register_site(self.cfg.prim_path, offset_xform)
         self._backend_manager.request_extended_state_attribute("body_qdd")

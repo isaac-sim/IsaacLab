@@ -164,7 +164,7 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
-        state = self._backend_manager.backend.state_0
+        state = self._backend_manager.get_scene_data_backend().state
 
         wp.launch(
             pva_update_kernel,
@@ -180,7 +180,6 @@ class Pva(BasePva):
                 state.body_q,
                 state.body_qd,
                 state.body_qdd,
-                self._timestamp,
             ],
             outputs=[
                 self._data._pose_w,
@@ -238,7 +237,7 @@ class Pva(BasePva):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references for re-initialization and re-registers with NewtonManager."""
+        """Release native handles and renew the model's ``body_qdd`` request, retaining the builder-owned site."""
         super()._invalidate_initialize_callback(event)
         self._newton_model = None
         self._site_indices = None
@@ -257,7 +256,4 @@ class Pva(BasePva):
             if buf is not None:
                 buf.zero_()
 
-        # Re-register so a subsequent start_simulation picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = self._backend_manager.cl_register_site(self.cfg.prim_path, offset_xform)
         self._backend_manager.request_extended_state_attribute("body_qdd")

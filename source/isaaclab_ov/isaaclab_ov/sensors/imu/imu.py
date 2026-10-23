@@ -134,12 +134,7 @@ class Imu(BaseImu):
         self._com_binding = self._root_view.binding_for(TT.RIGID_BODY_COM_POSE)
         self._num_bodies = self._pose_binding.count
 
-        if self._num_bodies != self._num_envs:
-            raise ValueError(
-                f"OvPhysx Imu: pattern '{pattern}' matched {self._num_bodies} rigid bodies; expected exactly one"
-                f" body per environment (num_envs={self._num_envs}). Check that the prim path or its rigid-body"
-                " ancestor is unique per env."
-            )
+        self._check_env_count(self._num_bodies, pattern)
 
         # Real IMUs always measure gravity, so the accelerometer is biased by -g. The scene value
         # can change at runtime, so it is refreshed on every update instead of snapshotted here.
@@ -195,6 +190,7 @@ class Imu(BaseImu):
 
         # ``read_into`` fills the structured-dtype destination in place through a cached
         # float32 reinterpret of the binding's flat shape (no extra copy).
+        self._backend_manager.update_kinematics()
         self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
         self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
         self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)
@@ -216,7 +212,6 @@ class Imu(BaseImu):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_bias_w,
-                self._timestamp,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],
