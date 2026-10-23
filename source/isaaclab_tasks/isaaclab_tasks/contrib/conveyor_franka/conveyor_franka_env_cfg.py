@@ -137,12 +137,6 @@ class CommandsCfg:
         maximum_cube_speed=0.65,
         minimum_finger_position=0.027,
         minimum_tool_clearance=0.055,
-        minimum_progress_steps=3,
-        minimum_progress=0.35,
-        maximum_target_potential=5.0,
-        minimum_acquisition_lift=0.025,
-        maximum_acquisition_tool_distance=0.075,
-        maximum_acquisition_finger_position=0.030,
     )
 
 
@@ -257,31 +251,20 @@ class TerminationsCfg:
 
 @configclass
 class CurriculumCfg:
-    """Adaptive phase-balanced reset-state sampling."""
+    """Practice reset states near the measured transfer-success frontier."""
 
     reset_sampling = CurrTerm(
         func=mdp.ConveyorResetCurriculum,
         params={
             "command_name": "transfer",
-            # Intermediate rows adapt around 50% phase progress, not completed transfers.
-            "success_monitor": mdp.SuccessMonitorCfg(
-                monitored_history_len=50,
-                target_success_rate=0.5,
-                kappa=1.0,
-                temperature=1.0,
+            "success_monitor": mdp.SuccessMonitorCfg(monitored_history_len=50),
+            "sampling": mdp.SamplerCfg(
+                strategies=[
+                    mdp.BetaSamplingStrategyCfg(target=0.5, kappa=2.0),
+                    mdp.UniformSamplingStrategyCfg(weight=0.05),
+                ],
+                eps=1.0e-4,
             ),
-            # Keep a deployment-facing stream while the remaining starts
-            # adapt around the rolling pickup-to-placement frontier. Deployment
-            # mass increases only after actual transfers from moving-belt starts. Every
-            # recipe, cube identity, and direction retains equal total mass.
-            "deployment_probability_initial": 0.35,
-            "deployment_probability_final": 0.90,
-            "deployment_progress_start": 0.45,
-            "deployment_progress_end": 0.80,
-            "deployment_coverage_target": 0.50,
-            # Optional staged-training control. None keeps the deployable
-            # bidirectional task; a side id can focus the same adaptive reset
-            # distribution on one weak direction without changing reset rows.
             "fixed_source_side_id": None,
         },
     )

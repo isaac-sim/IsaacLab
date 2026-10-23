@@ -56,15 +56,16 @@ uv run isaaclab train --rl_library rsl_rl \
 ### Curriculum and evaluation
 
 Racetrack training samples physically calibrated resets from release through moving-belt pickup.
-The shared `SuccessMonitorCfg` tracks **phase progress** per reset row and weights intermediate
-variants around a 50% progress target; this is not the full-transfer success rate. Sampling remains
-balanced across phases, cube identities, and directions. Moving-belt starts receive at least 35%
-of resets, increasing toward 90% only when completed transfers from those starts and reset-row
-coverage improve. `deployment_transfer_success_rate` reports that separate rolling signal.
+The shared `SuccessMonitor` records whether each episode completed a stable transfer from its
+sampled reset row. NIST's reusable `Sampler` mixes uniform coverage with a Beta-shaped score
+centered at 50% transfer success, giving partly learned rows more practice while keeping every
+row eligible. Reset recipes generate the robot and cube states directly; the task needs no
+cached physical-state bank or assembly-variant machinery.
 
-New RSL-RL checkpoints save the curriculum evidence alongside standard PPO state and restore it
-with `--checkpoint /path/to/model.pt`. Older checkpoints load normally with fresh evidence;
-loading actor weights alone leaves the current curriculum intact. Playback disables the curriculum.
+Training uses standard PPO with the existing arm-and-gripper action distribution. Checkpoints
+save policy and optimizer state; sampling history starts fresh when the environment is recreated,
+including when resuming training. Playback disables adaptive sampling. Evaluate from moving-belt
+starts to measure pickup and transfer ability independently of the easier training resets.
 
 Evaluate from home on moving belts, with fixed reset settings and a chosen seed:
 

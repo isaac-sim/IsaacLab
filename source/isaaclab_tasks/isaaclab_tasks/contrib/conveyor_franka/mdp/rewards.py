@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Progress utilities and sparse completion rewards for conveyor transfer."""
+"""Sparse completion rewards and acquisition checks for conveyor transfer."""
 
 from __future__ import annotations
 
@@ -15,64 +15,13 @@ from isaaclab.managers import SceneEntityCfg
 
 from .cube_state import cube_values
 from .kinematics import end_effector_pose
-from .reset_events import CUBE_REST_Z, TRANSFER_X, side_inner_y
+from .reset_events import CUBE_REST_Z
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
     from .commands import ConveyorTransferCommand
-
-
-def transfer_potential(
-    cube_positions: torch.Tensor,
-    tool_positions: torch.Tensor,
-    finger_positions: torch.Tensor,
-    source_side_ids: torch.Tensor,
-) -> torch.Tensor:
-    """Return a monotonic pickup-to-release shaping potential."""
-    source_y = side_inner_y(source_side_ids)
-    target_y = side_inner_y(1 - source_side_ids)
-    target_position = torch.stack(
-        (
-            torch.full_like(source_y, TRANSFER_X),
-            target_y,
-            torch.full_like(source_y, CUBE_REST_Z),
-        ),
-        dim=1,
-    )
-    tool_distance = torch.linalg.vector_norm(tool_positions - cube_positions, dim=1)
-    reach = torch.exp(-12.0 * tool_distance)
-    gripper_closure = torch.clamp((0.04 - torch.amin(finger_positions, dim=1)) / 0.021, min=0.0, max=1.0)
-    grasp = gripper_closure * torch.exp(-25.0 * tool_distance)
-    lift = torch.clamp((cube_positions[:, 2] - CUBE_REST_Z) / 0.14, min=0.0, max=1.0)
-    direction_denominator = (target_y - source_y).clamp(min=-1.0, max=1.0)
-    crossing = (cube_positions[:, 1] - source_y) / direction_denominator
-    crossing = torch.clamp(crossing, min=0.0, max=1.0)
-    target_distance = torch.linalg.vector_norm(cube_positions - target_position, dim=1)
-    target = torch.exp(-14.0 * target_distance)
-    transport = crossing * torch.maximum(torch.clamp(2.0 * lift, max=1.0), target)
-    released = (torch.amin(finger_positions, dim=1) > 0.027).float() * target
-    return 0.5 * reach + 0.75 * grasp + 1.25 * lift + 2.0 * transport + 2.0 * target + released
-
-
-def current_transfer_potential(
-    env: ManagerBasedRLEnv,
-    command_name: str = "transfer",
-    command: ConveyorTransferCommand | None = None,
-) -> torch.Tensor:
-    """Gather current task state and evaluate the shaping potential."""
-    if command is None:
-        command = env.command_manager.get_term(command_name)
-    positions = cube_values(env, "root_pos_w")
-    index = command.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
-    active_position = torch.gather(positions, 1, index).squeeze(1) - env.scene.env_origins
-    tool_position, _ = end_effector_pose(env)
-    tool_position = tool_position - env.scene.env_origins
-    robot: Articulation = env.scene["robot"]
-    finger_ids, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
-    finger_positions = robot.data.joint_pos.torch[:, finger_ids]
-    return transfer_potential(active_position, tool_position, finger_positions, command.source_side_ids)
 
 
 def transfer_success_reward(
