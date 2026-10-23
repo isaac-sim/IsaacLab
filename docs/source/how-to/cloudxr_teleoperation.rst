@@ -382,12 +382,12 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacCapture/client/release-1.4.x/>`_.
+         `<https://nvidia.github.io/IsaacCapture/client/release-1.7.x/>`_.
 
          .. note::
 
-            The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
-            ``isaacteleop`` version pinned by Isaac Lab (``isaacteleop~=1.4.145`` in the ``teleop``
+            The web client URL is versioned. The ``release-1.7.x`` path corresponds to the
+            ``isaaccapture`` version pinned by Isaac Lab (``isaaccapture~=1.7.44a1`` in the ``teleop``
             extra of the root ``pyproject.toml``). When Isaac Lab updates its teleoperation
             dependency, update this link to the matching client release.
 
@@ -594,16 +594,16 @@ Prerequisites
      ``install/plugins/manus/manus_hand_plugin`` does not exist in your Isaac Capture checkout, this
      step has not been completed.
 
-  Clone the repository and check out the release branch matching the ``isaacteleop`` version Isaac
-  Lab is pinned to (``isaacteleop~=1.4.145`` in the ``teleop`` extra of the root
-  ``pyproject.toml``), so the plugin's wire format matches the ``isaacteleop`` package Isaac Lab
+  Clone the repository and check out the release branch matching the ``isaaccapture`` version Isaac
+  Lab is pinned to (``isaaccapture~=1.7.44a1`` in the ``teleop`` extra of the root
+  ``pyproject.toml``), so the plugin's wire format matches the ``isaaccapture`` package Isaac Lab
   installs:
 
   .. code-block:: bash
 
      git clone https://github.com/NVIDIA/IsaacCapture.git
      cd IsaacCapture
-     git checkout release/1.4.x
+     git checkout release/1.7.x
 
   .. note::
 
@@ -765,7 +765,7 @@ time.
 Haptikos Exoskeletons with Quest
 --------------------------------
 
-The `Haptikos plugin <https://github.com/NVIDIA/IsaacCapture/tree/release/1.4.x/src/plugins/haptikos>`_
+The `Haptikos plugin <https://github.com/NVIDIA/IsaacCapture/tree/release/1.7.x/src/plugins/haptikos>`_
 combines controller wrist poses with exoskeleton finger tracking from the Haptikos Core App and
 pushes hand joints into the OpenXR runtime. Isaac Lab receives them through Isaac Capture's
 standard hand-tracking input, so no Haptikos-specific Isaac Lab device is needed. The plugin
@@ -776,18 +776,18 @@ Build the plugin
 ^^^^^^^^^^^^^^^^
 
 The Haptikos plugin is built from Isaac Capture source; it is not included in Isaac Lab's
-``teleop`` extra. Check out the release branch matching Isaac Lab's ``isaacteleop`` pin (currently
-``1.4.x``), obtain the `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_,
+``teleop`` extra. Check out the release branch matching Isaac Lab's ``isaaccapture`` pin (currently
+``1.7.x``), obtain the `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_,
 and copy its ``HaptikosCpp_API_Shared`` directory into ``src/plugins/haptikos``. The C++ API is
 required to build the tracking plugin, even if you do not use haptic feedback. Follow the
-`plugin's setup instructions <https://github.com/NVIDIA/IsaacCapture/tree/release/1.4.x/src/plugins/haptikos>`_
+`plugin's setup instructions <https://github.com/NVIDIA/IsaacCapture/tree/release/1.7.x/src/plugins/haptikos>`_
 for Haptikos account and licensing requirements.
 
 .. code-block:: bash
 
    git clone https://github.com/NVIDIA/IsaacCapture.git
    cd IsaacCapture
-   git checkout release/1.4.x
+   git checkout release/1.7.x
    # Copy HaptikosCpp_API_Shared to src/plugins/haptikos before building.
    cmake -S . -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
    cmake --build build --target haptikos_hands_plugin --parallel 4

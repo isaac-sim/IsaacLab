@@ -344,9 +344,9 @@ Prerequisites
      sudo apt-get update
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-  Then clone, check out the release branch matching the ``isaacteleop`` version Isaac Lab is
-  pinned to (``isaacteleop~=1.4.145`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
-  plugin's wire format matches the ``isaacteleop`` package Isaac Lab installs), configure, build,
+  Then clone, check out the release branch matching the ``isaaccapture`` version Isaac Lab is
+  pinned to (``isaaccapture~=1.7.44a1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  plugin's wire format matches the ``isaaccapture`` package Isaac Lab installs), configure, build,
   and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
   version needs its own build directory if building multiple at once:
@@ -355,7 +355,7 @@ Prerequisites
 
      git clone https://github.com/NVIDIA/IsaacCapture.git
      cd IsaacCapture
-     git checkout release/1.4.x
+     git checkout release/1.7.x
 
      cmake -B build                       # configure (default: Python 3.11)
      cmake --build build --parallel       # build
@@ -612,7 +612,7 @@ Source Nodes
 Available Retargeters
 ~~~~~~~~~~~~~~~~~~~~~
 
-Retargeters are provided by the ``isaacteleop`` package from the
+Retargeters are provided by the ``isaaccapture`` package from the
 `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ repository. The retargeters listed below
 are those used by the built-in Isaac Lab environments. Isaac Capture may offer additional
 retargeters not listed here -- refer to the
@@ -762,7 +762,7 @@ Keyboard, SpaceMouse, and Gamepad Environments
    :func:`~isaaclab_teleop.se3_keyboard_teleop_cfg`, :func:`~isaaclab_teleop.se3_spacemouse_teleop_cfg`,
    and :func:`~isaaclab_teleop.se3_gamepad_teleop_cfg`. These environments do not require an XR
    headset. An environment's ``teleop_devices`` entries (:class:`~isaaclab.devices.Se3KeyboardCfg`,
-   ...) run through the equivalent pipeline too. Without the ``isaacteleop`` package, the scripts
+   ...) run through the equivalent pipeline too. Without the ``isaaccapture`` package, the scripts
    fall back to the :mod:`isaaclab.devices` keyboard, gamepad and SpaceMouse devices.
 
 **Keyboard input and window focus.** The keyboard runs inside the Isaac Lab process and reads the
