@@ -62,6 +62,7 @@ jobs:
             ^uv\.lock$ :: Locked dependency graph
             ^VERSION$ :: Version file
             ^\.github/workflows/windows-ci\.yaml$ :: This workflow file
+            ^\.github/actions/(warp-cache-key/collection_id|run-package-tests/warp_cache_inventory)\.py$ :: Warp cache scripts
 
   windows-ci:
     name: windows-ci
@@ -73,6 +74,10 @@ jobs:
     defaults:
       run:
         shell: powershell
+    env:
+      # Same policy as the Linux test jobs: pull requests only restore, so they never publish
+      # kernels built from unmerged code; pushes to protected branches also save.
+      WARP_CACHE_MODE: ${{ github.event_name == 'push' && 'save' || 'restore' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -110,6 +115,48 @@ jobs:
             uv sync --frozen --extra test
           }
 
+      # The Warp kernel cache of the Linux test jobs (.github/actions/warp-cache-key), here in its own
+      # Windows collection. Those actions run bash, which on these runners resolves to WSL, so the
+      # key is rebuilt from the same collection_id.py.
+      - name: Resolve Warp cache key
+        id: warp-cache-key
+        run: |
+          $versions = uv run --frozen --no-sync python .github/actions/warp-cache-key/collection_id.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $collection = "warp-v2-$env:RUNNER_OS-$env:RUNNER_ARCH-$versions"
+          $dir = "$env:RUNNER_TEMP\isaaclab-warp-cache"
+          @(
+            "collection=$collection"
+            "key=$collection-$env:GITHUB_SHA-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+            "restore-keys=$collection-"
+            "host-dir=$dir"
+          ) | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "WARP_CACHE_PATH=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Restore Warp kernel cache
+        id: warp-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.warp-cache-key.outputs.host-dir }}
+          key: ${{ steps.warp-cache-key.outputs.key }}
+          restore-keys: ${{ steps.warp-cache-key.outputs.restore-keys }}
+
+      - name: Report restored Warp cache
+        id: warp-cache-before
+        env:
+          MATCHED_KEY: ${{ steps.warp-cache-restore.outputs.cache-matched-key }}
+          COLLECTION: ${{ steps.warp-cache-key.outputs.collection }}
+        run: |
+          New-Item -ItemType Directory -Force $env:WARP_CACHE_PATH | Out-Null
+          if ($env:MATCHED_KEY) { "Warp cache hit: $env:MATCHED_KEY" } else { "::warning::Warp cache miss - no entry in collection $env:COLLECTION" }
+          uv run --frozen --no-sync python .github/actions/run-package-tests/warp_cache_inventory.py $env:WARP_CACHE_PATH "Warp cache restored"
+          uv run --frozen --no-sync python tools/verify_warp_cache.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if ($env:WARP_CACHE_MODE -eq 'save') {
+            $fingerprint = uv run --frozen --no-sync python .github/actions/run-package-tests/warp_cache_inventory.py $env:WARP_CACHE_PATH --fingerprint
+            "fingerprint=$fingerprint" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
       - name: Run windows_ci marker tests
         env:
           CI_MARKER: windows_ci
@@ -120,6 +167,32 @@ jobs:
       - name: Run Cartpole smoke tests
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py --junitxml=tests/windows-ci-smoke-report.xml
+
+      # Not success(): compiled kernels stay valid when a test fails. Cancellation still skips, so a
+      # tree Warp was mid-write on is never published. A save run whose kernels all came from the
+      # restored snapshot publishes nothing, since every snapshot is a new immutable cache entry.
+      - name: Report Warp cache growth
+        id: warp-cache-growth
+        if: ${{ !cancelled() && steps.warp-cache-before.outcome == 'success' }}
+        env:
+          FINGERPRINT_BEFORE: ${{ steps.warp-cache-before.outputs.fingerprint }}
+        run: |
+          uv run --frozen --no-sync python .github/actions/run-package-tests/warp_cache_inventory.py $env:WARP_CACHE_PATH "Warp cache final"
+          if ($env:WARP_CACHE_MODE -ne 'save') { exit 0 }
+          $changed = 'false'
+          if (Get-ChildItem -Recurse -File $env:WARP_CACHE_PATH | Select-Object -First 1) {
+            $fingerprint = uv run --frozen --no-sync python .github/actions/run-package-tests/warp_cache_inventory.py $env:WARP_CACHE_PATH --fingerprint
+            if ($fingerprint -ne $env:FINGERPRINT_BEFORE) { $changed = 'true' }
+          }
+          "Warp cache changed: $changed"
+          "changed=$changed" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Save Warp kernel cache
+        if: ${{ !cancelled() && steps.warp-cache-growth.outputs.changed == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.warp-cache-key.outputs.host-dir }}
+          key: ${{ steps.warp-cache-key.outputs.key }}
 
       - name: Runner cache state after (TEMP)
         if: always()
