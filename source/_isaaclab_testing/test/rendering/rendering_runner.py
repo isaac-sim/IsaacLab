@@ -11,10 +11,17 @@ import ast
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
-from golden_image import RTX_COLOR_PIXEL_L2_THRESHOLD, camera_output_image, compare_to_golden
+import warp as wp
+from golden_image import camera_output_image, compare_to_golden
+from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from newton import StateFlags
 from rendering_cases import RenderCase
-from rendering_runtime import SEMANTIC_COLORS, build_rendering_scene
+from rendering_runtime import build_rendering_scene
 from rendering_scene_cfgs import make_rendering_scene_spec
 
 from isaaclab.assets import VisualMaterial
@@ -32,7 +39,6 @@ _NO_SSIM = {
     RenderBufferKind.MOTION_VECTORS,
 }
 _ALPHA_ONLY_AOVS = {RenderBufferKind.INSTANCE_SEGMENTATION, RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST}
-_RTX_COLOR_AOVS = {RenderBufferKind.RGB, RenderBufferKind.ALBEDO}
 
 
 def run_rendering_case(
@@ -42,22 +48,87 @@ def run_rendering_case(
     golden_namespace: str | None = "kit",
     artifact_namespace: str | None = None,
 ) -> None:
-    """Build once, capture all compatible AOVs, and step physics once only for motion."""
+    """Capture the declared scene state and all compatible camera outputs."""
     configure_seed(42, torch_deterministic=True)
     scene = make_rendering_scene_spec(case.scene, case.physics)
+    scene.cfg.camera.renderer_cfg = {
+        "isaac_rtx": IsaacRtxRendererCfg(),
+        "newton_warp": NewtonWarpRendererCfg(),
+        "ovrtx": OVRTXRendererCfg(async_rendering=case.variant == "async"),
+    }[case.renderer]
+    if case.scene == "rendering_scene":
+        # Explicit colors and shadows belong to this synthetic fixture, not every scene.
+        if case.renderer == "ovrtx":
+            scene.cfg.camera.renderer_cfg.enable_shadows = True
+        else:
+            scene.cfg.camera.renderer_cfg.semantic_filter = ["class"]
+            scene.cfg.camera.renderer_cfg.semantic_segmentation_mapping = {
+                "class:ground": (94, 112, 131, 255),
+                "class:robot": (246, 184, 59, 255),
+                "class:moving_cube": (38, 141, 242, 255),
+                "class:table": (153, 74, 33, 255),
+                "class:cylinder": (239, 62, 54, 255),
+                "class:sphere": (65, 201, 87, 255),
+            }
     with build_rendering_scene(
         scene.cfg,
         case.physics,
-        renderer=case.renderer,
         data_types=case.aovs,
         background_color=case.background_color,
         physics_cfg=scene.physics_cfg,
-        async_rendering=case.variant == "async",
+        dt=scene.dt,
     ) as runtime:
-        if case.scene in ("franka_cable", "mpm"):
-            for _ in range(3):
-                runtime.step(render=False)
-        runtime.stabilize_camera()
+        if case.scene == "shadow_hand":
+            # A static image tests the declared pose, not contacts during PhysX's initialization steps.
+            cube = runtime.scene["object"]
+            pose = cube.data.default_root_pose.torch.clone()
+            pose[:, :3] += runtime.scene.env_origins
+            cube.write_root_pose_to_sim_index(root_pose=pose)
+            runtime.sim.forward()
+        if case.scene == "kuka_materials":
+            robot = runtime.scene["robot"]
+            robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch)
+            robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch)
+            robot.reset()
+        if case.scene == "mpm":
+            # Fixed reset inputs captured from the original 8c9b995 test; no runtime IK or RL managers.
+            with np.load(_GOLDEN_ROOT / "mpm/reset_state.npz") as state:
+                robot, media = runtime.scene["robot"], runtime.scene["media"]
+                assert robot.joint_names == state["joint_names"].tolist()
+                robot.write_root_pose_to_sim_index(
+                    root_pose=torch.tensor(state["root_pose"], device=runtime.sim.device)
+                )
+                robot.write_joint_position_to_sim_index(
+                    position=torch.tensor(state["joint_pos"], device=runtime.sim.device)
+                )
+                robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(robot.data.joint_vel.torch))
+                particle_state = media.data.default_particle_state_w.torch.clone()
+                particle_state[..., :3] = torch.tensor(state["particle_pos"], device=runtime.sim.device)
+                particle_state[..., 3:] = 0.0
+                media.write_particle_state_to_sim_index(particle_state)
+            runtime.sim.backend_manager.get_model().particle_max_velocity = 10.0
+            # The MPM reset snapshots the paddle transform after the joint writes.
+            runtime.sim.forward()
+            world_mask = wp.array([True] * runtime.scene.num_envs + [False], dtype=wp.bool, device=runtime.sim.device)
+            NewtonMPMManager.reset_solver_state(
+                runtime.sim.backend_manager, world_mask=world_mask, flags=StateFlags.BODY | StateFlags.PARTICLE
+            )
+        for step in range(scene.steps_before_capture):
+            if case.scene == "mpm" and step % 2 == 0:
+                robot = runtime.scene["robot"]
+                limits = robot.data.soft_joint_pos_limits.torch
+                targets = robot.data.joint_pos.torch.clamp(limits[..., 0] + 0.04, limits[..., 1] - 0.04)
+                robot.actuators.target_command.set_position_index(value=targets)
+            if case.scene in ("franka_cloth", "franka_cable"):
+                robot = runtime.scene["robot"]
+                targets = robot.data.joint_pos.torch.clone()
+                fingers, _ = robot.find_joints("panda_finger_joint1")
+                targets[:, fingers] = robot.data.soft_joint_pos_limits.torch[:, fingers].mean(dim=-1)
+                robot.actuators.target_command.set_position_index(value=targets)
+            render_interval = 2 if case.scene == "mpm" else 4
+            runtime.step(render=(step + 1) % render_interval == 0)
+        if case.scene in ("rendering_scene", "kuka_materials"):
+            runtime.stabilize_camera()
         if case.scene == "kuka_materials":
             before = runtime.camera.data.output["rgb"].torch.clone()
             materials = tuple(runtime.scene.visual_materials.values())
@@ -68,35 +139,45 @@ def run_rendering_case(
                     for path in material._shader_paths
                 )
                 authored_colors = tuple(attribute.Get() for attribute in usd_inputs)
-            colors = (torch.rand((len(materials), runtime.scene.num_envs, 3)) * 0.9 + 0.05).to(runtime.sim.device)
+            generator = torch.Generator(device="cpu").manual_seed(42)
+            colors = (torch.rand((len(materials), runtime.scene.num_envs, 3), generator=generator) * 0.9 + 0.05).to(
+                runtime.sim.device
+            )
             VisualMaterial.write_channels(materials, {"color": colors})
             runtime.stabilize_camera()
             assert (before != runtime.camera.data.output["rgb"].torch).any(), "Material writes did not reach pixels"
             if case.renderer == "isaac_rtx":
                 assert tuple(attribute.Get() for attribute in usd_inputs) == authored_colors
         outputs, info = runtime.camera_outputs()
+        # Preserve first-frame references; only wait when an RTX output has not been populated yet.
+        for _ in range(10):
+            if all(output.count_nonzero() for name, output in outputs.items() if name != "motion_vectors"):
+                break
+            runtime.render_camera()
+            outputs, info = runtime.camera_outputs()
         if case.scene == "mpm":
             rgb = outputs["rgb"].to(torch.int16)
-            blue = (rgb[..., 2] - rgb[..., 0] > 50) & (rgb[..., 2] - rgb[..., 1] > 20)
-            assert blue.flatten(1).sum(dim=1).min() > 20, "Every camera must see simulated particles"
-            assert outputs["instance_id_segmentation_fast"][..., 3][blue].count_nonzero() > 20
+            tan = (rgb[..., 0] - rgb[..., 2] > 50) & (rgb[..., 1] - rgb[..., 2] > 20)
+            assert tan.flatten(1).sum(dim=1).min() > 20, "Every camera must see simulated particles"
+            assert outputs["instance_id_segmentation_fast"][..., 3][tan].count_nonzero() > 20
         if RenderBufferKind.MOTION_VECTORS in case.aovs:
-            assert runtime.sim.get_physics_step_count() == 0
+            step = runtime.sim.get_physics_step_count()
             runtime.step(render=False)
             runtime.render_camera()
             motion_outputs, _ = runtime.camera_outputs()
-            assert runtime.sim.get_physics_step_count() == 1
+            assert runtime.sim.get_physics_step_count() == step + 1
             motion = motion_outputs[RenderBufferKind.MOTION_VECTORS]
             validate_motion_vectors(motion)
             outputs[RenderBufferKind.MOTION_VECTORS] = motion
 
-        validate_segmentation(
-            outputs,
-            info,
-            scene.expected_instances,
-            min_semantic_pixels=scene.min_semantic_pixels,
-            exact_instance_metadata=case.renderer != "newton_warp",
-        )
+        if scene.expected_instances:
+            validate_segmentation(
+                outputs,
+                info,
+                scene.expected_instances,
+                min_semantic_pixels=scene.min_semantic_pixels,
+                exact_instance_metadata=case.renderer != "newton_warp",
+            )
         failures = []
         for aov in case.golden_aovs:
             image_max_diff_pct, min_ssim = scene.image_tolerance(case.renderer, aov)
@@ -111,12 +192,7 @@ def run_rendering_case(
                 artifact_dir=_ARTIFACT_DIR,
                 max_diff_pct=image_max_diff_pct,
                 min_ssim=None if aov in _NO_SSIM else min_ssim,
-                pixel_l2_threshold=(
-                    RTX_COLOR_PIXEL_L2_THRESHOLD if case.renderer == "isaac_rtx" and aov in _RTX_COLOR_AOVS else 10.0
-                ),
-                # OVRTX's numeric semantic IDs vary by USD reader; metadata validates their labels separately.
-                alpha_only=aov in _ALPHA_ONLY_AOVS
-                or (case.renderer == "ovrtx" and aov == RenderBufferKind.SEMANTIC_SEGMENTATION),
+                alpha_only=aov in _ALPHA_ONLY_AOVS,
             )
             comparison.record(request)
             if not comparison.passed:
@@ -165,8 +241,7 @@ def validate_segmentation(
             for entry in id_to_labels.values()
             if isinstance(entry, dict) and "class" in entry and entry["class"] not in {"BACKGROUND", "UNLABELLED"}
         }
-        known_labels = {name.split(":", 1)[1] for name in SEMANTIC_COLORS}
-        assert labels <= known_labels, f"Unexpected semantic labels: {sorted(labels - known_labels)}."
+        assert labels == required_labels, f"Semantic labels differ: expected {required_labels}, got {labels}."
 
     instance = outputs.get(RenderBufferKind.INSTANCE_SEGMENTATION)
     if instance is None:

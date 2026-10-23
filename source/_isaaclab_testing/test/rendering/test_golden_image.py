@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import torch
-from golden_image import RTX_COLOR_PIXEL_L2_THRESHOLD, compare_to_golden
+from golden_image import compare_to_golden
 from PIL import Image
 from rendering_runner import validate_motion_vectors, validate_segmentation
 
@@ -59,30 +59,26 @@ def test_difference_fails_and_writes_artifacts(tmp_path: Path, monkeypatch: pyte
     assert comparison.golden_path is not None and comparison.golden_path.exists()
 
 
-def test_rtx_color_threshold_ignores_small_shifts_but_not_large_deltas(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_pixel_threshold_uses_rgb_distance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ISAACLAB_UPDATE_GOLDENS", raising=False)
     golden = tmp_path / "golden.png"
     _image((0, 0, 0)).save(golden)
 
     small_shift = compare_to_golden(
-        _image((15, 0, 0)),
+        _image((6, 6, 0)),
         golden,
         label="small-shift",
         artifact_dir=tmp_path / "artifacts",
         max_diff_pct=0.0,
         min_ssim=None,
-        pixel_l2_threshold=RTX_COLOR_PIXEL_L2_THRESHOLD,
     )
     large_delta = compare_to_golden(
-        _image((30, 0, 0)),
+        _image((6, 8, 1)),
         golden,
         label="large-delta",
         artifact_dir=tmp_path / "artifacts",
         max_diff_pct=0.0,
         min_ssim=None,
-        pixel_l2_threshold=RTX_COLOR_PIXEL_L2_THRESHOLD,
     )
 
     assert small_shift.passed and small_shift.diff_pct == 0.0

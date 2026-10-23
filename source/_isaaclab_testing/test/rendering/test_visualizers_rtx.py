@@ -190,9 +190,12 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, m
         streaming_view=False,
         backend=NewtonRTXBackendCfg(renderer_cfg=OVRTXRendererCfg(enable_shadows=True)),
     )
-    with build_rendering_scene(
-        cfg, "newton", renderer="ovrtx", data_types=("rgb",), visualizer_cfgs=[viewer_cfg]
-    ) as runtime:
+    cfg.camera.renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
+    with build_rendering_scene(cfg, "newton", data_types=("rgb",), visualizer_cfgs=[viewer_cfg]) as runtime:
+        robot = runtime.scene["robot"]
+        robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch)
+        robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch)
+        runtime.sim.forward()
         visualizer = runtime.sim.visualizers[0]
         assert visualizer.render_rgb_array().shape == (400, 400, 3)
         check_motion_and_pause(runtime, visualizer)
