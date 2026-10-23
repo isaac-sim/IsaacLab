@@ -1446,3 +1446,14 @@ def test_policy_ghosts_are_greyed_out_with_an_explanation_in_the_rtx_view(expand
         expanded,
         expanded,
     )
+
+
+def test_choosing_a_replay_view_before_an_animation_is_loaded_does_nothing():
+    visualizer = object.__new__(NewtonGLVisualizer)
+    visualizer._recording = SimpleNamespace(replay=SimpleNamespace(active=False))
+    visualizer._replay_saved = None
+    visualizer._replay_view = "only"
+
+    visualizer.set_replay_view("overlay")
+
+    assert visualizer._replay_view == "only"

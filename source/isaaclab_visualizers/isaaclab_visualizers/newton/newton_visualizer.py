@@ -1842,6 +1842,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 robots, and ``"side"`` offsets it beside the simulation. The last two resume the simulation.
         """
         player = self._recording.replay
+        if not player.active or self._replay_saved is None:
+            return  # No animation is loaded yet, so there is no simulation state to restore.
         self._replay_view = view
         self._viewer._paused_training = True if view == "only" else self._replay_saved["paused"]
         player.offset[:] = 0.0
