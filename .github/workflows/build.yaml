@@ -1236,12 +1236,17 @@ jobs:
         # Warm every supported rigid core environment on Newton. MJWarp
         # specializes kernels per model config, so a small representative task
         # set leaves most of the cache to be compiled again by each PR test
-        # shard. The multi-agent suite supplies Handover.
+        # shard. The multi-agent suite supplies Handover. Newton deterministic
+        # modes generate different kernels, which only the determinism suite
+        # compiles, and the contributed environments are not core tasks; uncached,
+        # both are the long poles of their PR jobs.
         include-files: >-
           test_environments_newton.py,
-          test_multi_agent_environments.py
+          test_multi_agent_environments.py,
+          test_environment_determinism.py,
+          test_contrib_environments_kitless.py
         # Keep this warmer focused on rigid environments.
-        test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
+        test-k-expr: "not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
