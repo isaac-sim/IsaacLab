@@ -177,6 +177,33 @@ def _execution_events_to_control(ee: ExecutionEvents) -> ControlEvents:
     return ControlEvents(is_active=is_active, should_reset=ee.reset)
 
 
+class _ControlKeyListener:
+    """Queues one visualizer window's key presses for :meth:`TeleopSessionLifecycle.drain_pressed_keys`.
+
+    Keeps that window's held keys, so key repeat is not a press and a focus loss on one window
+    leaves the others alone.
+    """
+
+    def __init__(self, pressed: list[int]) -> None:
+        self._pressed = pressed
+        self._held: set[int] = set()
+
+    def on_key(self, code: str, pressed: bool) -> None:
+        from isaacteleop.deviceio_trackers import evdev_code_from_w3c
+
+        evdev_code = evdev_code_from_w3c(code)
+        if evdev_code is None:
+            return
+        if not pressed:
+            self._held.discard(evdev_code)
+        elif evdev_code not in self._held:
+            self._held.add(evdev_code)
+            self._pressed.append(evdev_code)
+
+    def on_focus_lost(self) -> None:
+        self._held.clear()
+
+
 class TeleopSessionLifecycle:
     """Manages the Isaac Capture session lifecycle.
 
@@ -191,6 +218,7 @@ class TeleopSessionLifecycle:
     6. Building external inputs for pipeline leaf nodes (e.g. world-to-anchor transform)
     7. Stepping the session and extracting the flattened action tensor
     8. Managing the optional retargeting tuning UI
+    9. Feeding the pipeline's keyboards from the focused visualizer windows
     """
 
     WORLD_T_ANCHOR_INPUT_NAME = "world_T_anchor"
@@ -329,6 +357,13 @@ class TeleopSessionLifecycle:
         self._restart_holdoff_until = 0.0
         # Fallback for host-initiated resets when no control pipeline is configured
         self._pending_reset = False
+
+        # Keyboards: the visualizer windows feeding the pipeline's keyboards, and the operator's key
+        # presses, read straight from those windows so each press is consumed once whatever the
+        # retargeting mode.
+        self._keyboard_detachers: list[Callable[[], None]] = []
+        self._attached_visualizers: list[Any] = []
+        self._pressed_keys: list[int] = []
 
         # CloudXR runtime launcher (created in start if configured, stopped in stop)
         self._cloudxr_launcher: CloudXRLauncher | None = None
@@ -559,6 +594,8 @@ class TeleopSessionLifecycle:
         self._last_step_result = None
 
         self._pipeline = self._build_combined_pipeline(user_pipeline)
+        self._pressed_keys.clear()
+        self._attach_keyboards()
 
         # Build the optional haptic sink. It reuses the button-controller
         # tracker so no additional ControllersSource (and thus no duplicate
@@ -607,6 +644,9 @@ class TeleopSessionLifecycle:
             exc_val: Exception value.
             exc_tb: Exception traceback.
         """
+        self._detach_keyboards()
+        self._pressed_keys.clear()
+
         # Close the retargeting tuning UI first
         if self._retargeting_ui_ctx is not None:
             self._retargeting_ui_ctx.__exit__(exc_type, exc_val, exc_tb)
@@ -671,17 +711,82 @@ class TeleopSessionLifecycle:
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
         from isaacteleop.retargeting_engine.interface import OutputCombiner
 
+        # Forward every output the user pipeline declares, not just "action", so the
+        # device can read the others (e.g. the SpaceMouse buttons) from last_step_result.
+        pipeline_outputs: dict[str, Any] = {name: user_pipeline.output(name) for name in user_pipeline.output_types()}
+
         # Stored on self so start() can reuse this ControllersSource's tracker for
         # the haptic sink, avoiding a second controller action-set attachment.
         self._button_controllers = ControllersSource("_button_controllers")
-        pipeline_outputs: dict[str, Any] = {
-            "action": user_pipeline.output("action"),
-            self._CONTROLLER_RIGHT_KEY: self._button_controllers.output(ControllersSource.RIGHT),
-        }
+        pipeline_outputs[self._CONTROLLER_RIGHT_KEY] = self._button_controllers.output(ControllersSource.RIGHT)
         if self._enable_debug_visualization:
             pipeline_outputs[self._CONTROLLER_LEFT_KEY] = self._button_controllers.output(ControllersSource.LEFT)
             self._chain_hand_debug_outputs(user_pipeline, pipeline_outputs)
         return OutputCombiner(pipeline_outputs)
+
+    # ------------------------------------------------------------------
+    # Keyboards
+    # ------------------------------------------------------------------
+
+    def _attach_keyboards(self) -> None:
+        """Feed the pipeline's keyboards and the operator's key presses from the visualizer windows.
+
+        Called at start and, until a window is attached, on each step, since visualizer windows can
+        open after the session starts. While the pipeline has a keyboard, each visualizer's keyboard
+        camera movement is turned off.
+        """
+        if self._pipeline is None or self._is_replay:
+            return
+        try:
+            from isaaclab.sim import SimulationContext
+
+            sim = SimulationContext.instance()
+        except Exception:
+            return
+        if sim is None:
+            return
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource, find_sources
+
+        keyboards = find_sources(self._pipeline, KeyboardSource)
+        for visualizer in sim.visualizers:
+            # a visualizer without a window that reports keys has no source
+            source = visualizer.key_event_source
+            if source is None or any(visualizer is attached for attached in self._attached_visualizers):
+                continue
+            # attached even if this fails, so a failing window is not retried every step
+            self._attached_visualizers.append(visualizer)
+            try:
+                for keyboard in keyboards:
+                    self._keyboard_detachers.append(keyboard.attach(source, capture=False).close)
+                if keyboards:
+                    visualizer.set_camera_keys_enabled(False)
+                    self._keyboard_detachers.append(lambda v=visualizer: v.set_camera_keys_enabled(True))
+                listener = _ControlKeyListener(self._pressed_keys)
+                self._keyboard_detachers.append(source.add_key_listener(listener.on_key, listener.on_focus_lost).close)
+            except Exception as e:
+                logger.warning(f"Keyboard input from {type(visualizer).__name__} is unavailable: {e}")
+                continue
+            logger.info(f"Isaac Capture keyboard input from {type(visualizer).__name__}")
+
+    def _detach_keyboards(self) -> None:
+        """Detach every visualizer window, releasing held keys and restoring keyboard camera movement."""
+        detachers, self._keyboard_detachers = self._keyboard_detachers, []
+        for detach in detachers:
+            try:
+                detach()
+            except Exception as e:
+                logger.debug(f"Suppressed error detaching a visualizer keyboard: {e}")
+        self._attached_visualizers = []
+
+    def drain_pressed_keys(self) -> list[int]:
+        """Evdev codes of the keys pressed in the visualizer windows since the last call, in order.
+
+        Each press is returned once, whatever the retargeting execution mode; key repeat is not a
+        press. Presses from before the session started or stopped are dropped.
+        """
+        pressed = list(self._pressed_keys)
+        self._pressed_keys.clear()
+        return pressed
 
     @staticmethod
     def _chain_hand_debug_outputs(user_pipeline, pipeline_outputs: dict) -> None:
@@ -1195,6 +1300,10 @@ class TeleopSessionLifecycle:
                 return None
             if not self._try_start_session():
                 return None
+
+        # Visualizer windows can open after the session starts.
+        if not self._attached_visualizers:
+            self._attach_keyboards()
 
         # Build external inputs (e.g. world-to-anchor transform) if the
         # pipeline contains ValueInput leaf nodes.

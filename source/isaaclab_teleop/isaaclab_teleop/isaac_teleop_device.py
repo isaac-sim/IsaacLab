@@ -75,7 +75,10 @@ class IsaacTeleopDevice:
     Teleop commands:
         The device supports callbacks for START, STOP, and RESET commands
         that can be triggered via the message-channel control pipeline or
-        registered directly via :meth:`add_callback`.
+        registered directly via :meth:`add_callback`.  Without a headset, the
+        ``B`` / ``P`` / ``R`` keys typed into a visualizer window start, pause
+        and reset teleoperation, and a SpaceMouse pipeline's right button
+        resets it.
 
     Example:
         .. code-block:: python
@@ -170,6 +173,7 @@ class IsaacTeleopDevice:
         )
 
         self._prev_right_a_pressed = False
+        self._prev_spacemouse_right_pressed = False
         self._prev_control_is_active: bool | None = None
 
         # Each visualizer is created lazily on the first frame with matching
@@ -361,6 +365,7 @@ class IsaacTeleopDevice:
             if self._enable_debug_visualization:
                 self._update_debug_visualization()
 
+        self._handle_operator_input()
         self._dispatch_control_callbacks()
 
         return action
@@ -460,6 +465,36 @@ class IsaacTeleopDevice:
             if self._prev_control_is_active is not None and events.is_active != self._prev_control_is_active:
                 self._command_handler.fire("START" if events.is_active else "STOP")
             self._prev_control_is_active = events.is_active
+
+    # ------------------------------------------------------------------
+    # Operator keys and buttons
+    # ------------------------------------------------------------------
+
+    _START_KEY, _STOP_KEY, _RESET_KEY = 48, 25, 19  # evdev codes of B, P and R
+    _SPACEMOUSE_RIGHT_BUTTON = 1
+
+    def _handle_operator_input(self) -> None:
+        """Start, pause or reset on the operator's ``B`` / ``P`` / ``R`` keys and SpaceMouse right button.
+
+        An operator reset also pauses, so teleop resumes on ``B``. The keys come from the visualizer
+        windows, each press once whatever the retargeting mode.
+        """
+        for code in self._session_lifecycle.drain_pressed_keys():
+            if code == self._START_KEY:
+                self.request_start()
+            elif code == self._STOP_KEY:
+                self.request_stop()
+            elif code == self._RESET_KEY:
+                self.reset(pause=True)
+
+        result = self._session_lifecycle.last_step_result
+        buttons = None if result is None else result.get("spacemouse_buttons")
+        if buttons is None or buttons.is_none:
+            return
+        pressed = bool(buttons[0][self._SPACEMOUSE_RIGHT_BUTTON])
+        if pressed and not self._prev_spacemouse_right_pressed:
+            self.reset(pause=True)
+        self._prev_spacemouse_right_pressed = pressed
 
     # ------------------------------------------------------------------
     # Controller button polling (glue between session and anchor manager)
