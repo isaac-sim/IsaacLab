@@ -67,8 +67,9 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "mpm_particles": 8.0,
     # Starting allowances for splat renders, not measured needs: soft Gaussian edges and the
     # per-renderer sorting of overlapping splats differ more across GPUs than mesh silhouettes do.
-    "gaussian_splats_valiant_4envs": 8.0,
-    "gaussian_splats_endeavor_1env": 8.0,
+    "gaussian_splats_valiant_1env": 8.0,
+    "gaussian_splats_endeavor_4envs": 8.0,
+    "gaussian_splats_raspberry_4envs": 8.0,
 }
 
 # OVRTX 0.4.1 rendering fixes allow a tighter tolerance for data types that
@@ -107,8 +108,9 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
     # passing only on retry. 0.97 clears that spread while staying far above the 0.67 an
     # unrendered particle cloud produces, which is the regression this suite exists to catch.
     "mpm_particles": 0.97,
-    "gaussian_splats_valiant_4envs": 0.95,
-    "gaussian_splats_endeavor_1env": 0.95,
+    "gaussian_splats_valiant_1env": 0.95,
+    "gaussian_splats_endeavor_4envs": 0.95,
+    "gaussian_splats_raspberry_4envs": 0.95,
 }
 
 # Targeted tolerance overrides for renderer noise in otherwise equivalent CI frames.
@@ -122,15 +124,30 @@ _IMAGE_TOLERANCE_OVERRIDES = {
     # A cold first capture has reached 4.20% and 0.9542 SSIM before retrying at 0.24% and 0.9999 SSIM.
     ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgb"): (5.0, 0.95),
     ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgba"): (5.0, 0.95),
-    # Gaussian scenes on Isaac RTX: an environment built after another one in the same process differs from the
-    # first by a uniform, low-amplitude noise (median per-pixel L2 4.7, mean brightness equal to within 0.1) on
-    # these small splat renders. Measured up to 33 % differing pixels at 0.9400 SSIM (Valiant) and 20.9 % at
-    # 0.9226 SSIM (Endeavor), so keep the SSIM gate as the structural check and loosen only the pixel-count gate.
+    # Gaussian scenes on Isaac RTX: per-pixel speckle from stochastic splat transparency makes two renders of the
+    # same scene differ on 34 % (Valiant) and 41 % (Endeavor) of pixels at the default per-pixel L2 limit, but only
+    # on 5.3 % and 9.9 % at ``_PIXEL_L2_THRESHOLD_OVERRIDES``. The pixel-count gate then keeps about 2x headroom over
+    # those, and the SSIM gate (0.94 and 0.78 measured) is the structural check.
+    ("gaussian_splats_valiant_1env", "physx", "isaacsim_rtx_renderer", "rgb"): (12.0, 0.92),
+    ("gaussian_splats_endeavor_4envs", "physx", "isaacsim_rtx_renderer", "rgb"): (20.0, 0.70),
+    # Its depth is stochastic and speckled (see ``_GAUSSIAN_SPLATS_DATA_TYPES``); SSIM is not enforced on depth.
     **{
-        (scene, "physx", "isaacsim_rtx_renderer", data_type): (40.0, 0.92)
-        for scene in ("gaussian_splats_valiant_4envs", "gaussian_splats_endeavor_1env")
-        for data_type in ("rgb", "rgba")
+        (scene, "physx", "isaacsim_rtx_renderer", "distance_to_image_plane"): (60.0, 0.0)
+        for scene in ("gaussian_splats_valiant_1env", "gaussian_splats_endeavor_4envs")
     },
+}
+
+# Per-pixel L2 limit (see ``_PIXEL_L2_NORM_DIFFERENCE_THRESHOLD``) for cases whose renderer noise is low-amplitude but
+# touches most pixels. Same key as ``_IMAGE_TOLERANCE_OVERRIDES``.
+_PIXEL_L2_THRESHOLD_OVERRIDES = {
+    **{
+        (scene, "physx", "isaacsim_rtx_renderer", data_type): 30.0
+        for scene in ("gaussian_splats_valiant_1env", "gaussian_splats_endeavor_4envs")
+        for data_type in ("rgb", "distance_to_image_plane")
+    },
+    # OVRTX 0.5.1 renders Valiant slightly differently from run to run (13-19 % of pixels above the default limit,
+    # SSIM >= 0.976), but only 0.6 % above this one.
+    ("gaussian_splats_valiant_1env", "newton", "ovrtx_renderer", "rgb"): 30.0,
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
@@ -1222,6 +1239,7 @@ def _compare_images(
     max_different_pixels_percentage: float,
     check_ssim: bool = True,
     ssim_threshold: float = _SSIM_THRESHOLD,
+    pixel_diff_threshold: float = _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD,
 ) -> tuple[bool, str | None, float, float]:
     """Compare result and golden images against pixel and SSIM thresholds."""
     if result_image.size != golden_image.size:
@@ -1230,7 +1248,7 @@ def _compare_images(
     if result_image.mode != golden_image.mode:
         return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}.", 0.0, 0.0
 
-    diff_pct = _pixel_diff_percentage(result_image, golden_image)
+    diff_pct = _pixel_diff_percentage(result_image, golden_image, pixel_diff_threshold)
 
     result_tensor = torch.from_numpy(np.array(result_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
     golden_tensor = torch.from_numpy(np.array(golden_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
@@ -1264,8 +1282,13 @@ def validate_camera_outputs(
     camera_outputs: dict[str, ProxyArray],
     max_different_pixels_percentage: float | dict[str, float],
     comparison_scores: list[dict],
+    allow_empty_data_types: frozenset[str] = frozenset(),
 ) -> None:
-    """Validate correctness and consistency of camera outputs."""
+    """Validate correctness and consistency of camera outputs.
+
+    ``allow_empty_data_types`` lists data types whose output may be entirely zero or non-finite. They are still
+    compared against their golden image, which is then blank.
+    """
     assert len(camera_outputs) > 0, f"[{test_name}] No camera outputs produced by {physics_backend} + {renderer}."
 
     golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
@@ -1288,7 +1311,7 @@ def validate_camera_outputs(
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
         max_val = corrected.abs().max()
-        if max_val <= 0:
+        if max_val <= 0 and data_type not in allow_empty_data_types:
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
 
@@ -1331,6 +1354,9 @@ def validate_camera_outputs(
             pixel_threshold,
             check_ssim=check_ssim,
             ssim_threshold=data_ssim_threshold,
+            pixel_diff_threshold=_PIXEL_L2_THRESHOLD_OVERRIDES.get(
+                (test_name, physics_backend, renderer, data_type), _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD
+            ),
         )
 
         entry = {
@@ -2558,29 +2584,93 @@ _GAUSSIAN_SPLATS_VALIANT_CAMERA_REL_PATH = "rig_trajectories/sensor_rig_0/camera
 # Camera authored in the Endeavor entrance asset, relative to the referenced scene prim.
 _GAUSSIAN_SPLATS_ENDEAVOR_CAMERA_REL_PATH = "Cameras/C05_Entrance_Overview"
 
+# Raspberry viewpoints orbit the berry at a fixed radius and elevation, looking at its centre.
+_GAUSSIAN_SPLATS_RASPBERRY_TARGET = (0.0, 0.0, 0.01)
+_GAUSSIAN_SPLATS_RASPBERRY_ORBIT_RADIUS = 0.06
+_GAUSSIAN_SPLATS_RASPBERRY_ORBIT_ELEVATION_DEG = 30.0
+
+# Data types captured from every Gaussian scene.
+_GAUSSIAN_SPLATS_DATA_TYPES = ("rgb", "distance_to_image_plane")
+
+# Known-bad splat depth, kept so a fix shows up as a golden change:
+#
+# * OVRTX 0.6 returns no finite depth for splats in RealTimePathTracing: the synthetic-data depth pass only
+#   traces Gaussians when ``omni:rtx:minimal:mode`` is 3, so every ray misses and the golden is blank. Fixed in
+#   kit-public (OMPE-116439); expected in OVRTX 0.7, when the OVRTX depth goldens must be regenerated.
+# * Isaac RTX returns stochastic, speckled depth (the accumulated-depth settings have no effect), so its depth
+#   comparison uses a loose pixel tolerance.
+# * Newton Warp depth is smooth but inherits the camera FOV mismatch on Valiant.
+#
+# Known-bad raspberry on OVRTX 0.5.1 (OMPE-108417): a multi-camera render product drops ``zDepth``-sorted splats, so the
+# four-camera raspberry renders black. Its RGB golden is blank until the pin moves to OVRTX 0.6, which renders it;
+# regenerate then.
+_GAUSSIAN_SPLATS_EMPTY_DATA_TYPES_BY_RENDERER = {"ovrtx_renderer": frozenset({"distance_to_image_plane"})}
+_GAUSSIAN_SPLATS_EMPTY_DATA_TYPES_BY_SCENE_RENDERER = {
+    ("gaussian_splats_raspberry_4envs", "ovrtx_renderer"): frozenset({"rgb"}),
+}
+
 # Scene name -> asset path under ``ISAAC_NUCLEUS_DIR``, environment count, camera resolution, env spacing, the asset's
-# camera (relative to the referenced scene prim), whether it carries a PPISP, and where the viewpoints come from.
+# camera (relative to the referenced scene prim; ``None`` adds a pinhole camera instead), whether it carries a PPISP,
+# where the viewpoints come from, and the renderers it runs on.
+#
+# Which scene runs on which renderer follows from three limitations of the assets and renderers:
+#
+# * Raspberry animation (Isaac RTX): the raspberry authors two identical time samples on its splat arrays. While the
+#   Kit timeline advances, RTX re-reads that data whenever the time changes and returns empty frames in between, so
+#   the capture is black. Avoiding it needs a test-side timeline freeze, which we do not want, so the raspberry does
+#   not run on Isaac RTX. OVRTX has no timeline and the two samples are identical, so it renders correctly.
+# * Raspberry mesh (Newton Warp): the raspberry carries a physics-only ``SimulationMesh`` TetMesh (``purpose=guide``).
+#   Newton imports it as a soft body and its Warp raytracer draws every soft-body triangle, with no purpose or
+#   visibility check, so the mesh is drawn over the splats. The raspberry therefore does not run on Newton Warp.
+# * Scene partitioning (OVRTX): OVRTX authors ``showAllPartitionsByDefault`` on the stage, which keeps partitioned
+#   content in world space instead of the isolating per-partition grid (``ScenePartitioning.md`` in kit-public). Each
+#   camera is then separated from the other environments only by its partition's world-space bounding box, so
+#   Gaussian scenes whose bounds overlap across environments bleed into each other's views. The Valiant bounds span
+#   about 660 m and the Endeavor background about 3000 m, against environment spacings of tens of meters, so neither
+#   runs on OVRTX across several environments. Valiant runs with one environment there, and the compact raspberry
+#   (a few centimeters) runs with several. Isaac RTX and Newton Warp isolate environments structurally and are not
+#   affected.
 _GAUSSIAN_SPLATS_SCENES = {
-    "gaussian_splats_valiant_4envs": {
+    "gaussian_splats_valiant_1env": {
         "asset": "Samples/Scene_ParticleField/valiant_auto.usdz",
-        "num_envs": 4,
+        "num_envs": 1,
         "width": 128,
         "height": 96,
         "env_spacing": 20.0,
         "camera": _GAUSSIAN_SPLATS_VALIANT_CAMERA_REL_PATH,
         "isp": True,
         "viewpoints": "valiant",
+        "renderers": ("isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"),
     },
-    "gaussian_splats_endeavor_1env": {
+    "gaussian_splats_endeavor_4envs": {
         "asset": "IsaacLab/Environments/NuRec/endeavor_entrance.usd",
-        "num_envs": 1,
+        "num_envs": 4,
         "width": 192,
         "height": 108,
-        "env_spacing": 1.0,
+        "env_spacing": 50.0,
         "camera": _GAUSSIAN_SPLATS_ENDEAVOR_CAMERA_REL_PATH,
         "isp": False,
         "viewpoints": "asset",
+        "renderers": ("isaacsim_rtx_renderer", "newton_renderer"),
     },
+    "gaussian_splats_raspberry_4envs": {
+        "asset": "IsaacLab/Objects/Berries/raspberry.usdz",
+        "num_envs": 4,
+        "width": 128,
+        "height": 128,
+        "env_spacing": 1.0,
+        "camera": None,
+        "isp": False,
+        "viewpoints": "orbit",
+        "renderers": ("ovrtx_renderer",),
+    },
+}
+
+# Physics label of each renderer: Isaac RTX pairs with PhysX, the others with Newton.
+_GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER = {
+    "isaacsim_rtx_renderer": "physx",
+    "newton_renderer": "newton",
+    "ovrtx_renderer": "newton",
 }
 
 # Frames rendered before the capture so renderer-side splat sorting, stage streaming and exposure settle.
@@ -2590,15 +2680,14 @@ _GAUSSIAN_SPLATS_WARMUP_STEPS = 200
 GAUSSIAN_SPLATS_KIT_RENDERING_PARAMS = [
     pytest.param(
         scene,
-        "physx",
-        "isaacsim_rtx_renderer",
-        id=f"{scene}-physx-isaacsim_rtx",
-        marks=_FLAKY_MARK,
+        _GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER[renderer],
+        renderer,
+        id=f"{scene}-{_GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER[renderer]}-{renderer.removesuffix('_renderer')}",
+        marks=_FLAKY_MARK if renderer == "isaacsim_rtx_renderer" else (),
     )
-    for scene in _GAUSSIAN_SPLATS_SCENES
-] + [
-    pytest.param(scene, "newton", "newton_renderer", id=f"{scene}-newton-newton_warp")
-    for scene in _GAUSSIAN_SPLATS_SCENES
+    for scene, config in _GAUSSIAN_SPLATS_SCENES.items()
+    for renderer in config["renderers"]
+    if renderer != "ovrtx_renderer"
 ]
 
 GAUSSIAN_SPLATS_KITLESS_RENDERING_PARAMS = [
@@ -2610,30 +2699,47 @@ GAUSSIAN_SPLATS_KITLESS_RENDERING_PARAMS = [
         id=f"{variant}-{scene}-newton-ovrtx",
         marks=_FLAKY_MARK,
     )
-    for scene in _GAUSSIAN_SPLATS_SCENES
+    for scene, config in _GAUSSIAN_SPLATS_SCENES.items()
+    if "ovrtx_renderer" in config["renderers"]
     for variant in _KITLESS_STAGE_VARIANTS
 ]
 """Kit-less OVRTX parameters, one per OVRTX stage variant."""
 
 
 def _gaussian_splats_viewpoints(scene: dict[str, Any], env_origins: torch.Tensor) -> dict[str, torch.Tensor]:
-    """Return per-environment world-space camera poses for the Valiant scene.
+    """Return per-environment world-space camera poses for a Gaussian test scene with generated viewpoints.
 
     Args:
-        scene: Entry of :data:`_GAUSSIAN_SPLATS_SCENES` whose ``viewpoints`` is ``"valiant"``.
+        scene: Entry of :data:`_GAUSSIAN_SPLATS_SCENES` whose ``viewpoints`` is ``"valiant"`` or ``"orbit"``.
         env_origins: Environment origins in the world frame. Shape is (num_envs, 3).
 
     Returns:
-        Keyword arguments for ``Camera.set_world_poses``.
+        Keyword arguments for ``Camera.set_world_poses`` (Valiant) or ``Camera.set_world_poses_from_view`` (orbit).
     """
+    import math
+
     num_envs = scene["num_envs"]
-    # Spread the rig poses over the environments so each one sees a different part of the capture path.
-    rows = [
-        _GAUSSIAN_SPLATS_VALIANT_VIEWPOINTS[i * len(_GAUSSIAN_SPLATS_VALIANT_VIEWPOINTS) // num_envs]
-        for i in range(num_envs)
-    ]
-    poses = torch.tensor(rows, dtype=torch.float32, device=env_origins.device)
-    return {"positions": poses[:, :3] + env_origins, "orientations": poses[:, 3:]}
+    if scene["viewpoints"] == "valiant":
+        # Spread the rig poses over the environments so each one sees a different part of the capture path.
+        rows = [
+            _GAUSSIAN_SPLATS_VALIANT_VIEWPOINTS[i * len(_GAUSSIAN_SPLATS_VALIANT_VIEWPOINTS) // num_envs]
+            for i in range(num_envs)
+        ]
+        poses = torch.tensor(rows, dtype=torch.float32, device=env_origins.device)
+        return {"positions": poses[:, :3] + env_origins, "orientations": poses[:, 3:]}
+
+    target = torch.tensor(_GAUSSIAN_SPLATS_RASPBERRY_TARGET, dtype=torch.float32, device=env_origins.device)
+    elevation = math.radians(_GAUSSIAN_SPLATS_RASPBERRY_ORBIT_ELEVATION_DEG)
+    eyes = []
+    for i in range(num_envs):
+        azimuth = 2.0 * math.pi * i / num_envs
+        offset = _GAUSSIAN_SPLATS_RASPBERRY_ORBIT_RADIUS * torch.tensor(
+            [math.cos(elevation) * math.cos(azimuth), math.cos(elevation) * math.sin(azimuth), math.sin(elevation)],
+            dtype=torch.float32,
+            device=env_origins.device,
+        )
+        eyes.append(target + offset)
+    return {"eyes": torch.stack(eyes) + env_origins, "targets": target.expand(num_envs, 3) + env_origins}
 
 
 def _freeze_gaussian_splats_valiant_rig(stage: Any, num_envs: int) -> None:
@@ -2692,17 +2798,30 @@ def _make_gaussian_splats_env(scene: dict[str, Any], renderer: str, physics_back
         newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
         default: PhysxCfg = PhysxCfg()
 
-    # The camera authored in the asset; ``AUTO_CAMERA`` reads its ``ppisp:*`` attributes when it has any.
-    camera_cfg = CameraCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/Scene/{scene['camera']}",
-        update_period=0.0,
-        width=scene["width"],
-        height=scene["height"],
-        data_types=["rgb"],
-        spawn=None,
-        isp_cfg=CameraISPMode.AUTO_CAMERA if scene["isp"] else None,
-        renderer_cfg=MultiBackendRendererCfg(),
-    )
+    if scene["camera"] is not None:
+        # The camera authored in the asset; ``AUTO_CAMERA`` reads its ``ppisp:*`` attributes when it has any.
+        camera_cfg = CameraCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Scene/{scene['camera']}",
+            update_period=0.0,
+            width=scene["width"],
+            height=scene["height"],
+            data_types=list(_GAUSSIAN_SPLATS_DATA_TYPES),
+            spawn=None,
+            isp_cfg=CameraISPMode.AUTO_CAMERA if scene["isp"] else None,
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
+    else:
+        camera_cfg = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Camera",
+            update_period=0.0,
+            width=scene["width"],
+            height=scene["height"],
+            data_types=list(_GAUSSIAN_SPLATS_DATA_TYPES),
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, horizontal_aperture=20.955, clipping_range=(0.01, 1000.0)
+            ),
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
 
     @configclass
     class _GaussianSplatsSceneCfg(InteractiveSceneCfg):
@@ -2773,10 +2892,10 @@ def rendering_test_gaussian_splats(
     renderer: str,
     comparison_scores: list[dict],
 ) -> None:
-    """Golden-image RGB coverage for 3D Gaussian (ParticleField) scenes with default renderer settings.
+    """Golden-image RGB and depth coverage for 3D Gaussian (ParticleField) scenes with default renderer settings.
 
     Builds a task-less environment that references the Gaussian asset under each environment, adds one camera per
-    environment with its own viewpoint, and compares the RGB tiles against the goldens.
+    environment with its own viewpoint, and compares the RGB and depth tiles against the goldens.
 
     Args:
         scene_name: Key of :data:`_GAUSSIAN_SPLATS_SCENES`; also the golden image directory.
@@ -2793,35 +2912,38 @@ def rendering_test_gaussian_splats(
         camera = env.scene["camera"]
 
         if scene["viewpoints"] == "valiant":
-            viewpoints = _gaussian_splats_viewpoints(scene, env.scene.env_origins)
-            camera.set_world_poses(**viewpoints, convention="opengl")
+            camera.set_world_poses(**_gaussian_splats_viewpoints(scene, env.scene.env_origins), convention="opengl")
+        elif scene["viewpoints"] == "orbit":
+            camera.set_world_poses_from_view(**_gaussian_splats_viewpoints(scene, env.scene.env_origins))
 
         zero_actions = torch.zeros(env.num_envs, 1, device=env.device)
         for _ in range(_GAUSSIAN_SPLATS_WARMUP_STEPS):
             env.step(zero_actions)
-        camera_outputs = camera.data.output
+        # ``rgba`` is not captured: it is the same render plus an opaque alpha channel.
+        camera_outputs = {data_type: camera.data.output[data_type] for data_type in _GAUSSIAN_SPLATS_DATA_TYPES}
         if renderer == "ovrtx_renderer":
             # The first output access creates the selected OVRTX render-variable mapping. Give
             # it a few frames to compile and populate instead of validating its zeroed buffer.
             for _ in range(10):
-                # Judge the colour channels only: an RGBA buffer already has a non-zero alpha before it is populated.
-                if all(
-                    torch.count_nonzero((output if isinstance(output, torch.Tensor) else output.torch)[..., :3]).item()
-                    > 0
-                    for output in camera_outputs.values()
-                ):
+                rgb = camera_outputs["rgb"]
+                if torch.count_nonzero(rgb if isinstance(rgb, torch.Tensor) else rgb.torch).item() > 0:
                     break
                 env.sim.render()
                 env.scene.update(dt=env.physics_dt)
-                camera_outputs = camera.data.output
+                camera_outputs = {data_type: camera.data.output[data_type] for data_type in _GAUSSIAN_SPLATS_DATA_TYPES}
 
         validate_camera_outputs(
             scene_name,
             physics_backend,
             renderer,
             camera_outputs,
-            max_different_pixels_percentage=_max_different_pixels_percentage(scene_name, renderer, "rgb"),
+            max_different_pixels_percentage={
+                data_type: _max_different_pixels_percentage(scene_name, renderer, data_type)
+                for data_type in _GAUSSIAN_SPLATS_DATA_TYPES
+            },
             comparison_scores=comparison_scores,
+            allow_empty_data_types=_GAUSSIAN_SPLATS_EMPTY_DATA_TYPES_BY_RENDERER.get(renderer, frozenset())
+            | _GAUSSIAN_SPLATS_EMPTY_DATA_TYPES_BY_SCENE_RENDERER.get((scene_name, renderer), frozenset()),
         )
     finally:
         if env is not None:
