@@ -56,14 +56,22 @@ the extras on the same wheel requirement.
 
 Until the coordinated OV provider upgrade lands, a local premerge selection
 also needs the following entries in the existing `tool.uv.override-dependencies`
-list, preserving its other entries. These are consuming-checkout settings;
-do not change the repository's default provider pins or commit these overrides:
+list, preserving its other entries. These overrides and the workspace edit
+below are temporary consuming-checkout settings. Do not commit them; the default
+provider pins in these PRs remain unchanged pending the coordinated upgrade:
 
 ```toml
 "ovphysx==0.7.0.74035321",
 "ovrtx==0.6.0.1791947691",
 "ovstage==0.3.0.1791986420",
 ```
+
+Before locking or synchronizing, also change `ovstage==0.2.1.385922` to
+`ovstage==0.3.0.1791986420` in `[project].dependencies` in your local
+`source/isaaclab_ov/pyproject.toml`. A root override controls resolution but does
+not rewrite the workspace package's installed `Requires-Dist`. Refresh the
+editable installation with the scoped reinstall command below so `uv pip check`
+sees the matching declaration. Keep this local dependency edit out of commits.
 
 The project selects NumPy `>=2.3,<2.4`, the compatible range for the selected
 Numba and cmeel-boost dependencies. Keep this range when adding local overrides.
@@ -72,6 +80,7 @@ Resolve the selected environment and check its dependencies:
 
 ```bash
 uv lock --refresh-package isaaccapture --upgrade-package isaaccapture --upgrade-package packaging==23.2
+uv sync --locked --extra ovxr --reinstall-package isaaclab-ov
 uv run --extra ovxr python -c 'import importlib.metadata as m; print(m.version("isaaccapture"), m.version("ovxr"))'
 uv pip check
 ```
