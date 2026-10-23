@@ -16,4 +16,5 @@
 * Moved the G1 mesh-terrain preset into the G1 terrain configuration module.
 * Removed the rough G1 actuator-path override, using the current default shared across physics backends.
   The configured implicit actuators retain their solver-owned drives.
-* Read G1 sole geometry and reference torques from the asset, reusing configured actuator stiffnesses.
+* Read G1 sole geometry and reference torques from the asset during environment initialization,
+  reusing configured actuator stiffnesses without loading USD while constructing configurations.

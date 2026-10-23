@@ -10,8 +10,10 @@ height scan and the base linear velocity, and a student that replaces both with 
 depth camera and is distilled from the teacher in the teacher's own environment.
 """
 
+from __future__ import annotations
+
 import math
-from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 import torch
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
@@ -42,6 +44,9 @@ from ...velocity_env_cfg import (
     RewardsCfg,
 )
 from .terrains import G1_ROUGH_TERRAINS_CFG
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedRLEnv
 
 DEPTH_WIDTH = 64
 DEPTH_HEIGHT = 38
@@ -153,8 +158,9 @@ class G1Rewards(RewardsCfg):
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
-            "sole_size": MISSING,
-            "sole_offset": MISSING,
+            # Filled from the robot asset by the prestartup event before rewards are loaded.
+            "sole_size": None,
+            "sole_offset": None,
         },
     )
 
@@ -202,9 +208,29 @@ def get_action_parameters(robot_cfg: ArticulationCfg) -> tuple[dict[str, float],
     return action_scale, sole_size, sole_offset
 
 
+def configure_asset_parameters(env: ManagerBasedRLEnv, env_ids: torch.Tensor | None) -> None:
+    """Resolve action scales and sole geometry before action and reward managers are built.
+
+    Args:
+        env: Environment whose robot asset supplies authored drives and sole geometry.
+        env_ids: Unused; these parameters are shared by all environments.
+    """
+    action_scale, sole_size, sole_offset = get_action_parameters(env.cfg.scene.robot)
+    if env.cfg.actions.joint_pos.scale is None:
+        env.cfg.actions.joint_pos.scale = action_scale
+    reward = env.cfg.rewards.feet_support_edge
+    if reward is not None:
+        if reward.params["sole_size"] is None:
+            reward.params["sole_size"] = sole_size
+        if reward.params["sole_offset"] is None:
+            reward.params["sole_offset"] = sole_offset
+
+
 @configclass
 class G1EventsCfg(velocity_env_cfg.EventsCfg):
     """G1 startup and reset events."""
+
+    asset_parameters: EventTerm | None = None
 
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
@@ -462,10 +488,13 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     seed = 42
     scene: G1SceneCfg = G1SceneCfg(num_envs=4096, env_spacing=2.5)
     rewards: G1Rewards = G1Rewards()
-    events: G1EventsCfg = G1EventsCfg()
+    events: G1EventsCfg = G1EventsCfg(asset_parameters=EventTerm(func=configure_asset_parameters, mode="prestartup"))
     curriculum: G1CurriculumCfg = G1CurriculumCfg()
     terminations: G1TerminationsCfg = G1TerminationsCfg()
     observations: G1ObservationsCfg = G1ObservationsCfg()
+    actions: velocity_env_cfg.ActionsCfg = velocity_env_cfg.ActionsCfg()
+    # Resolve the default from the asset at prestartup, retaining explicit config overrides.
+    actions.joint_pos.scale = None
     sim = SimulationCfg(physics=velocity_env_cfg.RoughPhysicsCfg())
     sim.physics.newton_mjwarp.solver_cfg.njmax = 300
     commands = velocity_env_cfg.CommandsCfg()
@@ -474,11 +503,6 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
     commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
     commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.actions.joint_pos.scale, sole_size, sole_offset = get_action_parameters(self.scene.robot)
-        self.rewards.feet_support_edge.params.update(sole_size=sole_size, sole_offset=sole_offset)
 
 
 @configclass

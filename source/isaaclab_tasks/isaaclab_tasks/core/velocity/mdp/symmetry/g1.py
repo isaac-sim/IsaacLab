@@ -3,6 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Sagittal reflection of G1 joint actions and configured proprioceptive observations.
+
+Joint names, limits, and the default pose determine the reflection map. Height scans use
+the G1 terrain scanner's 11-by-17 grid; history terms retain their frame ordering.
+"""
 
 from __future__ import annotations
 
@@ -174,7 +179,24 @@ def _mirror_group(env: ManagerBasedRLEnv, group: str, obs: torch.Tensor) -> torc
 @torch.no_grad()
 def compute_symmetric_states(
     env: ManagerBasedRLEnv, obs: TensorDict | None = None, actions: torch.Tensor | None = None
-):
+) -> tuple[TensorDict | None, torch.Tensor | None]:
+    """Append sagittally reflected samples to an observation or action batch.
+
+    Args:
+        env: G1 environment, optionally wrapped, providing joint and observation layouts.
+        obs: Observation groups shaped ``(batch, features)``, or ``None``. Groups must
+            contain supported proprioceptive or height-scan terms, rather than depth images.
+        actions: Joint-position actions shaped ``(batch, joints)``, or ``None``.
+
+    Returns:
+        Augmented observations and actions with original samples first and reflected samples
+        second. Each supplied batch doubles in size; omitted inputs remain ``None``.
+        Inputs are not modified.
+
+    Raises:
+        ValueError: If an observation layout or action joint selection cannot be reflected.
+        RuntimeError: If joint limits or the default pose disagree with the reflection map.
+    """
     unwrapped = env.unwrapped
     if obs is not None:
         batch = obs.batch_size[0]
