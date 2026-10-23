@@ -810,7 +810,9 @@ simulation runs slowly) can be missed; press again if the gripper or reset does 
 
 The ``B`` / ``P`` / ``R`` start/pause/reset keys work with every pipeline, including XR, SpaceMouse
 and Gamepad ones: :class:`~isaaclab_teleop.IsaacTeleopDevice` reads them straight from the focused
-visualizer window, so each press fires once whatever the retargeting mode.
+visualizer window, so each press fires once whatever the retargeting mode. Script hotkeys, such as the
+``N`` / ``B`` / ``S`` keys of ``annotate_demos.py`` and ``replay_demos.py``, are read from the visualizer
+windows the same way (see :func:`~isaaclab_teleop.script_input.add_key_callbacks`).
 
 The device button layouts below apply to all environments in this section. Per-environment
 differences (gripper enabled/disabled, sensitivity) are noted in the environment table that
