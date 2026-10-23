@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Spacemouse device for SE(2) and SE(3) control."""
+"""Spacemouse device for SE(2) and SE(3) control.
+
+.. deprecated::
+    Use :func:`isaaclab_teleop.se2_spacemouse_teleop_cfg` / :func:`isaaclab_teleop.se3_spacemouse_teleop_cfg`, which run
+    the device in process through Isaac Capture. Imports from this package keep working;
+    the device constructors emit a :class:`DeprecationWarning`.
+"""
 
 from ...utils.module import lazy_export
 
