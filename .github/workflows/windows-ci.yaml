@@ -74,8 +74,9 @@ jobs:
       run:
         shell: powershell
     env:
-      # TEMP (revert before review): PR 5700 saves so the restore path can be measured.
-      WARP_CACHE_MODE: save
+      # Same policy as the Linux test jobs: pull requests only restore, so they never publish
+      # kernels built from unmerged code; pushes to protected branches also save.
+      WARP_CACHE_MODE: ${{ github.event_name == 'push' && 'save' || 'restore' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -90,15 +91,6 @@ jobs:
       # reused runner keeps the installed packages and their compiled bytecode between jobs.
       - name: Locate environment
         run: '"UV_PROJECT_ENVIRONMENT=$env:RUNNER_TOOL_CACHE\isaaclab-windows-ci" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
-
-      # TEMP (revert before review): attempts 1 and 2 measure a fresh instance (cold, then
-      # restoring), attempt 3 a reused one.
-      - name: Simulate a fresh instance (TEMP)
-        if: github.run_attempt != '3'
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/simulate_fresh.ps1
-
-      - name: Runner cache state before (TEMP)
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/cache_state.ps1 before
 
       - name: Sync environment
         id: sync
@@ -190,206 +182,10 @@ jobs:
           path: ${{ steps.warp-cache-key.outputs.host-dir }}
           key: ${{ steps.warp-cache-key.outputs.key }}
 
-      - name: Runner cache state after (TEMP)
-        if: always()
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/cache_state.ps1 after
-
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: windows-ci-reports
-          path: tests/
-          retention-days: 7
-
-  # TEMP (revert before review): time Cartpole camera training for every physics x renderer combination,
-  # one leg at a time: seed (fresh instance, publishes the caches), fresh (fresh instance restoring
-  # them) and warm (the instance the fresh leg left behind).
-  windows-cartpole-combos:
-    name: windows-cartpole-combos ${{ matrix.phase }} (TEMP)
-    needs: [changes, windows-ci]
-    if: ${{ !cancelled() && needs.changes.outputs.should_run == 'true' && github.run_attempt == '1' }}
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        phase: [seed, fresh, warm]
-    runs-on: [self-hosted, gpu-windows]
-    timeout-minutes: 150
-    defaults:
-      run:
-        shell: powershell
-    env:
-      OMNI_KIT_ACCEPT_EULA: "yes"
-      PHASE: ${{ matrix.phase }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
-        with:
-          version: "0.12.9"
-
-      - name: Locate environment
-        run: '"UV_PROJECT_ENVIRONMENT=$env:RUNNER_TOOL_CACHE\isaaclab-windows-combos" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
-
-      - name: Simulate a fresh instance
-        if: matrix.phase != 'warm'
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/simulate_fresh.ps1
-
-      - name: Runner cache state before
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/cache_state.ps1 before
-
-      - name: Sync environment
-        timeout-minutes: 40
-        run: uv sync --frozen --extra test --extra isaacsim --extra ov
-
-      # Keys as in windows-ci and .github/actions/ovrtx-shader-cache/key.sh, with the installed Isaac Sim
-      # and ovrtx versions standing in for the image tag and the CI pin. kit/ replaces Kit's default
-      # driver shader cache directory with a junction, as the Linux jobs bind-mount over it.
-      - name: Resolve cache keys
-        id: keys
-        run: |
-          $suffix = "$env:GITHUB_SHA-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:PHASE"
-          $versions = uv run --frozen --no-sync python .github/actions/warp-cache-key/collection_id.py
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          $warp = "warp-v2-$env:RUNNER_OS-$env:RUNNER_ARCH-$versions"
-
-          $driver = (nvidia-smi --query-gpu=driver_version --format=csv,noheader | Select-Object -First 1).Trim()
-          $arch = (nvidia-smi --query-gpu=compute_cap --format=csv,noheader | Select-Object -First 1).Trim().Replace('.', '')
-          if (-not $driver -or -not $arch) { "::error::nvidia-smi reported no driver version or compute capability"; exit 1 }
-          $isaacsim, $ovrtx = (uv run --frozen --no-sync python -c "from importlib.metadata import version; print(version('isaacsim'), version('ovrtx'))") -split ' '
-          $base = "v1-$env:RUNNER_OS-$env:RUNNER_ARCH-sm$arch-drv$($driver -replace '[^A-Za-z0-9._-]', '_')"
-          $kit = "ovrtx-kit-$base-isaacsim$($isaacsim -replace '[^A-Za-z0-9._-]', '_')"
-          $kitless = "ovrtx-kitless-$base-ovrtx$($ovrtx -replace '[^A-Za-z0-9._-]', '_')"
-
-          $warpDir = "$env:RUNNER_TEMP\isaaclab-warp-cache"
-          $kitDir = "$env:RUNNER_TEMP\isaaclab-ovrtx-shader-cache\kit"
-          $kitlessDir = "$env:RUNNER_TEMP\isaaclab-ovrtx-shader-cache\kitless"
-          New-Item -ItemType Directory -Force $warpDir, $kitDir, $kitlessDir | Out-Null
-
-          $kitRoot = "$env:UV_PROJECT_ENVIRONMENT\Lib\site-packages\isaacsim\kit"
-          if (-not (Test-Path $kitRoot)) { "::error::Kit not found at $kitRoot"; exit 1 }
-          New-Item -ItemType Directory -Force "$kitRoot\cache" | Out-Null
-          $link = "$kitRoot\cache\nv_shadercache"
-          # cmd sees a dangling junction that Test-Path does not, and rmdir removes one without following it.
-          cmd /c "if exist $link rmdir /s /q $link"
-          New-Item -ItemType Junction -Path $link -Target $kitDir | Out-Null
-
-          @(
-            "warp-collection=$warp", "warp-key=$warp-$suffix", "warp-restore-keys=$warp-", "warp-dir=$warpDir"
-            "kit-collection=$kit", "kit-key=$kit-$suffix", "kit-restore-keys=$kit-", "kit-dir=$kitDir"
-            "kitless-collection=$kitless", "kitless-key=$kitless-$suffix", "kitless-restore-keys=$kitless-", "kitless-dir=$kitlessDir"
-          ) | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          @(
-            "WARP_CACHE_PATH=$warpDir"
-            "OVRTX_SHADER_CACHE_PATH=$kitlessDir"
-            "OVRTX_KIT_SHADER_CACHE_PATH=$link"
-          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "warp: $warp"; "kit: $kit"; "kitless: $kitless"
-
-      - name: Restore Warp kernel cache
-        id: restore-warp
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.keys.outputs.warp-dir }}
-          key: ${{ steps.keys.outputs.warp-key }}
-          restore-keys: ${{ steps.keys.outputs.warp-restore-keys }}
-
-      - name: Restore OVRTX kit shader cache
-        id: restore-kit
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.keys.outputs.kit-dir }}
-          key: ${{ steps.keys.outputs.kit-key }}
-          restore-keys: ${{ steps.keys.outputs.kit-restore-keys }}
-
-      - name: Restore OVRTX kitless shader cache
-        id: restore-kitless
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.keys.outputs.kitless-dir }}
-          key: ${{ steps.keys.outputs.kitless-key }}
-          restore-keys: ${{ steps.keys.outputs.kitless-restore-keys }}
-
-      - name: Report restored caches
-        id: before
-        env:
-          WARP_HIT: ${{ steps.restore-warp.outputs.cache-matched-key }}
-          KIT_HIT: ${{ steps.restore-kit.outputs.cache-matched-key }}
-          KITLESS_HIT: ${{ steps.restore-kitless.outputs.cache-matched-key }}
-          WARP_DIR: ${{ steps.keys.outputs.warp-dir }}
-          KIT_DIR: ${{ steps.keys.outputs.kit-dir }}
-          KITLESS_DIR: ${{ steps.keys.outputs.kitless-dir }}
-        run: |
-          foreach ($tree in 'warp', 'kit', 'kitless') {
-            $hit = [Environment]::GetEnvironmentVariable("$($tree.ToUpper())_HIT")
-            $dir = [Environment]::GetEnvironmentVariable("$($tree.ToUpper())_DIR")
-            if ($hit) { "$tree cache hit: $hit" } else { "::warning::$tree cache miss" }
-            $fingerprint = uv run --frozen --no-sync python .github/actions/run-package-tests/warp_cache_inventory.py $dir --fingerprint
-            "$tree-fingerprint=$fingerprint" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
-          uv run --frozen --no-sync python tools/verify_warp_cache.py
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          uv run --frozen --no-sync python tools/verify_ovrtx_shader_cache.py
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-
-      - name: Train every combination
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/cartpole_combos.ps1
-
-      - name: Report cache growth
-        id: growth
-        if: ${{ !cancelled() && steps.before.outcome == 'success' }}
-        env:
-          WARP_BEFORE: ${{ steps.before.outputs.warp-fingerprint }}
-          KIT_BEFORE: ${{ steps.before.outputs.kit-fingerprint }}
-          KITLESS_BEFORE: ${{ steps.before.outputs.kitless-fingerprint }}
-          WARP_DIR: ${{ steps.keys.outputs.warp-dir }}
-          KIT_DIR: ${{ steps.keys.outputs.kit-dir }}
-          KITLESS_DIR: ${{ steps.keys.outputs.kitless-dir }}
-        run: |
-          foreach ($tree in 'warp', 'kit', 'kitless') {
-            $before = [Environment]::GetEnvironmentVariable("$($tree.ToUpper())_BEFORE")
-            $dir = [Environment]::GetEnvironmentVariable("$($tree.ToUpper())_DIR")
-            $changed = 'false'
-            if (Get-ChildItem -Recurse -File $dir | Select-Object -First 1) {
-              $after = uv run --frozen --no-sync python .github/actions/run-package-tests/warp_cache_inventory.py $dir --fingerprint
-              if ($after -ne $before) { $changed = 'true' }
-            }
-            $mb = [int]((Get-ChildItem -Recurse -File $dir | Measure-Object Length -Sum).Sum / 1MB)
-            "$tree cache: $mb MB, changed=$changed"
-            "$tree-changed=$changed" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
-
-      - name: Save Warp kernel cache
-        if: ${{ !cancelled() && steps.growth.outputs.warp-changed == 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ steps.keys.outputs.warp-dir }}
-          key: ${{ steps.keys.outputs.warp-key }}
-
-      - name: Save OVRTX kit shader cache
-        if: ${{ !cancelled() && steps.growth.outputs.kit-changed == 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ steps.keys.outputs.kit-dir }}
-          key: ${{ steps.keys.outputs.kit-key }}
-
-      - name: Save OVRTX kitless shader cache
-        if: ${{ !cancelled() && steps.growth.outputs.kitless-changed == 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ steps.keys.outputs.kitless-dir }}
-          key: ${{ steps.keys.outputs.kitless-key }}
-
-      - name: Runner cache state after
-        if: always()
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/cache_state.ps1 after
-
-      - name: Upload logs
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: windows-cartpole-combos-${{ matrix.phase }}
           path: tests/
           retention-days: 7
