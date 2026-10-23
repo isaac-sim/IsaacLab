@@ -253,12 +253,6 @@ class ConveyorTransferCommand(CommandTerm):
             raise IndexError("Conveyor command environment indices are out of range.")
         return ids
 
-    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
-        raise NotImplementedError("Conveyor commands are visualized by the Newton goal selector.")
-
-    def _debug_vis_callback(self, event) -> None:
-        raise NotImplementedError("Conveyor commands are visualized by the Newton goal selector.")
-
 
 @configclass
 class ConveyorTransferCommandCfg(CommandTermCfg):

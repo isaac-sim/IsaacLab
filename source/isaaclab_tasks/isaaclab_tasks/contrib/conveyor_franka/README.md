@@ -8,7 +8,7 @@ with 120 Hz physics and a 0.35 m/s belt speed.
 
 Newton traction uses the upstream `ConveyorForceModel`, including its MuJoCo contact
 reporting. `isaaclab_contrib.conveyors.newton` adapts replicated surfaces, parcel selection,
-controls, and reset lifecycle; the task owns its geometry, commands, and reset recipes.
+configured belt speeds, and reset lifecycle; the task owns its geometry, commands, and reset recipes.
 
 ## Run
 
