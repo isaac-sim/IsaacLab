@@ -16,7 +16,8 @@ from isaaclab.utils.configclass import configclass
 
 from .commands import ConveyorTransferCommand, ConveyorTransferCommandCfg
 from .cube_state import cube_values
-from .rewards import physical_cube_acquisition_mask
+from .kinematics import end_effector_pose
+from .reset_events import CUBE_REST_Z
 
 if TYPE_CHECKING:
     from ..conveyor_franka_warehouse_env import ConveyorFrankaWarehouseEnv
@@ -66,15 +67,27 @@ class ConveyorSortCommand(ConveyorTransferCommand):
         self.held_cube_ids[env_ids] = -1
         self.pending_success[env_ids] = False
 
+    def _physical_cube_acquisition_mask(self, active_position_w: torch.Tensor) -> torch.Tensor:
+        """Pin a lifted, closed-gripper parcel near the tool while the arm transfers it."""
+        tool_position, _ = end_effector_pose(self._env)
+        finger_positions = self._robot.data.joint_pos.torch[:, self._finger_joint_ids]
+        local_cube_z = active_position_w[:, 2] - self._env.scene.env_origins[:, 2]
+        return (
+            (local_cube_z >= CUBE_REST_Z + 0.025)
+            & (torch.linalg.vector_norm(active_position_w - tool_position, dim=1) <= 0.075)
+            & (torch.amax(finger_positions, dim=1) <= 0.030)
+        )
+
     def _update_command(self) -> None:
         """Publish slot assignments before the manager computes the next policy observation."""
         env = self._env
         pool = env.conveyor_cube_pool
-        positions = cube_values(env, "root_pos_w", all_cubes=True) - env.scene.env_origins[:, None]
+        positions_w = cube_values(env, "root_pos_w", all_cubes=True)
+        positions = positions_w - env.scene.env_origins[:, None]
         local = env._in_workcell(positions)
         rows = torch.arange(self.num_envs, device=self.device)
         physical_target = pool.slot_ids[rows, self.target_cube_ids]
-        held = physical_cube_acquisition_mask(env, command=self) & self.has_target
+        held = self._physical_cube_acquisition_mask(positions_w[rows, physical_target]) & self.has_target
         self.has_target &= ~self.pending_success & (local[rows, physical_target] | held)
         self.pending_success.zero_()
         wrong_lane = (positions[..., 1] < 0).long() != self.parcel_destinations

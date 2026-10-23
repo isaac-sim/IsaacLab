@@ -29,7 +29,7 @@ from . import mdp
 from .conveyor_franka_env_cfg import (
     ConveyorFrankaEnvCfg,
     ConveyorFrankaSceneCfg,
-    _hidden_collision_geometry,
+    _conveyor_asset,
     _spawn_shape_with_display_color,
 )
 from .conveyor_geometry import (
@@ -70,7 +70,6 @@ _THOR_TABLE_SCALE = _WORKSPACE_ELEVATION / -_THOR_TABLE_LOWEST_Z
 
 
 _PHYSICS_SCHEMA_PREFIXES = ("Physics", "Physx", "Newton", "Mujoco")
-_PHYSICS_SCHEMA_NAMES = frozenset(("IsaacConveyorAPI",))
 _PRESENTATION_ASSETS = Path(__file__).parent / "assets"
 
 
@@ -178,17 +177,11 @@ class _ParcelCuboidCfg(sim_utils.CuboidCfg):
 
 def _is_physics_schema(schema_name: str) -> bool:
     """Return whether an applied schema can add physics ownership to a visual asset."""
-    return schema_name in _PHYSICS_SCHEMA_NAMES or schema_name.startswith(_PHYSICS_SCHEMA_PREFIXES)
+    return schema_name == "IsaacConveyorAPI" or schema_name.startswith(_PHYSICS_SCHEMA_PREFIXES)
 
 
 def _make_usd_subtree_visual_only(root_prim) -> None:
-    """Author a render-only override for a referenced USD subtree.
-
-    The source asset remains untouched. All edits are stronger opinions in the
-    task stage and fail closed if a physics schema cannot be removed.
-    """
-    # Import USD only when a stage exists. Besides respecting Kit startup
-    # ordering, this keeps import-light task discovery kitless.
+    """Remove physics ownership with stage overrides, preserving the source asset."""
     from pxr import Sdf, Usd, UsdPhysics
 
     children = tuple(Usd.PrimRange(root_prim, Usd.TraverseInstanceProxies()))
@@ -201,13 +194,13 @@ def _make_usd_subtree_visual_only(root_prim) -> None:
 
     with Sdf.ChangeBlock():
         for child in children:
-            if child.GetTypeName().startswith("OmniGraph") or child.IsA(UsdPhysics.Scene):
-                child.SetActive(False)
-
-        for child in children:
             if not child.IsValid() or not child.IsActive():
                 continue
-            if child.IsA(UsdPhysics.Joint):
+            if (
+                child.GetTypeName().startswith("OmniGraph")
+                or child.IsA(UsdPhysics.Scene)
+                or child.IsA(UsdPhysics.Joint)
+            ):
                 child.SetActive(False)
                 continue
             for schema_name in tuple(child.GetAppliedSchemas()):
@@ -235,22 +228,9 @@ def _spawn_visual_only_usd(
     """Spawn a USD asset and strip its authored physics metadata."""
     prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
 
-    # Presentation assets may contain nested dynamic props (the packing table,
-    # for example, carries an authored container rigid body). Merely disabling
-    # collision still exposes those bodies and joints to a backend parser.
-    # Author local API deletions so the entire referenced hierarchy is a pure
-    # render layer and cannot alter either Newton's model or PhysX's scene.
+    # Nested rigid bodies and joints must also stay outside the physics model.
     _make_usd_subtree_visual_only(prim)
     return prim
-
-
-@configclass
-class _VisualOnlyUsdFileCfg(sim_utils.UsdFileCfg):
-    """USD reference whose composed subtree is guaranteed to remain render-only."""
-
-    func: Callable = _spawn_visual_only_usd
-    # Recursive schema overrides cannot be authored on USD instance proxies.
-    make_uninstanceable: bool = True
 
 
 @configclass
@@ -270,19 +250,13 @@ def _visual_usd_asset(
     position: tuple[float, float, float],
     scale: tuple[float, float, float],
     rotation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
+    spawn_func: Callable = _spawn_authored_visual,
 ) -> AssetBaseCfg:
     """Build one visual asset whose authored colliders are explicitly disabled."""
-    spawn = _VisualOnlyUsdFileCfg(
-        usd_path=usd_path,
-        scale=scale,
-    )
     return AssetBaseCfg(
         prim_path=prim_path,
         init_state=AssetBaseCfg.InitialStateCfg(pos=position, rot=rotation),
-        # Physics remains owned by the task's lightweight, hidden belt and rail
-        # proxies. The spawn callback strips authored physics metadata to keep
-        # the visual geometry entirely non-authoritative.
-        spawn=spawn,
+        spawn=sim_utils.UsdFileCfg(func=spawn_func, usd_path=usd_path, scale=scale, make_uninstanceable=True),
     )
 
 
@@ -294,17 +268,12 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
         """Dress the workcell and extend its returns around the fixed manipulation sections."""
         super().__post_init__()
 
-        # Raise every inherited env-scoped task component as one rigid
-        # workspace. The environment reports the same offset as its origin, so
-        # observations, resets, rewards, and the pretrained policy retain their
-        # original local coordinates.
+        # Matching asset and environment-origin offsets preserve the policy's local coordinates.
         for asset in vars(self).values():
             if isinstance(asset, AssetBaseCfg) and asset.prim_path.startswith("{ENV_REGEX_NS}/"):
                 x, y, z = asset.init_state.pos
                 asset.init_state.pos = (x, y, z + _WORKSPACE_ELEVATION)
 
-        # The ground is global rather than env-scoped and remains at the USD
-        # convention's default elevation.
         self.ground = _ElevatedGroundPlaneCfg(
             prim_path="/World/GroundPlane",
             terrain_type="plane",
@@ -316,14 +285,13 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
         right_x = BELT_CENTER_X + BELT_HALF_STRAIGHT
         straight_scale = (_A09_X_SCALE, _ASSET_XY_SCALE, _ASSET_Z_SCALE)
 
-        # The Franka is fixed at the elevated workspace origin and does not need
-        # support collision. Replace the temporary plinth with the purpose-built
-        # Thor table: its mount stays at the robot base and its feet land on z=0.
+        # The visual table supports the fixed robot base and reaches the ground.
         self.tabletop = _visual_usd_asset(
             prim_path="{ENV_REGEX_NS}/RobotThorTableVisual",
             usd_path=_THOR_TABLE_ASSET_PATH,
             position=(0.0, 0.0, _WORKSPACE_ELEVATION),
             scale=(_THOR_TABLE_SCALE,) * 3,
+            spawn_func=_spawn_visual_only_usd,
         )
         self.table_pedestal = None
 
@@ -331,12 +299,10 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
             side_key = side.lower()
             center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
 
-            # The Digital Twin pieces already render their belt, frame, and
-            # guides, so remove only the procedural render geometry. Hidden
-            # belt and guide collision assets created above stay authoritative.
+            # Authored modules replace the procedural visuals; task colliders remain authoritative.
             setattr(self, f"conveyor_{side_key}_belt_visual", None)
-            setattr(self, f"guard_{side_key}_inner_visual", None)
-            setattr(self, f"guard_{side_key}_outer_visual", None)
+            for boundary in ("inner", "outer"):
+                setattr(self, f"guard_{side_key}_{boundary}", None)
 
             run = "bottom" if side == "Left" else "top"
             y_position = center_y + (-BELT_TURN_RADIUS if side == "Left" else BELT_TURN_RADIUS)
@@ -350,7 +316,6 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
                     scale=straight_scale,
                 ),
             )
-            getattr(self, f"conveyor_{side_key}_{run}_a09_visual").spawn.func = _spawn_authored_visual
 
         self.warehouse_visual = _visual_usd_asset(
             prim_path="{ENV_REGEX_NS}/WarehouseVisual",
@@ -358,7 +323,6 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
             position=(0.0, 0.0, 0.0),
             scale=(1.0, 1.0, 1.0),
         )
-        self.warehouse_visual.spawn.func = _spawn_authored_visual
         for cube_id in range(4):
             cube = getattr(self, f"cube_{cube_id}")
             cube.spawn = _ParcelCuboidCfg(**vars(cube.spawn))
@@ -383,14 +347,12 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
             for key in ("top_straight", "bottom_straight", "right_turn", "left_turn"):
                 setattr(self, f"conveyor_{side.lower()}_{key}_collision", None)
             for index, section in enumerate(warehouse_belt_sections(side)):
-                asset = _hidden_collision_geometry(section.belt.prim_path, section.geometry, 1.1e-5, 1)
+                asset = _conveyor_asset(section.belt.prim_path, section.geometry)
                 x, y, z = asset.init_state.pos
                 asset.init_state.pos = (x, y, z + _WORKSPACE_ELEVATION)
                 setattr(self, f"warehouse_{side.lower()}_section_{index}", asset)
-            for boundary in ("inner", "outer"):
-                setattr(self, f"guard_{side.lower()}_{boundary}_collision", None)
             for guard in warehouse_guard_meshes(side):
-                asset = _hidden_collision_geometry(f"{{ENV_REGEX_NS}}/{guard.name}Collision", guard, 1.1e-5, 1)
+                asset = _conveyor_asset(f"{{ENV_REGEX_NS}}/{guard.name}Collision", guard)
                 asset.init_state.pos = (0.0, 0.0, _WORKSPACE_ELEVATION)
                 setattr(self, f"warehouse_{guard.name}_collision", asset)
 

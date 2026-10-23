@@ -276,29 +276,21 @@ def test_sorter_dispatch_inventory_and_selected_resets():
         assert pool.slot_ids[0, 0] == 0
         assert command.metrics["sorted_parcels"].tolist() == [3, 1]
         torch.testing.assert_close(pool.assets[5].data.root_pos_w.torch[0] - env.scene.env_origins[0], positions[0, 5])
-        # Move the assigned parcel into a real closed-gripper grasp, even outside the pickup lane.
+        # Carry the assigned parcel above the workcell; a remote held target must retain its slot.
         robot = env.scene["robot"]
         fingers, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
         joints = robot.data.joint_pos.torch.clone()
         joints[:, fingers] = 0.019
         robot.write_joint_position_to_sim_index(position=joints)
         arms, _ = robot.find_joints("panda_joint[1-7]", preserve_order=True)
-        lift = next(
-            r
-            for r in build_reset_rows()
-            if r.recipe == ConveyorResetRecipe.LIFT
-            and r.variant_id == 3
-            and r.target_cube_id == 0
-            and r.source_side_id == 0
-        )
-        joints[:, arms] = torch.tensor(lift.arm_positions)
+        joints[:, arms] = robot.data.default_joint_pos.torch[:, arms]
         robot.write_joint_position_to_sim_index(position=joints)
         env.sim.forward()
         env.scene.update(env.step_dt)
         tool, _ = end_effector_pose(env)
         positions[0, 5] = tool[0] - env.scene.env_origins[0]
         _place(env, positions)
-        assert mdp.physical_cube_acquisition_mask(env)[0]
+        assert positions[0, 5, 2] > 0.4
         command._update_command()
         assert pool.slot_ids[0, slot] == 5 and command.has_target[0]
         positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])
