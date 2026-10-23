@@ -420,6 +420,15 @@
         }
     };
 
+    const updateVisualizerControls = () => {
+        const kitOption = fields.visualizer.querySelector('option[value="kit"]');
+        kitOption.disabled = fields.physics.value === "ovphysx" || fields.renderer.value === "ovrtx";
+        kitOption.title = kitOption.disabled ? "Kit cannot share a process with OVPhysX or OVRTX" : "";
+        if (kitOption.disabled && fields.visualizer.value === "kit") {
+            fields.visualizer.value = "";
+        }
+    };
+
     const selectorValues = () => Object.fromEntries(selectors.map((selector) => [selector, fields[selector].value]));
 
     // Tasks without selectors carry no run list; their only command is the default one.
@@ -480,7 +489,11 @@
                 extras.push("ovrtx");
             }
         }
-        if (fields.physics.value === "isaacsim_physx" || fields.renderer.value === "isaacsim_rtx") {
+        if (
+            fields.physics.value === "isaacsim_physx"
+            || fields.renderer.value === "isaacsim_rtx"
+            || fields.visualizer.value === "kit"
+        ) {
             extras.push("isaacsim");
         }
         if (rlLibraryExtras[fields.rl.value]) {
@@ -511,6 +524,9 @@
         }
         if (supportsRl && fields.checkpoint.checked) {
             parts.push("--checkpoint", "pretrained");
+        }
+        if (fields.visualizer.value) {
+            parts.push("--viz", fields.visualizer.value);
         }
         return parts.join(" ");
     };
@@ -582,6 +598,7 @@
         fields.task.value = state.task;
         updateTaskControls();
         updateModeControls();
+        updateVisualizerControls();
         updateCommand();
         updatePreview();
         for (const card of taskList.querySelectorAll(".environment-task-card")) {
@@ -979,9 +996,10 @@
     for (const selector of selectors) {
         fields[selector].addEventListener("change", () => settleSelectors(selector));
     }
-    for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint]) {
+    for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint, fields.visualizer]) {
         field.addEventListener("change", () => {
             updateModeControls();
+            updateVisualizerControls();
             updateCommand();
             updatePreview();
         });
@@ -998,6 +1016,7 @@
                 modeButton.setAttribute("aria-pressed", String(isActive));
             }
             updateModeControls();
+            updateVisualizerControls();
             updateCommand();
             updatePreview();
         });
@@ -1035,6 +1054,7 @@
             modeButton.classList.toggle("is-active", isActive);
             modeButton.setAttribute("aria-pressed", String(isActive));
         }
+        updateVisualizerControls();
         updateCommand();
         updatePreview();
     });
