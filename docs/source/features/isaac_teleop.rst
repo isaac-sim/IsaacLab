@@ -303,7 +303,8 @@ interchangeable, and :func:`~isaaclab_teleop.poll_control_events` stays authorit
    A clientless CloudXR runtime advertises no HMD, so the standalone OpenXR session needs a device
    profile that reports a system without a connected client. The scripts default ``--cloudxr_env``
    to :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` when ``--xr`` is omitted (and to ``cloudxrjs``
-   when it is passed); see :ref:`isaac-teleop-cloudxr-profiles`.
+   when it is passed); see :ref:`isaac-teleop-cloudxr-profiles`. Keyboard, gamepad and SpaceMouse
+   sessions use the same standalone profile (see :ref:`isaac-teleop-keyboard`).
 
 .. _isaac-teleop-so101-leader-example:
 
@@ -748,13 +749,56 @@ These environments use the Isaac Capture XR pipeline with motion controllers or 
    ideal for tasks that need a gripper or simple hand mapping. **Hand tracking** captures 26
    wrist and finger joints per hand, required for dexterous retargeting to complex robot hands.
 
-Keyboard and SpaceMouse Environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _isaac-teleop-keyboard:
+
+Keyboard, SpaceMouse, and Gamepad Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. note::
 
-   Keyboard and SpaceMouse teleoperation uses the legacy native Isaac Lab teleop stack
-   (``isaaclab.devices``), not Isaac Capture. These environments do not require an XR headset.
+   Keyboard, SpaceMouse, and Gamepad teleoperation run through Isaac Capture like every other
+   input device, driven by a keyboard, spacemouse, or gamepad
+   :class:`~isaaclab_teleop.IsaacTeleopDevice` pipeline instead of an XR headset -- see
+   :func:`~isaaclab_teleop.se3_keyboard_teleop_cfg`, :func:`~isaaclab_teleop.se3_spacemouse_teleop_cfg`,
+   and :func:`~isaaclab_teleop.se3_gamepad_teleop_cfg`. These environments do not require an XR
+   headset. An environment's ``teleop_devices`` entries (:class:`~isaaclab.devices.Se3KeyboardCfg`,
+   ...) run through the equivalent pipeline too. Without the ``isaacteleop`` package, the scripts
+   fall back to the :mod:`isaaclab.devices` keyboard, gamepad and SpaceMouse devices.
+
+**Keyboard input and window focus.** The keyboard runs inside the Isaac Lab process and reads the
+keys typed into whichever visualizer window has focus, like any desktop app: click the window and
+type. It needs no ``input`` group membership, ignores keys typed into other apps, and releases
+held keys when the window loses focus. Like every Isaac Capture session, a keyboard session opens an
+OpenXR session: without ``--xr`` the scripts launch a CloudXR runtime with the standalone profile
+(see :ref:`isaac-teleop-standalone`), so no headset is needed.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Visualizer
+     - Keyboard input
+   * - ``--viz kit``
+     - Keys typed into the Kit window, including keys typed into Kit's own UI (e.g. a text field).
+   * - ``--viz newton_gl`` / ``--viz newton_rtx``
+     - Keys typed into the Newton viewer window, except keys typed into its UI. While a keyboard
+       pipeline runs, the viewer's WASD/QE and arrow-key camera movement is turned off; the mouse
+       still moves the camera.
+   * - ``--viz viser`` / ``--viz rerun`` / ``--viz none``
+     - None.
+
+**SpaceMouse and Gamepad.** Both are read by an Isaac Capture plugin that their configs start
+with the session, so they also run headset-free from a single command. The ``gamepad`` plugin
+reads the first connected joystick (``/dev/input/jsN``), which udev lets the logged-in user read
+without the ``input`` group. The ``spacemouse`` plugin reads the SpaceMouse's HID device
+(``/dev/hidrawN``), which needs a udev rule (see
+:ref:`SpaceMouse permissions <isaac-teleop-spacemouse-permissions>`). Their buttons are sampled
+once per frame, so a very quick tap (pressed and released within one frame, more likely when the
+simulation runs slowly) can be missed; press again if the gripper or reset does not respond.
+
+The ``B`` / ``P`` / ``R`` start/pause/reset keys work with every pipeline, including XR, SpaceMouse
+and Gamepad ones: :class:`~isaaclab_teleop.IsaacTeleopDevice` reads them straight from the focused
+visualizer window, so each press fires once whatever the retargeting mode.
 
 The device button layouts below apply to all environments in this section. Per-environment
 differences (gripper enabled/disabled, sensitivity) are noted in the environment table that
@@ -790,9 +834,15 @@ follows.
    * - Gripper toggle
      - ``K``
      - Open / close gripper or suction (disabled in Reach envs).
+   * - Start/resume teleoperation
+     - ``B``
+     - Resume after a pause.
+   * - Pause teleoperation
+     - ``P``
+     - Pause without resetting.
    * - Reset
-     - ``L``
-     - Clear accumulated delta pose and gripper state.
+     - ``R``
+     - Reset the environment.
 
 **SpaceMouse**
 
@@ -814,7 +864,7 @@ follows.
      - Open / close gripper or suction (disabled in Reach envs).
    * - Reset
      - Right button
-     - Clear accumulated delta pose and gripper state.
+     - Reset the environment.
 
 **Gamepad** (Reach environments only)
 
@@ -838,7 +888,7 @@ follows.
      - Right stick (left/right)
      - Rotate about Z axis.
    * - Gripper toggle
-     - X button
+     - West button (X on Xbox, Square on PlayStation)
      - Open / close gripper (disabled in Reach envs).
 
 .. list-table::
@@ -1171,7 +1221,8 @@ times spike. This favors lower latency over CloudXR's pose-wait smoothing.
 :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` is the default when running **without** ``--xr``
 (see :ref:`isaac-teleop-standalone`). It pins an emulated ``quest3`` device profile so a CloudXR
 runtime with no client still advertises an OpenXR system, working around
-``XR_ERROR_FORM_FACTOR_UNAVAILABLE``.
+``XR_ERROR_FORM_FACTOR_UNAVAILABLE``. Keyboard, gamepad and SpaceMouse sessions without ``--xr``
+use it too.
 
 Override at launch time
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -1683,9 +1734,9 @@ the registered task ID, but not the command-line selector values:
        --dataset_file ./datasets/dataset.hdf5 \
        physics=isaacsim_physx presets=diffik
 
-Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
-(e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
-the input device:
+Some environments declare their input devices in ``teleop_devices`` instead of ``isaac_teleop``
+(e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select the
+input device; keyboard and spacemouse run through Isaac Capture when ``isaacteleop`` is installed:
 
 .. tab-set::
 
@@ -1701,11 +1752,11 @@ the input device:
 The workflow is:
 
 #. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`)
-   or ``teleop_devices`` for legacy devices (keyboard, spacemouse).
+   or ``teleop_devices`` for keyboard and spacemouse.
 #. Run ``record_demos.py`` with the task name and any ``physics=``, ``renderer=``, or ``presets=``
    selectors required by the task.
 #. For XR tasks: start AR, connect your XR device, and teleoperate.
-   For legacy tasks: use the configured input device directly.
+   For keyboard/spacemouse: use the input device directly.
 #. Demonstrations are recorded to HDF5 files.
 #. Use the recorded data with Isaac Lab Mimic or other imitation learning frameworks.
 

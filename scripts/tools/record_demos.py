@@ -20,8 +20,10 @@ required arguments:
 
 optional arguments:
     -h, --help                Show this help message and exit
-    --teleop_device           Legacy teleop device name. When omitted, Isaac Capture is used if
-                              configured, otherwise keyboard. When set, forces the legacy path.
+    --teleop_device           Teleop device name: an env teleop_devices entry, or keyboard /
+                              spacemouse. When omitted, Isaac Capture is used if configured,
+                              otherwise keyboard. Keyboard and spacemouse run through Isaac Capture
+                              when isaacteleop is installed, else through isaaclab.devices.
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
     --num_demos               Number of demonstrations to record. (default: 0)
@@ -62,9 +64,10 @@ parser.add_argument(
     type=str,
     default=None,
     help=(
-        "Legacy teleop device name. When omitted, the Isaac Capture pipeline is used if configured in the env,"
-        " otherwise keyboard is used as fallback. When explicitly provided, the script uses the legacy"
-        " teleop_devices path and looks up this name in env_cfg.teleop_devices.devices."
+        "Teleop device name: an entry of env_cfg.teleop_devices.devices, or a built-in device (keyboard,"
+        " spacemouse). When omitted, the Isaac Capture pipeline is used if configured in the env, otherwise"
+        " keyboard. Keyboard and spacemouse run through Isaac Capture when the isaacteleop package is installed,"
+        " and through the isaaclab.devices devices otherwise."
     ),
 )
 parser.add_argument(
@@ -173,7 +176,7 @@ import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
 
-from isaaclab.devices import Se3KeyboardCfg, Se3SpaceMouseCfg
+from isaaclab.devices import DeviceCfg, Se3KeyboardCfg, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -293,12 +296,14 @@ def create_environment_config(
         logger.error(f"Failed to parse environment configuration: {e}")
         exit(1)
 
-    # When --teleop_device is explicitly provided, use the legacy teleop_devices path
-    # even if isaac_teleop is configured. Otherwise prefer isaac_teleop when available.
-    teleop_device_explicitly_set = args_cli.teleop_device is not None
-    use_isaac_teleop = (
-        not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
-    )
+    from isaaclab_teleop.device_selection import select_isaac_teleop_cfg
+
+    # Isaac Capture serves the request when it can: the env's isaac_teleop pipeline, or the
+    # keyboard or spacemouse it names. Otherwise the isaaclab.devices device does.
+    isaac_teleop_cfg = select_isaac_teleop_cfg(env_cfg, args_cli.teleop_device, _builtin_device_cfgs(), args_cli.device)
+    use_isaac_teleop = isaac_teleop_cfg is not None
+    if use_isaac_teleop:
+        env_cfg.isaac_teleop = isaac_teleop_cfg
 
     # Extract the success condition for manual evaluation in the main loop. Keep
     # an inert term registered under the same name so rewards and other manager
@@ -348,6 +353,14 @@ def create_environment_config(
     return env_cfg, success_term, use_isaac_teleop
 
 
+def _builtin_device_cfgs() -> dict[str, DeviceCfg]:
+    """The built-in devices, by ``--teleop_device`` name, for names the environment does not declare."""
+    return {
+        "keyboard": Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
+        "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
+    }
+
+
 def setup_teleop_device(
     env_cfg: ManagerBasedRLEnvCfg, callbacks: dict[str, Callable], use_isaac_teleop: bool = False
 ) -> object:
@@ -393,11 +406,8 @@ def setup_teleop_device(
                 )
             else:
                 device_name = "keyboard" if args_cli.teleop_device is None else args_cli.teleop_device.lower()
-                device_cfgs = {
-                    "keyboard": Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
-                    "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
-                }
-                if device_name not in device_cfgs:
+                device_cfg = _builtin_device_cfgs().get(device_name)
+                if device_cfg is None:
                     logger.error(
                         f"--teleop_device={args_cli.teleop_device} was passed but no matching entry exists in"
                         " env_cfg.teleop_devices and it is not a built-in device name. Either remove"
@@ -406,7 +416,7 @@ def setup_teleop_device(
                         " Built-in devices: keyboard, spacemouse."
                     )
                     exit(1)
-                teleop_interface = instantiate(device_cfgs[device_name])
+                teleop_interface = instantiate(device_cfg)
                 for key, callback in callbacks.items():
                     teleop_interface.add_callback(key, callback)
     except Exception as e:
@@ -588,18 +598,9 @@ def run_simulation_loop(  # noqa: C901
 
         haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env.cfg)
 
-    # Retain the keyboard so its input subscription lives for the whole session.
-    if use_isaac_teleop and env.sim.has_gui and not env.sim.get_setting("/isaaclab/xr/auto_start"):
-        try:
-            control_keyboard = instantiate(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
-            control_keyboard.add_callback("B", teleop_interface.request_start)
-            control_keyboard.add_callback("P", teleop_interface.request_stop)
-            # Inject a reset pulse; the loop owns the environment reset.
-            control_keyboard.add_callback("R", lambda: teleop_interface.reset(pause=True))
-            print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
-        except Exception as e:
-            logger.warning(f"Control keyboard unavailable ({e}); recording still auto-starts without --xr")
-            control_keyboard = None
+    if use_isaac_teleop:
+        # the device reads these from the focused visualizer window
+        print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
