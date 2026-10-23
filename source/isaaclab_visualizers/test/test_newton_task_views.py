@@ -86,11 +86,21 @@ def test_views_are_numbered_only_when_several_share_a_name():
     ]
 
 
-def test_scene_cameras_keep_their_sensor_name():
-    sensor = _View("/World/wrist_camera", camera=object())
+def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern():
+    sensor = _View("/World/envs/env_[^/]+/Robot/wrist_camera", camera=object())
     viz = _visualizer([_view(PerspectiveCameraCfg()), sensor])
 
-    assert viz._view_labels([0, 1]) == ["Perspective", "/World/wrist_camera"]
+    assert viz._view_labels([0, 1]) == ["Perspective", "wrist_camera (sensor)"]
+
+
+def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_sensors():
+    sensor = _View("/World/envs/env_[^/]+/Camera", camera=object())
+    tracking, free = _view(PerspectiveCameraCfg(env_index=0)), _view(PerspectiveCameraCfg())
+    viz = _visualizer([sensor, tracking, free])
+
+    order = sorted(range(3), key=lambda i: viz._source_rank(viz._image_views[i]))
+
+    assert order == [2, 1, 0]
 
 
 def test_a_task_view_moves_the_viewer_camera_to_the_followed_environment():

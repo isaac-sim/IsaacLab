@@ -801,6 +801,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._tracking_defaults: dict[object, dict] = {}
         """What the task declared for each task view, for Reset to Task Default."""
         self._tracking_error = ""
+        self._sensor_tiles: dict[object, tuple[int, ...]] = {}
+        """Environments each multi-environment scene camera tiles, by image view."""
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -889,7 +891,10 @@ class NewtonVisualizerBase(BaseVisualizer):
             if imgui.is_item_hovered():
                 imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without visual overlays")
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
-        indices = [i for i in range(len(self._image_views)) if i != rtx_index]
+        indices = sorted(
+            (i for i in range(len(self._image_views)) if i != rtx_index),
+            key=lambda i: self._source_rank(self._image_views[i]),
+        )
         labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
         if current == rtx_index:  # RTX renders the free perspective source.
@@ -903,6 +908,40 @@ class NewtonVisualizerBase(BaseVisualizer):
         follower = self._followers.get(self.current_image_view)
         if follower is not None:
             self._draw_tracking_camera_controls(imgui, follower)
+        elif self.current_image_view in self._sensor_tiles:
+            self._draw_sensor_controls(imgui, self.current_image_view)
+
+    def _source_rank(self, view) -> int:
+        """Order the Camera Source list: the free Perspective, then Tracking Cameras, then scene sensors."""
+        if view.camera is not None:
+            return 2
+        return 1 if self._is_task_view(view) else 0
+
+    def _draw_sensor_controls(self, imgui, view) -> None:
+        """Choose which environment's sensor image is shown, or tile several environments."""
+        camera = view.camera
+        tiles = self._sensor_tiles[view]
+        tiled = tuple(view.cfg.envs) == tiles
+        imgui.separator_text("Camera Sensor")
+        if tiled:
+            imgui.begin_disabled()
+        env = view.cfg.envs[0] if view.cfg.envs else 0
+        changed, new_env = imgui.input_int("Environment", env)
+        hover_tooltip(imgui, "Environment whose camera is shown")
+        if tiled:
+            imgui.end_disabled()
+        if changed and 0 <= new_env < camera.num_instances:
+            view.cfg.envs = (new_env,)
+            self._invalidate_sensor_view(view)
+        changed, tiled = imgui.checkbox("Tile Environments", tiled)
+        hover_tooltip(imgui, f"Show {len(tiles)} environments side by side instead of one")
+        if changed:
+            view.cfg.envs = tiles if tiled else (env,)
+            self._invalidate_sensor_view(view)
+
+    def _invalidate_sensor_view(self, view) -> None:
+        view.invalidate()
+        self._last_render_step = -1
 
     def _draw_tracking_camera_controls(self, imgui, follower: CameraFollower) -> None:
         """Edit the selected Tracking Camera: what it follows, where it sits, and where it looks."""
@@ -994,7 +1033,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         labels = []
         for view in views:
             if view.camera is not None:
-                labels.append(view.cfg.source)
+                labels.append(self._sensor_label(view.cfg.source))
             elif self._is_task_view(view):
                 labels.append(
                     "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
@@ -1002,6 +1041,11 @@ class NewtonVisualizerBase(BaseVisualizer):
             else:
                 labels.append("Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}")
         return labels
+
+    @staticmethod
+    def _sensor_label(prim_path: str) -> str:
+        """Name a scene camera by its own prim name, without the per-environment path pattern."""
+        return f"{prim_path.rstrip('/').rsplit('/', 1)[-1]} (sensor)"
 
     @staticmethod
     def _is_task_view(view) -> bool:
@@ -1141,6 +1185,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._pending_mesh_submissions.clear()
         self._followers.clear()
         self._tracking_defaults.clear()
+        self._sensor_tiles.clear()
         for view in self._image_views:
             if view.render == self._capture_frame:
                 view.render = None
@@ -1339,6 +1384,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                     "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
                     "env": follower.env,
                 }
+        for view in self._image_views:
+            camera = view.camera
+            if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
+                # One environment at a time, switchable from the HUD; the tiled layout stays one click away.
+                self._sensor_tiles[view] = tuple(view.cfg.envs)
+                view.cfg.envs = (0 if 0 in view.cfg.envs else view.cfg.envs[0],)
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
@@ -1431,6 +1482,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self.backend.geometry_offsets:
             provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)
         return state
+
+    def _rtx_view(self):
+        """The OVRTX viewer camera's image view, or None when the scene has none."""
+        index = self.rtx_view_index
+        return None if index is None else self._image_views[index]
 
     @property
     def rtx_view_index(self) -> int | None:
