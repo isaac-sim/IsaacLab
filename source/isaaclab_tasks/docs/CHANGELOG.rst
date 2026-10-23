@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+29.0.1 (2026-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept the coffee demo's kitchen presentation out of the Newton physics model.
+
+
 29.0.0 (2026-10-21)
 ~~~~~~~~~~~~~~~~~~~
 
