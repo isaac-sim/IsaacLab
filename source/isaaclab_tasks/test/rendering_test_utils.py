@@ -2589,8 +2589,9 @@ _GAUSSIAN_SPLATS_EMPTY_DATA_TYPES = {
 
 # Scene name -> asset path under ``ISAAC_NUCLEUS_DIR``, environment count, camera resolution, env spacing, the asset's
 # camera (relative to the referenced scene prim; ``None`` adds a pinhole camera instead), whether it carries a PPISP,
-# how environment ``i`` turns its camera about the vertical axis by ``i * orbit_step_deg`` degrees (around the pivot in
-# the environment frame, or around the camera itself when it is ``None``), and the renderers it runs on.
+# the asset transform to freeze at its first frame (``None`` when nothing animates), how environment ``i`` turns its
+# camera about the vertical axis by ``i * orbit_step_deg`` degrees (around the pivot in the environment frame, or
+# around the camera itself when it is ``None``), and the renderers it runs on.
 #
 # Which scene runs on which renderer follows from three limitations of the assets and renderers:
 #
@@ -2618,6 +2619,7 @@ _GAUSSIAN_SPLATS_SCENES = {
         "env_spacing": 20.0,
         "camera": _GAUSSIAN_SPLATS_VALIANT_CAMERA_REL_PATH,
         "isp": True,
+        "animated_xform": "rig_trajectories/sensor_rig_0",
         "orbit_step_deg": 0.0,
         "orbit_pivot": None,
         "renderers": ("isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"),
@@ -2630,6 +2632,7 @@ _GAUSSIAN_SPLATS_SCENES = {
         "env_spacing": 50.0,
         "camera": _GAUSSIAN_SPLATS_ENDEAVOR_CAMERA_REL_PATH,
         "isp": False,
+        "animated_xform": None,
         "orbit_step_deg": 20.0,
         "orbit_pivot": None,
         "renderers": ("isaacsim_rtx_renderer", "newton_renderer"),
@@ -2642,6 +2645,7 @@ _GAUSSIAN_SPLATS_SCENES = {
         "env_spacing": 1.0,
         "camera": None,
         "isp": False,
+        "animated_xform": None,
         "orbit_step_deg": 90.0,
         "orbit_pivot": (0.0, 0.0, 0.01),
         "renderers": ("ovrtx_renderer",),
@@ -2710,21 +2714,25 @@ def _turn_gaussian_splats_cameras(camera: Any, env_origins: torch.Tensor, scene:
     )
 
 
-def _freeze_gaussian_splats_valiant_rig(stage: Any, num_envs: int) -> None:
-    """Replace the Valiant camera rig's animated transform with its first-frame value in every environment.
+def _freeze_gaussian_splats_xform(stage: Any, prim_rel_path: str, num_envs: int) -> None:
+    """Replace an animated transform of the scene asset with its first-frame value in every environment.
 
-    The rig carries a time-sampled trajectory that the timeline replays while the simulation steps, which
-    would move the camera away from the pose set by the test and make the capture depend on how many frames
-    have been rendered.
+    The scene's camera rig carries a time-sampled trajectory that the timeline replays while the simulation steps,
+    which would move the camera and make the capture depend on how many frames have been rendered.
+
+    Args:
+        stage: The USD stage.
+        prim_rel_path: Path of the animated prim relative to the referenced scene prim.
+        num_envs: Number of environments.
     """
     from pxr import Usd, UsdGeom
 
     for env_id in range(num_envs):
-        rig = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Scene/rig_trajectories/sensor_rig_0")
-        if not rig.IsValid():
+        prim = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Scene/{prim_rel_path}")
+        if not prim.IsValid():
             # Renderers that clone environments natively keep only the first environment on the USD stage.
             continue
-        (transform_op,) = UsdGeom.Xformable(rig).GetOrderedXformOps()
+        (transform_op,) = UsdGeom.Xformable(prim).GetOrderedXformOps()
         attr = transform_op.GetAttr()
         attr.Set(attr.Get(Usd.TimeCode(0.0)))
 
@@ -2834,8 +2842,9 @@ def _make_gaussian_splats_env(scene: dict[str, Any], renderer: str, physics_back
         """Task-less environment: only physics and rendering advance."""
 
         def _setup_scene(self) -> None:
-            # The Valiant rig animates; capture a single static frame (see the helper for the reason).
-            _freeze_gaussian_splats_valiant_rig(sim_utils.get_current_stage(), self.cfg.scene.num_envs)
+            if scene["animated_xform"] is not None:
+                # Capture a single static frame (see the helper for the reason).
+                _freeze_gaussian_splats_xform(sim_utils.get_current_stage(), scene["animated_xform"], num_envs)
 
         def _pre_physics_step(self, actions: torch.Tensor) -> None:
             pass
