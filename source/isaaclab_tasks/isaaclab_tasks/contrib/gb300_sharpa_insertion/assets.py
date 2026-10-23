@@ -36,6 +36,10 @@ RIZON_SHARPA_ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
 
 # The measured socket geometry uses this CAD revision as its SDF cache key.
 GB300_SIMREADY_EXTERNAL_USD_SHA256 = "5e0b7b3b58d005b24909b8d2e735c49997f8dbea72352b51911326343ef1e7bb"
+GB300_SWITCH_FRONT_USD_PATH = (
+    "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Environments/RizonSharpaRJ45/"
+    "Environments/GB300/switch_front_c0ddcdf9d4ef.usdc"
+)
 
 # Fabrics-Sim authors this fixed child from measured knuckle geometry. Its
 # canonical axes are X toward the knuckles and Z out of the palm. The native

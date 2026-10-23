@@ -21,6 +21,12 @@ Omitting `--viz` selects Newton GL. Add `--extra video` and `--video` to record 
 The defaults above use `--backdrop auto`. In Newton GL, `--backdrop datacenter`
 loads one full rack without the facility.
 
+The default GL front is a prepared, self-contained USD with three material meshes;
+startup does not crop or rebuild the rack. It currently lives on the internal
+`isaac-dev.ov.nvidia.com` Nucleus server and requires access to that server until
+promotion to the public asset bundle. A local visual root uses the same
+`Environments/GB300/switch_front_c0ddcdf9d4ef.usdc` layout.
+
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK
 and action manager. Native hydroelastic hand–housing/clip contact is enabled;
 the VBD endpoint follows the measured plug without cable force feedback.

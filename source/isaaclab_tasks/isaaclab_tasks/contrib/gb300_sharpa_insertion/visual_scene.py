@@ -17,6 +17,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
+from .assets import GB300_SWITCH_FRONT_USD_PATH
 from .workcell import (
     FLOOR_OFFSET_M,
     GB300_PRESENTATION_ROTATION_XYZW,
@@ -30,11 +31,6 @@ if TYPE_CHECKING:
 
     from .env import GB300SharpaInsertionEnv
     from .env_cfg import GB300SharpaInsertionEnvCfg
-
-# The socket face is near composed CAD X=0.355 m; crop 55 mm behind it.
-_RACK_FRONT_MIN_X_M = 0.30
-# The two SN2201 rows and their gold bezel occupy this composed CAD Z range.
-_SWITCH_FRONT_Z_RANGE_M = (1.97, 2.16)
 
 
 def configure_visual_scene(cfg: GB300SharpaInsertionEnvCfg) -> str:
@@ -66,9 +62,9 @@ def configure_visual_scene(cfg: GB300SharpaInsertionEnvCfg) -> str:
 def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str, *, front_only: bool = False) -> None:
     """Register the detailed switch front or full rack without physics shapes.
 
-    Call after the initial environment reset. Native USD mesh loading preserves
-    the CAD normals and scalar materials; material batches avoid thousands
-    of draw calls. The canonical rack has no albedo textures.
+    Call after the initial environment reset. The front-only asset contains
+    three prepared material meshes in the demo's world frame, retaining every
+    port and authored normal without processing the full rack at startup.
     """
     viewers = [viz for viz in env.sim.visualizers if viz.cfg.backend.visualizer_type == "newton_gl"]
     if not viewers:
@@ -77,57 +73,41 @@ def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str, *, front_only: 
 
     from pxr import Usd, UsdGeom, UsdShade
 
-    stage = Usd.Stage.Open(retrieve_file_path(rack_path))
+    path = rack_path
+    if front_only:
+        path = GB300_SWITCH_FRONT_USD_PATH
+        if "ISAACLAB_SHARPA_RJ45_VISUAL_ROOT" in os.environ:
+            path = f"{rack_path.rsplit('/', 1)[0]}/{path.rsplit('/', 1)[1]}"
+    stage = Usd.Stage.Open(retrieve_file_path(path))
     transform = np.eye(4)
     transform[:3, :3] = ((0, 1, 0), (-1, 0, 0), (0, 0, 1))
     transform[:3, 3] = GB300_PRESENTATION_TRANSLATION_E
     transform[2, 3] += FLOOR_OFFSET_M
     cache = UsdGeom.XformCache()
-    bounds = UsdGeom.BBoxCache(Usd.TimeCode.Default(), ["default", "render"]) if front_only else None
     sources, groups = {}, {}
     for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies()):
         if not prim.IsA(UsdGeom.Mesh) or UsdGeom.Imageable(prim).ComputeVisibility() == "invisible":
             continue
-        clip_front = False
-        if front_only:
-            if not str(prim.GetPath()).startswith(
-                (
-                    "/external/tn__0000_NV_MSN2201TOR_08132024",
-                    "/external/tn__01_TORBEZELKIT2U_",
-                    "/external/silver_meshes/",
-                    "/external/bezel_back_plates/",
-                )
-            ):
-                continue
-            bound = bounds.ComputeWorldBound(prim).ComputeAlignedRange()
-            if bound.GetMin()[2] < _SWITCH_FRONT_Z_RANGE_M[0] or bound.GetMax()[2] > _SWITCH_FRONT_Z_RANGE_M[1]:
-                continue
-            # The merged switch shells include the rear chassis; retain their front faces.
-            clip_front = bound.GetMin()[0] < _RACK_FRONT_MIN_X_M
         source = prim.GetPrimInPrototype() if prim.IsInstanceProxy() else prim
         key = str(source.GetPath())
         if key not in sources:
             sources[key] = newton.usd.get_mesh(prim, load_normals=True, compute_inertia=False)
         mesh = sources[key]
-        matrix = transform @ np.asarray(cache.GetLocalToWorldTransform(prim)).T
-        points = (mesh.vertices @ matrix[:3, :3].T + matrix[:3, 3]).astype(np.float32)
-        normals = mesh.normals @ np.linalg.inv(matrix[:3, :3])
-        normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
+        points, normals = mesh.vertices, mesh.normals
         indices = mesh.indices.reshape(-1, 3)
-        if clip_front:
-            front_y = GB300_PRESENTATION_TRANSLATION_E[1] - _RACK_FRONT_MIN_X_M
-            indices = indices[np.all(points[indices, 1] <= front_y, axis=1)]
-            used, indices = np.unique(indices, return_inverse=True)
-            points, normals = points[used], normals[used]
-            indices = indices.reshape(-1, 3)
+        if not front_only:
+            matrix = transform @ np.asarray(cache.GetLocalToWorldTransform(prim)).T
+            points = (points @ matrix[:3, :3].T + matrix[:3, 3]).astype(np.float32)
+            normals = normals @ np.linalg.inv(matrix[:3, :3])
+            normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
+            if np.linalg.det(matrix[:3, :3]) < 0:
+                indices = indices[:, ::-1]
         if not len(indices):
             continue
         material = str(UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0].GetPath())
         group = groups.setdefault(material, {"mesh": mesh, "points": [], "normals": [], "indices": [], "offset": 0})
         group["points"].append(points)
         group["normals"].append(normals.astype(np.float32))
-        if np.linalg.det(matrix[:3, :3]) < 0:
-            indices = indices[:, ::-1]
         group["indices"].append(indices.reshape(-1) + group["offset"])
         group["offset"] += len(points)
     for index, group in enumerate(groups.values()):
