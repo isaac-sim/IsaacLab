@@ -237,7 +237,7 @@ class Pva(BasePva):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references for re-initialization; sites and attribute requests persist on the builder."""
+        """Release native handles; the site and ``body_qdd`` request persist on the builder."""
         super()._invalidate_initialize_callback(event)
         self._newton_model = None
         self._site_indices = None

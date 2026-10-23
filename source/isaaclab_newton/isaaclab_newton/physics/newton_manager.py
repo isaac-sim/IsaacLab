@@ -528,10 +528,8 @@ class NewtonManager(PhysicsManager):
 
     def close(self) -> None:
         """Clean up Newton physics resources."""
-        try:
-            super().close()
-        finally:
-            self.clear()
+        super().close()
+        self.clear()
 
     def get_scene_data_backend(self) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
@@ -557,7 +555,7 @@ class NewtonManager(PhysicsManager):
         return False
 
     def clear(self):
-        """Release the backend and all Newton-specific session state (callbacks cleared by super().close())."""
+        """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._use_single_state = None
         self._supports_rigid_body_force_input = False
@@ -568,22 +566,14 @@ class NewtonManager(PhysicsManager):
         self._collision_cfg = None
         self._supports_contact_sensors = True
         self._solver_init_callbacks: list[Callable[[], None]] = []
-        # In-graph hooks invoked before the actuator step, in registration order.
+        # In-graph step hooks, in registration order: before and after the actuator step, before every solver
+        # substep, and after the last substep.
         self._pre_actuator_callbacks: list[Callable[[], None]] = []
-        # In-graph hooks invoked after the actuator step and before the solver
-        # substeps, in registration order. Multiple articulations register their
-        # implicit-DOF telemetry / FF-routing kernels here.
         self._post_actuator_callbacks: list[Callable[[], None]] = []
-        # In-graph hooks invoked immediately before every solver substep.
         self._state_force_callbacks: list[Callable[[State], None]] = []
-        # Body forces written to ``state_0`` before a step. The substep loop clears
-        # the input state's forces, so every substep re-applies this copy.
-        self._staged_body_f: wp.array | None = None
-        # In-graph hooks invoked after the last solver substep and before sensors,
-        # in registration order. Articulations with non-identity ordering register
-        # their backend-to-user state republish kernels here so the reorders are
-        # recorded into every captured graph.
         self._post_step_callbacks: list[Callable[[], None]] = []
+        # Substeps clear the input state's forces, so each one re-applies this copy of the staged body forces.
+        self._staged_body_f: wp.array | None = None
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
         # check, this gates whether the decimation loop can be captured into
@@ -594,16 +584,14 @@ class NewtonManager(PhysicsManager):
         self._graph_capture_pending = False
         self.transforms_may_change_on_graph_replay = False
         self._model_changes: set[int] = set()
-        # Construction requests and replication outputs survive hard resets.
-        # Site requests: (body_pattern, per_world, xform_floats) -> (label, wp.transform).
+        # Site requests and replication outputs survive hard resets.
+        # (body_pattern, per_world, xform floats) -> (label, transform)
         self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
         self._site_index_map: dict[str, SiteEntry] = {}
         self._clone: NewtonCloneRecord | None = None
         self._active_extended_state_attributes: set[str] = set()
         self.views.clear()
         self._solver_specific_clear()
-
-    # ----- Model construction -------------------------------------------------------
 
     @classmethod
     def create_builder(
@@ -1656,7 +1644,7 @@ class NewtonManager(PhysicsManager):
         immediately after the next requested step runs eagerly.
         """
         self._decimation = max(1, decimation)
-        if self.backend is not None and self._is_all_graphable():
+        if self._is_all_graphable():
             self._invalidate_graph()
 
     def handles_decimation(self) -> bool:
@@ -1666,7 +1654,7 @@ class NewtonManager(PhysicsManager):
         The full decimation loop (including the trivial ``decimation=1`` case)
         is folded into a single :meth:`step` call.
         """
-        return self.backend is not None and self._is_all_graphable()
+        return self._is_all_graphable()
 
     def add_contact_sensor(
         self,

@@ -164,10 +164,7 @@ class Imu(BaseImu):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references to the native Newton sensor.
-
-        The site and ``body_qdd`` request persist on the shared builder, so a hard reset needs no re-registration.
-        """
+        """Release native handles; the site and ``body_qdd`` request persist on the builder."""
         super()._invalidate_initialize_callback(event)
         self._newton_sensor = None
 

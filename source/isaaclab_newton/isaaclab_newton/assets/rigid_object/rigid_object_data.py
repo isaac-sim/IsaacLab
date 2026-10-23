@@ -865,41 +865,30 @@ class RigidObjectData(BaseRigidObjectData):
         self._num_instances = self._root_view.count
         self._num_bodies = self._root_view.link_count
 
+        model, state = self._backend_manager.backend.model, self._backend_manager.backend.state_0
         # -- root properties
         if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(
-                self._backend_manager.backend.state_0
-            )[:, 0, 0]
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(state)[:, 0, 0]
         else:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(
-                self._backend_manager.backend.state_0
-            )[:, 0]
-        self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(self._backend_manager.backend.state_0)
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(state)[:, 0]
+        self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(state)
         if self._sim_bind_root_com_vel_w is not None:
             if self._root_view.is_fixed_base:
                 self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0]
             else:
                 self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0]
         # -- body properties
-        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", self._backend_manager.backend.model)[
-            :, 0
-        ]
-        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(self._backend_manager.backend.state_0)[
-            :, 0
-        ]
-        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(self._backend_manager.backend.state_0)[:, 0]
-        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", self._backend_manager.backend.model)[:, 0]
-        self._sim_bind_body_inv_mass = self._root_view.get_attribute(
-            "body_inv_mass", self._backend_manager.backend.model
-        )[:, 0]
-        self._sim_bind_body_inv_inertia = self._root_view.get_attribute(
-            "body_inv_inertia", self._backend_manager.backend.model
-        )[:, 0]
+        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", model)[:, 0]
+        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(state)[:, 0]
+        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(state)[:, 0]
+        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", model)[:, 0]
+        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", model)[:, 0]
+        self._sim_bind_body_inv_inertia = self._root_view.get_attribute("body_inv_inertia", model)[:, 0]
         # Newton stores body_inertia as (N, 1, 1) mat33f — the [:, 0] removes the padding dim
         # giving (N, 1) mat33f. Reinterpret as (N, 1, 9) float32 via pointer aliasing.
         # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
         # The slice may be non-contiguous in the outer dims, so we preserve those strides.
-        _body_inertia_raw = self._root_view.get_attribute("body_inertia", self._backend_manager.backend.model)[:, 0]
+        _body_inertia_raw = self._root_view.get_attribute("body_inertia", model)[:, 0]
         self._sim_bind_body_inertia = wp.array(
             ptr=_body_inertia_raw.ptr,
             dtype=wp.float32,
@@ -908,9 +897,7 @@ class RigidObjectData(BaseRigidObjectData):
             device=_body_inertia_raw.device,
             copy=False,
         )
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute(
-            "body_f", self._backend_manager.backend.state_0
-        )[:, 0]
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", state)[:, 0]
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
