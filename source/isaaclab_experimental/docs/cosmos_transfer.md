@@ -1,14 +1,13 @@
 # Cosmos Transfer demo setup and training
 
-Run the Shadow Hand camera task with Cosmos3-Nano-Sim-Transfer using the setup below.
-The revisions below record the demo's tested configuration. The Framework checkout
-is private and requires repository access; the checkpoint requires access to
-[nvidia/Cosmos3-Nano-Sim-Transfer](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer).
+Run the Shadow Hand camera task with Cosmos3-Nano-Sim-Transfer using the setup below,
+with the public [Cosmos Framework](https://github.com/NVIDIA/cosmos-framework) and the
+[nvidia/Cosmos3-Nano-Sim-Transfer](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer) checkpoint.
 
 Use **uv 0.11.29** for the Framework environment. Keep the Cosmos Framework and
-Isaac Lab environments separate. The demo requires **48 GB of VRAM for one
-environment**, with approximately **8 GB more for each additional environment**.
-Choose hardware with enough VRAM before increasing `--num_envs`.
+Isaac Lab environments separate. One environment fits on a **48 GB GPU** shared with
+Isaac Sim. For more environments, run the service on a GPU of its own; see
+[Several environments](cosmos.md#several-environments).
 
 For service options and camera configuration, see [Serving Cosmos](cosmos_service.md)
 and [Cosmos camera integration](cosmos.md).
@@ -28,15 +27,15 @@ In each new terminal, set the same three variables to those absolute paths befor
 changing directories. Repeating the block from a different directory would select
 different paths.
 
-## 2. Clone the tested revisions
+## 2. Clone the repositories
 
-Clone the experimental Isaac Lab branch and select the demo revision:
+Clone the experimental Isaac Lab branch:
 
 ```bash
 git clone -b exp/cosmos https://github.com/isaac-sim/IsaacLab.git "$ISAAC_LAB"
 ```
 
-Clone the private Cosmos Framework variant and select its matching revision:
+Clone the Cosmos Framework:
 
 ```bash
 git clone https://github.com/NVIDIA/cosmos-framework.git "$COSMOS_FRAMEWORK"
