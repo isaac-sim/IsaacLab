@@ -176,6 +176,61 @@ For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct pre
 env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options preserve the preset's values, and the overrides keep its
 image size, modifier chain, and feature-extractor supervision.
 
+## Use Cosmos in your own script
+
+A script with its own loop, such as a policy evaluation, uses the same API as training.
+
+With an Isaac Lab environment, apply Cosmos to the task's configuration before creating the environment, then read
+the camera:
+
+```python
+import gymnasium as gym
+
+from isaaclab_experimental.cosmos import apply_cosmos
+
+# env_cfg: the task's configuration, built and launched as the script already does.
+env_cfg.scene.num_envs = 1
+apply_cosmos(env_cfg, prompt="A robot picking an apple from a table.", camera="head_camera", near=0.15, far=0.9)
+env = gym.make(task, cfg=env_cfg)
+try:
+    obs, _ = env.reset()
+    camera = env.unwrapped.scene["head_camera"]
+    while True:
+        rgb = camera.data.output["rgb"].torch  # generated images, (num_envs, height, width, 3) uint8
+        obs, *_ = env.step(policy(rgb, obs))
+finally:
+    env.close()  # closes the camera's Cosmos session; the service keeps running
+```
+
+Cosmos receives a frame each time the camera captures. With lazy sensor updates, which Cosmos requires, a camera
+captures only when its data is read, so read it every step, as observation terms do; reading it less often sends
+fewer frames, further apart in time. Resets, prompts, and the frame budget work as in training.
+
+For depth that does not come from an Isaac Lab camera, for example recorded depth, run the camera's chain on the
+tensors with `ModifierChain`. Without a simulation, the chain opens its own session with the service:
+
+```python
+from isaaclab.utils.modifiers import ModifierChain
+from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
+
+_, modifiers = depth_processor(
+    CosmosModelCfg(prompt="A robot picking an apple from a table.", max_episode_frames=601), near=0.15, far=0.9
+)
+chain = ModifierChain(modifiers, device="cuda:0")
+try:
+    for depth in frames:  # one capture per call: (num_views, height, width, 1) metric depth [m]
+        rgb = chain(depth)  # latest generated images, (num_views, height, width, 3) uint8
+finally:
+    chain.close()  # closes the session; the service keeps running
+```
+
+- Each depth frame must already have a supported canvas size (see "Runtime and resets"); without a camera, nothing
+  renders it at the canvas.
+- `max_episode_frames` must hold every frame of an episode, `1 + 4*k`. `chain.reset([v])` starts a new episode for
+  view `v`; reset a view before its budget runs out.
+- As with a camera, the first call generates the initial frame and later images change every four calls. The
+  returned buffer is reused by later calls; copy images to keep them.
+
 ## Client and server packages
 
 The implementation has three boundaries:
