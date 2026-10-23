@@ -181,7 +181,8 @@ jobs:
   install-tests-windows:
     name: Installation Tests (Windows)
     needs: [changes]
-    if: needs.changes.outputs.run_install_tests == 'true'
+    # TEMP (revert before review): masked while timing the Cartpole combinations.
+    if: false
     runs-on: [self-hosted, gpu-windows]
     timeout-minutes: 90
     defaults:

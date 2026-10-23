@@ -66,7 +66,8 @@ jobs:
   windows-ci:
     name: windows-ci
     needs: [changes]
-    if: needs.changes.outputs.should_run == 'true'
+    # TEMP (revert before review): masked while timing the Cartpole combinations.
+    if: false
     runs-on: [self-hosted, gpu-windows]
     timeout-minutes: 90
     defaults:
@@ -136,5 +137,43 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: windows-ci-reports
+          path: tests/
+          retention-days: 7
+
+  # TEMP (revert before review): time Cartpole camera training for every physics x renderer combination.
+  windows-cartpole-combos:
+    name: windows-cartpole-combos (TEMP)
+    needs: [changes]
+    if: needs.changes.outputs.should_run == 'true'
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: powershell
+    env:
+      OMNI_KIT_ACCEPT_EULA: "yes"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.12.9"
+
+      - name: Locate environment
+        run: '"UV_PROJECT_ENVIRONMENT=$env:RUNNER_TOOL_CACHE\isaaclab-windows-combos" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
+
+      - name: Sync environment
+        timeout-minutes: 40
+        run: uv sync --frozen --extra test --extra isaacsim --extra ov
+
+      - name: Train every combination
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .github/probe/cartpole_combos.ps1
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-cartpole-combos
           path: tests/
           retention-days: 7
