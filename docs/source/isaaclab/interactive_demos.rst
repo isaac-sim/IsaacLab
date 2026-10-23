@@ -84,6 +84,8 @@ WebAssembly, and policy inference also runs in your browser.
    **MicroDuck walking** — Walk through a bounded warehouse with travel and
    yaw sticks, or drag the robot to apply a 2 N perturbation.
 
+   .. _interactive-demo-franka-drawer:
+
    .. _interactive-demo-franka-reach:
 
    .. _interactive-demo-ur10-reach:
@@ -95,12 +97,6 @@ WebAssembly, and policy inference also runs in your browser.
 
    **Franka lift** — Watch a pretrained policy lift a cube from a pregrasp
    reset, adjust its target, or control the arm manually.
-
-   .. _interactive-demo-franka-drawer:
-
-   **Franka drawer control** — Open runs the published opening policy; Close
-   uses a separate physical controller. The lower drawer and cabinet doors stay
-   fixed. Switch to Manual to control the arm and gripper.
 
    .. _interactive-demo-franka-soft:
 

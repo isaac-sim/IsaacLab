@@ -102,14 +102,10 @@ Task Preview
 Try manipulation in your browser
 --------------------------------
 
-UR10 reach, Franka lift, and drawer opening use pretrained policies. Cube stacking
+UR10 reach and Franka lift use pretrained policies. Cube stacking
 uses a scripted controller. Each scene also offers Manual end-effector control.
 
-The drawer controls operate the top drawer; the lower drawer and cabinet doors
-stay fixed. Open uses the published opening policy; Close uses a separate physical
-controller.
-
-.. isaaclab-demos:: ur10_reach, franka_lift, franka_drawer, franka_stack
+.. isaaclab-demos:: ur10_reach, franka_lift, franka_stack
    :title: Explore manipulation
    :physics: rigid
 
