@@ -15,14 +15,15 @@ import isaaclab_physx.app as app_module
 import isaaclab_physx.app.kit_launcher as kit_launcher_module
 import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, add_launcher_args
-from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
+from isaaclab.visualizers import VisualizerCfg
 
 
 def _launcher_after_output_resolution(**state) -> KitLauncher:
@@ -215,14 +216,18 @@ def test_add_launcher_args_registers_every_launcher_option():
         assert parser._option_string_actions[f"--{name}"]
 
 
-def test_visualizer_alias_parsing():
+def test_visualizer_alias_parsing(monkeypatch):
     """Test that --viz alias maps to visualizer values, resolving the deprecated ``newton`` name."""
     parser = argparse.ArgumentParser()
     add_launcher_args(parser)
 
-    with pytest.warns(DeprecationWarning, match="--viz 'newton' is deprecated"):
-        args = parser.parse_args(["--viz", "kit,newton"])
-    assert args.visualizer == ["kit", "newton_gl"]
+    args = parser.parse_args(["--viz", "kit,newton"])
+    assert args.visualizer_explicit is True
+    monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
+    cfg = SimulationCfg(device="cpu")
+    with pytest.warns(FutureWarning, match="newton_gl"), sim_launcher.launch_simulation(cfg, args):
+        pass
+    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton_gl"]
 
 
 @pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras", "--cpu"])
@@ -281,11 +286,20 @@ def test_livestream_request_resolves_headless_livestream_launch(
         add_launcher_args(parser)
         launcher_args = vars(parser.parse_args(launcher_args))
     launcher_args["device"] = "cpu"
-    launcher = KitLauncher.__new__(KitLauncher)
-    monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
+    launchers = []
 
-    sim_launcher.scan(PhysicsCfg(), launcher_args)
-    launcher._config_resolution(launcher_args)
+    class KitRuntime(KitLauncher):
+        def __init__(self, args):
+            self._config_resolution(args)
+            launchers.append(self)
+
+        def close(self, exit_code=0):
+            pass
+
+    monkeypatch.setattr(KitRuntime, "_resolve_experience_file", lambda *_: None)
+    monkeypatch.setattr(app_module, "KitLauncher", KitRuntime)
+    with sim_launcher.launch_simulation(SimulationCfg(), launcher_args):
+        launcher = launchers[0]
 
     assert launcher._livestream == 1
     assert launcher._headless is True
@@ -365,50 +379,48 @@ def test_explicit_simulation_manager_callback_setting_takes_precedence(monkeypat
     assert resolved_args == [explicit_arg]
 
 
-def test_make_physics_cfg_builds_core_vbd():
+def test_physics_selector_selects_core_vbd():
     from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 
-    physics_cfg = sim_launcher._make_physics_cfg("newton_vbd")
+    with sim_launcher.launch_simulation(PhysicsCfg(), {"physics": "newton_vbd"}) as physics_cfg:
+        assert isinstance(physics_cfg, NewtonCfg)
+        assert isinstance(physics_cfg.solver_cfg, VBDSolverCfg)
 
-    assert isinstance(physics_cfg, NewtonCfg)
-    assert isinstance(physics_cfg.solver_cfg, VBDSolverCfg)
 
-
-def test_livestream_injects_kit_visualizer_when_missing():
+def test_livestream_injects_kit_visualizer_when_missing(monkeypatch):
     args = argparse.Namespace(livestream=2, visualizer=None)
 
-    sim_launcher.scan(PhysicsCfg(), vars(args))
-
-    assert args.visualizer == ["kit"]
+    monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
+    cfg = SimulationCfg(device="cpu")
+    with sim_launcher.launch_simulation(cfg, args):
+        pass
+    assert isinstance(cfg.visualizer_cfgs[0].backend, KitBackendCfg)
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LIVESTREAM", "3")
 
     with pytest.raises(ValueError, match="Invalid livestream mode: 3"):
-        sim_launcher.scan(PhysicsCfg(), {})
+        with sim_launcher.launch_simulation(SimulationCfg(), {}):
+            pass
 
 
-def test_explicit_experience_requires_isaac_sim_runtime():
-    """An explicit Kit experience must override a kitless physics configuration."""
-    scan = Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        sim_cfg=None,
-        has_ovrtx=False,
-        has_kit_camera=False,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=False,
-    )
-    args = {"experience": "isaaclab.python.kit", "visualizer": None}
-    sim_launcher.scan(PhysicsCfg(), args)
+def test_explicit_experience_requires_isaac_sim_runtime(monkeypatch):
+    """An explicit Kit experience starts Kit even with kitless physics."""
+    launched = []
 
-    assert _get_kit_runtime_sources(scan, args)
+    class KitRuntime(SimulationLauncher):
+        def __init__(self, args):
+            launched.append(args["experience"])
+
+    monkeypatch.setattr(app_module, "KitLauncher", KitRuntime)
+    with sim_launcher.launch_simulation(PhysicsCfg(), {"experience": "custom.kit"}):
+        pass
+    assert launched == ["custom.kit"]
 
 
 def _resolve_headless_for_case(
-    monkeypatch: pytest.MonkeyPatch, launcher_args: dict, headless_env: int = 0
+    monkeypatch: pytest.MonkeyPatch, launcher_args: dict, cfg_has_kit: bool = False, headless_env: int = 0
 ) -> tuple[bool, dict]:
     """Resolve headless mode the way ``launch_simulation`` and the Kit launcher do together, without Kit."""
     monkeypatch.setenv("HEADLESS", str(headless_env))
@@ -416,13 +428,23 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    sim_launcher.scan(PhysicsCfg(), launcher_args)
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._kit_visualizer = "kit" in launcher_args["visualizer"]
-    launcher._livestream = launcher_args["livestream"]
-    launcher._resolve_xr_settings(launcher_args)
-    launcher._resolve_headless_settings()
-    return launcher._headless, launcher_args
+    viewers = [VisualizerCfg(backend=KitBackendCfg())] if cfg_has_kit else []
+    result = []
+
+    class KitRuntime(KitLauncher):
+        def __init__(self, args):
+            self._kit_visualizer = args["kit_visualizer"]
+            self._livestream = args["livestream"]
+            self._resolve_xr_settings(args)
+            self._resolve_headless_settings()
+            result.extend((self._headless, args))
+
+        def close(self, exit_code=0):
+            pass
+
+    monkeypatch.setattr(app_module, "KitLauncher", KitRuntime)
+    with sim_launcher.launch_simulation(SimulationCfg(visualizer_cfgs=viewers), launcher_args):
+        return tuple(result)
 
 
 _XR_KIT = {"xr": True, "visualizer": ["kit"]}
@@ -676,22 +698,27 @@ def test_toolbar_is_untouched_when_headless_without_livestream(monkeypatch: pyte
     launcher._set_toolbar_button_visible("_stop_button", False)
 
 
-def test_scan_rejects_negative_max_visible_envs():
-    with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        sim_launcher.scan(PhysicsCfg(), {"visualizer": ["viser"], "max_visible_envs": -5})
+def test_selection_rejects_negative_max_visible_envs():
+    with pytest.raises(ValueError, match="non-negative"):
+        with sim_launcher.launch_simulation(PhysicsCfg(), {"visualizer": ["viser"], "max_visible_envs": -5}):
+            pass
 
 
 @pytest.mark.parametrize(
     "value, expected",
-    [("none", []), ("kit, newton_gl", argparse.ArgumentTypeError), ("none,kit", argparse.ArgumentTypeError)],
+    [("none", []), ("kit, newton_gl", ValueError), ("none,kit", ValueError)],
     ids=["none-is-no-selection", "spaces", "none-with-others"],
 )
-def test_parse_visualizer_csv(value: str, expected):
-    if expected is argparse.ArgumentTypeError:
-        with pytest.raises(argparse.ArgumentTypeError, match="Invalid --visualizer value"):
-            parse_visualizer_csv(value)
+def test_visualizer_selection_validates_names(value: str, expected, monkeypatch):
+    if expected is ValueError:
+        with pytest.raises(ValueError):
+            with sim_launcher.launch_simulation(SimulationCfg(), {"visualizer": value}):
+                pass
     else:
-        assert parse_visualizer_csv(value) == expected
+        monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
+        cfg = SimulationCfg(device="cpu")
+        with sim_launcher.launch_simulation(cfg, {"visualizer": value}):
+            assert cfg.visualizer_cfgs == expected
 
 
 def test_visualizer_csv_does_not_swallow_hydra_overrides():
@@ -770,25 +797,21 @@ def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.Monke
 
 
 def test_close_pumps_the_app_before_closing():
-    """Drain callbacks and close Kit despite repeated Ctrl+C during teardown."""
+    """Drain callbacks before closing Kit."""
     calls = []
     previous_handler = signal.getsignal(signal.SIGINT)
 
     def update():
-        signal.raise_signal(signal.SIGINT)
+        assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
         calls.append("update")
 
     def close(exit_code):
-        signal.raise_signal(signal.SIGINT)
         calls.append(exit_code)
 
     launcher = KitLauncher.__new__(KitLauncher)
     launcher._app = SimpleNamespace(update=update, close=close)
 
-    try:
-        launcher.close(exit_code=3)
-    except KeyboardInterrupt:
-        pytest.fail("Ctrl+C interrupted Kit teardown")
+    launcher.close(exit_code=3)
 
     assert calls == ["update", 3]
     assert signal.getsignal(signal.SIGINT) is previous_handler

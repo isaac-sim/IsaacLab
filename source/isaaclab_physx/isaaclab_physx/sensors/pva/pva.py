@@ -20,8 +20,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 from isaaclab.sim.utils.queries import path_expr_to_glob
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
 from .kernels import pva_reset_kernel, pva_update_kernel
 from .pva_data import PvaData
 
@@ -153,11 +151,12 @@ class Pva(BasePva):
         # Initialize parent class
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         # Create the rigid body view on the ancestor
         self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
+        self._check_env_count(self._view.count, self._rigid_parent_expr)
 
         # Unit world-gravity direction. The scene value can change at runtime, so it is
         # refreshed on every update instead of snapshotted here.
@@ -214,6 +213,7 @@ class Pva(BasePva):
         # the getters lazily allocate their output buffers and refresh the same memory in place
         # on every call, so the cached views (and the recorded launch that consumes them) stay
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        self._backend_manager.update_kinematics()
         transforms = self._view.get_transforms()
         velocities = self._view.get_velocities()
         accelerations = self._view.get_accelerations()
@@ -275,7 +275,6 @@ class Pva(BasePva):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_vec_w,
-                self._timestamp,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,

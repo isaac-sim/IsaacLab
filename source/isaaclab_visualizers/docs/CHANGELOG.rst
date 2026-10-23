@@ -3,6 +3,102 @@ Changelog
 
 .. towncrier release notes start
 
+4.0.0 (2026-10-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Separated backend options into ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBackendCfg``,
+  ``RerunBackendCfg``, and ``ViserBackendCfg``. Constructors received shared ``VisualizerCfg``
+  declarations and read implementation options from ``cfg.backend``. Kept the previous
+  ``*VisualizerCfg`` names as deprecated configuration-only adapters; move shared camera/window
+  settings to ``VisualizerCfg`` and backend-specific options to its ``backend``.
+* Enabled Newton GL particle display by default. Set ``NewtonGLBackendCfg(show_particles=False)``
+  to hide particles; hidden MPM particles no longer updated their display buffers.
+
+
+3.4.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Declared runtime-launch requirements on concrete visualizer configurations.
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to read contacts and register callbacks through ``sim.backend_manager``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing :class:`~isaaclab_visualizers.newton.ParticleSurfaceRenderer` without
+  ``backend_manager``; the active simulation's Newton manager is used with a :class:`DeprecationWarning`.
+
+
+3.3.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added particle surface reconstruction to the Kit visualizer using the same Newton surface
+  extractor as the GL and RTX visualizers.
+* Added a protected native RTX viewer implementation override for task-specific
+  geometry publication. The visualizer retains ownership of the borrowed scene,
+  shared image views and native frame lifecycle.
+
+Changed
+^^^^^^^
+
+* Changed ``newton_rtx`` to display scene-camera output in a Newton GL window, eliminating its separate renderer and stage. Preserved fixed-resolution capture, camera selection, markers, and runtime surface meshes. **Breaking:** replaced automatic scene-camera discovery and ``streaming_sensor_prim_path`` selection with explicit ``cameras=[SceneCameraCfg(...)]`` or ``view=ImageViewCfg(source="name")``; the default selects one perspective camera.
+* Added ``NewtonRTXVisualizerCfg.renderer_cfg`` for generated perspective camera declarations. Match camera sensors' ``OVRTXRendererCfg`` to share their renderer; default configurations share automatically. Standalone scripts without a scene configuration must declare assets through ``ReplicateSession``, call ``instantiate(camera_cfg)``, and select the camera with ``SceneCameraCfg``.
+
+Fixed
+^^^^^
+
+* Fixed headless Kit camera poses being masked by existing session-layer transforms.
+* Fixed Newton GL frame capture with the keyword-only output argument in current Newton viewers.
+* Fixed Newton RTX particle and deformable geometry remaining at its initial position on a borrowed USD stage.
+* Fixed stale or corrupted dynamic meshes when alternating between Newton GL viewers by selecting each viewer's
+  OpenGL context before frame updates and native viewer teardown.
+* Delegated Newton RTX frame capture to the native viewer so asynchronous recordings captured the latest submitted frame, and passed capture buffers through Newton's keyword-only API.
+* Waited for the Newton RTX frame's CUDA producer before copying its mapped
+  output into the visualizer's owned image buffer.
+
+
+3.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a reusable Newton particle-surface renderer for GL and RTX viewers,
+  shared by the teapot demo and MPM surface-reconstruction tutorial.
+
+Fixed
+^^^^^
+
+* Fixed dynamic MPM surface mesh submission in Newton RTX and shared staged
+  mesh updates between the Newton GL and RTX frame lifecycles.
+
+
+3.1.1 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Ctrl+C sometimes being swallowed by Kit while updating the visualizer.
+* Fixed Kit toolbar controls so they reflected the running state, paused and resumed training while keeping the app
+  responsive, and did not start PhysX when another physics backend owned the simulation.
+* Fixed Newton GL camera keyboard controls when ImGui captured only mouse input and kept the viewer compatible with
+  Newton's updated fullscreen image handling.
+* Prevented unchanged Rerun instance appearance from being retransmitted every frame during training.
+
+
 3.1.0 (2026-10-12)
 ~~~~~~~~~~~~~~~~~~
 

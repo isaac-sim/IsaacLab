@@ -16,6 +16,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from newton.examples.basic.example_basic_conveyor_forces import ConveyorForceModel
+from newton.solvers import SolverBase
 
 from isaaclab.physics import PhysicsEvent
 
@@ -69,6 +70,7 @@ class SurfaceVelocity:
         num_envs: int,
         surface_specs: Sequence[SurfaceVelocitySpec],
         *,
+        manager: NewtonManager,
         body_pattern: str,
         body_count_per_env: int,
         startup_duration_s: float = 1.0,
@@ -79,6 +81,7 @@ class SurfaceVelocity:
         Args:
             num_envs: Number of replicated simulation environments.
             surface_specs: Surface descriptions in within-environment order.
+            manager: Newton backend manager owned by the simulation context.
             body_pattern: Regular expression selecting transported bodies.
             body_count_per_env: Expected transported-body count.
             startup_duration_s: Initial traction ramp duration [s].
@@ -90,24 +93,28 @@ class SurfaceVelocity:
         if not np.isfinite(startup_duration_s) or startup_duration_s <= 0.0:
             raise ValueError(f"Conveyor startup duration must be positive, got {startup_duration_s}.")
         self._num_envs = num_envs
+        self._manager = manager
         self._body_count_per_env = body_count_per_env
         self._startup_duration_s = startup_duration_s
         self._model = None
         self._conveyor: ConveyorForceModel | None = None
         self._closed = False
-        self._model_init_handle = NewtonManager.register_callback(
-            self._request_contact_forces, PhysicsEvent.MODEL_INIT, name="surface_velocity_contact_attribute"
+        manager.request_solver_observables(SolverBase.ObservableKind.CONTACT_F)
+        self._physics_ready_handle = manager.register_callback(
+            self._queue_solver_binding, PhysicsEvent.PHYSICS_READY, name="surface_velocity_solver_init"
         )
-        NewtonManager.register_solver_init_callback(self._bind_solver)
 
-    def _request_contact_forces(self, _event: Any) -> None:
-        """Request solved contact forces before model finalization."""
-        NewtonManager.request_extended_contact_attribute("force")
+    def _queue_solver_binding(self, _event: Any) -> None:
+        """Bind after solver allocation on initial construction and every hard reset."""
+        self._manager.register_solver_init_callback(self._bind_solver)
 
-    def _bind_solver(self, model: Any, contacts: Any) -> None:
+    def _bind_solver(self) -> None:
         """Resolve the newly finalized model and register its graph callbacks."""
-        if contacts is None or contacts.force is None:
-            raise RuntimeError("The conveyor requires solved per-contact forces allocated before model finalization.")
+        model = self._manager.get_model()
+        contacts = self._manager.get_contacts()
+        observables = self._manager.get_solver_observables()
+        if contacts is None or observables is None or observables.contact_f is None:
+            raise RuntimeError("The conveyor requires solved per-contact force observables.")
         if model.world_count != self._num_envs:
             raise RuntimeError(f"Newton model has {model.world_count} worlds, expected {self._num_envs}.")
 
@@ -174,7 +181,7 @@ class SurfaceVelocity:
                 )
             else:
                 conveyor.add_constant_belt(shape_id, wp.vec3(*(direction * speed)), **parameters)
-        conveyor.finalize(contacts)
+        conveyor.finalize(contacts, observables)
         conveyor.set_speed_scale(0.0)
 
         self._model = model
@@ -183,14 +190,14 @@ class SurfaceVelocity:
         self._elapsed_time = wp.zeros(1, dtype=wp.float32, device=model.device)
         self._world_mask_host = np.zeros(self._num_envs, dtype=np.bool_)
         self._world_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=model.device)
-        NewtonManager.register_state_force_callback(self._apply)
-        NewtonManager.register_post_solver_substep_callback(self._update)
+        self._manager.register_state_force_callback(self._apply)
+        self._manager.register_post_solver_substep_callback(self._update)
 
     def _apply(self, state) -> None:
         """Apply the wrench from the preceding solve."""
         self._conveyor.apply(state)
 
-    def _update(self, solver, contacts, state, dt: float) -> None:
+    def _update(self, contacts, observables, state, dt: float) -> None:
         """Compute the next wrench using Newton's upstream traction model."""
         wp.launch(
             _advance_startup_scale,
@@ -199,7 +206,7 @@ class SurfaceVelocity:
             outputs=[self._elapsed_time, self._conveyor.global_velocity_scale],
             device=self._model.device,
         )
-        self._conveyor.update(solver, contacts, state, dt)
+        self._conveyor.update(contacts, observables, state, dt)
         wp.launch(
             _filter_body_forces,
             dim=self._model.body_count,
@@ -241,10 +248,10 @@ class SurfaceVelocity:
         """Detach lifecycle and graph callbacks before the model is released."""
         if self._closed:
             return
-        NewtonManager.unregister_solver_init_callback(self._bind_solver)
-        self._model_init_handle.deregister()
-        NewtonManager.unregister_state_force_callback(self._apply)
-        NewtonManager.unregister_post_solver_substep_callback(self._update)
+        self._manager.unregister_solver_init_callback(self._bind_solver)
+        self._physics_ready_handle.deregister()
+        self._manager.unregister_state_force_callback(self._apply)
+        self._manager.unregister_post_solver_substep_callback(self._update)
         self._conveyor = None
         self._model = None
         self._closed = True

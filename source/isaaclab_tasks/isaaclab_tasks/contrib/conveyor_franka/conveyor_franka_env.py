@@ -30,6 +30,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
     def _init_sim(self) -> None:
         """Register solved-contact hooks before the first reset captures the solver."""
         driver = SurfaceVelocity(
+            manager=self.sim.backend_manager,
             num_envs=self.cfg.scene.num_envs,
             surface_specs=self.cfg.scene.build_conveyor_belt_specs(
                 velocity=self.cfg.conveyor_force.speed,
@@ -52,7 +53,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
     def _setup_goal_selector(self) -> None:
         """Attach one task panel to the first supported interactive visualizer."""
         for visualizer in self.sim.visualizers:
-            if visualizer.cfg.visualizer_type not in {"newton_gl", "newton_rtx"}:
+            if visualizer.cfg.backend.visualizer_type not in {"newton_gl", "newton_rtx"}:
                 continue
             register_callback = getattr(visualizer, "register_ui_callback", None)
             if register_callback is None:

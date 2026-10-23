@@ -1021,3 +1021,149 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-10-04,Isaac-Velocity-Rough-UnitreeGo2,8192,newton_kamino,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
 2026-10-04,Isaac-Velocity-Rough-UnitreeGo2,8192,newton_mjwarp,none,covered,covered,,"4096,16384",261093,2026-10-05
 2026-10-04,Isaac-Velocity-Rough-UnitreeGo2,8192,ovphysx,none,covered,covered,,16384,261201,2026-10-05
+2026-10-11,Isaac-Ant-Direct,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277242,2026-10-12
+2026-10-11,Isaac-Ant-Direct,8192,newton_kamino,none,covered,covered,,,277839,2026-10-12
+2026-10-11,Isaac-Ant-Direct,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277348,2026-10-12
+2026-10-11,Isaac-Ant-Direct,8192,ovphysx,none,covered,covered,,16384,277524,2026-10-12
+2026-10-11,Isaac-Ant,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277242,2026-10-12
+2026-10-11,Isaac-Ant,8192,newton_kamino,none,covered,covered,,,277843,2026-10-12
+2026-10-11,Isaac-Ant,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277343,2026-10-12
+2026-10-11,Isaac-Ant,8192,ovphysx,none,covered,covered,,16384,277524,2026-10-12
+2026-10-11,Isaac-Cartpole-Direct,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277245,2026-10-12
+2026-10-11,Isaac-Cartpole-Direct,8192,newton_kamino,none,covered,covered,,,277831,2026-10-12
+2026-10-11,Isaac-Cartpole-Direct,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277354,2026-10-12
+2026-10-11,Isaac-Cartpole-Direct,8192,ovphysx,none,covered,covered,,16384,277530,2026-10-12
+2026-10-11,Isaac-Cartpole,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277240,2026-10-12
+2026-10-11,Isaac-Cartpole,8192,newton_kamino,none,covered,covered,,,277836,2026-10-12
+2026-10-11,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277354,2026-10-12
+2026-10-11,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,277512,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,277798,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,277755,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,277806,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,276573,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,277798,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,,277755,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,,277806,2026-10-12
+2026-10-11,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,,,276573,2026-10-12
+2026-10-11,Isaac-Fourbar-Pole-Swingup,8192,newton_kamino,none,covered,covered,,,277847,2026-10-12
+2026-10-11,Isaac-Humanoid-Direct,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277246,2026-10-12
+2026-10-11,Isaac-Humanoid-Direct,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277377,2026-10-12
+2026-10-11,Isaac-Humanoid-Direct,8192,ovphysx,none,covered,covered,,16384,277528,2026-10-12
+2026-10-11,Isaac-Humanoid,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277237,2026-10-12
+2026-10-11,Isaac-Humanoid,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277358,2026-10-12
+2026-10-11,Isaac-Humanoid,8192,ovphysx,none,covered,covered,,16384,277528,2026-10-12
+2026-10-11,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,covered,covered,,,277863,2026-10-12
+2026-10-11,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Cloth-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Cloth-Franka,8192,newton_mjwarp_vbd_proxy,none,covered,covered,,,277875,2026-10-12
+2026-10-11,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Franka,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277247,2026-10-12
+2026-10-11,Isaac-Lift-Franka,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277379,2026-10-12
+2026-10-11,Isaac-Lift-Franka,8192,ovphysx,none,covered,covered,,16384,277538,2026-10-12
+2026-10-11,Isaac-Lift-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277262,2026-10-12
+2026-10-11,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277386,2026-10-12
+2026-10-11,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,277533,2026-10-12
+2026-10-11,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,277814,2026-10-12
+2026-10-11,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,277738,2026-10-12
+2026-10-11,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,277792,2026-10-12
+2026-10-11,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,276557,2026-10-12
+2026-10-11,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Soft-Franka,8192,newton_mjwarp_vbd_proxy,none,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Open-Drawer-Franka-Direct,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277271,2026-10-12
+2026-10-11,Isaac-Open-Drawer-Franka-Direct,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277407,2026-10-12
+2026-10-11,Isaac-Open-Drawer-Franka-Direct,8192,ovphysx,none,covered,covered,,16384,277549,2026-10-12
+2026-10-11,Isaac-Open-Drawer-Franka,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277271,2026-10-12
+2026-10-11,Isaac-Open-Drawer-Franka,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277402,2026-10-12
+2026-10-11,Isaac-Open-Drawer-Franka,8192,ovphysx,none,covered,covered,,16384,277549,2026-10-12
+2026-10-11,Isaac-Pendulum-MARL-Direct,8192,isaacsim_physx,none,covered,covered,,,278131,2026-10-12
+2026-10-11,Isaac-Pendulum-MARL-Direct,8192,newton_kamino,none,covered,covered,,,278127,2026-10-12
+2026-10-11,Isaac-Pendulum-MARL-Direct,8192,newton_mjwarp,none,covered,covered,,,278125,2026-10-12
+2026-10-11,Isaac-Pendulum-MARL-Direct,8192,ovphysx,none,covered,covered,,,278128,2026-10-12
+2026-10-11,Isaac-Reach-Franka,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277269,2026-10-12
+2026-10-11,Isaac-Reach-Franka,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277408,2026-10-12
+2026-10-11,Isaac-Reach-Franka,8192,ovphysx,none,covered,covered,,16384,277547,2026-10-12
+2026-10-11,Isaac-Reach-Franka-OSC,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277269,2026-10-12
+2026-10-11,Isaac-Reach-Franka-OSC,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277410,2026-10-12
+2026-10-11,Isaac-Reach-Franka-OSC,8192,ovphysx,none,covered,covered,,16384,277547,2026-10-12
+2026-10-11,Isaac-Reach-UR10,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277258,2026-10-12
+2026-10-11,Isaac-Reach-UR10,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277403,2026-10-12
+2026-10-11,Isaac-Reach-UR10,8192,ovphysx,none,covered,covered,,16384,277543,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Allegro-Direct,8192,isaacsim_physx,none,covered,covered,,16384,277268,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Allegro-Direct,8192,newton_mjwarp,none,covered,covered,,16384,277413,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Allegro-Direct,8192,ovphysx,none,covered,covered,,16384,277548,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Allegro,8192,isaacsim_physx,none,covered,covered,,16384,277268,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Allegro,8192,newton_mjwarp,none,covered,covered,,16384,277412,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Allegro,8192,ovphysx,none,covered,covered,,16384,277548,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Direct,8192,isaacsim_physx,none,covered,covered,,16384,277282,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Direct,8192,newton_mjwarp,none,covered,covered,,16384,277421,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Direct,8192,ovphysx,none,covered,covered,,16384,277554,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow,8192,isaacsim_physx,none,covered,covered,,16384,277274,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,277421,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,277550,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,276620,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,277757,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,276544,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,276582,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,276620,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,277757,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,276544,2026-10-12
+2026-10-11,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,276582,2026-10-12
+2026-10-11,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277281,2026-10-12
+2026-10-11,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277417,2026-10-12
+2026-10-11,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,277557,2026-10-12
+2026-10-11,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,277823,2026-10-12
+2026-10-11,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,277748,2026-10-12
+2026-10-11,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,277815,2026-10-12
+2026-10-11,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,276564,2026-10-12
+2026-10-11,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",277284,2026-10-12
+2026-10-11,Isaac-Shadow-Handover-Direct,8192,newton_mjwarp,none,covered,covered,,"2048,16384",277419,2026-10-12
+2026-10-11,Isaac-Shadow-Handover-Direct,8192,ovphysx,none,covered,covered,,16384,277555,2026-10-12
+2026-10-11,Isaac-Shadow-Handover,8192,isaacsim_physx,none,covered,covered,,,277984,2026-10-12
+2026-10-11,Isaac-Shadow-Handover,8192,newton_mjwarp,none,covered,covered,,,277885,2026-10-12
+2026-10-11,Isaac-Shadow-Handover,8192,ovphysx,none,covered,covered,,,277888,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-AnymalD,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277278,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-AnymalD,8192,newton_kamino,none,covered,covered,,,277851,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-AnymalD,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277409,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-AnymalD,8192,ovphysx,none,covered,covered,,16384,277558,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-Cassie,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277285,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-Cassie,8192,newton_kamino,none,covered,covered,,,277845,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-Cassie,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277406,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-Cassie,8192,ovphysx,none,covered,covered,,16384,277535,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-G1,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277303,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-G1,8192,newton_kamino,none,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Velocity-Flat-G1,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277425,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-G1,8192,ovphysx,none,covered,covered,,16384,277552,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-H1,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277291,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-H1,8192,newton_kamino,none,covered,covered,,,277865,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-H1,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277423,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-H1,8192,ovphysx,none,covered,covered,,16384,277545,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-UnitreeGo2,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277302,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-UnitreeGo2,8192,newton_kamino,none,covered,covered,,,277866,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-UnitreeGo2,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277442,2026-10-12
+2026-10-11,Isaac-Velocity-Flat-UnitreeGo2,8192,ovphysx,none,covered,covered,,16384,277572,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-AnymalD,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277289,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-AnymalD,8192,newton_kamino,none,covered,covered,,,277846,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-AnymalD,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277450,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-AnymalD,8192,ovphysx,none,covered,covered,,16384,277575,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-Cassie,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277293,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-Cassie,8192,newton_kamino,none,covered,covered,,,277868,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-Cassie,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277437,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-Cassie,8192,ovphysx,none,covered,covered,,16384,277576,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-G1,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277252,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-G1,8192,newton_kamino,none,missing,missing,no eligible successful WARM measurement at fixed profile,,,
+2026-10-11,Isaac-Velocity-Rough-G1,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277345,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-G1,8192,ovphysx,none,covered,covered,,16384,277526,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-H1,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277298,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-H1,8192,newton_kamino,none,covered,covered,,,277870,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-H1,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277452,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-H1,8192,ovphysx,none,covered,covered,,16384,277617,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-UnitreeGo2,8192,isaacsim_physx,none,covered,covered,,"4096,16384",277304,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-UnitreeGo2,8192,newton_kamino,none,covered,covered,,,277872,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-UnitreeGo2,8192,newton_mjwarp,none,covered,covered,,"4096,16384",277451,2026-10-12
+2026-10-11,Isaac-Velocity-Rough-UnitreeGo2,8192,ovphysx,none,covered,covered,,16384,277585,2026-10-12
