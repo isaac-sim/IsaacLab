@@ -363,6 +363,7 @@ class TeleopSessionLifecycle:
         # retargeting mode.
         self._keyboard_detachers: list[Callable[[], None]] = []
         self._attached_visualizers: list[Any] = []
+        self._pipeline_keyboards: list[Any] | None = None  # found once per session
         self._pressed_keys: list[int] = []
 
         # CloudXR runtime launcher (created in start if configured, stopped in stop)
@@ -595,6 +596,7 @@ class TeleopSessionLifecycle:
 
         self._pipeline = self._build_combined_pipeline(user_pipeline)
         self._pressed_keys.clear()
+        self._pipeline_keyboards = None
         self._attach_keyboards()
 
         # Build the optional haptic sink. It reuses the button-controller
@@ -731,9 +733,9 @@ class TeleopSessionLifecycle:
     def _attach_keyboards(self) -> None:
         """Feed the pipeline's keyboards and the operator's key presses from the visualizer windows.
 
-        Called at start and, until a window is attached, on each step, since visualizer windows can
-        open after the session starts. While the pipeline has a keyboard, each visualizer's keyboard
-        camera movement is turned off.
+        Called at start and on each step, since visualizer windows can open after the session starts;
+        windows already attached are skipped. While the pipeline has a keyboard, each visualizer's
+        keyboard camera movement is turned off.
         """
         if self._pipeline is None or self._is_replay:
             return
@@ -745,9 +747,11 @@ class TeleopSessionLifecycle:
             return
         if sim is None:
             return
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource, find_sources
+        if self._pipeline_keyboards is None:
+            from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource, find_sources
 
-        keyboards = find_sources(self._pipeline, KeyboardSource)
+            self._pipeline_keyboards = find_sources(self._pipeline, KeyboardSource)
+        keyboards = self._pipeline_keyboards
         for visualizer in sim.visualizers:
             # a visualizer without a window that reports keys has no source
             source = visualizer.key_event_source
@@ -777,6 +781,7 @@ class TeleopSessionLifecycle:
             except Exception as e:
                 logger.debug(f"Suppressed error detaching a visualizer keyboard: {e}")
         self._attached_visualizers = []
+        self._pipeline_keyboards = None
 
     def drain_pressed_keys(self) -> list[int]:
         """Evdev codes of the keys pressed in the visualizer windows since the last call, in order.
@@ -1302,8 +1307,7 @@ class TeleopSessionLifecycle:
                 return None
 
         # Visualizer windows can open after the session starts.
-        if not self._attached_visualizers:
-            self._attach_keyboards()
+        self._attach_keyboards()
 
         # Build external inputs (e.g. world-to-anchor transform) if the
         # pipeline contains ValueInput leaf nodes.

@@ -641,7 +641,11 @@ def run_simulation_loop(  # noqa: C901
                     if ctrl.is_active is not None:
                         running_recording_instance = ctrl.is_active
                     if ctrl.should_reset:
-                        should_reset_recording_instance = True
+                        if success_step_count > 0:
+                            # same guard as the R callback: keep a demo whose success is still being recorded
+                            reset_recording_instance()
+                        else:
+                            should_reset_recording_instance = True
 
                 if action is None:
                     env.sim.render()
