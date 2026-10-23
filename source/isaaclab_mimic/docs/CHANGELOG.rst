@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.5 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo collision-world initialization for native environment copies that have no destination
+  geometry in USD. Imported the selected world's authored sources using the clone plan and preserved
+  destination names and environment placement without modifying the simulation stage.
+
+
 2.1.4 (2026-10-14)
 ~~~~~~~~~~~~~~~~~~
 

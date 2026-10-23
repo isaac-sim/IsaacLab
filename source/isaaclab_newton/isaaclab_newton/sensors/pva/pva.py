@@ -164,10 +164,7 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
-        state = self._backend_manager.backend.state_0
-        if not state.body_q.device.is_capturing:
-            # Resolve FK deferred by state writes, such as push events, before reading body poses and velocities.
-            self._backend_manager.forward()
+        state = self._backend_manager.get_scene_data_backend().state
 
         wp.launch(
             pva_update_kernel,
@@ -183,7 +180,6 @@ class Pva(BasePva):
                 state.body_q,
                 state.body_qd,
                 state.body_qdd,
-                self._timestamp,
             ],
             outputs=[
                 self._data._pose_w,

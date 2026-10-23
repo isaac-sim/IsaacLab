@@ -382,7 +382,10 @@ class NewtonSceneDataBackend(SceneDataBackend):
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
             self.transforms_timestamp += 1
             self.geometry_timestamp += 1
-        manager.forward()
+        # TODO: Remove this guard when the Newton manager redesign makes lazy state reads capture-safe.
+        # Recording a graph must leave pending FK/reset work for the next eager read.
+        if not wp.get_device(manager.get_device()).is_capturing:
+            manager.forward()
         return manager.get_state_0()
 
 
@@ -1810,7 +1813,7 @@ class NewtonManager(PhysicsManager):
         return None if self.backend is None else self.backend.model
 
     def get_state_0(self) -> State:
-        """Get the current state."""
+        """Return raw state for array binding and writes; consumers read ``get_scene_data_backend().state``."""
         return None if self.backend is None else self.backend.state_0
 
     def get_contacts(self) -> Contacts | None:
