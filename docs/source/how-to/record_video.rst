@@ -247,12 +247,14 @@ configure both; the recorder adds the Newton visualizer, headless:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
+
+    from isaaclab.visualizers import VisualizerCfg
 
     env_cfg.sim.visualizer_cfgs = [
-        KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0)),
+        VisualizerCfg(eye=(4.0, 4.0, 2.0), backend=KitBackendCfg()),
+        VisualizerCfg(eye=(12.0, 0.0, 6.0), backend=NewtonGLBackendCfg()),
     ]
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="viz:newton_gl", output_dir="videos/"),
@@ -363,11 +365,6 @@ Clip control
 
 Limitations
 -----------
-
-* ``source="viz:kit"`` and ``source="viz:kit:streaming_view"`` require cubric
-  to propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
-  is logged and a black-frame warning is emitted at clip write time.  Use
-  ``source="viz:newton_gl"`` for guaranteed capture with Newton physics.
 
 * ``source="viz:newton_gl:streaming_view"`` and ``source="viz:kit:streaming_view"``
   require ``streaming_view=True`` on the corresponding visualizer cfg.  A

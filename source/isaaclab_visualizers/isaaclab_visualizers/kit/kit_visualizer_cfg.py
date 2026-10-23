@@ -7,17 +7,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg, WindowCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg, WindowCfg
 
 if TYPE_CHECKING:
     from .kit_visualizer import KitVisualizer
 
 
 @configclass
-class KitVisualizerCfg(VisualizerCfg):
+class KitBackendCfg(VisualizerBackendCfg):
     """Configuration for Kit visualizer using Isaac Sim viewport.
 
     .. note::
@@ -30,6 +30,8 @@ class KitVisualizerCfg(VisualizerCfg):
 
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
+
+    launcher_type: ClassVar[str] = "isaaclab_physx.app:KitLauncher"
 
     viewport_name: str | None = None
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.
@@ -51,9 +53,6 @@ class KitVisualizerCfg(VisualizerCfg):
         Use ``'RIGHT'`` to keep both the Viewport and the streaming panel visible
         side-by-side.
     """
-
-    window: WindowCfg = WindowCfg(size=(1280, 720))
-    """Viewport and capture dimensions. Kit owns the application update cadence."""
 
     origin_type: str = "world"
     """Frame in which :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
@@ -83,3 +82,14 @@ class KitVisualizerCfg(VisualizerCfg):
         origin_track_path = "robot"             # track robot root
         origin_track_path = "robot/panda_hand"  # track panda_hand body on robot
     """
+
+
+@configclass
+class KitVisualizerCfg(KitBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=KitBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: KitBackendCfg = KitBackendCfg()
+    window: WindowCfg = WindowCfg(size=(1280, 720))

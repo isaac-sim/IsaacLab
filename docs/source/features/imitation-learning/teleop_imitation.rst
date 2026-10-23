@@ -15,16 +15,13 @@ What is Isaac Lab Mimic?
    :alt: Franka robot performing a stacking task
    :figclass: align-center
 
-Isaac Lab Mimic (Mimic) is a trajectory data generation tool that can be used to
-augment human demonstrations by generating new synthetic data. Given a set of human demonstrations,
-Mimic can automatically generate new demonstrations involving the same task but with different spatial configurations.
-The generated data can be used to train imitation learning policies that are more robust to spatial variations
-even if just a handful of manual demonstrations are available.
+Isaac Lab Mimic generates new trajectories from a small set of human demonstrations.
+It adapts them to different object placements, giving imitation-learning policies
+more spatial variation to learn from.
 
-Mimic works by taking a set of human demonstrations and splitting each demonstration into a sequence of subtasks.
-Subtasks are defined based on reference objects that dictate the motion of the robot's end-effectors (eefs). Each subtask
-is a contiguous segment of the demonstration where the eef's motion is dictated by a single reference object. A new subtask begins
-when the reference object changes. Annotations mark points in the demonstration where a subtask is completed.
+Mimic divides demonstrations into subtasks, each tied to a reference object for an
+end effector. A new subtask begins when that reference changes. Annotations mark
+where each subtask ends.
 
 During data generation, Mimic takes the human demonstration subtask segments and applies rigid body transformations to the robot's actions
 to transform them into new demonstrations involving the same task but with different spatial configurations.
@@ -34,10 +31,8 @@ Mimic is compatible with a variety of embodiments including single-eef (e.g. man
 The use of rigid body transformations requires that the embodiment's action space is defined in **task space**. If
 the embodiment's action is in joint space, then the action must be converted to task space using forward kinematics.
 
-In the following sections, we will show how to collect a small batch of human demonstrations for a stacking task
-with the Franka robot, increase the size of the dataset by generating new synthetic data using Isaac Lab Mimic, and
-lastly train a policy to perform the stacking task.
-
+Collect Franka stacking demonstrations, generate additional trajectories with Mimic,
+then train a stacking policy.
 
 
 .. _teleop-imitation-step-1-human-data-collection:
@@ -50,7 +45,6 @@ Step 1: Human Data Collection
    if you do not wish to collect your own demonstrations.
 
 
-
 Environment Introduction
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -60,10 +54,8 @@ The task is to stack the cubes in the following order: blue (bottom), red (middl
 the rest of this tutorial, you will encounter variations of this environment with different observation spaces
 (e.g. state-based, visuomotor, etc.).
 
-Run the following command to spin up and visualize the environment using the ``zero_agent.py``
-script provided by Isaac Lab. This script create and step through the environment in a loop with zero tensor actions.
-You will see the robot remain stationary while the environment is running. Use the scroll wheel to zoom in and out of the scene.
-Press and hold the alt key while clicking and dragging to pan around the scene.
+Run ``zero_agent.py`` to inspect the scene with zero actions. Scroll to zoom;
+hold Alt and drag to pan:
 
 .. code:: bash
 
@@ -73,10 +65,7 @@ Press and hold the alt key while clicking and dragging to pan around the scene.
    --num_envs 1
 
 
-
-Next, use the ``random_agent.py`` script to spin up the environment and perform random actions. The script will create
-and step through the environment in a loop with random tensor actions. You will see the robot move in random
-directions.
+Run ``random_agent.py`` to step the environment with random actions:
 
 .. code:: bash
 
@@ -92,7 +81,6 @@ directions.
    :figclass: align-center
 
    Franka cube stacking environment
-
 
 
 Teleoperation
@@ -196,7 +184,6 @@ the key bindings are:
    3Dconnexion Universal Receiver.
 
 
-
 (Optional) Teleoperation with XR Headsets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -221,7 +208,6 @@ variant of the task (``IsaacContrib-Stack-Cube-Franka-IK-Abs``):
    For more information on teleoperation devices in Isaac Lab, see :ref:`isaac-teleop-feature` for a comprehensive
    overview of the teleop framework. See :ref:`isaac-teleop-supported-devices` for a list of supported XR devices
    and :ref:`isaac-teleop-new-device` for information on adding new devices.
-
 
 
 Collect a Dataset of Human Demonstrations
@@ -306,7 +292,6 @@ You can replay the collected demonstrations by running:
 **Collect 10 successful demonstrations before proceeding to the next step.**
 
 
-
 .. _teleop-imitation-step-2-synthetic-data:
 
 Step 2: Synthetic Data Generation using Isaac Lab Mimic
@@ -316,12 +301,11 @@ Step 2: Synthetic Data Generation using Isaac Lab Mimic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded HDF5 dataset containing 10 human demonstrations for the cube stacking task
-here: `[Cube Stacking Human Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
+here: `[Cube Stacking Human Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
 If you skipped :ref:`Step 1: Human Data Collection <teleop-imitation-step-1-human-data-collection>`, you can download this dataset and use it in the remaining tutorial steps.
 
 Place the dataset in the ``IsaacLab/datasets`` folder. You may need to create the folder if you skipped Step 1 and
 have not created it yet.
-
 
 
 .. _generate-additional-demonstrations:
@@ -333,12 +317,12 @@ In the following example, we will show how to use Isaac Lab Mimic to generate ad
 (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0`` environment) or visuomotor policy (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0`` environment)
 to teach a Franka robot to stack cubes.
 
-Before generating additional demonstrations, the human demonstrations must first be annotated to define the boundary of each subtask.
-Subtasks are defined for each end-effector (eef) and are segments in the demonstrations where the eef is performing an action relative to a specific object.
-Any time the target object of the eef changes, a new subtask begins. For example, in the stacking task, the first subtask is to grasp the red cube
-(eef motion is dictated by the red cube), while the second subtask is to stack the red cube on top of the blue cube (eef motion is dictated by the blue cube).
-Subtasks can be annotated manually or (if the environment supports it) automatically using heuristics. For this tutorial, our environment
-supports automatic annotation which will be used in the following step.
+Annotate each end effector's subtask boundaries before generating data. A subtask
+uses one reference object: grasping the red cube refers to that cube, while placing
+it on the blue cube refers to the blue cube.
+
+You can annotate manually or use environment-specific heuristics. This tutorial
+uses the stacking environment's automatic annotation.
 
 .. important::
 
@@ -462,7 +446,6 @@ You may need to adjust the number of environments to fit your VRAM if you are us
    *Numbers are based on using an RTX PRO 6000 Blackwell GPU with the provided commands.*
 
 
-
 Step 3: Policy Training
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -520,7 +503,6 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
 
 .. important::
    The trained models and logs are saved to ``IsaacLab/logs/robomimic``.
-
 
 
 Visualize the Results
@@ -582,13 +564,11 @@ In the sections below, you can explore examples with other robot embodiments (e.
 own Isaac Lab Mimic compatible environments.**
 
 
-
 Humanoid Examples
 ~~~~~~~~~~~~~~~~~
 
 For examples of data generation and policy training with humanoid robots (GR-1, G1),
 see the page: :ref:`Examples: Data Generation and Imitation Learning for Humanoids <data-generation-imitation-learning-humanoids>`.
-
 
 
 Creating Your Own Isaac Lab Mimic Compatible Environments
@@ -674,11 +654,13 @@ Tips for Successful Data Generation with Isaac Lab Mimic
 Splitting subtasks
 ^^^^^^^^^^^^^^^^^^
 
-A general rule of thumb is to split the task into as few subtasks as possible, while still being able to complete the task. Isaac Lab Mimic data generation uses linear interpolation to bridge and stitch together subtask segments.
-More subtasks result in more stitching of trajectories which can result in less smooth motions and more failed demonstrations. For this reason, it is often best to annoatate subtask boundaries where the robot's motion is unlikely to collide with other objects.
+Use as few subtasks as the task allows. Mimic connects segments with linear
+interpolation; too many boundaries can make motion less smooth and increase failures.
+Place boundaries where interpolated motion is unlikely to collide with objects.
 
-For example, in the scenario below, there is a subtask partition after the robot's left arm grasps the object. On the left, the subtask annotation is marked immediately after the grasp, while on the right, the annotation is marked after the robot has grasped and lifted the object.
-In the left case, the interpolation causes the robot's left arm to collide with the table and it's motion lags while on the right the motion is continuous and smooth.
+The comparison below places a boundary just after grasping (left) or after lifting
+the object (right). The first choice makes the interpolated path collide with the
+table; the second leaves room for a smooth transition.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif
    :width: 99%
@@ -692,16 +674,17 @@ In the left case, the interpolation causes the robot's left arm to collide with 
 Selecting number of interpolation steps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The number of interpolation steps between subtask segments can be specified in the :class:`~isaaclab.envs.SubTaskConfig` class. Once transformed, the subtask segments don't start/end at the same spot, thus to create a continuous motion, Isaac Lab Mimic
-will apply linear interpolation between the last point of the previous subtask and the first point of the next subtask.
+Use more interpolation steps for larger gaps between segments, such as those caused
+by a wide object reset distribution. Use fewer for small gaps to avoid motion lag.
+Tune the count for the robot speed and task.
 
 The number of interpolation steps can be tuned to control the smoothness of the generated demonstrations during this stitching process.
 The appropriate number of interpolation steps depends on the speed of the robot and the complexity of the task. A complex task with a large object reset distribution will have larger gaps between subtask segments and require more interpolation steps to create a smooth motion.
 Alternatively, a task with small gaps between subtask segments should use a small number of interpolation steps to avoid unnecessary motion lag caused by too many steps.
 
-An example of how the number of interpolation steps can affect the generated demonstrations is shown below.
-In the example, an interpolation is applied to the right arm of the robot to bridge the gap between the left arm's grasp and the right arm's placement. With 0 steps, the right arm exhibits a jerky jump in motion while with 20 steps, the motion is laggy. With 5 steps, the motion is
-smooth and natural.
+Below, the right arm interpolates between the left-hand grasp and right-hand
+placement. Zero steps produces a jump, 20 steps adds lag, and 5 steps gives a
+smooth transition in this example.
 
 .. |0_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/0_interpolation_steps.gif
    :width: 32%
@@ -718,7 +701,6 @@ smooth and natural.
 |0_interp_steps| |5_interp_steps| |20_interp_steps|
 
 .. centered:: Left: 0 steps. Middle: 5 steps. Right: 20 steps.
-
 
 
 .. _common-pitfalls-generating-data:
@@ -760,7 +742,6 @@ Common Pitfalls when Generating Data
 * Physics in IsaacLab are not deterministically reproducible when using ``env.reset`` so demonstrations may fail on replay
 * Collect more human demos than needed, use the ones that succeed during annotation
 * All data in Isaac Lab Mimic generated HDF5 file represent a successful demo and can be used for training (even if non-determinism causes failure when replayed)
-
 
 
 .. _glossary-mimic-terminology:

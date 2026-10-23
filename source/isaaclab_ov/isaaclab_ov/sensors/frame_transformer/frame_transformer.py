@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import re
 import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -22,7 +21,6 @@ from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 import isaaclab_ov.tensor_types as TT
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .frame_transformer_data import FrameTransformerData
@@ -113,14 +111,6 @@ class FrameTransformer(BaseFrameTransformer):
             stacklevel=2,
         )
         return self._target_frame_body_names
-
-    """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        super().reset(None, env_mask)
 
     """
     Implementation.
@@ -234,7 +224,7 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
         # --- OVPhysX: create one TT.RIGID_BODY_POSE view per unique tracked body ---
-        physx_instance = SimulationManager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError(
                 "OvPhysxManager has not been initialized yet."
@@ -258,22 +248,7 @@ class FrameTransformer(BaseFrameTransformer):
                     " Verify the prim has UsdPhysics.RigidBodyAPI."
                 ) from exc
 
-            if binding.count != self._num_envs:
-                # OVPhysX's InteractiveScene defaults to clone_usd=True on develop, so this branch is
-                # unexpected in current flows. Mirror ContactSensor's clone_usd=False fallback so the
-                # sensor stays correct if a future scene runs with clone_usd=False.
-                logger.warning(
-                    "FrameTransformer: binding.count=%d for pattern %r differs from self._num_envs=%d;"
-                    " overriding env count from binding (clone_usd=False scene).",
-                    binding.count,
-                    pattern,
-                    self._num_envs,
-                )
-                self._num_envs = binding.count
-                self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask_torch = wp.to_torch(self._reset_mask)
-                self._create_timing_buffers()
+            self._check_env_count(binding.count, pattern)
 
             read_buf = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
             dst_torch = torch.tensor(
@@ -431,6 +406,7 @@ class FrameTransformer(BaseFrameTransformer):
         # Step 1: refresh each per-body RIGID_BODY_POSE view and gather rows into _raw_transforms.
         # read_into fills the structured (num_envs,) wp.transformf buffer directly via a cached
         # float32 reinterpret, so no manual .view(wp.transformf) is needed here.
+        self._backend_manager.update_kinematics()
         for view, read_buf, dst_indices in zip(self._body_views, self._body_read_bufs, self._body_dst_flat_indices):
             view.read_into(TT.RIGID_BODY_POSE, read_buf)
             wp.launch(
