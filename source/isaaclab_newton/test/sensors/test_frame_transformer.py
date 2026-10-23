@@ -24,6 +24,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.views import FrameView
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass, replace
 
@@ -174,6 +175,9 @@ def test_frame_transformer_sources_and_targets(sim):
         target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/[^/]*")],
     )
     scene = InteractiveScene(scene_cfg)
+    thigh_prim, thigh_path = sim_utils.resolve_matching_prims_from_source(f"{scene.env_regex_ns}/Robot/LF_THIGH")[0]
+    sim_utils.create_prim(f"{thigh_prim.GetPath()}/SensorFrame", translation=(0.0, 0.0, 0.1))
+    frame_view = FrameView(f"{thigh_path}/SensorFrame", device=sim.device)
 
     # Play the simulator
     sim.reset()
@@ -224,8 +228,7 @@ def test_frame_transformer_sources_and_targets(sim):
             # reset buffers
             scene.reset()
 
-            sim.forward()
-            # Read the sensor after FK, before asset-pose reads or the next physics step.
+            # Read before asset-pose getters or the next physics step can resolve deferred FK.
             reset_frames = scene.sensors["ft_cube"].data
             torch.testing.assert_close(reset_frames.source_pos_w.torch, root_state[:, :3])
             torch.testing.assert_close(reset_frames.target_pos_w.torch[:, 0], cube_state[:, :3])
@@ -326,13 +329,30 @@ def test_frame_transformer_sources_and_targets(sim):
             data.target_quat_source.torch,
         )
 
+    # Each reader must resolve pending joint FK before an asset getter can publish child poses.
+    joint_pos = default_actions.clone()
+    joint_pos[:, 0] += 0.5
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    scene.sensors["ft_all"].reset()
+    measured = scene.sensors["ft_all"].data.target_pos_w.torch.clone()
+    torch.testing.assert_close(measured[:, all_reordering_indices], robot.data.body_pos_w.torch)
+
+    joint_pos[:, 0] += 0.5
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    measured = frame_view.get_world_poses()[0].torch.clone()
+    offset = torch.tensor([[0.0, 0.0, 0.1]], device=sim.device).repeat(scene.num_envs, 1)
+    expected = robot.data.body_pos_w.torch[:, thigh_index] + math_utils.quat_apply(
+        robot.data.body_quat_w.torch[:, thigh_index], offset
+    )
+    torch.testing.assert_close(measured, expected)
+    frame_view.close()
+
     # A cached update must honor changes to the reset mask.
     sensor = scene.sensors["ft_cube"]
     previous_frames = sensor.data.target_pos_w.torch.clone()
     cube_pose = cube.data.root_pose_w.torch.clone()
     cube_pose[1, 0] += 1.0
     cube.write_root_pose_to_sim_index(root_pose=cube_pose[1:2], env_ids=[1])
-    sim.forward()
     sensor.reset(env_ids=[1])
     torch.testing.assert_close(sensor.data.target_pos_w.torch[1, 0], cube_pose[1, :3])
     torch.testing.assert_close(sensor.data.target_pos_w.torch[0], previous_frames[0])

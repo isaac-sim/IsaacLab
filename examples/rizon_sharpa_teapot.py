@@ -3,15 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Physically grasp the Utah teapot and pour MPM water during a 70 cm rise.
+"""Physically grasp the Utah teapot and pour MPM water during a 25 cm rise.
 
-Run with ``uv run isaaclab example rizon-sharpa-teapot``. This experimental
-example uses a fixed index grasp and motion.
+This experimental example uses a fixed index grasp and motion.
+
+.. code-block:: bash
+
+    # Newton GL:
+    uv run isaaclab example rizon-sharpa-teapot
 
 
-Keep ``rizon4s_sharpa_no_spheres_generated.usd`` beside ``textures/`` and set
-``ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`` to that directory. The example checks
-the USD and its textures against the pinned bundle digest before launching.
+The pinned robot USD and textures are downloaded and verified on first use.
+Set ``ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`` to an existing bundle directory
+to use it without downloading.
 """
 
 from __future__ import annotations
@@ -21,10 +25,10 @@ import json
 import math
 import os
 import runpy
+import shutil
 import sys
 import tempfile
 from collections.abc import Callable
-from dataclasses import replace
 from functools import lru_cache
 from importlib.metadata import version
 from pathlib import Path
@@ -33,40 +37,36 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from filelock import FileLock
-from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonManager
-from newton import BodyFlags, GeoType, StateFlags
-from newton.solvers.experimental.coupled import SolverCoupled
+from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
 from scipy.interpolate import CubicSpline
-from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
 from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
-from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
 if TYPE_CHECKING:
-    from newton import ModelBuilder
+    from _rizon_sharpa_teapot_coupler import _NewtonTeapotCouplerManager
 
     from isaaclab.assets import Articulation, ArticulationCfg, RigidObject
 
 TABLETOP_CONTAINER_POS = (-0.355, 0.0, 0.90041)
 CONTAINER_BASE_POS = (-0.340, 0.0, 1.020)
-BOWL_SCALE = 1.5
-BOWL_BASE_POS = (-0.144, 0.0, 0.9004073255)
+BOWL_BASE_POS = (-0.144, 0.0, 0.900408217)
 ROBOT_BASE_POS = (-0.930, 0.0, 1.15041)
-PICKUP_TIME = 2.5
-GRASP_CLOSE_INTERVAL = (1.0, 1.7)
-INITIAL_LIFT_TIME = 5.0
-POUR_PREFIX_TIME = PICKUP_TIME + INITIAL_LIFT_TIME
-HOLD_TIME = 0.55
-TILT_TIME = 6.0
-LIFT_TIME = 10.0
-LIFT_HEIGHT = 0.70
-RECOVERY_TIME = 5.0
-SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + TILT_TIME + LIFT_TIME + RECOVERY_TIME + 0.45
-_POUR_ANGLE = math.radians(54.0)
-_UPPER_ANGLE = math.radians(49.0)
+PICKUP_TIME = 2.0
+GRASP_CLOSE_INTERVAL = (0.6, 1.3)
+INITIAL_LIFT_TIME = 2.0
+POUR_PREFIX_TIME = PICKUP_TIME + 0.35
+HOLD_TIME = 0.0
+TILT_TIME = 4.0
+LIFT_DELAY = 2.5
+LIFT_TIME = 8.0
+LIFT_HEIGHT = 0.25
+POUR_HOLD_TIME = 0.65
+RECOVERY_TIME = 3.5
+SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + LIFT_DELAY + LIFT_TIME + POUR_HOLD_TIME + RECOVERY_TIME + 1.0
+_POUR_ANGLE = math.radians(42.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
 _SPOUT_POUR_POS = (-0.169, 0.0, 0.9937642035)
@@ -83,30 +83,23 @@ def _blend(raw: float) -> tuple[float, float]:
 
 def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """Return the teapot root position [m], XYZW quaternion and linear/angular twist [m/s, rad/s]."""
-    if sim_time < POUR_PREFIX_TIME:
-        progress, derivative = _blend((sim_time - PICKUP_TIME) / INITIAL_LIFT_TIME)
-        displacement = tuple(b - a for a, b in zip(TABLETOP_CONTAINER_POS, CONTAINER_BASE_POS, strict=True))
-        return (
-            tuple(a + progress * delta for a, delta in zip(TABLETOP_CONTAINER_POS, displacement, strict=True)),
-            (0.0, 0.0, 0.0, 1.0),
-            (*tuple(derivative * delta / INITIAL_LIFT_TIME for delta in displacement), 0.0, 0.0, 0.0),
-        )
+    # Begin tilting while the initial lift is still clearing the table.
+    progress, derivative = _blend((sim_time - PICKUP_TIME) / INITIAL_LIFT_TIME)
+    displacement = tuple(b - a for a, b in zip(TABLETOP_CONTAINER_POS, CONTAINER_BASE_POS, strict=True))
+    base_position = tuple(a + progress * delta for a, delta in zip(TABLETOP_CONTAINER_POS, displacement, strict=True))
+    base_velocity = tuple(derivative * delta / INITIAL_LIFT_TIME for delta in displacement)
 
     time = sim_time - POUR_PREFIX_TIME - HOLD_TIME
     tilt, tilt_derivative = _blend(time / TILT_TIME)
-    lift, lift_derivative = _blend((time - TILT_TIME) / LIFT_TIME)
-    recovery_raw = (time - TILT_TIME - LIFT_TIME) / RECOVERY_TIME
+    lift, lift_derivative = _blend((time - LIFT_DELAY) / LIFT_TIME)
+    recovery_raw = (time - LIFT_DELAY - LIFT_TIME - POUR_HOLD_TIME) / RECOVERY_TIME
     recovery, recovery_derivative = _blend(recovery_raw)
-    # Establish a strong stream, then reduce tilt as the pot rises and drains.
-    angle = _POUR_ANGLE * tilt + (_UPPER_ANGLE - _POUR_ANGLE) * lift - _UPPER_ANGLE * recovery
-    angular_speed = (
-        _POUR_ANGLE * tilt_derivative / TILT_TIME
-        + (_UPPER_ANGLE - _POUR_ANGLE) * lift_derivative / LIFT_TIME
-        - _UPPER_ANGLE * recovery_derivative / RECOVERY_TIME
-    )
+    # Tilt directly to the pouring angle, then hold it until recovery.
+    angle = _POUR_ANGLE * (tilt - recovery)
+    angular_speed = _POUR_ANGLE * (tilt_derivative / TILT_TIME - recovery_derivative / RECOVERY_TIME)
     lift_speed = LIFT_HEIGHT * lift_derivative / LIFT_TIME
 
-    # Lower the outlet over the bowl before tilting, preserving the calibrated path.
+    # Blend the ongoing pickup into the calibrated outlet alignment.
     alignment, alignment_derivative = _blend(angle / _SPOUT_LOWERING_ANGLE)
     alignment_speed = alignment_derivative * angular_speed / _SPOUT_LOWERING_ANGLE
     x, y, z = _SPOUT_LOCAL_POS
@@ -114,12 +107,13 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
     rotated_spout = (x * cosine + z * sine, y, -x * sine + z * cosine)
     displacement = tuple(
         target - outlet - origin
-        for target, outlet, origin in zip(_SPOUT_POUR_POS, rotated_spout, CONTAINER_BASE_POS, strict=True)
+        for target, outlet, origin in zip(_SPOUT_POUR_POS, rotated_spout, base_position, strict=True)
     )
-    position = tuple(a + alignment * delta for a, delta in zip(CONTAINER_BASE_POS, displacement, strict=True))
+    position = tuple(a + alignment * delta for a, delta in zip(base_position, displacement, strict=True))
     target_velocity = (angular_speed * (x * sine - z * cosine), 0.0, angular_speed * (x * cosine + z * sine))
     velocity = tuple(
-        alignment_speed * delta + alignment * speed for delta, speed in zip(displacement, target_velocity, strict=True)
+        (1.0 - alignment) * base_speed + alignment_speed * delta + alignment * speed
+        for base_speed, delta, speed in zip(base_velocity, displacement, target_velocity, strict=True)
     )
 
     # Compensate for the longer falling stream, then ease forward for the final drips.
@@ -141,8 +135,8 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
 
 def approach_offset_at_time(sim_time: float) -> tuple[float, ...]:
     """Insert the index finger from beside the handle after a brief settling interval [m]."""
-    progress, _ = _blend((sim_time - 0.2) / (GRASP_CLOSE_INTERVAL[0] - 0.2))
-    return (0.0, -0.08 * (1.0 - progress), 0.0)
+    progress, _ = _blend((sim_time - 0.1) / (GRASP_CLOSE_INTERVAL[0] - 0.1))
+    return (0.0, -0.035 * (1.0 - progress), 0.0)
 
 
 def main() -> None:
@@ -152,7 +146,7 @@ def main() -> None:
         "--robot",
         "rizon_sharpa",
         "--fill_level",
-        "0.40",
+        "0.70",
         "--fluid_render_mode",
         "particles",
         "--max_steps",
@@ -174,6 +168,15 @@ ASSET_REVISION = "d0dbd1ddaefc4996db546949a7dfb37e39afcbeb"
 ASSET_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
 ASSET_USD_NAME = "rizon4s_sharpa_no_spheres_generated.usd"
 ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
+_ASSET_RELATIVE_PATHS = (
+    ASSET_USD_NAME,
+    "textures/t_Rizon4s_EmissiveMask.1001.png",
+    "textures/t_Rizon4s_EmissiveMask.1002.png",
+    *[f"textures/t_Rizon4s_{channel}.{tile}.png" for channel in ("alb", "nor", "orm") for tile in (1001, 1002, 1003)],
+    "textures/t_Sharpa_alb.png",
+    "textures/t_Sharpa_nor.png",
+    "textures/t_Sharpa_orm.png",
+)
 PALM_BODY_NAME = "r_palm_ctrl"
 """Canonical palm: +X toward the knuckles, +Z out of the palm."""
 
@@ -254,7 +257,7 @@ _THUMB_CONTACT_NORMAL = np.array((-0.320969277, 0.308200555, 0.895539581))
 
 
 def configured_asset_path() -> Path:
-    """Resolve and verify the pinned licensed robot bundle in the user's cache."""
+    """Download the pinned robot bundle or verify an explicitly configured local copy."""
     configured = os.environ.get(ASSET_ROOT_ENV)
     root = (
         Path(configured).expanduser()
@@ -263,6 +266,31 @@ def configured_asset_path() -> Path:
     )
     if root.suffix.lower() in (".usd", ".usda", ".usdc"):
         root = root.parent
+    if not configured:
+        from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, read_file
+
+        source = f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45/Robots/Rizon4sSharpa"
+        root.parent.mkdir(parents=True, exist_ok=True)
+        with FileLock(f"{root}.lock"):
+            missing = [relative for relative in _ASSET_RELATIVE_PATHS if not (root / relative).is_file()]
+            if missing:
+                with tempfile.TemporaryDirectory(dir=root.parent) as temporary:
+                    staging = Path(temporary)
+                    for relative in _ASSET_RELATIVE_PATHS:
+                        target = staging / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        if (root / relative).is_file():
+                            shutil.copyfile(root / relative, target)
+                        else:
+                            target.write_bytes(read_file(f"{source}/{relative}").getbuffer())
+                    _verify_asset_bundle(staging.resolve())
+                    if not root.exists():
+                        staging.rename(root)
+                    else:
+                        for relative in missing:
+                            target = root / relative
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            (staging / relative).replace(target)
     path = root / ASSET_USD_NAME
     _verify_asset_bundle(root.resolve())
     return path
@@ -519,148 +547,20 @@ def _prepared_robot_path(source: Path) -> Path:
 
 @lru_cache(maxsize=4)
 def _verify_asset_bundle(root: Path) -> None:
-    """Verify the pinned robot bundle without copying licensed assets."""
-    texture_names = [
-        "t_Rizon4s_EmissiveMask.1001.png",
-        "t_Rizon4s_EmissiveMask.1002.png",
-        *[f"t_Rizon4s_{channel}.{tile}.png" for channel in ("alb", "nor", "orm") for tile in (1001, 1002, 1003)],
-        "t_Sharpa_alb.png",
-        "t_Sharpa_nor.png",
-        "t_Sharpa_orm.png",
-    ]
+    """Verify the pinned robot USD and textures without modifying them."""
     digest = hashlib.sha256()
-    for relative_path in [ASSET_USD_NAME, *[f"textures/{name}" for name in texture_names]]:
+    for relative_path in _ASSET_RELATIVE_PATHS:
         path = root / relative_path
         if not path.is_file():
             raise FileNotFoundError(
                 f"Missing Rizon/Sharpa asset: {path}. Set {ASSET_ROOT_ENV} to the licensed bundle directory "
-                f"containing {ASSET_USD_NAME} and textures/. See the prerequisites in "
-                "examples/rizon_sharpa_teapot.py."
+                f"containing {ASSET_USD_NAME} and textures/."
             )
         with path.open("rb") as stream:
             file_digest = hashlib.file_digest(stream, "sha256").hexdigest()
         digest.update(f"{file_digest}  {relative_path}\n".encode())
     if digest.hexdigest() != ASSET_BUNDLE_SHA256:
         raise ValueError(f"Rizon/Sharpa asset bundle at {root} differs from revision {ASSET_REVISION}.")
-
-
-class _TeapotColliderSyncSolver(SolverCoupled):
-    """Advance rigid contacts, then pass the measured pot boundary to MPM."""
-
-    def __init__(self, model, entries):
-        super().__init__(model=model, entries=entries)
-        pot = model.body_label.index("/World/envs/env_0/PourContainer")
-        self._source_pot = int(self._entries["robot"].body_global_to_local.numpy()[pot])
-        self._fluid_pot = int(self._entries["fluid"].body_global_to_local.numpy()[pot])
-
-    def _apply_entry_shape_visibility(self, view, cfg, proxy_body_keep):
-        visible = self._entry_visible_shapes(cfg, set(cfg.bodies) | proxy_body_keep)
-        if cfg.name == "robot":
-            # MJWarp CCD requires zero margins; the fluid shell retains its margins.
-            view.shape_margin = wp.zeros_like(view.shape_margin)
-        super()._apply_entry_shape_visibility(view, replace(cfg, shapes=sorted(visible)), proxy_body_keep)
-        if cfg.name == "fluid":
-            # The physical pot stays dynamic in MJWarp. Only MPM prescribes its motion.
-            # Newton applies visibility before compaction, so body flags still use global indices.
-            flags = view.body_flags.numpy()
-            pot = self.model.body_label.index("/World/envs/env_0/PourContainer")
-            flags[pot] |= int(BodyFlags.KINEMATIC)
-            view.body_flags = wp.array(flags, dtype=view.body_flags.dtype, device=self.model.device)
-
-    def _entry_visible_shapes(self, cfg, visible_bodies):
-        visible = super()._entry_visible_shapes(cfg, visible_bodies)
-        if cfg.name == "robot":
-            visible = {i for i in visible if "/PourContainer/geometry/" not in self.model.shape_label[i]}
-            visible.update(
-                i
-                for i, label in enumerate(self.model.shape_label)
-                if "/TabletopCollider/" in label or label.startswith("/World/Ground/")
-            )
-        else:
-            visible.update(i for i, label in enumerate(self.model.shape_label) if "/PourContainer/geometry/" in label)
-            visible = {
-                i
-                for i in visible
-                if "/PourContainer/" not in self.model.shape_label[i]
-                or "/PourContainer/geometry/" in self.model.shape_label[i]
-            }
-        return visible
-
-    def _step_coupled(self, state_in, state_out, control, contacts, dt):
-        rigid, fluid = self._entries["robot"], self._entries["fluid"]
-        self._step_entry(rigid, control, contacts, dt)
-        # COM velocity and angular velocity carry the measured root from start to end.
-        wp.launch(
-            _sync_teapot_collider,
-            dim=1,
-            inputs=[
-                rigid.state_0.body_q,
-                rigid.state_1.body_q,
-                rigid.view.body_com,
-                self._source_pot,
-                dt,
-                fluid.state_0.body_q,
-                fluid.state_0.body_qd,
-                self._fluid_pot,
-            ],
-            device=self.model.device,
-        )
-        self._notify_input_state_update(fluid, StateFlags.BODY_Q | StateFlags.BODY_QD, dt=dt)
-        self._step_entry(fluid, control, contacts, dt)
-
-
-class NewtonTeapotCouplerManager(NewtonCouplerManager):
-    """Couple the dynamic grasped pot to its exact MPM collision shell."""
-
-    @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Keep generated rigid hulls above the exact shell's body-local base plane."""
-        for body, label in enumerate(builder.body_label):
-            if not label.endswith("/PourContainer"):
-                continue
-            shell = next(i for i, name in enumerate(builder.shape_label) if name.startswith(label + "/geometry/"))
-            transform = builder.shape_transform[shell]
-            points = Rotation.from_quat(transform.q).apply(
-                builder.shape_source[shell].vertices * np.asarray(builder.shape_scale[shell])
-            ) + np.asarray(transform.p)
-            base_z = float(points[:, 2].min())
-            for shape, name in enumerate(builder.shape_label):
-                if (
-                    builder.shape_body[shape] != body
-                    or not name.startswith(label + "/RigidCollider/")
-                    or builder.shape_type[shape] != GeoType.CONVEX_MESH
-                ):
-                    continue
-                mesh = builder.shape_source[shape]
-                transform = builder.shape_transform[shape]
-                rotation = Rotation.from_quat(transform.q)
-                scale = np.asarray(builder.shape_scale[shape])
-                points = rotation.apply(mesh.vertices * scale) + np.asarray(transform.p)
-                below = points[:, 2] < base_z
-                if not below.any():
-                    continue
-                # CoACD's voxel preprocessing can extend hulls below a flat base,
-                # producing a first-step impulse and an uneven support footprint.
-                points[below, 2] = base_z
-                vertices = mesh.vertices.copy()
-                vertices[below] = rotation.inv().apply(points[below] - np.asarray(transform.p)) / scale
-                hull = ConvexHull(vertices)
-                faces = hull.simplices.copy()
-                normals = np.cross(
-                    vertices[faces[:, 1]] - vertices[faces[:, 0]], vertices[faces[:, 2]] - vertices[faces[:, 0]]
-                )
-                reverse = np.einsum("ij,ij->i", normals, hull.equations[:, :3]) < 0.0
-                faces[reverse] = faces[reverse][:, (0, 2, 1)]
-                # Copying geometry rebuilds mesh caches while preserving authored
-                # mass properties; the exact shell and handle vertices are untouched.
-                builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
-        # MPM preparation converts convex parts to triangle meshes; repair their
-        # generated support geometry before that classification is lost.
-        super()._prepare_builder_for_finalize(builder)
-
-    @classmethod
-    def _build_proxy_coupled_solver(cls, model, entries, proxy_cfgs, solver_cfg):
-        return _TeapotColliderSyncSolver(model=model, entries=entries)
 
 
 class TeapotPourMotion:
@@ -689,8 +589,10 @@ class TeapotPourMotion:
         import mujoco
         from scipy.optimize import least_squares
 
-        if not 0.0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < duration:
-            raise ValueError("Closure and squeeze must finish before pickup and the end of the sequence.")
+        from isaaclab.sim import SimulationContext
+
+        if not 0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < pickup_end_time < duration:
+            raise ValueError("Closure, pickup and sequence timings must be strictly ordered.")
         if not math.isclose(sim_dt, 1.0 / 800.0, rel_tol=1.0e-9):
             raise ValueError("The calibrated contact grasp requires an 800 Hz simulation timestep.")
         self._robot = robot
@@ -712,7 +614,7 @@ class TeapotPourMotion:
         self._thumb_joints = joint_ids[7:12]
         self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
-        mj = NewtonManager._solver.solver("robot").mj_model
+        mj = SimulationContext.instance().backend_manager._solver.solver("robot").mj_model
         names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
         arm_q = mj.jnt_qposadr[joints[:7]]
@@ -860,7 +762,9 @@ class TeapotPourMotion:
         )
         # Level gently as the base clears the table; ease the higher pickup gain before pouring.
         pickup_weight = 1.0 - self._blend((sim_time - self._pickup_end_time + 0.5) / 0.5)
-        feedback_weight = self._blend((sim_time - self._grasp_time) / 2.0)
+        feedback_weight = self._blend(
+            (sim_time - self._grasp_time) / (0.5 * (self._pickup_end_time - self._grasp_time))
+        )
         rotation_gain = (8.0 + 4.0 * pickup_weight) * feedback_weight
         command = np.asarray(twist) + error * np.array((10.0, 10.0, 10.0, rotation_gain, rotation_gain, rotation_gain))
         command[:3], command[3:] = np.clip(command[:3], -0.45, 0.45), np.clip(command[3:], -1.5, 1.5)
@@ -981,26 +885,6 @@ class TeapotPourMotion:
 
 
 @wp.kernel
-def _sync_teapot_collider(
-    source_start: wp.array[wp.transform],
-    source_end: wp.array[wp.transform],
-    source_com: wp.array[wp.vec3],
-    source: int,
-    dt: float,
-    fluid_pose: wp.array[wp.transform],
-    fluid_velocity: wp.array[wp.spatial_vector],
-    destination: int,
-):
-    start = source_start[source]
-    end = source_end[source]
-    linear = (wp.transform_point(end, source_com[source]) - wp.transform_point(start, source_com[source])) / dt
-    rotation = wp.normalize(wp.transform_get_rotation(end) * wp.quat_inverse(wp.transform_get_rotation(start)))
-    axis, angle = wp.quat_to_axis_angle(rotation)
-    fluid_pose[destination] = start
-    fluid_velocity[destination] = wp.spatial_vector(linear, axis * (angle / dt))
-
-
-@wp.kernel
 def _interpolate_joints(
     path: wp.array3d[float],
     joints: wp.array[int],
@@ -1039,7 +923,7 @@ def _interpolate_joints(
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: type[NewtonTeapotCouplerManager] | str = "rizon_sharpa_teapot:NewtonTeapotCouplerManager"
+    class_type: type[_NewtonTeapotCouplerManager] | str = "_rizon_sharpa_teapot_coupler:_NewtonTeapotCouplerManager"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:

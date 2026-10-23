@@ -118,7 +118,6 @@ def test_copy_from_newton_decomposes_normal_and_friction_forces():
             force_matrix,
             friction_matrix,
             positions,
-            wp.ones((1,), dtype=wp.float32, device="cpu"),
         ],
         outputs=[
             data._net_forces_w,

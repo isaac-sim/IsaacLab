@@ -31,7 +31,11 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
-from joint_wrench_contract import test_joint_wrench_body_ordering, test_joint_wrench_frame  # noqa: E402, F401
+from joint_wrench_contract import (  # noqa: E402, F401
+    assert_sensors_reject_partial_environment_coverage,
+    test_joint_wrench_body_ordering,
+    test_joint_wrench_frame,
+)
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
@@ -40,6 +44,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
@@ -123,6 +128,12 @@ def sim(device):
 def device(request):
     """Supply the device to imported contract tests as well as backend-local tests."""
     return request.param
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_sensors_reject_partial_environment_coverage(sim, device):
+    """Native bindings must cover the scene's environment rows before sensors allocate/index data."""
+    assert_sensors_reject_partial_environment_coverage(sim, _SingleJointSceneCfg(num_envs=4))
 
 
 # ---------------------------------------------------------------------------

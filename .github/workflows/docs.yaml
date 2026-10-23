@@ -8,7 +8,7 @@ name: Docs
 on:
   # Pushes and PRs still build current-docs (build-latest-docs). The expensive
   # multi-version deploy is owned by the nightly cron on the repository default
-  # branch; develop / release pushes no longer deploy here.
+  # branch; default / release pushes no longer deploy here.
   push:
     branches:
       - main
@@ -19,8 +19,8 @@ on:
     # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
     # additionally, we have a check that determines what version of docs will be built
     types: [opened, synchronize, reopened]
-  # Nightly multi-version rebuild + deploy from develop tip. Picks up every
-  # develop commit accumulated since the previous nightly in a single run.
+  # Nightly multi-version rebuild + deploy from the default-branch tip. Picks up
+  # every commit accumulated since the previous nightly in a single run.
   schedule:
     - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
   workflow_dispatch:
@@ -28,6 +28,10 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Keep source links correct both before and after the default branch is renamed.
+  ISAACLAB_LATEST_BRANCH: ${{ github.event.repository.default_branch }}
 
 jobs:
   doc-build-type:
@@ -42,7 +46,7 @@ jobs:
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
       # Multi-version deploy is owned by the nightly cron on the repository
-      # default branch. Develop / release / feature pushes and PRs build
+      # default branch. Default / release / feature pushes and PRs build
       # current-docs only and never deploy here.
       if: "${{ github.repository == env.REPO_NAME && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
@@ -89,7 +93,7 @@ jobs:
     # run on deploy branches to create multi-version docs
     if: needs.doc-build-type.outputs.trigger-deploy == 'true'
     env:
-      DOCS_DEFAULT_REF: v3.0.0-EA
+      DOCS_DEFAULT_REF: main
 
     steps:
     - name: Checkout code
@@ -110,16 +114,25 @@ jobs:
       working-directory: ./docs
       env:
         # "deploy" branches build the full set of versions so every page
-        # has a complete version dropdown: main, develop, release/3.0.0, and
-        # tags >= v2.0.0 (including pre-release suffixes like -beta, -rc1, or -EA).
-        # v1.x tags and other release branches are excluded.
-        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0)$'
+        # has a complete version dropdown during the branch-name cutover: main,
+        # develop (while it exists), and tags >= v2.0.0 (including pre-release
+        # suffixes like -beta, -rc1, or -EA). v1.x tags and release branches are
+        # excluded.
+        SMV_BRANCH_WHITELIST: '^(main|develop)$'
         SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
         git for-each-ref --format="%(refname:short)" refs/heads/ | xargs -r git branch -D
         make multi-docs
+
+    - name: Preserve legacy develop documentation URLs
+      if: ${{ github.event.repository.default_branch == 'main' }}
+      working-directory: ./docs
+      run: |
+        test -d _build/main
+        rm -rf _build/develop
+        cp -a _build/main _build/develop
 
     - name: Verify default docs version
       working-directory: ./docs

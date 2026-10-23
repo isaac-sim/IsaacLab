@@ -273,7 +273,7 @@ def main():
     env_cfg.actions = type(env_cfg)().actions.ik
     env_cfg.viewer.eye = (1.3, 0.6, 0.5)
     env_cfg.viewer.lookat = (0.5, 0.0, 0.05)
-    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=env_cfg.viewer.eye, lookat=env_cfg.viewer.lookat)
+    env_cfg.sim.visualizer_cfgs = VisualizerCfg(eye=env_cfg.viewer.eye, lookat=env_cfg.viewer.lookat)
 
     with launch_simulation(env_cfg, args_cli):
         env = gym.make(args_cli.task, cfg=env_cfg)

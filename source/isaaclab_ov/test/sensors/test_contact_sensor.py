@@ -820,7 +820,10 @@ def test_lazy_sensor_reports_contact_loss(device):
     ids=["no-history-truncated", "history"],
 )
 def test_friction_reporting(device, grav_dir, history_length, max_count):
-    """Sliding contact reports complete forces independently of detail capacity and tracking options."""
+    """Sliding contact reports complete forces independently of detail capacity and tracking options.
+
+    A partial reset keeps the reset values of the reset environment until its next physics step (#4970).
+    """
     num_envs = 3
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=_SIM_DT, device=device, gravity=grav_dir)
     with build_simulation_context(device=device, sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -948,6 +951,9 @@ def test_friction_reporting(device, grav_dir, history_length, max_count):
         positions_before_reset = data.contact_pos_w.torch.clone()
         for current_sensor in sensors:
             current_sensor.reset(env_ids=[0])
+            # Read like the observation that follows an environment reset: no physics step has run since the
+            # reset, so the refresh must keep the reset values instead of the pre-reset contacts (#4970).
+            _ = current_sensor.data
         for force, before in zip(forces, before_reset):
             assert torch.count_nonzero(force.torch[0]) == 0
             torch.testing.assert_close(force.torch[1:], before[1:])

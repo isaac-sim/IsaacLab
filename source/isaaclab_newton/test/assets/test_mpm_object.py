@@ -16,7 +16,7 @@ pytestmark = pytest.mark.kitless
 newton = pytest.importorskip("newton")
 
 from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg
-from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
+from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
 from isaaclab.assets import RigidObjectCfg
@@ -57,12 +57,12 @@ def test_mpm_object_initializes_from_interactive_scene():
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
         assert not sim.get_scene_data_provider().get_geometry_points()
 
-        callback_count = len(NewtonMPMManager._callbacks)
+        callback_count = len(sim.backend_manager._callbacks)
         for _ in range(2):
             old_data = media.data
             sim.reset()
             assert media.data is not old_data
-            assert len(NewtonMPMManager._callbacks) == callback_count
+            assert len(sim.backend_manager._callbacks) == callback_count
 
             default_state = media.data.default_particle_state_w.torch.clone()
             shifted_state = default_state[0:1].clone()
@@ -127,9 +127,9 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
         collider.write_root_link_pose_to_sim_index(root_pose=root_pose)
         sim.step(render=False)
 
-        body_labels = list(NewtonMPMManager.get_model().body_label)
+        body_labels = list(sim.backend_manager.get_model().body_label)
         body_idx = body_labels.index("/World/envs/env_0/KinematicBox")
-        body_q = NewtonMPMManager.get_state_0().body_q.numpy()[body_idx]
+        body_q = sim.backend_manager.get_state_0().body_q.numpy()[body_idx]
 
         np.testing.assert_allclose(body_q, root_pose.detach().cpu().numpy()[0], rtol=1.0e-5, atol=1.0e-6)
 

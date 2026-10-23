@@ -10,23 +10,17 @@ Coupled Solvers
 
 .. warning::
 
-   Coupled solvers are experimental and exposed through
-   :mod:`isaaclab_contrib.coupling`. Their API, behavior, feature support,
-   performance, and implementation may change.
+   Coupled solvers are experimental. Their API and behavior may change.
 
 Newton can partition one model between multiple solvers and exchange state and
 forces between them during each simulation step. This lets a task combine
 solver families that target different physics, such as an MJWarp rigid robot
 interacting with VBD cloth or an MPM material.
 
-Isaac Lab exposes this framework through
-:mod:`isaaclab_contrib.coupling`. The adapter turns configuration selectors
-into named Newton solver entries, constructs the selected coupling algorithm,
-and integrates it with :class:`~isaaclab_newton.physics.NewtonCfg`. For the
-shared-model architecture, iteration algorithms, supported constraint rows,
-and solver-specific implementation details, see Newton's
-`Coupled Solvers concept page
-<https://newton-physics.github.io/newton/stable/concepts/coupling.html>`_.
+Configure coupling through :mod:`isaaclab_contrib.coupling` and
+:class:`~isaaclab_newton.physics.NewtonCfg`. Newton's `Coupled Solvers guide
+<https://newton-physics.github.io/newton/stable/concepts/coupling.html>`_ describes
+the algorithms, constraints, and solver internals.
 
 
 The coupling model
