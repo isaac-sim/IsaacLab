@@ -631,7 +631,10 @@ def _run(args: argparse.Namespace) -> int:
                 ),
                 flush=True,
             )
-            return 0 if success else 1
+            if not success:
+                # Kit must receive the failure before its launcher closes.
+                raise SystemExit(1)
+            return 0
         finally:
             env.close()
 
