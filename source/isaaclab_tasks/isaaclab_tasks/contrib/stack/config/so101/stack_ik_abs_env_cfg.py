@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import inspect
 from dataclasses import MISSING
 
 import numpy as np
@@ -55,7 +56,8 @@ def _build_so101_stack_pipeline():
 
     The SO-101 is 5-DOF and driven by a full-SE3-pose IK over all 5 arm joints (shoulder_pan,
     shoulder_lift, elbow_flex, wrist_flex, wrist_roll): the clutch applies controller motion
-    relative to each engage pose to its full home pose, and the IK tracks
+    relative to each engage pose to its full home pose (Capture 1.7). The supported
+    isaacteleop 1.4 API instead retains calibrated absolute grip orientation. The IK tracks
     position exactly while best-effort tracking orientation (soft-weighted). The gripper jaw
     tracks the trigger proportionally (analog), and the EE position is clutch-rebased around a
     captured origin so engaging teleop does not teleport the arm.
@@ -87,17 +89,20 @@ def _build_so101_stack_pipeline():
     # receives base-frame data matching the absolute-pose IK command frame.
     transformed_controllers = controllers.transformed(transform_input.output(ValueInput.VALUE))
 
-    # Clutch (relative-origin) EE-pose retargeter (right hand). Emits the same absolute 7D
-    # "ee_pose" contract as Se3AbsRetargeter (node name + output key "ee_pose"), but rebases
-    # controller motion around an origin captured on engage. It seeds the home from the static
-    # ``home_base_T_ee`` reset-origin on reset / first engage and keeps its own running home
-    # thereafter (so a mid-task re-clutch resumes from the last commanded pose). The robot
-    # ``init_state`` must reset the arm to ``_BASE_T_GRIPPER_HOME`` so the first engage does not
-    # jump. The full pose (position + orientation) drives the 5-joint SE3 IK below.
+    # Both APIs rebase position around a captured origin and retain the commanded position
+    # across re-engages. Capture 1.7 additionally clutches orientation around the full home;
+    # isaacteleop 1.4 retains absolute grip orientation with its existing body-frame calibration.
+    # Pass the calibration only to the API that explicitly accepts it.
+    clutch_options = {}
+    if "orientation_offset" in inspect.signature(SO101ClutchRetargeter).parameters:
+        clutch_options["orientation_offset"] = np.array(
+            [-0.61237244, 0.35355339, 0.35355339, 0.61237244], dtype=np.float64
+        )  # intrinsic XYZ (-90, 0, 60) degrees, xyzw
     clutch = SO101ClutchRetargeter(
         name="ee_pose",
         input_device=ControllersSource.RIGHT,
         home_base_T_ee=_BASE_T_GRIPPER_HOME,
+        **clutch_options,
     )
     connected_clutch = clutch.connect(
         {
