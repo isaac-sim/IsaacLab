@@ -23,5 +23,6 @@ class NewtonBuilderCfg:
     """Share mutable construction data, populated before model allocation and retained across hard resets."""
 
     class_type: Callable[[NewtonBuilderCfg], ModelBuilder] | str = "{DIR}.newton_manager:create_newton_builder"
+    """Factory function returning a new :class:`newton.ModelBuilder`; :func:`~isaaclab.utils.instantiate` calls it."""
     physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
     """Selected physics settings; non-Newton physics requires a render-only Newton representation."""

@@ -735,10 +735,6 @@ class NewtonManager(PhysicsManager):
         self._clone = record
         self._site_index_map.update(site_index_map)
 
-    def get_clone_record(self) -> NewtonCloneRecord | None:
-        """Return the outputs of the last native replication, or ``None`` without replication."""
-        return self._clone
-
     def get_site_index_map(self) -> dict[str, SiteEntry]:
         """Return resolved sites by label."""
         return self._site_index_map

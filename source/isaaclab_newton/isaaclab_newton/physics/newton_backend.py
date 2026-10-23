@@ -38,10 +38,15 @@ class NewtonCloneRecord:
     """Native replication outputs, kept across hard resets."""
 
     world_xforms: list[wp.transform] | None
+    """Root transform of each cloned world, or ``None`` without replication."""
     source_builders: dict[str, ModelBuilder]
+    """Per-source builders, keyed by clone-plan source path."""
     particle_ranges: dict[str, tuple[int, int]]
+    """``(start, count)`` particle range per replicated deformable prim path."""
     cable_bindings: dict[str, list[int]]
+    """Body indices per replicated cable prim path."""
     geometry_batches: list
+    """Shape batches the scene data backend publishes as geometry."""
 
 
 class NewtonBackend:
@@ -52,21 +57,21 @@ class NewtonBackend:
     finalizes a new one.
     """
 
-    def __init__(self, cfg: NewtonBackendCfg, builder: ModelBuilder | None = None, *, dt: float | None = None):
-        """Finalize a builder and allocate the buffers bound to its model.
+    def __init__(self, cfg: NewtonBackendCfg, *, dt: float | None = None):
+        """Finalize the simulation's shared builder and allocate the buffers bound to its model.
 
         Args:
             cfg: Physics settings and device. :class:`NewtonCfg` physics makes this a simulation backend; any other
                 physics makes it render-only.
-            builder: Builder to finalize. Defaults to the simulation's shared builder.
             dt: Duration of one physics step [s]. Required for a simulation backend.
         """
-        if builder is None:
-            builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
+        builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
+        """Finalized Newton model; :attr:`model.num_envs` is its world count."""
         self.model.num_envs = self.model.world_count
         self.device: wp.Device = self.model.device
         self.particle_ranges: dict[str, tuple[int, int]] = {}
+        """``(start, count)`` particle range per replicated deformable prim path."""
         self.deformable_ranges = {
             label: (start, end - start, kind)
             for kind, labels, starts, ends in (
@@ -75,6 +80,7 @@ class NewtonBackend:
             )
             for label, start, end in zip(labels, starts, ends, strict=True)
         }
+        """``(start, count, kind)`` particle range per deformable label; ``kind`` is ``"surface"`` or ``"volume"``."""
         physics_cfg = cfg.physics_cfg
         simulation = isinstance(physics_cfg, NewtonCfg)
         soft_contact = physics_cfg.soft_contact_cfg if simulation else None
@@ -83,32 +89,49 @@ class NewtonBackend:
             self.model.soft_contact_kd = float(soft_contact.soft_contact_kd)
             self.model.soft_contact_mu = float(soft_contact.soft_contact_mu)
         self.state_0: State = self.model.state()
+        """Current state; the solver reads it and, for double-buffered solvers, writes :attr:`state_1`."""
         self.geometry_offsets = (
             {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
         )
+        """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
         self.bvh_refit = TimestampedBuffer()
+        """Timestamp of the last BVH refit, shared by ray casters and cameras."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
+        """Newton physics settings, or ``None`` for a render-only backend."""
         if not simulation:
             self.state_1 = self.control = None
             return
         if dt is None:
             raise ValueError("A simulation NewtonBackend requires the physics step duration dt.")
 
-        self.dt = dt  # [s]
+        self.dt = dt
+        """Duration of one physics step [s]."""
         self.num_substeps = physics_cfg.num_substeps
-        self.solver_dt = dt / self.num_substeps  # [s]
+        """Solver substeps per physics step."""
+        self.solver_dt = dt / self.num_substeps
+        """Duration of one solver substep [s]."""
         self.state_1: State = self.model.state()
+        """Next state written by the solver."""
         self.control = self.model.control()
+        """Joint targets and applied forces read by the solver."""
         self.solver: SolverBase | None = None
+        """Newton solver, set when the manager initializes it."""
         self.collision_pipeline: CollisionPipeline | None = None
+        """Collision pipeline, or ``None`` when the solver collides internally."""
         self.contacts: Contacts | None = None
-        # Newton reserves the final world slot for global entities; Isaac Lab resets local worlds only.
+        """Contacts produced by the collision pipeline."""
         self.world_mask = wp.zeros(self.model.world_count + 1, dtype=wp.bool, device=self.device)
+        """Worlds to reset; the final slot is Newton's global world, which Isaac Lab never resets."""
         self.fk_mask = wp.zeros(self.model.articulation_count, dtype=wp.bool, device=self.device)
+        """Articulations whose forward kinematics must be evaluated."""
         self.kinematics_dirty = False
+        """Whether joint coordinates changed since the last forward kinematics."""
         self.contact_sensors: dict[tuple, SensorContact] = {}
+        """Newton contact sensors keyed by their request."""
         self.imu_sensors: list[SensorIMU] = []
+        """Newton IMU sensors, updated after each physics step."""
         self.actuators: NewtonActuatorAdapter | None = None
+        """Newton actuators run inside the step, or ``None``."""
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
