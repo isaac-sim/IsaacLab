@@ -256,11 +256,12 @@ class NewtonQueries:
     @staticmethod
     def capture_graph(device: str, capture_target: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
         """Record work without an eager warmup or graph replay, using Warp's public capture API."""
-        stream = wp.get_stream(device)
+        # A blocking capture stream forbids concurrent legacy-stream work even
+        # on other threads (e.g. OVUI's input upload). ScopedStream preserves
+        # the incoming dependency; graph replay still uses the caller's stream.
+        stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
         mode = wp.CaptureMode.THREAD_LOCAL
         if relaxed:
-            # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-            stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
             mode = wp.CaptureMode.RELAXED
         with NewtonQueries._paused_gc(), wp.ScopedStream(stream):
             with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:

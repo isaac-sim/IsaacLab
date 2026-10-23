@@ -430,6 +430,20 @@ def test_teleop_se3_agent_yields_only_when_ovxr_is_idle(monkeypatch):
     assert sleeps == pytest.approx([0.017])  # Slow input work needs no added delay.
 
 
+def test_teleop_se3_agent_paces_after_publication():
+    """The yield belongs after reset/publication bookkeeping in every loop."""
+    source = (ROOT / "scripts/environments/teleoperation/teleop_se3_agent.py").read_text(encoding="utf-8")
+    force_index = source.index("force_publication = False")
+    request_index = source.index("ov_libraries_xr_session.request_render(", force_index)
+    timing_index = source.index("ov_libraries_xr_session.report_host_timing(", request_index)
+    assert "force_publication = True" in source[force_index:request_index]
+    assert "pending_publication_identity, force=force_publication" in source[request_index:timing_index]
+    assert "env.sim.get_physics_dt()" in source[timing_index : timing_index + 200]
+    yield_index = source.index("_pace_ovxr_control_loop(", request_index)
+    except_index = source.index("except Exception as e:", yield_index)
+    assert request_index < timing_index < yield_index < except_index
+
+
 @pytest.mark.parametrize("active,step_hz,expected_polls", [(False, 0.0, 6), (True, 25.0, 3), (None, 25.0, 3)])
 def test_kitless_loop_respects_control_rate_and_processes_reset(active, step_hz, expected_polls):
     """The real caller preserves idle pacing and applies an explicit active limit."""
@@ -998,3 +1012,30 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
     assert len(env.actions) == 2
     torch.testing.assert_close(env.actions[0], env.actions[1])
     assert haptics == {"update": 2, "stop": 1}
+
+
+def test_desktop_mirror_cli_is_explicit_and_bounded(monkeypatch):
+    agent = _load_teleop_agent(
+        monkeypatch,
+        "--ovxr",
+        "--ovxr_desktop_mirror",
+        "--ovxr_desktop_mirror_fps",
+        "20",
+    )
+
+    assert agent.args_cli.ovxr_desktop_mirror
+    assert agent.args_cli.ovxr_desktop_mirror_fps == 20.0
+
+
+def test_auxiliary_camera_pip_cli_is_explicit_and_bounded(monkeypatch):
+    agent = _load_teleop_agent(
+        monkeypatch,
+        "--ovxr",
+        "--ovxr_pip_camera",
+        "robot_pov_cam",
+        "--ovxr_pip_fps",
+        "20",
+    )
+
+    assert agent.args_cli.ovxr_pip_camera == ["robot_pov_cam"]
+    assert agent.args_cli.ovxr_pip_fps == 20.0

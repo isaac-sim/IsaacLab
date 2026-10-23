@@ -90,7 +90,7 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
         )
     )
     with pytest.raises(RuntimeError) as caught:
-        entry_namespace["main"](cfg, False, True)
+        entry_namespace["main"](cfg, False, True, [])
     assert caught.value is failure
     camera.close.assert_called_once_with()
     assert env.close.call_count == int(stage != "environment")

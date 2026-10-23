@@ -16,7 +16,7 @@ from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
@@ -450,6 +450,49 @@ def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -
         world_position_m=None if layout_cfg.world_position_m is None else tuple(layout_cfg.world_position_m),
         world_orientation_xyzw=tuple(layout_cfg.world_orientation_xyzw),
         use_scene_partition=layout_cfg.use_scene_partition,
+    )
+
+
+def resolve_static_panel_pose(
+    cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg
+) -> tuple[
+    Literal["viewer_start", "head_locked", "world"],
+    tuple[float, float, float],
+    tuple[float, float, float, float],
+]:
+    """Resolve one application-owned static panel pose for a kitless presenter.
+
+    Viewer-start and head-locked retain the feed's local offset policy. OVXR
+    captures viewer-start once and resolves head-locked against the current
+    headset pose on every rendered frame. World placement applies that offset
+    in the configured panel plane and returns one fixed stage-world pose.
+    """
+    _validate_layout_cfg(layout_cfg)
+    if layout_cfg.placement in {"viewer_start", "head_locked"}:
+        return (
+            layout_cfg.placement,
+            (float(cfg.offset_m[0]), float(cfg.offset_m[1]), -float(cfg.distance_m)),
+            (0.0, 0.0, 0.0, 1.0),
+        )
+
+    assert layout_cfg.world_position_m is not None
+    quaternion = tuple(float(value) for value in layout_cfg.world_orientation_xyzw)
+    norm = math.sqrt(sum(value * value for value in quaternion))
+    qx, qy, qz, qw = (value / norm for value in quaternion)
+    ox, oy = (float(value) for value in cfg.offset_m)
+    # Rotate the panel-local (x, y, 0) offset by the world orientation.
+    tx = 2.0 * (-qz * oy)
+    ty = 2.0 * (qz * ox)
+    tz = 2.0 * (qx * oy - qy * ox)
+    rotated = (
+        ox + qw * tx + qy * tz - qz * ty,
+        oy + qw * ty + qz * tx - qx * tz,
+        qw * tz + qx * ty - qy * tx,
+    )
+    return (
+        "world",
+        tuple(float(base) + offset for base, offset in zip(layout_cfg.world_position_m, rotated, strict=True)),
+        (qx, qy, qz, qw),
     )
 
 

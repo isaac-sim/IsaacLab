@@ -76,6 +76,15 @@ class XrCfg:
     and affects all cameras, including PiP; it is not restored on XR close.
     """
 
+    excluded_visual_meshes: list[str] = []
+    """Mesh-path regexes excluded from kitless environment cameras by scene partition.
+
+    Unlike ``hidden_visual_prims``, this leaves USD visibility and the source
+    scene unchanged. Only matching visual meshes in the single-environment
+    render export enter the ``xr_excluded`` partition. Camera selectors remain
+    independent; collisions and link/camera transforms must not be matched.
+    """
+
     anchor_prim_path: str | None = None
     """Specifies the prim path to attach the XR anchor to for dynamic positioning.
 

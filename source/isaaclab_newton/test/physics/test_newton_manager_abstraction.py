@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import threading
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
@@ -67,7 +69,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 # ---------------------------------------------------------------------------
 # Lightweight (no sim) parametrisation
@@ -959,7 +961,8 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     manager._device = "cuda:1"
     monkeypatch.setattr(newton_manager_module, "has_kit", lambda: False)
     stream = SimpleNamespace(device="cuda:1")
-    monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
+    monkeypatch.setattr(torch.cuda, "Stream", lambda device: stream if device == "cuda:1" else None)
+    monkeypatch.setattr(wp, "stream_from_torch", lambda stream: stream)
     monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())
     monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
 
@@ -967,6 +970,52 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 
     assert captured_devices == ["cuda:1"]
     assert graph is captured_graph
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_graph_capture_allows_concurrent_legacy_stream_copy(device):
+    """A render/UI copy must not invalidate physics capture on the same GPU."""
+    source = wp.full(4, 7.0, device=device)
+    result = wp.zeros(4, device=device)
+    image = torch.full((4,), 23.0, device=device)
+    copied = torch.zeros_like(image)
+    # Setup is complete before capture. No allocations or implicit dependency
+    # on captured physics work are needed by the independent image consumer.
+    wp.synchronize_device(device)
+    torch.cuda.synchronize(device)
+    entered = threading.Event()
+    finished = threading.Event()
+    errors = []
+
+    def copy_image():
+        try:
+            assert entered.wait(5), "capture did not start"
+            with torch.cuda.device(device), torch.cuda.stream(torch.cuda.default_stream(device)):
+                copied.copy_(image)
+                torch.cuda.default_stream(device).synchronize()
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    def record_physics():
+        wp.copy(result, source)
+        entered.set()
+        assert finished.wait(5), "concurrent image copy did not complete"
+
+    worker = threading.Thread(target=copy_image)
+    worker.start()
+    try:
+        graph = NewtonQueries.capture_graph(device, record_physics)
+    finally:
+        entered.set()
+        worker.join(5)
+        assert not errors, errors
+    assert not worker.is_alive()
+    np.testing.assert_array_equal(result.numpy(), [0.0] * 4)  # Recording did not advance physics.
+    wp.capture_launch(graph)
+    np.testing.assert_array_equal(result.numpy(), [7.0] * 4)
+    np.testing.assert_array_equal(copied.cpu().numpy(), [23.0] * 4)
 
 
 # ---------------------------------------------------------------------------

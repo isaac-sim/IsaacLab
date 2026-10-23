@@ -73,6 +73,13 @@ class OvxrSessionBootstrap:
             raise RuntimeError("Scene publisher is available only before OVXR Stage binding")
         return self._lease.capture_scene_publisher()
 
+    def configure_auxiliary_camera(self, camera_cfg: Any, *, max_fps: float | None = None) -> None:
+        """Authorize one exact camera before environment construction."""
+        self._require_open()
+        if self._bound or self._lease is None:
+            raise RuntimeError("Auxiliary camera must be configured before OVXR Stage binding")
+        self._lease.configure_auxiliary_camera(camera_cfg, max_fps=max_fps)
+
     @property
     def simulation_context(self) -> SimulationContext:
         """Return the exact pre-created simulation context."""
@@ -95,10 +102,11 @@ class OvxrSessionBootstrap:
             num_envs = getattr(unwrapped, "num_envs", None)
             if not isinstance(num_envs, int) or num_envs <= 0:
                 raise RuntimeError(f"Environment has invalid num_envs: {num_envs!r}")
+
             assert self._sim is not None and self._lease is not None
-            self._sim.render_context.ensure_prepare_stage(scene.stage, num_envs)
-            self._lease.ovrtx_renderer
-            self._lease.ovstage
+            if not self._lease._materialize_deferred_auxiliary_camera_stage(scene.stage, num_envs):
+                self._sim.render_context.ensure_prepare_stage(scene.stage, num_envs)
+            self._lease._validate_live()
             self._bound = True
             return self._lease
         finally:

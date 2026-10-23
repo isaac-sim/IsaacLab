@@ -1378,6 +1378,192 @@ def test_ovxr_session_publication_rebases_deduplicates_and_poison_fails_closed(o
     lease.release()
 
 
+@pytest.fixture
+def complete_scene_publication(ovxr_session_renderer, monkeypatch, request):
+    """Use public A/B entry points with only native component endpoints doubled."""
+    renderer = ovxr_session_renderer
+    route = request.param
+    lease = renderer.acquire_ov_libraries_render_lease()
+    publisher = lease.capture_scene_publisher() if route != "publish-B" else None
+    _prepare_ovxr_renderer(renderer)
+    assert (renderer._ov_libraries_scene_publisher is None) == (route == "publish-B")
+    lease._external_camera_scene_partitions = (("/Camera/left", "env"), ("/Camera/right", "env"))
+    lease._external_camera_scene_partitions_pending = True
+    stage = renderer.scene.stage
+    floor = stage.get_attribute_write_floor.return_value.__enter__.return_value
+    floor.fetch.return_value = 17
+    stage.get_attribute_write_floor.reset_mock()
+    state = types.SimpleNamespace(
+        renderer=renderer,
+        lease=lease,
+        publisher=publisher,
+        route=route,
+        ordinal=23 if route == "raw-A" else 18,
+        events=[],
+        failure=None,
+        cause=ValueError("component endpoint failed"),
+        initial_id=renderer._ovstage_last_scene_physics_step_id,
+    )
+
+    def component(name):
+        state.events.append((name, renderer.scene.ordinal))
+        if state.failure == name:
+            raise state.cause
+
+    monkeypatch.setattr(renderer, "_update_transforms", lambda: component("transform"))
+    monkeypatch.setattr(renderer, "_update_geometries", lambda: component("geometry"))
+    monkeypatch.setattr(renderer, "_update_auxiliary_camera_ovstage", lambda: component("auxiliary"))
+
+    def partitions(selected, ordinal):
+        assert selected is lease
+        assert selected._external_camera_scene_partitions == (("/Camera/left", "env"), ("/Camera/right", "env"))
+        assert ordinal == renderer.scene.ordinal
+        component("partition")
+
+    monkeypatch.setattr(renderer, "_write_external_camera_scene_partitions_ovstage", partitions)
+
+    def advance(*, ordinal, scope):
+        assert scope is ovrtx_renderer_module.ovstage.Scope.ALL
+        assert ordinal == renderer.scene.ordinal
+
+        def wait():
+            component("seal")
+            # A's convenience method has already committed its raw batch; B has not.
+            assert renderer._ovstage_last_scene_physics_step_id == (
+                "step" if route == "publish-A" else state.initial_id
+            )
+            assert lease._external_camera_scene_partitions_pending == (False if route == "publish-A" else state.pending)
+            floor.fetch.return_value = ordinal
+
+        return types.SimpleNamespace(wait=wait)
+
+    stage.advance_write_floor.reset_mock()
+    stage.advance_write_floor.side_effect = advance
+
+    def publish(step_id="step"):
+        if route == "raw-A":
+            return publisher.write_complete_scene(state.ordinal, step_id)
+        if route == "publish-A":
+            return publisher.publish_scene(step_id)
+        with lease.ovstage_owner_lane():
+            return lease.publish_scene(step_id)
+
+    state.publish = publish
+    state.pending = True
+    try:
+        yield state
+    finally:
+        lease.release()
+
+
+@pytest.mark.parametrize("complete_scene_publication", ["raw-A", "publish-A", "publish-B"], indirect=True)
+@pytest.mark.parametrize("pending", [False, True])
+def test_ovxr_session_complete_scene_components_share_the_supplied_ordinal(complete_scene_publication, pending):
+    state = complete_scene_publication
+    renderer, lease = state.renderer, state.lease
+    state.pending = lease._external_camera_scene_partitions_pending = pending
+    result = state.publish()
+    assert result == (None if state.route == "raw-A" else state.ordinal)
+    names = ["transform", "geometry", "auxiliary"] + (["partition"] if pending else [])
+    if state.route != "raw-A":
+        names.append("seal")
+    assert state.events == [(name, state.ordinal) for name in names]
+    assert renderer._ovstage_last_scene_physics_step_id == "step"
+    assert renderer._ovstage_last_scene_ordinal == state.ordinal
+    assert not lease._external_camera_scene_partitions_pending
+    assert renderer.scene.ordinal == state.ordinal + (state.route != "raw-A")
+    assert renderer.scene.stage.get_attribute_write_floor.call_count == (state.route != "raw-A")
+    assert renderer.scene.stage.advance_write_floor.call_count == (state.route != "raw-A")
+    if state.route == "raw-A":
+        with pytest.raises(RuntimeError, match="publication is not required"):
+            state.publish()
+    else:
+        assert state.publish() == state.ordinal
+    assert state.events == [(name, state.ordinal) for name in names]
+    assert renderer.scene.stage.get_attribute_write_floor.call_count == (state.route != "raw-A")
+    assert renderer.scene.stage.advance_write_floor.call_count == (state.route != "raw-A")
+    assert not renderer._ovstage_pair_poisoned
+
+
+@pytest.mark.parametrize(
+    "complete_scene_publication,failure",
+    [
+        (route, failure)
+        for route in ("raw-A", "publish-A", "publish-B")
+        for failure in ("transform", "geometry", "auxiliary", "partition")
+    ]
+    + [(route, "seal") for route in ("publish-A", "publish-B")],
+    indirect=["complete_scene_publication"],
+)
+def test_ovxr_session_complete_scene_failure_preserves_route_commit_boundary(complete_scene_publication, failure):
+    state = complete_scene_publication
+    renderer, lease = state.renderer, state.lease
+    state.failure = failure
+    message = "producer scene publication failed" if state.route != "publish-B" else "scene publication failed"
+    with pytest.raises(RuntimeError, match=message) as caught:
+        state.publish()
+    cause = caught.value
+    while cause.__cause__ is not None:
+        cause = cause.__cause__
+    assert cause is state.cause
+    order = ["transform", "geometry", "auxiliary", "partition", "seal"]
+    assert state.events == [(name, state.ordinal) for name in order[: order.index(failure) + 1]]
+    committed = failure == "seal" and state.route == "publish-A"
+    assert renderer._ovstage_last_scene_physics_step_id == ("step" if committed else state.initial_id)
+    assert renderer._ovstage_last_scene_ordinal == (state.ordinal if committed else None)
+    assert lease._external_camera_scene_partitions_pending == (not committed)
+    assert renderer.scene.ordinal == state.ordinal
+    assert renderer.scene.stage.advance_write_floor.call_count == (failure == "seal")
+    assert renderer.scene.stage.get_attribute_write_floor.call_count == (state.route != "raw-A")
+    assert renderer._ovstage_pair_poisoned
+    with pytest.raises(RuntimeError, match="poisoned"):
+        _ = lease.ovstage
+    previous_events = list(state.events)
+    with pytest.raises(RuntimeError, match="unavailable|poisoned"):
+        state.publish("next-step")
+    assert state.events == previous_events
+    assert renderer.scene.stage.advance_write_floor.call_count == (failure == "seal")
+    assert renderer.scene.stage.get_attribute_write_floor.call_count == (state.route != "raw-A")
+
+
+@pytest.mark.parametrize("complete_scene_publication", ["raw-A", "publish-A", "publish-B"], indirect=True)
+def test_ovxr_session_complete_scene_public_authority_precedes_components(complete_scene_publication):
+    import threading
+
+    state = complete_scene_publication
+    errors = []
+
+    def foreign_thread():
+        try:
+            state.publish()
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=foreign_thread)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert len(errors) == 1 and isinstance(errors[0], RuntimeError)
+    assert "thread" in str(errors[0])
+    with pytest.raises(TypeError, match="physics_step_id must be hashable"):
+        state.publish([])
+    if state.route == "raw-A":
+        with pytest.raises(ValueError, match="ordinal must be nonzero"):
+            state.publisher.write_complete_scene(0, "step")
+    if state.route == "publish-B":
+        assert state.publisher is None
+        with pytest.raises(RuntimeError, match="active lease owner lane"):
+            state.lease.publish_scene("step")
+    else:
+        state.publisher.close()
+        with pytest.raises(RuntimeError, match="publisher is closed"):
+            state.publish()
+    assert not state.events
+    state.renderer.scene.stage.get_attribute_write_floor.assert_not_called()
+    state.renderer.scene.stage.advance_write_floor.assert_not_called()
+    assert not state.renderer._ovstage_pair_poisoned
+
+
 @pytest.mark.parametrize("use_ovstage, asynchronous", [(True, False), (False, False), (False, True)])
 def test_cpu_scene_publication_uses_host_tensors_without_a_cuda_stream(use_ovstage, asynchronous):
     renderer = _make_ovrtx_renderer_without_backend()
@@ -1493,3 +1679,129 @@ def test_camera_registration_authors_valid_render_device_selection(monkeypatch, 
     monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", consume_product)
     with pytest.raises(AuthoredProduct):
         renderer.create_render_data(spec)
+
+
+def test_external_camera_native_rate_is_authored_only_on_export(ovxr_session_renderer):
+    from pxr import Usd, UsdGeom
+
+    renderer = ovxr_session_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.prim_path = "/World/envs/env_0/Camera"
+    lease.configure_auxiliary_camera(cfg, max_fps=20.0)
+    lease._auxiliary_cameras[0].spec = types.SimpleNamespace(camera_prim_paths=[cfg.prim_path])
+    stage = Usd.Stage.CreateInMemory()
+    camera = UsdGeom.Camera.Define(stage, cfg.prim_path).GetPrim()
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(
+        renderer._author_auxiliary_camera_schedules(stage.ExportToString(), lease)
+    )
+    assert not camera.HasAttribute("omni:sensor:frameRate")
+    assert not camera.HasAttribute("omni:sensor:Core:partialOutputs")
+    prim = exported.GetPrimAtPath(cfg.prim_path)
+    assert tuple(prim.GetAttribute("omni:sensor:frameRate").Get()) == (20.0, 1.0)
+    assert prim.GetAttribute("omni:sensor:Core:partialOutputs").Get() is False
+    lease.release()
+
+
+def test_selected_external_camera_order_is_independent_of_sensor_preparation(ovxr_session_renderer):
+    renderer = ovxr_session_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    specs = []
+    for name, hz in zip(("Head", "Left", "Right"), (20, 10, 10), strict=True):
+        cfg = types.SimpleNamespace(prim_path=f"/World/{name}", width=640, height=480, data_types=("rgb",))
+        lease.configure_auxiliary_camera(cfg, max_fps=hz)
+        specs.append(types.SimpleNamespace(cfg=cfg, num_instances=1, view_count=1, camera_prim_paths=(cfg.prim_path,)))
+    for spec in reversed(specs):
+        assert renderer._accept_auxiliary_camera_spec(spec)
+    assert [camera.spec for camera in lease._auxiliary_cameras] == specs
+    assert [camera.max_fps for camera in lease._auxiliary_cameras] == [20, 10, 10]
+    lease.release()
+
+
+def test_external_camera_schedules_reach_native_stage(monkeypatch):
+    """The renderer's real population path retains only selected camera scheduling properties."""
+    import ovrtx
+    import ovstage
+
+    ovrtx.register_schema_paths()
+    camera_paths = [f"/World/envs/env_0/{name}" for name in ("Head", "Wrist", "Unselected")]
+    source = """#usda 1.0
+def Xform "World" {
+ def Xform "envs" {
+  def Xform "env_0" {
+   def Camera "Head" {
+    double2 omni:sensor:frameRate = (20, 1)
+    bool omni:sensor:Core:partialOutputs = false
+   }
+   def Camera "Wrist" {
+    double2 omni:sensor:frameRate = (10, 1)
+    bool omni:sensor:Core:partialOutputs = false
+   }
+   def Camera "Unselected" {
+    double2 omni:sensor:frameRate = (999, 1)
+   }
+  }
+ }
+}
+"""
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.prim_path = camera_paths[0]
+    spec = types.SimpleNamespace(cfg=cfg, num_instances=1, camera_prim_paths=[camera_paths[0]], render_settings={})
+    data = OVRTXCameraRenderData(spec, "RenderCamera_0")
+    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = True
+    renderer._auxiliary_camera_stage_deferred = False
+    renderer._active_ov_libraries_render_lease = None
+    renderer.backend.renderer = MagicMock()
+    with contextlib.ExitStack() as resources:
+        renderer.scene = OvstageBackend(OvstageBackendCfg())
+        resources.callback(renderer.scene.close)
+        stage, paths = renderer.scene.stage, renderer.scene.paths
+        population = ovstage.population
+        description = population.Desc(
+            domains=ovstage.PopulationDomain.RENDERING,
+            selectors=[
+                population.Selector(
+                    population.PrimPredicate.has_path(*camera_paths[:2]),
+                    population.PropertyPredicate.has_name("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs"),
+                )
+            ],
+        )
+        renderer.scene.populate(source, population_desc=description)
+        try:
+            renderer._register_camera(spec, data)
+            renderer.scene.commit()
+            resolved = {}
+            plist = paths.create_path_list_from_strings(camera_paths)
+            try:
+                with stage.query_from_path_list(plist) as query:
+                    query.wait()
+                    names = ("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs")
+                    with stage.read_attributes(
+                        query,
+                        [paths.intern_token(name) for name in names],
+                        ovstage.OrdinalRange.latest(renderer.scene.ordinal - 1),
+                    ) as read:
+                        read.wait()
+                        for group in read.groups():
+                            try:
+                                values = np.asarray(group.array(0).copy()).reshape(group.data_count, -1)
+                                group_paths = paths.get_path_strings(group.prim_list)
+                                attribute = paths.token_to_string(group.attribute)
+                                for index in range(min(group.prim_count, group.data_count)):
+                                    path = group_paths[group.prim_index(index)]
+                                    resolved[path, attribute] = values[group.data_row_index(index)].tolist()
+                            finally:
+                                stage.release_group(group)
+            finally:
+                paths.destroy_path_list(plist)
+            assert resolved.get((camera_paths[0], names[0])) == [20.0, 1.0]
+            assert resolved.get((camera_paths[1], names[0])) == [10.0, 1.0]
+            assert resolved.get((camera_paths[0], names[1])) == [False]
+            assert resolved.get((camera_paths[1], names[1])) == [False]
+            assert (camera_paths[2], names[0]) not in resolved
+        finally:
+            data.resources.close()

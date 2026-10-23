@@ -121,6 +121,43 @@ parser.add_argument(
     default=180.0,
     help="Bounded render-worker bootstrap timeout in seconds (default: 180 for cold RTX startup).",
 )
+parser.add_argument(
+    "--ovxr_desktop_mirror",
+    action="store_true",
+    default=False,
+    help="Show completed eye or camera images in an optional local OVUI window.",
+)
+parser.add_argument(
+    "--ovxr_desktop_mirror_fps",
+    type=float,
+    default=30.0,
+    help="Maximum desktop-mirror update rate (default: 30 Hz).",
+)
+parser.add_argument(
+    "--ovxr_pip_camera",
+    type=str,
+    nargs="+",
+    default=None,
+    help="Show up to three task-configured cameras as application-owned XR panels.",
+)
+parser.add_argument(
+    "--ovxr_pip_fps",
+    type=float,
+    default=30.0,
+    help="Maximum OVXR PiP update rate (default: 30 Hz).",
+)
+parser.add_argument(
+    "--ovxr_pip_head_locked",
+    action="store_true",
+    help="Place the application camera quad in the OpenXR VIEW space.",
+)
+parser.add_argument(
+    "--ovxr_pip_view_position",
+    type=float,
+    nargs=3,
+    metavar=("X", "Y", "Z"),
+    help="Optional VIEW-space camera panel center in meters; requires --ovxr_pip_head_locked.",
+)
 
 
 # append shared launcher CLI args
@@ -137,6 +174,21 @@ if args_cli.ovxr_bootstrap_frames < 0:
     parser.error("--ovxr_bootstrap_frames must be non-negative")
 if args_cli.ovxr_worker_timeout <= 0:
     parser.error("--ovxr_worker_timeout must be positive")
+if args_cli.ovxr_desktop_mirror and not args_cli.using_ovxr:
+    parser.error("--ovxr_desktop_mirror requires --ovxr")
+if args_cli.ovxr_pip_camera is not None and not args_cli.using_ovxr:
+    parser.error("--ovxr_pip_camera requires --ovxr")
+if args_cli.ovxr_pip_camera is not None and args_cli.disable_external_cameras:
+    parser.error("--ovxr_pip_camera cannot be combined with --disable_external_cameras")
+if not math.isfinite(args_cli.ovxr_pip_fps) or args_cli.ovxr_pip_fps <= 0.0:
+    parser.error("--ovxr_pip_fps must be finite and positive")
+if args_cli.ovxr_pip_view_position is not None:
+    if not args_cli.ovxr_pip_head_locked or args_cli.ovxr_pip_camera is None:
+        parser.error("--ovxr_pip_view_position requires a head-locked PiP camera")
+    if not all(math.isfinite(value) for value in args_cli.ovxr_pip_view_position):
+        parser.error("--ovxr_pip_view_position must be finite")
+if not math.isfinite(args_cli.ovxr_desktop_mirror_fps) or args_cli.ovxr_desktop_mirror_fps <= 0:
+    parser.error("--ovxr_desktop_mirror_fps must be finite and positive")
 
 # Call an external callback if requested.
 if args_cli.external_callback:
@@ -262,7 +314,7 @@ def _ovxr_publication_identity(
     return ("reset", reset_generation, physics_step_id)
 
 
-def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, bool, bool]:
+def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, bool, bool, tuple[object, object] | None]:
     """Resolve task configuration and teleop ownership before runtime launch."""
     overrides = list(sys.argv[1:])
     env_cfg, _ = resolve_task_config(args_cli.task, "", overrides=overrides)
@@ -297,10 +349,41 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, bool, bool]:
         stage_mode = os.environ.setdefault("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
         if stage_mode.strip() != "1":
             raise ValueError("--ovxr requires OVStage (ISAAC_LAB_OVRTX_USE_OVSTAGE=1)")
+
+    pip_selection = []
+    keep_cameras: tuple[str, ...] = ()
+    if args_cli.ovxr_pip_camera is not None:
+        from isaaclab_ov.renderers import OVRTXRendererCfg
+
+        from isaaclab.sensors import CameraCfg
+
+        names = args_cli.ovxr_pip_camera
+        if len(names) > 3 or len(names) != len(set(names)):
+            raise ValueError("Select up to three unique OVXR PiP cameras")
+        if len(names) > 1 and args_cli.ovxr_pip_view_position is not None:
+            raise ValueError("A PiP position override requires one camera; multiple panels use task layout")
+        renderer_cfg = OVRTXRendererCfg()
+        for camera_name in names:
+            camera_cfg = getattr(env_cfg.scene, camera_name, None)
+            if not isinstance(camera_cfg, CameraCfg):
+                raise ValueError(f"OVXR PiP camera {camera_name!r} is not a configured CameraCfg")
+            feed_cfgs = [
+                cfg for cfg in env_cfg.isaac_teleop.xr_camera_feeds if cfg.enabled and cfg.camera_name == camera_name
+            ]
+            if len(feed_cfgs) != 1:
+                raise ValueError(f"OVXR PiP camera {camera_name!r} must have exactly one enabled XrCameraFeedCfg")
+            # All selected sensors must share the one leased renderer, not three renderers.
+            camera_cfg.renderer_cfg = renderer_cfg
+            pip_selection.append((camera_name, camera_cfg, feed_cfgs[0]))
+        keep_cameras = tuple(names)
+
+    # The leased OVRTX renderer is the only render path in OVXR. Strip
+    # every task camera before the launcher scans the config.
     if args_cli.using_ovxr or args_cli.disable_external_cameras:
         from isaaclab_teleop import remove_camera_configs
 
-        env_cfg = remove_camera_configs(env_cfg, keep=())
+        env_cfg = remove_camera_configs(env_cfg, keep=keep_cameras)
+
     if env_cfg.sim.physics is None:
         from isaaclab.physics import PhysicsCfg
 
@@ -312,7 +395,7 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, bool, bool]:
         if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
             raise ValueError("--ovxr requires no Kit runtime or local visualizer")
     prepare_teleop_backend(env_cfg, env_cfg.sim.physics)
-    return (env_cfg, teleop_device_explicitly_set, use_isaac_teleop)
+    return env_cfg, teleop_device_explicitly_set, use_isaac_teleop, pip_selection
 
 
 def _install_ovxr_shutdown_handlers(ov_libraries_xr_session) -> dict:
@@ -409,6 +492,7 @@ def main(  # noqa: C901
     env_cfg: ManagerBasedRLEnvCfg,
     teleop_device_explicitly_set: bool,
     use_isaac_teleop: bool,
+    pip_selection: list[tuple[str, object, object]],
 ) -> None:
     """Run teleoperation through the selected Kit or OVXR runtime."""
 
@@ -450,7 +534,36 @@ def main(  # noqa: C901
         if args_cli.using_ovxr:
             from isaaclab_ov.renderers import OVRTXRendererCfg
             from isaaclab_teleop import OvLibrariesXrConfig, OvLibrariesXrSession
+            from isaaclab_teleop.camera_feed import resolve_static_panel_pose
+            from isaaclab_teleop.isaac_teleop_cfg import XrCameraFeedLayoutCfg
+            from isaaclab_teleop.ov_libraries_xr import OvLibrariesXrCameraConfig
 
+            selected_cameras = []
+            for name, camera_cfg, feed_cfg in pip_selection:
+                layout = (
+                    XrCameraFeedLayoutCfg(placement="head_locked")
+                    if args_cli.ovxr_pip_head_locked
+                    else env_cfg.isaac_teleop.xr_camera_feed_layout
+                )
+                space, position, orientation = resolve_static_panel_pose(feed_cfg, layout)
+                if args_cli.ovxr_pip_view_position is not None:
+                    position = tuple(args_cli.ovxr_pip_view_position)
+                selected_cameras.append(
+                    OvLibrariesXrCameraConfig(
+                        name=name,
+                        camera_cfg=camera_cfg,
+                        # Zero means uncapped in XrCameraFeedCfg, not zero production.
+                        max_fps=(
+                            min(args_cli.ovxr_pip_fps, feed_cfg.max_update_hz)
+                            if feed_cfg.max_update_hz > 0.0
+                            else args_cli.ovxr_pip_fps
+                        ),
+                        panel_width_m=feed_cfg.panel_width_m,
+                        position=position,
+                        orientation_xyzw=orientation,
+                        space=space,
+                    )
+                )
             ov_libraries_xr_session = OvLibrariesXrSession.prepare(
                 env_cfg.sim,
                 OvLibrariesXrConfig(
@@ -458,8 +571,11 @@ def main(  # noqa: C901
                     session_mode=args_cli.ovxr_session_mode,
                     cloudxr_env_file=args_cli.cloudxr_env,
                     auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+                    desktop_mirror_enabled=args_cli.ovxr_desktop_mirror,
+                    desktop_mirror_max_fps=args_cli.ovxr_desktop_mirror_fps,
+                    auxiliary_cameras=tuple(selected_cameras),
                 ),
-                renderer_cfg=OVRTXRendererCfg(),
+                renderer_cfg=selected_cameras[0].camera_cfg.renderer_cfg if selected_cameras else OVRTXRendererCfg(),
             )
 
         try:
@@ -742,6 +858,10 @@ def main(  # noqa: C901
                                 if admitted is not None:
                                     pending_publication_identity = None
 
+                        if ov_libraries_xr_session is not None:
+                            ov_libraries_xr_session.report_host_timing(
+                                env.sim.get_physics_step_count(), env.sim.get_physics_dt()
+                            )
                         _pace_ovxr_control_loop(
                             ov_libraries_xr_session is not None,
                             action_applied,
@@ -772,6 +892,7 @@ def main(  # noqa: C901
                         tracking_anchor_path=teleop_interface.xr_render_anchor_path,
                         required_openxr_extensions=teleop_interface.required_openxr_extensions,
                         hidden_visual_prims=env_cfg.isaac_teleop.xr_cfg.hidden_visual_prims,
+                        excluded_visual_meshes=env_cfg.isaac_teleop.xr_cfg.excluded_visual_meshes,
                         external_anchor_state=teleop_interface.external_anchor_state,
                         max_blank_frames=args_cli.ovxr_bootstrap_frames,
                         timeout_s=args_cli.ovxr_worker_timeout,
@@ -796,6 +917,6 @@ def main(  # noqa: C901
 
 
 if __name__ == "__main__":
-    resolved_env_cfg, explicit_device, uses_isaac_teleop = _resolve_env_cfg()
+    resolved_env_cfg, explicit_device, uses_isaac_teleop, pip_selection = _resolve_env_cfg()
     with launch_simulation(resolved_env_cfg, args_cli, cleanup_context=not args_cli.using_ovxr):
-        main(resolved_env_cfg, explicit_device, uses_isaac_teleop)
+        main(resolved_env_cfg, explicit_device, uses_isaac_teleop, pip_selection)

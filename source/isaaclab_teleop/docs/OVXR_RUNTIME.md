@@ -170,3 +170,33 @@ between steps. Application render-call timing statistics are unavailable when
 OVXR owns rendering independently.
 
 HDF5 demonstration recording and replay continue to use the Kit/Isaac Sim path.
+
+## Camera panels and desktop mirror
+
+Select up to three task cameras and a head-locked layout:
+
+```bash
+uv run --extra ovxr isaaclab teleop run --ovxr \
+    --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
+    --num_envs 1 --device cpu --physics ovphysx \
+    --ovxr_pip_camera robot_pov_cam left_wrist_cam right_wrist_cam \
+    --ovxr_pip_head_locked
+```
+
+`--ovxr_pip_fps` limits panel updates. `--ovxr_pip_view_position X Y Z` overrides
+one panel's position; multiple panels use the task layout. Panel cameras must be
+enabled in the task's `xr_camera_feeds`. World and viewer-start layouts are not
+supported by the OVXR presenter. The session snapshots its camera selection at
+preparation; create a new session to change it. Panels use the same renderer as
+the headset and do not require a desktop display.
+
+Add `--ovxr_desktop_mirror` to view completed eye or camera images locally.
+`--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
+`desktop-mirror` extra and a usable display. It opens after the first submitted
+XR image; closing it requests application shutdown. Eye images exclude the
+separate OpenXR camera panels; select a camera product to inspect that feed.
+
+The mirror defaults `OMNIUI_BACKEND` to `opengl` before OVUI initialization and
+preserves an explicit application setting. The setting persists after shutdown;
+an already initialized OVUI backend cannot be reconfigured. The Vulkan backend
+is unsupported by the mirror copy path.

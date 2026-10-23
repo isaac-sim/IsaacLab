@@ -678,12 +678,21 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         self.image_obs_list = ["robot_pov_cam"]
 
         if ISAACLAB_TELEOP_AVAILABLE:
-            from isaaclab_teleop import GloveHapticFeedbackCfg, IsaacTeleopCfg, XrCameraFeedCfg, XrCfg
+            from isaaclab_teleop import (
+                GloveHapticFeedbackCfg,
+                IsaacTeleopCfg,
+                XrCameraFeedCfg,
+                XrCameraFeedLayoutCfg,
+                XrCfg,
+            )
 
             # Isaac Capture-based teleoperation pipeline.
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                # The shared anchor places the default eye inside the robot head.
+                # Exclude visual meshes from the eye partition, not source visibility.
+                excluded_visual_meshes=["/World/envs/env_0/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
                 pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
@@ -698,6 +707,11 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                         max_update_hz=0.0,
                     )
                 ],
+                xr_camera_feed_layout=XrCameraFeedLayoutCfg(
+                    placement="world",
+                    world_position_m=(0.0, 0.8, 1.6),
+                    world_orientation_xyzw=(0.70710678, 0.0, 0.0, 0.70710678),
+                ),
             )
 
             # Per-finger haptic glove feedback: vibrate each finger of the operator's

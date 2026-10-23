@@ -180,7 +180,7 @@ class OvstageBackend:
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
 
-    def populate(self, usda: str) -> None:
+    def populate(self, usda: str, *, population_desc: ovstage.population.Desc | None = None) -> None:
         """Import the exported prototypes and apply the clone context's prepared operations.
 
         Population commits ordinal 1. Consumers may then author render products and poses
@@ -188,12 +188,18 @@ class OvstageBackend:
 
         Args:
             usda: USD scene containing the routed prototypes and their materials.
+            population_desc: Optional native property selection for this scene population.
         """
         if self.ordinal:
             return
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
-        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
+        if population_desc is None:
+            ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
+        else:
+            ovstage.population.open_usd_from_string_with_desc(
+                self.stage, usda, ordinal=1, time=float("nan"), descs=population_desc
+            )
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
         )
