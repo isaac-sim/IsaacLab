@@ -169,3 +169,20 @@ def test_visual_material_spawners_do_not_depend_on_kit_commands():
     for module in (sim_utils, sim_utils.spawners, sim_utils.spawners.materials, visual_materials):
         assert not hasattr(module, "modify_visual_material")
         assert "_author_material_inputs" not in getattr(module, "__all__", ())
+
+
+def test_usd_file_spawn_binds_visual_material_without_kit(stage, tmp_path):
+    """A visual material on a USD file spawn must not be skipped when Kit is absent."""
+    asset = tmp_path / "asset.usda"
+    source = Usd.Stage.CreateNew(str(asset))
+    UsdGeom.Xform.Define(source, "/Asset")
+    UsdGeom.Cube.Define(source, "/Asset/Cube")
+    source.SetDefaultPrim(source.GetPrimAtPath("/Asset"))
+    source.Save()
+    cfg = UsdFileCfg(usd_path=str(asset), visual_material=PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)))
+
+    cfg.func("/World/Proto", cfg)
+
+    material, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/World/Proto")).ComputeBoundMaterial()
+    shader, _, _ = material.ComputeSurfaceSource()
+    assert tuple(shader.GetInput("diffuseColor").Get()) == (0.0, 1.0, 0.0)

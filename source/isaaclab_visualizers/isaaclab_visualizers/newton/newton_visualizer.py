@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import logging
 import math
 import os
 import sys
 import time
+import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -48,10 +50,16 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.camera_follower import CameraFollower
+from isaaclab.visualizers.policy_ghost import PolicyGhostController
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
+
+from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
+from .newton_recording import NewtonRecordingPanel, hover_tooltip
+from .newton_rtx_appearance import BACKGROUNDS, SKY_TEXTURES, RtxAppearance
 
 logger = logging.getLogger(__name__)
 
@@ -66,22 +74,103 @@ CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
 
+VISUALIZER_DOCS_URL = "https://isaac-sim.github.io/IsaacLab/main/source/concepts/visualization.html"
+"""Published documentation of the visualizers, opened from the viewer's HUD."""
+
 _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
+
+
+_MARKER_TIPS = {
+    "velocity_goal": "Commanded base velocity",
+    "velocity_current": "Current base velocity",
+    "goal_pose": "Commanded goal pose",
+    "pose_goal": "Commanded goal pose",
+    "body_pose": "Current pose of the commanded body",
+    "current_pose": "Current pose of the commanded body",
+    "goal_marker": "Goal the task asks the object to reach",
+    "Goal": "Goal position",
+    "ee_goal": "Goal pose of the end effector",
+    "ee_current": "Current pose of the end effector",
+    "SuccessMarkers": "Marks environments that succeeded",
+    "Policy_Heightmap": "Height scan the policy observes",
+    "TerrainOrigin": "Origin of each terrain tile",
+    "DeformableTarget": "Target of the deformable object",
+    "RayCaster": "Points hit by the ray-caster sensor",
+    "ContactSensor": "Contact points reported by a contact sensor",
+    "FrameTransformer": "Frames tracked by a frame transformer sensor",
+    "EndEffectorFrameTransformer": "End-effector frame tracked by a frame transformer sensor",
+    "CabinetFrameTransformer": "Cabinet frames tracked by a frame transformer sensor",
+    "HandJointMarkers": "Hand joint positions from the hand tracker",
+}
+"""What each marker group shows, by the last component of its prim path."""
+
+
+def marker_tooltip(prim_path: str) -> str:
+    """Return a short description of the marker group at ``prim_path``, or a generic line when unknown."""
+    return _MARKER_TIPS.get(prim_path.rsplit("/", 1)[-1], "Show or hide this marker group")
+
+
+def term_summary(manager, term: str) -> str:
+    """Return the first docstring line of a manager term's function, or an empty string when it has none.
+
+    Args:
+        manager: Environment manager that owns the term.
+        term: Name of the term within the manager.
+    """
+    for getter in ("get_term_cfg", "get_term"):
+        try:
+            found = getattr(manager, getter)(term)
+        except Exception:  # Not every manager has the accessor, and some take a group as well.
+            continue
+        target = getattr(found, "func", found)
+        doc = inspect.getdoc(target) or ""
+        line = next((line.strip() for line in doc.splitlines() if line.strip()), "")
+        if line and not line.startswith(("Initialize self", "Initialise self")):
+            return line if len(line) <= 120 else line[:117] + "..."
+    return ""
 
 
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
 
-def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str) -> bool:
-    """Render a checkbox greyed out with a tooltip when *available* is False."""
+@contextlib.contextmanager
+def _header_tooltips(imgui, tips: dict[str, str], titles: dict[str, str] | None = None):
+    """Add tooltips and titles to the collapsing headers that another panel draws while this context is open.
+
+    Args:
+        imgui: The ``imgui`` module.
+        tips: Tooltip text by the header's original label.
+        titles: Displayed title by the header's original label. The original label stays the header's ID, so its
+            open state and saved layout carry over.
+    """
+    draw_header = imgui.collapsing_header
+    titles = titles or {}
+
+    def with_tooltip(label, *args, **kwargs):
+        shown = f"{titles[label]}###{label}" if label in titles else label
+        expanded = draw_header(shown, *args, **kwargs)
+        if label in tips:
+            hover_tooltip(imgui, tips[label])
+        return expanded
+
+    imgui.collapsing_header = with_tooltip
+    try:
+        yield
+    finally:
+        imgui.collapsing_header = draw_header
+
+
+def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str, hint: str = "") -> bool:
+    """Render a checkbox greyed out with the reason as tooltip when *available* is False, else with *hint*."""
     if not available:
         imgui.begin_disabled()
     _, new_val = imgui.checkbox(label, value)
     if not available:
         imgui.end_disabled()
-        if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
-            imgui.set_tooltip(tip)
+        hover_tooltip(imgui, tip)
         return value
+    if hint:
+        hover_tooltip(imgui, hint)
     return new_val
 
 
@@ -95,9 +184,22 @@ class NewtonViewerGL(ViewerGL):
 
     _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
+    _owner = None
+    _policy_ghost_panel = None
+    _policy_ghost_restart = None
+    _recording_panel = None
+    image_matches_camera = False
+    """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
+    _view_controls = None
+    _run_info: dict = {}
+    _steps_per_second = 0.0
+    _real_time_factor = 0.0
+    _rate_sample = (0.0, 0)
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        if hasattr(self.renderer, "set_title"):
+            self.renderer.set_title("Newton Visualizer")  # Newton's default caption is "Newton Viewer".
         self._paused_training = False
         self._reset_requested = False
         self._metadata = metadata or {}
@@ -113,6 +215,16 @@ class NewtonViewerGL(ViewerGL):
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
         self._fullscreen_image_active = False
+        draw_texture = getattr(self.renderer, "render_texture", None)
+
+        def render_texture(texture_id, texture_width=0, texture_height=0, **kwargs):
+            screen = self.renderer._screen_width / max(self.renderer._screen_height, 1)
+            if self.image_matches_camera and texture_height and abs(texture_width / texture_height / screen - 1) < 0.1:
+                texture_width = texture_height = 0  # Stretch a nearly matching aspect instead of drawing black bars.
+            draw_texture(texture_id, texture_width, texture_height, **kwargs)
+
+        if draw_texture is not None:
+            self.renderer.render_texture = render_texture
         self._implot = self._implot_ctx = None
         if self.gui is not None:
             from imgui_bundle import implot
@@ -155,18 +267,22 @@ class NewtonViewerGL(ViewerGL):
     def _patch_viewer_panel(self) -> None:
         """Replace Newton's left panel with an IsaacLab-oriented layout.
 
-        New section order:
+        An always-visible header (task and run, physics backend and device, step and simulation
+        time, simulation rate and real-time factor, status badges, and a documentation link) sits above the
+        sections, which are ordered by how often they are used:
 
-        1. **Isaac Lab** (open) — physics backend, model info, training controls.
-        2. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots`
-           is called.
-        3. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
-        4. **Rendering Options** (open) — VSync and renderer-specific options.
-        5. **Controls** (closed) — camera keyboard reference.
-        6. **Selection API** (closed) — Newton's selection panel.
+        1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
+        2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
+        3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
+           and Viser), and visual overlays.
+        4. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
+        5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        6. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
+        7. **Articulation Inspector** (closed) — Newton's articulation selection panel.
+        8. **Keyboard & Mouse** (closed) — camera and window shortcuts.
 
-        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
-        handled by the IsaacLab training controls inside **Isaac Lab**.
+        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
+        inside **Playback**.
         """
         import newton as nt
 
@@ -193,7 +309,7 @@ class NewtonViewerGL(ViewerGL):
                 imgui.ImVec2(io.display_size[0], panel_h),
             )
 
-            if not imgui.begin(f"Newton Viewer v{nt.__version__}"):
+            if not imgui.begin(f"Newton Visualizer v{nt.__version__}"):
                 imgui.end()
                 return
 
@@ -203,106 +319,67 @@ class NewtonViewerGL(ViewerGL):
             for callback in _g._ui_callbacks.get("panel", []):
                 callback(imgui)
 
-            # --- Simulation -------------------------------------------------
+            viewer._draw_header(imgui)
+
+            # --- Playback ---------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Simulation"):
-                imgui.separator()
-                imgui.text(f"Physics: {viewer._backend_display}")
-                if viewer.model is not None:
-                    axis_names = ["X", "Y", "Z"]
-                    imgui.text(f"Up Axis: {axis_names[viewer.model.up_axis]}")
-                    gravity = viewer._metadata["gravity"]
-                    imgui.text(f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})")
+            playback_open = imgui.collapsing_header("Playback")
+            hover_tooltip(imgui, "Pause, resume, or reset the simulation, and set how often the window updates")
+            if playback_open:
                 imgui.separator()
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
+
+            # --- Camera View ------------------------------------------------
+            imgui.set_next_item_open(False, imgui.Cond_.appearing)
+            view_open = imgui.collapsing_header("Camera View")
+            hover_tooltip(imgui, "Choose the renderer and camera source, and adjust how the window draws")
+            if view_open:
+                imgui.separator()
+                if viewer._view_controls is not None:
+                    viewer._view_controls(imgui)
+                owner = viewer._owner
+                if owner is not None and owner.rtx_rendering:
+                    owner._draw_rtx_appearance(imgui)
+                elif _g._ui_callbacks.get("rendering") and imgui.tree_node("Appearance###appearance"):
+                    for callback in _g._ui_callbacks["rendering"]:
+                        callback(imgui)
+                    imgui.tree_pop()
+
+            # --- Scene ------------------------------------------------------
+            viewer._draw_scene_controls(imgui)
+
+            # --- Recording --------------------------------------------------
+            if viewer._recording_panel is not None:
+                viewer._recording_panel.draw(imgui)
 
             # --- Live Plots -------------------------------------------------
             live_plots_cb = viewer._live_plots_callback
             if live_plots_cb is not None:
                 live_plots_cb(imgui)
 
-            # --- Model overlays ---------------------------------------------
-            if viewer.model is not None and not viewer._fullscreen_image_active:
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Model Overlays"):
-                    imgui.separator()
-                    renderer = viewer.renderer
-                    _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
-                    if viewer.show_joints:
-                        _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
-                    _contacts_available = viewer._contacts_available
-                    viewer.show_contacts = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Contacts",
-                        viewer.show_contacts,
-                        _contacts_available,
-                        "No contact sensors in this environment",
-                    )
-                    if viewer.show_contacts and _contacts_available:
-                        _, renderer.arrow_length_scale = imgui.slider_float(
-                            "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
-                        )
-                        _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
-                    _model = viewer.model
-                    _has_particles = _model.particle_count > 0
-                    _has_springs = _model.spring_count > 0
-                    _has_cloth = _model.tri_count > 0
-                    viewer.show_particles = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Particles",
-                        viewer.show_particles,
-                        _has_particles,
-                        "No particle bodies in this environment",
-                    )
-                    viewer.show_springs = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Springs",
-                        viewer.show_springs,
-                        _has_springs,
-                        "No spring constraints in this environment",
-                    )
-                    _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
-                    if viewer.show_com:
-                        _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
-                    viewer.show_triangles = _imgui_optional_checkbox(
-                        imgui,
-                        "Show Cloth",
-                        viewer.show_triangles,
-                        _has_cloth,
-                        "No cloth/triangle meshes in this environment",
-                    )
-                    _c, viewer.show_collision = imgui.checkbox("Show Collision", viewer.show_collision)
-                    _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
-                    _sdf_labels = ["Off", "Margin", "Margin + Gap"]
-                    _, new_sdf_idx = imgui.combo("Gap + Margin", int(viewer.sdf_margin_mode), _sdf_labels)
-                    viewer.sdf_margin_mode = viewer.SDFMarginMode(new_sdf_idx)
-                    if viewer.sdf_margin_mode != viewer.SDFMarginMode.OFF:
-                        _, renderer.wireframe_line_width = imgui.slider_float(
-                            "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
-                        )
-                    _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
-                    _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
-            if viewer.marker_groups:
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Visualization Markers"):
-                    for marker in viewer.marker_groups:
-                        name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
-                        changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
-                        if changed:
-                            marker.set_visibility(visible)
+            # --- Policy Ghosts ----------------------------------------------
+            ghosts_offered = viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None
+            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
+                viewer._draw_policy_ghosts_unsupported(imgui)
+            elif viewer._policy_ghost_panel is not None:
+                viewer._policy_ghost_panel.draw(imgui)
+            elif viewer._policy_ghost_restart is not None:
+                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
 
-            # --- Rendering Options ------------------------------------------
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Rendering Options"):
-                imgui.separator()
-                _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
-                for callback in _g._ui_callbacks.get("rendering", []):
-                    callback(imgui)
+            # --- Articulation Inspector (Newton's Selection API) ------------
+            with _header_tooltips(
+                imgui,
+                {"Selection API": "Inspect the robot's articulations: filter them by name, joint, and link"},
+                {"Selection API": "Articulation Inspector"},
+            ):
+                _g._render_selection_panel()
 
-            # --- Controls ---------------------------------------------------
+            # --- Keyboard & Mouse -------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Controls"):
+            controls_open = imgui.collapsing_header("Keyboard & Mouse###Controls")
+            hover_tooltip(imgui, "Camera, keyboard, and mouse shortcuts")
+            if controls_open:
                 imgui.separator()
                 _g._render_camera_info()
                 imgui.separator()
@@ -313,7 +390,7 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                if viewer.picking_enabled and not viewer._fullscreen_image_active:
+                if viewer.picking_enabled and (not viewer._fullscreen_image_active or viewer.image_matches_camera):
                     imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
@@ -325,25 +402,274 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("H - Toggle UI")
                 imgui.text("F - Frame camera around model")
 
-            # --- Selection API ----------------------------------------------
-            _g._render_selection_panel()
-
             imgui.end()
 
         gui._render_left_panel = _render_left_panel
 
+    def _has_environment_controls(self) -> bool:
+        """Return whether more than one environment can be shown, so the Environments section is useful."""
+        owner = self._owner
+        return owner is not None and owner.visible_env_limit > 1
+
+    def _render_environment_controls(self, imgui) -> None:
+        """Render the visible-environment count slider."""
+        owner = self._owner
+        imgui.text("Visible Envs (per slot)" if owner._policy_ghost_panel is not None else "Visible Envs")
+        changed, new_count = imgui.slider_int("##VisibleEnvs", owner.visible_env_count, 1, owner.visible_env_limit)
+        if changed:
+            owner.set_visible_env_count(new_count)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
+
+    def _draw_policy_ghosts_unsupported(self, imgui) -> None:
+        """Draw the greyed-out Policy Ghosts section shown while the RTX view is active."""
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
+        expanded = imgui.collapsing_header("Policy Ghosts")
+        imgui.pop_style_color()
+        hover_tooltip(imgui, "Compare several checkpoints of this task in one window. OpenGL view only")
+        if expanded:
+            imgui.separator()
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
+            imgui.text_wrapped(
+                "Policy Ghosts are not supported in the RTX view. "
+                "Switch Camera View > Renderer to OpenGL to compare checkpoints."
+            )
+            imgui.pop_style_color()
+
+    def _draw_scene_controls(self, imgui) -> None:
+        """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        expanded = imgui.collapsing_header("Scene")
+        hover_tooltip(imgui, "Choose which environments, markers, and visual overlays are drawn")
+        if not expanded:
+            return
+        imgui.separator()
+        if self._has_environment_controls():
+            self._render_environment_controls(imgui)
+        self._draw_marker_controls(imgui)
+        if self.model is not None:
+            imgui.separator_text("Visual Overlays")
+            if self._fullscreen_image_active or self.image_matches_camera:
+                imgui.text_disabled("OpenGL only")
+                hover_tooltip(
+                    imgui, "Switch Camera View > Renderer to OpenGL to draw joints, contacts, and other overlays"
+                )
+            else:
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.tree_node("Overlay options"):
+                    self._draw_model_overlays(imgui)
+                    imgui.tree_pop()
+
+    def _draw_marker_controls(self, imgui) -> None:
+        """Draw one toggle per visualization marker group the task registers."""
+        imgui.separator_text("Visualization Markers")
+        groups = list(self.marker_groups)
+        if not groups:
+            imgui.text_disabled("This task registers no visualization markers")
+            hover_tooltip(
+                imgui, "Markers such as velocity-command arrows appear when a task enables debug visualization"
+            )
+            return
+        for marker in groups:
+            name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
+            changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
+            hover_tooltip(imgui, marker_tooltip(marker.cfg.prim_path))
+            if changed:
+                marker.set_visibility(visible)
+        if len(groups) > 1:
+            if imgui.button("Show All##markers"):
+                for marker in groups:
+                    marker.set_visibility(True)
+            hover_tooltip(imgui, "Show every marker group")
+            imgui.same_line()
+            if imgui.button("Hide All##markers"):
+                for marker in groups:
+                    marker.set_visibility(False)
+            hover_tooltip(imgui, "Hide every marker group")
+
+    def _draw_model_overlays(self, imgui) -> None:
+        """Draw Newton's per-overlay toggles."""
+        renderer = self.renderer
+
+        def tip(text: str) -> None:
+            hover_tooltip(imgui, text)
+
+        _c, self.show_joints = imgui.checkbox("Show Joints", self.show_joints)
+        tip("Draw the model's joints")
+        if self.show_joints:
+            _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
+            tip("Size of the joint drawings")
+        _contacts_available = self._contacts_available
+        self.show_contacts = _imgui_optional_checkbox(
+            imgui,
+            "Show Contacts",
+            self.show_contacts,
+            _contacts_available,
+            "No contact sensors in this environment",
+            "Draw contacts as arrows",
+        )
+        if self.show_contacts and _contacts_available:
+            _, renderer.arrow_length_scale = imgui.slider_float(
+                "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
+            )
+            tip("Length of the contact arrows")
+            _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
+            tip("Width of the contact arrows")
+        _model = self.model
+        _has_particles = _model.particle_count > 0
+        _has_springs = _model.spring_count > 0
+        _has_cloth = _model.tri_count > 0
+        self.show_particles = _imgui_optional_checkbox(
+            imgui,
+            "Show Particles",
+            self.show_particles,
+            _has_particles,
+            "No particle bodies in this environment",
+            "Draw simulation particles",
+        )
+        self.show_springs = _imgui_optional_checkbox(
+            imgui,
+            "Show Springs",
+            self.show_springs,
+            _has_springs,
+            "No spring constraints in this environment",
+            "Draw spring constraints",
+        )
+        _c, self.show_com = imgui.checkbox("Show Center of Mass", self.show_com)
+        tip("Draw each body's center of mass")
+        if self.show_com:
+            _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
+            tip("Size of the center-of-mass markers")
+        self.show_triangles = _imgui_optional_checkbox(
+            imgui,
+            "Show Cloth",
+            self.show_triangles,
+            _has_cloth,
+            "No cloth/triangle meshes in this environment",
+            "Draw cloth and triangle meshes",
+        )
+        _c, self.show_collision = imgui.checkbox("Show Collision", self.show_collision)
+        tip("Draw collision shapes")
+        _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
+        tip("Draw mesh edges")
+        _sdf_labels = ["Off", "Margin", "Margin + Gap"]
+        _, new_sdf_idx = imgui.combo("Gap + Margin", int(self.sdf_margin_mode), _sdf_labels)
+        tip("Draw the collision margin, and optionally the gap, around shapes")
+        self.sdf_margin_mode = self.SDFMarginMode(new_sdf_idx)
+        if self.sdf_margin_mode != self.SDFMarginMode.OFF:
+            _, renderer.wireframe_line_width = imgui.slider_float(
+                "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
+            )
+            tip("Line width of the margin and gap drawings")
+        _c, self.show_visual = imgui.checkbox("Show Visual", self.show_visual)
+        tip("Draw the visual meshes")
+        _c, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", self.show_inertia_boxes)
+        tip("Draw each body's inertia as a box")
+
+    def _update_rates(self, steps: int, dt: float) -> None:
+        """Refresh the simulation rate and real-time factor from the step counter, about twice a second."""
+        now = time.perf_counter()
+        wall, last_steps = self._rate_sample
+        if wall == 0.0:
+            self._rate_sample = (now, steps)
+        elif now - wall >= 0.5:
+            self._steps_per_second = max(0, steps - last_steps) / (now - wall)
+            self._real_time_factor = self._steps_per_second * dt
+            self._rate_sample = (now, steps)
+
+    def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
+        """Name the run in the HUD header.
+
+        Args:
+            task: Task name.
+            mode: How the run uses the task, such as ``"play"`` or ``"train"``.
+            run: Name of the run's log directory.
+        """
+        self._run_info = {key: value for key, value in (("task", task), ("mode", mode), ("run", run)) if value}
+
+    def _draw_header(self, imgui) -> None:
+        """Draw the always-visible summary: run, physics, scale, progress, rates, and status badges."""
+        owner = self._owner
+        info = self._run_info
+        if "task" in info:
+            imgui.text_wrapped(f"Task: {info['task']}")
+            hover_tooltip(imgui, "Task this run was launched with")
+        if "run" in info or "mode" in info:
+            imgui.text(f"Run: {' · '.join(info[key] for key in ('mode', 'run') if key in info)}")
+            hover_tooltip(imgui, "How the task is used (play or train) and the name of the run's log directory")
+        device = getattr(getattr(owner, "_sim", None), "device", None)
+        imgui.text(f"Physics: {self._backend_display}" + (f" ({device})" if device else ""))
+        hover_tooltip(imgui, "Physics backend and the device it runs on")
+        if owner is not None and owner._sim is not None:
+            sim = owner._sim
+            steps, dt = sim.get_physics_step_count(), sim.get_physics_dt()
+            self._update_rates(steps, dt)
+            imgui.text(f"Step: {steps:,}   Sim time: {steps * dt:.1f} s")
+            hover_tooltip(imgui, "Physics steps taken so far and the simulated time they add up to")
+            imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
+            hover_tooltip(imgui, "Physics steps per second. 1.00x means simulated time passes as fast as real time")
+        badges = []
+        if owner is not None and owner.replay_mode:
+            badges.append((f"REPLAY {self._recording_panel.replay.name}", (0.5, 0.85, 1.0, 1.0)))
+        if self._paused_training or self._paused:
+            badges.append(("PAUSED", (1.0, 0.8, 0.2, 1.0)))
+        if self._policy_ghost_panel is not None:
+            ghosts = sum(slot.active for slot in self._policy_ghost_panel.layout.slots[1:])
+            badges.append((f"{ghosts} ghost{'s' * (ghosts != 1)}", (0.5, 0.8, 1.0, 1.0)))
+        for index, (text, color) in enumerate(badges):
+            if index:
+                imgui.same_line()
+            imgui.text_colored(imgui.ImVec4(*color), f"[{text}]")
+        if imgui.text_link("Visualizer docs"):
+            webbrowser.open(VISUALIZER_DOCS_URL)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(VISUALIZER_DOCS_URL)
+
     def _render_training_controls(self, imgui):
-        """Render Isaac Lab training control widgets inside the Isaac Lab panel section."""
+        """Render the Isaac Lab playback controls inside the Playback section."""
+        owner, panel = self._owner, self._recording_panel
+        replaying = owner is not None and owner.replay_mode and panel is not None
+        if replaying:
+            imgui.text_colored(imgui.ImVec4(0.5, 0.85, 1.0, 1.0), f"REPLAY  {panel.replay.name}")
+            panel.draw_transport(imgui)
+            if imgui.button("Exit Replay"):
+                panel.replay.unload()
+            hover_tooltip(imgui, "Remove the animation and restore the simulation")
+            imgui.separator()
+        # Replay only pauses the simulation, so its controls would do nothing.
+        sim_idle = replaying and owner.replay_view == "only"
+        if sim_idle:
+            imgui.begin_disabled()
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
+        hover_tooltip(
+            imgui,
+            "Paused while only the animation is shown"
+            if sim_idle
+            else "Stop or resume stepping the simulation. The window keeps updating",
+        )
+        if sim_idle:
+            imgui.end_disabled()
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused = not self._paused
+        hover_tooltip(imgui, "Freeze or resume the window image. The simulation keeps running")
 
+        if sim_idle:
+            imgui.begin_disabled()
         if imgui.button("Reset Episode"):
             self._reset_requested = True
+        hover_tooltip(
+            imgui,
+            "Not available while only the animation is shown"
+            if sim_idle
+            else "Reset every environment on the next step",
+        )
+        if sim_idle:
+            imgui.end_disabled()
 
         _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():
@@ -404,9 +730,14 @@ class NewtonViewerGL(ViewerGL):
             self._fullscreen_image_active = True
 
     def on_mouse_press(self, x, y, button, modifiers):
-        """Image coordinates must not pick objects in the hidden perspective scene."""
-        if not self._fullscreen_image_active:
-            super().on_mouse_press(x, y, button, modifiers)
+        """Image coordinates must not pick objects in the hidden perspective scene, unless it is the image's camera."""
+        if self._fullscreen_image_active and not self.image_matches_camera:
+            return
+        if self._fullscreen_image_active and self.picking_enabled and self._owner is not None:
+            self._last_state = (
+                self._owner._update_state()
+            )  # An image frame does not log state; cast against fresh poses.
+        super().on_mouse_press(x, y, button, modifiers)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply configured model-particle appearance while preserving Newton's point logging.
@@ -487,6 +818,18 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
+        self._followers: dict[object, CameraFollower] = {}
+        self._rtx_pose_view = None
+        """Tracking Camera view that moves the OVRTX camera, or None when the free camera drives it."""
+        """Followers of the task views, by image view."""
+        self._tracking_defaults: dict[object, dict] = {}
+        """What the task declared for each task view, for Reset to Task Default."""
+        self._tracking_error = ""
+        self._sensor_tiles: dict[object, tuple[int, ...]] = {}
+        """Environments each multi-environment scene camera tiles, by image view."""
+        self._rtx_appearance: RtxAppearance | None = None
+        self._rtx_appearance_failed = False
+        self._sky_custom = ""
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -508,7 +851,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 window_cfg=self.cfg.window,
             )  # fmt: skip
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+        self._viewer._view_controls = self._draw_streaming_view_controls
 
     def log_mesh(
         self,
@@ -560,41 +903,443 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if not imgui.collapsing_header("Camera View"):
-            return
-        labels = [
-            f"Perspective {i + 1}" if view.camera is None else view.cfg.source
-            for i, view in enumerate(self._image_views)
-        ]
-        changed, index = imgui.combo("Camera", self._image_views.index(self.current_image_view), labels)
+        rtx_index = getattr(self, "rtx_view_index", None)
+        if rtx_index is not None:
+            rtx_on = self.rtx_rendering
+            imgui.text("Renderer")
+            imgui.same_line()
+            if imgui.radio_button("OpenGL", not rtx_on) and rtx_on:
+                self.set_rtx_rendering(False)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Fast rasterizer with visual overlays, markers, and Policy Ghosts")
+            imgui.same_line()
+            if imgui.radio_button("RTX", rtx_on) and not rtx_on:
+                self.set_rtx_rendering(True)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without visual overlays")
+        self._draw_focal_length(imgui)
+        # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
+        indices = sorted(
+            (i for i in range(len(self._image_views)) if i != rtx_index),
+            key=lambda i: self._source_rank(self._image_views[i]),
+        )
+        labels = self._view_labels(indices)
+        current = self._image_views.index(self.current_image_view)
+        if current == rtx_index:  # RTX renders the free perspective source or follows a Tracking Camera.
+            pose_view = self._rtx_pose_view
+            current = (
+                self._image_views.index(pose_view)
+                if pose_view is not None
+                else next(
+                    i
+                    for i in indices
+                    if self._image_views[i].camera is None and not self._is_task_view(self._image_views[i])
+                )
+            )
+        position = indices.index(current)
+        changed, chosen = imgui.combo("Camera Source", position, labels)
         if changed:
-            self._select_camera(index)
+            self._choose_camera_source(indices[chosen])
         if imgui.is_item_hovered():
-            imgui.set_tooltip(labels[self._image_views.index(self.current_image_view)])
+            imgui.set_tooltip(labels[position])
+        follower = self._followers.get(self._pose_source_view())
+        if follower is not None:
+            self._draw_tracking_camera_controls(imgui, follower)
+        elif self.current_image_view in self._sensor_tiles:
+            self._draw_sensor_controls(imgui, self.current_image_view)
 
-    def _select_camera(self, index: int) -> None:
-        """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle."""
+    def _rtx_appearance_controller(self) -> RtxAppearance | None:
+        """Create the OVRTX appearance controller on first use, or None when it cannot be created."""
+        if self._rtx_appearance is None and not self._rtx_appearance_failed:
+            view = self._rtx_view()
+            try:
+                camera = view.camera
+                renderer = self._sim.get_or_create_backend(camera.cfg.renderer_cfg)
+                self._rtx_appearance = RtxAppearance(
+                    self._sim.stage,
+                    renderer,
+                    camera._render_data.render_product_path,
+                    camera.cfg.background_color,
+                )
+            except Exception:
+                logger.exception("[NewtonVisualizer] The OVRTX appearance controls are unavailable.")
+                self._rtx_appearance_failed = True
+        return self._rtx_appearance
+
+    def _draw_rtx_appearance(self, imgui) -> None:
+        """Draw the Appearance options the OVRTX view supports: its background and its lights, one group per type."""
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        if not imgui.tree_node("Appearance###rtx_appearance"):
+            return
+        appearance = self._rtx_appearance_controller()
+        if appearance is None or not appearance.available:
+            imgui.text_disabled("Not available for this renderer")
+            imgui.tree_pop()
+            return
+        edited = appearance.poll()
+
+        def tip(text: str) -> None:
+            hover_tooltip(imgui, text)
+
+        changed, index = imgui.combo("Background", appearance.background, list(BACKGROUNDS))
+        tip("Show the sky of the dome light, or one solid color")
+        if changed:
+            appearance.background = index
+            edited |= appearance.apply_background()
+        if appearance.background == 1:
+            changed, color = imgui.color_edit3("Color", list(appearance.background_color))
+            tip("Solid background color")
+            if changed:
+                appearance.background_color = tuple(float(c) for c in color)
+                edited |= appearance.apply_background()
+
+        def light_changed(changed: bool) -> bool:
+            return appearance.apply_lights() if changed else False
+
+        def intensity(label: str, value: float, high: float) -> tuple[bool, float]:
+            return imgui.slider_float(label, value, 0.0, high, "%.0f", imgui.SliderFlags_.logarithmic)
+
+        imgui.separator_text("Lights")
+        if appearance.lights:
+            changed, appearance.scene_enabled = imgui.checkbox("Scene Lights", appearance.scene_enabled)
+            tip("The lights the scene authored")
+            edited |= light_changed(changed)
+            if appearance.scene_enabled:
+                imgui.indent()
+                changed, appearance.scene_scale = imgui.slider_float(
+                    "Intensity##scene", appearance.scene_scale, 0.0, 3.0, "%.2fx"
+                )
+                tip("Intensity relative to what the scene authored")
+                edited |= light_changed(changed)
+                changed, tint = imgui.color_edit3("Color##scene", list(appearance.scene_tint))
+                tip("Tints the scene's lights; white keeps the colors the scene authored")
+                if changed:
+                    appearance.scene_tint = tuple(float(c) for c in tint)
+                edited |= light_changed(changed)
+                imgui.unindent()
+        else:
+            imgui.text_disabled("This scene has no lights of its own")
+
+        changed, appearance.dome_enabled = imgui.checkbox("Dome Light", appearance.dome_enabled)
+        tip("Soft light from a sky all around the scene, and the sky behind it. Off by default")
+        edited |= light_changed(changed)
+        if appearance.dome_enabled:
+            imgui.indent()
+            changed, appearance.dome_intensity = intensity("Intensity##dome", appearance.dome_intensity, 10000.0)
+            tip("Brightness of the dome light")
+            edited |= light_changed(changed)
+            changed, color = imgui.color_edit3("Color##dome", list(appearance.dome_color))
+            tip("Color of the dome light; with a sky texture it tints the texture")
+            if changed:
+                appearance.dome_color = tuple(float(c) for c in color)
+            edited |= light_changed(changed)
+            edited |= self._draw_sky_texture(imgui, appearance)
+            imgui.unindent()
+
+        changed, appearance.sun_enabled = imgui.checkbox("Distant Light", appearance.sun_enabled)
+        tip("Parallel light from one direction, like the sun, casting sharp shadows. Off by default")
+        edited |= light_changed(changed)
+        if appearance.sun_enabled:
+            imgui.indent()
+            changed, appearance.sun_intensity = intensity("Intensity##sun", appearance.sun_intensity, 20000.0)
+            tip("Brightness of the distant light")
+            edited |= light_changed(changed)
+            changed, color = imgui.color_edit3("Color##sun", list(appearance.sun_color))
+            tip("Color of the distant light")
+            if changed:
+                appearance.sun_color = tuple(float(c) for c in color)
+            edited |= light_changed(changed)
+            changed, appearance.sun_angle = imgui.slider_float("Angle", appearance.sun_angle, 0.0, 10.0, "%.1f deg")
+            tip("Apparent size of the light; larger values give softer shadow edges")
+            edited |= light_changed(changed)
+            changed, appearance.sun_elevation = imgui.slider_float(
+                "Elevation", appearance.sun_elevation, 5.0, 90.0, "%.0f deg"
+            )
+            tip("Height of the light above the horizon; 90 is straight down")
+            edited |= light_changed(changed)
+            changed, appearance.sun_azimuth = imgui.slider_float(
+                "Azimuth", appearance.sun_azimuth, 0.0, 360.0, "%.0f deg"
+            )
+            tip("Direction the light comes from, around the vertical axis")
+            edited |= light_changed(changed)
+            imgui.unindent()
+
+        if imgui.button("Reset##rtx_appearance"):
+            edited |= appearance.reset()
+        tip("Return to the scene's own lights and background")
+        for message in (appearance.error, appearance.texture_status):
+            if message:
+                failed = message.startswith("Could")
+                imgui.push_style_color(
+                    imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0) if failed else imgui.ImVec4(0.8, 0.8, 0.8, 1.0)
+                )
+                imgui.text_wrapped(message)
+                imgui.pop_style_color()
+        if edited:
+            self._rtx_view().invalidate()
+            self._last_render_step = -1
+        imgui.tree_pop()
+
+    def _draw_sky_texture(self, imgui, appearance: RtxAppearance) -> bool:
+        """Choose the dome light's sky texture from the ones tasks use, or a file; returns whether it changed."""
+        names = list(SKY_TEXTURES)
+        current = appearance.dome_texture
+        index = (
+            0
+            if not current
+            else (
+                names.index(next(n for n in names if SKY_TEXTURES[n] == current)) + 1
+                if current in SKY_TEXTURES.values()
+                else len(names) + 1
+            )
+        )
+        changed, chosen = imgui.combo("Sky", index, ["None", *names, "Custom File..."])
+        hover_tooltip(imgui, "Wrap a panoramic HDR image around the scene as its sky")
+        edited = False
+        if changed and chosen <= len(names):
+            appearance.use_sky(SKY_TEXTURES[names[chosen - 1]] if chosen else "")
+            edited = True
+        if chosen == len(names) + 1 or (not changed and index == len(names) + 1):
+            _c, self._sky_custom = imgui.input_text("File##sky", self._sky_custom)
+            hover_tooltip(imgui, "Path or URL of a panoramic .hdr or .exr image")
+            if imgui.button("Load##sky") and self._sky_custom:
+                appearance.use_sky(self._sky_custom)
+        return edited
+
+    def _source_rank(self, view) -> int:
+        """Order the Camera Source list: the free Perspective, then Tracking Cameras, then scene sensors."""
+        if view.camera is not None:
+            return 2
+        return 1 if self._is_task_view(view) else 0
+
+    def _draw_sensor_controls(self, imgui, view) -> None:
+        """Choose which environment's sensor image is shown, or tile several environments."""
+        camera = view.camera
+        tiles = self._sensor_tiles[view]
+        tiled = tuple(view.cfg.envs) == tiles
+        imgui.separator_text("Camera Sensor")
+        if tiled:
+            imgui.begin_disabled()
+        env = view.cfg.envs[0] if view.cfg.envs else 0
+        changed, new_env = imgui.input_int("Environment", env)
+        hover_tooltip(imgui, "Environment whose camera is shown")
+        if tiled:
+            imgui.end_disabled()
+        if changed and 0 <= new_env < camera.num_instances:
+            view.cfg.envs = (new_env,)
+            self._invalidate_sensor_view(view)
+        changed, tiled = imgui.checkbox("Tile Environments", tiled)
+        hover_tooltip(imgui, f"Show {len(tiles)} environments side by side instead of one")
+        if changed:
+            view.cfg.envs = tiles if tiled else (env,)
+            self._invalidate_sensor_view(view)
+
+    def _invalidate_sensor_view(self, view) -> None:
+        view.invalidate()
+        self._last_render_step = -1
+
+    def _draw_focal_length(self, imgui) -> None:
+        """Draw the focal length of the free camera or the Tracking Camera; sensors have fixed intrinsics."""
+        view = self._pose_source_view()
+        rtx_view = self._image_views[self.rtx_view_index] if self.rtx_view_index is not None else None
+        if view.camera is not None and view is not rtx_view:
+            return
+        task = self._is_task_view(view)
+        source = view.cfg.source if task else self.cfg
+        changed, focal = imgui.slider_float("Focal Length", float(source.focal_length), 5.0, 100.0, "%.0f mm")
+        hover_tooltip(imgui, "Lens focal length of the camera; smaller values see a wider area")
+        if changed:
+            source.focal_length = focal
+            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees(focal)
+            view.invalidate()
+            self._last_render_step = -1
+
+    def _draw_tracking_camera_controls(self, imgui, follower: CameraFollower) -> None:
+        """Edit the selected Tracking Camera: what it follows, where it sits, and where it looks."""
+        cfg = follower.cfg
+        edited = False
+
+        def tip(text: str) -> None:
+            hover_tooltip(imgui, text)
+
+        imgui.separator_text("Tracking Camera")
+        changed, env = imgui.input_int("Environment", follower.env)
+        tip("Environment the camera follows")
+        if changed and 0 <= env < self._sim.get_scene_data_provider().num_envs:
+            follower.set_env(env)
+            edited = True
+        asset_name, _, body_name = (cfg.track_path or "").partition("/")
+        assets = ["None (fixed in environment)", *follower.asset_names()]
+        changed, index = imgui.combo("Asset", assets.index(asset_name) if asset_name in assets else 0, assets)
+        tip("Scene asset the camera follows. None keeps it fixed relative to the environment")
+        if changed:
+            edited |= self._set_tracking_path(follower, assets[index] if index else None)
+        if asset_name:
+            bodies = ["Root", *follower.body_names(asset_name)]
+            changed, index = imgui.combo("Body", bodies.index(body_name) if body_name in bodies else 0, bodies)
+            tip("Body of the asset the camera follows. Root follows the asset itself")
+            if changed:
+                edited |= self._set_tracking_path(follower, f"{asset_name}/{bodies[index]}" if index else asset_name)
+        changed, eye = imgui.input_float3("Eye (m)", list(cfg.eye))
+        tip("Camera position, as an offset from the followed asset or the environment origin")
+        if changed:
+            cfg.eye, edited = tuple(float(v) for v in eye), True
+        changed, lookat = imgui.input_float3("Look At (m)", list(cfg.lookat))
+        tip("Point the camera looks at, as an offset from the followed asset or the environment origin")
+        if changed:
+            cfg.lookat, edited = tuple(float(v) for v in lookat), True
+        if asset_name:
+            changed, cfg.follow_heading = imgui.checkbox("Follow Heading", cfg.follow_heading)
+            tip("Turn with the asset's heading, so the camera stays behind it and level")
+            edited |= changed
+            if cfg.follow_heading:
+                changed, smoothing = imgui.slider_float(
+                    "Smoothing", cfg.heading_smoothing_time_constant, 0.0, 2.0, "%.2f s"
+                )
+                tip("Heading filter time constant; larger values damp turns more but lag")
+                if changed:
+                    cfg.heading_smoothing_time_constant, edited = smoothing, True
+        if imgui.button("Reset to Task Default"):
+            edited |= self._reset_tracking_camera(follower)
+        tip("Restore what the task declared for this camera")
+        if self._tracking_error:
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0))
+            imgui.text_wrapped(self._tracking_error)
+            imgui.pop_style_color()
+        if edited:
+            self.current_image_view.invalidate()
+            self._last_render_step = -1
+
+    def _set_tracking_path(self, follower: CameraFollower, track_path: str | None) -> bool:
+        """Follow ``track_path``, reporting an unknown asset or ambiguous body instead of raising."""
+        try:
+            follower.set_track_path(track_path)
+        except ValueError as exc:
+            self._tracking_error = str(exc)
+            return False
+        self._tracking_error = ""
+        return True
+
+    def _reset_tracking_camera(self, follower: CameraFollower) -> bool:
+        """Restore the camera's declared pose, optics, and target; returns whether anything changed."""
+        defaults = self._tracking_defaults.get(self.current_image_view)
+        if defaults is None:
+            return False
+        cfg = follower.cfg
+        cfg.eye, cfg.lookat, cfg.focal_length = defaults["eye"], defaults["lookat"], defaults["focal_length"]
+        cfg.follow_heading = defaults["follow_heading"]
+        cfg.heading_smoothing_time_constant = defaults["heading_smoothing_time_constant"]
+        follower.set_env(defaults["env"])
+        return self._set_tracking_path(follower, defaults["track_path"]) or True
+
+    def _view_labels(self, indices: list[int]) -> list[str]:
+        """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
+        views = [self._image_views[i] for i in indices]
+        free = [v for v in views if v.camera is None and not self._is_task_view(v)]
+        tracking = [v for v in views if self._is_task_view(v)]
+        labels = []
+        for view in views:
+            if view.camera is not None:
+                labels.append(self._sensor_label(view.cfg.source))
+            elif self._is_task_view(view):
+                labels.append(
+                    "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
+                )
+            else:
+                labels.append("Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}")
+        return labels
+
+    @staticmethod
+    def _sensor_label(prim_path: str) -> str:
+        """Name a scene camera by its own prim name, without the per-environment path pattern."""
+        return f"{prim_path.rstrip('/').rsplit('/', 1)[-1]} (sensor)"
+
+    @staticmethod
+    def _is_task_view(view) -> bool:
+        """Whether *view* is a perspective view tied to an environment or an asset."""
+        return isinstance(view.cfg.source, PerspectiveCameraCfg) and view.cfg.source.is_task_view
+
+    def _pose_source_view(self):
+        """Return the view whose camera settings are shown: the one driving the OVRTX camera, or the current view."""
+        if self.rtx_rendering and self._rtx_pose_view is not None:
+            return self._rtx_pose_view
+        return self.current_image_view
+
+    def _choose_camera_source(self, index: int) -> None:
+        """Switch the camera source; a free or Tracking Camera source keeps the OVRTX renderer when it is on."""
+        view = self._image_views[index]
+        if self.rtx_rendering and view.camera is None:
+            self._rtx_pose_view = view if self._is_task_view(view) else None
+            if self._rtx_pose_view is not None:
+                self._apply_view_pose(view)
+            self.current_image_view.invalidate()
+            return
+        self._select_camera(index)
+
+    def _apply_view_pose(self, view) -> bool:
+        """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
+
+        Returns:
+            Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
+        """
+        follower = self._followers.get(view)
+        pose = follower and follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
+        if pose is None or follower is None:
+            return False
+        camera = self._viewer.camera
+        camera.pos = PygletVec3(*pose[0])
+        camera.look_at(pose[1])
+        self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+        camera.fov = self._focal_length_to_vertical_fov_degrees(view.cfg.source.focal_length)
+        return True
+
+    def _select_camera(self, index: int, *, keep_pose: bool = False) -> None:
+        """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle.
+
+        Args:
+            index: Image view to display.
+            keep_pose: Continue from the viewer's current camera instead of the source's configured pose.
+        """
         self.current_image_view = self._image_views[index]
+        if index != self.rtx_view_index:
+            self._rtx_pose_view = None
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
             if self.current_image_view.render is not None and self.current_image_view.render != self._capture_frame:
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
             self.current_image_view.render = self._capture_frame
-            self.set_camera_view(camera.eye, camera.lookat)
-            self.cfg.focal_length = camera.focal_length
-            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+            if camera.is_task_view:
+                self._apply_view_pose(self.current_image_view)
+            elif not keep_pose:
+                self.set_camera_view(camera.eye, camera.lookat)
+                self.cfg.focal_length = camera.focal_length
+                self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+        elif keep_pose:
+            self._place_scene_camera_at_viewer(self.current_image_view.camera)
         else:
             sensor = self.current_image_view.camera
             intrinsics = sensor._data.intrinsic_matrices.torch[0]
             self._viewer.camera.fov = math.degrees(2 * math.atan(sensor.cfg.height / (2 * float(intrinsics[1, 1]))))
-        self._navigation_fov = self._viewer.camera.fov
+        # None makes the first navigation step copy the viewer's field of view to a scene camera.
+        self._navigation_fov = (
+            None if keep_pose and not isinstance(camera, PerspectiveCameraCfg) else self._viewer.camera.fov
+        )
         if self._viewer.picking is not None:
             # Release an existing drag without replacing any graph-captured picking buffers.
             self._viewer.picking.release()
 
         self._navigation_view = self._viewer.camera.get_view_matrix().reshape(4, 4).T.copy()
+
+    def _place_scene_camera_at_viewer(self, camera: Camera) -> None:
+        """Move a scene camera to the viewer camera's current world pose."""
+        world_from_camera = np.linalg.inv(self._viewer.camera.get_view_matrix().reshape(4, 4).T)
+        positions, orientations = camera.get_world_poses(convention="opengl")
+        position = torch.as_tensor(world_from_camera[:3, 3], dtype=positions.dtype, device=positions.device)
+        rotation = quat_from_matrix(
+            torch.as_tensor(world_from_camera[:3, :3], dtype=positions.dtype, device=positions.device)
+        )
+        camera.set_world_poses(position.expand_as(positions), rotation.expand_as(orientations), convention="opengl")
 
     def _navigate_scene_camera(self) -> None:
         camera, viewer = self.current_image_view.camera, self._viewer
@@ -664,6 +1409,12 @@ class NewtonVisualizerBase(BaseVisualizer):
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
+        self._followers.clear()
+        self._tracking_defaults.clear()
+        self._sensor_tiles.clear()
+        if self._rtx_appearance is not None:
+            self._rtx_appearance.close()
+            self._rtx_appearance = None
         for view in self._image_views:
             if view.render == self._capture_frame:
                 view.render = None
@@ -738,6 +1489,12 @@ class NewtonVisualizerBase(BaseVisualizer):
 class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
+    _recording: NewtonRecordingPanel | None = None
+    _simulation_hidden = False
+    _replay_mode = False
+    _replay_view = "only"
+    _replay_saved: dict | None = None
+
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
@@ -791,6 +1548,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().__init__(cfg)
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
+        self._cfg_visible_env_ids: list[int] | None = None
+        self._visible_env_count: int | None = None
+        self._num_envs = 0
+        self._policy_ghost_panel: NewtonPolicyGhostPanel | None = None
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -828,13 +1589,41 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
-        self._viewer.set_visible_worlds(self._env_ids)
-        self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
+        self._cfg_visible_env_ids = self._env_ids
+        self._num_envs = num_envs
+        self._viewer._owner = self
+        self._recording = self._viewer._recording_panel = NewtonRecordingPanel(self)
+        self._apply_visible_worlds()
         self._viewer._paused = False
         self._viewer.picking_enabled = self._picking_enabled
         self._configure_viewer()
 
+        scene = self._sim.get_scene_data_provider().get_interactive_scene()
+        for view in self._image_views:
+            if scene is not None and self._is_task_view(view):
+                # Fail at initialization, not on a frame: a bad env_index or track_path raises here.
+                self._followers[view] = follower = CameraFollower(view.cfg.source, scene)
+                cfg = view.cfg.source
+                self._tracking_defaults[view] = {
+                    "eye": cfg.eye,
+                    "lookat": cfg.lookat,
+                    "focal_length": cfg.focal_length,
+                    "track_path": cfg.track_path,
+                    "follow_heading": cfg.follow_heading,
+                    "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
+                    "env": follower.env,
+                }
+        for view in self._image_views:
+            camera = view.camera
+            if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
+                # One environment at a time, switchable from the HUD; the tiled layout stays one click away.
+                self._sensor_tiles[view] = tuple(view.cfg.envs)
+                view.cfg.envs = (0 if 0 in view.cfg.envs else view.cfg.envs[0],)
         self._select_camera(0)
+        if self.cfg.enable_markers and self.rtx_view_index is not None:
+            # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
+            renderer_cfg = self._image_views[self.rtx_view_index].camera.cfg.renderer_cfg
+            sim.get_or_create_backend(renderer_cfg).marker_groups = sim.vis_marker_registry.get_groups().values()
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
@@ -870,8 +1659,17 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
+        if self._policy_ghost_panel is not None:
+            self._policy_ghost_panel.apply_tint(self.backend.model)
+            if self._policy_ghost_panel.consume_slots_changed():
+                self._apply_visible_worlds()
+            self._policy_ghost_panel.apply_materials(viewer)
         viewer.begin_frame(self._sim_time)
         try:
+            viewer.image_matches_camera = self.rtx_rendering
+            pose_view = self._pose_source_view()
+            if self._is_task_view(pose_view):
+                self._apply_view_pose(pose_view)
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
                 self._log_streaming_image()
@@ -886,6 +1684,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+            if self._recording is not None and self.current_image_view.camera is None:
+                self._recording.replay.update()
+                self._sync_replay_mode()
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -895,6 +1696,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
+        if self._recording is not None and not viewer.is_paused():
+            self._recording.capture()
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
@@ -910,6 +1713,229 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)
         return state
 
+    def _rtx_view(self):
+        """The OVRTX viewer camera's image view, or None when the scene has none."""
+        index = self.rtx_view_index
+        return None if index is None else self._image_views[index]
+
+    @property
+    def rtx_view_index(self) -> int | None:
+        """Index of the OVRTX viewer camera among the image views, or None when the scene has none."""
+        for index, view in enumerate(self._image_views):
+            if view.camera is not None and getattr(view.camera.cfg, "prim_path", "").startswith(
+                "/World/viewer_camera_"
+            ):
+                return index
+        return None
+
+    @property
+    def rtx_rendering(self) -> bool:
+        """Whether the main view is currently rendered by OVRTX."""
+        index = self.rtx_view_index
+        return index is not None and self.current_image_view is self._image_views[index]
+
+    def set_rtx_rendering(self, enabled: bool) -> None:
+        """Render the main camera with OVRTX or with the Newton OpenGL rasterizer, keeping the camera pose.
+
+        Args:
+            enabled: ``True`` for the OVRTX viewer camera, ``False`` for the Newton GL perspective view.
+        """
+        rtx_index = self.rtx_view_index
+        if rtx_index is None:
+            raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
+        free = [i for i, view in enumerate(self._image_views) if view.camera is None and not self._is_task_view(view)]
+        if enabled:
+            # A Tracking Camera keeps moving the OVRTX camera, which has no pose of its own.
+            current = self.current_image_view
+            self._rtx_pose_view = current if self._is_task_view(current) else None
+            self._select_camera(rtx_index, keep_pose=True)
+        else:
+            back = self._rtx_pose_view
+            self._rtx_pose_view = None
+            self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
+
+    def set_run_info(self, task: str | None = None, mode: str | None = None, run: str | None = None) -> None:
+        """Name the run in the HUD header.
+
+        Args:
+            task: Task name.
+            mode: How the run uses the task, such as ``"play"`` or ``"train"``.
+            run: Name of the run's log directory.
+        """
+        if self._viewer is not None:
+            self._viewer.set_run_info(task, mode, run)
+
+    def attach_checkpoint_saver(self, save: Callable[[str], None]) -> None:
+        """Enable the HUD's Checkpoint button for a run that has a policy.
+
+        Args:
+            save: Callable that writes the policy checkpoint to the given path.
+        """
+        if self._recording is not None:
+            self._recording.set_checkpoint_saver(save)
+
+    def attach_policy_ghost_restart(self, restart: Callable[[bool], None]) -> None:
+        """Offer an Enable Policy Ghosts button in the HUD of a run that started without the feature.
+
+        Args:
+            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+        """
+        if self._viewer is not None:
+            self._viewer._policy_ghost_restart = restart
+
+    def attach_policy_ghosts(
+        self, controller: PolicyGhostController, restart: Callable[[bool], None] | None = None
+    ) -> None:
+        """Show the Policy Ghosts HUD section for a playback loop that drives several checkpoints.
+
+        Only environments of slots with a checkpoint are visible, and each ghost slot is tinted and overlaid on
+        the reference slot. The visible-environment slider then counts environments per slot.
+
+        Args:
+            controller: Playback-loop side of Policy Ghosts.
+            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+                When given, the HUD shows a Disable button.
+        """
+        self._policy_ghost_panel = NewtonPolicyGhostPanel(controller, restart)
+        if self._viewer is not None:
+            self._viewer._policy_ghost_panel = self._policy_ghost_panel
+            self._apply_visible_worlds()
+
+    @property
+    def visible_env_limit(self) -> int:
+        """Largest value of the visible-environment count: environments per slot with Policy Ghosts, else all."""
+        if self._policy_ghost_panel is not None:
+            return self._policy_ghost_panel.layout.slice_size
+        return len(self._cfg_visible_env_ids) if self._cfg_visible_env_ids is not None else self._num_envs
+
+    @property
+    def visible_env_count(self) -> int:
+        """Number of environments currently shown (per slot with Policy Ghosts)."""
+        if self._visible_env_count is not None:
+            return min(self._visible_env_count, self.visible_env_limit)
+        return self.visible_env_limit
+
+    def set_visible_env_count(self, count: int) -> None:
+        """Show only the first ``count`` environments (per slot with Policy Ghosts).
+
+        Args:
+            count: Number of environments to show, clamped to ``[1, visible_env_limit]``.
+        """
+        self._visible_env_count = max(1, min(int(count), self.visible_env_limit))
+        self._apply_visible_worlds()
+
+    def _select_visible_env_ids(self) -> list[int] | None:
+        """Resolve the environments to show from the cfg, the HUD count, and the Policy Ghosts slots."""
+        panel = self._policy_ghost_panel
+        if panel is not None:
+            return panel.layout.visible_env_ids(self.visible_env_count)
+        if self._visible_env_count is None:
+            return self._cfg_visible_env_ids
+        ids = self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs)
+        return list(ids)[: self._visible_env_count]
+
+    def _drop_shape_instancers(self) -> None:
+        """Free the GL shape instancers so they are re-allocated for the new visible worlds.
+
+        Newton keeps an instancer per shape batch by name and reuses it with its original capacity, so showing
+        more worlds than were visible when it was allocated fails every frame with a capacity error.
+        """
+        objects = getattr(self._viewer, "objects", None)
+        if objects is None or not hasattr(self._viewer, "_qualify"):
+            return
+        prefix = self._viewer._qualify("/model/shapes/")
+        for key in [k for k in objects if k.startswith(prefix) and hasattr(objects[k], "num_instances")]:
+            del objects[key]
+
+    def _apply_visible_worlds(self) -> None:
+        """Apply the visible environments and, with Policy Ghosts, overlay each ghost on the reference."""
+        if self._viewer is None:
+            return
+        self._env_ids = self._select_visible_env_ids()
+        self._drop_shape_instancers()
+        self._viewer.set_visible_worlds([] if self._simulation_hidden else self._env_ids)
+        self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
+        if self._policy_ghost_panel is not None and getattr(self._viewer, "world_offsets", None) is not None:
+            offsets = self._viewer.world_offsets.numpy() + self._policy_ghost_panel.controller.env_origin_offsets()
+            self._viewer.world_offsets = wp.array(offsets, dtype=wp.vec3, device=self._viewer.world_offsets.device)
+        self._apply_rtx_visible_envs()
+        if self._recording is not None:
+            self._recording.replay.invalidate()
+
+    @property
+    def replay_mode(self) -> bool:
+        """Whether a loaded animation is the focus of the window."""
+        return self._replay_mode
+
+    @property
+    def replay_view(self) -> str:
+        """How the loaded animation is shown: ``"only"`` or ``"overlay"``."""
+        return self._replay_view
+
+    def _sync_replay_mode(self) -> None:
+        """Enter Replay mode when an animation finishes loading and leave it when it is unloaded."""
+        active = self._recording.replay.active
+        if active and not self._replay_mode:
+            self._replay_mode = True
+            self._replay_saved = {"paused": self._viewer._paused_training, "hidden": self._simulation_hidden}
+            self.set_replay_view("only")
+            self.frame_replay()
+        elif not active and self._replay_mode:
+            saved, self._replay_mode, self._replay_saved = self._replay_saved, False, None
+            self._viewer._paused_training = saved["paused"]
+            self.set_simulation_hidden(saved["hidden"])
+
+    def set_replay_view(self, view: str) -> None:
+        """Show the loaded animation alone or over the live simulation.
+
+        Args:
+            view: ``"only"`` pauses and hides the simulation, ``"overlay"`` draws the animation on top of the live
+                robots and resumes the simulation.
+        """
+        player = self._recording.replay
+        if not player.active or self._replay_saved is None:
+            return  # No animation is loaded yet, so there is no simulation state to restore.
+        self._replay_view = view
+        self._viewer._paused_training = True if view == "only" else self._replay_saved["paused"]
+        player.offset[:] = 0.0
+        player.hide_static = view != "only"
+        player.invalidate()
+        self.set_simulation_hidden(view == "only")
+
+    def frame_replay(self) -> None:
+        """Point the camera at the loaded animation."""
+        player = self._recording.replay
+        if player.recording is None or self._viewer.model.up_axis != 2:
+            return
+        low, high = player.recording.bounds()
+        center, extent = (low + high) / 2.0 + player.offset, max(float((high - low).max()), 2.0)
+        self.set_camera_view(tuple(center + np.array([-1.0, -1.0, 0.6]) * extent), tuple(center))
+
+    @property
+    def simulation_hidden(self) -> bool:
+        """Whether the simulation's environments are hidden, so only a replayed animation shows."""
+        return self._simulation_hidden
+
+    def set_simulation_hidden(self, hidden: bool) -> None:
+        """Hide or show the simulation's environments in the viewer; the simulation itself keeps running."""
+        if hidden != self._simulation_hidden:
+            self._simulation_hidden = hidden
+            self._apply_visible_worlds()
+
+    def _apply_rtx_visible_envs(self) -> None:
+        """Hide the environments outside the visible set in the OVRTX viewer camera's scene."""
+        index = self.rtx_view_index
+        if index is None:
+            return
+        renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
+        num_envs = len(renderer._env_paths)
+        if num_envs:
+            visible = np.ones(num_envs, dtype=bool) if self._env_ids is None else np.zeros(num_envs, dtype=bool)
+            if self._env_ids is not None:
+                visible[np.asarray(list(self._env_ids), dtype=int)] = True
+            renderer.set_environment_visibility(visible)
+            self._image_views[index].invalidate()
+
     def reset(self, soft: bool = False) -> None:
         """Restore GL overlays and picking after the shared model binding changes."""
         super().reset(soft)
@@ -922,11 +1948,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+        self._viewer._view_controls = self._draw_streaming_view_controls
         if self._picking_enabled:
             self._viewer.wind = None
-        self._viewer.set_visible_worlds(self._env_ids)
-        self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
+        self._apply_visible_worlds()
         self._configure_viewer()
         self._viewer.picking_enabled = self._picking_enabled
         if self._picking_enabled:
@@ -937,6 +1962,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._is_closed:
             return
         try:
+            if self._recording is not None:
+                self._recording.close()
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
@@ -1049,7 +2076,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if not plots._scalar_buffers and not plots._array_buffers:
             return
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
-        if not imgui.collapsing_header("Live Plots"):
+        expanded = imgui.collapsing_header("Live Plots")
+        hover_tooltip(imgui, "Plot task values such as rewards and observations while it runs")
+        if not expanded:
             return
         imgui.separator()
         scale = viewer.gui.ui.dpi_scale
@@ -1063,7 +2092,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         for base_name in sorted(groups, key=lambda name: not name.startswith("episode/")):
             term_label = base_name.rsplit("/", 1)[-1]
-            if not imgui.collapsing_header(term_label):
+            shown = imgui.collapsing_header(term_label)
+            hover_tooltip(imgui, self._live_plot_tooltip(base_name))
+            if not shown:
                 continue
             if implot.begin_plot(f"##{base_name}", imgui.ImVec2(-1, 180 * scale)):
                 auto = implot.AxisFlags_.auto_fit.value
@@ -1081,8 +2112,19 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         panel_width = imgui.get_content_region_avail().x
         for name, array in plots._array_buffers.items():
-            if imgui.collapsing_header(name):
+            shown = imgui.collapsing_header(name)
+            hover_tooltip(imgui, self._live_plot_tooltip(name))
+            if shown:
                 plots._render_array_heatmap(imgui, name, array, panel_width - 20 * scale, dpi_scale=scale)
+
+    def _live_plot_tooltip(self, name: str) -> str:
+        """Describe a plotted ``<manager>/<term>`` from the term's docstring, or name where it comes from."""
+        manager_name, _, term = name.partition("/")
+        source = next((source for source in self._live_plot_sources if source.manager_name == manager_name), None)
+        if source is None or not term:
+            return name
+        summary = term_summary(getattr(source, "_manager", None), term)
+        return summary or f"{term} from the {manager_name.replace('_', ' ')}"
 
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Newton viewer's built-in plot panel."""

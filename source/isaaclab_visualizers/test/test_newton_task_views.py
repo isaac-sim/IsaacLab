@@ -1,0 +1,165 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Unit tests for the Tracking Camera views of the Newton GL window."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+import torch
+
+pytest.importorskip("newton")
+from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizerBase
+from pyglet.math import Vec3
+
+from isaaclab.visualizers import PerspectiveCameraCfg
+from isaaclab.visualizers.camera_follower import CameraFollower
+
+
+class _Camera:
+    """The viewer camera: a position, a look-at target, angles, and a field of view."""
+
+    def __init__(self):
+        self.pos, self.pitch, self.yaw, self.fov = Vec3(1.0, 1.0, 1.0), 0.1, 0.2, 40.0
+        self.target = None
+
+    def look_at(self, target):
+        self.target = tuple(target)
+
+
+class _Scene:
+    num_envs = 2
+    env_origins = torch.tensor([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]])
+
+    def __getitem__(self, name):
+        return SimpleNamespace(is_initialized=False)
+
+
+class _View:
+    """An image view; a class, not a namespace, so that it can key the follower dictionary."""
+
+    def __init__(self, source, camera=None):
+        self.cfg, self.camera = SimpleNamespace(source=source), camera
+
+
+def _view(source):
+    return _View(source)
+
+
+def _visualizer(views) -> NewtonVisualizerBase:
+    viz = NewtonVisualizerBase.__new__(NewtonVisualizerBase)
+    viz.cfg = SimpleNamespace(focal_length=12.0)
+    camera = _Camera()
+
+    def set_camera(pos, pitch, yaw):
+        camera.pos, camera.pitch, camera.yaw = pos, pitch, yaw
+
+    viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera)
+    viz._sim = SimpleNamespace(get_physics_step_count=lambda: 10, get_physics_dt=lambda: 0.1)
+    viz._image_views = list(views)
+    viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if viz._is_task_view(view)}
+    return viz
+
+
+def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_camera():
+    free, task = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
+    viz = _visualizer([free, task])
+
+    assert viz._view_labels([0, 1]) == ["Perspective", "Tracking Camera"]
+    assert [viz._is_task_view(view) for view in viz._image_views] == [False, True]
+
+
+def test_views_are_numbered_only_when_several_share_a_name():
+    views = [_view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=0))]
+    views += [_view(PerspectiveCameraCfg(env_index=1))]
+    viz = _visualizer(views)
+
+    assert viz._view_labels([0, 1, 2, 3]) == [
+        "Perspective 1",
+        "Perspective 2",
+        "Tracking Camera 1",
+        "Tracking Camera 2",
+    ]
+
+
+def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern():
+    sensor = _View("/World/envs/env_[^/]+/Robot/wrist_camera", camera=object())
+    viz = _visualizer([_view(PerspectiveCameraCfg()), sensor])
+
+    assert viz._view_labels([0, 1]) == ["Perspective", "wrist_camera (sensor)"]
+
+
+def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_sensors():
+    sensor = _View("/World/envs/env_[^/]+/Camera", camera=object())
+    tracking, free = _view(PerspectiveCameraCfg(env_index=0)), _view(PerspectiveCameraCfg())
+    viz = _visualizer([sensor, tracking, free])
+
+    order = sorted(range(3), key=lambda i: viz._source_rank(viz._image_views[i]))
+
+    assert order == [2, 1, 0]
+
+
+def test_a_task_view_moves_the_viewer_camera_to_the_followed_environment():
+    view = _view(PerspectiveCameraCfg(env_index=1, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    viz = _visualizer([view])
+
+    assert viz._apply_view_pose(view)
+
+    camera = viz._viewer.camera
+    assert (camera.pos.x, camera.pos.y, camera.pos.z) == pytest.approx((12.0, 0.0, 1.0))  # Environment 1 origin.
+    assert camera.target == pytest.approx((10.0, 0.0, 0.5))
+
+
+def test_switching_the_followed_environment_re_aims_the_camera():
+    view = _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
+    viz = _visualizer([view])
+
+    viz._followers[view].set_env(1)
+    viz._apply_view_pose(view)
+
+    assert viz._viewer.camera.pos.x == pytest.approx(12.0)
+
+
+def test_resetting_the_tracking_camera_restores_what_the_task_declared():
+    view = _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    viz = _visualizer([view])
+    cfg = view.cfg.source
+    viz._tracking_defaults = {
+        view: {
+            "eye": cfg.eye,
+            "lookat": cfg.lookat,
+            "focal_length": cfg.focal_length,
+            "track_path": cfg.track_path,
+            "follow_heading": cfg.follow_heading,
+            "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
+            "env": 0,
+        }
+    }
+    viz.current_image_view = view
+    viz._tracking_error = ""
+    follower = viz._followers[view]
+
+    cfg.eye, cfg.focal_length = (9.0, 9.0, 9.0), 60.0
+    follower.set_env(1)
+    assert viz._reset_tracking_camera(follower)
+
+    assert (cfg.eye, cfg.focal_length, follower.env) == ((2.0, 0.0, 1.0), 24.0, 0)
+
+
+def test_an_invalid_followed_asset_is_reported_not_raised():
+    view = _view(PerspectiveCameraCfg(env_index=0))
+    viz = _visualizer([view])
+    viz._tracking_error = ""
+
+    class Scene(_Scene):
+        def __getitem__(self, name):
+            raise KeyError(name)
+
+    viz._followers[view]._scene = Scene()
+
+    assert not viz._set_tracking_path(viz._followers[view], "ghost")
+    assert "unknown scene asset" in viz._tracking_error

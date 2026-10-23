@@ -34,6 +34,22 @@ def create_marker_transforms_kernel(
     transforms[i] = local_transforms[i] * wp.transpose(wp.transform_compose(p, q, s))
 
 
+@wp.kernel(enable_backward=False)
+def hide_environment_bodies_kernel(
+    transforms: wp.array(dtype=wp.mat44d),
+    body_envs: wp.array(dtype=wp.int32),
+    hidden_envs: wp.array(dtype=wp.uint8),
+    drop: wp.float64,
+    out: wp.array(dtype=wp.mat44d),
+):
+    """Copy row-vector body poses, moving the bodies of hidden environments down by ``drop`` [m]."""
+    i = wp.tid()
+    pose = transforms[i]
+    if hidden_envs[body_envs[i]] != wp.uint8(0):
+        pose[3, 2] = pose[3, 2] - drop
+    out[i] = pose
+
+
 @wp.kernel
 def create_camera_transforms_kernel(
     positions: wp.array(dtype=wp.vec3),  # type: ignore

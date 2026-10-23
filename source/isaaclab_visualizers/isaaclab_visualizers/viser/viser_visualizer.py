@@ -364,8 +364,8 @@ class ViserVisualizer(BaseVisualizer):
 
         self._sim_time += dt
 
-        # Skip all rendering when no browser clients are connected.
-        if not self._viewer._server.get_clients():
+        # Skip all rendering when no browser clients are connected, unless a recording needs every frame.
+        if not self._viewer._server.get_clients() and not self.cfg.backend.record_to_viser:
             self._render_live_plots()  # still throttled internally; no-ops when no clients
             # No browser clients: skip compositing and pushing entirely.  If a
             # VideoRecorder calls render_tiled_rgb_array() it will compose on demand.

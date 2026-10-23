@@ -19,6 +19,34 @@ if TYPE_CHECKING:
 
 
 @configclass
+class NewtonRecordingCfg:
+    """Output settings of the Recording section in the Newton GL HUD.
+
+    Every output lands in ``<output_dir>/<kind>/``, where ``kind`` is ``video``, ``scene``, or ``checkpoint``.
+    The HUD edits a copy of these values while the window is open.
+    """
+
+    output_dir: str = "recording"
+    """Root folder of all recordings. Relative paths resolve against the working directory, which is the repository
+    folder when the run starts there."""
+
+    filename_prefix: str = "newton_gl"
+    """Start of every recording's file name."""
+
+    auto_increment: bool = True
+    """Append a counter (``_0001``, ``_0002``, ...) so a new recording never overwrites an earlier one."""
+
+    timestamp: bool = False
+    """Append the start date and time (``YYYYmmdd-HHMMSS``) to the file name."""
+
+    video_fps: int | None = None
+    """Frame rate of the encoded video [Hz]. ``None`` uses the window's update rate (:attr:`WindowCfg.fps`)."""
+
+    video_length: float | None = None
+    """Duration of the video [s] after which recording stops by itself. ``None`` records until stopped."""
+
+
+@configclass
 class NewtonGLBackendCfg(VisualizerBackendCfg):
     """Newton OpenGL rendering and model display options."""
 
@@ -81,6 +109,23 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
 
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0, 1]."""
+
+    recording: NewtonRecordingCfg = NewtonRecordingCfg()
+    """Defaults of the HUD's Recording section."""
+
+    rtx_camera: bool | None = None
+    """Declare an OVRTX viewer camera so the HUD can switch the main view between Newton GL and OVRTX.
+
+    The camera is added to the scene at launch because scene sensors cannot be added later. It renders only
+    while the OVRTX view is selected. ``None`` enables it when the ``ovrtx`` package is installed and the physics
+    backend is not PhysX; ``False`` disables it.
+    """
+
+    rtx_renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg()
+    """Renderer of the OVRTX viewer camera."""
+
+    rtx_render_settings: dict[str, Any] = dict()
+    """Additional RTX render settings of the OVRTX viewer camera."""
 
 
 @configclass

@@ -776,6 +776,46 @@ without screen-sharing, running with ``--viz viser``:
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
 
+**Comparing checkpoints with Policy Ghosts**
+
+Newton GL can overlay several checkpoints of one task in a single viewport. The ``--checkpoint``
+drives the reference robots; ghosts of other checkpoints are tinted, translucent copies that start
+from the same terrain, spawn pose, and commands, so differences in behavior show up as the robots
+drift apart:
+
+.. code-block:: bash
+
+    uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-AnymalD \
+        --num_envs 4 --checkpoint latest --viz newton_gl --policy_ghosts
+
+You can also start from a normal ``play`` run: open **Policy Ghosts** in the viewer's left panel and choose
+**Enable Policy Ghosts (restarts)**. The command restarts with ``--policy_ghosts`` added, because the simulation
+fixes its environment count at startup; **Disable Policy Ghosts (restarts)** reverses it. Policy Ghosts stay off
+unless you ask for them, since they simulate several times the environments.
+
+Open **Policy Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
+checkpoints of runs of this task that were written by training (those with a ``run.json``) under the
+experiment's log directory; pass ``--policy_ghost_root`` to search another directory. Each loaded checkpoint has a checkbox that
+shows or hides it. Under **Settings**, each ghost has opacity and tint sliders; a tint of 1.0 replaces all of
+the robot's native colors and textures with the ghost color, and lower values blend it with the native colors.
+**Remove** frees the slot. ``--policy_ghost_slots`` sets the number of slots, including the reference, up to eight;
+the default is eight.
+
+* Every slot simulates ``--num_envs`` environments, even an empty one. With a few environments per
+  slot the extra cost is small, since the step time is dominated by fixed overhead; it grows with the
+  total environment count (slots times ``--num_envs``).
+* Randomization that cannot be mirrored between slots is disabled: startup and interval events,
+  curriculum terms, and observation noise. Reset events and commands are copied from the reference.
+* Identical checkpoints do not stay exactly on top of each other; physics differences grow
+  to centimeters over a few seconds on rough terrain.
+* Policy Ghosts support RSL-RL and manager-based environments only.
+
+**Choosing how many environments are drawn**
+
+Every Newton GL viewer has a **Visible Envs** slider in its left panel that sets how many
+environments are drawn. It changes only what is rendered, not the simulation. With Policy Ghosts, it
+counts environments per slot.
+
 Resolution Rules
 ~~~~~~~~~~~~~~~~
 

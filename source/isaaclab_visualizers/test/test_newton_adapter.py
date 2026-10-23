@@ -401,7 +401,10 @@ class _FakeTrainingControlsImgui:
     def slider_float(self, _label, value, _min_value, _max_value, _format):
         return False, value
 
-    def is_item_hovered(self):
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    def is_item_hovered(self, *_flags):
         return False
 
     def set_tooltip(self, _text):
@@ -455,6 +458,12 @@ def test_newton_gl_viewer_skips_picking_only_while_a_fullscreen_image_is_shown(m
 
     viewer.end_frame()
     assert picks == [(1, 2, 4, 0)]
+
+    viewer.picking_enabled = False
+    viewer.image_matches_camera = True  # The image comes from the picking camera, e.g. the OVRTX viewer camera.
+    viewer.log_image("Streaming View", np.zeros((2, 2, 3), dtype=np.uint8), fullscreen=True)
+    viewer.end_frame()
+    assert picks == [(1, 2, 4, 0)] * 2
 
 
 def test_newton_viewer_particle_color_override(monkeypatch):
@@ -725,7 +734,9 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     sim.get_scene_data_provider = visualizer._sim.get_scene_data_provider
     visualizer._sim = sim
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
-    visualizer._env_ids = [1, 3]
+    visualizer._env_ids = visualizer._cfg_visible_env_ids = [1, 3]
+    visualizer._visible_env_count = None
+    visualizer._policy_ghost_panel = None
     visualizer._picking_enabled = picking
     visualizer.cfg.backend.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.backend.show_contacts = True
@@ -736,9 +747,9 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
+    assert viewer._view_controls == visualizer._draw_streaming_view_controls
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
-        call(visualizer._draw_streaming_view_controls, position="side"),
     ]
     viewer.set_visible_worlds.assert_called_once_with([1, 3])
     viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
@@ -1338,3 +1349,144 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])
+
+
+def test_marker_tooltip_describes_known_markers_and_falls_back():
+    from isaaclab_visualizers.newton.newton_visualizer import marker_tooltip
+
+    assert marker_tooltip("/Visuals/Command/velocity_goal") == "Commanded base velocity"
+    assert marker_tooltip("/Visuals/Brand_New_Marker") == "Show or hide this marker group"
+
+
+def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
+    from isaaclab_visualizers.newton.newton_visualizer import term_summary
+
+    def track_velocity(env):
+        """Reward tracking of the commanded velocity.
+
+        More detail that the tooltip leaves out.
+        """
+
+    def undocumented(env):
+        pass
+
+    class Manager:
+        terms = {"track": SimpleNamespace(func=track_velocity), "plain": SimpleNamespace(func=undocumented)}
+
+        def get_term_cfg(self, name):
+            return self.terms[name]
+
+    manager = Manager()
+    assert term_summary(manager, "track") == "Reward tracking of the commanded velocity."
+    assert term_summary(manager, "plain") == ""
+    assert term_summary(manager, "missing") == ""
+    assert term_summary(object(), "anything") == ""  # Managers without a term accessor.
+
+
+class _RecordingImgui:
+    """Minimal imgui double that records the text of the greyed-out Policy Ghosts section."""
+
+    class Cond_:
+        appearing = 1
+
+    class Col_:
+        text = 1
+
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    class ImVec4:
+        def __init__(self, *values):
+            self.values = values
+
+    def __init__(self, expanded: bool):
+        self.expanded, self.texts, self.headers = expanded, [], []
+
+    def set_next_item_open(self, *_args):
+        pass
+
+    def push_style_color(self, *_args):
+        pass
+
+    def pop_style_color(self):
+        pass
+
+    def collapsing_header(self, label):
+        self.headers.append(label)
+        return self.expanded
+
+    def is_item_hovered(self, *_flags):
+        return False
+
+    def set_tooltip(self, _text):
+        pass
+
+    def separator(self):
+        pass
+
+    def text_disabled(self, text):
+        self.texts.append(text)
+
+    def text_wrapped(self, text):
+        self.texts.append(text)
+
+
+@pytest.mark.parametrize("expanded", [True, False])
+def test_policy_ghosts_are_greyed_out_with_an_explanation_in_the_rtx_view(expanded):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    imgui = _RecordingImgui(expanded)
+
+    viewer._draw_policy_ghosts_unsupported(imgui)
+
+    assert imgui.headers == ["Policy Ghosts"]
+    assert (
+        any("RTX" in text and "not supported" in text for text in imgui.texts),
+        any("OpenGL" in text for text in imgui.texts),
+    ) == (
+        expanded,
+        expanded,
+    )
+
+
+def test_choosing_a_replay_view_before_an_animation_is_loaded_does_nothing():
+    visualizer = object.__new__(NewtonGLVisualizer)
+    visualizer._recording = SimpleNamespace(replay=SimpleNamespace(active=False))
+    visualizer._replay_saved = None
+    visualizer._replay_view = "only"
+
+    visualizer.set_replay_view("overlay")
+
+    assert visualizer._replay_view == "only"
+
+
+def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    def view(source, camera=None):
+        return SimpleNamespace(camera=camera, cfg=SimpleNamespace(source=source), invalidate=Mock())
+
+    rtx_camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0"))
+    free, rtx, tracking = (
+        view(PerspectiveCameraCfg()),
+        view(PerspectiveCameraCfg(), rtx_camera),
+        view(PerspectiveCameraCfg(env_index=0)),
+    )
+    visualizer = object.__new__(NewtonGLVisualizer)
+    visualizer._image_views = [free, rtx, tracking]
+    visualizer.current_image_view = tracking
+    visualizer._rtx_pose_view = None
+
+    def select(index, keep_pose=False):
+        visualizer.current_image_view = visualizer._image_views[index]
+        if index != visualizer.rtx_view_index:
+            visualizer._rtx_pose_view = None
+
+    visualizer._select_camera = select
+
+    visualizer.set_rtx_rendering(True)
+
+    assert visualizer.rtx_rendering and visualizer._pose_source_view() is tracking
+
+    visualizer.set_rtx_rendering(False)
+
+    assert visualizer.current_image_view is tracking and visualizer._rtx_pose_view is None

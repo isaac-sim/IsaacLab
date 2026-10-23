@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from .newton_visualizer_cfg import (
     NewtonGLBackendCfg,
     NewtonGLVisualizerCfg,
+    NewtonRecordingCfg,
     NewtonRTXBackendCfg,
     NewtonRTXVisualizerCfg,
     NewtonVisualizerCfg,
@@ -33,6 +34,8 @@ __all__ = [
     # GL backend
     "NewtonGLVisualizer",
     "NewtonGLBackendCfg",
+    "NewtonGLVisualizerCfg",
+    "NewtonRecordingCfg",
     # RTX backend
     "NewtonRTXVisualizer",
     "NewtonRTXBackendCfg",

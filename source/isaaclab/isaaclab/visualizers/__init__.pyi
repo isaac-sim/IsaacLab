@@ -7,7 +7,12 @@ __all__ = [
     "BaseVisualizer",
     "ImageView",
     "ImageViewCfg",
+    "POLICY_GHOST_COLORS",
     "PerspectiveCameraCfg",
+    "PolicyGhostCheckpoint",
+    "PolicyGhostController",
+    "PolicyGhostLayout",
+    "PolicyGhostSlot",
     "SceneCameraCfg",
     "VisualizerCfg",
     "VisualizerBackendCfg",
@@ -16,4 +21,11 @@ __all__ = [
 
 from .base_visualizer import BaseVisualizer
 from .image_view import ImageView
+from .policy_ghost import (
+    POLICY_GHOST_COLORS,
+    PolicyGhostCheckpoint,
+    PolicyGhostController,
+    PolicyGhostLayout,
+    PolicyGhostSlot,
+)
 from .visualizer_cfg import WindowCfg, ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, VisualizerBackendCfg
