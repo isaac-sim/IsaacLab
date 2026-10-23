@@ -492,6 +492,16 @@ def test_group_history_flatten_order(setup_env, history_order, history_newest_fi
     torch.testing.assert_close(observation, torch.tensor(expected_values).expand(env.num_envs, -1))
 
 
+def test_time_order_rejects_mixed_history_direction(setup_env):
+    """Time-ordered groups reject terms whose history directions differ."""
+    cfg = ObservationGroupCfg(history_length=2, history_order="time")
+    cfg.first = ObservationTermCfg(func=lambda env: env.data.pos_w[:, :2], history_newest_first=True)
+    cfg.second = ObservationTermCfg(func=lambda env: env.data.lin_vel_w[:, :1])
+
+    with pytest.raises(ValueError, match="history_newest_first"):
+        ObservationManager({"policy": cfg}, setup_env)
+
+
 def test_invalid_observation_config(setup_env):
     env = setup_env
     """Test the invalid observation config."""

@@ -553,7 +553,7 @@ class ObservationManager(ManagerBase):
             self._term_output_specs[group_name, term_name] = (shape, sample.dtype, sample.device)
         return shape
 
-    def _prepare_terms(self):
+    def _prepare_terms(self):  # noqa: C901
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
@@ -658,11 +658,8 @@ class ObservationManager(ManagerBase):
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
                     term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
-                term_cfg.history_newest_first = (
-                    term_cfg.history_newest_first
-                    if group_cfg.history_newest_first is None
-                    else group_cfg.history_newest_first
-                )
+                if group_cfg.history_newest_first is not None:
+                    term_cfg.history_newest_first = group_cfg.history_newest_first
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
@@ -778,6 +775,13 @@ class ObservationManager(ManagerBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
                     # call reset (in-case above call to get obs dims changed the state)
                     term_cfg.func.reset()
+            # time-major output joins terms per history index, so all terms must share the direction
+            directions = {cfg.history_newest_first for cfg in self._group_obs_term_cfgs[group_name]}
+            if self._group_obs_time_major[group_name] and len(directions) > 1:
+                raise ValueError(
+                    f"Observation group '{group_name}' uses history_order='time' but its terms mix"
+                    " history_newest_first values. Set history_newest_first on the group instead."
+                )
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
