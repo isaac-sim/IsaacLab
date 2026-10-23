@@ -33,6 +33,19 @@ uv run isaaclab train --rl_library rsl_rl \
   --num_envs 256 --device cuda:0
 ```
 
+### CPU PhysX playback
+
+The optional PhysX task keeps the same policy inputs, actions, and reset recipes. It uses native
+surface velocity on CPU; enabled surface-velocity contacts are unsupported with GPU dynamics.
+Use an explicit local checkpoint and evaluate transferred policies on this backend:
+
+```bash
+DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
+  --task IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0 \
+  --checkpoint /path/to/model.pt --num_envs 1 --device cpu --viz kit --real-time \
+  agent.device=cpu
+```
+
 ### Curriculum and evaluation
 
 Racetrack training samples physically calibrated resets from release through moving-belt pickup.
@@ -143,16 +156,3 @@ for catalog access. Layout references include
 [Dematic modular conveyors](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1039_MCS.pdf),
 [Dematic sortation](https://www.dematic.com/content/dam/dematic/downloads/whitepapers/NA_WP-1015_Sorting-Out-Sortation.pdf),
 and [KION warehouse installations](https://www.kiongroup.com/en/News-Stories/Stories/Innovation/Warehousing-is-being-transformed.html).
-
-## CPU PhysX playback
-
-The optional PhysX task keeps the same policy inputs, actions, and reset recipes. It uses native
-surface velocity on CPU; enabled surface-velocity contacts are unsupported with GPU dynamics.
-Use an explicit local checkpoint and evaluate transferred policies on this backend:
-
-```bash
-DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0 \
-  --checkpoint /path/to/model.pt --num_envs 1 --device cpu --viz kit --real-time \
-  agent.device=cpu
-```
