@@ -10,8 +10,8 @@ experimental and is not exported from Isaac Lab core or the backend packages.
   including hard resets and registration before CUDA graph capture. It supports
   the Newton MJWarp solver; other Newton solvers are outside this adapter's scope.
 
-The adapter retains commanded speeds while disabled, restarts its startup ramp
-on a full reset, and clears stale forces for selected worlds. The surface spec
-controls traction parameters.
+Surface speeds and traction parameters come from the authored descriptions.
+Full resets restart the startup ramp; episode resets clear stale forces for
+only the selected worlds.
 
 No meshes, assets, task registrations, or policy checkpoints are bundled here.

@@ -10,52 +10,8 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 _ENV_REGEX_NS = "{ENV_REGEX_NS}"
-
-
-def _validate_prim_path(value: str) -> None:
-    """Validate one exact USD prim path or supported replicated-path template."""
-    if not isinstance(value, str) or not value:
-        raise ValueError("Surface prim_path must be a non-empty string.")
-    if value.startswith(f"{_ENV_REGEX_NS}/"):
-        path = value[len(_ENV_REGEX_NS) :]
-    elif value.startswith("/"):
-        path = value
-    else:
-        raise ValueError(f"Surface prim_path must be absolute or start with '{_ENV_REGEX_NS}/', got {value!r}.")
-    if "{" in path or "}" in path:
-        raise ValueError(f"Surface prim_path supports only a leading '{_ENV_REGEX_NS}' placeholder, got {value!r}.")
-    components = path[1:].split("/")
-    if not components or any(not component or component in {".", ".."} for component in components):
-        raise ValueError(f"Surface prim_path must identify a concrete prim without empty components, got {value!r}.")
-    if any(any(character.isspace() for character in component) for component in components):
-        raise ValueError(f"Surface prim_path components must not contain whitespace, got {value!r}.")
-
-
-def _validate_scalar(name: str, value: Any) -> float:
-    """Return one finite float with consistent validation errors."""
-    try:
-        result = float(value)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise ValueError(f"Surface {name} must be finite, got {value!r}.") from exc
-    if not math.isfinite(result):
-        raise ValueError(f"Surface {name} must be finite, got {value!r}.")
-    return result
-
-
-def _validate_vector(name: str, value: tuple[float, ...], length: int, *, nonzero: bool = False) -> tuple[float, ...]:
-    """Return one finite vector with a stable tuple representation."""
-    try:
-        result = tuple(float(component) for component in value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"Surface {name} must contain {length} finite values, got {value!r}.") from exc
-    if len(result) != length or not all(math.isfinite(component) for component in result):
-        raise ValueError(f"Surface {name} must contain {length} finite values, got {value!r}.")
-    if nonzero and math.sqrt(sum(component * component for component in result)) <= 1.0e-8:
-        raise ValueError(f"Surface {name} must be non-zero, got {value!r}.")
-    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,16 +19,14 @@ class SurfaceVelocitySpec:
     """Persistent intent for one collision surface with prescribed tangential velocity.
 
     Directions, surface normals, and the optional pivot point are expressed in the collision prim's
-    local frame. Runtime state such as commanded speeds and applied forces belongs to the adapter.
+    local frame. Applied forces and reset state belong to the adapter.
 
-    ``prim_path`` may contain Isaac Lab's ``{ENV_REGEX_NS}`` placeholder. A backend resolves that template
-    to every replicated collision prim while preserving one deterministic belt index per environment. An
-    absolute path addresses one unreplicated surface; replicated environments should use the placeholder.
+    ``prim_path`` starts with Isaac Lab's ``{ENV_REGEX_NS}/`` placeholder. The adapter
+    resolves it using the scene's clone template, preserving environment-major surface order.
 
     Args:
-        prim_path: Collision prim path or replicated Isaac Lab prim-path template.
-        velocity: Initial signed centerline surface velocity [m/s].
-        enabled: Whether the surface initially transports contacting bodies.
+        prim_path: Replicated collision-prim template with concrete descendant names.
+        velocity: Fixed signed centerline surface velocity [m/s].
         direction: Local travel direction, or local rotation axis for a curved belt.
         curved: Whether the velocity field rotates about ``pivot_point``.
         pivot_point: Local rotation center for a curved belt [m].
@@ -84,7 +38,6 @@ class SurfaceVelocitySpec:
 
     prim_path: str
     velocity: float = 0.0
-    enabled: bool = True
     direction: tuple[float, float, float] = (1.0, 0.0, 0.0)
     curved: bool = False
     pivot_point: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -94,34 +47,30 @@ class SurfaceVelocitySpec:
     friction_coefficient: float = 0.7
 
     def __post_init__(self) -> None:
-        """Normalize immutable vectors and validate authored values."""
-        _validate_prim_path(self.prim_path)
-        for name in ("enabled", "curved"):
-            if not isinstance(getattr(self, name), bool):
-                raise ValueError(f"Surface {name} must be a bool, got {getattr(self, name)!r}.")
-
-        velocity = _validate_scalar("velocity", self.velocity)
-        contact_threshold = _validate_scalar("contact_threshold", self.contact_threshold)
-        friction_coefficient = _validate_scalar("friction_coefficient", self.friction_coefficient)
-        if not 0.0 <= contact_threshold <= 1.0:
+        """Reject invalid authored geometry and contact parameters."""
+        if not self.prim_path.startswith(f"{_ENV_REGEX_NS}/") or not all(
+            part.isidentifier() for part in self.prim_path[len(_ENV_REGEX_NS) + 1 :].split("/")
+        ):
+            raise ValueError(f"Surface prim_path must start with '{_ENV_REGEX_NS}/' and name concrete prims.")
+        for name, vector in (
+            ("direction", self.direction),
+            ("pivot_point", self.pivot_point),
+            ("surface_normal", self.surface_normal),
+        ):
+            if len(vector) != 3 or not all(math.isfinite(value) for value in vector):
+                raise ValueError(f"Surface {name} must contain three finite values.")
+            if name != "pivot_point" and math.hypot(*vector) <= 1.0e-8:
+                raise ValueError(f"Surface {name} must be non-zero.")
+        if not math.isfinite(self.velocity):
+            raise ValueError("Surface velocity must be finite.")
+        if not 0.0 <= self.contact_threshold <= 1.0:
             raise ValueError(f"Surface contact_threshold must be in [0, 1], got {self.contact_threshold!r}.")
-        if friction_coefficient < 0.0:
-            raise ValueError(
-                f"Surface friction_coefficient must be finite and non-negative, got {self.friction_coefficient!r}."
-            )
-        radius = None if self.radius is None else _validate_scalar("radius", self.radius)
-        if radius is not None and radius <= 0.0:
-            raise ValueError(f"Surface radius must be finite and positive when provided, got {self.radius!r}.")
-
-        object.__setattr__(self, "velocity", velocity)
-        object.__setattr__(self, "direction", _validate_vector("direction", self.direction, 3, nonzero=True))
-        object.__setattr__(self, "pivot_point", _validate_vector("pivot_point", self.pivot_point, 3))
-        object.__setattr__(
-            self, "surface_normal", _validate_vector("surface_normal", self.surface_normal, 3, nonzero=True)
-        )
-        object.__setattr__(self, "radius", radius)
-        object.__setattr__(self, "contact_threshold", contact_threshold)
-        object.__setattr__(self, "friction_coefficient", friction_coefficient)
+        if not math.isfinite(self.friction_coefficient) or self.friction_coefficient < 0.0:
+            raise ValueError("Surface friction_coefficient must be finite and non-negative.")
+        if self.curved and self.radius is None:
+            raise ValueError("Curved surfaces require a positive radius.")
+        if self.radius is not None and (not math.isfinite(self.radius) or self.radius <= 0.0):
+            raise ValueError("Surface radius must be finite and positive.")
 
 
 def resolve_surface_velocity_paths(
@@ -140,32 +89,23 @@ def resolve_surface_velocity_paths(
         Exact paths ordered by environment, then by ``surface_specs`` order.
 
     Raises:
-        ValueError: If inputs cannot produce one unique path per environment and belt.
-        TypeError: If a surface description is not a :class:`SurfaceVelocitySpec`.
+        ValueError: If surface ownership is ambiguous or the clone template is invalid.
     """
-    if not isinstance(num_envs, int) or isinstance(num_envs, bool) or num_envs <= 0:
-        raise ValueError(f"Conveyor num_envs must be a positive integer, got {num_envs!r}.")
-    specs = tuple(surface_specs)
-    if not specs:
+    if num_envs < 1:
+        raise ValueError("Conveyor num_envs must be positive.")
+    if not surface_specs:
         raise ValueError("At least one SurfaceVelocitySpec is required.")
-    if not all(isinstance(spec, SurfaceVelocitySpec) for spec in specs):
-        raise TypeError("Every surface specification must be a SurfaceVelocitySpec.")
-    if not isinstance(env_path_format, str) or env_path_format.count("{}") != 1:
-        raise ValueError(f"Conveyor env_path_format must contain exactly one '{{}}', got {env_path_format!r}.")
-    try:
-        env_paths = tuple(env_path_format.format(env_id) for env_id in range(num_envs))
-    except (IndexError, KeyError, ValueError) as exc:
-        raise ValueError(f"Invalid conveyor env_path_format: {env_path_format!r}.") from exc
-    if any(not path.startswith("/") or "{" in path or "}" in path for path in env_paths):
-        raise ValueError(f"Conveyor env_path_format must produce exact absolute paths, got {env_path_format!r}.")
-
-    templates = tuple(spec.prim_path for spec in specs)
-    if len(set(templates)) != len(templates):
-        raise ValueError("Conveyor belt spec paths must be unique within an environment.")
-    if num_envs > 1 and any(_ENV_REGEX_NS not in path for path in templates):
-        raise ValueError("Replicated conveyors require every belt prim_path to use {ENV_REGEX_NS}.")
-
-    paths = tuple(template.replace(_ENV_REGEX_NS, env_path) for env_path in env_paths for template in templates)
-    if len(set(paths)) != len(paths):
-        raise ValueError("Resolved conveyor prim paths must be unique.")
-    return paths
+    templates = tuple(spec.prim_path for spec in surface_specs)
+    ordered_templates = sorted(templates)
+    if any(
+        right == left or right.startswith(f"{left}/") for left, right in zip(ordered_templates, ordered_templates[1:])
+    ):
+        raise ValueError("Conveyor prim paths must be unique and must not be ancestors of one another.")
+    if env_path_format.count("{}") != 1:
+        raise ValueError("Conveyor env_path_format must contain exactly one '{}'.")
+    env_paths = tuple(env_path_format.format(env_id) for env_id in range(num_envs))
+    if any(
+        not path.startswith("/") or not all(part.isidentifier() for part in path[1:].split("/")) for path in env_paths
+    ):
+        raise ValueError("Conveyor env_path_format must produce concrete absolute prim paths.")
+    return tuple(template.replace(_ENV_REGEX_NS, env_path) for env_path in env_paths for template in templates)

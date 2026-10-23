@@ -1,1 +1,1 @@
-* Added Newton four-cube conveyor racetrack transfer with a pretrained policy, reset curriculum, and seeded evaluation.
+* Added Newton four-cube conveyor racetrack transfer with fixed belt speeds, a pretrained policy, reset curriculum, and seeded evaluation.
