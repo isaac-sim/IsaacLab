@@ -5,13 +5,21 @@
 
 """Direct-scene Kit/GL presentation, pause controls, and remote-viewer startup."""
 
+from pathlib import Path
+
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(enable_cameras=True, visualizer="kit")
+_KIT_LOG_DIR = Path("tests/ovrtx-logs/kit-visualizers").resolve()
+_KIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+launch_test_simulation(
+    enable_cameras=True,
+    visualizer="kit",
+    kit_args=f"--/log/file={_KIT_LOG_DIR}/kit.log --/crashreporter/dumpDir={_KIT_LOG_DIR}",
+)
 
 import asyncio
+import faulthandler
 import logging
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -55,10 +63,14 @@ pytestmark = pytest.mark.isaacsim_ci
 @pytest.fixture(scope="module", autouse=True)
 def kit_viewport_ready():
     """Finish Kit's startup viewport render before the first scene replaces its stage."""
-    frame = asyncio.ensure_future(asyncio.wait_for(get_active_viewport().wait_for_rendered_frames(), timeout=30.0))
-    while not frame.done():
-        omni.kit.app.get_app().update()
-    frame.result()
+    with (_KIT_LOG_DIR / "python-fault.log").open("w") as fault_log:
+        faulthandler.enable(file=fault_log, all_threads=True)
+        frame = asyncio.ensure_future(asyncio.wait_for(get_active_viewport().wait_for_rendered_frames(), timeout=30.0))
+        while not frame.done():
+            omni.kit.app.get_app().update()
+        frame.result()
+        yield
+        faulthandler.disable()
 
 
 @pytest.mark.parametrize(
