@@ -18,8 +18,7 @@ from isaaclab.utils.configclass import configclass
 from ..conveyor_geometry import BELT_CENTER_X, BELT_HALF_STRAIGHT
 from .cube_state import cube_values
 from .kinematics import end_effector_pose
-from .reset_events import CUBE_COUNT, ConveyorResetRecipe, select_next_transfer_cube, side_inner_y
-from .rewards import current_transfer_potential, physical_cube_acquisition_mask
+from .reset_events import CUBE_COUNT, select_next_transfer_cube, side_inner_y
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -78,8 +77,6 @@ class ConveyorTransferCommand(CommandTerm):
         self.new_success = torch.zeros_like(self.is_success)
         self.pending_success = torch.zeros_like(self.is_success)
         self.ever_success = torch.zeros_like(self.is_success)
-        self.progress_ever_success = torch.zeros_like(self.is_success)
-        self._target_potential = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
         self._last_evaluation_steps = torch.full_like(self.target_cube_ids, -1)
         self._resampling_from_reset = False
 
@@ -90,21 +87,13 @@ class ConveyorTransferCommand(CommandTerm):
 
     @staticmethod
     def _validate_cfg(cfg: ConveyorTransferCommandCfg) -> None:
-        """Validate success and reset-progress thresholds."""
+        """Validate stable transfer-completion thresholds."""
         if cfg.minimum_subgoal_steps < 0 or cfg.hold_steps < 1:
             raise ValueError("minimum_subgoal_steps must be non-negative and hold_steps must be positive.")
         if cfg.lateral_tolerance <= 0.0 or cfg.maximum_cube_speed <= 0.0:
             raise ValueError("Conveyor placement tolerances and speed limits must be positive.")
         if cfg.minimum_finger_position <= 0.0 or cfg.minimum_tool_clearance <= 0.0:
             raise ValueError("Conveyor release thresholds must be positive.")
-        if cfg.minimum_progress_steps < 0 or cfg.minimum_progress <= 0.0 or cfg.maximum_target_potential <= 0.0:
-            raise ValueError("Conveyor reset-progress thresholds are invalid.")
-        if (
-            cfg.minimum_acquisition_lift <= 0.0
-            or cfg.maximum_acquisition_tool_distance <= 0.0
-            or cfg.maximum_acquisition_finger_position <= 0.0
-        ):
-            raise ValueError("Conveyor acquisition thresholds must be positive.")
 
     @property
     def command(self) -> torch.Tensor:
@@ -133,17 +122,12 @@ class ConveyorTransferCommand(CommandTerm):
         finally:
             self._resampling_from_reset = False
 
-        initial_potential = current_transfer_potential(self._env, command=self)
-        self._target_potential[ids] = torch.clamp_max(
-            initial_potential[ids] + self.cfg.minimum_progress,
-            self.cfg.maximum_target_potential,
-        )
         self._last_evaluation_steps[ids] = -1
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
         return extras
 
     def evaluate(self) -> None:
-        """Evaluate stable completion and reset-learning progress once per policy step."""
+        """Evaluate stable transfer completion once per policy step."""
         evaluation_steps = self._env.episode_length_buf
         evaluate_mask = (self.command_counter > 0) & (self._last_evaluation_steps != evaluation_steps)
         if not bool(torch.any(evaluate_mask)):
@@ -188,22 +172,6 @@ class ConveyorTransferCommand(CommandTerm):
             if pool is not None:
                 pool.record_transfers(success_ids, self.target_cube_ids[success_ids])
 
-        potential = current_transfer_potential(self._env, command=self)
-        progressed = (potential >= self._target_potential) & (evaluation_steps >= self.cfg.minimum_progress_steps)
-        acquisition_recipe = (
-            (self.recipe_ids == int(ConveyorResetRecipe.GRASP))
-            | (self.recipe_ids == int(ConveyorResetRecipe.PREGRASP))
-            | (self.recipe_ids == int(ConveyorResetRecipe.BELT))
-        )
-        physically_acquired = physical_cube_acquisition_mask(
-            self._env,
-            command=self,
-            minimum_lift=self.cfg.minimum_acquisition_lift,
-            maximum_tool_distance=self.cfg.maximum_acquisition_tool_distance,
-            maximum_finger_position=self.cfg.maximum_acquisition_finger_position,
-        )
-        progressed &= ~acquisition_recipe | physically_acquired
-        self.progress_ever_success |= evaluate_mask & progressed
         self._last_evaluation_steps[evaluate_mask] = evaluation_steps[evaluate_mask]
         self._env.extras["successes"] = self.ever_success.clone()
 
@@ -237,7 +205,6 @@ class ConveyorTransferCommand(CommandTerm):
             self.transfer_counts[ids] = 0
             self.direction_transfer_counts[ids] = 0
             self.ever_success[ids] = False
-            self.progress_ever_success[ids] = False
             self._assign_goal(ids, target_cube_ids, source_side_ids)
             self.held_cube_ids[ids] = torch.where(held_rows, target_cube_ids, -1)
             self.subgoal_start_steps[ids] = 0
@@ -328,21 +295,3 @@ class ConveyorTransferCommandCfg(CommandTermCfg):
 
     minimum_tool_clearance: float = 0.055
     """Minimum tool-to-cube distance for the cube to count as released [m]."""
-
-    minimum_progress_steps: int = 3
-    """Minimum policy steps before reset-learning progress can be credited."""
-
-    minimum_progress: float = 0.35
-    """Required increase in the dimensionless transfer potential after reset."""
-
-    maximum_target_potential: float = 5.0
-    """Upper bound for the dimensionless reset-progress target."""
-
-    minimum_acquisition_lift: float = 0.025
-    """Minimum cube lift used to validate physical acquisition [m]."""
-
-    maximum_acquisition_tool_distance: float = 0.075
-    """Maximum tool-to-cube distance used to validate physical acquisition [m]."""
-
-    maximum_acquisition_finger_position: float = 0.030
-    """Maximum finger position used to validate physical acquisition [m]."""

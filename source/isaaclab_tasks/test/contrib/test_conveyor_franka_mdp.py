@@ -10,11 +10,6 @@ from contextlib import closing
 import gymnasium as gym
 import pytest
 import torch
-from rsl_rl.runners import OnPolicyRunner
-
-from isaaclab.utils import to_dict
-
-from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.conveyor_franka import mdp
@@ -25,10 +20,6 @@ from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     BELT_OUTER_STRAIGHT_Y,
 )
 from isaaclab_tasks.contrib.conveyor_franka.mdp.commands import select_next_transfer_cube
-from isaaclab_tasks.contrib.conveyor_franka.mdp.curriculums import (
-    deployment_probability_from_progress,
-    reset_sampling_probabilities,
-)
 from isaaclab_tasks.contrib.conveyor_franka.mdp.kinematics import end_effector_pose
 from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     CUBE_COUNT,
@@ -39,8 +30,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     franka_tool_position,
     reset_variant_counts,
 )
-from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 _BASE = "IsaacContrib-Conveyor-Racetrack-Transfer-v0"
 _SORTER = "IsaacContrib-Conveyor-Warehouse-Sorting-v0"
@@ -360,48 +350,38 @@ def test_sorter_dispatch_inventory_and_selected_resets():
         ]
 
 
-def test_curriculum_checkpoint_restores_progress_and_deployment_outcomes(tmp_path):
-    """Actual RSL-RL saves preserve reset evidence; phase progress alone cannot advance deployment."""
+def test_success_guided_sampling_records_completed_selected_episodes():
+    """Real resets credit the previous row once and practice intermediate-success starts more often."""
     with closing(_environment(_BASE)) as env:
-        reset_cfg = env.event_manager.get_term_cfg("reset_from_state_table")
-        reset_cfg.params.update(
-            fixed_recipe=int(ConveyorResetRecipe.BELT), fixed_variant_id=mdp.BELT_DEPLOYMENT_VARIANT
-        )
         env.reset()
         command = env.command_manager.get_term("transfer")
-        # Supply partial-progress outcomes at the curriculum's episode boundary.
-        env.episode_length_buf.fill_(5)
-        command.progress_ever_success.fill_(True)
-        env.reset()
-        log = env.extras["log"]
-        assert log["Curriculum/reset_sampling/overall_progress_rate"] == 1
-        assert log["Curriculum/reset_sampling/deployment_transfer_success_rate"] == 0
-        torch.testing.assert_close(log["Curriculum/reset_sampling/deployment_probability"], torch.tensor(0.35))
-        env.episode_length_buf.fill_(5)
-        command.ever_success[0] = True
-        env.reset()
-
-        agent = load_cfg_from_registry(_BASE, "rsl_rl_cfg_entry_point")
-        agent.device = "cpu"
-        agent.actor.hidden_dims = agent.critic.hidden_dims = [16]
-        runner = OnPolicyRunner(RslRlVecEnvWrapper(env), to_dict(agent), log_dir=str(tmp_path), device=agent.device)
         curriculum = env.curriculum_manager.cfg.reset_sampling.func
-        expected = curriculum.get_state()
-        checkpoint = tmp_path / "model.pt"
-        runner.save(str(checkpoint), infos={"purpose": "resume"})
-        assert "conveyor_reset_curriculum" in torch.load(checkpoint, weights_only=False)
-        env.episode_length_buf.fill_(5)
+        monitor = curriculum.success_monitor
+        table = env.event_manager.get_term_cfg("reset_from_state_table").func
+        # Repeated startup resets have no episode to credit.
         env.reset()
-        assert curriculum.get_state()["attempts"].sum() > expected["attempts"].sum()
-        assert runner.load(str(checkpoint), map_location="cpu") == {"purpose": "resume"}
-        for name, value in expected.items():
-            torch.testing.assert_close(curriculum.get_state()[name], value)
-        # A policy-only load must not replace a fine-tuning run's curriculum.
-        env.episode_length_buf.fill_(5)
-        env.reset()
-        attempts = curriculum.get_state()["attempts"].sum()
-        runner.load(str(checkpoint), load_cfg={"actor": True}, map_location="cpu")
-        assert curriculum.get_state()["attempts"].sum() == attempts
+        assert monitor.success_size.sum() == 0
+        for succeeded in (True, False):
+            table.row_ids[:] = torch.tensor([0, 1])
+            env.episode_length_buf[:] = 5
+            command.ever_success[:] = torch.tensor([succeeded, True])
+            untouched_row = table.row_ids[1].clone()
+            env.reset(env_ids=torch.tensor([0]))
+            assert table.row_ids[1] == untouched_row
+            assert monitor.success_size[1] == 0
+        assert monitor.success_size.sum() == monitor.success_size[0] == 2
+        assert monitor.success_rate[0] == 0.5
+        probabilities = curriculum.sampler.probabilities()
+        assert torch.isfinite(probabilities).all() and (probabilities > 0).all()
+        torch.testing.assert_close(probabilities.sum(), torch.tensor(1.0))
+        assert probabilities[0] > probabilities[1]
+        # A genuine unsuccessful episode is counted; a zero-step manual reset is not.
+        table.row_ids[:] = torch.tensor([0, 1])
+        command.ever_success[1] = False
+        env.reset(env_ids=torch.tensor([1]))
+        assert monitor.success_size[1] == 1 and monitor.success_rate[1] == 0
+        env.reset(env_ids=torch.tensor([1]))
+        assert monitor.success_size.sum() == 3
 
 
 def test_reset_bank_is_complete_and_physically_calibrated():
@@ -447,22 +427,8 @@ def test_reset_bank_is_complete_and_physically_calibrated():
         )
 
 
-def test_transfer_shaping_and_binary_policy_likelihoods():
-    """Release improves progress; remote closing earns no grasp credit; sampled gripper likelihoods remain finite."""
-    cubes = torch.tensor(
-        [[0.52, 0.27, 0.06], [0.52, 0.27, 0.20], [0.52, 0, 0.20], [0.52, -0.27, 0.105], [0.52, -0.27, 0.06]]
-    )
-    tool = cubes.clone()
-    tool[-1, 2] += 0.1
-    fingers = torch.full((5, 2), 0.019)
-    fingers[-1] = 0.04
-    potential = transfer_potential(cubes, tool, fingers, torch.zeros(5, dtype=torch.long))
-    assert (potential[1:] > potential[:-1]).all()
-    cubes = torch.tensor([[0.52, 0.27, 0.06]] * 2)
-    tool = torch.tensor([[0.52, 0.27, 0.07], [0.52, 0.27, 0.20]])
-    credit = transfer_potential(cubes, tool, torch.full((2, 2), 0.019), torch.zeros(2, dtype=torch.long))
-    credit -= transfer_potential(cubes, tool, torch.full((2, 2), 0.04), torch.zeros(2, dtype=torch.long))
-    assert credit[0] > 0.5 and credit[1] < 0.03
+def test_binary_policy_likelihoods():
+    """The mixed distribution samples exact binary gripper actions with finite likelihoods and KL."""
     distribution = ConveyorGaussianBernoulliDistribution(output_dim=8)
     distribution.update(torch.zeros(4096, 8))
     samples, previous = distribution.sample(), tuple(p.clone() for p in distribution.params)
@@ -471,31 +437,6 @@ def test_transfer_shaping_and_binary_policy_likelihoods():
     assert set(samples[:, -1].unique().tolist()) == {-1, 1}
     assert torch.isfinite(distribution.log_prob(samples)).all()
     assert torch.isfinite(divergence).all() and (divergence >= 0).all()
-
-
-def test_curriculum_reserves_deployment_mass_and_balances_commands():
-    """Adaptive weights cannot starve any recipe/cube/direction, or the moving-belt deployment starts."""
-    rows = build_reset_rows()
-    recipe, variant, cube, side = torch.tensor(
-        [[r.recipe, r.variant_id, r.target_cube_id, r.source_side_id] for r in rows]
-    ).T
-    deployment = (recipe == ConveyorResetRecipe.BELT) & (
-        variant == reset_variant_counts()[ConveyorResetRecipe.BELT] - 1
-    )
-    place = torch.where((recipe == ConveyorResetRecipe.PLACE) & (cube == 0) & (side == 0))[0]
-    weights = torch.ones(len(rows))
-    weights[place[:2]] = torch.tensor([0.2, 0.8])
-    probabilities = reset_sampling_probabilities(recipe, variant, cube, side, weights, deployment_probability=0.35)
-    torch.testing.assert_close(probabilities.sum(), torch.tensor(1.0))
-    assert probabilities[place[0]] < probabilities[place[1]]
-    for r, c, s in {(r.recipe, r.target_cube_id, r.source_side_id) for r in rows}:
-        mask = (recipe == r) & (cube == c) & (side == s) & ~deployment
-        torch.testing.assert_close(probabilities[mask].sum(), torch.tensor(0.65 / (len(ConveyorResetRecipe) * 8)))
-    for s in (0, 1):
-        torch.testing.assert_close(probabilities[deployment & (side == s)].sum(), torch.tensor(0.35 / 2))
-    for progress, coverage, expected in ((0.30, 1.0, 0.35), (0.625, 0.50, 0.625), (0.90, 1.0, 0.90)):
-        actual = deployment_probability_from_progress(torch.tensor(progress), torch.tensor(coverage))
-        torch.testing.assert_close(actual, torch.tensor(expected))
 
 
 def test_next_transfer_cube_is_random_among_eligible_alternatives():

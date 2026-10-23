@@ -165,7 +165,7 @@ class ConveyorFrankaPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         obs_normalization=True,
     )
     algorithm = RslRlPpoAlgorithmCfg(
-        class_name="isaaclab_tasks.contrib.conveyor_franka.agents.conveyor_ppo:ConveyorPPO",
+        class_name="PPO",
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
