@@ -275,9 +275,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
     if "kitchen" in backdrops:
-        cfg.scene.table.spawn = cfg.scene.table.spawn.replace(
-            func="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:spawn_kitchen_table"
-        )
+        cfg.scene.table.spawn.func = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:spawn_kitchen_table"
     cfg.scene.bowl = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bowl",
         spawn=sim_utils.UsdFileCfg(

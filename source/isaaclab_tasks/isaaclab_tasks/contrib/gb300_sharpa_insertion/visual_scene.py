@@ -39,13 +39,12 @@ def configure_visual_scene(cfg: GB300SharpaInsertionEnvCfg) -> str:
     Call after launcher resolution and before environment construction. USD-only
     cloning keeps every visual rack and facility mesh out of the Newton model.
     """
-    usd_only = ("isaaclab.cloner:UsdReplicateContext",)
-    usd_view = any(viz.backend.visualizer_type in ("kit", "newton_rtx") for viz in cfg.sim.visualizer_cfgs)
     root = os.environ.get(
         "ISAACLAB_SHARPA_RJ45_VISUAL_ROOT", f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45"
     ).rstrip("/")
     rack_path = f"{root}/Environments/GB300/external.usd"
-    if usd_view:
+    if any(viz.backend.visualizer_type in ("kit", "newton_rtx") for viz in cfg.sim.visualizer_cfgs):
+        usd_only = ("isaaclab.cloner:UsdReplicateContext",)
         cfg.scene.visual_scene = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/VisualScene",
             spawn=sim_utils.UsdFileCfg(usd_path=f"{root}/Environments/Datacenter/datacenter.usdc"),
@@ -107,7 +106,7 @@ def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str, *, front_only: 
         material = str(UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0].GetPath())
         group = groups.setdefault(material, {"mesh": mesh, "points": [], "normals": [], "indices": [], "offset": 0})
         group["points"].append(points)
-        group["normals"].append(normals.astype(np.float32))
+        group["normals"].append(normals.astype(np.float32, copy=False))
         group["indices"].append(indices.reshape(-1) + group["offset"])
         group["offset"] += len(points)
     for index, group in enumerate(groups.values()):

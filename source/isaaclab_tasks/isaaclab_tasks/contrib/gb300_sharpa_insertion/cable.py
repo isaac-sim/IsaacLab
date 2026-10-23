@@ -379,9 +379,10 @@ def add_connectors(
         raise ValueError(f"Expected one native cable in world {world_idx}, found {len(groups)}.")
     group = groups[0]
     root = str(builder.curve_label[group]).removesuffix("/geometry/mesh")
+    start, end = int(builder._curve_body_start[group]), int(builder._curve_body_end[group])
     # Native rod import does not transfer the USD material to its GL capsules.
     jacket_color = color_linear_to_srgb(PATCH_CABLE_COLOR)
-    for body in range(int(builder._curve_body_start[group]), int(builder._curve_body_end[group])):
+    for body in range(start, end):
         for shape in builder.body_shapes[body]:
             builder.shape_color[shape] = jacket_color
     # Give the fixed workcell one owner and mirror it into VBD like the robot.
@@ -392,7 +393,6 @@ def add_connectors(
     builder.add_articulation([joint], label=f"{env_root}/Fixtures/articulation")
     _assign_fixed_fixtures(builder, world_idx, env_root, fixtures)
     add_rack_colliders(builder, fixtures, env_position, env_rotation)
-    start, end = int(builder._curve_body_start[group]), int(builder._curve_body_end[group])
     matches = [
         body
         for body, (label, world) in enumerate(zip(builder.body_label, builder.body_world, strict=True))

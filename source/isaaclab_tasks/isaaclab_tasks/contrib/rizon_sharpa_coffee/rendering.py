@@ -48,14 +48,8 @@ class CoffeeGLVisualizer(NewtonGLVisualizer):
     def reset(self, soft: bool = False) -> None:
         """Restore static kitchen meshes only when the viewer's model is replaced."""
         previous_backend = self.backend
-        previous_model = None if previous_backend is None else previous_backend.model
         super().reset(soft)
-        if (
-            self._is_initialized
-            and not self._is_closed
-            and self.cfg.backend.backdrop == "kitchen"
-            and (self.backend is not previous_backend or self.backend.model is not previous_model)
-        ):
+        if self.backend is not previous_backend and self.cfg.backend.backdrop == "kitchen":
             _add_gl_kitchen(self, self._sim.stage, self._sim.device)
 
     def _update_state(self):

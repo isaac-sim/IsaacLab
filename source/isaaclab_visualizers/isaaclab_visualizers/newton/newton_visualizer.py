@@ -39,6 +39,7 @@ elif sys.platform not in ("win32", "darwin"):
 
 import newton
 from isaaclab_newton.physics import NewtonBackendCfg
+from newton.utils import load_texture
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -97,10 +98,7 @@ class NewtonViewerGL(ViewerGL):
     _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
 
-    def __init__(
-        self, *args, window_cfg: WindowCfg, metadata: dict | None = None, texture_max_size: int | None = None, **kwargs
-    ):
-        self._texture_max_size = texture_max_size
+    def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         self._model_texture_cache: dict[str, np.ndarray | None] | None = None
         super().__init__(*args, **kwargs)
         self._paused_training = False
@@ -147,19 +145,18 @@ class NewtonViewerGL(ViewerGL):
             raise ValueError("camera_speed must be finite and nonnegative")
         self._camera_speed = value
 
-    def set_model(self, model: newton.Model | None) -> None:
+    def set_model(self, model: newton.Model | None, *, texture_max_size: int | None = None) -> None:
         """Decode shared textures once while the native viewer uploads the model's meshes."""
+        self._texture_max_size = texture_max_size
         self._model_texture_cache = {}
         try:
-            return super().set_model(model)
+            super().set_model(model)
         finally:
             self._model_texture_cache = None
 
     def log_mesh(self, name, points, indices, normals=None, uvs=None, texture=None, *args, **kwargs):
         """Reuse decoded images during model upload and preserve ordinary mesh logging."""
         if self._model_texture_cache is not None and isinstance(texture, (str, os.PathLike)):
-            from newton.utils import load_texture
-
             path = os.fspath(texture)
             if path not in self._model_texture_cache:
                 image = load_texture(texture)
@@ -851,8 +848,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             )
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
-        self._viewer._texture_max_size = self.cfg.backend.texture_max_size
-        self._viewer.set_model(self.backend.model)
+        self._viewer.set_model(self.backend.model, texture_max_size=self.cfg.backend.texture_max_size)
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -948,7 +944,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
+        self._viewer.set_model(backend.model, texture_max_size=self.cfg.backend.texture_max_size)
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:

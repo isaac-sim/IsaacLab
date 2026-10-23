@@ -436,6 +436,8 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     from pxr import Usd, UsdGeom
 
+    from isaaclab.utils.mesh import convert_faces_to_triangles
+
     stage = Usd.Stage.Open(usd_path)
     if stage is None:
         raise RuntimeError(f"Could not open USD asset: {usd_path}")
@@ -462,22 +464,11 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
         homogeneous = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
         transformed_points = (homogeneous @ matrix)[:, :3]
 
-        triangles: list[tuple[int, int, int]] = []
-        cursor = 0
-        for count in face_vertex_counts:
-            for k in range(1, count - 1):
-                triangles.append(
-                    (
-                        face_vertex_indices[cursor],
-                        face_vertex_indices[cursor + k],
-                        face_vertex_indices[cursor + k + 1],
-                    )
-                )
-            cursor += count
-        if not triangles:
+        triangles = convert_faces_to_triangles(face_vertex_indices, face_vertex_counts)
+        if not len(triangles):
             continue
         vertices_list.append(transformed_points.astype(np.float32))
-        triangles_list.append(np.asarray(triangles, dtype=np.int64) + vertex_offset)
+        triangles_list.append(triangles + vertex_offset)
         vertex_offset += points.shape[0]
 
     if not vertices_list:
