@@ -345,7 +345,45 @@ class ObservationManager(ManagerBase):
         # nothing to log here
         return {}
 
-    def compute(self, update_history: bool = False) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+    def validate_partial_update_support(self, env_ids: Sequence[int] | slice | None) -> None:
+        """Reject callbacks whose internal state cannot be updated for selected environments.
+
+        Partial updates support function observation terms, function modifiers and function noise.
+        Stateful class callbacks only accept full batches and cannot preserve the other environments.
+        Call this before changing scene state when a reset will refresh only part of the observations.
+
+        Args:
+            env_ids: Environments to refresh. Selecting every environment needs no partial-update support.
+        """
+        if self._selects_all_environments(env_ids):
+            return
+        selected_num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if selected_num_envs == 0:
+            if self._obs_buffer is None or any(
+                group_name not in self._obs_buffer for group_name in self._group_obs_term_names
+            ):
+                raise ValueError("Cannot refresh an empty selection before observations have been computed.")
+            return
+        for group_name, term_cfgs in self._group_obs_term_cfgs.items():
+            for term_name, term_cfg in zip(self._group_obs_term_names[group_name], term_cfgs):
+                if isinstance(term_cfg.func, ManagerTermBase):
+                    unsupported_callback = "a stateful observation term"
+                elif term_cfg.modifiers and any(
+                    isinstance(modifier.func, modifiers.ModifierBase) for modifier in term_cfg.modifiers
+                ):
+                    unsupported_callback = "a stateful modifier"
+                elif isinstance(term_cfg.noise, noise.NoiseModelCfg):
+                    unsupported_callback = "a stateful noise model"
+                else:
+                    continue
+                raise ValueError(
+                    f"Observation '{group_name}/{term_name}' uses {unsupported_callback}, which does not support"
+                    " partial observation updates. Use function callbacks or reset all environments together."
+                )
+
+    def compute(
+        self, update_history: bool = False, *, env_ids: Sequence[int] | slice | None = None
+    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Compute the observations per group for all groups.
 
         The method computes the observations for all the groups handled by the observation manager.
@@ -355,6 +393,9 @@ class ObservationManager(ManagerBase):
             update_history: Whether to record a new sample in delay and observation history buffers.
                 Defaults to False, which reads recorded data without advancing either buffer. For a delay
                 buffer with no sample since initialization or reset, the current observation is returned.
+            env_ids: Environments to refresh. None or a full slice refreshes all environments. Other rows
+                retain their cached observations, or zeros before their first computation. Only selected
+                delay and history buffers advance. Stateful class callbacks do not support partial updates.
 
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
@@ -365,14 +406,16 @@ class ObservationManager(ManagerBase):
         obs_buffer = dict()
         # iterate over all the terms in each group
         for group_name in self._group_obs_term_names:
-            obs_buffer[group_name] = self.compute_group(group_name, update_history=update_history)
+            obs_buffer[group_name] = self.compute_group(group_name, update_history=update_history, env_ids=env_ids)
         # otherwise return a dict with observations of all groups
 
         # Cache the observations.
         self._obs_buffer = obs_buffer
         return obs_buffer
 
-    def compute_group(self, group_name: str, update_history: bool = False) -> torch.Tensor | dict[str, torch.Tensor]:
+    def compute_group(
+        self, group_name: str, update_history: bool = False, *, env_ids: Sequence[int] | slice | None = None
+    ) -> torch.Tensor | dict[str, torch.Tensor]:
         """Computes the observations for a given group.
 
         The observations for a given group are computed by calling the registered functions for each
@@ -400,6 +443,8 @@ class ObservationManager(ManagerBase):
             update_history: Whether to record a new sample in delay and observation history buffers.
                 Defaults to False, which reads recorded data without advancing either buffer. For a delay
                 buffer with no sample since initialization or reset, the current observation is returned.
+            env_ids: Environments to refresh, preserving cached observations and buffer state for other rows.
+                None or a full slice computes all environments. Partial updates require function callbacks.
 
         Returns:
             Depending on the group's configuration, the tensors for individual observation terms are
@@ -414,6 +459,16 @@ class ObservationManager(ManagerBase):
                 f"Unable to find the group '{group_name}' in the observation manager."
                 f" Available groups are: {list(self._group_obs_term_names.keys())}"
             )
+        if self._selects_all_environments(env_ids):
+            env_ids = None
+        selected_num_envs = self.num_envs
+        if env_ids is not None:
+            selected_num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+            if selected_num_envs == 0:
+                if self._obs_buffer is None or group_name not in self._obs_buffer:
+                    raise ValueError("Cannot refresh an empty selection before observations have been computed.")
+                return self._obs_buffer[group_name]
+            self.validate_partial_update_support(env_ids)
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
         term_cfgs = self._group_obs_term_cfgs[group_name]
@@ -432,6 +487,8 @@ class ObservationManager(ManagerBase):
                     )
             else:
                 obs = term_cfg.func(self._env, **term_cfg.params)
+            if env_ids is not None:
+                obs = obs[env_ids]
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
@@ -461,7 +518,7 @@ class ObservationManager(ManagerBase):
                 owned = True
             if term_name in self._group_obs_term_delay_buffer[group_name]:
                 obs = self._group_obs_term_delay_buffer[group_name][term_name].compute(
-                    obs, update_history=update_history
+                    obs, update_history=update_history, batch_ids=env_ids
                 )
                 # the delay buffer returns storage independent of its history
                 owned = True
@@ -469,7 +526,7 @@ class ObservationManager(ManagerBase):
             if term_cfg.history_length > 0:
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
                 if update_history:
-                    circular_buffer.append(obs)
+                    circular_buffer.append(obs, batch_ids=env_ids)
                 elif circular_buffer._buffer is None:
                     # because circular buffer only exits after the simulation steps,
                     # this guards history buffer from corruption by external calls before simulation start
@@ -479,12 +536,13 @@ class ObservationManager(ManagerBase):
                         device=circular_buffer.device,
                         stack_dim=1 if obs.ndim > 1 else None,
                     )
-                    circular_buffer.append(obs)
+                    circular_buffer.append(obs, batch_ids=env_ids)
 
+                obs = circular_buffer.buffer
+                if env_ids is not None:
+                    obs = obs[env_ids]
                 if term_cfg.flatten_history_dim:
-                    obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
-                else:
-                    obs = circular_buffer.buffer
+                    obs = obs.reshape(selected_num_envs, -1)
                 owned = False
             # Secure borrowed storage before another term can overwrite it, including shared scratch buffers.
             group_obs[term_name] = obs if owned else obs.clone()
@@ -492,16 +550,47 @@ class ObservationManager(ManagerBase):
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             if len(group_obs) == 1:
-                return next(iter(group_obs.values()))
-            if self._group_obs_time_major[group_name]:
+                group_obs = next(iter(group_obs.values()))
+            elif self._group_obs_time_major[group_name]:
                 history_length = term_cfgs[0].history_length
-                return torch.cat(
-                    [obs.reshape(self._env.num_envs, history_length, -1) for obs in group_obs.values()], dim=-1
-                ).reshape(self._env.num_envs, -1)
-            # set the concatenate dimension, account for the batch dimension if positive dimension is given
-            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
-        else:
-            return group_obs
+                group_obs = torch.cat(
+                    [obs.reshape(selected_num_envs, history_length, -1) for obs in group_obs.values()], dim=-1
+                ).reshape(selected_num_envs, -1)
+            else:
+                # set the concatenate dimension, account for the batch dimension if positive dimension is given
+                group_obs = torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
+        if env_ids is not None:
+            cached_group_obs = None if self._obs_buffer is None else self._obs_buffer.get(group_name)
+            if isinstance(group_obs, dict):
+                for term_name, obs in group_obs.items():
+                    cached_obs = None if cached_group_obs is None else cached_group_obs[term_name]
+                    full_obs = (
+                        obs.new_zeros((self.num_envs, *obs.shape[1:])) if cached_obs is None else cached_obs.clone()
+                    )
+                    full_obs[env_ids] = obs
+                    group_obs[term_name] = full_obs
+            else:
+                full_obs = (
+                    group_obs.new_zeros((self.num_envs, *group_obs.shape[1:]))
+                    if cached_group_obs is None
+                    else cached_group_obs.clone()
+                )
+                full_obs[env_ids] = group_obs
+                group_obs = full_obs
+        self._obs_buffer = {**(self._obs_buffer or {}), group_name: group_obs}
+        return group_obs
+
+    def _selects_all_environments(self, env_ids: Sequence[int] | slice | None) -> bool:
+        """Identify full selections without materializing indices for the ordinary slice path."""
+        if env_ids is None:
+            return True
+        if isinstance(env_ids, slice):
+            return env_ids.indices(self.num_envs) == (0, self.num_envs, 1)
+        if len(env_ids) != self.num_envs:
+            return False
+        if isinstance(env_ids, torch.Tensor):
+            return torch.equal(env_ids.sort().values, torch.arange(self.num_envs, device=env_ids.device))
+        return sorted(env_ids) == list(range(self.num_envs))
 
     def serialize(self) -> dict:
         """Serialize the observation term configurations for all active groups.

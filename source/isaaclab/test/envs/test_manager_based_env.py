@@ -85,12 +85,14 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
 
     # Preserve the slice through to buffer storage, avoiding advanced-indexed resets.
     selected = slice(1, None, 2)
+    observations_before_reset = env.obs_buf["empty_observation"].clone()
     env.reset(env_ids=selected)
     assert reset_history.call_args.kwargs["batch_ids"] is selected
     assert reset_scene.call_args.args[0] is selected
-    torch.testing.assert_close(history.current_length, torch.tensor([3, 1, 3], device=device))
+    torch.testing.assert_close(history.current_length, torch.tensor([2, 1, 2], device=device))
+    torch.testing.assert_close(env.obs_buf["empty_observation"][[0, 2]], observations_before_reset[[0, 2]])
     env.reset_to({}, env_ids=slice(0, None, 2))
-    torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
+    torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))
     env.reset()
     assert reset_history.call_args.kwargs["batch_ids"] == slice(None)
     torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))

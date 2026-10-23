@@ -185,54 +185,88 @@ class DelayBuffer:
                 device=self.device,
             )
 
-    def compute(self, data: torch.Tensor, *, update_history: bool = True) -> torch.Tensor:
+    def compute(
+        self,
+        data: torch.Tensor,
+        *,
+        update_history: bool = True,
+        batch_ids: Sequence[int] | slice | None = None,
+    ) -> torch.Tensor:
         """Return delayed data, optionally recording the input as a new sample.
 
         If the requested delay exceeds the available history since reset, returns the oldest available
         sample. The result is independent of the internal storage and may be modified by the caller.
 
         Args:
-           data: The input data. Shape is (batch_size, ...).
+           data: The input data. Shape is (batch_size, ...), or (len(batch_ids), ...) for selected batches.
            update_history: Whether to record the input as a new sample. Defaults to True. If False,
                return the delayed sample relative to the latest recorded frame without modifying the buffer.
                Batches with no recorded sample since initialization or reset return the input instead.
+           batch_ids: Batches to read or update, in input row order. None selects all batches.
 
         Returns:
-            The delayed version of the data from the stored buffer. Shape is (batch_size, ...).
+            The delayed data, with the same shape as the input.
         """
-        if data.shape[0] != self.batch_size:
-            raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{self.batch_size}'")
+        selected_batch_size = self.batch_size
+        if batch_ids is not None:
+            selected_batch_size = (
+                len(range(self.batch_size)[batch_ids]) if isinstance(batch_ids, slice) else len(batch_ids)
+            )
+        if data.shape[0] != selected_batch_size:
+            raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{selected_batch_size}'")
+        if selected_batch_size == 0:
+            return data.to(device=self.device).clone()
         if self._buffer is None:
             if not update_history:
                 return data.to(device=self.device).clone()
-            self._buffer = torch.empty((self.history_length + 1, *data.shape), dtype=data.dtype, device=self.device)
-        elif data.shape != self._buffer.shape[1:]:
-            raise ValueError(f"Expected data shape {self._buffer.shape[1:]}, received {data.shape}.")
+            self._buffer = torch.empty(
+                (self.history_length + 1, self.batch_size, *data.shape[1:]), dtype=data.dtype, device=self.device
+            )
+            if batch_ids is not None:
+                self._buffer.zero_()
+        elif data.shape[1:] != self._buffer.shape[2:]:
+            raise ValueError(f"Expected data dimensions {self._buffer.shape[2:]}, received {data.shape[1:]}.")
 
         data = data.to(device=self.device, dtype=self._buffer.dtype)
+        selected_batches = slice(None) if batch_ids is None else batch_ids
+        # Keep the shared write position until independently updated batches need separate positions.
+        if batch_ids is not None and update_history and self._write_index.numel() == 1:
+            self._write_index = self._write_index.expand(self.batch_size).clone()
+        write_index = self._write_index if self._write_index.numel() == 1 else self._write_index[selected_batches]
+        num_pushes = self._num_pushes[selected_batches]
+        time_lags = self._time_lags[selected_batches]
+        environment_indices = self._ALL_INDICES[selected_batches]
         if not update_history:
-            lag = torch.minimum(self._time_lags, (self._num_pushes - 1).clamp_min(0))
-            read_index = (self._write_index - 1 - lag) % (self.history_length + 1)
-            has_history = (self._num_pushes > 0).view(self.batch_size, *([1] * (data.ndim - 1)))
-            return torch.where(has_history, self._buffer[read_index, self._ALL_INDICES], data)
+            lag = torch.minimum(time_lags, (num_pushes - 1).clamp_min(0))
+            read_index = (write_index - 1 - lag) % (self.history_length + 1)
+            has_history = (num_pushes > 0).view(selected_batch_size, *([1] * (data.ndim - 1)))
+            return torch.where(has_history, self._buffer[read_index, environment_indices], data)
 
         if self._hold_prob is not None and self._hold_prob < 1.0:
             lags = torch.randint(
                 self._min_lag,
                 self.history_length + 1,
-                (self.batch_size,),
+                (selected_batch_size,),
                 dtype=self._time_lags.dtype,
                 device=self.device,
             )
             if self._hold_prob > 0.0:
-                resample = torch.rand(self.batch_size, device=self.device) >= self._hold_prob
-                lags = torch.where(resample, lags, self._time_lags)
-            self._time_lags.copy_(lags)
+                resample = torch.rand(selected_batch_size, device=self.device) >= self._hold_prob
+                lags = torch.where(resample, lags, time_lags)
+            self._time_lags[selected_batches] = lags
+            time_lags = lags
 
-        self._buffer.index_copy_(0, self._write_index, data.unsqueeze(0))
-        lag = torch.minimum(self._time_lags, self._num_pushes)
-        read_index = (self._write_index - lag) % (self.history_length + 1)
-        result = self._buffer[read_index, self._ALL_INDICES]
-        self._num_pushes.add_(1)
-        self._write_index.add_(1).remainder_(self.history_length + 1)
+        if self._write_index.numel() == 1 and batch_ids is None:
+            self._buffer.index_copy_(0, self._write_index, data.unsqueeze(0))
+        else:
+            self._buffer[write_index, environment_indices] = data
+        lag = torch.minimum(time_lags, num_pushes)
+        read_index = (write_index - lag) % (self.history_length + 1)
+        result = self._buffer[read_index, environment_indices]
+        if batch_ids is None:
+            self._num_pushes.add_(1)
+            self._write_index.add_(1).remainder_(self.history_length + 1)
+        else:
+            self._num_pushes[selected_batches] = num_pushes + 1
+            self._write_index[selected_batches] = (write_index + 1) % (self.history_length + 1)
         return result
