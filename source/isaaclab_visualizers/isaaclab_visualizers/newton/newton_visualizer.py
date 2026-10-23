@@ -59,7 +59,7 @@ from isaaclab_visualizers.newton.newton_visualization_markers import render_newt
 
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
 from .newton_recording import NewtonRecordingPanel, hover_tooltip
-from .newton_rtx_appearance import BACKGROUNDS, LIGHTINGS, RtxAppearance
+from .newton_rtx_appearance import BACKGROUNDS, SKY_TEXTURES, RtxAppearance
 
 logger = logging.getLogger(__name__)
 
@@ -809,6 +809,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Environments each multi-environment scene camera tiles, by image view."""
         self._rtx_appearance: RtxAppearance | None = None
         self._rtx_appearance_failed = False
+        self._sky_custom = ""
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -936,7 +937,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         return self._rtx_appearance
 
     def _draw_rtx_appearance(self, imgui) -> None:
-        """Draw the Appearance options the OVRTX view supports: its background and the scene's lights."""
+        """Draw the Appearance options the OVRTX view supports: its background and its lights, one group per type."""
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         if not imgui.tree_node("Appearance###rtx_appearance"):
             return
@@ -945,13 +946,13 @@ class NewtonVisualizerBase(BaseVisualizer):
             imgui.text_disabled("Not available for this renderer")
             imgui.tree_pop()
             return
-        edited = False
+        edited = appearance.poll()
 
         def tip(text: str) -> None:
             hover_tooltip(imgui, text)
 
         changed, index = imgui.combo("Background", appearance.background, list(BACKGROUNDS))
-        tip("Show the scene's sky, or one solid color")
+        tip("Show the sky of the dome light, or one solid color")
         if changed:
             appearance.background = index
             edited |= appearance.apply_background()
@@ -961,35 +962,119 @@ class NewtonVisualizerBase(BaseVisualizer):
             if changed:
                 appearance.background_color = tuple(float(c) for c in color)
                 edited |= appearance.apply_background()
-        changed, index = imgui.combo("Lighting", appearance.lighting, list(LIGHTINGS))
-        tip("Use the scene's lights, or replace them with a dome (sky) light, a distant (sun) light, or both")
-        if changed:
-            appearance.lighting = index
-            edited |= appearance.apply_lights()
-        if appearance.lights or appearance.lighting:
-            changed, scale = imgui.slider_float("Intensity", appearance.light_scale, 0.0, 3.0, "%.2fx")
-            tip("Light intensity of the whole scene, relative to what it was authored with")
-            if changed:
-                appearance.light_scale = scale
-                edited |= appearance.apply_lights()
-            changed, tint = imgui.color_edit3("Light Tint", list(appearance.light_tint))
-            tip("Tints every light in the scene; white keeps the colors the scene authored")
-            if changed:
-                appearance.light_tint = tuple(float(c) for c in tint)
-                edited |= appearance.apply_lights()
+
+        def light_changed(changed: bool) -> bool:
+            return appearance.apply_lights() if changed else False
+
+        def intensity(label: str, value: float, high: float) -> tuple[bool, float]:
+            return imgui.slider_float(label, value, 0.0, high, "%.0f", imgui.SliderFlags_.logarithmic)
+
+        imgui.separator_text("Lights")
+        if appearance.lights:
+            changed, appearance.scene_enabled = imgui.checkbox("Scene Lights", appearance.scene_enabled)
+            tip("The lights the scene authored")
+            edited |= light_changed(changed)
+            if appearance.scene_enabled:
+                imgui.indent()
+                changed, appearance.scene_scale = imgui.slider_float(
+                    "Intensity##scene", appearance.scene_scale, 0.0, 3.0, "%.2fx"
+                )
+                tip("Intensity relative to what the scene authored")
+                edited |= light_changed(changed)
+                changed, tint = imgui.color_edit3("Color##scene", list(appearance.scene_tint))
+                tip("Tints the scene's lights; white keeps the colors the scene authored")
+                if changed:
+                    appearance.scene_tint = tuple(float(c) for c in tint)
+                edited |= light_changed(changed)
+                imgui.unindent()
         else:
-            imgui.text_disabled("This scene has no adjustable lights")
+            imgui.text_disabled("This scene has no lights of its own")
+
+        changed, appearance.dome_enabled = imgui.checkbox("Dome Light", appearance.dome_enabled)
+        tip("Soft light from a sky all around the scene, and the sky behind it. Off by default")
+        edited |= light_changed(changed)
+        if appearance.dome_enabled:
+            imgui.indent()
+            changed, appearance.dome_intensity = intensity("Intensity##dome", appearance.dome_intensity, 10000.0)
+            tip("Brightness of the dome light")
+            edited |= light_changed(changed)
+            changed, color = imgui.color_edit3("Color##dome", list(appearance.dome_color))
+            tip("Color of the dome light; with a sky texture it tints the texture")
+            if changed:
+                appearance.dome_color = tuple(float(c) for c in color)
+            edited |= light_changed(changed)
+            edited |= self._draw_sky_texture(imgui, appearance)
+            imgui.unindent()
+
+        changed, appearance.sun_enabled = imgui.checkbox("Distant Light", appearance.sun_enabled)
+        tip("Parallel light from one direction, like the sun, casting sharp shadows. Off by default")
+        edited |= light_changed(changed)
+        if appearance.sun_enabled:
+            imgui.indent()
+            changed, appearance.sun_intensity = intensity("Intensity##sun", appearance.sun_intensity, 20000.0)
+            tip("Brightness of the distant light")
+            edited |= light_changed(changed)
+            changed, color = imgui.color_edit3("Color##sun", list(appearance.sun_color))
+            tip("Color of the distant light")
+            if changed:
+                appearance.sun_color = tuple(float(c) for c in color)
+            edited |= light_changed(changed)
+            changed, appearance.sun_angle = imgui.slider_float("Angle", appearance.sun_angle, 0.0, 10.0, "%.1f deg")
+            tip("Apparent size of the light; larger values give softer shadow edges")
+            edited |= light_changed(changed)
+            changed, appearance.sun_elevation = imgui.slider_float(
+                "Elevation", appearance.sun_elevation, 5.0, 90.0, "%.0f deg"
+            )
+            tip("Height of the light above the horizon; 90 is straight down")
+            edited |= light_changed(changed)
+            changed, appearance.sun_azimuth = imgui.slider_float(
+                "Azimuth", appearance.sun_azimuth, 0.0, 360.0, "%.0f deg"
+            )
+            tip("Direction the light comes from, around the vertical axis")
+            edited |= light_changed(changed)
+            imgui.unindent()
+
         if imgui.button("Reset##rtx_appearance"):
             edited |= appearance.reset()
         tip("Return to the scene's own lights and background")
-        if appearance.error:
-            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0))
-            imgui.text_wrapped(appearance.error)
-            imgui.pop_style_color()
+        for message in (appearance.error, appearance.texture_status):
+            if message:
+                failed = message.startswith("Could")
+                imgui.push_style_color(
+                    imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0) if failed else imgui.ImVec4(0.8, 0.8, 0.8, 1.0)
+                )
+                imgui.text_wrapped(message)
+                imgui.pop_style_color()
         if edited:
             self._rtx_view().invalidate()
             self._last_render_step = -1
         imgui.tree_pop()
+
+    def _draw_sky_texture(self, imgui, appearance: RtxAppearance) -> bool:
+        """Choose the dome light's sky texture from the ones tasks use, or a file; returns whether it changed."""
+        names = list(SKY_TEXTURES)
+        current = appearance.dome_texture
+        index = (
+            0
+            if not current
+            else (
+                names.index(next(n for n in names if SKY_TEXTURES[n] == current)) + 1
+                if current in SKY_TEXTURES.values()
+                else len(names) + 1
+            )
+        )
+        changed, chosen = imgui.combo("Sky", index, ["None", *names, "Custom File..."])
+        hover_tooltip(imgui, "Wrap a panoramic HDR image around the scene as its sky")
+        edited = False
+        if changed and chosen <= len(names):
+            appearance.use_sky(SKY_TEXTURES[names[chosen - 1]] if chosen else "")
+            edited = True
+        if chosen == len(names) + 1 or (not changed and index == len(names) + 1):
+            _c, self._sky_custom = imgui.input_text("File##sky", self._sky_custom)
+            hover_tooltip(imgui, "Path or URL of a panoramic .hdr or .exr image")
+            if imgui.button("Load##sky") and self._sky_custom:
+                appearance.use_sky(self._sky_custom)
+        return edited
 
     def _source_rank(self, view) -> int:
         """Order the Camera Source list: the free Perspective, then Tracking Cameras, then scene sensors."""
