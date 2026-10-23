@@ -9,6 +9,7 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation(enable_cameras=True, visualizer="kit")
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -27,7 +28,9 @@ from rendering_runtime import build_rendering_scene
 from rendering_scene_cfgs import AnymalRenderingSceneCfg, make_rendering_scene_spec
 from visualizer_checks import changed_pixels, check_motion_and_pause
 
+import omni.kit.app
 import omni.timeline
+from omni.kit.viewport.utility import get_active_viewport
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -47,6 +50,15 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
 
 pytestmark = pytest.mark.isaacsim_ci
+
+
+@pytest.fixture(scope="module", autouse=True)
+def kit_viewport_ready():
+    """Finish Kit's startup viewport render before the first scene replaces its stage."""
+    frame = asyncio.ensure_future(asyncio.wait_for(get_active_viewport().wait_for_rendered_frames(), timeout=30.0))
+    while not frame.done():
+        omni.kit.app.get_app().update()
+    frame.result()
 
 
 @pytest.mark.parametrize(
