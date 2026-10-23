@@ -17,10 +17,12 @@ from newton.solvers.experimental.coupled import SolverCoupled
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
-from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
+from isaaclab_contrib.coupling.coupler import COUPLER_SPEC, coupler_builder
 
 if TYPE_CHECKING:
     from newton import ModelBuilder
+
+    from isaaclab_contrib.coupling import CouplerProxyCfg
 
 
 @wp.kernel
@@ -41,58 +43,6 @@ def _sync_teapot_collider(
     axis, angle = wp.quat_to_axis_angle(rotation)
     fluid_pose[destination] = start
     fluid_velocity[destination] = wp.spatial_vector(linear, axis * (angle / dt))
-
-
-class _NewtonTeapotCouplerManager(NewtonCouplerManager):
-    """Couple the dynamic grasped pot to its exact MPM collision shell."""
-
-    def _prepare_builder_for_finalize(self, builder: ModelBuilder) -> None:
-        """Keep generated rigid hulls above the exact shell's body-local base plane."""
-        for body, label in enumerate(builder.body_label):
-            if not label.endswith("/PourContainer"):
-                continue
-            shell = next(i for i, name in enumerate(builder.shape_label) if name.startswith(label + "/geometry/"))
-            transform = builder.shape_transform[shell]
-            points = Rotation.from_quat(transform.q).apply(
-                builder.shape_source[shell].vertices * np.asarray(builder.shape_scale[shell])
-            ) + np.asarray(transform.p)
-            base_z = float(points[:, 2].min())
-            for shape, name in enumerate(builder.shape_label):
-                if (
-                    builder.shape_body[shape] != body
-                    or not name.startswith(label + "/RigidCollider/")
-                    or builder.shape_type[shape] != GeoType.CONVEX_MESH
-                ):
-                    continue
-                mesh = builder.shape_source[shape]
-                transform = builder.shape_transform[shape]
-                rotation = Rotation.from_quat(transform.q)
-                scale = np.asarray(builder.shape_scale[shape])
-                points = rotation.apply(mesh.vertices * scale) + np.asarray(transform.p)
-                below = points[:, 2] < base_z
-                if not below.any():
-                    continue
-                # CoACD's voxel preprocessing can extend hulls below a flat base,
-                # producing a first-step impulse and an uneven support footprint.
-                points[below, 2] = base_z
-                vertices = mesh.vertices.copy()
-                vertices[below] = rotation.inv().apply(points[below] - np.asarray(transform.p)) / scale
-                hull = ConvexHull(vertices)
-                faces = hull.simplices.copy()
-                normals = np.cross(
-                    vertices[faces[:, 1]] - vertices[faces[:, 0]], vertices[faces[:, 2]] - vertices[faces[:, 0]]
-                )
-                reverse = np.einsum("ij,ij->i", normals, hull.equations[:, :3]) < 0.0
-                faces[reverse] = faces[reverse][:, (0, 2, 1)]
-                # Copying geometry rebuilds mesh caches while preserving authored
-                # mass properties; the exact shell and handle vertices are untouched.
-                builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
-        # MPM preparation converts convex parts to triangle meshes; repair their
-        # generated support geometry before that classification is lost.
-        super()._prepare_builder_for_finalize(builder)
-
-    def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
-        return _TeapotColliderSyncSolver(model=model, entries=entries)
 
 
 class _TeapotColliderSyncSolver(SolverCoupled):
@@ -158,3 +108,59 @@ class _TeapotColliderSyncSolver(SolverCoupled):
         )
         self._notify_input_state_update(fluid, StateFlags.BODY_Q | StateFlags.BODY_QD, dt=dt)
         self._step_entry(fluid, control, contacts, dt)
+
+
+def _prepare_teapot_builder(builder: ModelBuilder, cfg: CouplerProxyCfg) -> None:
+    """Keep generated rigid hulls above the exact shell's body-local base plane."""
+    for body, label in enumerate(builder.body_label):
+        if not label.endswith("/PourContainer"):
+            continue
+        shell = next(i for i, name in enumerate(builder.shape_label) if name.startswith(label + "/geometry/"))
+        transform = builder.shape_transform[shell]
+        points = Rotation.from_quat(transform.q).apply(
+            builder.shape_source[shell].vertices * np.asarray(builder.shape_scale[shell])
+        ) + np.asarray(transform.p)
+        base_z = float(points[:, 2].min())
+        for shape, name in enumerate(builder.shape_label):
+            if (
+                builder.shape_body[shape] != body
+                or not name.startswith(label + "/RigidCollider/")
+                or builder.shape_type[shape] != GeoType.CONVEX_MESH
+            ):
+                continue
+            mesh = builder.shape_source[shape]
+            transform = builder.shape_transform[shape]
+            rotation = Rotation.from_quat(transform.q)
+            scale = np.asarray(builder.shape_scale[shape])
+            points = rotation.apply(mesh.vertices * scale) + np.asarray(transform.p)
+            below = points[:, 2] < base_z
+            if not below.any():
+                continue
+            # CoACD's voxel preprocessing can extend hulls below a flat base,
+            # producing a first-step impulse and an uneven support footprint.
+            points[below, 2] = base_z
+            vertices = mesh.vertices.copy()
+            vertices[below] = rotation.inv().apply(points[below] - np.asarray(transform.p)) / scale
+            hull = ConvexHull(vertices)
+            faces = hull.simplices.copy()
+            normals = np.cross(
+                vertices[faces[:, 1]] - vertices[faces[:, 0]], vertices[faces[:, 2]] - vertices[faces[:, 0]]
+            )
+            reverse = np.einsum("ij,ij->i", normals, hull.equations[:, :3]) < 0.0
+            faces[reverse] = faces[reverse][:, (0, 2, 1)]
+            # Copying geometry rebuilds mesh caches while preserving authored
+            # mass properties; the exact shell and handle vertices are untouched.
+            builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
+    # MPM preparation converts convex parts to triangle meshes; repair their
+    # generated support geometry before that classification is lost.
+    COUPLER_SPEC.prepare_builder(builder, cfg)
+
+
+TEAPOT_COUPLER_SPEC = replace(
+    COUPLER_SPEC,
+    prepare_builder=_prepare_teapot_builder,
+    build=coupler_builder(
+        lambda model, entries, proxies, cfg, mode: _TeapotColliderSyncSolver(model=model, entries=entries)
+    ),
+)
+"""Couple the dynamic grasped pot to its exact MPM collision shell."""

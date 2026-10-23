@@ -38,7 +38,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import NewtonBackendCfg, solver_spec
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -814,7 +814,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._transform_mapping = sim.get_scene_data_provider().create_mapping(list(self.backend.model.body_label))
         scene_data_provider = self._sim.get_scene_data_provider()
         newton_backend_active = self.physics_backend == "newton"
-        picking_supported = newton_backend_active and sim.backend_manager._supports_rigid_body_force_input
+        physics_backend = sim.backend_manager.backend if newton_backend_active else None
+        picking_supported = (
+            physics_backend is not None
+            and physics_backend.solver is not None
+            and solver_spec(physics_backend.solver_cfg).body_forces(physics_backend.solver_cfg)
+        )
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:
             logger.warning(
@@ -879,7 +884,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
+                    contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)
                     else:
