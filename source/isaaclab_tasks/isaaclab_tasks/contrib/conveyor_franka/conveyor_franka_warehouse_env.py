@@ -35,7 +35,8 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         self._warehouse_arm_joint_ids: list[int] | None = None
         cfg.scene._configure_route_assets(cfg.commands.transfer.parcel_colors)
         super().__init__(cfg, render_mode=render_mode, **kwargs)
-        if not any(viz.cfg.visualizer_type == "kit" for viz in self.sim.visualizers):
+        viewer = next((viz.cfg for viz in self.sim.visualizers if viz.cfg.backend.visualizer_type == "kit"), None)
+        if viewer is None:
             return
         self.sim.set_setting("/app/viewport/grid/enabled", False)
 
@@ -46,7 +47,6 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         camera = self.sim.stage.GetPrimAtPath("/OmniverseKit_Persp")
         if camera:
             # Kit owns this camera in its session layer; weaker root-layer edits are ignored.
-            viewer = cfg.sim.default_visualizer_cfg
             with Usd.EditContext(self.sim.stage, self.sim.stage.GetSessionLayer()):
                 self.sim.set_camera_view(viewer.eye, viewer.lookat)
                 camera.GetAttribute("focalLength").Set(viewer.focal_length)

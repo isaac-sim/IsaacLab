@@ -397,9 +397,9 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
             "minimum": (-0.4, -1.2, -0.05),
             "maximum": (2.85, 1.2, 0.8),
         }
-        self.sim.default_visualizer_cfg.eye = (4.8, -5.2, 3.0)
-        self.sim.default_visualizer_cfg.lookat = (0.9, 0.6, 0.95)
-        self.sim.default_visualizer_cfg.focal_length = 24.0
+        self.sim.visualizer_cfgs.eye = (4.8, -5.2, 3.0)
+        self.sim.visualizer_cfgs.lookat = (0.9, 0.6, 0.95)
+        self.sim.visualizer_cfgs.focal_length = 24.0
 
     def play_mode(self) -> None:
         """Enable the idle controller only for pretrained-policy playback."""
