@@ -15,7 +15,7 @@ from isaaclab.utils import configclass
 from .newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import SolverSpec
 
 
 @configclass
@@ -28,8 +28,8 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     .. _MuJoCo Warp documentation: https://github.com/google-deepmind/mujoco_warp
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.mjwarp_manager:NewtonMJWarpManager"
-    """Manager class for the MuJoCo Warp solver."""
+    class_type: SolverSpec | str = "{DIR}.mjwarp_solver:MJWARP_SPEC"
+    """Specification of the MuJoCo Warp solver."""
 
     solver_type: str = "mujoco_warp"
     """Solver type. Can be "mujoco_warp"."""

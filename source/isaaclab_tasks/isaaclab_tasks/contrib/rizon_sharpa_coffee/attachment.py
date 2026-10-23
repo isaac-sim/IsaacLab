@@ -42,7 +42,7 @@ class MountedSpoonAttachment:
         offset_rot: tuple[float, float, float, float],
     ):
         self._backend_manager = SimulationContext.instance().backend_manager
-        self._model = self._backend_manager.get_model()
+        self._model = self._backend_manager.backend.model
         palm_pattern = re.compile(robot.cfg.prim_path + "/" + re.escape(PALM_BODY_NAME))
         spoon_pattern = re.compile(spoon.cfg.prim_path)
         palm_ids, spoon_ids = [], []
@@ -82,7 +82,7 @@ class MountedSpoonAttachment:
 
     def sync(self) -> None:
         """Write the mounted pose and COM twist to both native state buffers."""
-        state_0, state_1 = self._backend_manager.get_state_0(), self._backend_manager.get_state_1()
+        state_0, state_1 = self._backend_manager.backend.state_0, self._backend_manager.backend.state_1
         wp.launch(
             _sync_mounted_spoon,
             dim=self._palm_ids.size,

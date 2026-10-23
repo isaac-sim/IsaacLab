@@ -205,16 +205,16 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
     )
 
     hook_counts = (
-        len(native_sim.backend_manager._pre_actuator_callbacks),
-        len(native_sim.backend_manager._post_actuator_callbacks),
+        len(native_sim.backend_manager.backend.callbacks.control),
+        len(native_sim.backend_manager.backend.callbacks.post_actuator),
     )
     for reset_index in range(3):
         if reset_index:
             # A hard reset rebuilds the model and drives; the bridge hooks must be replaced, not appended.
             native_sim.reset()
             assert hook_counts == (
-                len(native_sim.backend_manager._pre_actuator_callbacks),
-                len(native_sim.backend_manager._post_actuator_callbacks),
+                len(native_sim.backend_manager.backend.callbacks.control),
+                len(native_sim.backend_manager.backend.callbacks.post_actuator),
             )
         assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "identical robots must merge"
         for robot in (robot_a, robot_c):

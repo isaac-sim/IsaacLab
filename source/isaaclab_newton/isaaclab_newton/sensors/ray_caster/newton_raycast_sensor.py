@@ -20,7 +20,8 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonQueries
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg
+from isaaclab_newton.physics.newton_backend import run_query
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
 from .newton_raycast_sensor_data import NewtonRaycastSensorData
@@ -86,7 +87,7 @@ class _NewtonRayCasterPoseMixin:
         plan = self._sim.get_clone_plan()
         matched = cloner.path.match(self.cfg.prim_path, plan.env_template) if plan is not None else None
         if matched is not None and not matched.suffix:
-            self._sensor_site_label = self._backend_manager.cl_register_site(None, wp.transform(), per_world=True)
+            self._sensor_site_label = self._backend_manager.register_site(None, wp.transform(), per_world=True)
             return
 
         try:
@@ -103,17 +104,17 @@ class _NewtonRayCasterPoseMixin:
 
         body_expr = _CONCRETE_ENV_NS.sub(_ENV_SLOT_NS + "/", body_expr.replace("{}", "[^/]+"))
         site_transform = wp.transform(fixed_pos or (0.0, 0.0, 0.0), fixed_quat or (0.0, 0.0, 0.0, 1.0))
-        self._sensor_site_label = self._backend_manager.cl_register_site(body_expr, site_transform)
+        self._sensor_site_label = self._backend_manager.register_site(body_expr, site_transform)
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
         self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
-        site_map = self._backend_manager._cl_site_index_map
+        site_map = self._backend_manager.get_site_index_map()
         if self._sensor_site_label not in site_map:
             raise ValueError(
                 f"RayCaster target '{self.cfg.prim_path}' site label '{self._sensor_site_label}'"
-                " was not found in NewtonManager._cl_site_index_map."
+                " was not found in the Newton site map."
             )
         global_index, per_world = site_map[self._sensor_site_label]
         site_indices = (
@@ -343,7 +344,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        self._graph = NewtonQueries.run_query(
+        self._graph = run_query(
             self.backend,
             provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             self._launch_raycast,

@@ -10,7 +10,7 @@ from __future__ import annotations
 import warp as wp
 from isaaclab_newton.controllers.ik.newton_ik_solver import NewtonIKSolver
 from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
-from isaaclab_newton.physics.newton_manager import NewtonQueries
+from isaaclab_newton.physics.newton_backend import CapturedGraph, capture_graph
 
 from isaaclab.utils.version import has_kit
 
@@ -24,7 +24,7 @@ class CapturedNewtonIKSolver(NewtonIKSolver):
 
     def __init__(self, cfg: NewtonIKSolverCfg, **kwargs) -> None:
         super().__init__(cfg, **kwargs)
-        self._graph: wp.Graph | None = None
+        self._graph: CapturedGraph | None = None
         self._seed: wp.array | None = None
 
     def solve(self, joint_pos: wp.array) -> wp.array:
@@ -37,10 +37,10 @@ class CapturedNewtonIKSolver(NewtonIKSolver):
             self._seed = wp.empty_like(joint_pos)
         wp.copy(self._seed, joint_pos)
         if self._graph is None:
-            self._graph = NewtonQueries.capture_graph(
+            self._graph = capture_graph(
                 str(joint_pos.device),
                 lambda: super(CapturedNewtonIKSolver, self).solve(self._seed),
                 relaxed=has_kit(),
             )
-        wp.capture_launch(self._graph)
+        self._graph.launch()
         return self.joint_q_out

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "create_newton_builder",
     "FeatherstoneSolverCfg",
     "HydroelasticSDFCfg",
     "KaminoCollisionDetectorCfg",
@@ -15,33 +16,44 @@ __all__ = [
     "KaminoMaterialsCfg",
     "KaminoPADMMCfg",
     "KaminoPADMMSolverCfg",
-    "MPMSolverCfg",
     "MJWarpSolverCfg",
     "MjWarpActuatorBridge",
-    "NewtonCfg",
+    "MPMSolverCfg",
+    "NewtonBackend",
+    "CapturedGraph",
     "NewtonBackendCfg",
     "NewtonBuilderCfg",
+    "NewtonCfg",
+    "NewtonCloneRecord",
     "NewtonCollisionPipelineCfg",
-    "NewtonFeatherstoneManager",
-    "NewtonKaminoManager",
-    "NewtonMPMManager",
+    "FEATHERSTONE_SPEC",
+    "KAMINO_SPEC",
     "NewtonManager",
-    "NewtonQueries",
-    "NewtonMJWarpManager",
+    "MJWARP_SPEC",
+    "MPM_SPEC",
+    "reset_mpm_solver_state",
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
     "NewtonSolverCfg",
-    "NewtonVBDManager",
+    "SolverSpec",
+    "build_from_cfg",
+    "create_builder",
+    "register_builder_attributes",
+    "solver_spec",
+    "usd_schema_resolvers",
+    "VBD_SPEC",
+    "XPBD_SPEC",
+    "StepCallback",
+    "StepGraph",
+    "StepCallbacks",
     "VBDSolverCfg",
-    "NewtonXPBDManager",
     "XPBDSolverCfg",
-    "create_newton_builder",
 ]
 
-from .featherstone_manager import NewtonFeatherstoneManager
-from .featherstone_manager_cfg import FeatherstoneSolverCfg
-from .kamino_manager import NewtonKaminoManager
-from .kamino_manager_cfg import (
+from .featherstone_solver import FEATHERSTONE_SPEC
+from .featherstone_solver_cfg import FeatherstoneSolverCfg
+from .kamino_solver import KAMINO_SPEC
+from .kamino_solver_cfg import (
     KaminoCollisionDetectorCfg,
     KaminoConstraintsCfg,
     KaminoDVICfg,
@@ -53,21 +65,25 @@ from .kamino_manager_cfg import (
     KaminoPADMMSolverCfg,
 )
 from .mjwarp_actuator_bridge import MjWarpActuatorBridge
-from .mjwarp_manager import NewtonMJWarpManager
-from .mjwarp_manager_cfg import MJWarpSolverCfg
-from .mpm_manager import NewtonMPMManager
-from .mpm_manager_cfg import MPMSolverCfg
+from .mjwarp_solver import MJWARP_SPEC
+from .mjwarp_solver_cfg import MJWarpSolverCfg
+from .mpm_solver import MPM_SPEC, reset_mpm_solver_state
+from .mpm_solver_cfg import MPMSolverCfg
+from .newton_backend import CapturedGraph, NewtonBackend, NewtonCloneRecord, StepCallback, StepCallbacks, StepGraph
+from .newton_backend_cfg import NewtonBackendCfg
+from .newton_builder_cfg import NewtonBuilderCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
-from .newton_manager import NewtonManager, NewtonQueries, create_newton_builder
-from .newton_manager_cfg import (
-    NewtonBackendCfg,
-    NewtonBuilderCfg,
-    NewtonCfg,
-    NewtonShapeCfg,
-    NewtonSoftContactCfg,
-    NewtonSolverCfg,
+from .newton_manager import NewtonManager, create_newton_builder
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSoftContactCfg, NewtonSolverCfg
+from .solver_specs import (
+    SolverSpec,
+    build_from_cfg,
+    create_builder,
+    register_builder_attributes,
+    solver_spec,
+    usd_schema_resolvers,
 )
-from .vbd_manager import NewtonVBDManager
-from .vbd_manager_cfg import VBDSolverCfg
-from .xpbd_manager import NewtonXPBDManager
-from .xpbd_manager_cfg import XPBDSolverCfg
+from .vbd_solver import VBD_SPEC
+from .vbd_solver_cfg import VBDSolverCfg
+from .xpbd_solver import XPBD_SPEC
+from .xpbd_solver_cfg import XPBDSolverCfg

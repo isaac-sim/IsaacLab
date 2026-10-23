@@ -125,7 +125,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the articulation view and binds model / state arrays."""
         super()._initialize_impl()
 
-        model, state_0 = self._backend_manager.get_model(), self._backend_manager.get_state_0()
+        model, state_0 = self._backend_manager.backend.model, self._backend_manager.backend.state_0
 
         def has_articulation_root_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
