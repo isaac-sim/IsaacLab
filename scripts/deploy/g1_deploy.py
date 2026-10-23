@@ -17,13 +17,16 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import re
 import select
 import socket
 import struct
 import sys
+import termios
 import threading
 import time
+import tty
 
 import numpy as np
 
@@ -41,6 +44,9 @@ DEPTH_MAX_AGE = 0.2
 
 FALL_GRAVITY_Z = -0.7
 """Stop above this projected gravity. Upright is -1.0; this is about 45 degrees over."""
+
+UPRIGHT_GRAVITY_Z = -0.9
+"""Require this projected gravity or lower before engaging the policy."""
 
 MOTOR_NAMES = (
     "left_hip_pitch_joint",
@@ -178,10 +184,16 @@ class DepthStream:
             return self._frame
 
 
+def heading_from_quat_xyzw(quat_xyzw: np.ndarray) -> float:
+    """Body heading in the world frame [rad]."""
+    x, y, z, w = (float(v) for v in quat_xyzw)
+    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+
 class Teleop:
     """Forward speed and heading from single keypresses, without waiting for Enter."""
 
-    HELP = "w/s forward +/-   q/e turn left/right   space stop   x quit"
+    HELP = "w/s forward +/-   q/e turn left/right   space stop   r face current heading   x quit   ? help"
     SPEED_STEP = 0.1
     HEADING_STEP = math.radians(15.0)
 
@@ -189,6 +201,17 @@ class Teleop:
         self.vx = 0.0
         self.heading = 0.0
         self.running = True
+        self._terminal_settings = None
+
+    def __enter__(self) -> Teleop:
+        if sys.stdin.isatty():
+            self._terminal_settings = termios.tcgetattr(sys.stdin.fileno())
+            tty.setcbreak(sys.stdin.fileno(), termios.TCSANOW)
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if self._terminal_settings is not None:
+            termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, self._terminal_settings)
 
     def command(self, quat_xyzw: np.ndarray) -> np.ndarray:
         """``(vx, vy, yaw_rate)`` [m/s, m/s, rad/s], with the yaw rate steering toward a heading.
@@ -197,26 +220,38 @@ class Teleop:
         the measured orientation. Steering a heading rather than a rate keeps a teleoperated run on
         the distribution a fixed command trains on.
         """
-        key = sys.stdin.read(1) if select.select([sys.stdin], [], [], 0.0)[0] else None
-        if key == "w":
-            self.vx = min(1.0, self.vx + self.SPEED_STEP)
-        elif key == "s":
-            self.vx = max(0.0, self.vx - self.SPEED_STEP)
-        elif key == "q":
-            self.heading += self.HEADING_STEP
-        elif key == "e":
-            self.heading -= self.HEADING_STEP
-        elif key == " ":
-            self.vx = 0.0
-        elif key == "x":
-            self.running = False
-        if key:
+        keys = ""
+        while select.select([sys.stdin], [], [], 0.0)[0]:
+            data = os.read(sys.stdin.fileno(), 64)
+            if not data:
+                break
+            keys += data.decode(errors="ignore")
+        for sequence, key in (("\x1b[A", "w"), ("\x1b[B", "s"), ("\x1b[D", "a"), ("\x1b[C", "d")):
+            keys = keys.replace(sequence, key)
+        for key in keys.lower():
+            if key == "w":
+                self.vx = min(1.0, self.vx + self.SPEED_STEP)
+            elif key == "s":
+                self.vx = max(0.0, self.vx - self.SPEED_STEP)
+            elif key == "q":
+                self.heading += self.HEADING_STEP
+            elif key == "e":
+                self.heading -= self.HEADING_STEP
+            elif key == " ":
+                self.vx = 0.0
+            elif key == "r":
+                self.heading = heading_from_quat_xyzw(quat_xyzw)
+            elif key == "x":
+                self.running = False
+            elif key == "?":
+                print(self.HELP)
+        if keys:
             print(f"[cmd] vx={self.vx:+.2f} m/s  heading={math.degrees(self.heading):+.0f} deg")
 
-        x, y, z, w = quat_xyzw
-        yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
-        error = (self.heading - yaw + math.pi) % (2.0 * math.pi) - math.pi
-        return np.array([self.vx, 0.0, np.clip(error, -1.0, 1.0)], dtype=np.float32)
+        error = self.heading - heading_from_quat_xyzw(quat_xyzw)
+        wrapped = (error + math.pi) % (2.0 * math.pi)
+        error = math.pi if wrapped == 0.0 and error > 0.0 else wrapped - math.pi
+        return np.array([self.vx, 0.0, np.clip(0.5 * error, -1.0, 1.0)], dtype=np.float32)
 
 
 class G1Link:
@@ -224,6 +259,7 @@ class G1Link:
 
     def __init__(self, domain_id: int, interface: str) -> None:
         from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelPublisher, ChannelSubscriber
+        from unitree_sdk2py.idl.default import unitree_hg_msg_dds__LowCmd_
         from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_, LowState_
         from unitree_sdk2py.utils.crc import CRC
 
@@ -232,9 +268,9 @@ class G1Link:
         ChannelSubscriber("rt/lowstate", LowState_).Init(self._on_state, 10)
         self._publisher = ChannelPublisher("rt/lowcmd", LowCmd_)
         self._publisher.Init()
-        self._command = LowCmd_()
+        self._command = unitree_hg_msg_dds__LowCmd_()
         self._crc = CRC()
-        self._next = time.monotonic()
+        self._next = None
         while self.state is None:
             time.sleep(0.02)
 
@@ -283,12 +319,21 @@ class G1Link:
         zero = np.zeros(len(MOTOR_NAMES), dtype=np.float32)
         for _ in range(int(seconds / CONTROL_DT)):
             self.write(zero, zero, kd)
-            self.wait(CONTROL_DT)
+            time.sleep(CONTROL_DT)
 
     def wait(self, period: float) -> None:
-        """Sleep until the next control instant, without accumulating drift."""
+        """Keep the control cadence, discarding overdue deadlines after a stall."""
+        if self._next is None:
+            self._next = time.monotonic()
         self._next += period
-        time.sleep(max(0.0, self._next - time.monotonic()))
+        now = time.monotonic()
+        if now < self._next:
+            time.sleep(self._next - now)
+            now = time.monotonic()
+            if now - self._next < period:
+                return
+        if now > self._next:
+            self._next = now
 
 
 class GraphPolicy:
@@ -303,25 +348,28 @@ class GraphPolicy:
     * depth is a rank-4 ``(1, H, W, 1)`` tensor, not an image-shaped array.
     """
 
-    def __init__(self, pipeline: str, depth_rotation: int) -> None:
+    def __init__(self, pipeline: str, depth_rotation: int, imu_tilt: tuple[float, float] = (0.0, 0.0)) -> None:
         import torch
-        import yaml
         from leapp import InferenceManager
 
         self._torch = torch
         self._rotate = depth_rotation == 180
+        pitch, roll = (math.radians(angle) / 2.0 for angle in imu_tilt)
+        cp, sp, cr, sr = math.cos(pitch), math.sin(pitch), math.cos(roll), math.sin(roll)
+        self._imu_tilt = np.array([cp * cr, cp * sr, sp * cr, -sp * sr], dtype=np.float32)
+        torch.set_num_threads(1)
         self.inference = InferenceManager(pipeline)
 
-        with open(pipeline) as stream:
-            model = next(iter(yaml.safe_load(stream)["models"].values()))
-        # The export names its own tensors; the connection strings are how Isaac Lab says what each
-        # one carries, and are what the simulation deployment resolves against a scene.
-        self._ports = {
-            io["isaaclab_connection"]: io["name"]
-            for io in list(model["inputs"]) + list(model["outputs"])
-            if "isaaclab_connection" in io
-        }
-        names = next(o for o in model["outputs"] if o["name"] == "joint_pos")["element_names"][0]
+        self._ports = {}
+        for direction, keys in (("inputs", self.inference.inputs), ("outputs", self.inference.outputs)):
+            for key in keys:
+                node, name = key.split("/", 1)
+                spec = next(io for io in self.inference.models[node][direction] if io["name"] == name)
+                connection = spec.get("isaaclab_connection")
+                if not connection or connection in self._ports:
+                    raise ValueError(f"missing or duplicate isaaclab_connection for {key}")
+                self._ports[connection] = (key, spec)
+        names = self._ports["write:robot:set_joint_position_target_index"][1]["element_names"][0]
         order = {name: i for i, name in enumerate(names)}
         missing = [name for name in MOTOR_NAMES if name not in order]
         if missing:
@@ -345,12 +393,27 @@ class GraphPolicy:
                 np.zeros(3, np.float32),
                 np.full(DEPTH_SHAPE, DEPTH_MAX_RANGE, np.float32),
             )
-        self.inference.reset()
+        with torch.inference_mode():
+            self.inference.reset()
 
     def step(self, joint_pos, joint_vel, quat_xyzw, ang_vel, command, depth):
         """One inference step. Returns motor targets, Kp and Kd, each ``(29,)``."""
         q, dq = self._default.copy(), np.zeros_like(self._default)
         q[self._motors], dq[self._motors] = joint_pos, joint_vel
+        if self._imu_tilt[0] != 1.0:
+            # R_pelvis_world = R_imu_world * inverse(R_imu_to_pelvis).
+            quat_xyzw = np.asarray(quat_xyzw, dtype=np.float32)
+            ang_vel = np.asarray(ang_vel, dtype=np.float32)
+            w, xyz = quat_xyzw[3], quat_xyzw[:3]
+            offset_w, offset_xyz = self._imu_tilt[0], -self._imu_tilt[1:]
+            quat_xyzw = np.concatenate(
+                (
+                    w * offset_xyz + offset_w * xyz + np.cross(xyz, offset_xyz),
+                    [w * offset_w - np.dot(xyz, offset_xyz)],
+                )
+            )
+            cross = np.cross(self._imu_tilt[1:], ang_vel)
+            ang_vel = ang_vel + 2.0 * (self._imu_tilt[0] * cross + np.cross(self._imu_tilt[1:], cross))
         frame = np.asarray(depth, dtype=np.float32)
         if self._rotate:
             frame = frame[::-1, ::-1]
@@ -380,7 +443,7 @@ class GraphPolicy:
 
     def _key(self, connection: str) -> str:
         """The graph's own name for a tensor, given the Isaac Lab connection it carries."""
-        return self._ports[connection]
+        return self._ports[connection][0]
 
     def _motors_of(self, outputs: dict, connection: str) -> np.ndarray:
         """One of the graph's 43-wide outputs, reduced to the 29 motors in ``rt/lowcmd`` order."""
@@ -423,30 +486,44 @@ def bring_up(link: G1Link, pose: np.ndarray, kp, kd, ramp_s: float) -> None:
     Two steps rather than one, and ``rt/lowcmd`` keeps flowing through both: the robot is lowered
     onto its feet between them, and a gap in the command stream there would drop it.
     """
-    confirm("go", "\n>>> Robot supported, area clear, e-stop in hand.")
     start = link.read()["joint_pos"].copy()
     steps = int(ramp_s / CONTROL_DT)
     print(f"[..] ramping to the start pose over {ramp_s:.1f}s")
     for step in range(steps):
         link.check_abort()
         link.write(start + (pose - start) * (step + 1) / steps, kp, kd)
-        link.wait(CONTROL_DT)
+        time.sleep(CONTROL_DT)
+    if link.read()["gravity_z"] > UPRIGHT_GRAVITY_Z:
+        raise RuntimeError("the robot is not upright; not engaging the policy")
 
     print("\n>>> HOLDING the start pose. Square the robot up and lower it onto its feet.")
     print(">>> KEEP IT SUPPORTED: this is PD with no policy, and the pose is not statically stable.")
-    held = threading.Event()
-    threading.Thread(target=lambda: (input(">>> type 'go2' and press Enter: "), held.set()), daemon=True).start()
-    while not held.is_set():
+    interactive = sys.stdin.isatty()
+    if interactive:
+        termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+    print(">>> type 'go2' and press Enter within 300s:")
+    deadline = time.monotonic() + 300.0
+    while True:
         link.check_abort()
         link.write(pose, kp, kd)
-        link.wait(CONTROL_DT)
+        if interactive and select.select([sys.stdin], [], [], 0.0)[0]:
+            line = sys.stdin.readline()
+            if not line:
+                interactive = False
+            elif line.strip() == "go2":
+                break
+            elif line.strip():
+                print(f"[..] ignored {line.strip()!r}; type 'go2' to proceed")
+        if time.monotonic() > deadline:
+            raise TimeoutError("'go2' not received within 300s of holding")
+        time.sleep(CONTROL_DT)
 
     print("[ok] engaging in 3s -- hands clear")
     for _ in range(int(3.0 / CONTROL_DT)):
         link.check_abort()
         link.write(pose, kp, kd)
-        link.wait(CONTROL_DT)
-    if link.read()["gravity_z"] > FALL_GRAVITY_Z:
+        time.sleep(CONTROL_DT)
+    if link.read()["gravity_z"] > UPRIGHT_GRAVITY_Z:
         raise RuntimeError("the robot is not upright; not engaging the policy")
 
 
@@ -457,6 +534,12 @@ def main() -> int:
     parser.add_argument("--domain_id", type=int, default=0, help="DDS domain.")
     parser.add_argument("--depth_port", type=int, default=5601, help="UDP port the publisher sends to.")
     parser.add_argument(
+        "--imu_tilt",
+        default="0,0",
+        metavar="PITCH,ROLL",
+        help="IMU pitch and roll [deg] measured with the pelvis level; default 0,0.",
+    )
+    parser.add_argument(
         "--depth_rotation",
         type=int,
         choices=(0, 180),
@@ -465,8 +548,14 @@ def main() -> int:
         " own 180-degree roll against the camera stream.",
     )
     args = parser.parse_args()
+    try:
+        pitch, roll = (float(value) for value in args.imu_tilt.split(","))
+        if not math.isfinite(pitch) or not math.isfinite(roll):
+            raise ValueError
+    except ValueError:
+        parser.error("--imu_tilt requires finite PITCH,ROLL values in degrees")
 
-    policy = GraphPolicy(args.pipeline, args.depth_rotation)
+    policy = GraphPolicy(args.pipeline, args.depth_rotation, (pitch, roll))
     link = G1Link(args.domain_id, args.interface)
     depth = DepthStream(args.depth_port)
     depth.wait()
@@ -475,28 +564,34 @@ def main() -> int:
     print(f"[ok] mode_machine={link.read()['mode_machine']}  policy at {1 / CONTROL_DT:.0f} Hz")
     print(f"[..] teleop: {Teleop.HELP}")
     teleop = Teleop()
-    bring_up(link, policy.default_pose, policy.kp, policy.kd, ramp_s=3.0)
+    confirm("go", "\n>>> Robot supported, area clear, e-stop in hand.")
 
     try:
-        while teleop.running:
-            link.check_abort()
-            state = link.read()
-            if state["gravity_z"] > FALL_GRAVITY_Z:
-                raise RuntimeError(f"fell (projected gravity {state['gravity_z']:+.2f})")
-            frame = depth.latest()
-            if frame is None:
-                raise RuntimeError(f"no depth frame within {DEPTH_MAX_AGE * 1e3:.0f} ms")
-            joint_pos, kp, kd = policy.step(
-                state["joint_pos"],
-                state["joint_vel"],
-                state["root_quat_xyzw"],
-                state["ang_vel"],
-                teleop.command(state["root_quat_xyzw"]),
-                frame,
-            )
-            link.write(joint_pos, kp, kd)
-            link.wait(CONTROL_DT)
-    except (KeyboardInterrupt, OperatorAbort, RuntimeError) as error:
+        bring_up(link, policy.default_pose, policy.kp, policy.kd, ramp_s=3.0)
+        teleop.heading = heading_from_quat_xyzw(link.read()["root_quat_xyzw"])
+        with teleop:
+            while teleop.running:
+                link.check_abort()
+                state = link.read()
+                if state["gravity_z"] > FALL_GRAVITY_Z:
+                    raise RuntimeError(f"fell (projected gravity {state['gravity_z']:+.2f})")
+                command = teleop.command(state["root_quat_xyzw"])
+                if not teleop.running:
+                    break
+                frame = depth.latest()
+                if frame is None:
+                    raise RuntimeError(f"no depth frame within {DEPTH_MAX_AGE * 1e3:.0f} ms")
+                joint_pos, kp, kd = policy.step(
+                    state["joint_pos"],
+                    state["joint_vel"],
+                    state["root_quat_xyzw"],
+                    state["ang_vel"],
+                    command,
+                    frame,
+                )
+                link.write(joint_pos, kp, kd)
+                link.wait(CONTROL_DT)
+    except (KeyboardInterrupt, OperatorAbort, RuntimeError, TimeoutError) as error:
         print(f"\n[..] {error or 'interrupted'}")
     finally:
         link.damp(policy.kd)

@@ -196,7 +196,7 @@ The Control Loop
    :language: python
    :start-at: while teleop.running:
    :end-at: link.wait(CONTROL_DT)
-   :dedent: 8
+   :dedent: 12
 
 Two details about the ends of this loop.
 
@@ -212,7 +212,9 @@ The following conversions adapt robot sensor data to the graph's input format.
 
 **Quaternion order.** The IMU publishes ``(w, x, y, z)`` and the graph expects ``(x, y, z, w)``.
 
-**IMU mounting offset.** Subtracted before the quaternion reaches the graph.
+**IMU mounting offset.** ``--imu_tilt=PITCH,ROLL`` supplies the IMU pitch and roll in degrees
+measured with the pelvis level. Both orientation and angular velocity are corrected before reaching
+the graph. The default is ``0,0``.
 
 **Invalid depth.** A real camera returns zero where it got no return. The graph reads zero as a
 very close surface, so an unprocessed frame plants obstacles at the robot's feet. Pixels with no
@@ -245,8 +247,25 @@ Put the robot in debug mode and support it on a stand before starting.
        --interface <NETWORK_INTERFACE> --domain_id 0
 
 The loop takes control in two steps. Typing ``go`` ramps the robot to the policy's start pose over
-three seconds and then holds it. Typing ``go2`` engages the policy three seconds later. ``rt/lowcmd``
-keeps flowing throughout, so there is no watchdog gap between the two.
+three seconds and then holds it. Type ``go2`` within 300 seconds to engage the policy three seconds
+later; other input is ignored. ``rt/lowcmd`` keeps flowing throughout, so there is no watchdog gap
+between the two. The robot must be upright after the ramp and before policy engagement.
+
+The policy starts with zero forward speed and adopts the robot's current heading. Keyboard controls
+take effect without Enter:
+
+.. code-block:: text
+
+   w/s    forward speed +/- 0.1 m/s (0 to 1 m/s)
+   q/e    heading target +/- 15 degrees
+   space  zero forward speed
+   r      adopt the current heading
+   x      quit
+   ?      show controls
+
+The yaw-rate command is half the wrapped heading error, limited to ±1 rad/s. Space leaves the
+heading target unchanged. ``Ctrl+C``, ``L2+B``, ``L1+A`` or ``select`` stops the run with damping,
+including during the ramp and hold. Exiting the policy restores the terminal settings.
 
 .. warning::
 
