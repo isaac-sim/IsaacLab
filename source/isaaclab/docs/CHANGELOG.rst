@@ -3,6 +3,24 @@ Changelog
 
 .. towncrier release notes start
 
+41.0.2 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Triangulated USD polygon faces before Warp ray-caster mesh creation, preventing
+  quad faces from producing artificial interior intersections or missing surfaces.
+* Rejected mismatched ray-start and direction shapes before native ray queries.
+* Fixed a startup regression of about 4 s on the first articulation spawn by importing the TorchScript
+  actuator-network converter only when a checkpoint is converted.
+* Fixed multi-mesh ray-cast target tracking when several meshes shared one rigid body
+  by binding each mesh to its exact body in the shared scene-data provider.
+* Rejected ray-caster mounts missing from some environments during initialization,
+  before indexed resets or updates could address the wrong sensor rows.
+* Initialized only missing Fabric frame matrices from USD, preserving live physics transforms when a new view was bound.
+
+
 41.0.1 (2026-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
