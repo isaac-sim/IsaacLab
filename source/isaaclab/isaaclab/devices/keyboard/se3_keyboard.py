@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -61,6 +62,11 @@ class Se3Keyboard(DeviceBase):
         Args:
             cfg: Configuration object for keyboard settings.
         """
+        warnings.warn(
+            "Se3Keyboard is deprecated. Please use isaaclab_teleop.se3_keyboard_teleop_cfg instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity

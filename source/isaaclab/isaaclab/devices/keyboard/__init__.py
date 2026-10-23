@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Keyboard device for SE(2) and SE(3) control."""
+"""Keyboard device for SE(2) and SE(3) control.
+
+.. deprecated::
+    Use :func:`isaaclab_teleop.se2_keyboard_teleop_cfg` / :func:`isaaclab_teleop.se3_keyboard_teleop_cfg`, which run
+    the device in process through Isaac Capture. Imports from this package keep working;
+    the device constructors emit a :class:`DeprecationWarning`.
+"""
 
 from ...utils.module import lazy_export
 

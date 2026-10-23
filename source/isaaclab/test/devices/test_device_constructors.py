@@ -143,13 +143,14 @@ Test keyboard, gamepad, and spacemouse devices.
 def test_device_constructs_and_advance_shape(
     mock_environment, mocker, module_name, device_cls, cfg, patched_modules, report, expected_shape
 ):
-    """Each device applies its config and ``advance()`` returns a command of its documented size."""
+    """Each deprecated device warns, applies its config, and ``advance()`` returns a command of its documented size."""
     device_mod = importlib.import_module(module_name)
     mocker.patch.dict("sys.modules", {name: mock_environment[name] for name in patched_modules})
     for name in patched_modules:
         mocker.patch.object(device_mod, name, mock_environment[name])
 
-    device = device_cls(cfg)
+    with pytest.warns(DeprecationWarning, match=f"{device_cls.__name__} is deprecated"):
+        device = device_cls(cfg)
 
     # Verify configuration was applied correctly
     for field in ("v_x_sensitivity", "v_y_sensitivity", "omega_z_sensitivity", "pos_sensitivity", "rot_sensitivity"):

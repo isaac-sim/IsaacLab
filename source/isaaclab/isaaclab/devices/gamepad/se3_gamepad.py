@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -62,6 +63,11 @@ class Se3Gamepad(DeviceBase):
         Args:
             cfg: Configuration object for gamepad settings.
         """
+        warnings.warn(
+            "Se3Gamepad is deprecated. Please use isaaclab_teleop.se3_gamepad_teleop_cfg instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # turn off simulator gamepad control
         get_settings_manager().set("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
