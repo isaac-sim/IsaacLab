@@ -188,6 +188,7 @@ def test_warehouse_animation_uses_active_kit_viewer_and_policy_time(tmp_path, mo
     source.GetRootLayer().Save()
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World/envs/env_0/WarehouseVisual").GetReferences().AddReference(path)
+    camera = UsdGeom.Camera.Define(stage, "/OmniverseKit_Persp")
 
     def initialize(env, cfg, **kwargs):
         env.cfg = cfg
@@ -195,7 +196,17 @@ def test_warehouse_animation_uses_active_kit_viewer_and_policy_time(tmp_path, mo
         env.scene = SimpleNamespace(env_prim_paths=["/World/envs/env_0"])
         env.sim = SimpleNamespace(
             stage=stage,
-            visualizers=[SimpleNamespace(cfg=SimpleNamespace(visualizer_type="kit"))],
+            visualizers=[
+                SimpleNamespace(
+                    cfg=SimpleNamespace(
+                        backend=SimpleNamespace(visualizer_type="kit"),
+                        eye=(4.0, -5.0, 3.0),
+                        lookat=(0.9, 0.6, 0.95),
+                        focal_length=37.0,
+                    )
+                )
+            ],
+            set_camera_view=lambda eye, lookat: None,
             set_setting=lambda name, value: None,
             add_render_callback=lambda name, callback: None,
             remove_render_callback=lambda name: None,
@@ -209,6 +220,7 @@ def test_warehouse_animation_uses_active_kit_viewer_and_policy_time(tmp_path, mo
     cfg.sim.visualizer_cfgs = []
     cfg.scene.warehouse_visual.spawn.usd_path = path
     env = ConveyorFrankaWarehouseEnv(cfg)
+    assert camera.GetFocalLengthAttr().Get() == 37.0
     action = torch.zeros(1, 8)
     try:
         # Headless Kit recording captures on demand, without invoking render callbacks.
