@@ -3,6 +3,23 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.1 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused shared body poses for multi-mesh ray-cast targets instead of creating separate
+  PhysX target views.
+
+Fixed
+^^^^^
+
+* Refreshed articulation kinematics before ray-caster sensor-frame reads so mounted
+  sensors followed root or joint writes before the next physics step.
+* Removed duplicate USD seeding from Fabric frame views so reading a newly bound view no longer reset a moved body to its authored pose.
+
+
 9.0.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~
 

@@ -317,7 +317,7 @@ class _CpuCamera(Camera):
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
         self._create_timing_buffers()
-        self._data_dirty = True
+        self._invalidate_buffers(self._ALL_ENV_MASK)
         self.pose = 0.0
         self._view = SimpleNamespace(count=2, xform_world_space_writer=self._pose_writer)
         self.update(0.0)
@@ -347,7 +347,7 @@ class _CpuSensor(SensorBase):
         self._is_initialized = True
         self._is_visualizing = False
         self._create_timing_buffers()
-        self._data_dirty = True
+        self._data_dirty = False
         self._data = np.zeros(2, dtype=int)
         self.name = name
         self.batches = batches
@@ -451,7 +451,7 @@ def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context):
     assert cameras[0].data.info["pose"] == 1.0
     assert batches == [[("wide", 1.0)]]
     np.testing.assert_array_equal(cameras[1].frame.warp.numpy(), [0, 0])
-    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [0.0, 0.0])
+    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [-1.0, -1.0])
 
     assert cameras[1].data.info["pose"] == 2.0
     for camera in cameras:
@@ -533,7 +533,7 @@ def test_sensor_batch_advances_time_once_and_preserves_update_hooks():
         np.testing.assert_allclose(sensor._timestamp_last_update.numpy(), [0.25, 0.25])
         assert len(sensor.captures) == 1
     assert not uninitialized.captures
-    np.testing.assert_array_equal(uninitialized._timestamp_last_update.numpy(), [0.0, 0.0])
+    np.testing.assert_array_equal(uninitialized._timestamp_last_update.numpy(), [-1.0, -1.0])
 
 
 def test_sensor_batch_rejects_unsupported_input_before_updating():
@@ -623,11 +623,11 @@ def test_failed_eager_capture_can_retry_one_camera(camera_batch_context, failure
     with pytest.raises(RuntimeError, match="capture failed"):
         InteractiveScene.update(scene, 0.1)
     for camera in cameras:
-        np.testing.assert_array_equal(camera._timestamp_last_update.numpy(), [0.0, 0.0])
+        np.testing.assert_array_equal(camera._timestamp_last_update.numpy(), [-1.0, -1.0])
     setattr(renderer, failure, original)
     batches.clear()
 
     assert cameras[0].data.info["pose"] == 0.0
     assert batches == [[("wide", 0.0)]]
     np.testing.assert_allclose(cameras[0]._timestamp_last_update.numpy(), [0.1, 0.1])
-    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [0.0, 0.0])
+    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [-1.0, -1.0])
