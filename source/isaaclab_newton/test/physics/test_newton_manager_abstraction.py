@@ -1089,20 +1089,6 @@ def test_clear_resets_rigid_body_force_capability(manager_cls):
     assert manager._supports_rigid_body_force_input is False
 
 
-def test_deprecated_accessors_read_the_backend():
-    """Removed manager accessors warn and forward to the backend fields that replace them."""
-    manager = NewtonXPBDManager()
-    manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=3), solver=object(), contacts=None)
-    with pytest.warns(DeprecationWarning, match="manager.backend.model"):
-        assert manager.get_model() is manager.backend.model
-    with pytest.warns(DeprecationWarning, match="manager.backend.solver"):
-        assert manager.get_solver() is manager.backend.solver
-    with pytest.warns(DeprecationWarning, match="model.world_count"):
-        assert manager.get_num_envs() == 3
-    with pytest.warns(DeprecationWarning, match="register_site"):
-        assert manager.cl_register_site(None, wp.transform_identity()) == "ft_0"
-
-
 def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
     """Resolve target modes once, then copy them to the replicated articulations."""
     builder = SimpleNamespace(

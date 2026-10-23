@@ -8,3 +8,10 @@
 * **Breaking:** Site requests and extended-attribute requests persist on the shared builder across hard resets, so
   sensors no longer register them again. Replication outputs are read through
   :meth:`~isaaclab_newton.physics.NewtonManager.get_clone_record` instead of private manager fields.
+* **Breaking:** Removed ``NewtonManager.get_model``, ``get_state_0``, ``get_state_1``, ``get_control`` and
+  ``get_contacts``; read ``manager.backend.model``, ``state_0``, ``state_1``, ``control`` and ``contacts``. Removed
+  ``get_num_envs``, ``get_dt`` and ``get_solver_dt``; read ``backend.model.world_count``, ``backend.dt`` and
+  ``backend.solver_dt``.
+* **Breaking:** Removed ``NewtonManager.cl_register_site``; use
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_site`. Removed ``add_frame_transform_sensor``; construct
+  :class:`newton.sensors.SensorFrameTransform` on ``manager.backend.model``.

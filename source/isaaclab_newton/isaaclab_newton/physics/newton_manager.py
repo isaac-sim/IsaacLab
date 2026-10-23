@@ -12,7 +12,6 @@ import gc
 import inspect
 import logging
 import re
-import warnings
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from functools import partial
@@ -36,7 +35,6 @@ from newton import (
 )
 from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
-from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverMuJoCo
 from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
@@ -572,7 +570,6 @@ class NewtonManager(PhysicsManager):
         self._warned_model_changes = set()
         self._deterministic_mode = wp.DeterministicMode.NOT_GUARANTEED
         self._collision_cfg = None
-        self._frame_transform_sensors: list[SensorFrameTransform] = []
         self._supports_contact_sensors = True
         self._solver_init_callbacks: list[Callable[[], None]] = []
         # In-graph hooks invoked before the actuator step, in registration order.
@@ -1508,93 +1505,6 @@ class NewtonManager(PhysicsManager):
     def get_scene_data_provider(self) -> SceneDataProvider:
         """Return the active scene data provider."""
         return SimulationContext.instance().get_scene_data_provider()
-
-    # ----- Deprecated accessors ------------------------------------------------------------
-
-    def _deprecated_backend_field(self, name: str, replacement: str | None = None) -> Any:
-        warnings.warn(
-            f"NewtonManager.get_{name}() is deprecated; read manager.backend.{replacement or name} instead.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        backend = self.backend
-        return None if backend is None else getattr(backend, name)
-
-    def get_solver(self) -> SolverBase | None:
-        """Deprecated: read ``manager.backend.solver`` instead."""
-        return self._deprecated_backend_field("solver")
-
-    def get_model(self) -> Model | None:
-        """Deprecated: read ``manager.backend.model`` instead."""
-        return self._deprecated_backend_field("model")
-
-    def get_state_0(self) -> State | None:
-        """Deprecated: read ``manager.backend.state_0`` instead."""
-        return self._deprecated_backend_field("state_0")
-
-    def get_state_1(self) -> State | None:
-        """Deprecated: read ``manager.backend.state_1`` instead."""
-        return self._deprecated_backend_field("state_1")
-
-    def get_control(self) -> Control | None:
-        """Deprecated: read ``manager.backend.control`` instead."""
-        return self._deprecated_backend_field("control")
-
-    def get_contacts(self) -> Contacts | None:
-        """Deprecated: read ``manager.backend.contacts`` instead."""
-        return self._deprecated_backend_field("contacts")
-
-    def get_num_envs(self) -> int | None:
-        """Deprecated: read ``manager.backend.model.world_count`` instead."""
-        model = self._deprecated_backend_field("model", "model.world_count")
-        return None if model is None else model.world_count
-
-    def get_dt(self) -> float:
-        """Deprecated: read ``manager.backend.dt`` or call :meth:`get_physics_dt` instead."""
-        warnings.warn(
-            "NewtonManager.get_dt() is deprecated; read manager.backend.dt or call get_physics_dt() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.get_physics_dt()
-
-    def get_solver_dt(self) -> float:
-        """Deprecated: read ``manager.backend.solver_dt`` instead."""
-        warnings.warn(
-            "NewtonManager.get_solver_dt() is deprecated; read manager.backend.solver_dt instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.get_physics_dt() / self._cfg.num_substeps
-
-    def cl_register_site(self, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
-        """Deprecated: use :meth:`register_site` instead."""
-        warnings.warn(
-            "NewtonManager.cl_register_site() is deprecated; use register_site() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.register_site(body_pattern, xform, per_world=per_world)
-
-    def add_frame_transform_sensor(self, shapes: list[int], reference_sites: list[int]) -> int:
-        """Deprecated: construct :class:`newton.sensors.SensorFrameTransform` on ``manager.backend.model`` instead.
-
-        Args:
-            shapes: Ordered list of shape indices to measure.
-            reference_sites: 1:1 list of reference site indices (same length as shapes).
-
-        Returns:
-            Index of the newly created sensor.
-        """
-        warnings.warn(
-            "NewtonManager.add_frame_transform_sensor() is deprecated; construct newton.sensors.SensorFrameTransform"
-            " on manager.backend.model instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        sensor = SensorFrameTransform(self.backend.model, shapes=shapes, reference_sites=reference_sites)
-        self._frame_transform_sensors.append(sensor)
-        return len(self._frame_transform_sensors) - 1
 
     def _is_all_graphable(self) -> bool:
         """``True`` when the decimation loop can be captured into a CUDA graph.
