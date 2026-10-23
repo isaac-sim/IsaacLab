@@ -1,0 +1,77 @@
+{
+  "repository": "isaac-sim/IsaacLab",
+  "base": "main",
+  "integration_pr": 6952,
+  "integration_branch": "maximiliank/conveyor-franka-env",
+  "components": [
+    {
+      "pr": 8326,
+      "name": "Custom mesh spawning"
+    },
+    {
+      "pr": 8327,
+      "name": "Experimental conveyor support in Contrib"
+    },
+    {
+      "pr": 8331,
+      "name": "Racetrack transfer task"
+    },
+    {
+      "pr": 8332,
+      "name": "Warehouse sorting task"
+    },
+    {
+      "pr": 8794,
+      "name": "Optional native CPU PhysX support"
+    }
+  ],
+  "snapshot": {
+    "base": "dd2f470fcad5873980e9bc4acffb043238aca41c",
+    "components": [
+      {
+        "pr": 8326,
+        "name": "Custom mesh spawning",
+        "head": "54613ef14cf291c87f2f3eb2a9386befb5333a1f",
+        "merged": false
+      },
+      {
+        "pr": 8327,
+        "name": "Experimental conveyor support in Contrib",
+        "head": "886a2c97b0af846508604d7b59f66483d2b68a8e",
+        "merged": false
+      },
+      {
+        "pr": 8331,
+        "name": "Racetrack transfer task",
+        "head": "5bc02eb32a3ec89695319291a28d262263502f95",
+        "merged": false
+      },
+      {
+        "pr": 8332,
+        "name": "Warehouse sorting task",
+        "head": "0f8f361f2dc4da59130014be4dc9599b5dec09aa",
+        "merged": false
+      },
+      {
+        "pr": 8794,
+        "name": "Optional native CPU PhysX support",
+        "head": "b6a0b72207f30f99db5db8f3d07dbd75b6a89fcd",
+        "merged": false
+      }
+    ],
+    "checks": [
+      "17 combined task/geometry/USD checks and 6 optional PhysX checks passed",
+      "14 specification and 10 native Newton lifecycle checks passed on the Newton-only component",
+      "Exact consolidated CPU PhysX Kit smoke passed; two CPU environments also completed 120 steps",
+      "256 reset definitions and 392 sampled tensors remain bit-identical across 15 seeded reset cases",
+      "Newton GPU checkpoint playback: eight environments, 1200 steps, 14 transfers, zero failures/non-finite observations",
+      "Full formatting/lint/changelog/LFS, lock, and generated environment-browser checks passed",
+      "Clean strict Sphinx HTML build passed without warnings; compiled task rows and both JPEG previews verified"
+    ],
+    "limitations": [
+      "Validated on locked Newton 1.7; current-main Newton 1.8 manager/solver-observables migration is pending in PR #8327",
+      "The mesh snapshot uses reviewed commit 54613ef14; PR #8326 has since advanced to dae0d8cab with newer upstream changes"
+    ],
+    "checked_at": "2026-10-23T13:27:48.774180+00:00"
+  }
+}
