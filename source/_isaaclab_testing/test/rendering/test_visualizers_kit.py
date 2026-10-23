@@ -14,11 +14,10 @@ _KIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
 launch_test_simulation(
     enable_cameras=True,
     visualizer="kit",
-    kit_args=f"--/log/file={_KIT_LOG_DIR}/kit.log --/crashreporter/dumpDir={_KIT_LOG_DIR}",
+    # Finish native RTX initialization before tests replace the startup stage.
+    kit_args=f"--/renderer/asyncInit=false --/log/file={_KIT_LOG_DIR}/kit.log --/crashreporter/dumpDir={_KIT_LOG_DIR}",
 )
 
-import asyncio
-import faulthandler
 import logging
 
 import numpy as np
@@ -36,9 +35,7 @@ from rendering_runtime import build_rendering_scene
 from rendering_scene_cfgs import AnymalRenderingSceneCfg, make_rendering_scene_spec
 from visualizer_checks import changed_pixels, check_motion_and_pause
 
-import omni.kit.app
 import omni.timeline
-from omni.kit.viewport.utility import get_active_viewport
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -58,19 +55,6 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
 
 pytestmark = pytest.mark.isaacsim_ci
-
-
-@pytest.fixture(scope="module", autouse=True)
-def kit_viewport_ready():
-    """Finish Kit's startup viewport render before the first scene replaces its stage."""
-    with (_KIT_LOG_DIR / "python-fault.log").open("w") as fault_log:
-        faulthandler.enable(file=fault_log, all_threads=True)
-        frame = asyncio.ensure_future(asyncio.wait_for(get_active_viewport().wait_for_rendered_frames(), timeout=30.0))
-        while not frame.done():
-            omni.kit.app.get_app().update()
-        frame.result()
-        yield
-        faulthandler.disable()
 
 
 @pytest.mark.parametrize(
