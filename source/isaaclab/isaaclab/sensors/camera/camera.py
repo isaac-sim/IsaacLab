@@ -283,17 +283,11 @@ class Camera(SensorBase):
             settings = get_settings_manager()
             settings.set("/isaaclab/render/rtx_sensors", True)
             settings.set("/physics/fabricUpdateTransformations", True)
+            # NOTE: newer Kit renamed this setting to ``/rtx/gaussian/skipTonemapping/enabled`` and reads it from the
+            # RenderProduct attribute ``omni:rtx:gaussian:skipTonemapping:enabled``. Isaac Sim 6.2 only reads the
+            # legacy key and ignores the attribute, so keep the legacy setting until the renderer authors the attribute.
             if require_hdr_output:
                 settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif self.cfg.renderer_cfg.renderer_type == "ovrtx" and require_hdr_output:
-            from ...app.settings_manager import get_settings_manager
-
-            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings.set is a no-op for ovrtx
-            # warning only since it affects only ParticleField3DGaussianSplat scene
-            logger.warning(
-                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
-            )
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
