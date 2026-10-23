@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from newton import BodyFlags, GeoType, StateFlags
-from newton.solvers.experimental.coupled import SolverCoupled
+from newton import GeoType
+from newton.solvers.experimental.coupled import SolverCoupledProxy
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
@@ -21,26 +21,6 @@ from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
 if TYPE_CHECKING:
     from newton import ModelBuilder
-
-
-@wp.kernel
-def _sync_teapot_collider(
-    source_start: wp.array[wp.transform],
-    source_end: wp.array[wp.transform],
-    source_com: wp.array[wp.vec3],
-    source: int,
-    dt: float,
-    fluid_pose: wp.array[wp.transform],
-    fluid_velocity: wp.array[wp.spatial_vector],
-    destination: int,
-):
-    start = source_start[source]
-    end = source_end[source]
-    linear = (wp.transform_point(end, source_com[source]) - wp.transform_point(start, source_com[source])) / dt
-    rotation = wp.normalize(wp.transform_get_rotation(end) * wp.quat_inverse(wp.transform_get_rotation(start)))
-    axis, angle = wp.quat_to_axis_angle(rotation)
-    fluid_pose[destination] = start
-    fluid_velocity[destination] = wp.spatial_vector(linear, axis * (angle / dt))
 
 
 class _NewtonTeapotCouplerManager(NewtonCouplerManager):
@@ -92,17 +72,20 @@ class _NewtonTeapotCouplerManager(NewtonCouplerManager):
         super()._prepare_builder_for_finalize(builder)
 
     def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
-        return _TeapotColliderSyncSolver(model=model, entries=entries)
+        coupling = SolverCoupledProxy.Config(
+            proxies=[SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxy_cfgs],
+            iterations=solver_cfg.iterations,
+        )
+        return _TeapotProxySolver(model=model, entries=entries, coupling=coupling)
 
 
-class _TeapotColliderSyncSolver(SolverCoupled):
-    """Advance rigid contacts, then pass the measured pot boundary to MPM."""
+class _TeapotProxySolver(SolverCoupledProxy):
+    """Use Newton's proxy algorithm with convex rigid contacts and the exact MPM shell.
 
-    def __init__(self, model, entries):
-        super().__init__(model=model, entries=entries)
-        pot = model.body_label.index("/World/envs/env_0/PourContainer")
-        self._source_pot = int(self._entries["robot"].body_global_to_local.numpy()[pot])
-        self._fluid_pot = int(self._entries["fluid"].body_global_to_local.numpy()[pot])
+    Proxy bodies normally expose every attached shape in the destination. The
+    hollow pot needs a separate shell for MPM so its convex grasp colliders do not
+    fill the water cavity. Only geometry visibility differs from the standard solver.
+    """
 
     def _apply_entry_shape_visibility(self, view, cfg, proxy_body_keep):
         visible = self._entry_visible_shapes(cfg, set(cfg.bodies) | proxy_body_keep)
@@ -110,13 +93,6 @@ class _TeapotColliderSyncSolver(SolverCoupled):
             # MJWarp CCD requires zero margins; the fluid shell retains its margins.
             view.shape_margin = wp.zeros_like(view.shape_margin)
         super()._apply_entry_shape_visibility(view, replace(cfg, shapes=sorted(visible)), proxy_body_keep)
-        if cfg.name == "fluid":
-            # The physical pot stays dynamic in MJWarp. Only MPM prescribes its motion.
-            # Newton applies visibility before compaction, so body flags still use global indices.
-            flags = view.body_flags.numpy()
-            pot = self.model.body_label.index("/World/envs/env_0/PourContainer")
-            flags[pot] |= int(BodyFlags.KINEMATIC)
-            view.body_flags = wp.array(flags, dtype=view.body_flags.dtype, device=self.model.device)
 
     def _entry_visible_shapes(self, cfg, visible_bodies):
         visible = super()._entry_visible_shapes(cfg, visible_bodies)
@@ -136,25 +112,3 @@ class _TeapotColliderSyncSolver(SolverCoupled):
                 or "/PourContainer/geometry/" in self.model.shape_label[i]
             }
         return visible
-
-    def _step_coupled(self, state_in, state_out, control, contacts, dt):
-        rigid, fluid = self._entries["robot"], self._entries["fluid"]
-        self._step_entry(rigid, control, contacts, dt)
-        # COM velocity and angular velocity carry the measured root from start to end.
-        wp.launch(
-            _sync_teapot_collider,
-            dim=1,
-            inputs=[
-                rigid.state_0.body_q,
-                rigid.state_1.body_q,
-                rigid.view.body_com,
-                self._source_pot,
-                dt,
-                fluid.state_0.body_q,
-                fluid.state_0.body_qd,
-                self._fluid_pot,
-            ],
-            device=self.model.device,
-        )
-        self._notify_input_state_update(fluid, StateFlags.BODY_Q | StateFlags.BODY_QD, dt=dt)
-        self._step_entry(fluid, control, contacts, dt)

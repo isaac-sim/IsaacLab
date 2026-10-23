@@ -204,7 +204,7 @@ CAMERA_TARGET = (0.0, 0.0, TABLE_TOP_Z + 0.10)
 if ROBOT_ENABLED:
     # The optional robot example lives outside the curated demos.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from rizon_sharpa_teapot import BOWL_BASE_POS, HOLD_TIME, ROBOT_BASE_POS, pose_at_time
+    from rizon_sharpa_teapot import BOWL_BASE_POS, ROBOT_BASE_POS, pose_at_time
 
     BOWL_WORLD_TOP_Z = BOWL_BASE_POS[2] + BOWL_SCALE * BOWL_LOCAL_Z_MAX
 
@@ -417,6 +417,8 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     from pxr import Usd, UsdGeom
 
+    from isaaclab.utils.mesh import convert_faces_to_triangles
+
     stage = Usd.Stage.Open(usd_path)
     if stage is None:
         raise RuntimeError(f"Could not open USD asset: {usd_path}")
@@ -443,22 +445,11 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
         homogeneous = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
         transformed_points = (homogeneous @ matrix)[:, :3]
 
-        triangles: list[tuple[int, int, int]] = []
-        cursor = 0
-        for count in face_vertex_counts:
-            for k in range(1, count - 1):
-                triangles.append(
-                    (
-                        face_vertex_indices[cursor],
-                        face_vertex_indices[cursor + k],
-                        face_vertex_indices[cursor + k + 1],
-                    )
-                )
-            cursor += count
-        if not triangles:
+        triangles = convert_faces_to_triangles(face_vertex_indices, face_vertex_counts)
+        if len(triangles) == 0:
             continue
         vertices_list.append(transformed_points.astype(np.float32))
-        triangles_list.append(np.asarray(triangles, dtype=np.int64) + vertex_offset)
+        triangles_list.append(triangles + vertex_offset)
         vertex_offset += points.shape[0]
 
     if not vertices_list:
@@ -494,41 +485,25 @@ def create_sim_cfg():
 
     import isaaclab.sim as sim_utils
 
-    cfg = sim_utils.SimulationCfg(
-        dt=1.0 / SIMULATION_HZ,
-        device=args_cli.device,
-        gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=VisualizerCfg(
-            eye=CAMERA_EYE,
-            lookat=CAMERA_TARGET,
-            backend=NewtonGLBackendCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR),
-        ),
-        physics=NewtonCfg(
-            solver_cfg=MPMSolverCfg(
-                voxel_size=VOXEL_SIZE,
-                grid_type=GRID_TYPE,
-                grid_padding=GRID_PADDING,
-                max_active_cell_count=MAX_ACTIVE_CELL_COUNT,
-                max_iterations=100,
-                tolerance=1.0e-4,
-                collider_basis="S2",
-                strain_basis="P0",
-                transfer_scheme="apic",
-                integration_scheme="pic",
-                air_drag=1.0e-3,
-                collider_velocity_mode="forward",
-                # Grid contact avoids impulses from projecting particles out of colliders.
-                project_outside_colliders=False,
-            ),
-            # The outer 800 Hz step is already the desired MPM collision interval.
-            num_substeps=MPM_SUBSTEPS,
-            use_cuda_graph=not args_cli.disable_cuda_graph,
-        ),
+    solver_cfg = MPMSolverCfg(
+        voxel_size=VOXEL_SIZE,
+        grid_type=GRID_TYPE,
+        grid_padding=GRID_PADDING,
+        max_active_cell_count=MAX_ACTIVE_CELL_COUNT,
+        max_iterations=100,
+        tolerance=1.0e-4,
+        collider_basis="S2",
+        strain_basis="P0",
+        transfer_scheme="apic",
+        integration_scheme="pic",
+        air_drag=1.0e-3,
+        collider_velocity_mode="forward",
+        # Grid contact avoids impulses from projecting particles out of colliders.
+        project_outside_colliders=False,
     )
     if ROBOT_ENABLED:
         from rizon_sharpa_teapot import make_solver_cfg
 
-        solver_cfg = cfg.physics.solver_cfg
         solver_cfg.air_drag = 1.0
         solver_cfg.strain_basis = "P1d"
         solver_cfg.transfer_scheme = "pic"
@@ -538,12 +513,23 @@ def create_sim_cfg():
         solver_cfg.max_active_cell_count = 1 << 15
         # Cover dense cells during bowl impact; pic27 can omit wall contacts.
         solver_cfg.collider_basis = "pic512"
-        cfg.physics = NewtonCfg(
-            solver_cfg=make_solver_cfg(solver_cfg),
+        solver_cfg = make_solver_cfg(solver_cfg)
+    return sim_utils.SimulationCfg(
+        dt=1.0 / SIMULATION_HZ,
+        device=args_cli.device,
+        gravity=(0.0, 0.0, -9.81),
+        visualizer_cfgs=VisualizerCfg(
+            eye=CAMERA_EYE,
+            lookat=CAMERA_TARGET,
+            backend=NewtonGLBackendCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR),
+        ),
+        physics=NewtonCfg(
+            solver_cfg=solver_cfg,
+            # The outer 800 Hz step is already the desired MPM collision interval.
             num_substeps=MPM_SUBSTEPS,
             use_cuda_graph=not args_cli.disable_cuda_graph,
-        )
-    return cfg
+        ),
+    )
 
 
 def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
@@ -804,15 +790,7 @@ def main() -> None:
         sim.reset()
         robot_motion = None
         if ROBOT_ENABLED:
-            from rizon_sharpa_teapot import (
-                GRASP_CLOSE_INTERVAL,
-                INITIAL_LIFT_TIME,
-                PICKUP_TIME,
-                POUR_PREFIX_TIME,
-                SEQUENCE_DURATION,
-                TeapotPourMotion,
-                approach_offset_at_time,
-            )
+            from rizon_sharpa_teapot import POUR_PREFIX_TIME, TeapotPourMotion
 
             robot = scene["robot"]
             robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.warp)
@@ -821,13 +799,8 @@ def main() -> None:
             robot_motion = TeapotPourMotion(
                 robot,
                 scene["container"],
-                container_pose_at_time,
+                sim.backend_manager._solver.solver("robot").mj_model,
                 sim_dt=sim.get_physics_dt(),
-                duration=SEQUENCE_DURATION,
-                approach_offset_at_time=approach_offset_at_time,
-                grasp_time=PICKUP_TIME,
-                pickup_end_time=PICKUP_TIME + INITIAL_LIFT_TIME,
-                close_interval=GRASP_CLOSE_INTERVAL,
             )
             robot.write_joint_position_to_sim_index(position=robot_motion.initial_joint_positions)
             sim.forward()
@@ -840,7 +813,7 @@ def main() -> None:
             f" extracted {surface_triangle_count} surface triangles;"
             f" rendering {args_cli.fluid_render_mode};"
             f" fill spacing {FILL_SPACING:.4g} m;"
-            f" the teapot will tilt after {POUR_PREFIX_TIME + HOLD_TIME if ROBOT_ENABLED else HOLD_TIME:.2f}s.",
+            f" the teapot will tilt after {POUR_PREFIX_TIME if ROBOT_ENABLED else HOLD_TIME:.2f}s.",
             flush=True,
         )
         run_simulator(sim, scene, surface_renderer, robot_motion)
