@@ -32,6 +32,7 @@ class ConveyorFrankaPhysxEnv(ConveyorFrankaEnv):
             env_path_format=self.cfg.scene.clone_cfg.clone_template,
             startup_duration_s=self.cfg.conveyor_force.startup_duration_s,
             stage=self.sim.stage,
+            manager=self.sim.backend_manager,
         )
         try:
             driver.start()

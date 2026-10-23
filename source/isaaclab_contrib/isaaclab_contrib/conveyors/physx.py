@@ -18,6 +18,7 @@ from .surface_velocity import SurfaceVelocitySpec, resolve_surface_velocity_path
 
 if TYPE_CHECKING:
     import torch
+    from isaaclab_physx.physics import PhysxManager
 
     from pxr import Usd
 
@@ -57,6 +58,7 @@ class SurfaceVelocity:
         surface_specs: Sequence[SurfaceVelocitySpec],
         *,
         stage: Usd.Stage,
+        manager: PhysxManager,
         env_path_format: str = "/World/envs/env_{}",
         startup_duration_s: float = 1.0,
     ) -> None:
@@ -68,6 +70,7 @@ class SurfaceVelocity:
         if not math.isfinite(startup_duration_s) or startup_duration_s <= 0.0:
             raise ValueError("Conveyor startup_duration_s must be finite and positive.")
         self._num_envs = num_envs
+        self._manager = manager
         self._startup_duration_s = startup_duration_s
         self._elapsed_time = 0.0
         self._callback_handle = None
@@ -83,9 +86,9 @@ class SurfaceVelocity:
         if not self._surfaces:
             raise RuntimeError("The PhysX conveyor is closed.")
         if self._callback_handle is None:
-            from isaaclab_physx.physics.physx_manager import IsaacEvents, PhysxManager
+            from isaaclab_physx.physics.physx_manager import IsaacEvents
 
-            self._callback_handle = PhysxManager.register_callback(
+            self._callback_handle = self._manager.register_callback(
                 self._update, IsaacEvents.POST_PHYSICS_STEP, name="physx_surface_velocity"
             )
 
