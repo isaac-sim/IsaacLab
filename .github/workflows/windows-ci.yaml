@@ -112,7 +112,10 @@ jobs:
           $versions = uv run --frozen --no-sync python .github/actions/warp-cache-key/collection_id.py
           if ($LASTEXITCODE -ne 0) { exit 1 }
           $collection = "warp-v2-$env:RUNNER_OS-$env:RUNNER_ARCH-$versions"
-          $dir = "$env:RUNNER_TEMP\isaaclab-warp-cache"
+          # Beside the environment, so a reused runner keeps what earlier pull requests compiled. A save
+          # starts from the restored snapshot alone, so it never publishes kernels a pull request built.
+          $dir = "$env:RUNNER_TOOL_CACHE\isaaclab-warp-cache"
+          if ($env:WARP_CACHE_MODE -eq 'save') { cmd /c "if exist $dir rmdir /s /q $dir" }
           @(
             "collection=$collection"
             "key=$collection-$env:GITHUB_SHA-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
