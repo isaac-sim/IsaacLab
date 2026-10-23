@@ -457,6 +457,46 @@ def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
         assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
+def test_export_stage_keeps_file_references_without_exporting_unrouted_copies(tmp_path):
+    """The native export retains a clean asset reference and excludes clones it will recreate."""
+    asset_path = tmp_path / "asset.usda"
+    asset = Usd.Stage.CreateNew(str(asset_path))
+    root = UsdGeom.Xform.Define(asset, "/Asset")
+    UsdGeom.Mesh.Define(asset, "/Asset/Geometry")
+    asset.SetDefaultPrim(root.GetPrim())
+    asset.GetRootLayer().Save()
+
+    stage = Usd.Stage.CreateNew(str(tmp_path / "scene.usda"))
+    UsdGeom.Xform.Define(stage, "/World/envs")
+    for env_idx in range(2):
+        env = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_idx}")
+        env.GetPrim().GetReferences().AddReference("./asset.usda")
+    stage.GetRootLayer().Save()
+
+    exported = export_stage_to_string(
+        stage, 2, source_paths=("/World/envs/env_0",), keep_env_roots=False, preserve_references=True
+    )
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString(exported)
+    result = Usd.Stage.Open(layer)
+    assert result.GetPrimAtPath("/World/envs/env_0/Geometry").IsA(UsdGeom.Mesh)
+    assert result.GetPrimAtPath("/World/envs/env_0").HasAuthoredReferences()
+    assert not result.GetPrimAtPath("/World/envs/env_1")
+    assert layer.GetPrimAtPath("/World/envs/env_0/Geometry") is None
+
+    asset.GetPrimAtPath("/Asset/Geometry").CreateAttribute("unsavedValue", Sdf.ValueTypeNames.Int).Set(7)
+    dirty_layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert dirty_layer.ImportFromString(
+        export_stage_to_string(
+            stage, 2, source_paths=("/World/envs/env_0",), keep_env_roots=False, preserve_references=True
+        )
+    )
+    dirty_result = Usd.Stage.Open(dirty_layer)
+    geometry = dirty_result.GetPrimAtPath("/World/envs/env_0/Geometry")
+    assert geometry.GetAttribute("unsavedValue").Get() == 7
+    assert not dirty_result.GetPrimAtPath("/World/envs/env_0").HasAuthoredReferences()
+
+
 def test_export_stage_heterogeneous_keeps_multiple_sources():
     """Heterogeneous source paths export only prototype env subtrees."""
     num_envs = 4

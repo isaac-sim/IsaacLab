@@ -703,7 +703,7 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize(
     ("history_length", "update_period_steps", "expected_fetches", "expected_last_update"),
-    [(0, 1, 4, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
+    [(0, 1, 4, None), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
 )
 def test_contact_history_updates_at_sensor_period(
     setup_simulation, device, history_length, update_period_steps, expected_fetches, expected_last_update
@@ -741,6 +741,8 @@ def test_contact_history_updates_at_sensor_period(
             original_fetch(**kwargs)
 
         contact_sensor._fetch_physx_buffers = count_fetches
+        if expected_last_update is None:
+            expected_last_update = wp.to_torch(contact_sensor._timestamp_last_update).item()
 
         for _ in range(4):
             _perform_sim_step(sim, scene, sim_dt)

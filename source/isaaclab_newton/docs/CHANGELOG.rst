@@ -3,6 +3,29 @@ Changelog
 
 .. towncrier release notes start
 
+10.1.0 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Allowed frame views to read physics-body and collision-frame poses while keeping writes in the asset APIs. Frame reads used shared pose publication to refresh same-step state writes.
+
+Changed
+^^^^^^^
+
+* Reused shared body poses for legacy multi-mesh ray-cast targets, removing duplicate
+  target sites and per-update temporary pose arrays.
+
+Fixed
+^^^^^
+
+* Fixed stale ray origins after manual pose writes by refreshing shared body poses before
+  updating the sensor and its targets in the same update.
+* Preserved sensor sites and configured frame-transformer target names across hard
+  resets, and released native IMU and frame-transform sensors belonging to the old model.
+
+
 10.0.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~~
 
