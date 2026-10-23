@@ -154,20 +154,8 @@ class NewtonRecordingPanel:
         self._draw_message(imgui)
 
     def _draw_video(self, imgui: Any) -> None:
-        """Draw the video group: frame rate, length, Start, Stop, Save, and status."""
+        """Draw the video group: Start, Stop, Save, and status."""
         imgui.text("Video (.mp4)")
-        if self.recording_video:
-            imgui.begin_disabled()
-        _c, fps = imgui.input_int("FPS##video", self.video_fps)
-        self.video_fps = max(0, fps)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Frame rate of the video; 0 uses the window update rate")
-        _c, length = imgui.input_float("Length (s)##video", self.video_length, 0.0, 0.0, "%.1f")
-        self.video_length = max(0.0, length)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Stop automatically after this many seconds of video; 0 records until stopped")
-        if self.recording_video:
-            imgui.end_disabled()
         if self.recording_video:
             if imgui.button("Stop##video"):
                 self.stop_video()

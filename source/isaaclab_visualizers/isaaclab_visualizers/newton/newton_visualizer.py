@@ -275,9 +275,9 @@ class NewtonViewerGL(ViewerGL):
         2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
         3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
-        4. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
-        5. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
-        6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        4. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
+        5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        6. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
         7. **Articulation Inspector** (closed) — Newton's articulation selection panel.
         8. **Keyboard & Mouse** (closed) — camera and window shortcuts.
 
@@ -349,15 +349,6 @@ class NewtonViewerGL(ViewerGL):
             # --- Scene ------------------------------------------------------
             viewer._draw_scene_controls(imgui)
 
-            # --- Policy Ghosts ----------------------------------------------
-            ghosts_offered = viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None
-            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
-                viewer._draw_policy_ghosts_unsupported(imgui)
-            elif viewer._policy_ghost_panel is not None:
-                viewer._policy_ghost_panel.draw(imgui)
-            elif viewer._policy_ghost_restart is not None:
-                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
-
             # --- Recording --------------------------------------------------
             if viewer._recording_panel is not None:
                 viewer._recording_panel.draw(imgui)
@@ -366,6 +357,15 @@ class NewtonViewerGL(ViewerGL):
             live_plots_cb = viewer._live_plots_callback
             if live_plots_cb is not None:
                 live_plots_cb(imgui)
+
+            # --- Policy Ghosts ----------------------------------------------
+            ghosts_offered = viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None
+            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
+                viewer._draw_policy_ghosts_unsupported(imgui)
+            elif viewer._policy_ghost_panel is not None:
+                viewer._policy_ghost_panel.draw(imgui)
+            elif viewer._policy_ghost_restart is not None:
+                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
 
             # --- Articulation Inspector (Newton's Selection API) ------------
             with _header_tooltips(
@@ -917,6 +917,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self.set_rtx_rendering(True)
             if imgui.is_item_hovered():
                 imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without visual overlays")
+        self._draw_focal_length(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
         indices = sorted(
             (i for i in range(len(self._image_views)) if i != rtx_index),
@@ -1137,6 +1138,22 @@ class NewtonVisualizerBase(BaseVisualizer):
         view.invalidate()
         self._last_render_step = -1
 
+    def _draw_focal_length(self, imgui) -> None:
+        """Draw the focal length of the free camera or the Tracking Camera; sensors have fixed intrinsics."""
+        view = self._pose_source_view()
+        rtx_view = self._image_views[self.rtx_view_index] if self.rtx_view_index is not None else None
+        if view.camera is not None and view is not rtx_view:
+            return
+        task = self._is_task_view(view)
+        source = view.cfg.source if task else self.cfg
+        changed, focal = imgui.slider_float("Focal Length", float(source.focal_length), 5.0, 100.0, "%.0f mm")
+        hover_tooltip(imgui, "Lens focal length of the camera; smaller values see a wider area")
+        if changed:
+            source.focal_length = focal
+            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees(focal)
+            view.invalidate()
+            self._last_render_step = -1
+
     def _draw_tracking_camera_controls(self, imgui, follower: CameraFollower) -> None:
         """Edit the selected Tracking Camera: what it follows, where it sits, and where it looks."""
         cfg = follower.cfg
@@ -1171,10 +1188,6 @@ class NewtonVisualizerBase(BaseVisualizer):
         tip("Point the camera looks at, as an offset from the followed asset or the environment origin")
         if changed:
             cfg.lookat, edited = tuple(float(v) for v in lookat), True
-        changed, focal = imgui.slider_float("Focal Length", float(cfg.focal_length), 5.0, 100.0, "%.0f mm")
-        tip("Lens focal length; smaller values see a wider area")
-        if changed:
-            cfg.focal_length, edited = focal, True
         if asset_name:
             changed, cfg.follow_heading = imgui.checkbox("Follow Heading", cfg.follow_heading)
             tip("Turn with the asset's heading, so the camera stays behind it and level")
