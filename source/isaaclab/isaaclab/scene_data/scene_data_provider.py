@@ -70,6 +70,11 @@ class SceneDataProvider:
         self._cache: dict[Any, TimestampedBuffer] = {}
         self._transform_mappings: dict[tuple, wp.array | None] = {}
 
+    @property
+    def transform_device(self) -> wp.Device:
+        """Return the device of the current native transform publication."""
+        return _publication_device(self.backend.get_transforms(SceneDataFormat.Matrix44))
+
     def get_transforms(
         self,
         output: SceneDataFormat.Vec3_Quat
