@@ -268,6 +268,151 @@ _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "inst
 
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
 
+# PPISP camera authored in the Valiant asset, relative to the referenced scene prim.
+_GAUSSIAN_SPLATS_VALIANT_CAMERA_REL_PATH = "rig_trajectories/sensor_rig_0/camera1_ppisp"
+
+# Camera authored in the Endeavor entrance asset, relative to the referenced scene prim.
+_GAUSSIAN_SPLATS_ENDEAVOR_CAMERA_REL_PATH = "Cameras/C05_Entrance_Overview"
+
+# Raspberry camera pose ``(x, y, z)`` and OpenGL ``(qx, qy, qz, qw)`` in the environment frame: 6 cm from the berry's
+# centre at 30 degrees of elevation, looking at it.
+_GAUSSIAN_SPLATS_RASPBERRY_CAMERA_POS = (0.05196, 0.0, 0.04)
+_GAUSSIAN_SPLATS_RASPBERRY_CAMERA_ROT = (0.35355, 0.35355, 0.61237, 0.61237)
+
+# Data types captured from every Gaussian scene.
+_GAUSSIAN_SPLATS_DATA_TYPES = ("rgb", "distance_to_image_plane")
+
+# Per-pixel L2 limit for the ``rgb`` comparison, in place of ``_PIXEL_L2_NORM_DIFFERENCE_THRESHOLD`` (10). Isaac RTX
+# speckles splats with low-amplitude noise from stochastic transparency: two renders of the same scene differ on 34 %
+# (Valiant) and 41 % (Endeavor) of pixels at the default limit, but on 5.3 % and 9.9 % at 30. OVRTX 0.5.1 renders
+# Valiant slightly differently from run to run (13-19 % of pixels above the default limit, 0.6 % above 30).
+_GAUSSIAN_SPLATS_RGB_PIXEL_DIFF_THRESHOLDS = {
+    ("gaussian_splats_valiant_1env", "isaacsim_rtx_renderer"): 30.0,
+    ("gaussian_splats_endeavor_4envs", "isaacsim_rtx_renderer"): 30.0,
+    ("gaussian_splats_valiant_1env", "ovrtx_renderer"): 30.0,
+}
+
+# Known-bad splat depth, kept so a fix shows up as a golden change:
+#
+# * OVRTX 0.6 returns no finite depth for splats in RealTimePathTracing: the synthetic-data depth pass only
+#   traces Gaussians when ``omni:rtx:minimal:mode`` is 3, so every ray misses and the golden is blank. Fixed in
+#   kit-public (OMPE-116439); expected in OVRTX 0.7, when the OVRTX depth goldens must be regenerated.
+# * Isaac RTX returns stochastic, speckled depth (the accumulated-depth settings have no effect), so its depth
+#   comparison uses a loose pixel tolerance.
+# * Newton Warp depth is smooth but inherits the camera FOV mismatch on Valiant.
+#
+# Known-bad raspberry on OVRTX 0.5.1 (OMPE-108417): a multi-camera render product drops ``zDepth``-sorted splats, so the
+# four-camera raspberry renders black. Its RGB golden is blank until the pin moves to OVRTX 0.6, which renders it;
+# regenerate then.
+_GAUSSIAN_SPLATS_EMPTY_DATA_TYPES = {
+    ("gaussian_splats_valiant_1env", "ovrtx_renderer"): frozenset({"distance_to_image_plane"}),
+    ("gaussian_splats_raspberry_4envs", "ovrtx_renderer"): frozenset({"rgb", "distance_to_image_plane"}),
+}
+
+# Scene name -> asset path under ``ISAAC_NUCLEUS_DIR``, environment count, camera resolution, env spacing, the asset's
+# camera (relative to the referenced scene prim; ``None`` adds a pinhole camera instead), whether it carries a PPISP,
+# the asset transform to freeze at its first frame (``None`` when nothing animates), how environment ``i`` turns its
+# camera about the vertical axis by ``i * orbit_step_deg`` degrees (around the pivot in the environment frame, or
+# around the camera itself when it is ``None``), and the renderers it runs on.
+#
+# Which scene runs on which renderer follows from three limitations of the assets and renderers:
+#
+# * Raspberry animation (Isaac RTX): the raspberry authors two identical time samples on its splat arrays. While the
+#   Kit timeline advances, RTX re-reads that data whenever the time changes and returns empty frames in between, so
+#   the capture is black. Avoiding it needs a test-side timeline freeze, which we do not want, so the raspberry does
+#   not run on Isaac RTX. OVRTX has no timeline and the two samples are identical, so it renders correctly.
+# * Raspberry mesh (Newton Warp): the raspberry carries a physics-only ``SimulationMesh`` TetMesh (``purpose=guide``).
+#   Newton imports it as a soft body and its Warp raytracer draws every soft-body triangle, with no purpose or
+#   visibility check, so the mesh is drawn over the splats. The raspberry therefore does not run on Newton Warp.
+# * Scene partitioning (OVRTX): OVRTX authors ``showAllPartitionsByDefault`` on the stage, which keeps partitioned
+#   content in world space instead of the isolating per-partition grid (``ScenePartitioning.md`` in kit-public). Each
+#   camera is then separated from the other environments only by its partition's world-space bounding box, so
+#   Gaussian scenes whose bounds overlap across environments bleed into each other's views. The Valiant bounds span
+#   about 660 m and the Endeavor background about 3000 m, against environment spacings of tens of meters, so neither
+#   runs on OVRTX across several environments. Valiant runs with one environment there, and the compact raspberry
+#   (a few centimeters) runs with several. Isaac RTX and Newton Warp isolate environments structurally and are not
+#   affected.
+_GAUSSIAN_SPLATS_SCENES = {
+    "gaussian_splats_valiant_1env": {
+        "asset": "Samples/Scene_ParticleField/valiant_auto.usdz",
+        "num_envs": 1,
+        "width": 128,
+        "height": 96,
+        "env_spacing": 20.0,
+        "camera": _GAUSSIAN_SPLATS_VALIANT_CAMERA_REL_PATH,
+        "isp": True,
+        "animated_xform": "rig_trajectories/sensor_rig_0",
+        "orbit_step_deg": 0.0,
+        "orbit_pivot": None,
+        "renderers": ("isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"),
+    },
+    "gaussian_splats_endeavor_4envs": {
+        "asset": "IsaacLab/Environments/NuRec/endeavor_entrance.usd",
+        "num_envs": 4,
+        "width": 192,
+        "height": 108,
+        "env_spacing": 50.0,
+        "camera": _GAUSSIAN_SPLATS_ENDEAVOR_CAMERA_REL_PATH,
+        "isp": False,
+        "animated_xform": None,
+        "orbit_step_deg": 20.0,
+        "orbit_pivot": None,
+        "renderers": ("isaacsim_rtx_renderer", "newton_renderer"),
+    },
+    "gaussian_splats_raspberry_4envs": {
+        "asset": "IsaacLab/Objects/Berries/raspberry.usdz",
+        "num_envs": 4,
+        "width": 128,
+        "height": 128,
+        "env_spacing": 1.0,
+        "camera": None,
+        "isp": False,
+        "animated_xform": None,
+        "orbit_step_deg": 90.0,
+        "orbit_pivot": (0.0, 0.0, 0.01),
+        "renderers": ("ovrtx_renderer",),
+    },
+}
+
+# Physics label of each renderer: Isaac RTX pairs with PhysX, the others with Newton.
+_GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER = {
+    "isaacsim_rtx_renderer": "physx",
+    "newton_renderer": "newton",
+    "ovrtx_renderer": "newton",
+}
+
+# Frames rendered before the capture so renderer-side splat sorting, stage streaming and exposure settle.
+_GAUSSIAN_SPLATS_WARMUP_STEPS = 200
+
+# Isaac RTX and OVRTX run on different launchers (Kit and kit-less), so Gaussian scenes are split by launcher.
+GAUSSIAN_SPLATS_KIT_RENDERING_PARAMS = [
+    pytest.param(
+        scene,
+        _GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER[renderer],
+        renderer,
+        id=f"{scene}-{_GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER[renderer]}-{renderer.removesuffix('_renderer')}",
+        marks=_FLAKY_MARK if renderer == "isaacsim_rtx_renderer" else (),
+    )
+    for scene, config in _GAUSSIAN_SPLATS_SCENES.items()
+    for renderer in config["renderers"]
+    if renderer != "ovrtx_renderer"
+]
+
+GAUSSIAN_SPLATS_KITLESS_RENDERING_PARAMS = [
+    pytest.param(
+        variant,
+        scene,
+        "newton",
+        "ovrtx_renderer",
+        id=f"{variant}-{scene}-newton-ovrtx",
+        marks=_FLAKY_MARK,
+    )
+    for scene, config in _GAUSSIAN_SPLATS_SCENES.items()
+    if "ovrtx_renderer" in config["renderers"]
+    for variant in _KITLESS_STAGE_VARIANTS
+]
+"""Kit-less OVRTX parameters, one per OVRTX stage variant."""
+
 
 def make_skip_rendering_params(
     params: list[pytest.param],
@@ -2546,152 +2691,6 @@ def rendering_test_franka_cable(
             env = None
 
 
-# PPISP camera authored in the Valiant asset, relative to the referenced scene prim.
-_GAUSSIAN_SPLATS_VALIANT_CAMERA_REL_PATH = "rig_trajectories/sensor_rig_0/camera1_ppisp"
-
-# Camera authored in the Endeavor entrance asset, relative to the referenced scene prim.
-_GAUSSIAN_SPLATS_ENDEAVOR_CAMERA_REL_PATH = "Cameras/C05_Entrance_Overview"
-
-# Raspberry camera pose ``(x, y, z)`` and OpenGL ``(qx, qy, qz, qw)`` in the environment frame: 6 cm from the berry's
-# centre at 30 degrees of elevation, looking at it.
-_GAUSSIAN_SPLATS_RASPBERRY_CAMERA_POS = (0.05196, 0.0, 0.04)
-_GAUSSIAN_SPLATS_RASPBERRY_CAMERA_ROT = (0.35355, 0.35355, 0.61237, 0.61237)
-
-# Data types captured from every Gaussian scene.
-_GAUSSIAN_SPLATS_DATA_TYPES = ("rgb", "distance_to_image_plane")
-
-# Per-pixel L2 limit for the ``rgb`` comparison, in place of ``_PIXEL_L2_NORM_DIFFERENCE_THRESHOLD`` (10). Isaac RTX
-# speckles splats with low-amplitude noise from stochastic transparency: two renders of the same scene differ on 34 %
-# (Valiant) and 41 % (Endeavor) of pixels at the default limit, but on 5.3 % and 9.9 % at 30. OVRTX 0.5.1 renders
-# Valiant slightly differently from run to run (13-19 % of pixels above the default limit, 0.6 % above 30).
-_GAUSSIAN_SPLATS_RGB_PIXEL_DIFF_THRESHOLDS = {
-    ("gaussian_splats_valiant_1env", "isaacsim_rtx_renderer"): 30.0,
-    ("gaussian_splats_endeavor_4envs", "isaacsim_rtx_renderer"): 30.0,
-    ("gaussian_splats_valiant_1env", "ovrtx_renderer"): 30.0,
-}
-
-# Known-bad splat depth, kept so a fix shows up as a golden change:
-#
-# * OVRTX 0.6 returns no finite depth for splats in RealTimePathTracing: the synthetic-data depth pass only
-#   traces Gaussians when ``omni:rtx:minimal:mode`` is 3, so every ray misses and the golden is blank. Fixed in
-#   kit-public (OMPE-116439); expected in OVRTX 0.7, when the OVRTX depth goldens must be regenerated.
-# * Isaac RTX returns stochastic, speckled depth (the accumulated-depth settings have no effect), so its depth
-#   comparison uses a loose pixel tolerance.
-# * Newton Warp depth is smooth but inherits the camera FOV mismatch on Valiant.
-#
-# Known-bad raspberry on OVRTX 0.5.1 (OMPE-108417): a multi-camera render product drops ``zDepth``-sorted splats, so the
-# four-camera raspberry renders black. Its RGB golden is blank until the pin moves to OVRTX 0.6, which renders it;
-# regenerate then.
-_GAUSSIAN_SPLATS_EMPTY_DATA_TYPES = {
-    ("gaussian_splats_valiant_1env", "ovrtx_renderer"): frozenset({"distance_to_image_plane"}),
-    ("gaussian_splats_raspberry_4envs", "ovrtx_renderer"): frozenset({"rgb", "distance_to_image_plane"}),
-}
-
-# Scene name -> asset path under ``ISAAC_NUCLEUS_DIR``, environment count, camera resolution, env spacing, the asset's
-# camera (relative to the referenced scene prim; ``None`` adds a pinhole camera instead), whether it carries a PPISP,
-# the asset transform to freeze at its first frame (``None`` when nothing animates), how environment ``i`` turns its
-# camera about the vertical axis by ``i * orbit_step_deg`` degrees (around the pivot in the environment frame, or
-# around the camera itself when it is ``None``), and the renderers it runs on.
-#
-# Which scene runs on which renderer follows from three limitations of the assets and renderers:
-#
-# * Raspberry animation (Isaac RTX): the raspberry authors two identical time samples on its splat arrays. While the
-#   Kit timeline advances, RTX re-reads that data whenever the time changes and returns empty frames in between, so
-#   the capture is black. Avoiding it needs a test-side timeline freeze, which we do not want, so the raspberry does
-#   not run on Isaac RTX. OVRTX has no timeline and the two samples are identical, so it renders correctly.
-# * Raspberry mesh (Newton Warp): the raspberry carries a physics-only ``SimulationMesh`` TetMesh (``purpose=guide``).
-#   Newton imports it as a soft body and its Warp raytracer draws every soft-body triangle, with no purpose or
-#   visibility check, so the mesh is drawn over the splats. The raspberry therefore does not run on Newton Warp.
-# * Scene partitioning (OVRTX): OVRTX authors ``showAllPartitionsByDefault`` on the stage, which keeps partitioned
-#   content in world space instead of the isolating per-partition grid (``ScenePartitioning.md`` in kit-public). Each
-#   camera is then separated from the other environments only by its partition's world-space bounding box, so
-#   Gaussian scenes whose bounds overlap across environments bleed into each other's views. The Valiant bounds span
-#   about 660 m and the Endeavor background about 3000 m, against environment spacings of tens of meters, so neither
-#   runs on OVRTX across several environments. Valiant runs with one environment there, and the compact raspberry
-#   (a few centimeters) runs with several. Isaac RTX and Newton Warp isolate environments structurally and are not
-#   affected.
-_GAUSSIAN_SPLATS_SCENES = {
-    "gaussian_splats_valiant_1env": {
-        "asset": "Samples/Scene_ParticleField/valiant_auto.usdz",
-        "num_envs": 1,
-        "width": 128,
-        "height": 96,
-        "env_spacing": 20.0,
-        "camera": _GAUSSIAN_SPLATS_VALIANT_CAMERA_REL_PATH,
-        "isp": True,
-        "animated_xform": "rig_trajectories/sensor_rig_0",
-        "orbit_step_deg": 0.0,
-        "orbit_pivot": None,
-        "renderers": ("isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"),
-    },
-    "gaussian_splats_endeavor_4envs": {
-        "asset": "IsaacLab/Environments/NuRec/endeavor_entrance.usd",
-        "num_envs": 4,
-        "width": 192,
-        "height": 108,
-        "env_spacing": 50.0,
-        "camera": _GAUSSIAN_SPLATS_ENDEAVOR_CAMERA_REL_PATH,
-        "isp": False,
-        "animated_xform": None,
-        "orbit_step_deg": 20.0,
-        "orbit_pivot": None,
-        "renderers": ("isaacsim_rtx_renderer", "newton_renderer"),
-    },
-    "gaussian_splats_raspberry_4envs": {
-        "asset": "IsaacLab/Objects/Berries/raspberry.usdz",
-        "num_envs": 4,
-        "width": 128,
-        "height": 128,
-        "env_spacing": 1.0,
-        "camera": None,
-        "isp": False,
-        "animated_xform": None,
-        "orbit_step_deg": 90.0,
-        "orbit_pivot": (0.0, 0.0, 0.01),
-        "renderers": ("ovrtx_renderer",),
-    },
-}
-
-# Physics label of each renderer: Isaac RTX pairs with PhysX, the others with Newton.
-_GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER = {
-    "isaacsim_rtx_renderer": "physx",
-    "newton_renderer": "newton",
-    "ovrtx_renderer": "newton",
-}
-
-# Frames rendered before the capture so renderer-side splat sorting, stage streaming and exposure settle.
-_GAUSSIAN_SPLATS_WARMUP_STEPS = 200
-
-# Isaac RTX and OVRTX run on different launchers (Kit and kit-less), so Gaussian scenes are split by launcher.
-GAUSSIAN_SPLATS_KIT_RENDERING_PARAMS = [
-    pytest.param(
-        scene,
-        _GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER[renderer],
-        renderer,
-        id=f"{scene}-{_GAUSSIAN_SPLATS_PHYSICS_BY_RENDERER[renderer]}-{renderer.removesuffix('_renderer')}",
-        marks=_FLAKY_MARK if renderer == "isaacsim_rtx_renderer" else (),
-    )
-    for scene, config in _GAUSSIAN_SPLATS_SCENES.items()
-    for renderer in config["renderers"]
-    if renderer != "ovrtx_renderer"
-]
-
-GAUSSIAN_SPLATS_KITLESS_RENDERING_PARAMS = [
-    pytest.param(
-        variant,
-        scene,
-        "newton",
-        "ovrtx_renderer",
-        id=f"{variant}-{scene}-newton-ovrtx",
-        marks=_FLAKY_MARK,
-    )
-    for scene, config in _GAUSSIAN_SPLATS_SCENES.items()
-    if "ovrtx_renderer" in config["renderers"]
-    for variant in _KITLESS_STAGE_VARIANTS
-]
-"""Kit-less OVRTX parameters, one per OVRTX stage variant."""
-
-
 def _turn_gaussian_splats_cameras(camera: Any, env_origins: torch.Tensor, scene: dict[str, Any]) -> None:
     """Give environment ``i`` a camera turned about the vertical axis by ``i * orbit_step_deg`` degrees.
 
@@ -2734,6 +2733,8 @@ def _freeze_gaussian_splats_xform(stage: Any, prim_rel_path: str, num_envs: int)
             continue
         (transform_op,) = UsdGeom.Xformable(prim).GetOrderedXformOps()
         attr = transform_op.GetAttr()
+        # The time samples live in the referenced asset, a weaker layer than the stage's edit target, so a default
+        # written here overrides them at every time code.
         attr.Set(attr.Get(Usd.TimeCode(0.0)))
 
 
@@ -2750,7 +2751,7 @@ def _make_gaussian_splats_env(scene: dict[str, Any], renderer: str, physics_back
         physics_backend: Physics label (``"physx"`` or ``"newton"``).
 
     Returns:
-        The environment, already reset.
+        The environment. The caller resets it.
     """
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_physx.physics import PhysxCfg
