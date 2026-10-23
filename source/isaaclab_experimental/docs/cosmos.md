@@ -4,7 +4,7 @@
 Sim-Transfer service. Run Isaac Lab with a camera configured to connect to the
 service's endpoint. Training uses the existing Isaac Lab environment and command.
 
-For the demo's tested revisions, dependency setup, and single-environment training
+For the demo's dependency setup and single-environment training
 and recording commands, follow the [Cosmos Transfer demo walkthrough](cosmos_transfer.md).
 
 ## Connect to a running service
