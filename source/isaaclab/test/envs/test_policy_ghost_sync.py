@@ -138,3 +138,14 @@ def test_configure_env_cfg_keeps_only_randomization_the_reset_can_mirror() -> No
     assert cfg.events.mass is None and cfg.events.push is None
     assert cfg.curriculum.terrain_levels is None
     assert cfg.observations.policy.enable_corruption is False
+
+
+def test_configure_env_cfg_accepts_a_task_without_a_curriculum() -> None:
+    cfg = SimpleNamespace(
+        events=SimpleNamespace(push=SimpleNamespace(mode="interval")),
+        curriculum=None,
+        observations=SimpleNamespace(policy=SimpleNamespace(enable_corruption=False)),
+    )
+
+    assert PolicyGhostSync.configure_env_cfg(cfg) == ["events.push"]
+    assert PolicyGhostSync.configure_env_cfg(SimpleNamespace()) == []  # No events, curriculum, or observations.

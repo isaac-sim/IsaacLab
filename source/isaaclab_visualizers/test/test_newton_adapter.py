@@ -1381,3 +1381,68 @@ def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
     assert term_summary(manager, "plain") == ""
     assert term_summary(manager, "missing") == ""
     assert term_summary(object(), "anything") == ""  # Managers without a term accessor.
+
+
+class _RecordingImgui:
+    """Minimal imgui double that records the text of the greyed-out Policy Ghosts section."""
+
+    class Cond_:
+        appearing = 1
+
+    class Col_:
+        text = 1
+
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    class ImVec4:
+        def __init__(self, *values):
+            self.values = values
+
+    def __init__(self, expanded: bool):
+        self.expanded, self.texts, self.headers = expanded, [], []
+
+    def set_next_item_open(self, *_args):
+        pass
+
+    def push_style_color(self, *_args):
+        pass
+
+    def pop_style_color(self):
+        pass
+
+    def collapsing_header(self, label):
+        self.headers.append(label)
+        return self.expanded
+
+    def is_item_hovered(self, *_flags):
+        return False
+
+    def set_tooltip(self, _text):
+        pass
+
+    def separator(self):
+        pass
+
+    def text_disabled(self, text):
+        self.texts.append(text)
+
+    def text_wrapped(self, text):
+        self.texts.append(text)
+
+
+@pytest.mark.parametrize("expanded", [True, False])
+def test_policy_ghosts_are_greyed_out_with_an_explanation_in_the_rtx_view(expanded):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    imgui = _RecordingImgui(expanded)
+
+    viewer._draw_policy_ghosts_unsupported(imgui)
+
+    assert imgui.headers == ["Policy Ghosts"]
+    assert (
+        any("RTX" in text and "not supported" in text for text in imgui.texts),
+        any("OpenGL" in text for text in imgui.texts),
+    ) == (
+        expanded,
+        expanded,
+    )

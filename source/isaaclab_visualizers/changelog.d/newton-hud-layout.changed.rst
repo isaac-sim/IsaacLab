@@ -22,3 +22,5 @@
   source checkout.
 * Added tooltips to each visualization marker group, from a short description of the core markers, and to each live
   plot, from the first docstring line of the plotted manager term.
+* The Policy Ghosts section of the Newton GL HUD is greyed out while the RTX view is active, with a note that ghosts
+  are drawn in the OpenGL view only.

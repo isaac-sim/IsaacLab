@@ -356,7 +356,10 @@ class NewtonViewerGL(ViewerGL):
             viewer._draw_scene_controls(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
-            if viewer._policy_ghost_panel is not None:
+            ghosts_offered = viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None
+            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
+                viewer._draw_policy_ghosts_unsupported(imgui)
+            elif viewer._policy_ghost_panel is not None:
                 viewer._policy_ghost_panel.draw(imgui)
             elif viewer._policy_ghost_restart is not None:
                 draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
@@ -423,6 +426,22 @@ class NewtonViewerGL(ViewerGL):
             owner.set_visible_env_count(new_count)
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
+
+    def _draw_policy_ghosts_unsupported(self, imgui) -> None:
+        """Draw the greyed-out Policy Ghosts section shown while the RTX view is active."""
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
+        expanded = imgui.collapsing_header("Policy Ghosts")
+        imgui.pop_style_color()
+        hover_tooltip(imgui, "Compare several checkpoints of this task in one window. OpenGL view only")
+        if expanded:
+            imgui.separator()
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
+            imgui.text_wrapped(
+                "Policy Ghosts are not supported in the RTX view. "
+                "Switch Camera View > Renderer to OpenGL to compare checkpoints."
+            )
+            imgui.pop_style_color()
 
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""

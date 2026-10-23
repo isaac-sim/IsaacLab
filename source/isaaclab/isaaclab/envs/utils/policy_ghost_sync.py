@@ -77,15 +77,19 @@ class PolicyGhostSync:
             Names of the disabled terms.
         """
         removed = []
-        for name, term in vars(env_cfg.events).items():
+        # A task may declare no events, curriculum, or observation groups at all.
+        events, curriculum, observations = (
+            getattr(env_cfg, name, None) for name in ("events", "curriculum", "observations")
+        )
+        for name, term in vars(events).items() if events is not None else ():
             if term is not None and getattr(term, "mode", None) in ("startup", "interval"):
-                setattr(env_cfg.events, name, None)
+                setattr(events, name, None)
                 removed.append(f"events.{name}")
-        for name, term in vars(env_cfg.curriculum).items():
+        for name, term in vars(curriculum).items() if curriculum is not None else ():
             if term is not None:
-                setattr(env_cfg.curriculum, name, None)
+                setattr(curriculum, name, None)
                 removed.append(f"curriculum.{name}")
-        for group_name, group in vars(env_cfg.observations).items():
+        for group_name, group in vars(observations).items() if observations is not None else ():
             if getattr(group, "enable_corruption", False):
                 group.enable_corruption = False
                 removed.append(f"observations.{group_name}.enable_corruption")

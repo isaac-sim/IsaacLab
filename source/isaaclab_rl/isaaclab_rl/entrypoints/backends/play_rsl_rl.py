@@ -217,7 +217,14 @@ def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> No
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise SystemExit("--policy_ghosts only supports manager-based environments.")
     visualizers = env_cfg.sim.visualizer_cfgs or []
-    if not any(getattr(cfg, "visualizer_type", None) == "newton_gl" for cfg in visualizers):
+    if not isinstance(visualizers, (list, tuple)):
+        visualizers = [visualizers]
+    # A shared visualizer configuration names its type on its backend; a deprecated combined one names it directly.
+    types = [
+        getattr(getattr(cfg, "backend", None), "visualizer_type", None) or getattr(cfg, "visualizer_type", None)
+        for cfg in visualizers
+    ]
+    if "newton_gl" not in types:
         raise SystemExit("--policy_ghosts requires the Newton GL visualizer; pass --visualizer newton_gl.")
 
 
