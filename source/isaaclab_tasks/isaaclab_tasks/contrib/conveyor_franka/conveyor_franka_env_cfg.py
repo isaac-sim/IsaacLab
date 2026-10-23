@@ -30,6 +30,8 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
+from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
+
 from . import mdp
 from .conveyor_geometry import (
     BELT_COLOR,
@@ -42,13 +44,13 @@ from .conveyor_geometry import (
     CuboidSpec,
     MeshSpec,
     belt_collision_geometry_specs,
+    belt_collision_section_specs,
     belt_mesh_spec,
     guard_mesh_specs,
 )
 from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_CFG
 from .mdp.terminations import invalid_action as invalid_policy_action
 
-_DYNAMIC_PROPERTIES = sim_utils.UsdPhysicsRigidBodyCfg()
 _CONTACT_GAP = 0.01
 _CUBE_CONTACT_MARGIN = 0.003
 _MUJOCO_SOLIMP = (0.9, 0.95, 0.001, 0.5, 2.0)
@@ -338,108 +340,49 @@ def _spawn_shape_with_display_color(
     return prim
 
 
-@sim_utils.clone
-def _spawn_hidden_collision_mesh(
-    prim_path: str,
-    cfg: sim_utils.MeshCustomCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-):
-    """Spawn a collision-only custom mesh and hide it from all visualizers."""
-    prim = sim_utils.spawn_mesh_custom(prim_path, cfg, translation, orientation, **kwargs)
-    sim_utils.set_prim_visibility(prim, False)
-    return prim
-
-
 def _static_cuboid(
     prim_path: str,
     size: tuple[float, float, float],
     pos: tuple[float, float, float],
     color: tuple[float, float, float],
-    rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
-    friction: float = 0.7,
-    roughness: float = 0.75,
-    metallic: float = 0.0,
 ) -> AssetBaseCfg:
-    """Build a static colliding cuboid configuration."""
-    spawn = sim_utils.CuboidCfg(
-        size=size,
-        collision_props=_collision_properties(),
-        physics_material=RigidBodyMaterialBaseCfg(
-            static_friction=friction,
-            dynamic_friction=friction,
-            restitution=0.0,
-        ),
-        visual_material=sim_utils.PreviewSurfaceCfg(
-            diffuse_color=color,
-            roughness=roughness,
-            metallic=metallic,
-        ),
-    )
-    spawn.func = _spawn_shape_with_display_color
+    """Build a colliding table component."""
     return AssetBaseCfg(
         prim_path=prim_path,
-        init_state=AssetBaseCfg.InitialStateCfg(pos=pos, rot=rot),
-        spawn=spawn,
-    )
-
-
-def _visual_mesh(
-    prim_path: str,
-    spec: MeshSpec,
-    color: tuple[float, float, float],
-    roughness: float,
-    metallic: float,
-) -> AssetBaseCfg:
-    """Build a non-colliding custom mesh used only for rendering."""
-    return AssetBaseCfg(
-        prim_path=prim_path,
-        spawn=sim_utils.MeshCustomCfg(
-            vertices=spec.vertices,
-            faces=spec.faces,
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=color,
-                roughness=roughness,
-                metallic=metallic,
-            ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=pos),
+        spawn=sim_utils.CuboidCfg(
+            func=_spawn_shape_with_display_color,
+            size=size,
+            collision_props=_collision_properties(),
+            physics_material=RigidBodyMaterialBaseCfg(static_friction=0.7, dynamic_friction=0.7, restitution=0.0),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.75, metallic=0.0),
         ),
     )
 
 
-def _collision_material(friction: float) -> NewtonMaterialPropertiesCfg:
-    """Build a contact material for surfaces using the task-wide raw MuJoCo response."""
-    return NewtonMaterialPropertiesCfg(
-        static_friction=friction,
-        dynamic_friction=friction,
-        restitution=0.0,
-    )
-
-
-def _hidden_collision_geometry(
+def _conveyor_asset(
     prim_path: str,
     spec: MeshSpec | CuboidSpec,
-    friction: float,
-    mujoco_priority: int,
+    *,
+    visual_material: sim_utils.PreviewSurfaceCfg | None = None,
+    colliding: bool = True,
 ) -> AssetBaseCfg:
-    """Build a hidden collider, using native cuboids for straight sections."""
-    properties = _collision_properties(mujoco_priority=mujoco_priority)
-    material = _collision_material(friction)
+    """Build conveyor geometry with freely sliding contacts and optional rendering."""
     if isinstance(spec, CuboidSpec):
-        spawn = sim_utils.CuboidCfg(
-            size=spec.size, visible=False, collision_props=properties, physics_material=material
-        )
+        spawn = sim_utils.CuboidCfg(size=spec.size)
         position = spec.position
     else:
-        spawn = sim_utils.MeshCustomCfg(
-            vertices=spec.vertices,
-            faces=spec.faces,
-            visible=False,
-            collision_props=properties,
-            physics_material=material,
-        )
-        spawn.func = _spawn_hidden_collision_mesh
+        spawn = sim_utils.MeshCustomCfg(vertices=spec.vertices, faces=spec.faces)
         position = (0.0, 0.0, 0.0)
+    spawn.visible = visual_material is not None
+    spawn.visual_material = visual_material
+    if colliding:
+        spawn.collision_props = _collision_properties(mujoco_priority=1)
+        # Override cube/finger grasp friction at the belts and guide rails. MuJoCo
+        # requires positive friction; the force model supplies belt traction.
+        spawn.physics_material = NewtonMaterialPropertiesCfg(
+            static_friction=1.1e-5, dynamic_friction=1.1e-5, restitution=0.0
+        )
     return AssetBaseCfg(
         prim_path=prim_path,
         init_state=AssetBaseCfg.InitialStateCfg(pos=position),
@@ -454,20 +397,15 @@ def _cube(
 ) -> RigidObjectCfg:
     """Build one numbered dynamic transfer cube."""
     spawn = sim_utils.CuboidCfg(
+        func=_spawn_shape_with_display_color,
         size=(0.04, 0.04, 0.04),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.05),
+        collision_props=_collision_properties(contact_margin=_CUBE_CONTACT_MARGIN),
+        # Belt priority overrides friction only for belt/cube contacts.
+        physics_material=NewtonMaterialPropertiesCfg(static_friction=0.8, dynamic_friction=0.6, restitution=0.0),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.75),
     )
-    spawn.rigid_props = _DYNAMIC_PROPERTIES
-    spawn.mass_props = sim_utils.MassCfg(mass=0.05)
-    spawn.collision_props = _collision_properties(contact_margin=_CUBE_CONTACT_MARGIN)
-    spawn.physics_material = NewtonMaterialPropertiesCfg(
-        # The belt's higher MuJoCo contact priority overrides this friction
-        # only for belt/cube pairs, leaving physical finger/cube friction.
-        static_friction=0.8,
-        dynamic_friction=0.6,
-        restitution=0.0,
-    )
-    spawn.func = _spawn_shape_with_display_color
     return RigidObjectCfg(
         prim_path=f"{{ENV_REGEX_NS}}/{name}",
         init_state=RigidObjectCfg.InitialStateCfg(pos=pos),
@@ -520,12 +458,11 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
             setattr(
                 self,
                 f"conveyor_{side.lower()}_belt_visual",
-                _visual_mesh(
+                _conveyor_asset(
                     prim_path=f"{{ENV_REGEX_NS}}/{belt_spec.name}",
                     spec=belt_spec,
-                    color=BELT_COLOR,
-                    roughness=0.9,
-                    metallic=0.0,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=BELT_COLOR, roughness=0.9, metallic=0.0),
+                    colliding=False,
                 ),
             )
 
@@ -534,14 +471,9 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                 setattr(
                     self,
                     f"conveyor_{side.lower()}_{section_key}_collision",
-                    _hidden_collision_geometry(
+                    _conveyor_asset(
                         prim_path=f"{{ENV_REGEX_NS}}/{spec.name}",
                         spec=spec,
-                        # MuJoCo requires a tiny positive value even though the force driver,
-                        # rather than solver friction, supplies the belt motion.
-                        friction=1.1e-5,
-                        # Override cube friction only for collision-section/cube pairs.
-                        mujoco_priority=1,
                     ),
                 )
 
@@ -549,29 +481,21 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                 boundary = "inner" if spec.name.endswith("Inner") else "outer"
                 setattr(
                     self,
-                    f"guard_{side.lower()}_{boundary}_visual",
-                    _visual_mesh(
-                        prim_path=f"{{ENV_REGEX_NS}}/{spec.name}Visual",
-                        spec=spec,
-                        color=GUARD_COLOR,
-                        roughness=0.3,
-                        metallic=0.8,
-                    ),
-                )
-                setattr(
-                    self,
-                    f"guard_{side.lower()}_{boundary}_collision",
-                    _hidden_collision_geometry(
+                    f"guard_{side.lower()}_{boundary}",
+                    _conveyor_asset(
                         prim_path=f"{{ENV_REGEX_NS}}/{spec.name}Collision",
                         spec=spec,
-                        # The compact turns need freely sliding guide contacts;
-                        # tangential rail friction can wedge a cube against the
-                        # wall even though its belt drive remains valid.
-                        friction=1.1e-5,
-                        # Override the cube's grasp friction only for rail contacts.
-                        mujoco_priority=1,
+                        visual_material=sim_utils.PreviewSurfaceCfg(
+                            diffuse_color=GUARD_COLOR, roughness=0.3, metallic=0.8
+                        ),
                     ),
                 )
+
+    def build_conveyor_belt_specs(self, **kwargs) -> tuple[SurfaceVelocitySpec, ...]:
+        """Describe the velocity field on each authored collision section."""
+        return tuple(
+            section.belt for side in ("Left", "Right") for section in belt_collision_section_specs(side, **kwargs)
+        )
 
 
 @configclass

@@ -6,7 +6,6 @@
 """Task-calibrated Franka configuration for conveyor manipulation."""
 
 from isaaclab_newton.sim.schemas import MujocoJointCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
 
@@ -52,18 +51,3 @@ FRANKA_PANDA_CONVEYOR_CFG.actuators = {
     ),
 }
 """Menagerie Franka with explicit manipulation gains and solver-native gravity compensation."""
-
-
-FRANKA_PANDA_CONVEYOR_PHYSX_CFG = FRANKA_PANDA_CONVEYOR_CFG.copy()
-# PhysX does not consume MuJoCo's actuator-gravity-compensation attribute. Disabling
-# gravity on the robot is the closest solver-native equivalent and keeps the trained
-# position-policy contract unchanged without adding a task-side effort loop.
-FRANKA_PANDA_CONVEYOR_PHYSX_CFG.spawn.rigid_props.disable_gravity = True
-FRANKA_PANDA_CONVEYOR_PHYSX_CFG.spawn.joint_drive_props = None
-# Contact-rich manipulation benefits from resolving the articulation for more than
-# the generic asset defaults, especially with the deliberately stiff trained gains.
-for _properties in FRANKA_PANDA_CONVEYOR_PHYSX_CFG.spawn.articulation_props:
-    if isinstance(_properties, PhysxArticulationCfg):
-        _properties.solver_position_iteration_count = 32
-        _properties.solver_velocity_iteration_count = 4
-"""PhysX variant with the same joints, gains, action ordering, and gravity-compensated policy contract."""

@@ -19,6 +19,8 @@ GUARD_COLOR = (0.66, 0.69, 0.74)
 """Brushed-metal color used by Newton's conveyor example."""
 
 PARCEL_COLOR = (0.72, 0.55, 0.35)
+"""Cardboard color used by Newton's conveyor example."""
+
 CUBE_COLORS = (
     (0.15, 0.35, 0.90),
     (0.90, 0.20, 0.15),
@@ -26,7 +28,6 @@ CUBE_COLORS = (
     PARCEL_COLOR,
 )
 """Stable sRGB colors for the four numbered transfer cubes."""
-"""Cardboard color used by Newton's conveyor example."""
 
 BELT_CENTER_X = 0.58
 BELT_CENTER_Y = 0.51
@@ -155,11 +156,12 @@ def _racetrack_prism_mesh(
     outer_offset = lateral_offset + half_width
     inner_offset = lateral_offset - half_width
 
-    outer_top = [(x + nx * outer_offset, y + ny * outer_offset, z_max) for x, y, nx, ny in centerline]
-    inner_top = [(x + nx * inner_offset, y + ny * inner_offset, z_max) for x, y, nx, ny in centerline]
-    outer_bottom = [(x + nx * outer_offset, y + ny * outer_offset, z_min) for x, y, nx, ny in centerline]
-    inner_bottom = [(x + nx * inner_offset, y + ny * inner_offset, z_min) for x, y, nx, ny in centerline]
-    points = tuple(inner_top + outer_top + inner_bottom + outer_bottom)
+    points = tuple(
+        (x + nx * offset, y + ny * offset, z)
+        for z in (z_max, z_min)
+        for offset in (inner_offset, outer_offset)
+        for x, y, nx, ny in centerline
+    )
 
     # Racetrack centerlines are clockwise; reverse the shared counter-clockwise winding.
     faces = tuple((a, c, b) for a, b, c in _prism_faces(len(centerline), closed=True))
