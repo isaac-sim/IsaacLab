@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import functools
 from dataclasses import replace
 
 from isaaclab_physx.physics import PhysxCfg
@@ -122,14 +121,12 @@ def _spawn_physx_conveyor(
     cfg: sim_utils.MeshCustomCfg | sim_utils.CuboidCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    *,
-    belt_spec: SurfaceVelocitySpec,
     **kwargs,
 ):
     """Spawn a hidden belt section and author native surface velocity before PhysX parsing."""
     spawn = sim_utils.spawn_mesh_custom if isinstance(cfg, sim_utils.MeshCustomCfg) else sim_utils.spawn_cuboid
     prim = spawn(prim_path, cfg, translation, orientation, **kwargs)
-    apply_surface_velocity_api(prim, belt_spec, velocity_scale=0.0)
+    apply_surface_velocity_api(prim)
     return prim
 
 
@@ -159,7 +156,7 @@ def _physx_conveyor_collision(
             mesh_collision_props=PhysxSDFMeshCfg(sdf_resolution=128, sdf_subgrid_resolution=6),
             physics_material=_physx_material(friction),
         )
-    spawn.func = functools.partial(_spawn_physx_conveyor, belt_spec=section.belt)
+    spawn.func = _spawn_physx_conveyor
     return AssetBaseCfg(
         prim_path=prim_path,
         init_state=AssetBaseCfg.InitialStateCfg(pos=root_position),
