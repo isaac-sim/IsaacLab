@@ -6,8 +6,10 @@
 import ast
 from importlib import import_module
 from inspect import getsource
+from types import SimpleNamespace
 
 import gymnasium as gym
+import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg
 
 from isaaclab.envs import mdp as core_mdp
@@ -21,9 +23,11 @@ from isaaclab_assets import G1_MINIMAL_CFG
 
 def test_g1_rough_teacher_registration_and_newton_capacity(monkeypatch):
     """Rough G1 resolves to one teacher task and retains sufficient constraint capacity."""
-    monkeypatch.setattr(
-        rough_env_cfg, "get_action_parameters", lambda cfg: (1.0, (0.2, 0.06, 0.02), (0.03, 0.0, -0.02))
-    )
+
+    def reject_asset_access(cfg):
+        raise AssertionError("Creating a configuration must not retrieve or parse the robot asset")
+
+    monkeypatch.setattr(rough_env_cfg, "get_action_parameters", reject_asset_access)
     env_cfg = load_cfg_from_registry("Isaac-Velocity-Rough-G1", "env_cfg_entry_point")
     runner_cfg = load_cfg_from_registry("Isaac-Velocity-Rough-G1", "rsl_rl_cfg_entry_point")
 
@@ -108,3 +112,50 @@ def test_g1_flat_keeps_its_robot_and_ppo_settings():
     assert runner_cfg.actor.hidden_dims == runner_cfg.critic.hidden_dims == [256, 128, 128]
     assert runner_cfg.max_iterations == 1500
     assert runner_cfg.save_interval == 50
+
+
+def test_g1_prestartup_derives_parameters_from_the_configured_asset(tmp_path):
+    """Authored drives and geometry supply defaults while explicit task overrides survive startup."""
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics
+
+    path = tmp_path / "robot.usda"
+    stage = Usd.Stage.CreateNew(str(path))
+    root = UsdGeom.Xform.Define(stage, "/Robot")
+    stage.SetDefaultPrim(root.GetPrim())
+    for name in ("left_hip_roll_joint", "left_knee_joint", "left_hand_index_0_joint"):
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/Robot/{name}")
+        UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular").CreateMaxForceAttr(120.0)
+    UsdGeom.Xform.Define(stage, "/Robot/left_ankle_roll_link")
+    plate = UsdGeom.Cube.Define(stage, "/Robot/left_ankle_roll_link/foot_plate")
+    plate.CreateSizeAttr(2.0)
+    transform = Gf.Matrix4d().SetScale(Gf.Vec3d(0.12, 0.03, 0.01))
+    transform.SetTranslateOnly(Gf.Vec3d(0.03, 0.0, -0.02))
+    plate.AddTransformOp().Set(transform)
+    stage.GetRootLayer().Save()
+
+    cfg = rough_env_cfg.G1RoughTeacherEnvCfg()
+    cfg.scene.robot.spawn.usd_path = str(path)
+    cfg.scene.robot.actuators = {
+        "joints": rough_env_cfg.ImplicitActuatorCfg(
+            joint_names_expr=[".*"],
+            stiffness={"left_hip_roll_joint": 200.0, "left_knee_joint": 100.0, "left_hand_index_0_joint": 40.0},
+            damping=0.0,
+        )
+    }
+    event = cfg.events.asset_parameters
+    assert event.mode == "prestartup"
+    env = SimpleNamespace(cfg=cfg)
+    event.func(env, None, **event.params)
+    assert cfg.actions.joint_pos.scale == {
+        "left_hip_roll_joint": 0.11,
+        "left_knee_joint": 0.3,
+        "left_hand_index_0_joint": 0.0153,
+    }
+    assert cfg.rewards.feet_support_edge.params["sole_size"] == pytest.approx((0.24, 0.06, 0.02))
+    assert cfg.rewards.feet_support_edge.params["sole_offset"] == pytest.approx((0.03, 0.0, -0.02))
+
+    cfg.actions.joint_pos.scale = 0.125
+    cfg.rewards.feet_support_edge.params["sole_size"] = (0.3, 0.08, 0.04)
+    event.func(env, None, **event.params)
+    assert cfg.actions.joint_pos.scale == 0.125
+    assert cfg.rewards.feet_support_edge.params["sole_size"] == (0.3, 0.08, 0.04)

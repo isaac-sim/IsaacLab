@@ -227,13 +227,41 @@ nothing downstream can detect it.
 Starting the Camera
 ^^^^^^^^^^^^^^^^^^^
 
-The camera runs on the robot's onboard computer, which carries the RealSense drivers. It crops,
-downsamples and publishes 64x38 frames as unsigned 16-bit millimetres over UDP.
+Run ``scripts/deploy/depth_publisher.py`` on the G1 computer connected to the chest RealSense
+camera (PC2). The script is standalone and requires only NumPy and ``pyrealsense2``; Isaac Lab
+does not need to be installed on the robot.
+
+From the Isaac Lab repository root on the workstation, copy the script to PC2. The commands below
+use ``192.168.123.164`` as PC2's address; replace it if your robot uses a different address.
+
+.. code-block:: bash
+
+   scp scripts/deploy/depth_publisher.py unitree@192.168.123.164:~/depth_publisher.py
+
+Install the Python dependencies on PC2 using the same interpreter that will run the publisher.
+The RealSense drivers must be installed and the camera available to the ``unitree`` user.
+
+.. code-block:: bash
+
+   ssh unitree@192.168.123.164 \
+       '/usr/bin/python3 -m pip install --user numpy pyrealsense2'
+
+Start the publisher from the workstation and leave this SSH session running. Replace
+``<WORKSTATION_IP>`` with the workstation's address on the robot network, which receives the
+depth stream and runs the policy in a second terminal.
 
 .. code-block:: bash
 
    ssh unitree@192.168.123.164 \
        '/usr/bin/python3 ~/depth_publisher.py --host <WORKSTATION_IP>'
+
+The publisher requests 848x480 depth at 90 Hz, crops using the camera intrinsics toward the
+trained 87.0° horizontal and 58.8° vertical field of view, and averages valid pixels into 64x38
+frames. It sends unsigned 16-bit millimetres to UDP port 5601 and reports the publishing rate
+every five seconds. Missing returns stay zero; the control loop fills them with the clip range.
+If camera startup fails, the script retries and reduces the requested rate to 60 Hz on its final
+attempt. ``--port`` must match the policy's ``--depth_port`` if you change the default port.
+Press ``Ctrl+C`` to stop the publisher after stopping the policy.
 
 Starting the Policy
 ^^^^^^^^^^^^^^^^^^^

@@ -16,6 +16,7 @@ computer sending 64x38 frames as unsigned 16-bit millimetres over UDP.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import os
 import re
@@ -29,6 +30,10 @@ import time
 import tty
 
 import numpy as np
+
+from isaaclab.app.logging_utils import configure_console_logging
+
+logger = logging.getLogger("isaaclab.g1_deploy")
 
 CONTROL_DT = 0.02
 """Control period [s]. The exported graph carries its history at this rate."""
@@ -246,7 +251,7 @@ class Teleop:
             elif key == "?":
                 print(self.HELP)
         if keys:
-            print(f"[cmd] vx={self.vx:+.2f} m/s  heading={math.degrees(self.heading):+.0f} deg")
+            logger.info(f"vx={self.vx:+.2f} m/s  heading={math.degrees(self.heading):+.0f} deg")
 
         error = self.heading - heading_from_quat_xyzw(quat_xyzw)
         wrapped = (error + math.pi) % (2.0 * math.pi)
@@ -315,7 +320,7 @@ class G1Link:
 
     def damp(self, kd, seconds: float = 1.5) -> None:
         """Bleed off energy with no stiffness, then stop commanding. Every exit goes through here."""
-        print("[..] damping down")
+        logger.info("Damping down")
         zero = np.zeros(len(MOTOR_NAMES), dtype=np.float32)
         for _ in range(int(seconds / CONTROL_DT)):
             self.write(zero, zero, kd)
@@ -470,7 +475,7 @@ def take_lowcmd(domain_id: int, probe_s: float = 3.0) -> None:
             f"{seen[0]} rt/lowcmd samples in {probe_s:.0f}s -- something else is commanding the"
             " robot. Put it in debug mode with the remote (L2+B, then L2+R2) and try again."
         )
-    print("[ok] rt/lowcmd is free")
+    logger.info("rt/lowcmd is free")
 
 
 def confirm(word: str, prompt: str) -> None:
@@ -488,7 +493,7 @@ def bring_up(link: G1Link, pose: np.ndarray, kp, kd, ramp_s: float) -> None:
     """
     start = link.read()["joint_pos"].copy()
     steps = int(ramp_s / CONTROL_DT)
-    print(f"[..] ramping to the start pose over {ramp_s:.1f}s")
+    logger.info(f"Ramping to the start pose over {ramp_s:.1f}s")
     for step in range(steps):
         link.check_abort()
         link.write(start + (pose - start) * (step + 1) / steps, kp, kd)
@@ -513,12 +518,12 @@ def bring_up(link: G1Link, pose: np.ndarray, kp, kd, ramp_s: float) -> None:
             elif line.strip() == "go2":
                 break
             elif line.strip():
-                print(f"[..] ignored {line.strip()!r}; type 'go2' to proceed")
+                print(f"Ignored {line.strip()!r}; type 'go2' to proceed")
         if time.monotonic() > deadline:
             raise TimeoutError("'go2' not received within 300s of holding")
         time.sleep(CONTROL_DT)
 
-    print("[ok] engaging in 3s -- hands clear")
+    logger.info("Engaging in 3s -- hands clear")
     for _ in range(int(3.0 / CONTROL_DT)):
         link.check_abort()
         link.write(pose, kp, kd)
@@ -528,6 +533,7 @@ def bring_up(link: G1Link, pose: np.ndarray, kp, kd, ramp_s: float) -> None:
 
 
 def main() -> int:
+    configure_console_logging()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--pipeline", required=True, help="Exported LEAPP .yaml.")
     parser.add_argument("--interface", required=True, help="Network interface on the robot's subnet.")
@@ -561,8 +567,8 @@ def main() -> int:
     depth.wait()
     take_lowcmd(args.domain_id)
 
-    print(f"[ok] mode_machine={link.read()['mode_machine']}  policy at {1 / CONTROL_DT:.0f} Hz")
-    print(f"[..] teleop: {Teleop.HELP}")
+    logger.info(f"mode_machine={link.read()['mode_machine']}  policy at {1 / CONTROL_DT:.0f} Hz")
+    print(Teleop.HELP)
     teleop = Teleop()
     confirm("go", "\n>>> Robot supported, area clear, e-stop in hand.")
 
@@ -591,8 +597,10 @@ def main() -> int:
                 )
                 link.write(joint_pos, kp, kd)
                 link.wait(CONTROL_DT)
-    except (KeyboardInterrupt, OperatorAbort, RuntimeError, TimeoutError) as error:
-        print(f"\n[..] {error or 'interrupted'}")
+    except (KeyboardInterrupt, OperatorAbort) as error:
+        logger.info(str(error) or "Interrupted")
+    except (RuntimeError, TimeoutError) as error:
+        logger.error(str(error))
     finally:
         link.damp(policy.kd)
     return 0
