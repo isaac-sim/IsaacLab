@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sparse completion rewards and acquisition checks for conveyor transfer."""
+"""Sparse completion rewards and finite action penalties for conveyor transfer."""
 
 from __future__ import annotations
 
@@ -13,15 +13,9 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
-from .cube_state import cube_values
-from .kinematics import end_effector_pose
-from .reset_events import CUBE_REST_Z
-
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
-
-    from .commands import ConveyorTransferCommand
 
 
 def transfer_success_reward(
@@ -61,34 +55,6 @@ def finite_action_rate_l2(
     action = torch.cat(tuple(term.raw_actions for term in terms), dim=1)
     previous_action = torch.cat(tuple(term.previous_actions for term in terms), dim=1)
     return torch.sum(torch.square(action - previous_action), dim=1)
-
-
-def physical_cube_acquisition_mask(
-    env: ManagerBasedRLEnv,
-    command_name: str = "transfer",
-    command: ConveyorTransferCommand | None = None,
-    minimum_lift: float = 0.025,
-    maximum_tool_distance: float = 0.075,
-    maximum_finger_position: float = 0.030,
-) -> torch.Tensor:
-    """Return physically closed, lifted, tool-local commanded-cube grasps."""
-    if minimum_lift <= 0.0 or maximum_tool_distance <= 0.0 or maximum_finger_position <= 0.0:
-        raise ValueError("Physical acquisition thresholds must be positive.")
-    if command is None:
-        command = env.command_manager.get_term(command_name)
-    positions = cube_values(env, "root_pos_w")
-    index = command.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
-    active_position = torch.gather(positions, 1, index).squeeze(1)
-    tool_position, _ = end_effector_pose(env)
-    robot: Articulation = env.scene["robot"]
-    finger_ids, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
-    finger_positions = robot.data.joint_pos.torch[:, finger_ids]
-    local_cube_z = active_position[:, 2] - env.scene.env_origins[:, 2]
-    return (
-        (local_cube_z >= CUBE_REST_Z + minimum_lift)
-        & (torch.linalg.vector_norm(active_position - tool_position, dim=1) <= maximum_tool_distance)
-        & (torch.amax(finger_positions, dim=1) <= maximum_finger_position)
-    )
 
 
 def finite_joint_velocity_l2(

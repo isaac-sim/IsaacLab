@@ -27,7 +27,6 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     _sample_collision_free_active_x,
     build_reset_rows,
     franka_tool_position,
-    reset_variant_counts,
 )
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -193,7 +192,7 @@ def test_success_guided_sampling_records_completed_selected_episodes():
 def test_reset_bank_is_complete_and_physically_calibrated():
     """Every command/phase is represented once; tool anchors and held metadata agree with physical poses."""
     rows = build_reset_rows()
-    counts = reset_variant_counts()
+    counts = (1, 4, 6, 4, 5, 5, 7)
     keys = {(r.recipe, r.variant_id, r.target_cube_id, r.source_side_id) for r in rows}
     assert len(keys) == len(rows) == sum(counts) * 8
     assert all(

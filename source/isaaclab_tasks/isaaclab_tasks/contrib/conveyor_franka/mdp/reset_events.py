@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import TYPE_CHECKING
@@ -41,6 +40,7 @@ _BELT_CURRICULUM_FRACTIONS = (0.0, 0.15, 0.30, 0.45, 0.60, 0.80, 1.0)
 _GRASP_CLOSURE_FRACTIONS = (0.25, 0.50, 0.75, 0.90, 1.0)
 _OPEN_FINGER_POSITION = 0.040
 _CLOSED_FINGER_POSITION = 0.019
+_MINIMUM_CUBE_SEPARATION = 0.055
 BELT_DEPLOYMENT_VARIANT = len(_BELT_CURRICULUM_FRACTIONS) - 1
 
 
@@ -133,37 +133,16 @@ def _arm_position_variants(
     if recipe == ConveyorResetRecipe.GRASP:
         return (source_grasp,) * len(_GRASP_CLOSURE_FRACTIONS)
     if recipe == ConveyorResetRecipe.PREGRASP:
-        # Include the exact open-gripper acquisition pose. The previous last
-        # row stopped at 88% of the approach, leaving an approximately 1 cm
-        # gap between reset-driven approach learning and the already-held
-        # GRASP row. Dense near-contact rows make the physical close-and-lift
-        # transition learnable from the same sparse delivery objective.
+        # Include the open-gripper contact pose before the closure trajectory.
         return _interpolate_arm(source_pregrasp, source_grasp, (0.0, 0.50, 0.75, 0.92, 1.0))
     if recipe == ConveyorResetRecipe.BELT:
         return _interpolate_arm(source_pregrasp, _HOME_ARM, _BELT_CURRICULUM_FRACTIONS)
     raise ValueError(f"Unsupported reset recipe: {recipe}.")
 
 
-def _finger_position_variants(recipe: ConveyorResetRecipe) -> tuple[float, ...]:
-    """Return finger positions paired with a recipe's arm variants [m]."""
-    variant_count = len(_arm_position_variants(recipe, LEFT_SIDE))
-    if recipe == ConveyorResetRecipe.GRASP:
-        return tuple(
-            _OPEN_FINGER_POSITION + fraction * (_CLOSED_FINGER_POSITION - _OPEN_FINGER_POSITION)
-            for fraction in _GRASP_CLOSURE_FRACTIONS
-        )
-    if recipe in (ConveyorResetRecipe.LIFT, ConveyorResetRecipe.CARRY, ConveyorResetRecipe.PLACE):
-        return (_CLOSED_FINGER_POSITION,) * variant_count
-    return (_OPEN_FINGER_POSITION,) * variant_count
-
-
-def reset_variant_counts() -> tuple[int, ...]:
-    """Return the number of trajectory variants in each reset recipe."""
-    return tuple(len(_arm_position_variants(recipe, LEFT_SIDE)) for recipe in ConveyorResetRecipe)
-
-
 def build_reset_rows() -> tuple[ConveyorResetRow, ...]:
     """Build the complete identity, direction, and dense-trajectory cross product."""
+    held_recipes = (ConveyorResetRecipe.LIFT, ConveyorResetRecipe.CARRY, ConveyorResetRecipe.PLACE)
     return tuple(
         ConveyorResetRow(
             recipe=recipe,
@@ -171,9 +150,16 @@ def build_reset_rows() -> tuple[ConveyorResetRow, ...]:
             target_cube_id=cube_id,
             source_side_id=source_side,
             arm_positions=arm_positions,
-            finger_position=finger_position,
+            finger_position=(
+                _OPEN_FINGER_POSITION
+                + _GRASP_CLOSURE_FRACTIONS[variant_id] * (_CLOSED_FINGER_POSITION - _OPEN_FINGER_POSITION)
+                if recipe == ConveyorResetRecipe.GRASP
+                else _CLOSED_FINGER_POSITION
+                if recipe in held_recipes
+                else _OPEN_FINGER_POSITION
+            ),
             held=(
-                recipe in (ConveyorResetRecipe.LIFT, ConveyorResetRecipe.CARRY, ConveyorResetRecipe.PLACE)
+                recipe in held_recipes
                 or (recipe == ConveyorResetRecipe.GRASP and variant_id == len(_GRASP_CLOSURE_FRACTIONS) - 1)
             ),
             belt_range_fraction=_BELT_CURRICULUM_FRACTIONS[variant_id] if recipe == ConveyorResetRecipe.BELT else 0.0,
@@ -181,9 +167,7 @@ def build_reset_rows() -> tuple[ConveyorResetRow, ...]:
         for recipe in ConveyorResetRecipe
         for cube_id in range(CUBE_COUNT)
         for source_side in (LEFT_SIDE, RIGHT_SIDE)
-        for variant_id, (arm_positions, finger_position) in enumerate(
-            zip(_arm_position_variants(recipe, source_side), _finger_position_variants(recipe), strict=True)
-        )
+        for variant_id, arm_positions in enumerate(_arm_position_variants(recipe, source_side))
     )
 
 
@@ -259,20 +243,11 @@ def _balanced_cube_slots(
     its source-side inner slot, keeping it reachable without duplicating or
     emptying any deployment slot.
     """
-    if target_cube_ids.ndim != 1 or source_side_ids.shape != target_cube_ids.shape:
-        raise ValueError("Target cube and source-side ids must be matching vectors.")
-    if bool(torch.any((target_cube_ids < 0) | (target_cube_ids >= CUBE_COUNT))):
-        raise ValueError("Target cube ids are out of range.")
-    if bool(torch.any((source_side_ids != LEFT_SIDE) & (source_side_ids != RIGHT_SIDE))):
-        raise ValueError("Source-side ids must be 0 (left) or 1 (right).")
-
     count = target_cube_ids.numel()
     cube_slots = torch.arange(CUBE_COUNT, device=target_cube_ids.device).expand(count, -1).clone()
     source_inner_slots = 2 * source_side_ids
-    displaced_cube_ids = source_inner_slots
-    target_original_slots = target_cube_ids
     cube_slots.scatter_(1, target_cube_ids.unsqueeze(1), source_inner_slots.unsqueeze(1))
-    cube_slots.scatter_(1, displaced_cube_ids.unsqueeze(1), target_original_slots.unsqueeze(1))
+    cube_slots.scatter_(1, source_inner_slots.unsqueeze(1), target_cube_ids.unsqueeze(1))
 
     cube_sides = torch.div(cube_slots, 2, rounding_mode="floor")
     on_outer_run = torch.remainder(cube_slots, 2).bool()
@@ -289,30 +264,21 @@ def _sample_collision_free_active_x(
     source_side_ids: torch.Tensor,
     lower: torch.Tensor,
     upper: torch.Tensor,
-    minimum_separation: float = 0.055,
-    attempts: int = 16,
 ) -> torch.Tensor:
     """Sample active-cube positions without overlapping an inactive cube."""
-    if base_x.ndim != 2 or base_x.shape[1] != CUBE_COUNT or cube_sides.shape != base_x.shape:
-        raise ValueError("base_x and cube_sides must have shape (N, CUBE_COUNT).")
-    count = base_x.shape[0]
-    expected_vector_shape = (count,)
-    if any(value.shape != expected_vector_shape for value in (target_cube_ids, source_side_ids, lower, upper)):
-        raise ValueError("Active-cube sampling controls must have shape (N,).")
-    if minimum_separation <= 0.0 or attempts < 1:
-        raise ValueError("Invalid collision-free active-cube sampling parameters.")
-
-    cube_ids = torch.arange(CUBE_COUNT, device=base_x.device).expand(count, -1)
+    cube_ids = torch.arange(CUBE_COUNT, device=base_x.device)
     inactive_on_source = (cube_sides == source_side_ids.unsqueeze(1)) & (cube_ids != target_cube_ids.unsqueeze(1))
     sampled = lower + torch.rand_like(lower) * (upper - lower)
-    for _ in range(attempts):
+    for _ in range(16):
         conflicts = torch.any(
-            (torch.abs(sampled.unsqueeze(1) - base_x) < minimum_separation) & inactive_on_source, dim=1
+            (torch.abs(sampled.unsqueeze(1) - base_x) < _MINIMUM_CUBE_SEPARATION) & inactive_on_source, dim=1
         )
         replacement = lower + torch.rand_like(lower) * (upper - lower)
         sampled = torch.where(conflicts, replacement, sampled)
 
-    conflicts = torch.any((torch.abs(sampled.unsqueeze(1) - base_x) < minimum_separation) & inactive_on_source, dim=1)
+    conflicts = torch.any(
+        (torch.abs(sampled.unsqueeze(1) - base_x) < _MINIMUM_CUBE_SEPARATION) & inactive_on_source, dim=1
+    )
     fallback = torch.full_like(sampled, TRANSFER_X)
     return torch.where(conflicts, fallback, sampled)
 
@@ -322,24 +288,18 @@ class ConveyorResetStateTable(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._rows = build_reset_rows()
-        self.recipe_ids = torch.tensor([row.recipe for row in self._rows], dtype=torch.long, device=env.device)
-        self.target_cube_ids = torch.tensor(
-            [row.target_cube_id for row in self._rows], dtype=torch.long, device=env.device
-        )
-        self.variant_ids = torch.tensor([row.variant_id for row in self._rows], dtype=torch.long, device=env.device)
-        self.source_side_ids = torch.tensor(
-            [row.source_side_id for row in self._rows], dtype=torch.long, device=env.device
-        )
-        self._arm_positions = torch.tensor(
-            [row.arm_positions for row in self._rows], dtype=torch.float32, device=env.device
-        )
+        rows = build_reset_rows()
+        self.recipe_ids = torch.tensor([row.recipe for row in rows], dtype=torch.long, device=env.device)
+        self.target_cube_ids = torch.tensor([row.target_cube_id for row in rows], dtype=torch.long, device=env.device)
+        self.variant_ids = torch.tensor([row.variant_id for row in rows], dtype=torch.long, device=env.device)
+        self.source_side_ids = torch.tensor([row.source_side_id for row in rows], dtype=torch.long, device=env.device)
+        self._arm_positions = torch.tensor([row.arm_positions for row in rows], dtype=torch.float32, device=env.device)
         self._finger_positions = torch.tensor(
-            [row.finger_position for row in self._rows], dtype=torch.float32, device=env.device
+            [row.finger_position for row in rows], dtype=torch.float32, device=env.device
         )
-        self.held_rows = torch.tensor([row.held for row in self._rows], dtype=torch.bool, device=env.device)
+        self.held_rows = torch.tensor([row.held for row in rows], dtype=torch.bool, device=env.device)
         self._belt_range_fractions = torch.tensor(
-            [row.belt_range_fraction for row in self._rows], dtype=torch.float32, device=env.device
+            [row.belt_range_fraction for row in rows], dtype=torch.float32, device=env.device
         )
         self._robot: Articulation = env.scene["robot"]
         self._cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
@@ -352,12 +312,7 @@ class ConveyorResetStateTable(ManagerTermBase):
     @property
     def row_count(self) -> int:
         """Number of immutable physical reset rows."""
-        return len(self._rows)
-
-    @property
-    def recipe_names(self) -> tuple[str, ...]:
-        """Stable reset recipe labels."""
-        return tuple(recipe.name.lower() for recipe in ConveyorResetRecipe)
+        return self.recipe_ids.numel()
 
     def _filtered_rows(
         self,
@@ -406,24 +361,15 @@ class ConveyorResetStateTable(ManagerTermBase):
         if cube_position_noise < 0.0 or arm_joint_noise < 0.0:
             raise ValueError("Reset randomization ranges must be non-negative.")
 
-        if (
-            fixed_recipe is None
-            and fixed_variant_id is None
-            and fixed_target_cube_id is None
-            and fixed_source_side_id is None
-        ):
-            row_ids = self.row_ids[env_ids]
-        else:
-            candidates = self._filtered_rows(
-                fixed_recipe,
-                fixed_variant_id,
-                fixed_target_cube_id,
-                fixed_source_side_id,
-            )
+        fixed_values = (fixed_recipe, fixed_variant_id, fixed_target_cube_id, fixed_source_side_id)
+        if any(value is not None for value in fixed_values):
+            candidates = self._filtered_rows(*fixed_values)
             if candidates.numel() == 0:
                 raise RuntimeError("No conveyor reset rows match the fixed reset controls.")
             row_ids = candidates[torch.randint(candidates.numel(), (env_ids.numel(),), device=self.device)]
             self.row_ids[env_ids] = row_ids
+        else:
+            row_ids = self.row_ids[env_ids]
 
         recipes = self.recipe_ids[row_ids]
         target_cube_ids = self.target_cube_ids[row_ids]
@@ -440,8 +386,7 @@ class ConveyorResetStateTable(ManagerTermBase):
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
         joint_positions[:, self._arm_joint_ids] = arm_positions
-        finger_positions = self._finger_positions[row_ids].to(dtype=joint_positions.dtype).unsqueeze(1).expand(-1, 2)
-        joint_positions[:, self._finger_joint_ids] = finger_positions
+        joint_positions[:, self._finger_joint_ids] = self._finger_positions[row_ids, None]
         self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
         self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
         self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
@@ -454,15 +399,10 @@ class ConveyorResetStateTable(ManagerTermBase):
         if cube_position_noise > 0.0:
             base_x += (2.0 * torch.rand_like(base_x) - 1.0) * cube_position_noise
 
-        active_lower = torch.full((count,), TRANSFER_X, dtype=arm_positions.dtype, device=self.device)
-        active_upper = active_lower.clone()
         belt_rows = recipes == int(ConveyorResetRecipe.BELT)
-        if bool(torch.any(belt_rows)):
-            range_fraction = self._belt_range_fractions[row_ids]
-            range_lower = TRANSFER_X + range_fraction * (belt_start_x_range[0] - TRANSFER_X)
-            range_upper = TRANSFER_X + range_fraction * (belt_start_x_range[1] - TRANSFER_X)
-            active_lower[belt_rows] = range_lower[belt_rows]
-            active_upper[belt_rows] = range_upper[belt_rows]
+        range_fraction = self._belt_range_fractions[row_ids]
+        active_lower = TRANSFER_X + range_fraction * (belt_start_x_range[0] - TRANSFER_X)
+        active_upper = TRANSFER_X + range_fraction * (belt_start_x_range[1] - TRANSFER_X)
         active_x = _sample_collision_free_active_x(
             base_x,
             cube_sides,
@@ -506,9 +446,6 @@ class ConveyorResetStateTable(ManagerTermBase):
             root_velocity = torch.zeros((count, 6), dtype=root_pose.dtype, device=self.device)
             cube.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
             cube.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
-
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Keep the immutable reset table across environment resets."""
 
 
 def select_next_transfer_cube(
