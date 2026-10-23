@@ -201,7 +201,12 @@ def load_viser_recording(path: str) -> ViserRecording:
     if not created:
         raise ValueError(f"{path} contains no mesh batches to replay.")
 
-    times = np.array([0.0, *sorted(updates)])
+    update_times = np.array(sorted(updates))
+    # The recorder's clock starts when its viewer is created, so the first update can sit far from zero; rebase it
+    # to one typical step after the initial pose, or the scrubber would show a still frame until that time.
+    step = float(np.median(np.diff(update_times))) if len(update_times) > 1 else 1.0 / 60.0
+    times = np.array([0.0, *(update_times - update_times[0] + step)]) if len(update_times) else np.zeros(1)
+    updates = {round(float(rebased), 6): updates[round(float(raw), 6)] for raw, rebased in zip(update_times, times[1:])}
     shapes = []
     for name, data in created.items():
         count = len(data["positions"])
