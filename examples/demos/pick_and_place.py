@@ -35,6 +35,7 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
 from isaaclab_physx.assets import SurfaceGripperCfg
+from isaaclab_teleop import poll_control_events
 from isaaclab_teleop.script_input import add_key_callbacks, open_teleop_device
 from isaaclab_visualizers.kit import KitBackendCfg
 
@@ -340,9 +341,17 @@ def main() -> None:
             print("\tW/S and A/D move the gantries, Q/E latch them UP/DOWN, K toggles the grippers.")
             print("\tN/M make the grippers track the cube/target position.")
         step_count = 0
+        teleop_active = True
         try:
             while pick_and_place.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
                 cmd = teleop.advance() if teleop is not None else None
+                # P / B pause and resume an Isaac Capture device; paused, the scene renders without stepping
+                ctrl = poll_control_events(teleop)
+                if ctrl.is_active is not None:
+                    teleop_active = ctrl.is_active
+                if not teleop_active:
+                    pick_and_place.sim.render()
+                    continue
                 if cmd is not None:
                     actions[:, :2] = cmd[:2]
                     # Latch the gantry height effort; the z joint moves up for negative effort
