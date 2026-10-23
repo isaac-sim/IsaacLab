@@ -22,12 +22,18 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
+from isaaclab.utils import instantiate
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 logger = logging.getLogger("isaaclab.tutorials.mpm.rigid_body_equivalence")
 
@@ -203,35 +209,6 @@ def initial_center_height(shape: ShapeSpec) -> float:
     return ramp_surface_height(START_Y) + shape_half_height(shape) / math.cos(RAMP_ANGLE_RAD) + INITIAL_CLEARANCE
 
 
-def create_visualizer_cfgs():
-    """Create the requested Kit or Newton visualizer configuration."""
-    requested = args_cli.visualizer or []
-    cfgs = []
-    if "kit" in requested:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        cfgs.append(KitVisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET, focal_length=CAMERA_FOCAL_LENGTH))
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
-        return cfgs
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    for name in requested:
-        if name not in {"newton", "newton_gl", "newton_rtx"}:
-            continue
-        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-        visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
-        cfgs.append(
-            cfg_type(
-                eye=CAMERA_EYE,
-                lookat=CAMERA_TARGET,
-                streaming_view=False,
-                **visualizer_kwargs,
-            )
-        )
-    return cfgs
-
-
 def create_sim_cfg():
     """Create independent MJWarp and implicit-MPM entries in one Newton model."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
@@ -287,7 +264,12 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            eye=CAMERA_EYE,
+            lookat=CAMERA_TARGET,
+            focal_length=CAMERA_FOCAL_LENGTH,
+            backend=MultiBackendVisualizerCfg(),
+        ),
         physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=not args_cli.disable_cuda_graph),
     )
 
@@ -451,13 +433,13 @@ def run_simulator(sim, scene) -> None:
 def main() -> None:
     """Launch the rigid-body versus nearly rigid MPM comparison."""
     configure_console_logging(vars(args_cli))
-    sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
+    scene_cfg = create_scene_cfg()
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         import isaaclab.sim as sim_utils
-        from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg())
+        scene = instantiate(scene_cfg)
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         particle_count = sum(len(points) for points in SHAPE_POINTS.values())

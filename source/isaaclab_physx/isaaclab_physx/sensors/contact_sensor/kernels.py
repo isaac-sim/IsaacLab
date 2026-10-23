@@ -52,6 +52,7 @@ def unpack_contact_buffer_data(
     num_envs: wp.int32,
     avg: bool,
     default_val: wp.float32,
+    timestamp: wp.array(dtype=wp.float32),
     dst: wp.array3d(dtype=wp.vec3f),
 ):
     """Unpack and aggregate contact buffer data for each (env, body, filter) group.
@@ -69,12 +70,18 @@ def unpack_contact_buffer_data(
         num_envs: Number of environments.
         avg: If True, average the data; if False, sum it.
         default_val: Default value for groups with zero contacts (e.g. NaN or 0.0).
+        timestamp: Timestamp array. Shape is (N,).
         dst: Destination buffer. Shape is (N, B, M).
     """
     env, sensor, contact = wp.tid()
     if mask:
         if not mask[env]:
             return
+
+    # Skip envs that have not been stepped since their last reset: the PhysX contact buffer
+    # still holds pre-reset values, so reading it now would inject stale data (#4970).
+    if timestamp[env] == 0.0:
+        return
 
     flat_idx = sensor * num_envs + env
     count = wp.int32(buffer_count[flat_idx, contact])

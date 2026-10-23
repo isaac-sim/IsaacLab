@@ -25,7 +25,6 @@ import warp as wp
 from frame_view_contract_utils import *  # noqa: F401, F403 — import all contract tests
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
 from pxr import Sdf, UsdPhysics
@@ -34,7 +33,7 @@ import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.utils import configclass
 
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
@@ -63,16 +62,18 @@ def _sim_context(device, num_envs=4):
 
 
 def _get_body_positions(num_envs, device="cpu"):
-    model = NewtonManager.get_model()
+    backend_manager = SimulationContext.instance().backend_manager
+    model = backend_manager.get_model()
     body_labels = list(model.body_label)
-    body_q_t = wp.to_torch(NewtonManager.get_state_0().body_q)
+    body_q_t = wp.to_torch(backend_manager.get_state_0().body_q)
     return torch.stack([body_q_t[body_labels.index(f"/World/envs/env_{i}/Cube"), :3] for i in range(num_envs)])
 
 
 def _set_body_positions(positions, num_envs):
-    model = NewtonManager.get_model()
+    backend_manager = SimulationContext.instance().backend_manager
+    model = backend_manager.get_model()
     body_labels = list(model.body_label)
-    body_q_t = wp.to_torch(NewtonManager.get_state_0().body_q)
+    body_q_t = wp.to_torch(backend_manager.get_state_0().body_q)
     for i in range(num_envs):
         body_q_t[body_labels.index(f"/World/envs/env_{i}/Cube"), :3] = positions[i]
 
@@ -135,7 +136,7 @@ def test_non_colliding_shapes_after_finalize(device):
     cloner.replicate(plan)
     sim.reset()
 
-    shape_labels = list(NewtonManager.get_model().shape_label)
+    shape_labels = list(sim.backend_manager.get_model().shape_label)
     assert SITE_PATH in shape_labels
     assert VISUAL_PATH in shape_labels
     FrameView(SITE_PATH, device=device)
@@ -176,7 +177,7 @@ def test_body_local_frame_resolves_from_body_labels_after_reset(device):
 def test_close_before_reset_cancels_deferred_initialization(device):
     """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``.
 
-    After reset, new views over Newton bodies or collision shapes are rejected.
+    After reset, physics frames are readable but can only be written through their asset APIs.
     """
     num_envs = 3
     ctx = _sim_context(device, num_envs=num_envs)
@@ -193,13 +194,17 @@ def test_close_before_reset_cancels_deferred_initialization(device):
 
     assert view.count == 0, "a closed view still initialized from the physics-ready callback"
 
-    # FrameView rejects prim paths that resolve to a Newton physics body or collision shape.
-    with pytest.raises(ValueError, match="physics body"):
-        FrameView("/World/envs/env_[^/]+/Cube", device=device)
-    shape_labels = list(NewtonManager.get_model().shape_label)
+    body_view = FrameView("/World/envs/env_[^/]+/Cube", device=device)
+    torch.testing.assert_close(body_view.get_world_poses()[0].torch, _get_body_positions(num_envs, device))
+    shape_labels = list(sim.backend_manager.get_model().shape_label)
     assert shape_labels, "scene must contribute at least one collision shape"
-    with pytest.raises(ValueError, match="collision shape"):
-        FrameView(shape_labels[0], device=device)
+    shape_view = FrameView(shape_labels[0], device=device)
+    for physics_view in (body_view, shape_view):
+        for writer in (physics_view.xform_world_space_writer, physics_view.xform_local_space_writer):
+            with pytest.raises(ValueError, match="asset API"):
+                writer()
+        physics_view.get_world_poses()
+        physics_view.close()
     ctx.__exit__(None, None, None)
 
 

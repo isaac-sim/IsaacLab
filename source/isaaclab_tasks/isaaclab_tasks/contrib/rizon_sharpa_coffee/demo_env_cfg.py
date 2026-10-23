@@ -16,8 +16,8 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
 import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
@@ -102,7 +102,7 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
 
 
 @configclass
-class CoffeeRTXVisualizerCfg(NewtonRTXVisualizerCfg):
+class CoffeeRTXVisualizerCfg(NewtonRTXBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
     class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeRTXVisualizer"
@@ -111,7 +111,7 @@ class CoffeeRTXVisualizerCfg(NewtonRTXVisualizerCfg):
 
 
 @configclass
-class CoffeeKitVisualizerCfg(KitVisualizerCfg):
+class CoffeeKitBackendCfg(KitBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
     class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_rendering:CoffeeKitVisualizer"
@@ -119,6 +119,14 @@ class CoffeeKitVisualizerCfg(KitVisualizerCfg):
     """Presentation backdrop: ``kitchen`` or the original ``studio``."""
     render_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global RTX settings for the Kit viewport and its recorded frames."""
+
+
+@configclass
+class CoffeePresentationCfg(sim_utils.SpawnerCfg):
+    """Author the coffee backdrop as ordinary scene content."""
+
+    func: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:spawn_presentation"
+    backdrop: Literal["kitchen", "studio"] = "kitchen"
 
 
 @configclass
@@ -141,6 +149,8 @@ class CoffeeSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DistantLightCfg(intensity=2500.0, color=(1.0, 0.86, 0.69), angle=12.0),
         init_state=AssetBaseCfg.InitialStateCfg(rot=(0.239, -0.370, -0.099, 0.892)),
     )
+
+    presentation: AssetBaseCfg | None = None
 
 
 @configclass
@@ -238,6 +248,17 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         raise ValueError("min_delivered_fraction must be in (0, 1].")
     if not math.isfinite(cfg.min_delivered_mass) or cfg.min_delivered_mass <= 0.0:
         raise ValueError("min_delivered_mass must be finite and positive.")
+    backdrops = {
+        visualizer.backend.backdrop
+        for visualizer in cfg.sim.visualizer_cfgs
+        if isinstance(visualizer.backend, (CoffeeKitBackendCfg, CoffeeRTXVisualizerCfg))
+    }
+    if len(backdrops) > 1:
+        raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")
+    for backdrop in backdrops:
+        cfg.scene.presentation = AssetBaseCfg(
+            prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop), cloning_contexts=()
+        )
     cfg.scene.robot = get_robot_cfg()
     cfg.scene.table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
