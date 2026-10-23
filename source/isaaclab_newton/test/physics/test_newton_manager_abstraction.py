@@ -56,7 +56,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
-from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg
+from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.actuators import DrivePID
@@ -249,8 +249,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     monkeypatch.setattr(newton_manager_module, "CollisionPipeline", FakeCollisionPipeline)
     manager = NewtonXPBDManager()
     manager._needs_collision_pipeline = True
-    manager._solver = solver
-    manager.backend = SimpleNamespace(model=SimpleNamespace())
+    manager.backend = SimpleNamespace(model=SimpleNamespace(), solver=solver, collision_pipeline=None, contacts=None)
     manager._deterministic_mode = wp.DeterministicMode.GPU_TO_GPU
 
     manager._initialize_contacts()
@@ -259,7 +258,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
         {"broad_phase": "explicit", "deterministic": True},
         {"broad_phase": "explicit", "deterministic": True, "rigid_contact_max": 2},
     ]
-    assert manager._contacts.rigid_contact_max == 2
+    assert manager.backend.contacts.rigid_contact_max == 2
 
 
 @pytest.mark.parametrize("cloth", [False, True])
@@ -699,7 +698,6 @@ def test_production_imports_scope_mujoco_joint_properties(
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     manager._sim, manager._cfg, manager._device = sim, physics_cfg, "cpu"
     manager._scene_data_backend = newton_manager_module.NewtonSceneDataBackend(manager)
-    manager._num_envs = 0
 
     builder, _ = newton_physics_replicate(
         stage=stage,
@@ -797,20 +795,20 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             },
         )
         sim.reset()
-        assert isinstance(sim.backend_manager._solver, SolverImplicitMPM)
+        assert isinstance(sim.backend_manager.backend.solver, SolverImplicitMPM)
 
         calls = {"n": 0}
-        original_project = sim.backend_manager._solver.project_outside
+        original_project = sim.backend_manager.backend.solver.project_outside
 
         def counting_project(*args, **kwargs):
             calls["n"] += 1
             return original_project(*args, **kwargs)
 
-        sim.backend_manager._solver.project_outside = counting_project
+        sim.backend_manager.backend.solver.project_outside = counting_project
         try:
             sim.step(render=False)
         finally:
-            sim.backend_manager._solver.project_outside = original_project
+            sim.backend_manager.backend.solver.project_outside = original_project
 
         if project_outside:
             assert calls["n"] >= 1
@@ -843,7 +841,7 @@ def test_mpm_cuda_graph_capture_supports_static_topology(overrides, expected):
         "collider_basis": "S2",
     }
     manager = NewtonMPMManager()
-    manager._solver = SimpleNamespace(**(values | overrides))
+    manager.backend = SimpleNamespace(solver=SimpleNamespace(**(values | overrides)))
 
     assert manager._supports_cuda_graph_capture() is expected
 
@@ -879,7 +877,7 @@ def test_nested_mpm_solver_discovery_is_cached():
 
     root = CoupledSolver()
     manager = NewtonMPMManager()
-    manager._solver = root
+    manager.backend = SimpleNamespace(solver=root)
 
     assert manager._implicit_mpm_solvers() == (mpm_solver,)
     assert manager._implicit_mpm_solvers() == (mpm_solver,)
@@ -899,7 +897,7 @@ def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch
     manager = NewtonMPMManager()
     manager._cfg = SimpleNamespace(use_cuda_graph=True)
     manager._device = "cuda:0"
-    manager._solver = solver
+    manager.backend = SimpleNamespace(solver=solver)
     manager._graph = object()
     manager._graph_capture_pending = False
 
@@ -928,7 +926,7 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution():
     manager = NewtonMPMManager()
     manager._cfg = NewtonCfg(solver_cfg=MPMSolverCfg(grid_type="sparse"), use_cuda_graph=True)
     manager._device = "cuda:0"
-    manager._solver = solver
+    manager.backend = SimpleNamespace(solver=solver)
     manager._graph = object()
     manager._graph_capture_pending = True
 
@@ -1014,7 +1012,7 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
         assert_shape_and_dtype_mask=lambda *args: None,
     )
     solver = SolverMuJoCo(model)
-    asset._backend_manager = SimpleNamespace(_solver=solver)
+    asset._backend_manager = SimpleNamespace(backend=SimpleNamespace(solver=solver))
     target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
     selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
 
@@ -1038,13 +1036,11 @@ def test_forward_consumes_existing_reset_masks():
             solver_resets.append(world_mask.numpy().tolist())
 
     manager = NewtonXPBDManager()
-    manager._world_reset_mask = world_mask
-    manager._fk_reset_mask = fk_mask
-    manager.kinematics_dirty = True
     manager.transforms_may_change_on_graph_replay = False
     manager._eval_fk = record_fk
-    manager.backend = SimpleNamespace(state_0=object())
-    manager._solver = _RecordingSolver()
+    manager.backend = SimpleNamespace(
+        state_0=object(), solver=_RecordingSolver(), world_mask=world_mask, fk_mask=fk_mask, kinematics_dirty=True
+    )
     manager._reset_solver_internals_delegate = manager._reset_solver_internals
 
     manager.forward()
@@ -1066,11 +1062,10 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager():
             raise AssertionError("the base reset hook must not run for implicit MPM")
 
     manager = NewtonMPMManager()
-    manager._world_reset_mask = world_mask
-    manager._fk_reset_mask = fk_mask
-    manager.kinematics_dirty = True
     manager._eval_fk = lambda worlds, articulations: None
-    manager._solver = _RejectingSolver()
+    manager.backend = SimpleNamespace(
+        state_0=object(), solver=_RejectingSolver(), world_mask=world_mask, fk_mask=fk_mask, kinematics_dirty=True
+    )
     manager._reset_solver_internals_delegate = manager._reset_solver_internals
 
     manager.forward()
@@ -1088,12 +1083,10 @@ def test_clear_resets_rigid_body_force_capability(manager_cls):
     """Teardown clears the canonical solver capability, including through MPM's solver-specific clear."""
     manager = manager_cls()
     manager._supports_rigid_body_force_input = True
-    manager._num_envs = 4
 
     manager.clear()
 
     assert manager._supports_rigid_body_force_input is False
-    assert manager._num_envs is None
 
 
 def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
@@ -1148,6 +1141,8 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
             events.append("ready")
             backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
             assert backend is sim.backend_manager.backend
+            # Consumers author the model before solvers that copy it at construction exist.
+            assert backend.solver is None
             allocations.append(backend)
             assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
             different = NewtonCfg(
@@ -1193,7 +1188,7 @@ def test_initialize_solver_populates_canonical_state(
     """End-to-end: ``SimulationContext`` resolves the right manager subclass and
     ``initialize_solver`` lands the right solver + flags on :class:`NewtonManager`.
 
-    External code reads :class:`NewtonManager` attributes directly (``_solver``,
+    External code reads :class:`NewtonManager` attributes directly (``backend.solver``,
     ``_use_single_state``, ``_needs_collision_pipeline``).  Even though dispatch
     runs through a leaf subclass (e.g. :class:`NewtonMJWarpManager`), shared
     state is assigned through the explicit base class so that those reads keep
@@ -1270,8 +1265,8 @@ def test_initialize_solver_populates_canonical_state(
         sim.reset()
 
         # Canonical state lives on the manager instance.
-        assert manager._solver is not None
-        assert isinstance(manager._solver, expected_solver_cls)
+        assert manager.backend.solver is not None
+        assert isinstance(manager.backend.solver, expected_solver_cls)
         assert manager._use_single_state is expected_use_single_state
         assert manager._needs_collision_pipeline is expected_needs_collision_pipeline
         assert manager._supports_rigid_body_force_input is expected_supports_force_input
@@ -1281,11 +1276,11 @@ def test_initialize_solver_populates_canonical_state(
         assert manager._reset_solver_internals_delegate.__self__ is manager
         assert manager._reset_solver_internals_delegate.__func__ is expected_manager._reset_solver_internals
 
-        # ``_contacts`` is allocated whichever way contacts are handled
+        # Contacts are allocated whichever way contacts are handled
         # (MuJoCo internal buffer or Newton pipeline output).
-        # Kamino with internal contacts and MPM do not currently set NewtonManager._contacts.
+        # Kamino with internal contacts and MPM do not currently allocate backend contacts.
         if expected_solver_cls not in (SolverKamino, SolverImplicitMPM):
-            assert manager._contacts is not None
+            assert manager.backend.contacts is not None
 
         # One step should not raise — proves the dispatch wiring lines up
         # end-to-end.  (We do not assert physics; that's covered by the
@@ -1306,7 +1301,7 @@ def test_step_combines_pending_model_changes(monkeypatch, caplog):
         joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         builder.add_articulation([joint])
         sim.reset()
-        solver = sim.backend_manager._solver
+        solver = sim.backend_manager.backend.solver
         notify = solver.notify_model_changed
         calls = []
 
@@ -1408,17 +1403,17 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         # pipeline is allocated, and use_cuda_graph=False so the wrapped
         # Python callable isn't bypassed by a captured graph.
         calls = {"n": 0}
-        original_collide = sim.backend_manager._collision_pipeline.collide
+        original_collide = sim.backend_manager.backend.collision_pipeline.collide
 
         def counting_collide(state, contacts):
             calls["n"] += 1
             return original_collide(state, contacts)
 
-        sim.backend_manager._collision_pipeline.collide = counting_collide
+        sim.backend_manager.backend.collision_pipeline.collide = counting_collide
         try:
             sim.step(render=False)
         finally:
-            sim.backend_manager._collision_pipeline.collide = original_collide
+            sim.backend_manager.backend.collision_pipeline.collide = original_collide
 
         # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
         assert calls["n"] == 1 + expected_mid_loop_collides
@@ -1440,10 +1435,10 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
     state_1 = _State("state_1")
 
     manager = NewtonXPBDManager()
-    manager.backend = SimpleNamespace(state_0=state_0, state_1=state_1, control=object())
-    manager._solver_dt = 0.001
-    manager._num_substeps = 2
-    manager._collision_decimation = 0
+    manager.backend = SimpleNamespace(
+        state_0=state_0, state_1=state_1, control=object(), num_substeps=2, solver_dt=0.001, collision_pipeline=None
+    )
+    manager._cfg = SimpleNamespace(collision_decimation=0)
     manager._needs_collision_pipeline = False
     manager._use_single_state = use_single_state
     manager._state_force_callbacks = [lambda state: events.append(("force", state.name))]
@@ -1568,10 +1563,10 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         for step in range(3):
             if step != 1:
                 sim.backend_manager.set_decimation(1)
-            sim.backend_manager.get_state_0().body_f.assign(wrench)
+            sim.backend_manager.backend.state_0.body_f.assign(wrench)
             sim.step(render=False)
             assert sim.backend_manager._graph is not None
-            np.testing.assert_allclose(sim.backend_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+            np.testing.assert_allclose(sim.backend_manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
 
@@ -1596,11 +1591,11 @@ def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps
             # Newton runs the whole decimation loop inside one step() call.
             sim.backend_manager.activate_newton_actuator_path()
             sim.backend_manager.set_decimation(decimation)
-        sim.backend_manager.get_state_0().body_f.assign(
+        sim.backend_manager.backend.state_0.body_f.assign(
             wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         )
         sim.step(render=False)
-        np.testing.assert_allclose(sim.backend_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+        np.testing.assert_allclose(sim.backend_manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
 
 
 def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):
@@ -1631,14 +1626,14 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             for decimation in (1, 2, 3):
                 sim.backend_manager.set_decimation(decimation)
                 for target in (1.0, -2.0, 3.0, 0.0):
-                    sim.backend_manager.get_control().joint_target_q.fill_(target)
+                    sim.backend_manager.backend.control.joint_target_q.fill_(target)
                     sim.step(render=False)
                     samples.append(
                         np.concatenate(
                             (
-                                sim.backend_manager.get_state_0().joint_q.numpy(),
-                                sim.backend_manager.get_state_0().joint_qd.numpy(),
-                                sim.backend_manager.get_control().joint_f.numpy(),
+                                sim.backend_manager.backend.state_0.joint_q.numpy(),
+                                sim.backend_manager.backend.state_0.joint_qd.numpy(),
+                                sim.backend_manager.backend.control.joint_f.numpy(),
                             )
                         )
                     )
@@ -1720,7 +1715,7 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
         sim.reset()
         assert sim.backend_manager._needs_collision_pipeline is True
         old_backend = sim.backend_manager.backend
-        old_model = sim.backend_manager._collision_pipeline.model
+        old_model = sim.backend_manager.backend.collision_pipeline.model
         sim.step(render=False)
 
         sim.reset()

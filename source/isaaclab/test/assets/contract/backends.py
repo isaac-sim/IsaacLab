@@ -187,7 +187,8 @@ def newton_manager(num_instances: int, device: str) -> MagicMock:
     """Return a NewtonManager double with a gravity-carrying model and no solver."""
     model = MagicMock(world_count=num_instances)
     model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
-    manager = MagicMock(_solver=None)
-    manager.get_model.return_value = model
-    manager.get_state_0.return_value = manager.get_state_1.return_value = MagicMock()
+    manager = MagicMock()
+    manager.backend.solver = None
+    manager.backend.model = model
+    manager.backend.state_0 = manager.backend.state_1 = MagicMock()
     return manager

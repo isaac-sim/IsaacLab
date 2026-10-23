@@ -103,7 +103,7 @@ def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBD
 
 def test_build_solver_rejects_contact_sensors() -> None:
     manager = NewtonCoupledMJWarpVBDManager()
-    manager._report_contacts = True
+    manager.backend = SimpleNamespace(contact_sensors={"key": object()})
 
     with pytest.raises(NotImplementedError, match="contact sensors are not supported"):
         manager._build_solver(MagicMock(), CoupledMJWarpVBDSolverCfg())
@@ -112,9 +112,8 @@ def test_build_solver_rejects_contact_sensors() -> None:
 def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     manager = NewtonCoupledMJWarpVBDManager()
-    manager._report_contacts = False
     manager._supports_contact_sensors = True
-    manager._solver = None
+    manager.backend = SimpleNamespace(solver=None, contact_sensors={})
     manager._use_single_state = True
     manager._needs_collision_pipeline = False
     manager._supports_rigid_body_force_input = False
@@ -129,7 +128,7 @@ def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None
 
     manager._build_solver(MagicMock(), solver_cfg)
 
-    assert manager._solver is manager_module.SolverBase.return_value
+    assert manager.backend.solver is manager_module.SolverBase.return_value
     assert manager._use_single_state is False
     assert manager._needs_collision_pipeline is True
     assert manager._supports_contact_sensors is False
@@ -150,8 +149,7 @@ def test_step_preserves_input_forces(mode: str) -> None:
     reactions = MagicMock()
 
     manager = NewtonCoupledMJWarpVBDManager()
-    manager._contacts = contacts
-    manager._collision_pipeline = collision_pipeline
+    manager.backend = SimpleNamespace(contacts=contacts, collision_pipeline=collision_pipeline)
     manager._rigid_solver = rigid_solver
     manager._soft_solver = soft_solver
     manager._apply_reactions = reactions

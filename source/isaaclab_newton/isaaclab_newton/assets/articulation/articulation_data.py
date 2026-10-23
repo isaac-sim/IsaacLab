@@ -116,7 +116,7 @@ class ArticulationData(BaseArticulationData):
         # per-env gravity randomization stays live; consumers normalize on read.
         # The final entry is reserved for Newton's global world and is not an
         # Isaac Lab environment.
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self._root_view.count, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
@@ -818,7 +818,7 @@ class ArticulationData(BaseArticulationData):
         if self._sim_bind_body_parent_f is None:
             raise RuntimeError("Set ArticulationCfg.enable_joint_wrench=True before simulation startup.")
         if self._body_joint_wrench.data is None:
-            model = self._backend_manager.get_model()
+            model = self._backend_manager.backend.model
             articulation_ids = self._root_view.articulation_ids.numpy()[:, 0]
             starts = model.articulation_start.numpy()[articulation_ids]
             end = model.articulation_end.numpy()[articulation_ids[0]]
@@ -955,7 +955,7 @@ class ArticulationData(BaseArticulationData):
         # axis is preserved in full (a free root joint's 6 columns up front),
         # matching the PhysX layout and the cross-library industry convention.
         self._root_view.eval_jacobian(
-            self._backend_manager.get_state_0(), J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
+            self._backend_manager.backend.state_0, J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
         )
         joint_ordering = self.joint_ordering
         self._read_launch_cache.launch(
@@ -1032,7 +1032,7 @@ class ArticulationData(BaseArticulationData):
         # provided), so we must populate the scratch first via eval_jacobian. Reusing
         # ``_jacobian_buf_flat`` (same shape) avoids a second allocation. Buffers are
         # allocated on first use and reused on subsequent calls, including graph replay.
-        state = self._backend_manager.get_state_0()
+        state = self._backend_manager.backend.state_0
         self._root_view.eval_jacobian(state, J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf)
         self._root_view.eval_mass_matrix(
             state,
@@ -1084,7 +1084,7 @@ class ArticulationData(BaseArticulationData):
         # enabled (validated by Newton's own graph-capture test) — so only the output
         # and gather buffers are retained here.
         self._root_view.eval_inverse_dynamics_passive(
-            self._backend_manager.get_state_0(), gravity_force=self._gravity_force_full_buf
+            self._backend_manager.backend.state_0, gravity_force=self._gravity_force_full_buf
         )
         # Topology arrays come from the same Model object the eval above computed
         # against (the view's), so the gather can never mix models across a rebuild.
@@ -1575,33 +1575,29 @@ class ArticulationData(BaseArticulationData):
         self._num_fixed_tendons = self._root_view.tendon_count
         self._num_spatial_tendons = 0  # spatial tendons not supported
 
+        backend = self._backend_manager.backend
+        model, state, control = backend.model, backend.state_0, backend.control
         # -- root properties
-        self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(self._backend_manager.get_state_0())[:, 0]
+        self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(state)[:, 0]
         # Newton exposes root velocities only for floating bases.
-        root_vel_w = self._root_view.get_root_velocities(self._backend_manager.get_state_0())
+        root_vel_w = self._root_view.get_root_velocities(state)
         self._sim_bind_root_com_vel_w = (
             wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
             if root_vel_w is None
             else root_vel_w[:, 0]
         )
         # -- body properties
-        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", self._backend_manager.get_model())[
-            :, 0
-        ]
-        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(self._backend_manager.get_state_0())[:, 0]
-        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(self._backend_manager.get_state_0())[:, 0]
-        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", self._backend_manager.get_model())[:, 0]
-        self._sim_bind_body_inv_mass = self._root_view.get_attribute(
-            "body_inv_mass", self._backend_manager.get_model()
-        )[:, 0]
-        self._sim_bind_body_inv_inertia = self._root_view.get_attribute(
-            "body_inv_inertia", self._backend_manager.get_model()
-        )[:, 0]
+        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", model)[:, 0]
+        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(state)[:, 0]
+        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(state)[:, 0]
+        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", model)[:, 0]
+        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", model)[:, 0]
+        self._sim_bind_body_inv_inertia = self._root_view.get_attribute("body_inv_inertia", model)[:, 0]
         # Newton stores body_inertia as (N, 1, B) mat33f — the [:, 0] removes the padding dim
         # giving (N, B) mat33f. Reinterpret as (N, B, 9) float32 via pointer aliasing.
         # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
         # The slice may be non-contiguous in the outer dims, so we preserve those strides.
-        _body_inertia_raw = self._root_view.get_attribute("body_inertia", self._backend_manager.get_model())[:, 0]
+        _body_inertia_raw = self._root_view.get_attribute("body_inertia", model)[:, 0]
         self._sim_bind_body_inertia = wp.array(
             ptr=_body_inertia_raw.ptr,
             dtype=wp.float32,
@@ -1610,50 +1606,28 @@ class ArticulationData(BaseArticulationData):
             device=_body_inertia_raw.device,
             copy=False,
         )
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute(
-            "body_f", self._backend_manager.get_state_0()
-        )[:, 0]
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", state)[:, 0]
         try:
-            self._sim_bind_body_parent_f = self._root_view.get_attribute(
-                "body_parent_f", self._backend_manager.get_state_0()
-            )[:, 0]
+            self._sim_bind_body_parent_f = self._root_view.get_attribute("body_parent_f", state)[:, 0]
         except Exception:
             self._sim_bind_body_parent_f = None
         # -- joint properties
         if self._num_joints > 0:
-            self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
-                "joint_limit_lower", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_pos_limits_upper = self._root_view.get_attribute(
-                "joint_limit_upper", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_stiffness_sim = self._root_view.get_attribute(
-                "joint_target_ke", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_damping_sim = self._root_view.get_attribute(
-                "joint_target_kd", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_viscous_friction_coeff = self._root_view.get_attribute(
-                "joint_damping", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_armature = self._root_view.get_attribute(
-                "joint_armature", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_friction_coeff = self._root_view.get_attribute(
-                "joint_friction", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_vel_limits_sim = self._root_view.get_attribute(
-                "joint_velocity_limit", self._backend_manager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_effort_limits_sim = self._root_view.get_attribute(
-                "joint_effort_limit", self._backend_manager.get_model()
-            )[:, 0]
+            self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute("joint_limit_lower", model)[:, 0]
+            self._sim_bind_joint_pos_limits_upper = self._root_view.get_attribute("joint_limit_upper", model)[:, 0]
+            self._sim_bind_joint_stiffness_sim = self._root_view.get_attribute("joint_target_ke", model)[:, 0]
+            self._sim_bind_joint_damping_sim = self._root_view.get_attribute("joint_target_kd", model)[:, 0]
+            self._sim_bind_joint_viscous_friction_coeff = self._root_view.get_attribute("joint_damping", model)[:, 0]
+            self._sim_bind_joint_armature = self._root_view.get_attribute("joint_armature", model)[:, 0]
+            self._sim_bind_joint_friction_coeff = self._root_view.get_attribute("joint_friction", model)[:, 0]
+            self._sim_bind_joint_vel_limits_sim = self._root_view.get_attribute("joint_velocity_limit", model)[:, 0]
+            self._sim_bind_joint_effort_limits_sim = self._root_view.get_attribute("joint_effort_limit", model)[:, 0]
             # -- joint states
             # ``get_dof_positions`` returns Newton's ``joint_q``, which is *coordinate* space: a ball
             # joint occupies 4 quaternion components against 3 DOFs, so the array is wider than
             # ``num_joints`` whenever the articulation has one. IsaacLab addresses joints by DOF
             # index everywhere, so keep the coordinate array separate and publish a DOF-space view.
-            self._sim_bind_joint_coords = self._root_view.get_dof_positions(self._backend_manager.get_state_0())[:, 0]
+            self._sim_bind_joint_coords = self._root_view.get_dof_positions(state)[:, 0]
             # The view's per-joint counts are already in the column order of the array above and
             # already exclude the free root, fixed joints and loop-closing joints.
             self._joint_coord_map = build_ball_joint_coordinate_map(
@@ -1666,17 +1640,11 @@ class ArticulationData(BaseArticulationData):
                 gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
             else:
                 self._sim_bind_joint_pos = self._sim_bind_joint_coords
-            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(self._backend_manager.get_state_0())[:, 0]
+            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(state)[:, 0]
             # -- joint commands (sent to the simulation)
-            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", self._backend_manager.get_control())[
-                :, 0
-            ]
-            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", self._backend_manager.get_control())[
-                :, 0
-            ]
-            self._sim_bind_joint_position_target = self._root_view.get_attribute(
-                "joint_target_q", self._backend_manager.get_control()
-            )[:, 0]
+            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", control)[:, 0]
+            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", control)[:, 0]
+            self._sim_bind_joint_position_target = self._root_view.get_attribute("joint_target_q", control)[:, 0]
             # ``joint_target_q`` follows ``newton.use_coord_layout_targets``, which defaults to
             # True from Newton 1.6. Under that layout the array is coordinate-shaped, exactly like
             # ``joint_q``, so actuators keep writing DOF-indexed targets into a staging buffer and
@@ -1690,9 +1658,7 @@ class ArticulationData(BaseArticulationData):
                 gather_joint_coordinates(
                     self._joint_coord_map, self._sim_bind_joint_target_coords, self._sim_bind_joint_position_target
                 )
-            self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
-                "joint_target_qd", self._backend_manager.get_control()
-            )[:, 0]
+            self._sim_bind_joint_velocity_target = self._root_view.get_attribute("joint_target_qd", control)[:, 0]
         else:
             # No joints (e.g., free-floating rigid body) - set bindings to empty arrays
             self._sim_bind_joint_pos_limits_lower = wp.zeros(
@@ -1738,16 +1704,16 @@ class ArticulationData(BaseArticulationData):
 
         # assumes all tendons are fixed and only one arti in scene
         if self._root_view.tendon_count > 0:
-            self._sim_bind_fixed_tendon_stiffness = self._root_view.get_attribute(
-                "mujoco.tendon_stiffness", self._backend_manager.get_model()
-            )[:, 0]
+            self._sim_bind_fixed_tendon_stiffness = self._root_view.get_attribute("mujoco.tendon_stiffness", model)[
+                :, 0
+            ]
             self._sim_bind_fixed_tendon_damping = self._root_view.get_attribute(
                 "mujoco.tendon_damping",
-                self._backend_manager.get_model(),
+                model,
             )[:, 0]
             self._sim_bind_fixed_tendon_pos_limits = self._root_view.get_attribute(
                 "mujoco.tendon_range",
-                self._backend_manager.get_model(),
+                model,
             )[:, 0]
         else:
             self._sim_bind_fixed_tendon_stiffness = wp.zeros(
@@ -1793,7 +1759,7 @@ class ArticulationData(BaseArticulationData):
         # Initialize history for finite differencing
         if self._num_joints > 0:
             self._previous_joint_vel = wp.clone(
-                self._root_view.get_dof_velocities(self._backend_manager.get_state_0())[:, 0]
+                self._root_view.get_dof_velocities(self._backend_manager.backend.state_0)[:, 0]
             )
         else:
             self._previous_joint_vel = wp.zeros((num_instances, 0), dtype=wp.float32, device=device)

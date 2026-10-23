@@ -41,8 +41,9 @@ Responsibilities and Boundaries
 
 :class:`~isaaclab_newton.physics.NewtonManager` subclasses are instantiated by the
 simulation context, which owns exactly one manager instance as
-:attr:`~isaaclab.sim.SimulationContext.backend_manager`. All runtime state lives
-on that instance.
+:attr:`~isaaclab.sim.SimulationContext.backend_manager`. Everything bound to the
+finalized model lives on the registered :class:`~isaaclab_newton.physics.NewtonBackend`;
+a hard reset closes it and finalizes a new one.
 
 .. list-table::
    :header-rows: 1
@@ -55,9 +56,12 @@ on that instance.
        :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` and drives the
        public lifecycle calls.
    * - ``NewtonManager`` base
-     - Builder, finalized ``Model``, states, control, collision pipeline and
-       contacts, substep iteration, CUDA graph capture, Fabric and USD
-       synchronization, sensors, and reset masks.
+     - Builder, site requests and replication outputs
+       (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), substep iteration,
+       CUDA graph capture, step callbacks, and Fabric and USD synchronization.
+   * - :class:`~isaaclab_newton.physics.NewtonBackend`
+     - Finalized ``Model``, states, control, solver, collision pipeline and
+       contacts, sensors, Newton actuators, and reset masks.
    * - Manager subclass
      - Solver construction and any solver-owned internal state, contact
        buffers, or builder attributes.
@@ -88,15 +92,15 @@ class invokes them.
      - What happens
      - Subclass hooks
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize`
-     - Stores the simulation context, reads gravity from the simulation
-       configuration, and creates the scene data backend.
+     - Stores the simulation context and acquires the shared builder.
      - none
    * - ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))``
      - Acquires the shared builder through the active manager's ``create_builder()`` factory.
        The cloner imports declared prototypes and composes worlds into it.
      - ``_register_builder_attributes()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
-     - Finalizes the model, then allocates states and reset masks.
+     - Finalizes the builder into a new :class:`~isaaclab_newton.physics.NewtonBackend`, which allocates states,
+       control, and reset masks.
      - ``_prepare_builder_for_finalize()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver`
      - Builds the solver, checks that it was assigned, and allocates contacts.

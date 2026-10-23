@@ -879,7 +879,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
+                    contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)
                     else:

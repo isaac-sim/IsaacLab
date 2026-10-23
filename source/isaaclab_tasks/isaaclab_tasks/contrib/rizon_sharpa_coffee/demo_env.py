@@ -122,7 +122,7 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         ]
         if not ranges:
             raise RuntimeError(f"No particle ranges match {asset_name}.")
-        return wp.array(np.concatenate(ranges), dtype=int, device=self.sim.backend_manager.get_model().device)
+        return wp.array(np.concatenate(ranges), dtype=int, device=self.sim.backend_manager.backend.model.device)
 
     def _configure_colliders(self, builder, env_id: int, _position, _quaternion) -> None:
         """Expand the thin spoon shell separately from the container colliders."""
