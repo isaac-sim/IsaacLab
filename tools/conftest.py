@@ -1402,8 +1402,15 @@ def _run_one_pass(
 
 
 def _starts_renderer(test_content: str) -> bool:
-    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX."""
-    return "enable_cameras=True" in test_content or "ovrtx" in test_content.lower()
+    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX.
+
+    Files built on ``rendering_test_utils`` pick their renderer through its helpers, so they name neither.
+    """
+    return (
+        "enable_cameras=True" in test_content
+        or "ovrtx" in test_content.lower()
+        or "rendering_test_utils" in test_content
+    )
 
 
 def _test_file_job(test_file: str, max_slots: int) -> TestFileJob:
@@ -1573,6 +1580,7 @@ def _collect_test_files(
     curobo_only,
 ):
     """Collect test files from source directories, applying all active filters."""
+    include_patterns = [pattern.strip() for pattern in filter_pattern.split(",") if pattern.strip()]
     test_files = []
     for source_dir in source_dirs:
         if not os.path.exists(source_dir):
@@ -1607,7 +1615,7 @@ def _collect_test_files(
 
                 full_path = os.path.join(root, file)
 
-                if filter_pattern and filter_pattern not in full_path:
+                if include_patterns and not any(pattern in full_path for pattern in include_patterns):
                     logger.debug(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
                     continue
                 if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):

@@ -3,6 +3,124 @@ Changelog
 
 .. towncrier release notes start
 
+10.1.0 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Allowed frame views to read physics-body and collision-frame poses while keeping writes in the asset APIs. Frame reads used shared pose publication to refresh same-step state writes.
+
+Changed
+^^^^^^^
+
+* Reused shared body poses for legacy multi-mesh ray-cast targets, removing duplicate
+  target sites and per-update temporary pose arrays.
+
+Fixed
+^^^^^
+
+* Fixed stale ray origins after manual pose writes by refreshing shared body poses before
+  updating the sensor and its targets in the same update.
+* Preserved sensor sites and configured frame-transformer target names across hard
+  resets, and released native IMU and frame-transform sensors belonging to the old model.
+
+
+10.0.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :class:`~isaaclab_newton.physics.NewtonManager` and its solver managers are used as instances
+  (``sim.backend_manager``); call runtime methods on the instance, for example ``sim.backend_manager.get_model()``
+  instead of ``NewtonManager.get_model()``. Subclasses override runtime hooks as instance methods. Newton asset and
+  sensor data classes take the manager as a keyword-only ``backend_manager`` argument. Solver construction hooks
+  (``_create_solver``, ``_filter_solver_kwargs``) take the determinism mode as an argument instead of reading manager
+  state.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated constructing Newton asset data classes without ``backend_manager``; the active simulation's manager
+  is used with a :class:`DeprecationWarning`.
+
+
+9.4.1 (2026-10-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed duplicated PPISP configuration discovery from renderer initialization. Cameras now resolved
+  ``isp_cfg`` during construction, before scene import; renderer initialization continued to create the
+  image-processing pipeline from the prepared configuration.
+* Consolidated lens-distortion checks into render-data creation and read segmentation labels directly
+  from the simulation-owned stage.
+
+
+9.4.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.actuators.DriveBam`, the Newton-native BAM servo drive, and
+  :class:`~isaaclab_newton.physics.MjWarpActuatorBridge`, which couples it to MJWarp friction and load.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.register_pre_actuator_callback` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_solver_init_callback`.
+* Added MJWarp binding for BAM gearbox-play hinges across replicated articulations,
+  with invalid or missing hinge pairs rejected before stepping.
+* Added a protected implicit MPM solver-construction hook so specialized solvers
+  retain the manager's shared USD configuration preparation.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.step` to combine pending model-change flags into one
+  solver notification, so randomizing several kinds of physics properties refreshed the solver constants once
+  per step instead of once per kind.
+
+Fixed
+^^^^^
+
+* Enabled sparse-grid CUDA graph capture with Newton's quadratic B-spline velocity interpolation.
+* Preserved Newton's native VBD defaults after upgrading to Newton 1.8 development and MuJoCo/MJWarp 3.15.
+  ``rigid_compliant_alm=None`` selected compliant ALM; explicit ``False`` retained Newton's deprecated legacy mode.
+* Captured the authored source environment origin when importing deformables so expanded visual geometry metadata
+  remained correctly placed when the authoring stage contained untransformed prototypes.
+* Used authored source frames instead of planned destination poses when composing Newton worlds, keeping bodies,
+  cameras, and deformables aligned when prototype environments were unplaced or remapped.
+
+
+9.3.1 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton frame views returning cloned frames in prototype-group order instead of environment order,
+  keeping poses, indexed writes, scales, and renderer destinations aligned for interleaved world prototypes.
+
+
+9.3.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added VBD structural joint stiffness and friction-smoothing settings, and optional standalone generalized joint-state synchronization.
+
+Fixed
+^^^^^
+
+* Fixed VBD graph coloring for active cloth bending constraints and stale joint state after rigid-body integration.
+  Coupled and external rigid solvers retained ownership of their generalized joint state.
+* Fixed Newton IK prototype selection for nested articulation roots.
+* Applied explicit camera background colors to HDR output in linear space before ISP processing, without replacing black geometry.
+* Warned when camera lens distortion was authored only in USD and ignored by Newton Warp, while accepting configured OpenCV models.
+
+
 9.2.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

@@ -5,6 +5,7 @@
 
 import argparse
 import importlib.metadata
+import logging
 import os
 import sys
 from pathlib import Path
@@ -28,6 +29,8 @@ from .utils import (
     run_python_command,
 )
 
+logger = logging.getLogger(__name__)
+
 _TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
 
 
@@ -37,10 +40,21 @@ def _exit_on_error(status: int) -> None:
         raise SystemExit(status)
 
 
-def _load_external_tasks() -> None:
-    """Import task packages registered by installed downstream projects."""
+def load_external_tasks() -> None:
+    """Import task packages registered by installed downstream projects.
+
+    Load the ``isaaclab.tasks`` entry points before looking up registered task IDs.
+    Entry points should reference modules so repeated discovery uses Python's import cache.
+    A package that fails to import is reported with a warning, so one broken package cannot stop
+    every workflow.
+    """
     for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
-        entry_point.load()
+        try:
+            entry_point.load()
+        except Exception:
+            logger.warning(
+                f"The '{entry_point.name}' task entry point of {entry_point.dist.name} failed to load.", exc_info=True
+            )
 
 
 def train(args: list[str] | None = None) -> None:
@@ -206,7 +220,7 @@ def cli() -> None:
         example(sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
-        _load_external_tasks()
+        load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] == "teleop":

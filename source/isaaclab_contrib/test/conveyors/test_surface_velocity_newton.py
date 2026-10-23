@@ -8,7 +8,7 @@
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -29,6 +29,7 @@ def test_transport_reset_rebind_and_close(device):
         ),
     )
     with build_simulation_context(sim_cfg=cfg) as sim:
+        manager = sim.backend_manager
         builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics))
         for world in range(2):
             builder.begin_world()
@@ -48,7 +49,7 @@ def test_transport_reset_rebind_and_close(device):
                 builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1, cfg=builder.ShapeConfig(mu=1.1e-5))
                 builder.add_articulation([builder.add_joint_free(body)])
             builder.end_world()
-        callbacks_before = set(NewtonManager._callbacks)
+        callbacks_before = set(manager._callbacks)
         driver = SurfaceVelocity(
             2,
             (
@@ -62,6 +63,7 @@ def test_transport_reset_rebind_and_close(device):
                     radius=0.5,
                 ),
             ),
+            manager=manager,
             body_pattern="/Cube$",
             body_count_per_env=1,
             startup_duration_s=2.0,
@@ -70,13 +72,13 @@ def test_transport_reset_rebind_and_close(device):
             previous_model = None
             for _ in range(2):
                 sim.reset()
-                model = NewtonManager.get_model()
+                model = manager.get_model()
                 assert model is not previous_model
                 previous_model = model
-                before = NewtonManager.get_state_0().body_q.numpy().copy()
+                before = manager.get_state_0().body_q.numpy().copy()
                 for _ in range(120):
                     sim.step(render=False)
-                after = NewtonManager.get_state_0().body_q.numpy()
+                after = manager.get_state_0().body_q.numpy()
                 assert after[0, 0] - before[0, 0] > 0.025  # Straight belt in world 0.
                 assert after[2, 1] - before[2, 1] > 0.025  # Pivot belt in world 1.
                 np.testing.assert_allclose(after[[1, 3], :2], before[[1, 3], :2], atol=0.002)
@@ -92,14 +94,14 @@ def test_transport_reset_rebind_and_close(device):
             np.testing.assert_array_equal(forces.numpy(), np.zeros((4, 6)))
             assert driver._conveyor.global_velocity_scale.numpy()[0] == 0
             if device != "cpu":
-                assert NewtonManager._graph is not None
+                assert manager._graph is not None
         finally:
             driver.close()
             driver.close()
-        assert not NewtonManager._solver_init_callbacks
-        assert not NewtonManager._state_force_callbacks
-        assert not NewtonManager._post_solver_substep_callbacks
-        assert set(NewtonManager._callbacks) == callbacks_before
+        assert not manager._solver_init_callbacks
+        assert not manager._state_force_callbacks
+        assert not manager._post_solver_substep_callbacks
+        assert set(manager._callbacks) == callbacks_before
         forces.fill_(1.0)
         sim.step(render=False)
         np.testing.assert_array_equal(forces.numpy(), np.ones((4, 6)))
