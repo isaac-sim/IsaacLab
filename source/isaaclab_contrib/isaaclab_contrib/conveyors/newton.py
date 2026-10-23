@@ -216,24 +216,9 @@ class SurfaceVelocity:
         return binding
 
     @property
-    def specs(self) -> tuple[SurfaceVelocitySpec, ...]:
-        """Authored surface descriptions in stable within-environment order."""
-        return self._surface_specs
-
-    @property
-    def surfaces_per_env(self) -> int:
-        """Number of authored surfaces in each replicated environment."""
-        return len(self._surface_specs)
-
-    @property
     def num_surfaces(self) -> int:
         """Total number of resolved surfaces across all environments."""
-        return self._num_envs * self.surfaces_per_env
-
-    @property
-    def initialized(self) -> bool:
-        """Whether the driver is bound to the active Newton solver."""
-        return self._binding is not None
+        return self._num_envs * len(self._surface_specs)
 
     @property
     def prim_paths(self) -> tuple[str, ...]:

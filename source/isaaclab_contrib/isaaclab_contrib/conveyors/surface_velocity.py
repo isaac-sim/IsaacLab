@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend-neutral surface-velocity descriptions and control interface."""
+"""Import-light descriptions of prescribed conveyor surface velocities."""
 
 from __future__ import annotations
 
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 _ENV_REGEX_NS = "{ENV_REGEX_NS}"
 
@@ -62,10 +62,8 @@ def _validate_vector(name: str, value: tuple[float, ...], length: int, *, nonzer
 class SurfaceVelocitySpec:
     """Persistent intent for one collision surface with prescribed tangential velocity.
 
-    The fields follow the authored conveyor model proposed for Isaac Sim while remaining independent of
-    Kit, OpenUSD, and any physics backend. Directions, surface normals, and the optional pivot point are
-    expressed in the collision prim's local frame. Runtime state such as commanded speeds and applied
-    forces intentionally does not belong in this description.
+    Directions, surface normals, and the optional pivot point are expressed in the collision prim's
+    local frame. Runtime state such as commanded speeds and applied forces belongs to the adapter.
 
     ``prim_path`` may contain Isaac Lab's ``{ENV_REGEX_NS}`` placeholder. A backend resolves that template
     to every replicated collision prim while preserving one deterministic belt index per environment. An
@@ -77,10 +75,8 @@ class SurfaceVelocitySpec:
         enabled: Whether the surface initially transports contacting bodies.
         direction: Local travel direction, or local rotation axis for a curved belt.
         curved: Whether the velocity field rotates about ``pivot_point``.
-        pivot_point: Local rotation center for a curved belt [m]. An OpenUSD adapter may map this point to the
-            world transform of a prim targeted by the proposed schema's pivot relationship; it is not copied
-            into a schema attribute.
-        radius: Optional centerline radius used by backends that cannot derive it from geometry [m].
+        pivot_point: Local rotation center for a curved belt [m].
+        radius: Centerline radius required for a curved belt [m].
         surface_normal: Local outward normal of the carrying surface.
         contact_threshold: Minimum contact-normal alignment accepted for traction.
         friction_coefficient: Coulomb limit for synthetic surface traction.
@@ -173,46 +169,3 @@ def resolve_surface_velocity_paths(
     if len(set(paths)) != len(paths):
         raise ValueError("Resolved conveyor prim paths must be unique.")
     return paths
-
-
-@runtime_checkable
-class SurfaceVelocityView(Protocol):
-    """Common tensorized control contract implemented by physics backends."""
-
-    @property
-    def prim_paths(self) -> tuple[str, ...]:
-        """Resolved collision prim paths in stable surface-index order."""
-        ...
-
-    @property
-    def num_surfaces(self) -> int:
-        """Number of resolved moving surfaces."""
-        ...
-
-    def set_velocities(self, velocities: Any, indices: Any = None) -> None:
-        """Set signed surface velocities [m/s] for selected surfaces."""
-        ...
-
-    def get_velocities(self, indices: Any = None, clone: bool = True) -> Any:
-        """Return effective surface velocities [m/s] for selected surfaces."""
-        ...
-
-    def get_commanded_velocities(self, indices: Any = None, clone: bool = True) -> Any:
-        """Return commanded surface velocities [m/s] before the enabled mask."""
-        ...
-
-    def set_enabled(self, flags: Any, indices: Any = None) -> None:
-        """Enable or disable selected surfaces without discarding their commands."""
-        ...
-
-    def get_enabled(self, indices: Any = None, clone: bool = True) -> Any:
-        """Return integer enabled flags for selected surfaces."""
-        ...
-
-    def reset(self, env_ids: Any = None) -> None:
-        """Clear runtime state for selected replicated environments."""
-        ...
-
-    def close(self) -> None:
-        """Release backend resources and callbacks."""
-        ...
