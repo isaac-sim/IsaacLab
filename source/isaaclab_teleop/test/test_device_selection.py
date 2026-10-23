@@ -43,13 +43,12 @@ BUILDERS = {
 def recorded(monkeypatch):
     """Record which builder ``device_selection`` calls, and with what, without changing its routing."""
     calls = []
-    for cfg_type, name in BUILDERS.items():
+    for cfg_type, (routed, fields) in list(device_selection._PIPELINES.items()):
 
-        def builder(name=name, **kwargs):
+        def builder(name=routed.__name__, **kwargs):
             calls.append((name, kwargs))
             return f"pipeline:{name}"
 
-        fields = device_selection._PIPELINES[cfg_type][1]
         monkeypatch.setitem(device_selection._PIPELINES, cfg_type, (builder, fields))
     monkeypatch.setattr(device_selection, "_isaacteleop_available", lambda: True)
     return calls

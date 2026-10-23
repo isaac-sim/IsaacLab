@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 resolution-markers = [
     "platform_machine == 'x86_64' and sys_platform == 'linux'",
@@ -3855,6 +3855,7 @@ dependencies = [
     { name = "configargparse" },
     { name = "dash" },
     { name = "flask" },
+    { name = "ipywidgets" },
     { name = "matplotlib" },
     { name = "nbformat" },
     { name = "numpy" },

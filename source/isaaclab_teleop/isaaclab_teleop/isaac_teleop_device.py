@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import torch
@@ -108,6 +108,11 @@ class IsaacTeleopDevice:
                     action = device.advance(target_T_world=robot_T_world)
                     env.step(action.repeat(num_envs, 1))
     """
+
+    _START_KEY: ClassVar[int] = 48  # evdev code of B
+    _STOP_KEY: ClassVar[int] = 25  # P
+    _RESET_KEY: ClassVar[int] = 19  # R
+    _SPACEMOUSE_RIGHT_BUTTON: ClassVar[int] = 1
 
     def __init__(
         self,
@@ -469,9 +474,6 @@ class IsaacTeleopDevice:
     # ------------------------------------------------------------------
     # Operator keys and buttons
     # ------------------------------------------------------------------
-
-    _START_KEY, _STOP_KEY, _RESET_KEY = 48, 25, 19  # evdev codes of B, P and R
-    _SPACEMOUSE_RIGHT_BUTTON = 1
 
     def _handle_operator_input(self) -> None:
         """Start, pause or reset on the operator's ``B`` / ``P`` / ``R`` keys and SpaceMouse right button.
