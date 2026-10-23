@@ -1,1 +1,1 @@
-* Added four-cube conveyor racetrack transfer with Newton and native CPU PhysX backends, a shared pretrained policy, reset curriculum, and seeded evaluation.
+* Added Newton four-cube conveyor racetrack transfer with a pretrained policy, reset curriculum, and seeded evaluation.
