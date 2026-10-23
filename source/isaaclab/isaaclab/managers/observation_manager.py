@@ -481,15 +481,17 @@ class ObservationManager(ManagerBase):
                         batch_size=circular_buffer.batch_size,
                         device=circular_buffer.device,
                         stack_dim=1 if obs.ndim > 1 else None,
-                        history_newest_first=circular_buffer.history_newest_first,
                     )
                     circular_buffer.append(obs)
 
-                if term_cfg.flatten_history_dim:
-                    obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
-                else:
-                    obs = circular_buffer.buffer
+                obs = circular_buffer.buffer
                 owned = False
+                if term_cfg.history_newest_first:
+                    # flip always copies, so the result no longer borrows the history storage
+                    obs = obs.flip(dims=[1])
+                    owned = True
+                if term_cfg.flatten_history_dim:
+                    obs = obs.reshape(self._env.num_envs, -1)
             # Secure borrowed storage before another term can overwrite it, including shared scratch buffers.
             group_obs[term_name] = obs if owned else obs.clone()
 
@@ -758,7 +760,6 @@ class ObservationManager(ManagerBase):
                         batch_size=self._env.num_envs,
                         device=self._env.device,
                         stack_dim=1 if len(obs_dims) > 1 else None,
-                        history_newest_first=term_cfg.history_newest_first,
                     )
                     old_dims = list(obs_dims)
                     old_dims.insert(1, term_cfg.history_length)

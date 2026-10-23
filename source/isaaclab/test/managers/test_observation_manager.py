@@ -492,6 +492,23 @@ def test_group_history_flatten_order(setup_env, history_order, history_newest_fi
     torch.testing.assert_close(observation, torch.tensor(expected_values).expand(env.num_envs, -1))
 
 
+def test_unflattened_term_history_newest_first(setup_env):
+    """A term-level newest-first history puts the current step first without flattening."""
+    env = setup_env
+    cfg = ObservationGroupCfg(concatenate_terms=False)
+    cfg.position = ObservationTermCfg(
+        func=lambda env: env.data.pos_w[:, :2], history_length=3, flatten_history_dim=False, history_newest_first=True
+    )
+    manager = ObservationManager({"policy": cfg}, env)
+
+    for step in range(4):
+        env.data.pos_w[:, :2] = float(step)
+        observation = manager.compute(update_history=True)["policy"]["position"]
+
+    expected = torch.tensor([3.0, 2.0, 1.0]).view(1, 3, 1).expand(env.num_envs, 3, 2)
+    torch.testing.assert_close(observation, expected)
+
+
 def test_time_order_rejects_mixed_history_direction(setup_env):
     """Time-ordered groups reject terms whose history directions differ."""
     cfg = ObservationGroupCfg(history_length=2, history_order="time")
