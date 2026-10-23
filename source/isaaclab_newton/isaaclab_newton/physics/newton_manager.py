@@ -53,13 +53,9 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
-from isaaclab_newton.physics.newton_manager_cfg import (
-    NewtonBackendCfg,
-    NewtonBuilderCfg,
-    NewtonCfg,
-    NewtonShapeCfg,
-    NewtonSolverCfg,
-)
+from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
+from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
+from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,

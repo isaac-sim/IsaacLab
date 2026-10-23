@@ -20,13 +20,14 @@ from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_newton.renderers.visual_material import VisualMaterialWriter
 
-from .newton_manager_cfg import NewtonBuilderCfg, NewtonCfg
+from .newton_builder_cfg import NewtonBuilderCfg
+from .newton_manager_cfg import NewtonCfg
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
-    from .newton_manager_cfg import NewtonBackendCfg
+    from .newton_backend_cfg import NewtonBackendCfg
 
 SiteEntry = tuple[int, None] | tuple[None, list[list[int]]]
 """Resolved site: ``(global_shape_index, None)`` for a global site, or ``(None, per_world_indices)``."""

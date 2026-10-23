@@ -15,3 +15,6 @@
 * **Breaking:** Removed ``NewtonManager.cl_register_site``; use
   :meth:`~isaaclab_newton.physics.NewtonManager.register_site`. Removed ``add_frame_transform_sensor``; construct
   :class:`newton.sensors.SensorFrameTransform` on ``manager.backend.model``.
+* **Breaking:** Moved :class:`~isaaclab_newton.physics.NewtonBackendCfg` to ``newton_backend_cfg`` and
+  :class:`~isaaclab_newton.physics.NewtonBuilderCfg` to ``newton_builder_cfg``; import them from
+  ``isaaclab_newton.physics``.

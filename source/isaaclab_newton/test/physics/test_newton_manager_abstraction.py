@@ -56,7 +56,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
-from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg
+from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.actuators import DrivePID
