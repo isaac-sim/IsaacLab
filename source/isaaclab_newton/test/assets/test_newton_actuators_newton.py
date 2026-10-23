@@ -37,7 +37,7 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonMJWarpManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg
 from newton import JointTargetMode, JointType, ModelBuilder
 from newton.solvers import SolverMuJoCo
 from newton_test_utils import NUM_ENVS, local_usd, newton_sim_cfg, spawn_assets
@@ -283,7 +283,12 @@ def _run(
 
     if use_newton_actuators and decimation > 1:
         sim.backend_manager.set_decimation(decimation)
-    handles_dec = use_newton_actuators and decimation > 1 and sim.backend_manager.handles_decimation()
+    handles_dec = (
+        use_newton_actuators
+        and decimation > 1
+        and sim.backend_manager._is_all_graphable()
+        and sim.backend_manager._decimation > 1
+    )
 
     results = {}
     for name, island in islands.items():
@@ -495,11 +500,9 @@ def _make_target_mode_builder(
     """Build a zero-gain articulated model builder for target-mode tests."""
     sim = object.__new__(sim_utils.SimulationContext)
     sim.cfg = SimpleNamespace(physics=NewtonCfg())
-    sim.backend_manager = NewtonMJWarpManager(cfg=sim.cfg.physics, device="cpu")
-    sim.backend_manager._sim = sim
     sim._backend_registry = []
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: sim)
-    builder = sim.backend_manager.builder
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
     inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     parent = -1
     joint_ids = []
@@ -613,10 +616,7 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
     builder = _make_target_mode_builder(
         monkeypatch, ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
     )
-    Articulation._configure_joint_target_modes(
-        SimpleNamespace(cfg=articulation_cfg, _backend_manager=sim_utils.SimulationContext.instance().backend_manager),
-        None,
-    )
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     model = builder.finalize(device="cpu")
     solver = SolverMuJoCo(model, use_mujoco_cpu=True)
     assert model.joint_target_mode.numpy().tolist() == [int(expected_mode), int(expected_mode)]
@@ -634,10 +634,7 @@ def test_actuator_cfg_matches_explicit_descendant_articulation_root(monkeypatch)
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.articulation_label = ["/World/Env_0/Robot/base"]
-    Articulation._configure_joint_target_modes(
-        SimpleNamespace(cfg=articulation_cfg, _backend_manager=sim_utils.SimulationContext.instance().backend_manager),
-        None,
-    )
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
@@ -653,10 +650,7 @@ def test_actuator_cfg_matches_clone_plan_root_expr(monkeypatch):
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.articulation_label = ["/World/envs/env_0/Robot/base"]
-    Articulation._configure_joint_target_modes(
-        SimpleNamespace(cfg=articulation_cfg, _backend_manager=sim_utils.SimulationContext.instance().backend_manager),
-        None,
-    )
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
@@ -670,10 +664,7 @@ def test_actuator_cfg_leaves_excluded_joint_types_imported(monkeypatch, joint_ty
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.joint_type[0] = joint_type
-    Articulation._configure_joint_target_modes(
-        SimpleNamespace(cfg=articulation_cfg, _backend_manager=sim_utils.SimulationContext.instance().backend_manager),
-        None,
-    )
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.NONE)]
 
 
@@ -685,10 +676,7 @@ def test_actuator_cfg_uses_imported_gain_for_none_stiffness(monkeypatch):
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=0.0)},
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.EFFORT], [10.0], [0.0])
-    Articulation._configure_joint_target_modes(
-        SimpleNamespace(cfg=articulation_cfg, _backend_manager=sim_utils.SimulationContext.instance().backend_manager),
-        None,
-    )
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
@@ -708,9 +696,7 @@ def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported(monkeypat
         [0.0, 0.0],
         [0.0, 2.0],
     )
-    Articulation._configure_joint_target_modes(
-        SimpleNamespace(cfg=subset_cfg, _backend_manager=sim_utils.SimulationContext.instance().backend_manager), None
-    )
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=subset_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION), int(JointTargetMode.VELOCITY)]
 
 
@@ -731,10 +717,7 @@ def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(monkeypatch,
     builder = _make_target_mode_builder(
         monkeypatch, ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
     )
-    Articulation._configure_joint_target_modes(
-        SimpleNamespace(cfg=articulation_cfg, _backend_manager=sim_utils.SimulationContext.instance().backend_manager),
-        None,
-    )
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(mode) for mode in expected_modes]
 
 

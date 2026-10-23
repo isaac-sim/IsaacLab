@@ -56,6 +56,7 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import (
+    NewtonBackendCfg,
     NewtonBuilderCfg,
     NewtonCfg,
     NewtonShapeCfg,
@@ -67,7 +68,7 @@ from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
 )
 
-from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, deformable_ranges
+from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
 from .newton_scene_data import NewtonSceneDataBackend
 from .vbd_manager_cfg import VBDSolverCfg
 
@@ -147,19 +148,16 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_
 
 
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
-    """Construct the builder of a render-only Newton model; the simulation registry's factory.
+    """Construct a native builder through the selected physics manager's factory.
 
     Args:
-        cfg: The selected, non-Newton physics configuration.
+        cfg: The selected physics configuration.
 
     Returns:
-        An empty builder.
-
-    Raises:
-        ValueError: If Newton is the physics backend, whose manager owns the builder (see :func:`get_newton_builder`).
+        An empty builder with the selected solver schemas and shape/BVH defaults.
     """
     if isinstance(cfg.physics_cfg, NewtonCfg):
-        raise ValueError("Newton physics owns its builder; use get_newton_builder(sim).")
+        return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
     return ModelBuilder()
 
 
@@ -268,10 +266,7 @@ class NewtonManager(PhysicsManager):
 
     Manager for physics lifecycle, solvers, contacts, sensors, replication, and CUDA graphs; the
     simulation context owns one instance as :attr:`~isaaclab.sim.SimulationContext.backend_manager`.
-    The manager owns its construction model (:attr:`builder`) and the :class:`NewtonBackend` finalized from it,
-    which holds everything bound to the model: state, control, solver, contacts, sensors, and reset masks. A hard
-    reset closes the backend and finalizes a new one. Managers do not share state, so several can run side by side.
-
+    Everything bound to the finalized model belongs to the registered :class:`NewtonBackend`.
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
@@ -288,38 +283,11 @@ class NewtonManager(PhysicsManager):
 
     backend_name = "newton"
 
-    def __init__(
-        self,
-        builder: ModelBuilder | None = None,
-        cfg: NewtonCfg | None = None,
-        *,
-        dt: float = 1.0 / 60.0,
-        device: str = "cuda:0",
-    ):
-        """Create an independent manager, optionally from a populated Newton builder.
-
-        Args:
-            builder: Construction model retained across hard resets. Created lazily when omitted.
-            cfg: Physics and solver settings. A context the manager is attached to adopts them. Defaults to the
-                context's physics configuration, or to Newton's standard configuration for standalone use.
-            dt: Physics timestep for standalone use; an attached context supplies its timestep.
-            device: Simulation device for standalone use.
-        """
+    def __init__(self):
         super().__init__()
         self.backend: NewtonBackend | None = None
         self.clear()
-        self._cfg = cfg
-        self._device = device
-        self._dt = dt
-        self._builder = builder
         self._scene_data_backend = NewtonSceneDataBackend(self)
-
-    @property
-    def cfg(self) -> NewtonCfg:
-        """Physics and solver settings: the constructor's, else the attached context's, else Newton's defaults."""
-        if self._cfg is None:
-            self._cfg = NewtonCfg()
-        return self._cfg
 
     @classmethod
     def provides_implicit_damping(cls) -> bool:
@@ -372,13 +340,15 @@ class NewtonManager(PhysicsManager):
     def reset(self, soft: bool = False) -> None:
         """Reset physics simulation.
 
-        A hard reset (``soft=False``) closes the backend and finalizes a new one from the retained builder. The
-        solver, collision pipeline, contacts and any captured CUDA graph reference the old buffers, so they are
-        released with the backend and rebuilt against the new model by :meth:`initialize_solver`. Consumers rebind on
-        ``PHYSICS_READY``.
+        A hard reset (``soft=False``) re-finalizes the Newton model, reallocating
+        its device arrays. The cached collision pipeline, contacts and any
+        captured CUDA graph reference the old buffers, so they are released here
+        and rebuilt against the re-finalized model by :meth:`initialize_solver`.
+        This avoids the illegal CUDA memory access (CUDA error 700) that would
+        otherwise occur on the first step after a hard reset.
 
         A soft reset (``soft=True``) skips this full reinitialization and reuses
-        the existing backend, solver, collision pipeline and CUDA graph.
+        the existing model, solver, collision pipeline and CUDA graph.
 
         Assets bind data once at construction. Hard resets recreate their views,
         data containers, and per-model step hooks through ``PHYSICS_READY``;
@@ -412,7 +382,7 @@ class NewtonManager(PhysicsManager):
         self._use_newton_actuators_active = False
         if backend is not None:
             self.backend = None
-            backend.close()
+            SimulationContext.instance().close_backend(backend)
 
     def _eval_fk_impl(self, world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
         """Update body states from joint coordinates.
@@ -499,7 +469,7 @@ class NewtonManager(PhysicsManager):
             -> sensors.update
         """
         sim = self._sim
-        if sim is not None and not sim.is_playing():
+        if sim is None or not sim.is_playing():
             return
         backend = self.backend
 
@@ -519,10 +489,10 @@ class NewtonManager(PhysicsManager):
         # Reset-authored state and persistent solver resources must be ready before capture.
         # forward() also resets solver internals for the worlds flagged since the last boundary.
         self.forward()
-        cfg = self.cfg
+        cfg = self._cfg
         device = self._device
         physics_dt = backend.dt
-        use_graph = cfg.use_cuda_graph and self._graph is not None and "cuda" in device
+        use_graph = cfg is not None and cfg.use_cuda_graph and self._graph is not None and "cuda" in device  # type: ignore[union-attr]
 
         if self._is_all_graphable():
             # --- All actuators are graph-safe: actuators + solver in one graph ---
@@ -549,7 +519,7 @@ class NewtonManager(PhysicsManager):
             self._sim_time += physics_dt
 
         # Run the requested step eagerly before capture so lazy GPU allocations happen outside recording.
-        if self._graph_capture_pending and cfg.use_cuda_graph:
+        if self._graph_capture_pending and cfg is not None and cfg.use_cuda_graph:
             simulate = self._simulate_full if self._is_all_graphable() else self._simulate_physics_only
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
                 self._graph = self._capture_graph(simulate)
@@ -595,7 +565,6 @@ class NewtonManager(PhysicsManager):
     def clear(self):
         """Release the backend and all Newton-specific session state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
-        self._builder = None
         self._use_single_state = None
         self._supports_rigid_body_force_input = False
         self._needs_collision_pipeline = False
@@ -642,17 +611,6 @@ class NewtonManager(PhysicsManager):
         self._solver_specific_clear()
 
     # ----- Model construction -------------------------------------------------------
-
-    @property
-    def builder(self) -> ModelBuilder:
-        """This manager's construction model, retained across hard resets."""
-        if self._builder is None:
-            self._builder = self.create_builder(physics_cfg=self.cfg)
-        return self._builder
-
-    def get_physics_dt(self) -> float:
-        """Return the physics timestep: the attached context's, or the constructor's for standalone use."""
-        return self._dt if self._sim is None else self._sim.cfg.dt
 
     @classmethod
     def create_builder(
@@ -713,32 +671,6 @@ class NewtonManager(PhysicsManager):
         builder data before :meth:`ModelBuilder.finalize` allocates model arrays.
         The default implementation is a no-op.
         """
-
-    def prepare_builder(self, builder: ModelBuilder) -> None:
-        """Apply unresolved site requests and solver-specific normalization to the builder about to be finalized.
-
-        The builder survives hard resets, and so do the sites added to it, so a site is added only once.
-
-        Args:
-            builder: Builder of the simulated model.
-        """
-        global_sites, body_sites, root_sites = self.inject_sites(builder, {})
-        site_map = self._site_index_map
-        site_map.update((label, (index, None)) for label, index in global_sites.items())
-        site_map.update((label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items())
-        for label, xform in root_sites.items():
-            site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
-        builder.up_axis = Axis.Z
-        self._prepare_builder_for_finalize(builder)
-
-    def finalize_backend(self) -> NewtonBackend:
-        """Finalize this manager's builder into independently owned simulation buffers."""
-        builder = self.builder
-        self.prepare_builder(builder)
-        model = builder.finalize(device=self._device)
-        if self._sim is not None:
-            model.set_gravity(self._sim.cfg.gravity)
-        return NewtonBackend(model, self.cfg, dt=self.get_physics_dt(), deformable_ranges=deformable_ranges(builder))
 
     def register_site(self, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
         """Request a site for injection into prototypes before replication.
@@ -840,9 +772,8 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: State attribute name (must be in ``State.EXTENDED_ATTRIBUTES``).
         """
-        self.builder.request_state_attributes(attr)
-        # Retained because initialize_solver() must know which sensors depend on state that MuJoCo's sensor stage
-        # fills.
+        self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg)).request_state_attributes(attr)
+        # initialize_solver() checks which sensors depend on state that MuJoCo's sensor stage fills.
         self._active_extended_state_attributes.add(attr)
 
     def request_extended_contact_attribute(self, attr: str) -> None:
@@ -851,7 +782,7 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: Contact attribute name.
         """
-        self.builder.request_contact_attributes(attr)
+        self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg)).request_contact_attributes(attr)
 
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver."""
@@ -992,28 +923,45 @@ class NewtonManager(PhysicsManager):
             )
 
     def start_simulation(self) -> None:
-        """Start simulation by finalizing the model into a new backend.
+        """Start simulation by finalizing model and initializing state.
 
-        Dispatches ``MODEL_INIT`` so consumers author the builder, finalizes it into a :class:`NewtonBackend`, and
-        dispatches ``PHYSICS_READY`` so consumers bind to the backend. The collision pipeline is initialized later in
-        :meth:`initialize_solver`, after the solver determines whether it needs external collision detection.
+        This function finalizes the model and initializes the simulation state.
+        Note: Collision pipeline is initialized later in initialize_solver() after
+        we determine whether the solver needs external collision detection.
         """
+        sim = SimulationContext.instance()
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         self._drain_stale_cuda_error()
 
         logger.info("Dispatching MODEL_INIT callbacks")
         self.dispatch_event(PhysicsEvent.MODEL_INIT)
 
-        logger.info(f"Finalizing model on device: {self._device}")
+        # The builder survives hard resets, so sites already added to it are skipped.
+        global_sites, body_sites, root_sites = self.inject_sites(builder, {})
+        site_map = self._site_index_map
+        site_map.update((label, (index, None)) for label, index in global_sites.items())
+        site_map.update((label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items())
+        for label, xform in root_sites.items():
+            site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
+
+        device = self._device
+        logger.info(f"Finalizing model on device: {device}")
+        builder.up_axis = Axis.Z
+        self._prepare_builder_for_finalize(builder)
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",
             activity="Finalizing physics model",
             synchronize="both",
-            device=self._device,
+            device=device,
         ):
-            self.backend = self.finalize_backend()
+            cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+            self.backend = sim.get_or_create_backend(cfg, dt=self.get_physics_dt())
+            self.backend.model.set_gravity(sim.cfg.gravity)
 
         clone = self._clone
+        if clone is not None:
+            self.backend.particle_ranges = clone.particle_ranges
         self._scene_data_backend.initialize_geometry(
             [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
         )
@@ -1342,7 +1290,9 @@ class NewtonManager(PhysicsManager):
         graph capture for the first step after the environment has authored its initial state.
         Initialization and capture do not advance physics.
         """
-        cfg = self.cfg
+        cfg = self._cfg
+        if cfg is None:
+            return
         backend = self.backend
 
         with Timer(
@@ -1352,12 +1302,12 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            deterministic_mode = self._apply_deterministic_request(cfg)
-            self._validate_deterministic_solver_cfg(cfg.solver_cfg, deterministic_mode)
+            deterministic_mode = self._apply_deterministic_request(cfg)  # type: ignore[arg-type]
+            self._validate_deterministic_solver_cfg(cfg.solver_cfg, deterministic_mode)  # type: ignore[union-attr]
             self._deterministic_mode = deterministic_mode
-            self._collision_cfg = cfg.collision_cfg
+            self._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
 
-            self._build_solver(backend.model, cfg.solver_cfg)
+            self._build_solver(backend.model, cfg.solver_cfg)  # type: ignore[union-attr]
             if backend.solver is None:
                 raise RuntimeError(
                     f"{type(self).__name__}._build_solver did not assign backend.solver. "
@@ -1397,9 +1347,9 @@ class NewtonManager(PhysicsManager):
         """Schedule capture after reset and decimation setup, without advancing physics."""
         self._graph = None
         self._graph_capture_pending = False
-        cfg = self.cfg
+        cfg = self._cfg
         device = self._device
-        if device is None or not cfg.use_cuda_graph or "cuda" not in device:
+        if cfg is None or device is None or not cfg.use_cuda_graph or "cuda" not in device:
             return
         if not self._supports_cuda_graph_capture():
             logger.warning(
@@ -1416,7 +1366,7 @@ class NewtonManager(PhysicsManager):
     def _capture_graph(self, capture_target: Callable[[], None]) -> wp.Graph:
         """Record physics or scene queries without an eager warmup or graph replay."""
         sim = self._sim
-        relaxed = sim is not None and has_kit() and (sim.has_gui or sim.has_offscreen_render)
+        relaxed = has_kit() and (sim.has_gui or sim.has_offscreen_render)
         return NewtonQueries.capture_graph(self._device, capture_target, relaxed=relaxed)
 
     # ------------------------------------------------------------------
@@ -1441,7 +1391,7 @@ class NewtonManager(PhysicsManager):
         """
         backend = self.backend
         num_substeps = backend.num_substeps
-        collide_every = self.cfg.collision_decimation
+        collide_every = self._cfg.collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's
         # top-of-loop collide(), not this one.
         collide_mid_loop = collide_every > 0 and self._needs_collision_pipeline and contacts is not None
@@ -1615,7 +1565,7 @@ class NewtonManager(PhysicsManager):
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.get_physics_dt() / self.cfg.num_substeps
+        return self.get_physics_dt() / self._cfg.num_substeps
 
     def cl_register_site(self, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
         """Deprecated: use :meth:`register_site` instead."""

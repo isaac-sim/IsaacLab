@@ -1,2 +1,2 @@
-* Changed the Newton, Rerun and Viser visualizers and the particle surface renderer to read the Newton backend
-  through :func:`~isaaclab_newton.physics.get_newton_backend`.
+* Changed the Newton visualizer and the particle surface renderer to read Newton contacts, model and state from the
+  physics manager's :class:`~isaaclab_newton.physics.NewtonBackend`.

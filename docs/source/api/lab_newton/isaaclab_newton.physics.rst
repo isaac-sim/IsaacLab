@@ -57,10 +57,6 @@ Physics Manager
 .. autoclass:: NewtonCloneRecord
   :members:
 
-.. autofunction:: get_newton_builder
-
-.. autofunction:: get_newton_backend
-
 Actuator Solver Access
 ----------------------
 

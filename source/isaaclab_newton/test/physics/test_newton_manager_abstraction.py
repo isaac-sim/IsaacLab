@@ -14,9 +14,8 @@ Covers:
   rejects the ``MJWarp + use_mujoco_contacts=True + collision_cfg`` combination.
 * Fixed-root pose writes refresh MuJoCo's solver-owned root transform.
 * End-to-end: spinning up a simulation with each solver builds the correct
-  solver on the manager's :class:`NewtonBackend` and sets the right
-  ``_use_single_state`` / ``_needs_collision_pipeline`` flags.
-* Each manager owns its builder and backend; closing one leaves another intact.
+  solver, sets the right ``_use_single_state`` / ``_needs_collision_pipeline``
+  flags, and lands canonical state on the manager instance.
 """
 
 from __future__ import annotations
@@ -55,7 +54,6 @@ from isaaclab_newton.physics import (
     NewtonXPBDManager,
     VBDSolverCfg,
     XPBDSolverCfg,
-    get_newton_backend,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg
@@ -270,9 +268,8 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch, cloth,
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    physics_cfg = object()
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=physics_cfg))
-    cfg = NewtonBackendCfg(physics_cfg=physics_cfg, device=device, builder=builder)
+    cfg = NewtonBackendCfg(physics_cfg=object(), device=device)
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
     builder.add_shape_sphere(builder.add_body(label="/Object"))
     for position in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
         builder.add_particle(pos=wp.vec3(position), vel=wp.vec3(), mass=1.0)
@@ -779,7 +776,7 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         # MPM custom attrs must exist on the builder before particles use them (the production path).
         assert builder.has_custom_attribute("mpm:young_modulus")
         builder.add_particles(
@@ -1092,34 +1089,9 @@ def test_clear_resets_rigid_body_force_capability(manager_cls):
     assert manager._supports_rigid_body_force_input is False
 
 
-def test_clear_releases_only_the_owning_managers_state():
-    """Closing one manager leaves the other manager's sites, callbacks, and backend alive."""
-    closed = []
-    first, second = NewtonXPBDManager(), NewtonXPBDManager()
-    first.backend = SimpleNamespace(close=lambda: closed.append("first"))
-    second.backend = SimpleNamespace(close=lambda: closed.append("second"))
-    first.register_site(None, wp.transform_identity())
-    second.register_site(None, wp.transform_identity())
-    events = []
-    first.register_callback(lambda _: events.append("first"), PhysicsEvent.STOP)
-    second.register_callback(lambda _: events.append("second"), PhysicsEvent.STOP)
-
-    first.close()
-
-    assert closed == ["first"]
-    assert events == ["first"]
-    assert first.backend is None
-    assert first._site_requests == {}
-    assert second.backend is not None
-    assert second._site_requests
-    second.close()
-    assert closed == ["first", "second"]
-    assert events == ["first", "second"]
-
-
 def test_deprecated_accessors_read_the_backend():
     """Removed manager accessors warn and forward to the backend fields that replace them."""
-    manager = NewtonXPBDManager(device="cpu")
+    manager = NewtonXPBDManager()
     manager.backend = SimpleNamespace(model=SimpleNamespace(world_count=3), solver=object(), contacts=None)
     with pytest.warns(DeprecationWarning, match="manager.backend.model"):
         assert manager.get_model() is manager.backend.model
@@ -1159,8 +1131,9 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
         return original(name_keys, names, *args, **kwargs)
 
     monkeypatch.setattr(articulation_module, "resolve_matching_names", count_actuator_resolutions)
-    articulation = SimpleNamespace(cfg=cfg, _backend_manager=SimpleNamespace(builder=builder))
-    articulation_module.Articulation._configure_joint_target_modes(articulation, None)
+    sim = SimpleNamespace(cfg=SimpleNamespace(physics=object()), get_or_create_backend=lambda cfg: builder)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    articulation_module.Articulation._configure_joint_target_modes(SimpleNamespace(cfg=cfg), None)
 
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)] * 2
     assert actuator_resolutions == 1
@@ -1180,19 +1153,19 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
 
         def on_physics_ready(_):
             events.append("ready")
-            backend = get_newton_backend(sim)
+            backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
             assert backend is sim.backend_manager.backend
             # Consumers author the model before solvers that copy it at construction exist.
             assert backend.solver is None
             allocations.append(backend)
             assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
-            # Newton physics owns its builder and backend; the registry only serves render-only models.
-            with pytest.raises(ValueError, match="owns its builder"):
-                sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
-            assert not any(isinstance(cfg, NewtonBackendCfg) for cfg, _ in sim._backend_registry)
+            different = NewtonCfg(
+                solver_cfg=MJWarpSolverCfg(), load_visual_shapes=not sim.cfg.physics.load_visual_shapes
+            )
+            assert sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=different)) is not builder
             sim.get_scene_data_provider().get_transforms(SceneDataFormat.Transform())
 
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
@@ -1229,8 +1202,8 @@ def test_initialize_solver_populates_canonical_state(
     """End-to-end: ``SimulationContext`` resolves the right manager subclass and
     ``initialize_solver`` lands the right solver + flags on :class:`NewtonManager`.
 
-    External code reads the solver from the manager's backend (``backend.solver``) and the
-    capability flags from the manager (``_use_single_state``, ``_needs_collision_pipeline``).  Even though dispatch
+    External code reads :class:`NewtonManager` attributes directly (``backend.solver``,
+    ``_use_single_state``, ``_needs_collision_pipeline``).  Even though dispatch
     runs through a leaf subclass (e.g. :class:`NewtonMJWarpManager`), shared
     state is assigned through the explicit base class so that those reads keep
     working regardless of which leaf is active.  This test is the regression
@@ -1263,7 +1236,7 @@ def test_initialize_solver_populates_canonical_state(
         assert isinstance(manager, expected_manager)
         assert manager.backend_name == "newton"
 
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         if expected_solver_cls is SolverImplicitMPM:
             assert builder.has_custom_attribute("mpm:young_modulus")
             builder.add_particle_grid(
@@ -1305,7 +1278,7 @@ def test_initialize_solver_populates_canonical_state(
         manager._supports_rigid_body_force_input = not expected_supports_force_input
         sim.reset()
 
-        # The solver lives on the manager's backend; capability flags on the manager instance.
+        # Canonical state lives on the manager instance.
         assert manager.backend.solver is not None
         assert isinstance(manager.backend.solver, expected_solver_cls)
         assert manager._use_single_state is expected_use_single_state
@@ -1336,7 +1309,7 @@ def test_step_combines_pending_model_changes(monkeypatch, caplog):
         physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         body = builder.add_link()
         builder.add_shape_sphere(body, radius=0.05)
         joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
@@ -1390,7 +1363,7 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
 
@@ -1430,7 +1403,7 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         body = builder.add_body(mass=1.0)
         builder.add_joint_free(child=body)
         builder.add_shape_sphere(body=body, radius=0.05)
@@ -1479,6 +1452,7 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
     manager.backend = SimpleNamespace(
         state_0=state_0, state_1=state_1, control=object(), num_substeps=2, solver_dt=0.001, collision_pipeline=None
     )
+    manager._cfg = SimpleNamespace(collision_decimation=0)
     manager._needs_collision_pipeline = False
     manager._use_single_state = use_single_state
     manager._state_force_callbacks = [lambda state: events.append(("force", state.name))]
@@ -1545,7 +1519,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         sim.reset()
@@ -1589,7 +1563,7 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=1, use_cuda_graph=True),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         builder.add_body(mass=1.0)
         builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         sim.reset()
@@ -1624,7 +1598,7 @@ def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps
         physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.backend_manager.builder
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         builder.add_body(mass=1.0)
         sim.reset()
         if decimation > 1:
@@ -1651,7 +1625,7 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             ),
         )
         with build_simulation_context(sim_cfg=sim_cfg) as sim:
-            builder = sim.backend_manager.builder
+            builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
             builder.begin_world()
             body = builder.add_link(mass=1.0)
             joint = builder.add_joint_prismatic(parent=-1, child=body, axis=(1.0, 0.0, 0.0))
@@ -1687,7 +1661,7 @@ def _build_collision_scene(sim, num_boxes=8):
     Uses ``MJWarpSolverCfg(use_mujoco_contacts=False)`` so the Newton collision
     pipeline / contacts are allocated on ``sim.reset()``.
     """
-    builder = sim.backend_manager.builder
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
     for _ in range(num_boxes):
         body = builder.add_body(mass=1.0)
         builder.add_joint_free(child=body)
@@ -1761,8 +1735,7 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
         sim.reset()
         assert sim.backend_manager.backend is not old_backend
         assert old_backend.model is old_backend.state_0 is old_backend.state_1 is old_backend.control is None
-        # Newton physics owns its backend outside the simulation registry.
-        assert not any(isinstance(cfg, NewtonBackendCfg) for cfg, _ in sim._backend_registry)
+        assert sum(isinstance(cfg, newton_manager_module.NewtonBackendCfg) for cfg, _ in sim._backend_registry) == 1
 
         _free_model_collide_arrays_and_churn(old_model, "cuda:0")
 

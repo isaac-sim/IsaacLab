@@ -20,7 +20,7 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonQueries, get_newton_backend, get_newton_builder
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonQueries
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
 from .newton_raycast_sensor_data import NewtonRaycastSensorData
@@ -82,6 +82,7 @@ class _NewtonRayCasterPoseMixin:
     def __init__(self: Any, cfg):
         """Register the sensor site before Newton model finalization."""
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=self._sim.cfg.physics, device=self._sim.device)
         plan = self._sim.get_clone_plan()
         matched = cloner.path.match(self.cfg.prim_path, plan.env_template) if plan is not None else None
         if matched is not None and not matched.suffix:
@@ -106,7 +107,7 @@ class _NewtonRayCasterPoseMixin:
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
-        self.backend = get_newton_backend(self._sim)
+        self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
         site_map = self._backend_manager.get_site_index_map()
         if self._sensor_site_label not in site_map:
@@ -245,7 +246,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         if cfg.max_distance <= 0.0:
             raise ValueError(f"max_distance must be positive, received {cfg.max_distance}.")
         super().__init__(cfg)
-        builder = get_newton_builder(self._sim)
+        builder = self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._sim.cfg.physics))
         builder.default_bvh_cfg.shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         self._data = NewtonRaycastSensorData()
         self._graph = None

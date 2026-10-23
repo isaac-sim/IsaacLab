@@ -651,7 +651,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._viewer = viewer
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
-        model=SimpleNamespace(world_count=1, body_count=len(state.body_q)),
+        model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)),
         state_0=state,
         geometry_offsets={},
         contacts=None,
@@ -708,13 +708,12 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
 @pytest.mark.parametrize("picking", [False, True])
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking):
-    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.physics import NewtonBackendCfg
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
-    sim = SimpleNamespace(cfg=SimpleNamespace(physics=NewtonCfg()), backend_manager=NewtonMJWarpManager())
-    sim.backend_manager.backend = backend
+    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
     viewer = _Viewer()
@@ -728,6 +727,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     visualizer = _make_newton_visualizer(viewer)
     sim.get_scene_data_provider = visualizer._sim.get_scene_data_provider
     visualizer._sim = sim
+    cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._env_ids = [1, 3]
     visualizer._picking_enabled = picking
     visualizer.cfg.backend.world_spacing = (2.0, 0.0, 0.0)
@@ -737,6 +737,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     visualizer.reset(soft=False)
 
     assert visualizer.backend is backend
+    sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
@@ -1189,7 +1190,7 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
         monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "physx"))
     scene_data_provider = _SceneDataProvider({"contact_forces": sensor})
     visualizer = _make_newton_visualizer(viewer, scene_data_provider, state=state)
-    visualizer.backend.model.world_count = 2
+    visualizer.backend.model.num_envs = 2
     visualizer._env_ids = [1]
     visualizer.step(0.1)
     assert viewer.logged_arrows == ("/contacts", None, None, None)

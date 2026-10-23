@@ -55,7 +55,7 @@ def isolated_newton_manager() -> NewtonCouplerManager:
     for name, value in clean_values.items():
         setattr(manager, name, value)
     manager._update_joint_state = True
-    manager._cfg = None
+    manager._cfg = SimpleNamespace(collision_decimation=0)
     return manager
 
 

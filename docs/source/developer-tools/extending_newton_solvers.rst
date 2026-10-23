@@ -41,10 +41,9 @@ Responsibilities and Boundaries
 
 :class:`~isaaclab_newton.physics.NewtonManager` subclasses are instantiated by the
 simulation context, which owns exactly one manager instance as
-:attr:`~isaaclab.sim.SimulationContext.backend_manager`. The manager owns its
-builder and the :class:`~isaaclab_newton.physics.NewtonBackend` finalized from it;
-everything bound to the finalized model lives on the backend, and a hard reset
-closes it and finalizes a new one.
+:attr:`~isaaclab.sim.SimulationContext.backend_manager`. Everything bound to the
+finalized model lives on the registered :class:`~isaaclab_newton.physics.NewtonBackend`;
+a hard reset closes it and finalizes a new one.
 
 .. list-table::
    :header-rows: 1
@@ -78,20 +77,6 @@ closes it and finalizes a new one.
 onto its own :attr:`~isaaclab_newton.physics.NewtonCfg.class_type`, so task
 configuration never names the manager directly.
 
-Managers can also run without a ``SimulationContext``. Give each its own populated builder; managers do not share
-state:
-
-.. code-block:: python
-
-   from isaaclab_newton.physics import NewtonCfg, NewtonMJWarpManager
-
-   cfg = NewtonCfg()
-   left = NewtonMJWarpManager(builder_a, cfg, dt=0.01, device="cuda:0")
-   right = NewtonMJWarpManager(builder_b, cfg, dt=0.01, device="cuda:0")
-   left.reset()
-   right.reset()
-   left.step()  # right's model, state, and time remain unchanged
-
 
 Lifecycle
 ---------
@@ -107,12 +92,11 @@ class invokes them.
      - What happens
      - Subclass hooks
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize`
-     - Stores the simulation context and adopts its physics configuration.
+     - Stores the simulation context and acquires the shared builder.
      - none
-   * - ``get_newton_builder(sim)``
-     - Returns the manager's :attr:`~isaaclab_newton.physics.NewtonManager.builder`, created through its
-       ``create_builder()`` factory and kept across hard resets. The cloner imports declared prototypes and
-       composes worlds into it.
+   * - ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))``
+     - Acquires the shared builder through the active manager's ``create_builder()`` factory.
+       The cloner imports declared prototypes and composes worlds into it.
      - ``_register_builder_attributes()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
      - Finalizes the builder into a new :class:`~isaaclab_newton.physics.NewtonBackend`, which allocates states,

@@ -49,7 +49,7 @@ def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
 def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     """Consumers acquire a completed resource, including late consumers and replacement after close."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.physics import NewtonBuilderCfg, get_newton_backend
+    from isaaclab_newton.physics import NewtonBuilderCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     from newton import ModelBuilder
 
@@ -75,8 +75,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     sim._render_context = RenderContext(sim._backend_registry)
     sim.requires_usd_stage = sim.requires_newton_model = False
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    for flag in (False, True):
-        sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag))
+    renderers = [sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag)) for flag in (False, True)]
     builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
     declared_builder = sim.get_or_create_backend(builder_cfg)
     assert sim.get_or_create_backend(replace(builder_cfg)) is declared_builder
@@ -94,21 +93,22 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     assert finalized == []
     assert len(sim._backend_registry) == 3
     assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
-    first = get_newton_backend(sim)
-    assert get_newton_backend(sim) is first
+    assert renderers[0].newton_cfg == renderers[1].newton_cfg
+    first = sim.get_or_create_backend(renderers[0].newton_cfg)
+    assert sim.get_or_create_backend(renderers[1].newton_cfg) is first
     assert first.model.world_count == len(plan.topology.world_prototype_layout)
     assert first.model.body_count == 2
     assert first.model.body_label == ["/Scene/Copy_0/Cube", "/Scene/Copy_1/Cube"]
-    sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
-    assert get_newton_backend(sim) is first
+    late = sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
+    assert sim.get_or_create_backend(late.newton_cfg) is first
     assert finalized == [builder]
     sim.close_backend(first)
     assert len(sim._backend_registry) == 4
     assert first.model is first.state_0 is None
     assert sim.get_or_create_backend(builder_cfg) is builder
-    second = get_newton_backend(sim)
+    second = sim.get_or_create_backend(late.newton_cfg)
     assert second is not first
-    assert get_newton_backend(sim) is second
+    assert all(sim.get_or_create_backend(renderer.newton_cfg) is second for renderer in (*renderers, late))
     assert finalized == [builder, builder]
     sim.close_backend(second)
 
@@ -181,7 +181,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
 def test_clone_visualization_builder_imports_full_global_subtree(monkeypatch, global_path):
     """A declared global ancestor owns its full subtree, while unrelated roots stay out."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.physics import get_newton_backend
+    from isaaclab_newton.physics import NewtonBackendCfg
     from newton import ModelBuilder
 
     from pxr import Sdf, UsdGeom
@@ -216,7 +216,7 @@ def test_clone_visualization_builder_imports_full_global_subtree(monkeypatch, gl
 
     context = NewtonReplicateContext(sim)
     builder, _, _ = context.replicate(plan, (0, 2))
-    backend = get_newton_backend(sim)
+    backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
     geometry = backend.geometry_offsets
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])

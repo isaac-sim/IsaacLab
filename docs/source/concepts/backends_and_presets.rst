@@ -367,22 +367,21 @@ Newton has two resources with different lifetimes, not two interchangeable backe
   requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
   is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
 * ``NewtonBackend`` owns the finalized model and native buffers and, under Newton physics, the
-  solver, contacts, and sensors. Physics and render consumers borrow those handles. Closing it releases runtime allocations without closing the builder.
+  solver, contacts, and sensors. Physics and render consumers borrow those handles. Closing it
+  releases runtime allocations without closing the builder.
 
-Consumers look both up through the simulation:
+Both resources use the same registry:
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import get_newton_backend, get_newton_builder
-
-    builder = get_newton_builder(sim)
+    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
+    builder = sim.get_or_create_backend(builder_cfg)
     # Clone/import populates this builder before model allocation.
-    backend = get_newton_backend(sim)
+    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+    backend = sim.get_or_create_backend(model_cfg)
 
-Under Newton physics, the physics manager owns both: it keeps the builder across hard resets and
-finalizes a new backend on each one, outside the simulation registry. Under other physics, the
-render-only builder and backend are shared through the registry as ``NewtonBuilderCfg`` and
-``NewtonBackendCfg``. ``SimulationContext`` has no backend-specific cfg fields, and consumers do not
+Both configurations use the selected physics cfg; non-Newton physics selects a render-only
+representation. ``SimulationContext`` has no backend-specific cfg fields, and consumers do not
 access clone contexts. Consumers request body transforms and visual points directly through SDP.
 Queries share the native resource's BVHs but keep each consumer's captured work separate.
 

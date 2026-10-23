@@ -117,7 +117,7 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         expression = re.compile(self.scene[asset_name].cfg.prim_path + r"/.*")
         ranges = [
             np.arange(start, start + count, dtype=np.int32)
-            for path, (start, count) in self.sim.backend_manager.get_clone_record().particle_ranges.items()
+            for path, (start, count) in self.sim.backend_manager.backend.particle_ranges.items()
             if expression.fullmatch(path)
         ]
         if not ranges:

@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
-from isaaclab_newton.physics import NewtonCfg, NewtonCloneRecord, NewtonMJWarpManager, NewtonXPBDManager, VBDSolverCfg
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg
 
 from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
@@ -64,16 +64,7 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     body = source.add_body()
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
-    manager = NewtonXPBDManager()
-    clone = NewtonCloneRecord(
-        world_xforms=None,
-        source_builders={"/World/Source": source},
-        particle_ranges={},
-        cable_bindings={},
-        geometry_batches=[],
-    )
-    manager.record_clone(clone, {})
-    sim = SimpleNamespace(backend_manager=manager)
+    sim = SimpleNamespace(backend_manager=SimpleNamespace(get_clone_source_builders=lambda: {"/World/Source": source}))
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     copied = copy_newton_clone_source("/World/Source")
@@ -121,13 +112,19 @@ def test_explicit_global_import_uses_global_world(
         return add_usd(builder, *args, **kwargs)
 
     monkeypatch.setattr(newton.ModelBuilder, "add_usd", import_usd)
-    manager = NewtonMJWarpManager(cfg=NewtonCfg(load_visual_shapes=load_visual_shapes), device="cpu")
-    terrain_import = mock.Mock(return_value=[])
-    manager._inject_terrain_heightfields = terrain_import
+    manager = SimpleNamespace(
+        create_builder=newton.ModelBuilder,
+        _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
+        _inject_terrain_heightfields=mock.Mock(return_value=[]),
+        inject_sites=mock.Mock(return_value=({}, {}, {})),
+        record_clone=mock.Mock(),
+    )
     sim = SimpleNamespace(
         backend_manager=manager,
         device="cpu",
-        cfg=SimpleNamespace(physics=manager.cfg, physics_prim_path="/physicsScene", device="cpu"),
+        cfg=SimpleNamespace(
+            physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene", device="cpu"
+        ),
         is_rendering=is_rendering,
         can_render_rgb_array=lambda: rgb_array,
         visual_shapes_required=visual_shapes_required,
@@ -142,7 +139,9 @@ def test_explicit_global_import_uses_global_world(
 
     assert [kwargs["root_path"] for kwargs in imports] == ["/physicsScene", *global_paths]
     assert all(kwargs["load_visual_shapes"] is expected for kwargs in imports[1:])
-    terrain_import.assert_called_once_with(stage, builder, root_paths=("/physicsScene", *global_paths))
+    manager._inject_terrain_heightfields.assert_called_once_with(
+        stage, builder, root_paths=("/physicsScene", *global_paths)
+    )
     model = builder.finalize("cpu")
     ground_index = model.shape_label.index("/World/Ground")
     assert model.shape_world.numpy()[ground_index] == -1
