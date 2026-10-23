@@ -18,7 +18,7 @@ import numpy as np
 import ovstage
 import warp as wp
 
-from pxr import Sdf, Usd, UsdRender
+from pxr import Sdf, Usd, UsdRender, UsdUtils
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
@@ -245,6 +245,7 @@ def export_stage_to_string(
     keep_env_roots: bool = True,
     *,
     env_paths: Sequence[str] = (),
+    preserve_references: bool = False,
 ) -> str:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
@@ -258,9 +259,12 @@ def export_stage_to_string(
         source_paths: Prototype subtrees retained with their materials and descendants.
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
         env_paths: Environment frames to create in the private export before native cloning.
+        preserve_references: Retain clean file-backed references and instances instead of baking
+            their geometry into text. Anonymous or unsaved referenced layers require full
+            composition so that the returned string does not depend on their Python lifetime.
 
     Returns:
-        USDA text containing the selected prototypes.
+        USDA text containing the selected prototypes. By default, composition arcs are baked.
     """
     export_session = Sdf.Layer.CreateAnonymous()
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
@@ -274,6 +278,7 @@ def export_stage_to_string(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
     ).Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
+    prim_paths = []
     if num_envs > 1:
         envs_path = Sdf.Path("/World/envs")
         envs_prim = export_stage.GetPrimAtPath(envs_path)
@@ -281,7 +286,6 @@ def export_stage_to_string(
         source_path_set = frozenset(map(Sdf.Path, source_paths))
         retained_env_paths = frozenset(map(Sdf.Path, env_paths))
         ancestors = {prefix for source in source_path_set for prefix in source.GetPrefixes()}
-        prim_paths = []
         prims = iter(Usd.PrimRange(envs_prim))
         next(prims, None)
         for prim in prims:
@@ -304,7 +308,38 @@ def export_stage_to_string(
         logger.info("Deactivated %d prims in total", len(prim_paths))
     # CPU hierarchy propagation requires USD-populated frames, including clone ancestors.
     # Author them only in the export; native cloning writes their poses from the plan.
-    layer = export_stage.Flatten()
+    # The local layer stack is baked either way. External in-memory edits cannot be borrowed
+    # by a detached string; retain the fully composed export for those scenes and legacy callers.
+    external_layers = set(export_stage.GetUsedLayers()) - set(export_stage.GetLayerStack())
+    if preserve_references and all(not (layer.anonymous or layer.dirty) for layer in external_layers):
+        # Keeping reference arcs avoids duplicating dense geometry and preserves material
+        # bindings whose targets cross nested instance scopes.
+        layer = UsdUtils.FlattenLayerStack(export_stage)
+        # A remaining arc can also point back into the baked root/session stack, directly
+        # or through a clean referenced layer. Such unsaved data must be baked as well.
+        dependencies = (
+            Sdf.Layer.Find(Sdf.ComputeAssetPathRelativeToLayer(source, path))
+            for source in (layer, *external_layers)
+            for path in source.GetCompositionAssetDependencies()
+            if path
+        )
+        if any(dependency is not None and (dependency.anonymous or dependency.dirty) for dependency in dependencies):
+            layer = export_stage.Flatten()
+        elif prim_paths:
+            # Unlike Stage.Flatten, layer-stack flattening retains inactive authored copies.
+            # Remove them, restoring an inactive override if a reference still supplies a prim.
+            edits = Sdf.BatchNamespaceEdit()
+            for path in prim_paths:
+                edits.Add(path, Sdf.Path.emptyPath)
+            if not layer.Apply(edits):
+                raise RuntimeError("Failed to remove unrouted native USD prototypes.")
+            composed = Usd.Stage.Open(layer)
+            referenced_paths = [path for path in prim_paths if composed.GetPrimAtPath(path)]
+            with Sdf.ChangeBlock():
+                for path in referenced_paths:
+                    Sdf.CreatePrimInLayer(layer, path).active = False
+    else:
+        layer = export_stage.Flatten()
     with Sdf.ChangeBlock():
         for path in env_paths:
             prim = Sdf.CreatePrimInLayer(layer, path)
