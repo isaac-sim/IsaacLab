@@ -485,7 +485,7 @@ def resolve_task_config(
     resolved = {}
     original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
 
-    @hydra.main(config_path=None, config_name=task, version_base="1.3")
+    @hydra.main(config_path=None, config_name=task)
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
         hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
         update_from_dict(env_cfg, hydra_cfg["env"])
@@ -681,7 +681,7 @@ def register_task(
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
 
     # Register plain config (no groups) - Hydra only handles global scalars
-    ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
+    ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict), replace=True)
     return env_cfg, agent_cfg, hydra_args
 
 

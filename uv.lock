@@ -1578,14 +1578,14 @@ wheels = [
 
 [[package]]
 name = "hydra-core"
-version = "1.4.0.dev10"
+version = "1.4.0rc2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "omegaconf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4d/4b/0a603db5d1e18585d3c926d1978134b8aaab88bf5ad704056f8bf098a49b/hydra_core-1.4.0.dev10.tar.gz", hash = "sha256:433345fc2d9ecea6e60bed9b5587e9799614a3711993dc41476f21efc7f4ee2d", size = 3329053, upload-time = "2026-09-14T17:32:46.492Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/00/75f049019d222d020d9350ca703ed8749f8e1f0209ae3afa60b1297557a4/hydra_core-1.4.0rc2.tar.gz", hash = "sha256:381bc52a071fb4cb00def58f5a168b6d90a53ad7a6760f5d5470946648d1537d", size = 3375372, upload-time = "2026-10-21T11:56:22.117Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1f/16/ff50de2771bdadf565dbbd5b985ed57417664c67e3ed1d02907db7d1e497/hydra_core-1.4.0.dev10-py3-none-any.whl", hash = "sha256:f129bd90459043f7f188ad5b4ea950a93c3bac4ef46280a71c6b412545bae8d7", size = 182113, upload-time = "2026-09-14T17:32:36.412Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/67/91a81765e274e2cba93e2a1bd42a547c28cc3d888e561367b91d493bd1e8/hydra_core-1.4.0rc2-py3-none-any.whl", hash = "sha256:65e4dc20dd6a89be351a0ecdc7eb143a25194580aa5dad250e63cb43bab43a5b", size = 198160, upload-time = "2026-10-21T11:56:11.572Z" },
 ]
 
 [[package]]
@@ -2012,7 +2012,7 @@ requires-dist = [
     { name = "h5py", specifier = ">=3.15.0" },
     { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'x86_64'", specifier = ">=1.4.1,<2.0.0" },
     { name = "hidapi", specifier = ">=0.14.0" },
-    { name = "hydra-core" },
+    { name = "hydra-core", specifier = ">=1.4.0rc2" },
     { name = "imgui-bundle", specifier = ">=1.92.5" },
     { name = "ipywidgets", marker = "extra == 'mimic'", specifier = ">=8.1.5" },
     { name = "isaaclab", editable = "source/isaaclab" },
@@ -3733,14 +3733,14 @@ wheels = [
 
 [[package]]
 name = "omegaconf"
-version = "2.4.0"
+version = "2.4.1rc1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cc/10/1cabf3188a4d9684a06568c7fd76f9536eede625733c8399cf1f5337b83e/omegaconf-2.4.0.tar.gz", hash = "sha256:7e219a70bea371da250285b9c01c7db027bc421722799c2cc4ff14bc4a2a753b", size = 3544508, upload-time = "2026-10-09T12:44:02.326Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/d2/ceaf43a3d56161d8ffd612fdd67a57177903eb509966193fb6cf4254f9fe/omegaconf-2.4.1rc1.tar.gz", hash = "sha256:188bdbcc0ffcc8d7a94e6b6cb0a54bfdbb6b9c48a480fdb5baf787f9ccbcf56b", size = 3554167, upload-time = "2026-10-13T17:23:53.373Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/bd/0d9f8247b0819385213d09564eda5c52d3673313c2414d51f72883ec24cd/omegaconf-2.4.0-py3-none-any.whl", hash = "sha256:f141a664c777582405e3cc6e0545ecc79429e79f844995b1a6e71c35946a025c", size = 254152, upload-time = "2026-10-09T12:43:59.764Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/32/a6a45c4deb18849559f877b9da312ab20f32859402027ce8f3ee2e385f4d/omegaconf-2.4.1rc1-py3-none-any.whl", hash = "sha256:fc772c4e5a7cf6784bfbaa4aa9951676e88b65b82e4c150cf65e931f05ef9b68", size = 257872, upload-time = "2026-10-13T17:23:50.799Z" },
 ]
 
 [[package]]
