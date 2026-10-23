@@ -26,54 +26,52 @@
     }
   ],
   "snapshot": {
-    "base": "dd2f470fcad5873980e9bc4acffb043238aca41c",
+    "base": "b03345bbf2c9a54eb03f9bd823ae19c0ca3a014e",
     "components": [
       {
         "pr": 8326,
         "name": "Custom mesh spawning",
-        "head": "54613ef14cf291c87f2f3eb2a9386befb5333a1f",
+        "head": "dae0d8cab4e969531040ad9d3fb849e478f50ef7",
         "merged": false
       },
       {
         "pr": 8327,
         "name": "Experimental conveyor support in Contrib",
-        "head": "a0d4a299ebb4a5a31f8a0a804c80552b9164d503",
+        "head": "619e4d24e125a45668a8c95249984376c5e8a82c",
         "merged": false
       },
       {
         "pr": 8331,
         "name": "Racetrack transfer task",
-        "head": "7ee7333a36d170f0082f28d574d93ca6432892a2",
+        "head": "4c83011cb260afb2d2079be02437d759a7b69e2e",
         "merged": false
       },
       {
         "pr": 8332,
         "name": "Warehouse sorting task",
-        "head": "ccb81404d40ff60f1bf7e16686f6cced0f6a180c",
+        "head": "645b74052afddb8ff67bc62c2c903eb2d3bb04b1",
         "merged": false
       },
       {
         "pr": 8794,
         "name": "Optional native CPU PhysX support",
-        "head": "70bb88d88b34543b366deb7f76b898fbf84b0c33",
+        "head": "fa4e8fe509bdf6e7deb1726243f6269e4817c703",
         "merged": false
       }
     ],
     "checks": [
-      "13 specification checks and 2 native Newton CPU/CUDA transport/reset/teardown cases passed",
-      "17 full task/geometry/USD checks and 5 optional PhysX checks passed",
-      "Force-application mutation fails actual parcel-transport coverage; restored code passes",
-      "All 9 active force-parameter arrays match the preceding implementation bit-for-bit for both full scenes (16/148 surfaces, 8/48 tracked parcels)",
+      "Newton 1.8 / MuJoCo 3.15 / Isaac Sim 6.2 from current main; dependency pins preserved",
+      "115 Newton manager tests, 15 conveyor/spec cases, 19 native mesh cases, 13 task/geometry cases, 4 warehouse asset cases and 5 optional PhysX cases passed",
+      "Existing physical transport test fails when solver observables are not forwarded",
       "Newton GPU checkpoint playback: eight environments, 1200 steps, 14 transfers, zero failures/non-finite observations",
-      "Exact consolidated CPU PhysX Kit smoke passed (two environments, 120 steps); native schema/ramp/partial/full/hard-reset probe passed (135 steps)",
-      "Full component formatting/lint/changelog/LFS checks passed",
-      "Full final formatting/lint/changelog/LFS, frozen lock and generated environment-browser checks passed",
-      "Clean strict Sphinx HTML build passed without warnings; compiled task rows and JPEG assets verified"
+      "Optional PhysX: exact two-environment 120-step CI smoke and 135-step native contact/full/partial/hard-reset probe passed",
+      "Fresh reconstruction from main and all five exact component heads merges without conflicts and matches the tested source/docs/lock tree",
+      "Full formatting/lint/changelog/LFS, lock consistency and generated environment-browser checks passed",
+      "Clean strict Sphinx HTML build passed; both JPEG preview assignments retained"
     ],
     "limitations": [
-      "Validated on locked Newton 1.7; current-main Newton 1.8 manager/solver-observables migration is pending in PR #8327",
-      "The mesh snapshot uses reviewed commit 54613ef14; PR #8326 has since advanced to dae0d8cab with newer upstream changes"
+      "Bounded playback checks do not establish complete-batch warehouse sorting quality or cross-backend numerical parity"
     ],
-    "checked_at": "2026-10-23T14:39:36.084136+00:00"
+    "checked_at": "2026-10-23T15:26:19.929705+00:00"
   }
 }

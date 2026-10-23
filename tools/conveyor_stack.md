@@ -40,8 +40,8 @@ GitHub CI runs on the published integration commit; expensive checks can be
 requested with the repository's usual `run-ci` comment.
 
 The refresh uses the configured `fork` remote for publication, authenticated
-`gh`, and the current checkout's uv environment. Local edits and the current
-checkout are preserved; tests use only the published component heads. To
+`gh`, and a temporary uv environment with the `dev` and `isaacsim` extras. Local
+edits and the current checkout are preserved; tests use only the published component heads. To
 inspect a refreshed result without changing an existing worktree:
 
 ```bash
@@ -53,7 +53,6 @@ When a prerequisite merges, rebase its dependent drafts onto current
 `main`, update their review-only comparison links, and refresh the
 integration again.
 
-The recorded snapshot currently validates the reviewed Newton 1.7 runtime.
-#8326 has since merged newer upstream code; refreshing now also brings Newton
-1.8 and requires the pending manager/solver-observables migration in #8327.
-The refresh must pass those runtime checks before replacing the tested snapshot.
+The recorded snapshot includes current-main instance managers and Newton 1.8
+solver observables. Dependency versions come from the base checkout; no older
+Newton pin or compatibility branch is required.
