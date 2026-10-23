@@ -166,11 +166,12 @@ class NewtonRecordingPanel:
             if imgui.is_item_hovered():
                 imgui.set_tooltip("Record the window like --video; needs ffmpeg. Starting replaces an unsaved video.")
             imgui.same_line()
-            if not self.unsaved_video:
+            saveable = self.unsaved_video  # Saving clears it mid-frame, so the disabled scope must not re-read it.
+            if not saveable:
                 imgui.begin_disabled()
             if imgui.button("Save##video"):
                 self.save_video()
-            if not self.unsaved_video:
+            if not saveable:
                 imgui.end_disabled()
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip("Keep the stopped video in the output folder")

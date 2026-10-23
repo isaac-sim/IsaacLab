@@ -163,3 +163,42 @@ def test_relative_output_folder_uses_the_working_directory_without_a_source_chec
     monkeypatch.chdir(cwd)
 
     assert resolve_output_dir("recording") == cwd / "recording"
+
+
+class _StrictImgui:
+    """Imgui double that clicks one button and fails like imgui does on an unbalanced disabled scope."""
+
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    def __init__(self, click: str):
+        self.click, self.disabled_depth = click, 0
+
+    def ImVec4(self, *values):  # noqa: N802
+        return values
+
+    def button(self, label):
+        return label == self.click
+
+    def begin_disabled(self):
+        self.disabled_depth += 1
+
+    def end_disabled(self):
+        assert self.disabled_depth > 0, "Calling EndDisabled() too many times!"
+        self.disabled_depth -= 1
+
+    def __getattr__(self, _name):
+        return lambda *args, **kwargs: False
+
+
+def test_saving_a_video_keeps_the_disabled_scopes_balanced(tmp_path):
+    frames = [np.zeros((16, 24, 3), np.uint8)] * 3
+    panel = NewtonRecordingPanel(_owner(frames, output_dir=str(tmp_path)))
+    panel.start_video()
+    panel.capture()
+    panel.stop_video()
+    imgui = _StrictImgui(click="Save##video")
+
+    panel._draw_video(imgui)  # Saving clears the unsaved video partway through the frame.
+
+    assert not panel.unsaved_video and imgui.disabled_depth == 0
