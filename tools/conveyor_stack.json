@@ -39,7 +39,7 @@
       {
         "pr": 8331,
         "name": "Racetrack transfer task",
-        "head": "cffb3570ce129bb5d7d3788632e2774036e21a76",
+        "head": "e1dda73810c5a1cb3d90513a4680bd408ef9fd0f",
         "merged": false
       },
       {
@@ -50,9 +50,10 @@
       }
     ],
     "checks": [
-      "Focused CPU tests and lock consistency passed",
-      "360-step policy evaluation: 5 transfers, zero safety resets/non-finite observations"
+      "18 focused conveyor checks and full formatting/changelog gates passed",
+      "Fresh Newton GPU PPO: 256 environments, CUDA graph, two updates, finite losses and saved checkpoints",
+      "Selective-reset success bookkeeping checked with two regression mutations"
     ],
-    "checked_at": "2026-10-12T11:01:08.393551+00:00"
+    "checked_at": "2026-10-23T10:34:35.524366+00:00"
   }
 }
