@@ -283,7 +283,7 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
 
     # Only enables inputs if this script runs with a GUI
     if env.sim.has_gui:
-        from isaaclab_teleop.script_input import add_key_callbacks
+        from isaaclab.visualizers import add_key_callbacks
 
         key_callbacks = {"N": play_cb, "B": pause_cb, "Q": skip_episode_cb}
         if not args_cli.auto:

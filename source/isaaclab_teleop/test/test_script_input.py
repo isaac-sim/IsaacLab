@@ -5,7 +5,7 @@
 
 # pyright: reportPrivateUsage=none
 
-"""Tests for :mod:`isaaclab_teleop.script_input`: script hotkeys and teleop devices."""
+"""Tests for :mod:`isaaclab_teleop.script_input`: teleop devices for scripts."""
 
 from __future__ import annotations
 
@@ -15,51 +15,9 @@ from unittest.mock import MagicMock, patch
 import isaaclab_teleop.script_input as script_input
 import pytest
 from isaaclab_teleop.isaac_teleop_cfg import CLOUDXR_STANDALONE_ENV
-from isaaclab_teleop.script_input import add_key_callbacks, open_teleop_device
-
-from isaaclab.visualizers import KeyEventSource
+from isaaclab_teleop.script_input import open_teleop_device
 
 pytestmark = pytest.mark.unit
-
-
-@pytest.fixture
-def source():
-    """A visualizer window's keyboard, read by :func:`add_key_callbacks` through a fake simulation."""
-    key_event_source = KeyEventSource()
-    sim = SimpleNamespace(
-        visualizers=[SimpleNamespace(key_event_source=key_event_source), SimpleNamespace(key_event_source=None)]
-    )
-    with patch("isaaclab.sim.SimulationContext.instance", return_value=sim):
-        yield key_event_source
-
-
-def test_key_callbacks_fire_once_per_press(source):
-    pressed = []
-    add_key_callbacks({"N": lambda: pressed.append("N"), "1": lambda: pressed.append("1"), "Escape": lambda: 0})
-
-    source._emit_key("KeyN", True)
-    source._emit_key("KeyN", True)  # key repeat
-    source._emit_key("KeyN", False)
-    source._emit_key("KeyN", True)
-    source._emit_key("Digit1", True)
-    source._emit_key("KeyM", True)
-    assert pressed == ["N", "N", "1"]
-
-
-def test_focus_loss_ends_a_held_key(source):
-    pressed = []
-    add_key_callbacks({"N": lambda: pressed.append("N")})
-    source._emit_key("KeyN", True)
-    source._emit_focus_lost()
-    source._emit_key("KeyN", True)
-    assert pressed == ["N", "N"]
-
-
-def test_removing_the_key_callbacks_unsubscribes(source):
-    remove = add_key_callbacks({"N": lambda: None})
-    assert len(source._subscriptions) == 1
-    remove()
-    assert source._subscriptions == []
 
 
 def test_without_isaacteleop_the_device_config_is_instantiated(monkeypatch):

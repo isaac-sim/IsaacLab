@@ -11,10 +11,12 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
-from isaaclab.visualizers import KeyEventSource
+from isaaclab.visualizers import KeyEventSource, add_key_callbacks
 
 pytestmark = [pytest.mark.unit]
 
@@ -138,3 +140,43 @@ def test_source_does_not_own_backend_lifecycle_or_controller_state():
     assert all(not hasattr(source, name) for name in forbidden)
     subscription = source.add_key_listener(lambda code, pressed: None, lambda: None)
     assert not hasattr(subscription, "_closed"), "Subscription lifetime is owned by its source reference."
+
+
+@pytest.fixture
+def source():
+    """A visualizer window's keyboard, read by :func:`add_key_callbacks` through a fake simulation."""
+    key_event_source = KeyEventSource()
+    sim = SimpleNamespace(
+        visualizers=[SimpleNamespace(key_event_source=key_event_source), SimpleNamespace(key_event_source=None)]
+    )
+    with patch("isaaclab.sim.SimulationContext.instance", return_value=sim):
+        yield key_event_source
+
+
+def test_key_callbacks_fire_once_per_press(source):
+    pressed = []
+    add_key_callbacks({"N": lambda: pressed.append("N"), "1": lambda: pressed.append("1"), "Escape": lambda: 0})
+
+    source._emit_key("KeyN", True)
+    source._emit_key("KeyN", True)  # key repeat
+    source._emit_key("KeyN", False)
+    source._emit_key("KeyN", True)
+    source._emit_key("Digit1", True)
+    source._emit_key("KeyM", True)
+    assert pressed == ["N", "N", "1"]
+
+
+def test_focus_loss_ends_a_held_key(source):
+    pressed = []
+    add_key_callbacks({"N": lambda: pressed.append("N")})
+    source._emit_key("KeyN", True)
+    source._emit_focus_lost()
+    source._emit_key("KeyN", True)
+    assert pressed == ["N", "N"]
+
+
+def test_removing_the_key_callbacks_unsubscribes(source):
+    remove = add_key_callbacks({"N": lambda: None})
+    assert len(source._subscriptions) == 1
+    remove()
+    assert source._subscriptions == []
