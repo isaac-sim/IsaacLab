@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused tests for backend-neutral surface-velocity descriptions."""
+"""Focused tests for import-light surface-velocity descriptions."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec, res
 
 
 def test_surface_velocity_spec_normalizes_vectors() -> None:
-    """List inputs become immutable vectors before either backend consumes them."""
+    """List inputs become immutable vectors before the adapter consumes them."""
     spec = SurfaceVelocitySpec(
         prim_path="{ENV_REGEX_NS}/Belt", direction=[3, 4, 0], pivot_point=[1, 2, 3], surface_normal=[0, 0, 1]
     )
