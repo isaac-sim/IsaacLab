@@ -24,6 +24,7 @@ import numpy as np
 from isaaclab.paths import ISAACLAB_ROOT
 
 from .newton_replay import NewtonReplayPlayer, list_recordings
+from .newton_visualization_markers import render_newton_visualization_markers
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer
@@ -53,7 +54,7 @@ _RED = (1.0, 0.35, 0.35, 1.0)
 _YELLOW = (1.0, 0.8, 0.2, 1.0)
 _GREEN = (0.45, 0.9, 0.5, 1.0)
 
-REPLAY_VIEWS = {"only": "Replay only", "overlay": "Overlay on live", "side": "Side by side"}
+REPLAY_VIEWS = {"only": "Replay only", "overlay": "Overlay on live"}
 """Ways to show a loaded animation, as view name to label."""
 
 
@@ -115,6 +116,7 @@ class NewtonRecordingPanel:
         self._video_shape: tuple[int, int] | None = None
         self._scene: Any = None
         self._scene_frames = 0
+        self._markers_failed = False
         self._message = ""
 
     @property
@@ -333,8 +335,8 @@ class NewtonRecordingPanel:
         if imgui.is_item_hovered():
             imgui.set_tooltip(
                 "Replay only pauses and hides the simulation. Overlay lines up with the live robots only for the"
-                " same task, environment count, and seed. Overlay and Side by side skip the animation's terrain and"
-                " ground, which the live scene already draws."
+                " same task, environment count, and seed. Overlay skips the animation's terrain and ground, which the"
+                " live scene already draws."
             )
         _c, replay.opacity = imgui.slider_float("Opacity##replay", replay.opacity, 0.05, 1.0)
         hover_tooltip(imgui, "Make the animation translucent")
@@ -456,11 +458,12 @@ class NewtonRecordingPanel:
             viewer.set_model(owner.backend.model)
             viewer.set_visible_worlds(owner._env_ids)
             viewer.set_world_offsets((0.0, 0.0, 0.0))
+            viewer.marker_groups = owner._viewer.marker_groups  # The same markers the window draws.
         except Exception as exc:
             logger.exception("[NewtonRecording] Could not start the .viser recording.")
             self._message = f"Scene recording failed: {exc}"
             return
-        self._scene, self._scene_frames = viewer, 0
+        self._scene, self._scene_frames, self._markers_failed = viewer, 0, False
         self._message = f"Recording scene to {self.scene_path}"
 
     def stop_scene(self) -> None:
@@ -513,11 +516,22 @@ class NewtonRecordingPanel:
             self._scene.begin_frame(owner._sim_time)
             try:
                 self._scene.log_state(owner._update_state())
+                self._record_markers(owner)
             finally:
                 self._scene.end_frame()
             self._scene_frames += 1
         if self._video is not None:
             self._write_video_frame(owner._viewer.get_frame(render_ui=False).numpy())
+
+    def _record_markers(self, owner: Any) -> None:
+        """Add the visualization markers, such as velocity arrows, to the animation frame being recorded."""
+        if not owner.cfg.enable_markers or self._markers_failed:
+            return
+        try:
+            render_newton_visualization_markers(self._scene, owner._env_ids, num_envs=owner.backend.model.num_envs)
+        except Exception:
+            logger.exception("[NewtonRecording] Markers could not be recorded; continuing without them.")
+            self._markers_failed = True
 
     def close(self) -> None:
         """Finish all open recordings, keeping a video that was running or stopped but not yet saved."""

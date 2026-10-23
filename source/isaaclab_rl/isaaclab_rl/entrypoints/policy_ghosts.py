@@ -87,9 +87,21 @@ def relaunch_argv(argv: list[str], enable: bool) -> list[str]:
     return result
 
 
+def _launch_argv() -> list[str]:
+    """Return the command line that started this process, including interpreter and entry point.
+
+    A launcher script may replace ``sys.argv`` with the arguments it forwards to the CLI. Running that script again
+    would ignore any flag added to its command line, so the CLI entry point is run with the forwarded arguments.
+    """
+    original, current = list(sys.orig_argv), list(sys.argv)
+    if original[len(original) - len(current) + 1 :] == current[1:]:
+        return original
+    return [sys.executable, "-c", "from isaaclab.cli import cli; cli()", *current[1:]]
+
+
 def relaunch(enable: bool) -> None:
     """Replace the running process with the same command line and Policy Ghosts switched on or off."""
-    argv = relaunch_argv(list(sys.orig_argv), enable)
+    argv = relaunch_argv(_launch_argv(), enable)
     sys.stdout.flush()
     sys.stderr.flush()
     os.execv(sys.executable, [sys.executable, *argv[1:]])

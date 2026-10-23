@@ -61,11 +61,13 @@ class ReplayShape:
     metallic: float | None = None
     xforms: np.ndarray = field(default=None, repr=False)
     """Newton transforms (position, then xyzw quaternion) per frame, shape (T, N, 7)."""
+    frame_scales: np.ndarray | None = field(default=None, repr=False)
+    """Instance scales per frame, shape (T, N, 3), or None when they never change."""
 
     @property
     def static(self) -> bool:
         """Whether no instance ever moves, as for terrain and ground planes."""
-        return bool(np.all(self.xforms == self.xforms[:1]))
+        return self.frame_scales is None and bool(np.all(self.xforms == self.xforms[:1]))
 
 
 @dataclass
@@ -192,12 +194,15 @@ def load_viser_recording(path: str) -> ViserRecording:
                 "scales": _scales(props.get("batched_scales"), len(positions), buffer),
             }
         elif kind == "SceneNodeUpdateMessage" and message["name"] in created:
-            for key in ("batched_positions", "batched_wxyzs"):
+            for key in ("batched_positions", "batched_wxyzs", "batched_scales"):
                 if key in message["updates"]:
-                    width = 3 if key == "batched_positions" else 4
-                    updates[round(time_s, 6)][message["name"]][key] = (
-                        buffer(message["updates"][key]).reshape(-1, width).astype(np.float32)
-                    )
+                    count = len(created[message["name"]]["positions"])
+                    values = buffer(message["updates"][key]).astype(np.float32)
+                    if key == "batched_scales":  # One number per instance or one per axis.
+                        values = np.broadcast_to(values.reshape(count, -1), (count, 3)).copy()
+                    else:
+                        values = values.reshape(-1, 3 if key == "batched_positions" else 4)
+                    updates[round(time_s, 6)][message["name"]][key] = values
     if not created:
         raise ValueError(f"{path} contains no mesh batches to replay.")
 
@@ -212,6 +217,8 @@ def load_viser_recording(path: str) -> ViserRecording:
         count = len(data["positions"])
         positions = np.repeat(data.pop("positions")[None], len(times), axis=0)
         wxyzs = np.repeat(data.pop("wxyzs")[None], len(times), axis=0)
+        animated = any("batched_scales" in updates[round(float(t), 6)].get(name, {}) for t in times[1:])
+        frame_scales = np.repeat(data["scales"][None], len(times), axis=0) if animated else None
         for frame, time_s in enumerate(times[1:], start=1):
             positions[frame:], wxyzs[frame:] = positions[frame - 1], wxyzs[frame - 1]  # Carry the last pose forward.
             update = updates[round(float(time_s), 6)].get(name, {})
@@ -219,6 +226,10 @@ def load_viser_recording(path: str) -> ViserRecording:
                 positions[frame:] = update["batched_positions"]
             if "batched_wxyzs" in update:
                 wxyzs[frame:] = update["batched_wxyzs"]
+            if frame_scales is not None:
+                frame_scales[frame:] = frame_scales[frame - 1]
+                if "batched_scales" in update:
+                    frame_scales[frame:] = update["batched_scales"]
         if data.get("colors") is not None and len(data["colors"]) != count:
             data["colors"] = np.broadcast_to(data["colors"][:1], (count, 3)).copy()
         if data.get("colors") is None:
@@ -227,7 +238,9 @@ def load_viser_recording(path: str) -> ViserRecording:
             ).copy()
         xforms = np.concatenate([positions, wxyzs[..., [1, 2, 3, 0]]], axis=-1).astype(np.float32)
         assert xforms.shape == (len(times), count, 7)
-        shapes.append(ReplayShape(name=name, positions=positions, wxyzs=wxyzs, xforms=xforms, **data))
+        shapes.append(
+            ReplayShape(name=name, positions=positions, wxyzs=wxyzs, xforms=xforms, frame_scales=frame_scales, **data)
+        )
     return ViserRecording(path=str(path), times=times, shapes=shapes)
 
 
@@ -392,7 +405,11 @@ class NewtonReplayPlayer:
                 f"{REPLAY_PREFIX}/instances_{index}",
                 f"{REPLAY_PREFIX}/mesh_{index}",
                 wp.array(xforms, dtype=wp.transform, device=viewer.device),
-                wp.array(shape.scales, dtype=wp.vec3, device=viewer.device),
+                wp.array(
+                    shape.scales if shape.frame_scales is None else shape.frame_scales[frame],
+                    dtype=wp.vec3,
+                    device=viewer.device,
+                ),
                 wp.array(
                     np.ones((count, 3), np.float32) if textured else shape.colors, dtype=wp.vec3, device=viewer.device
                 ),

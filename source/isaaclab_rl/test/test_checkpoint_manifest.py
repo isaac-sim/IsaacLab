@@ -6,12 +6,13 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
 from isaaclab_rl.entrypoints.common import RUN_MANIFEST_FILENAME, resolve_checkpoint_selector, write_run_manifest
-from isaaclab_rl.entrypoints.policy_ghosts import discover_checkpoints, relaunch_argv
+from isaaclab_rl.entrypoints.policy_ghosts import _launch_argv, discover_checkpoints, relaunch_argv
 
 
 def _set_created_at(run_dir: Path, created_at: str) -> None:
@@ -169,3 +170,20 @@ def test_relaunch_argv_removes_policy_ghosts_with_their_options() -> None:
     argv = [*_PLAY, "--policy_ghosts", "--policy_ghost_slots", "8", "--policy_ghost_root=/runs", "--seed", "1"]
 
     assert relaunch_argv(argv, enable=False) == [*_PLAY, "--seed", "1"]
+
+
+def test_launch_argv_reuses_the_original_command_line(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "orig_argv", ["python", "/venv/bin/isaaclab", "play", "--task", "T"])
+    monkeypatch.setattr(sys, "argv", ["/venv/bin/isaaclab", "play", "--task", "T"])
+
+    assert _launch_argv() == ["python", "/venv/bin/isaaclab", "play", "--task", "T"]
+
+
+def test_launch_argv_runs_the_cli_with_arguments_a_launcher_script_set(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "orig_argv", ["python", "/tmp/launch.py"])
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "play", "--task", "T"])
+
+    argv = _launch_argv()
+
+    assert argv[1:3] == ["-c", "from isaaclab.cli import cli; cli()"] and argv[3:] == ["play", "--task", "T"]
+    assert relaunch_argv(argv, enable=True)[-1] == "--policy_ghosts"

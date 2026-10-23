@@ -10,5 +10,6 @@
   option to hide the simulation. The animation is drawn as separate shapes and does not touch the Newton model.
 * Loading an animation in the Newton GL window enters a Replay mode: the simulation is hidden and paused, the
   Playback section shows the replay transport (play, step, loop, scrub, speed) with an Exit Replay button, a header
-  badge names the clip, and the camera frames it. The View choice switches between Replay only, Overlay on live, and
-  Side by side, and leaving the mode restores the previous pause and visibility state.
+  badge names the clip, and the camera frames it. The View choice switches between Replay only and Overlay on live, and
+  leaving the mode restores the previous pause and visibility state. Animations record the visualization markers, such
+  as velocity arrows, and replay them with their changing scales.

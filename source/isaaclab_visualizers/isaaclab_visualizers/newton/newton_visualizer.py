@@ -1869,7 +1869,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     @property
     def replay_view(self) -> str:
-        """How the loaded animation is shown: ``"only"``, ``"overlay"``, or ``"side"``."""
+        """How the loaded animation is shown: ``"only"`` or ``"overlay"``."""
         return self._replay_view
 
     def _sync_replay_mode(self) -> None:
@@ -1886,11 +1886,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self.set_simulation_hidden(saved["hidden"])
 
     def set_replay_view(self, view: str) -> None:
-        """Show the loaded animation alone, over the live simulation, or beside it.
+        """Show the loaded animation alone or over the live simulation.
 
         Args:
             view: ``"only"`` pauses and hides the simulation, ``"overlay"`` draws the animation on top of the live
-                robots, and ``"side"`` offsets it beside the simulation. The last two resume the simulation.
+                robots and resumes the simulation.
         """
         player = self._recording.replay
         if not player.active or self._replay_saved is None:
@@ -1899,9 +1899,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer._paused_training = True if view == "only" else self._replay_saved["paused"]
         player.offset[:] = 0.0
         player.hide_static = view != "only"
-        if view == "side":
-            low, high = player.recording.bounds()
-            player.offset[1] = (high[1] - low[1]) + 2.0
         player.invalidate()
         self.set_simulation_hidden(view == "only")
 

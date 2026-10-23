@@ -89,6 +89,32 @@ def test_a_late_first_update_does_not_leave_a_still_stretch_at_the_start(tmp_pat
     assert recording.frame_at(recording.duration * 0.5) > 0
 
 
+def test_instance_scales_that_change_are_replayed_per_frame(tmp_path):
+    server = viser.ViserServer(host="127.0.0.1", port=_free_port(), verbose=False)
+    try:
+        serializer = server.get_scene_serializer()
+        handle = server.scene.add_batched_meshes_simple(
+            "/markers/arrow",
+            vertices=np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], np.float32),
+            faces=np.array([[0, 1, 2]], np.uint32),
+            batched_wxyzs=np.array([[1, 0, 0, 0]], np.float32),
+            batched_positions=np.zeros((1, 3), np.float32),
+            batched_scales=np.ones((1, 3), np.float32),
+        )
+        for step in (2, 3):
+            serializer.insert_sleep(0.1)
+            handle.batched_scales = np.full((1, 3), float(step), np.float32)
+        path = tmp_path / "markers.viser"
+        path.write_bytes(serializer.serialize())
+    finally:
+        server.stop()
+
+    (shape,) = load_viser_recording(str(path)).shapes
+
+    assert shape.frame_scales[:, 0, 0].tolist() == [1.0, 2.0, 3.0]
+    assert not shape.static  # Constant poses with changing scales still move.
+
+
 def test_listing_finds_nested_files_newest_first(tmp_path):
     older, newer = tmp_path / "a" / "old.viser", tmp_path / "new.viser"
     older.parent.mkdir()
