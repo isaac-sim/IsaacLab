@@ -277,9 +277,13 @@ class NewtonManager(PhysicsManager):
 
     backend_name = "newton"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, cfg: NewtonCfg):
+        super().__init__(cfg)
+        self._cfg: NewtonCfg = cfg
+        self.builder: ModelBuilder | None = None
+        """Shared construction builder, acquired at :meth:`initialize` and kept across hard resets."""
         self.backend: NewtonBackend | None = None
+        """Data bound to the finalized model; replaced on every hard reset."""
         self.clear()
         self._scene_data_backend = NewtonSceneDataBackend(self)
 
@@ -325,6 +329,7 @@ class NewtonManager(PhysicsManager):
             sim_context: Parent simulation context.
         """
         super().initialize(sim_context)
+        self.builder = sim_context.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg))
 
         # This context imports NewtonManager, so it can only be imported after this module initializes.
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
@@ -530,6 +535,7 @@ class NewtonManager(PhysicsManager):
         """Clean up Newton physics resources."""
         super().close()
         self.clear()
+        self.builder = None
 
     def get_scene_data_backend(self) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
@@ -753,7 +759,7 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: State attribute name (must be in ``State.EXTENDED_ATTRIBUTES``).
         """
-        self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg)).request_state_attributes(attr)
+        self.builder.request_state_attributes(attr)
         # initialize_solver() checks which sensors depend on state that MuJoCo's sensor stage fills.
         self._active_extended_state_attributes.add(attr)
 
@@ -763,7 +769,7 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: Contact attribute name.
         """
-        self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg)).request_contact_attributes(attr)
+        self.builder.request_contact_attributes(attr)
 
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver."""
@@ -910,8 +916,8 @@ class NewtonManager(PhysicsManager):
         Note: Collision pipeline is initialized later in initialize_solver() after
         we determine whether the solver needs external collision detection.
         """
-        sim = SimulationContext.instance()
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        sim = self._sim
+        builder = self.builder
         self._drain_stale_cuda_error()
 
         logger.info("Dispatching MODEL_INIT callbacks")
@@ -936,7 +942,7 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=device,
         ):
-            cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+            cfg = NewtonBackendCfg(physics_cfg=self._cfg, device=sim.device)
             self.backend = sim.get_or_create_backend(cfg, dt=self.get_physics_dt())
             self.backend.model.set_gravity(sim.cfg.gravity)
 

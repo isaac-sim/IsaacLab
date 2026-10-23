@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import XPBDSolverCfg
+from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 from newton import CollisionPipeline, Mesh, Model, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
@@ -31,7 +31,7 @@ from isaaclab_contrib.coupling import (
 @pytest.fixture
 def isolated_newton_manager() -> NewtonCouplerManager:
     """Return a coupler manager with every slot touched by coupler construction set explicitly."""
-    manager = NewtonCouplerManager()
+    manager = NewtonCouplerManager(NewtonCfg())
     clean_values = {
         "backend": SimpleNamespace(
             model=None,

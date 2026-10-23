@@ -24,7 +24,7 @@ args_cli = parser.parse_args()
 import newton
 import newton.utils
 import warp as wp
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
+from isaaclab_newton.physics import NewtonCfg, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
@@ -316,7 +316,7 @@ def main() -> None:
     with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(1.35, -2.1, 1.25), target=(0.50, 0.0, 0.72))
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.backend_manager.builder
         builder.rigid_gap = CABLE_GAP
         cable_body_start, wrapped_xforms = _build_system(builder)
         builder.color(balance_colors=False)

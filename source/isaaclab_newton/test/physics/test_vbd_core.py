@@ -96,7 +96,7 @@ def test_vbd_colors_builder_before_finalization():
         mass=0.01,
         edge_ke=1.0,
     )
-    physics.NewtonVBDManager()._prepare_builder_for_finalize(builder)
+    physics.NewtonVBDManager(NewtonCfg())._prepare_builder_for_finalize(builder)
     colors = {int(particle): color for color, group in enumerate(builder.particle_color_groups) for particle in group}
     assert len(set(colors.values())) == builder.particle_count
 
@@ -109,7 +109,7 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     """
     physics = importlib.import_module("isaaclab_newton.physics")
     solver = object()
-    manager = physics.NewtonVBDManager()
+    manager = physics.NewtonVBDManager(NewtonCfg())
     monkeypatch.setattr(manager, "_create_solver", lambda model, cfg, deterministic_mode: solver)
     monkeypatch.setattr(manager, "backend", SimpleNamespace(solver=None))
     monkeypatch.setattr(manager, "_use_single_state", True)
@@ -228,7 +228,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
     def simulate_physics_only(self):
         events.append(("step", self))
 
-    manager = physics.NewtonVBDManager()
+    manager = physics.NewtonVBDManager(NewtonCfg())
     monkeypatch.setattr(NewtonManager, "_simulate_physics_only", simulate_physics_only)
     monkeypatch.setattr(
         manager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state, solver=Solver())

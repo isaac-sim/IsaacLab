@@ -187,7 +187,7 @@ class NewtonMPMManager(NewtonManager):
         """Initialize Newton and author the MPM solver configuration in USD."""
         super().initialize(sim_context)
         scene_prim = sim_context.stage.GetPrimAtPath(sim_context.cfg.physics_prim_path)
-        _author_mpm_scene_config(scene_prim, sim_context.cfg.physics.solver_cfg)
+        _author_mpm_scene_config(scene_prim, self._cfg.solver_cfg)
 
     @classmethod
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:

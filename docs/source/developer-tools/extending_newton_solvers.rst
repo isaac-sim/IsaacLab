@@ -92,11 +92,9 @@ class invokes them.
      - What happens
      - Subclass hooks
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize`
-     - Stores the simulation context and acquires the shared builder.
-     - none
-   * - ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))``
-     - Acquires the shared builder through the active manager's ``create_builder()`` factory.
-       The cloner imports declared prototypes and composes worlds into it.
+     - Stores the simulation context and acquires the shared
+       :attr:`~isaaclab_newton.physics.NewtonManager.builder` through ``create_builder()``. The cloner later imports
+       declared prototypes and composes worlds into it.
      - ``_register_builder_attributes()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
      - Finalizes the builder into a new :class:`~isaaclab_newton.physics.NewtonBackend`, which allocates states,

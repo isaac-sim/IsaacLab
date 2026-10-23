@@ -503,6 +503,7 @@ def _make_target_mode_builder(
     sim._backend_registry = []
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: sim)
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    sim.backend_manager = SimpleNamespace(builder=builder)
     inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     parent = -1
     joint_ids = []

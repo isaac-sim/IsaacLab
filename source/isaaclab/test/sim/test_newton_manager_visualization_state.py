@@ -62,7 +62,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     class Manager(PhysicsManager):
         reset = forward = get_scene_data_backend = step = lambda self, *args, **kwargs: None
 
-    manager = Manager()
+    manager = Manager(PhysicsCfg())
     manager._device = "cpu"
     asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+/Cube", spawn=SpawnerCfg(spawn_path="/Scene/Source/Cube"))
     plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
@@ -117,12 +117,12 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonXPBDManager
+    from isaaclab_newton.physics import NewtonCfg, NewtonXPBDManager
     from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-    manager = NewtonXPBDManager()
+    manager = NewtonXPBDManager(NewtonCfg())
     manager._device = "cpu"
     state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
     backend = NewtonSceneDataBackend(manager)

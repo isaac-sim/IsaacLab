@@ -447,7 +447,7 @@ def test_task_space_allocation_and_capture(device, first_property):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    backend_manager = NewtonMJWarpManager()
+    backend_manager = NewtonMJWarpManager(NewtonCfg())
     backend_manager.backend = SimpleNamespace(
         model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
     )
@@ -493,7 +493,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    backend_manager = NewtonMJWarpManager()
+    backend_manager = NewtonMJWarpManager(NewtonCfg())
     backend_manager.backend = SimpleNamespace(
         model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
     )

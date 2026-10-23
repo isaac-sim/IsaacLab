@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import newton
 import pytest
 import warp as wp
-from isaaclab_newton.physics import MPMSolverCfg, NewtonMPMManager
+from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
 from newton.solvers import SolverImplicitMPM
 
 
@@ -57,7 +57,7 @@ def test_mpm_manager_explicit_reset_accepts_canonical_mask(cpu_mpm_solver_and_st
         newton_reset(self, state, world_mask=world_mask, flags=flags)
 
     monkeypatch.setattr(SolverImplicitMPM, "reset", record_reset)
-    manager = NewtonMPMManager()
+    manager = NewtonMPMManager(NewtonCfg())
     monkeypatch.setattr(manager, "backend", SimpleNamespace(model=solver.model, solver=solver))
     world_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
 
@@ -73,7 +73,7 @@ def test_mpm_manager_explicit_reset_accepts_canonical_mask(cpu_mpm_solver_and_st
 def test_mpm_manager_explicit_reset_rejects_local_only_mask(cpu_mpm_solver_and_state, monkeypatch):
     """The explicit API requires the final global-world entry."""
     solver, state = cpu_mpm_solver_and_state
-    manager = NewtonMPMManager()
+    manager = NewtonMPMManager(NewtonCfg())
     monkeypatch.setattr(manager, "backend", SimpleNamespace(model=solver.model, solver=solver))
     local_only_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
 
@@ -86,7 +86,7 @@ def test_mpm_manager_explicit_reset_promotes_selected_single_world(monkeypatch):
     state = object()
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
-    manager = NewtonMPMManager()
+    manager = NewtonMPMManager(NewtonCfg())
     monkeypatch.setattr(manager, "backend", SimpleNamespace(model=SimpleNamespace(world_count=1), solver=solver))
     monkeypatch.setattr(manager, "_implicit_mpm_solvers", lambda: (solver,))
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
@@ -102,7 +102,7 @@ def test_mpm_manager_explicit_reset_deduplicates_manager_states(monkeypatch):
     state_1 = object()
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
-    manager = NewtonMPMManager()
+    manager = NewtonMPMManager(NewtonCfg())
     monkeypatch.setattr(
         manager,
         "backend",
