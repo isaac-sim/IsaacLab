@@ -57,7 +57,7 @@ class ConveyorTransferCommand(CommandTerm):
         super().__init__(cfg, env)
 
         reset_term = env.event_manager.get_term_cfg(cfg.reset_event_name).func
-        required_reset_fields = ("row_ids", "recipe_ids", "target_cube_ids", "source_side_ids", "held_rows")
+        required_reset_fields = ("row_ids", "target_cube_ids", "source_side_ids", "held_rows")
         if not all(hasattr(reset_term, name) for name in required_reset_fields):
             raise RuntimeError("ConveyorTransferCommand requires ConveyorResetStateTable reset metadata.")
         self._reset_term = reset_term
@@ -66,7 +66,6 @@ class ConveyorTransferCommand(CommandTerm):
 
         self.target_cube_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.source_side_ids = torch.zeros_like(self.target_cube_ids)
-        self.recipe_ids = torch.zeros_like(self.target_cube_ids)
         self.held_cube_ids = torch.full_like(self.target_cube_ids, -1)
         self.subgoal_start_steps = torch.zeros_like(self.target_cube_ids)
         self.transfer_counts = torch.zeros_like(self.target_cube_ids)
@@ -197,7 +196,6 @@ class ConveyorTransferCommand(CommandTerm):
             rows = self._reset_term.row_ids[ids]
             target_cube_ids = self._reset_term.target_cube_ids[rows]
             source_side_ids = self._reset_term.source_side_ids[rows]
-            self.recipe_ids[ids] = self._reset_term.recipe_ids[rows]
             held_rows = self._reset_term.held_rows[rows]
             self.transfer_counts[ids] = 0
             self.direction_transfer_counts[ids] = 0
