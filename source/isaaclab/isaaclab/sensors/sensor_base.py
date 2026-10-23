@@ -24,12 +24,13 @@ import warp as wp
 from isaaclab.utils import clone, validate
 
 from .. import sim as sim_utils
+from ..cloner import path as cloner_path
 from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
 from ..utils import index_fill_
-from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
+from .kernels import invalidate_buffers_kernel, reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -46,6 +47,12 @@ class SensorBase(ABC):
 
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
+
+    This base owns environment rows and their clocks. Backend sensors must validate native binding
+    coverage rather than resize those rows when some environments have no matching sensor body.
+    Reset leaves cleared sensor outputs valid. Derived-query sensors explicitly invalidate their
+    cached results after initialization or reset. Backend kernels consume the resulting masks;
+    they must not repeat reset-readiness checks or introduce class-level reset policies.
     """
 
     def __init__(self, cfg: SensorBaseCfg):
@@ -177,7 +184,10 @@ class SensorBase(ABC):
         return True
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
-        """Resets the sensor internals.
+        """Reset timing for the cleared outputs established by the sensor's reset implementation.
+
+        Reset values remain cached until the next positive-time update. Subclasses that retain
+        derived results instead of clearing them must invalidate those results explicitly.
 
         Args:
             env_ids: The environment indices to reset. Defaults to None, in which case all
@@ -198,13 +208,15 @@ class SensorBase(ABC):
             ],
             device=self._device,
         )
-        self._data_dirty = True
+        if env_mask is self._ALL_ENV_MASK:
+            self._data_dirty = False
 
     def update(self, dt: float, force_recompute: bool = False):
+        """Advance the sampling clock and optionally refresh due data."""
         # Skip update if sensor is not initialized
         if not self._is_initialized:
             return
-        self._data_dirty = True
+        self._data_dirty |= dt > 0.0
         # Update the timestamp for the sensors
         wp.launch(
             update_timestamp_kernel,
@@ -212,6 +224,7 @@ class SensorBase(ABC):
             inputs=[
                 self._is_outdated,
                 self._timestamp,
+                self._timestamp_last_update,
                 self._elapsed_since_update,
                 dt,
                 self.cfg.update_period - 1e-6,
@@ -220,7 +233,7 @@ class SensorBase(ABC):
         )
         # Update the buffers; debug visualization refreshes lazily from its callback.
         if force_recompute:
-            self._update_outdated_buffers(force_recompute=force_recompute)
+            self._update_outdated_buffers()
 
     @staticmethod
     def update_batch(sensors: Sequence[SensorBase], dt: float) -> None:
@@ -258,16 +271,17 @@ class SensorBase(ABC):
     def _initialize_impl(self):
         """Initializes the sensor-related handles and internal buffers."""
         # Obtain Simulation Context
-        sim = sim_utils.SimulationContext.instance()
-        if sim is None:
-            raise RuntimeError("Simulation Context is not initialized!")
+        sim = self._sim
         # Obtain device and backend
         self._device = sim.device
         self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
         # Native clones need not have corresponding USD prims.
         clone_plan = sim.get_clone_plan()
-        if clone_plan is not None:
+        self._is_global = (
+            clone_plan is not None and cloner_path.match(self.cfg.prim_path, clone_plan.env_template) is None
+        )
+        if clone_plan is not None and not self._is_global:
             self._num_envs = len(clone_plan.topology.world_prototype_layout)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
@@ -278,7 +292,7 @@ class SensorBase(ABC):
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
         self._create_timing_buffers()
-        self._data_dirty = True
+        self._data_dirty = False
 
         # Initialize debug visualization handle
         if self._debug_vis_handle is None:
@@ -336,7 +350,8 @@ class SensorBase(ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = sim_utils.SimulationContext.instance().physics_manager
+        self._sim = sim_utils.SimulationContext.instance()
+        physics_mgr = self._backend_manager = self._sim.backend_manager
 
         obj_ref = weakref.proxy(self)
 
@@ -344,30 +359,29 @@ class SensorBase(ABC):
             getattr(obj_ref, callback_name)(event)
 
         # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
-        self._initialize_handle = physics_mgr_cls.register_callback(
+        self._initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
+                _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
-        self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
+        self._invalidate_initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr_cls
+                _invoke, "_invalidate_initialize_callback", payload, backend_manager=physics_mgr
             ),
             PhysicsEvent.STOP,
             order=10,
         )
-        # Optional: prim deletion (only supported by PhysX backend; the substring
-        # check would also match ``OvPhysxManager``, which does not expose
-        # ``IsaacEvents``, so use an exact class-name match).
+        # Optional: prim deletion (only supported by the Kit PhysX backend; OVPhysX does not expose
+        # ``IsaacEvents``).
         self._prim_deletion_handle = None
-        if physics_mgr_cls.__name__ == "PhysxManager":
+        if physics_mgr.backend_name == "physx":
             from isaaclab_physx.physics import IsaacEvents  # noqa: PLC0415
 
-            self._prim_deletion_handle = physics_mgr_cls.register_callback(
+            self._prim_deletion_handle = physics_mgr.register_callback(
                 lambda event: PhysicsManager.safe_callback_invoke(
-                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr_cls
+                    _invoke, "_on_prim_deletion", event, backend_manager=physics_mgr
                 ),
                 IsaacEvents.PRIM_DELETION,
             )
@@ -427,21 +441,36 @@ class SensorBase(ABC):
     Helper functions.
     """
 
-    def _create_timing_buffers(self) -> None:
-        """Allocates the per-environment outdated flags, timestamps and elapsed times used to schedule updates.
+    def _check_env_count(self, count: int, prim_path: str, instances_per_env: int = 1) -> None:
+        """Reject native bindings that cannot be indexed with the scene's environment masks."""
+        if count != self._num_envs * instances_per_env:
+            raise RuntimeError(
+                f"{type(self).__name__} at '{self.cfg.prim_path}' requires {instances_per_env} instance(s) in each"
+                f" of {self._num_envs} environments; '{prim_path}' matched {count} instances."
+            )
 
-        Sensors that change :attr:`_num_envs` after :meth:`_initialize_impl` must call this again, after
-        reallocating their environment masks.
-        """
+    def _create_timing_buffers(self) -> None:
+        """Allocate the shared per-environment flags and clocks used to schedule captures."""
         # timestamp and outdated flags
-        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+        self._is_outdated = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-        self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        # A negative timestamp means no backend sample has been read since initialization/reset.
+        self._timestamp_last_update = wp.full(self._num_envs, -1.0, dtype=wp.float32, device=self._device)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
 
-    def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
+    def _invalidate_buffers(self, env_mask: wp.array | None = None) -> None:
+        """Invalidate selected results without advancing sampling clocks; None selects all environments."""
+        if env_mask is None or env_mask is self._ALL_ENV_MASK:
+            self._is_outdated.fill_(True)
+        else:
+            wp.launch(
+                invalidate_buffers_kernel, dim=self._num_envs, inputs=[env_mask, self._is_outdated], device=self._device
+            )
+        self._data_dirty = True
+
+    def _update_outdated_buffers(self) -> None:
         """Fills the sensor data for the outdated sensors."""
-        if not force_recompute and not self._data_dirty:
+        if not self._data_dirty:
             return
         self._update_buffers_impl(self._is_outdated)
         self._mark_buffers_updated()

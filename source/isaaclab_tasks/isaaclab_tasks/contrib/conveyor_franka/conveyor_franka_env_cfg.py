@@ -552,7 +552,7 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
         # Any visualizer selected at runtime receives these shared camera hints.
         # Newton camera pose: position (2.13, 0.0, 1.0), pitch -23.9 degrees,
         # yaw 180 degrees. The look-at point is one unit along that view ray.
-        self.sim.default_visualizer_cfg = VisualizerCfg(
+        self.sim.visualizer_cfgs = VisualizerCfg(
             eye=(2.13, 0.0, 1.0),
             lookat=(1.2157460448, 0.0, 0.5948584132),
             max_visible_envs=1,

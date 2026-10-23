@@ -27,9 +27,9 @@ invalid asset or controller.
 
 Use maintained task configurations as evidence for a similar workload, not as
 defaults to copy. For example, compare the small
-`Cartpole configuration <https://github.com/isaac-sim/IsaacLab/blob/develop/source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py>`__
+:isaaclab-source:`Cartpole configuration <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py>`
 with the contact-rich
-`Allegro Hand configuration <https://github.com/isaac-sim/IsaacLab/blob/develop/source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_common.py>`__.
+:isaaclab-source:`Allegro Hand configuration <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_common.py>`.
 Their values only apply after validating the new task's reset and contact
 distribution.
 
@@ -101,6 +101,10 @@ drive stiffness.
 
 Tune friction and contact behavior
 ----------------------------------
+
+Try the :ref:`interactive friction demo <interactive-demo-rigid-friction>` to
+adjust a box's friction on an incline and compare its sliding motion with two
+fixed references.
 
 Validate colliders, contact locations, normal force, material friction, and
 ``condim`` before changing global friction settings. ``cone`` selects the

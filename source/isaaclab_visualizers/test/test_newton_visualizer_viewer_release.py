@@ -10,18 +10,20 @@ from unittest.mock import Mock
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.newton import (
+    NewtonGLBackendCfg,
     NewtonGLVisualizer,
-    NewtonGLVisualizerCfg,
+    NewtonRTXBackendCfg,
     NewtonRTXVisualizer,
-    NewtonRTXVisualizerCfg,
 )
+
+from isaaclab.visualizers import VisualizerCfg
 
 pytestmark = [pytest.mark.unit]
 
 
 def test_close_does_not_destroy_shared_gl_context() -> None:
     """GL teardown must not prevent another viewer from starting in the same process."""
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
     viewer = visualizer._viewer = Mock()
     visualizer.close()
     viewer.close.assert_not_called()
@@ -33,21 +35,23 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     """A close request must not destroy the GL context inside the UI render callback."""
     events: list[str] = []
     monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "close", lambda self: events.append("close"))
     viewer = object.__new__(newton_visualizer.NewtonViewerGL)
     viewer._close_requested = False
     if requested:
         viewer.request_close()
-    viewer.renderer = type("Renderer", (), {"close": lambda self: events.append("close")})()
+    viewer.renderer = Mock()
+    viewer.renderer.window.switch_to.side_effect = lambda: events.append("context")
 
     viewer.end_frame()
 
-    assert events == (["frame", "close"] if requested else ["frame"])
+    assert events == (["frame", "context", "close"] if requested else ["frame"])
 
 
 @pytest.mark.parametrize("failure", [False, True])
 def test_close_releases_owned_resources_even_on_failure(failure):
     """Teardown is idempotent and leaves borrowed sensor references untouched, even when one release fails."""
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+    visualizer = NewtonRTXVisualizer(VisualizerCfg(backend=NewtonRTXBackendCfg()))
     viewer = visualizer._viewer = Mock()
     camera = Mock()
     visualizer.current_image_view = Mock(camera=camera)

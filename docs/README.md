@@ -26,5 +26,5 @@ uv run --extra dev isaaclab --docs_multi
 ```
 
 This build requires the Git tags for the versions to include. It checks for
-`v3.0.0-EA/index.html` by default; set `DOCS_DEFAULT_REF` to another built ref
+`main/index.html` by default; set `DOCS_DEFAULT_REF` to another built ref
 if needed. Open `docs/_build/index.html` in a browser after the build completes.

@@ -3,41 +3,26 @@ Controllers
 
 .. currentmodule:: isaaclab.controllers
 
-Robotic tasks are typically defined in task-space in terms of desired
-end-effector trajectory, while control actions are executed in the
-joint-space. This naturally leads to *joint-space* and *task-space*
-(operational-space) control methods. However, successful execution of
-interaction tasks using motion control often requires an accurate model
-of both the robot manipulator as well as its environment. While a
-sufficiently precise manipulator's model might be known, detailed
-description of environment is hard to obtain :cite:p:`siciliano2009force`.
-Planning errors caused by this mismatch can be overcome by introducing a
-*compliant* behavior during interaction.
+Controllers turn desired motion or contact forces into joint commands. Joint-space
+controllers act on individual joints; task-space controllers act on an end effector.
 
-While compliance is achievable passively through robot's structure (such
-as elastic actuators, soft robot arms), we are more interested in
-controller designs that focus on active interaction control. These are
-broadly categorized into:
+Contact tasks often need compliance to tolerate errors in the robot or environment
+model :cite:p:`siciliano2009force`. Two common approaches are:
 
-1. **impedance control:** indirect control method where motion deviations
-   caused during interaction relates to contact force as a mass-spring-damper
-   system with adjustable parameters (stiffness and damping). A specialized case
-   of this is *stiffness* control where only the static relationship between
-   position error and contact force is considered.
-
-2. **hybrid force/motion control:** active control method which controls motion
-   and force along unconstrained and constrained task directions respectively.
-   Among the various schemes for hybrid motion control, the provided implementation
-   is based on inverse dynamics control in the operational space :cite:p:`khatib1987osc`.
-
-.. note::
-
-    To provide an even broader set of motion generators, we welcome contributions from the
-    community. If you are interested, please open an issue to start a discussion!
+* **Impedance control:** Relates motion error to contact force through a
+  mass-spring-damper model. Stiffness control uses only the static relationship
+  between position error and force.
+* **Hybrid force/motion control:** Controls motion along free directions and force
+  along constrained directions. Isaac Lab's implementation uses operational-space
+  inverse dynamics :cite:p:`khatib1987osc`.
 
 
 Choosing a controller
 ---------------------
+
+The core controllers below live in ``isaaclab.controllers``. Isaac Lab also provides
+:ref:`Newton controllers <newton-controllers>` with additional control options and
+an iterative IK solver.
 
 .. list-table::
    :header-rows: 1
@@ -91,6 +76,92 @@ an Isaac Sim installation.
       **OSC: control motion and contact force.** The tilted-wall example
       commands 10 N along the wall normal while tracking pose in the other
       directions. :doc:`Run the OSC demonstration <../how-to/run_osc>`.
+
+.. _newton-controllers:
+
+Newton controllers
+------------------
+
+``isaaclab_newton.controllers`` wraps Newton's batched controllers for use with
+PyTorch tensors. These three controllers work with any physics backend: the caller
+supplies the robot state, Jacobian, and dynamics required by the enabled features.
+They do not require a Newton simulation model.
+
+* **Differential IK** —
+  :class:`~isaaclab_newton.controllers.NewtonDifferentialIKController` produces
+  joint position targets from an end-effector goal. It supports axis weighting,
+  adaptive damping, truncated SVD, joint-limit avoidance, and null-space posture
+  control. Configure it with
+  :class:`~isaaclab_newton.controllers.NewtonDifferentialIKControllerCfg`.
+* **Joint impedance** —
+  :class:`~isaaclab_newton.controllers.NewtonJointImpedanceController` produces
+  joint efforts from desired joint positions and velocities. Options include
+  inertia decoupling, gravity and Coriolis compensation, acceleration feedforward,
+  and gains that can change each control step. Configure it with
+  :class:`~isaaclab_newton.controllers.NewtonJointImpedanceControllerCfg`.
+* **Operational-space control** —
+  :class:`~isaaclab_newton.controllers.NewtonOperationalSpaceController` produces
+  joint efforts for task-space motion and wrench control. It supports desired
+  end-effector velocity, separate linear and angular selection frames, and
+  null-space posture control. Configure it with
+  :class:`~isaaclab_newton.controllers.NewtonOperationalSpaceControllerCfg`.
+
+In a direct environment, create the controller once, pass current state and targets
+to ``compute()`` each control step, and apply the returned joint targets or efforts
+through ``articulation.actuators``. These wrappers have their own configurations and
+``compute()`` arguments; they do not use the core controllers' ``set_command()`` API.
+They compute in float32, and contiguous float32 inputs can be shared without copies.
+Returned tensors reference reusable output buffers, so clone them if you need to
+keep a result after the next call.
+
+For manager-based tasks, use
+:class:`~isaaclab_newton.envs.mdp.NewtonDifferentialInverseKinematicsActionCfg` or
+:class:`~isaaclab_newton.envs.mdp.NewtonOperationalSpaceControllerActionCfg` to connect
+the corresponding controller to the robot. For example, this action commands an
+absolute Franka hand position in the robot's root frame:
+
+.. code-block:: python
+
+   from isaaclab_newton.controllers import NewtonDifferentialIKControllerCfg
+   from isaaclab_newton.envs.mdp import NewtonDifferentialInverseKinematicsActionCfg
+
+   arm_action = NewtonDifferentialInverseKinematicsActionCfg(
+       asset_name="robot",
+       joint_names=["panda_joint[1-7]"],
+       body_name="panda_hand",
+       command_type="position",
+       controller=NewtonDifferentialIKControllerCfg(
+           ik_method="damped_least_squares",
+           bandwidth=10.0,
+           damping=0.05,
+       ),
+   )
+
+Add this term to the task's actions configuration and match the asset, joint, and
+body names to your robot. Use position-controlled actuators for differential IK;
+use effort control for operational-space control.
+
+Iterative IK with Newton
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+:class:`~isaaclab_newton.controllers.ik.NewtonIKSolver` solves pose objectives
+iteratively using a Newton model, rather than taking a differential IK step from
+a supplied Jacobian. Combine
+:class:`~isaaclab_newton.controllers.ik.NewtonIKPoseObjectiveCfg` objectives for one
+or more bodies with
+:class:`~isaaclab_newton.controllers.ik.NewtonIKJointLimitObjectiveCfg` to penalize
+joint-limit violations. :class:`~isaaclab_newton.controllers.ik.NewtonIKSolverCfg`
+selects LM or L-BFGS optimization, the Jacobian method, seed sampling, and iteration
+count.
+
+Use :class:`~isaaclab_newton.envs.mdp.NewtonInverseKinematicsActionCfg` to drive this
+solver from a manager-based task. This action currently requires a fixed-base
+articulation with a registered Newton prototype model; its joints and target
+bodies must resolve in both Isaac Lab and that model.
+
+See :doc:`/source/api/lab_newton/isaaclab_newton.controllers` for the full controller,
+solver, and configuration APIs.
+
 
 .. _controller-control-loop:
 
@@ -159,9 +230,8 @@ Position control with fixed impedance
 
 Action dimensions: ``"n"`` (number of joints)
 
-In position control mode, a proportional-damping (PD) control law is employed to track the desired joint
-positions and ensuring the articulation remains still at the desired location (i.e., desired joint velocities
-are zero). Based on the input actions, the joint torque commands are computed as:
+Position control uses a proportional-derivative (PD) law to track joint positions
+with zero target velocity:
 
 .. math::
 
@@ -196,18 +266,16 @@ Position control with variable stiffness
 
 Action dimensions: ``"2n"`` (number of joints)
 
-In stiffness control, the same formulation as above is employed, however, the gains :math:`k_p` are part of
-the input commands. This implementation is available through the :class:`JointImpedanceController` class by
-setting the impedance mode to ``"variable_kp"``.
+Variable-stiffness control uses the same law, with :math:`k_p` supplied in the
+command. Set :class:`JointImpedanceController` to ``"variable_kp"`` mode.
 
 Position control with variable impedance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Action dimensions: ``"3n"`` (number of joints)
 
-In impedance control, the same formulation as above is employed, however, both :math:`k_p` and :math:`k_d`
-are part of the input commands. This implementation is available through the :class:`JointImpedanceController`
-class by setting the impedance mode to ``"variable"``.
+Variable-impedance control also supplies damping through the command. Set
+:class:`JointImpedanceController` to ``"variable"`` mode.
 
 Task-space controllers
 ----------------------
@@ -348,15 +416,9 @@ extraction, and complete repeated loops.
 Reactive planners
 -----------------
 
-Typical task-space controllers do not account for motion constraints
-such as joint limits, self-collision and environment collision. Instead
-they rely on high-level planners (such as RRT) to handle these
-non-Euclidean constraints and give joint/task-space way-points to the
-controller. However, these methods are often conservative and have
-undesirable deceleration when close to an object. More recently,
-different approaches combine the constraints directly into an
-optimization problem, thereby providing a holistic solution for motion
-generation and control.
+Task-space controllers usually leave joint limits and collision avoidance to a
+higher-level planner, such as RRT. Reactive planners can instead include these
+constraints in the optimization that computes motion and control.
 
 Examples of reactive planners include:
 

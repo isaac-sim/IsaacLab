@@ -105,13 +105,12 @@ retaining a compatible rigid-body layout. Model structurally different assets as
 Clone planning and physics replication
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~scene.InteractiveScene` represents multi-asset variants as clone-plan prototypes. It can therefore keep
-:attr:`~scene.InteractiveSceneCfg.replicate_physics` enabled and replicate each prototype only to its assigned
-environments. Do not disable physics replication merely because a scene uses a multi-asset spawner. Reserve
-``replicate_physics=False`` for per-environment stage differences that cannot be represented as clone variants; that
-mode is not supported by the Newton backend.
+:class:`~scene.InteractiveScene` represents multi-asset variants as clone-plan prototypes and dispatches each
+prototype only to its assigned environments. Physics assets use their declared clone contexts, including native
+physics replication by default. Declare per-environment stage differences as
+:attr:`~isaaclab.cloner.CloneCfg.clone_combinations` prototypes.
 
-The example keeps physics replication enabled. For Newton, it also narrows the standalone object and articulation to one
+The example relies on physics replication. For Newton, it also narrows the standalone object and articulation to one
 variant because their batched Newton views currently require a uniform body layout across worlds:
 
 .. literalinclude:: ../../../examples/multi_asset.py
@@ -153,7 +152,7 @@ The physics backend and visualizer are selected independently. Run one of these 
 The Newton commands exercise the same :class:`~assets.RigidObjectCollectionCfg` and ``(env_ids, obj_ids)`` APIs as the
 PhysX command. They do not demonstrate per-environment object or articulation variants because of the uniform-layout
 restriction described above; use the PhysX command to inspect that part of the example. See the
-:doc:`installation guide </source/setup/installation/index>` before running
+:doc:`installation guide </source/isaaclab/installation>` before running
 the kitless command.
 
 To stop the simulation, you can close the window, or press ``Ctrl+C`` in the terminal.

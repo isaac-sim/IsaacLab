@@ -16,8 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.utils import clone, configclass, replace
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -25,6 +24,7 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
 
 from . import mdp
+from .handover_common import VISUALIZER_CFG
 from .handover_env_cfg import BALL_CFG, LeftHandCfg, PhysicsCfg, RightHandCfg
 
 ##
@@ -38,8 +38,6 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
 
     num_envs = 2048
     env_spacing = 1.5
-    replicate_physics = True
-
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(),
@@ -218,16 +216,6 @@ class RandomizationEventCfg:
 class ResetEventCfg:
     """Reset distributions matching the Direct handover environment."""
 
-    reset_object = EventTerm(
-        func=mdp.reset_root_state_with_random_orientation,
-        mode="reset",
-        params={
-            # the Direct task jitters the drop position and samples a random orientation
-            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object"),
-        },
-    )
     reset_right_hand = EventTerm(
         func=reorient_mdp.reset_reorient_hand,
         mode="reset",
@@ -322,7 +310,4 @@ class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics_material = RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0)
         self.sim.physics = PhysicsCfg()
-        # visualizer settings: frame both hands and the object between them
-        self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0
-        )
+        self.sim.visualizer_cfgs = clone(VISUALIZER_CFG)

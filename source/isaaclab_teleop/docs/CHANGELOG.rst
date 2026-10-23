@@ -3,6 +3,27 @@ Changelog
 
 .. towncrier release notes start
 
+0.10.5 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Bound teleop target frames and XR anchor references once during setup instead of rediscovering the
+  Fabric stage and prim every update. Live pose updates and explicit target-matrix overrides were preserved.
+* Rejected nonexistent teleop target-frame paths before starting the session instead of silently emitting
+  poses in the world frame. Ensure ``target_frame_prim_path`` exists before entering the device context.
+
+
+0.10.4 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the XR workstation check to link to the ``main`` documentation after the default-branch rename.
+
+
 0.10.3 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -72,7 +72,6 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.terrains.sub_terrain_cfg import FlatPatchSamplingCfg
 from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
 
@@ -159,8 +158,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])

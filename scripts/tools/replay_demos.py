@@ -14,7 +14,7 @@ import argparse
 import sys
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils.string import list_intersection, string_to_callable
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.utils import setup_preset_cli
 
@@ -61,13 +61,10 @@ args_cli, hydra_args = setup_preset_cli(parser)
 args_cli.require_kit = True
 
 # Call an external callback if requested.
-remaining_args_env_registration = None
 if args_cli.external_callback:
-    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = external_callback_function()
-
-# Hand arguments consumed by neither this parser nor the callback over to Hydra.
-hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+    remaining = string_to_callable(args_cli.external_callback, separator=".")()
+    if remaining is not None:
+        _, hydra_args = setup_preset_cli(parser, remaining)
 sys.argv = [sys.argv[0]] + hydra_args
 
 import contextlib
@@ -77,6 +74,7 @@ import os
 import gymnasium as gym
 import torch
 
+from isaaclab.envs.utils._manual_success import _prepare_success_term
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
@@ -281,20 +279,17 @@ def main():
     env_cfg.scene.num_envs = num_envs
 
     # extract success checking function to invoke in the main loop
-    success_term = None
-    if args_cli.validate_success_rate:
-        if hasattr(env_cfg.terminations, "success"):
-            success_term = env_cfg.terminations.success
-            env_cfg.terminations.success = None
-        else:
-            print(
-                "No success termination term was found in the environment."
-                " Will not be able to mark recorded demos as successful."
-            )
+    success_term = _prepare_success_term(env_cfg, disable_terminations=True)
+    if not args_cli.validate_success_rate:
+        success_term = None
+    elif success_term is None:
+        print(
+            "No success termination term was found in the environment."
+            " Will not be able to mark recorded demos as successful."
+        )
 
-    # Disable all recorders and terminations
+    # Replay applies recorded actions without automatic episode resets.
     env_cfg.recorders = {}
-    env_cfg.terminations = {}
 
     with launch_simulation(env_cfg, args_cli):
         replay_dataset(env_cfg, dataset_file_handler, episode_count, episode_indices_to_replay, success_term)

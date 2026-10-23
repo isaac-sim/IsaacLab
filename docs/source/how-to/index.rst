@@ -11,12 +11,6 @@ How-to Guides
 .. role:: guide-tag-newton
    :class: guide-tag guide-tag-newton
 
-.. container:: guide-browser-intro
-
-   Find step-by-step guides for building with Isaac Lab. Search by topic, then open a guide without leaving this page.
-   Backend tags identify the physics backends covered by each guide, and ``Isaac Sim`` marks guides whose
-   documented workflow requires the Isaac Sim runtime. Guides without tags cover backend-independent concepts.
-
 .. raw:: html
 
    <div class="guide-browser-toolbar" data-guide-browser>
@@ -175,6 +169,16 @@ How-to Guides
          .. container:: guide-metadata
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
+         :doc:`Exploring MPM materials and coupling </source/how-to/mpm_tutorials>`
+
+         Compare material response, fluid surface reconstruction, and robot--particle coupling.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
    .. container:: guide-group
 

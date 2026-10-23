@@ -23,7 +23,13 @@ from __future__ import annotations
 import argparse
 import math
 
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular example.")
 parser.add_argument(
@@ -64,29 +70,15 @@ EMIT_HI = (1.0, 1.0, 3.5)
 PARTICLES_PER_VOXEL_AXIS = 2.0
 PARTICLE_SPACING = VOXEL_SIZE / PARTICLES_PER_VOXEL_AXIS
 PARTICLE_JITTER = PARTICLE_SPACING
-COLLIDER_MARGIN = 0.5 * PARTICLE_SPACING
+COLLIDER_MARGIN = PARTICLE_SPACING
 
-PARTICLE_COLOR = (0.7, 0.6, 0.4)
+PARTICLE_COLOR = (0.66, 0.43, 0.16)
+CAMERA_EYE = (5.0, -8.0, 5.0)
+CAMERA_TARGET = (0.0, 0.0, 1.5)
 
 IDENTITY_ROT = (0.0, 0.0, 0.0, 1.0)
 Y_ROT_45_DEG = (0.0, math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 Y_ROT_NEG_45_DEG = (0.0, -math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
-
-
-def create_visualizer_cfgs():
-    """Create example-specific visualizer configs for the requested backends."""
-    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
-        return []
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            show_particles=True,
-            particle_color=PARTICLE_COLOR,
-        )
-    ]
 
 
 def create_sim_cfg():
@@ -99,7 +91,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
+        ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,
@@ -137,7 +131,11 @@ def create_scene_cfg():
                     static_friction=friction,
                     dynamic_friction=friction,
                 ),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.45)),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.18, 0.21, 0.25),
+                    roughness=0.24,
+                    metallic=0.18,
+                ),
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=center, rot=orientation),
         )
@@ -207,13 +205,13 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch and run the Isaac Lab MPM granular example."""
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        sim.set_camera_view(eye=(4.0, -6.0, 4.0), target=(0.0, 0.0, 1.0))
+        sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         scene = InteractiveScene(create_scene_cfg())
         sim.reset()
         print(
