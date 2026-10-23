@@ -25,7 +25,7 @@ ordered-state republish recorded into a captured graph.
 
 from isaaclab_newton.physics import NewtonCfg, NewtonMJWarpManager
 
-from isaaclab.sim import SimulationCfg
+from isaaclab.sim import FrameView, SimulationCfg
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
@@ -1404,10 +1404,16 @@ def test_newton_ordered_state_publishes_in_step_and_refreshes_same_timestamp_wri
     root_body_idx = articulation.find_bodies("base")[0][0]
     sim_timestamp = data._sim_timestamp
 
+    frame_view = FrameView(f"{articulation.cfg.prim_path}/base", device=device)
+    frame_view.get_world_poses()
     cached_body_pose = data.body_link_pose_w.torch[:, root_body_idx].clone()
     written_root_pose = data.root_link_pose_w.torch.clone()
     written_root_pose[:, 0] += 0.25
     articulation.write_root_link_pose_to_sim_index(root_pose=written_root_pose)
+    position, orientation = frame_view.get_world_poses()
+    torch.testing.assert_close(position.torch, written_root_pose[:, :3])
+    torch.testing.assert_close(orientation.torch, written_root_pose[:, 3:])
+    frame_view.close()
     assert data._sim_timestamp == sim_timestamp
     torch.testing.assert_close(data.root_link_pose_w.torch, written_root_pose)
     scene.sim.backend_manager.forward()  # Another consumer may resolve shared FK before this view reads.

@@ -18,10 +18,8 @@ uv run --extra isaacsim isaaclab example sharpa-rj45 --viz kit
 ```
 
 Omitting `--viz` selects Newton GL. Add `--extra video` and `--video` to record a run.
-The default `--backdrop auto` shows the detailed gold switch front and all RJ45
-ports in Newton GL and the full facility with eight foreground racks in Kit and
-Newton RTX. In GL,
-`--backdrop datacenter` loads one full rack without the facility.
+The defaults above use `--backdrop auto`. In Newton GL, `--backdrop datacenter`
+loads one full rack without the facility.
 
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK
 and action manager. Native hydroelastic hand–housing/clip contact is enabled;

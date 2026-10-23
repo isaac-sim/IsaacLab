@@ -14,7 +14,7 @@ import sys
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import Usd
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views.base_frame_view import BaseFrameView
@@ -461,8 +461,7 @@ class FabricFrameView(BaseFrameView):
     def _recompute_world_from_local_all(self) -> None:
         """Derive ``worldMatrix = parent * localMatrix`` for every prim in the view.
 
-        Called from :class:`_FabricLocalSpaceWriter` ``__exit__`` and from
-        :meth:`_sync_fabric_from_usd_initial` after seeding local matrices.
+        Called from :class:`_FabricLocalSpaceWriter` ``__exit__``.
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`.
         """
@@ -502,7 +501,6 @@ class FabricFrameView(BaseFrameView):
             list(self.prim_paths),
             self._device,
             owner=type(self).__name__,
-            seed_from_usd=True,
         )
 
         # Pre-allocated reusable output buffers (world + local + scales).
@@ -520,107 +518,6 @@ class FabricFrameView(BaseFrameView):
         self._fabric_local_orientations_ta = ProxyArray(self._fabric_local_orientations_buf)
 
         self._fabric_initialized = True
-
-        # Seed Fabric matrices from USD authoritatively.  The seed writes, so
-        # flip onto the RW selection for its duration; flip back afterwards so
-        # steady-state getters use the RO selection.
-        self._fabric_sel.read_write = True
-        try:
-            self._sync_fabric_from_usd_initial()
-        finally:
-            self._fabric_sel.read_write = False
-
-    def _sync_fabric_from_usd_initial(self) -> None:
-        """Populate Fabric world+local matrices for children and parents from USD.
-
-        Performed once during ``_initialize_fabric``.  Without this step Fabric's
-        matrices are identity for stages that haven't been rendered yet, and our
-        getters (which read from Fabric) would return wrong values.
-        """
-        # --- Children: compose child localMatrix from USD-authored local transforms.
-        scales_wp = _to_float32_2d(self._usd_view.get_local_scales().warp)
-        local_pos_ta, local_ori_ta = self._usd_view.get_local_poses()
-        wp.launch(
-            kernel=fabric_utils.compose_indexed_fabric_transforms,
-            dim=self.count,
-            inputs=[
-                self._fabric_sel.local_ifa(),  # caller holds ``read_write=True``: init-time write, no scope yet
-                _to_float32_2d(local_pos_ta.warp),
-                _to_float32_2d(local_ori_ta.warp),
-                _to_float32_2d(scales_wp),
-                False,
-                False,
-                False,
-                self._fabric_sel.view_indices,
-            ],
-            device=self._device,
-        )
-
-        # --- Parents (one entry per unique parent path) ---
-        unique_parent_paths = self._fabric_sel.unique_parent_paths
-        if unique_parent_paths:
-            from isaaclab.sim.utils import get_current_stage  # noqa: PLC0415
-
-            usd_stage = get_current_stage()
-            xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-            world_pos_rows: list[list[float]] = []
-            world_ori_rows: list[list[float]] = []
-            world_scale_rows: list[list[float]] = []
-            decomposer = Gf.Transform()
-            warned_shear = False
-            for path in unique_parent_paths:
-                prim = usd_stage.GetPrimAtPath(path)
-                tf = xform_cache.GetLocalToWorldTransform(prim)
-                decomposer.SetMatrix(tf)
-                s = decomposer.GetScale()
-                if not warned_shear:
-                    row0 = Gf.Vec3d(tf[0][0], tf[0][1], tf[0][2]).GetNormalized()
-                    row1 = Gf.Vec3d(tf[1][0], tf[1][1], tf[1][2]).GetNormalized()
-                    row2 = Gf.Vec3d(tf[2][0], tf[2][1], tf[2][2]).GetNormalized()
-                    if (
-                        abs(Gf.Dot(row0, row1)) > 1e-3
-                        or abs(Gf.Dot(row0, row2)) > 1e-3
-                        or abs(Gf.Dot(row1, row2)) > 1e-3
-                    ):
-                        warned_shear = True
-                        logger.warning(
-                            "FabricFrameView: parent prim '%s' has a sheared/skewed world "
-                            "transform. TRS decomposition (used by scale getters and world<->local "
-                            "propagation) does not support shear -- extracted scales and rotations "
-                            "will be approximate. Avoid shear in parent transforms for correct results.",
-                            path,
-                        )
-                tf.Orthonormalize()
-                t = tf.ExtractTranslation()
-                q = tf.ExtractRotationQuat()
-                img, real = q.GetImaginary(), q.GetReal()
-                world_pos_rows.append([float(t[0]), float(t[1]), float(t[2])])
-                world_ori_rows.append([float(img[0]), float(img[1]), float(img[2]), float(real)])
-                world_scale_rows.append([float(s[0]), float(s[1]), float(s[2])])
-            parent_pos_wp = wp.array(world_pos_rows, dtype=wp.float32, device=self._device)
-            parent_ori_wp = wp.array(world_ori_rows, dtype=wp.float32, device=self._device)
-            parent_scale_wp = wp.array(world_scale_rows, dtype=wp.float32, device=self._device)
-            wp.launch(
-                kernel=fabric_utils.compose_indexed_fabric_transforms,
-                dim=len(unique_parent_paths),
-                inputs=[
-                    self._fabric_sel.parent_world_rw_ifa(),
-                    parent_pos_wp,
-                    parent_ori_wp,
-                    parent_scale_wp,
-                    False,
-                    False,
-                    False,
-                    self._fabric_sel.parent_view_indices,
-                ],
-                device=self._device,
-            )
-        wp.synchronize()
-
-        # After seeding local matrices from USD, recompute world matrices so
-        # the view starts with consistent state.
-        self._recompute_world_from_local_all()
-        wp.synchronize()
 
 
 # ----------------------------------------------------------------------

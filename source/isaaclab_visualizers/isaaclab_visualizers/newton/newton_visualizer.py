@@ -46,6 +46,7 @@ from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
+from isaaclab.utils.images import resize_image
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
@@ -131,6 +132,21 @@ class NewtonViewerGL(ViewerGL):
             self.gui._render_scalar_plots = lambda: None
         self.register_ui_callback(self._render_training_controls, position="side")
 
+    @property
+    def camera_speed(self) -> float:
+        """Keyboard camera translation speed [m/s], doubled while Shift is held."""
+        from pyglet.window import key
+
+        boosted = self.is_key_down(key.LSHIFT) or self.is_key_down(key.RSHIFT)
+        return self._camera_speed * (self.CAMERA_SPEED_BOOST_MULTIPLIER if boosted else 1.0)
+
+    @camera_speed.setter
+    def camera_speed(self, value: float) -> None:
+        value = float(value)
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError("camera_speed must be finite and nonnegative")
+        self._camera_speed = value
+
     def set_model(self, model: newton.Model | None) -> None:
         """Decode shared textures once while the native viewer uploads the model's meshes."""
         self._model_texture_cache = {}
@@ -147,34 +163,11 @@ class NewtonViewerGL(ViewerGL):
             path = os.fspath(texture)
             if path not in self._model_texture_cache:
                 image = load_texture(texture)
-                if (
-                    image is not None
-                    and self._texture_max_size is not None
-                    and max(image.shape[:2]) > self._texture_max_size
-                ):
-                    from PIL import Image
-
-                    resized = Image.fromarray(image)
-                    resized.thumbnail((self._texture_max_size, self._texture_max_size), Image.Resampling.LANCZOS)
-                    image = np.array(resized)
+                if image is not None and self._texture_max_size is not None:
+                    image = resize_image(image, self._texture_max_size)
                 self._model_texture_cache[path] = image
             texture = self._model_texture_cache[path]
         return super().log_mesh(name, points, indices, normals, uvs, texture, *args, **kwargs)
-
-    @property
-    def camera_speed(self) -> float:
-        """Keyboard camera translation speed [m/s], doubled while Shift is held."""
-        from pyglet.window import key
-
-        boosted = self.is_key_down(key.LSHIFT) or self.is_key_down(key.RSHIFT)
-        return self._camera_speed * (self.CAMERA_SPEED_BOOST_MULTIPLIER if boosted else 1.0)
-
-    @camera_speed.setter
-    def camera_speed(self, value: float) -> None:
-        value = float(value)
-        if not math.isfinite(value) or value < 0.0:
-            raise ValueError("camera_speed must be finite and nonnegative")
-        self._camera_speed = value
 
     def is_reset_requested(self) -> bool:
         """Return whether an episode reset was requested without clearing the flag."""
@@ -540,7 +533,6 @@ class NewtonVisualizerBase(BaseVisualizer):
                     "gravity": sim.cfg.gravity,
                 },
                 window_cfg=self.cfg.window,
-                texture_max_size=getattr(self.cfg.backend, "texture_max_size", None),
             )  # fmt: skip
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
@@ -859,6 +851,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             )
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
+        self._viewer._texture_max_size = self.cfg.backend.texture_max_size
         self._viewer.set_model(self.backend.model)
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.

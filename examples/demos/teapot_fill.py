@@ -139,7 +139,10 @@ parser.add_argument(
     "--backdrop",
     choices=["auto", "studio", "room"],
     default="auto",
-    help="Backdrop: auto uses a simple studio for GL and the full room for Kit/RTX.",
+    help=(
+        "Backdrop: auto uses a simple studio for GL and a kitchen island for Kit/RTX;"
+        " the enclosed room is included only with --robot rizon_sharpa."
+    ),
 )
 parser.add_argument(
     "--island_usd",
