@@ -244,7 +244,6 @@ def belt_collision_section_specs(
     velocity: float = 0.0,
     friction_coefficient: float = 0.7,
     contact_threshold: float = 0.997,
-    enabled: bool = True,
 ) -> tuple[ConveyorSectionSpec, ConveyorSectionSpec, ConveyorSectionSpec, ConveyorSectionSpec]:
     """Build collision geometry and authored conveyor intent for one racetrack."""
     center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
@@ -266,7 +265,6 @@ def belt_collision_section_specs(
             belt=SurfaceVelocitySpec(
                 prim_path=f"{{ENV_REGEX_NS}}/{geometry.name}",
                 velocity=velocity,
-                enabled=enabled,
                 direction=travel_direction,
                 curved=curved,
                 pivot_point=pivot_point,

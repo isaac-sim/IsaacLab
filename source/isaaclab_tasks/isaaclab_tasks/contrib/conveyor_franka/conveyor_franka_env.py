@@ -49,14 +49,6 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             self._conveyor_driver = None
             raise
 
-    @property
-    def conveyor_belt(self) -> SurfaceVelocity:
-        """Tensorized conveyor control view for this environment."""
-        driver = self._conveyor_driver
-        if driver is None:
-            raise RuntimeError("The conveyor belt is unavailable before simulation initialization or after close().")
-        return driver
-
     def _setup_goal_selector(self) -> None:
         """Attach one task panel to the first supported interactive visualizer."""
         for visualizer in self.sim.visualizers:
