@@ -1759,11 +1759,6 @@ def pytest_sessionstart(session):
     # filter is owned by Isaac Sim's external CI pipeline; the CI_MARKER path
     # leaves that contract untouched.
     ci_marker = os.environ.get("CI_MARKER", "")
-    # The file scan below matches a single marker name, and a job with no marked file passes empty,
-    # so an expression or a misspelt name would pass every job without running anything.
-    registered_markers = {entry.split(":", 1)[0].strip() for entry in session.config.getini("markers")}
-    if ci_marker and ci_marker not in registered_markers:
-        pytest.exit(f"CI_MARKER {ci_marker!r} is not a single marker registered in pyproject.toml", returncode=1)
     test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
 
     # Parse include files list (comma-separated paths)
@@ -1848,10 +1843,6 @@ def pytest_sessionstart(session):
             logger.info("No quarantined tests configured — nothing to run.")
             _write_empty_report()
             pytest.exit("No quarantined tests configured", returncode=0)
-        if ci_marker:
-            logger.info(f"No selected test file carries marker '{ci_marker}' — nothing to run.")
-            _write_empty_report()
-            pytest.exit("No test files found for marker", returncode=0)
         if filter_pattern:
             logger.info(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
             _write_empty_report()

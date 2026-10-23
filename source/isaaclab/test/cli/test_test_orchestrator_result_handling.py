@@ -14,7 +14,7 @@ import signal
 import sys
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import ModuleType
 
 import pytest
 
@@ -718,50 +718,3 @@ def test_external_git_asset_tests_receive_extended_startup_deadline():
 
     assert startup_deadline == orchestrator.test_settings.GIT_ASSET_STARTUP_TIMEOUT
     assert orchestrator._resolve_startup_deadline("test_sample.py", timeout=10000, is_cold_cache_test=False) == 120
-
-
-def _start_marker_session(orchestrator, monkeypatch, ci_marker: str):
-    """Run the orchestrator's session start for ``ci_marker`` and return the exit code it requests."""
-    for name in (
-        "TEST_FILTER_PATTERN",
-        "TEST_EXCLUDE_PATTERN",
-        "TEST_INCLUDE_FILES",
-        "TEST_QUARANTINED_ONLY",
-        "TEST_CUROBO_ONLY",
-        "ISAACSIM_CI_SHORT",
-        "TEST_NODE_IDS",
-        "TEST_NODE_IDS_FILE",
-        "TEST_NODE_IDS_KEY",
-    ):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("CI_MARKER", ci_marker)
-    config = SimpleNamespace(getini=lambda name: ["kitless: runs without Kit", "arm_ci: runs on arm"], option=None)
-    with pytest.raises(pytest.exit.Exception) as exit_info:
-        orchestrator.pytest_sessionstart(SimpleNamespace(config=config))
-    return exit_info.value.returncode
-
-
-@pytest.mark.parametrize("ci_marker", ["kitles", "kitless and not arm_ci"])
-def test_unregistered_ci_marker_fails_before_selection(ci_marker, monkeypatch):
-    """A marker run matches files by name, so an expression or a misspelling must fail instead of passing empty."""
-    orchestrator = _load_orchestrator_module()
-
-    def unexpected_selection(*args, **kwargs):
-        raise AssertionError("test files were selected for an unregistered marker")
-
-    monkeypatch.setattr(orchestrator, "_collect_test_files", unexpected_selection)
-
-    assert _start_marker_session(orchestrator, monkeypatch, ci_marker) == 1
-
-
-def test_registered_ci_marker_without_marked_files_passes_empty(monkeypatch, tmp_path):
-    """A job whose files carry no marker passes with an empty report instead of failing."""
-    orchestrator = _load_orchestrator_module()
-    unmarked = tmp_path / "test_unmarked.py"
-    unmarked.write_text("def test_unmarked():\n    pass\n")
-    monkeypatch.setattr(orchestrator, "_collect_test_files", lambda *args, **kwargs: [str(unmarked)])
-    monkeypatch.setenv("TEST_RESULT_FILE", "marker_report.xml")
-    monkeypatch.chdir(tmp_path)
-
-    assert _start_marker_session(orchestrator, monkeypatch, "kitless") == 0
-    assert (tmp_path / "tests" / "marker_report.xml").is_file()
