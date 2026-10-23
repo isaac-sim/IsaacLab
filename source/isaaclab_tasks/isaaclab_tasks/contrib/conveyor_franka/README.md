@@ -1,48 +1,16 @@
-<!--
-Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-All rights reserved.
-
-SPDX-License-Identifier: BSD-3-Clause
--->
-
 # Conveyor tasks
 
-Choose between two tasks using the same pretrained Franka policy:
+A Franka continuously transfers four numbered 40 mm cubes between two counter-rotating
+racetrack conveyors. The trained policy uses 123 observations and eight actions at 60 Hz,
+with 120 Hz physics and a 0.35 m/s belt speed.
 
-| Task | Layout and behavior | Newton task ID |
-| --- | --- | --- |
-| Racetrack transfer | Original two closed racetracks and four numbered cubes; continuous alternating transfers | `IsaacContrib-Conveyor-Racetrack-Transfer-v0` |
-| Warehouse sorting | Current extended conveyors and 24 colored parcels; two colors per circulating conveyor | `IsaacContrib-Conveyor-Warehouse-Sorting-v0` |
+![Racetrack transfer](../../../../../docs/source/_static/tasks/conveyor/racetrack_transfer.jpg)
 
-The sorter inherits the racetrack environment and configuration. Both reuse the same action,
-observation, reward, and placement logic and the same RSL-RL agent configuration. Sorting adds
-class dispatch and a four-slot parcel adapter for playback with the shared checkpoint. The original
-task keeps its compact geometry and four fixed cube identities. Both use 123 observations,
-eight actions, 120 Hz physics, and a 60 Hz policy rate.
+Newton traction uses the upstream `ConveyorForceModel`, including its MuJoCo contact
+reporting. `isaaclab_contrib.conveyors.newton` adapts replicated surfaces, parcel selection,
+controls, and reset lifecycle; the task owns its geometry, commands, and reset recipes.
 
-## Backend support
-
-Both tasks run on Newton GPU. `IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0` provides a CPU-only
-native PhysX reference for the original four-cube racetrack task.
-
-The PhysX task rejects CUDA during configuration validation. In the supported Isaac Sim runtime,
-enabling the native surface-velocity contact-modification path under GPU dynamics can drop the belt
-contacts and let packages pass through the conveyor. CPU PhysX preserves those contacts. Use the
-Newton task whenever GPU simulation or vectorized throughput is required.
-
-The two backends deliberately share the policy tensor contract, so an RSL-RL checkpoint can be
-loaded by either task without reshaping or reordering tensors. Their contact and actuator dynamics
-are not numerically identical; validate task behavior when transferring a policy between them.
-
-Surface-velocity intent and the tensorized control contract live in
-`isaaclab_contrib.conveyors.surface_velocity`. Newton traction uses the complete upstream
-`ConveyorForceModel` from the pinned Newton release, including its MuJoCo contact reporting.
-`isaaclab_contrib.conveyors.newton` adapts replicated surfaces, parcel selection, controls, and
-reset lifecycle; it contains no separate traction solver.
-PhysX schema authoring and live attribute control live in `isaaclab_contrib.conveyors.physx`.
-The task package owns only the racetrack geometry, backend lifecycle selection, and task-level commands.
-
-## Original racetrack task
+## Run
 
 Newton is kitless and supports the lightweight GL viewer:
 
@@ -54,10 +22,8 @@ DISPLAY=:1 uv run isaaclab play --rl_library rsl_rl \
 ```
 
 The `pretrained` selector downloads the RSL-RL policy published specifically for the Newton MJWarp
-backend. Both task keys are published on Isaac Dev. While the public mirror is syncing,
+backend. The Newton checkpoint is published on Isaac Dev. While the public mirror is syncing,
 use a local checkpoint path if the download is unavailable.
-The PhysX task resolves a different backend-specific artifact name, so transferring this Newton policy
-to PhysX currently requires the explicit local checkpoint path shown below.
 
 Training uses the same task ID and defaults to 256 environments:
 
@@ -177,20 +143,3 @@ for catalog access. Layout references include
 [Dematic modular conveyors](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1039_MCS.pdf),
 [Dematic sortation](https://www.dematic.com/content/dam/dematic/downloads/whitepapers/NA_WP-1015_Sorting-Out-Sortation.pdf),
 and [KION warehouse installations](https://www.kiongroup.com/en/News-Stories/Stories/Innovation/Warehousing-is-being-transformed.html).
-
-## PhysX CPU playback
-
-The native PhysX variant requires an Isaac Sim-enabled launch and an explicit CPU device. One
-environment is the default and recommended interactive configuration:
-
-```bash
-DISPLAY=:1 uv run isaaclab play --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0 \
-  --checkpoint /path/to/model.pt \
-  --num_envs 1 --device cpu --viz kit --real-time \
-  agent.device=cpu
-```
-
-Overriding the task to CUDA is an error by design; keep the explicit `--device cpu` in launch
-commands for clarity. The native surface-velocity backend stages commands through USD, while the
-Newton backend keeps its batched state, contact processing, and force application on the GPU.

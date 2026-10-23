@@ -30,7 +30,6 @@ __all__ = [
     "gripper_joint_positions",
     "invalid_action",
     "nonfinite_scene_state",
-    "physical_cube_acquisition_mask",
     "select_next_transfer_cube",
     "subgoal_time_out",
     "target_cube_one_hot",
@@ -67,7 +66,6 @@ from .rewards import (
     action_term_l2,
     finite_action_rate_l2,
     finite_joint_velocity_l2,
-    physical_cube_acquisition_mask,
     terminal_failure,
     transfer_success_reward,
 )
