@@ -116,6 +116,9 @@ class IsaacTeleopDevice:
         mcap_replay_path: str | None = None,
         enable_debug_visualization: bool = False,
         haptic_cfg: HapticFeedbackCfg | None = None,
+        *,
+        external_oxr_handles_provider: Callable[[], object | None] | None = None,
+        ovxr_session: bool = False,
     ):
         """Initialize the Isaac Capture device.
 
@@ -133,6 +136,13 @@ class IsaacTeleopDevice:
                 standalone (``False``) with ``isaacteleop`` owning its own OpenXR
                 session through the CloudXR runtime -- teleop I/O with no Kit XR
                 rendering.  Typically wired to the ``--xr`` CLI flag.
+            external_oxr_handles_provider: Optional callback returning handles
+                borrowed from an application-owned OVXR OVXR context.
+                Supplying this capability delegates XR rendering/anchoring to
+                that owner, not Kit XRCore; only a static anchor is supported.
+            ovxr_session: Use application-owned presentation and static
+                anchoring without borrowing live input handles. This allows
+                recorded input to drive a separately presented scene.
             mcap_record_path: Optional MCAP file path to record the live
                 teleop session into.  Mutually exclusive with
                 *mcap_replay_path*.  Debug-grade only -- the produced file
@@ -155,14 +165,19 @@ class IsaacTeleopDevice:
         """
         self._cfg = cfg
         self._target_world_matrix = None
+        self._ovxr_session = ovxr_session or external_oxr_handles_provider is not None
 
-        self._anchor_manager = XrAnchorManager(cfg.xr_cfg)
+        # Borrowed OVXR handles imply external anchor ownership.
+        self._anchor_manager = XrAnchorManager(
+            cfg.xr_cfg, ovxr_session=ovxr_session or external_oxr_handles_provider is not None
+        )
         self._command_handler = CommandHandler()
         self._session_lifecycle = TeleopSessionLifecycle(
             cfg,
             cloudxr_env_file=cloudxr_env_file,
             auto_launch_cloudxr=auto_launch_cloudxr,
             use_kit_xr_bridge=use_kit_xr_bridge,
+            external_oxr_handles_provider=external_oxr_handles_provider,
             mcap_record_path=mcap_record_path,
             mcap_replay_path=mcap_replay_path,
             enable_debug_visualization=enable_debug_visualization,
@@ -227,24 +242,70 @@ class IsaacTeleopDevice:
         Raises:
             ValueError: If the configured target frame does not exist.
         """
-        if self._cfg.target_frame_prim_path is not None:
-            import usdrt
-            from usdrt import Rt
+        try:
+            if not self._ovxr_session and self._cfg.target_frame_prim_path is not None:
+                import usdrt
+                from usdrt import Rt
 
-            stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
-            prim = stage.GetPrimAtPath(self._cfg.target_frame_prim_path)
-            if not prim.IsValid():
-                raise ValueError(f"No target frame at {self._cfg.target_frame_prim_path!r}.")
-            self._target_world_matrix = Rt.Xformable(prim).GetFabricHierarchyWorldMatrixAttr()
-        self._session_lifecycle.start()
+                stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
+                prim = stage.GetPrimAtPath(self._cfg.target_frame_prim_path)
+                if not prim.IsValid():
+                    raise ValueError(f"No target frame at {self._cfg.target_frame_prim_path!r}.")
+                self._target_world_matrix = Rt.Xformable(prim).GetFabricHierarchyWorldMatrixAttr()
+            self._session_lifecycle.start()
+        except BaseException as error:
+            # A failed __enter__ has no automatic __exit__; unwind any runtime,
+            # pipeline or UI acquired before the failure without replacing it.
+            self.__exit__(type(error), error, error.__traceback__)
+            raise
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context manager and clean up the Isaac Capture session."""
         self._target_world_matrix = None
-        self._anchor_manager.cleanup()
-        self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
+        error = exc_val
+        try:
+            self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
+        except Exception as cleanup_error:
+            if error is None:
+                error = cleanup_error
+            else:
+                error.add_note(f"Isaac Capture cleanup failed: {cleanup_error!r}")
+        try:
+            self._anchor_manager.cleanup()
+        except Exception as cleanup_error:
+            if error is None:
+                error = cleanup_error
+            else:
+                error.add_note(f"XR anchor cleanup failed: {cleanup_error!r}")
+        if exc_val is None and error is not None:
+            raise error
         return False
+
+    @property
+    def xr_anchor_path(self) -> str:
+        """Return the exact anchor prim path consumed by external OVXR."""
+        return self._anchor_manager.anchor_headset_path
+
+    @property
+    def xr_render_anchor_path(self) -> str:
+        """Return the anchor prim path used to frame XR cameras."""
+        return self._anchor_manager.render_anchor_path
+
+    @property
+    def external_anchor_state(self) -> XrAnchorManager | None:
+        """The dynamic anchor capability consumed by Lab's external scene publisher."""
+        return self._anchor_manager if self._anchor_manager.external_reference_path is not None else None
+
+    @property
+    def required_openxr_extensions(self) -> tuple[str, ...]:
+        """Return extensions required by the built teleop graphs."""
+        return self._session_lifecycle.required_openxr_extensions()
+
+    @property
+    def session_cleanup_failed(self) -> bool:
+        """Whether borrowed XR handles could not be safely drained."""
+        return self._session_lifecycle.session_cleanup_failed
 
     def reset(self, pause: bool = False) -> None:
         """Reset the device state.
@@ -511,6 +572,9 @@ def create_isaac_teleop_device(
     mcap_replay_path: str | None = None,
     enable_debug_visualization: bool = False,
     haptic_cfg: HapticFeedbackCfg | None = None,
+    *,
+    external_oxr_handles_provider: Callable[[], object | None] | None = None,
+    ovxr_session: bool = False,
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
 
@@ -550,6 +614,10 @@ def create_isaac_teleop_device(
             ``isaacteleop`` creates its own OpenXR session through the CloudXR
             runtime, so teleop I/O works headless without Kit XR rendering.
             Typically wired to the ``--xr`` CLI flag.
+        external_oxr_handles_provider: Optional callback returning handles
+            borrowed from an external OVXR context.
+        ovxr_session: Use OVXR presentation with a static anchor even
+            when input comes from an MCAP reader rather than live XR handles.
         mcap_record_path: Optional MCAP file path to record the live teleop
             session into.  Debug-grade only.  Mutually exclusive with
             *mcap_replay_path*.
@@ -594,6 +662,8 @@ def create_isaac_teleop_device(
         cloudxr_env_file=cloudxr_env_file,
         auto_launch_cloudxr=auto_launch_cloudxr,
         use_kit_xr_bridge=use_kit_xr_bridge,
+        external_oxr_handles_provider=external_oxr_handles_provider,
+        ovxr_session=ovxr_session,
         mcap_record_path=mcap_record_path,
         mcap_replay_path=mcap_replay_path,
         enable_debug_visualization=enable_debug_visualization,

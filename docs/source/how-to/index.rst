@@ -502,6 +502,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Source-built Capture with optional OVXR </source/how-to/kitless_xr>`
+
+         Select public OVXR providers and replay MCAP with a source-built Capture wheel.
+
+      .. container:: guide-entry
+
          :doc:`Setting up Haply teleoperation </source/how-to/haply_teleoperation>`
 
          Use Haply devices for robot control with directional force feedback.
@@ -546,3 +552,8 @@ How-to Guides
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
+
+.. toctree::
+   :hidden:
+
+   kitless_xr
