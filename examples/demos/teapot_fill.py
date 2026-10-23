@@ -601,8 +601,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str):
         """Demo-local exact triangle-mesh asset config."""
 
         func: Callable | str = clone(spawn_demo_mesh)
-        vertices: list[list[float]] = MISSING
-        faces: list[list[int]] = MISSING
+        vertices: np.ndarray = MISSING
+        faces: np.ndarray = MISSING
         mesh_collision_props: sim_utils.UsdPhysicsMeshCollisionCfg | None = None
         rigid_contact_usd: str | None = None
 
@@ -682,6 +682,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str):
             # asset's authored convex decomposition is unsuitable for a hollow
             # MPM collider and SolverImplicitMPM does not accept convex meshes.
             spawn=DemoMeshCfg(
+                vertices=container_vertices,
+                faces=container_faces,
                 rigid_props=[
                     sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
                     PhysxRigidBodyCfg(disable_gravity=True),
@@ -705,6 +707,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str):
         fluid = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Fluid",
             spawn=MPMPointsCfg(
+                positions=fluid_points,
                 visible=SHOW_FLUID_PARTICLES,
                 mass=particle_mass,
                 radius=particle_radius,
@@ -733,10 +736,6 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str):
         )
 
     cfg = TeapotFillSceneCfg(num_envs=1, env_spacing=0.0)
-    # Populate large payloads after config construction to avoid repeated deep copies.
-    cfg.container.spawn.vertices = container_vertices.tolist()
-    cfg.container.spawn.faces = container_faces.tolist()
-    cfg.fluid.spawn.positions = fluid_points.tolist()
     if ROBOT_ENABLED:
         from isaaclab_newton.sim.schemas import MujocoCollisionCfg
         from rizon_sharpa_teapot import get_robot_cfg, prepared_contact_path
