@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -19,89 +20,84 @@ import isaaclab_contrib.conveyors.physx as surface_module
 from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
 
-class _FakeWriter:
-    """Record authored states without importing USD or PhysX schemas."""
+class _Attribute:
+    def __init__(self):
+        self.values = []
 
-    def __init__(self) -> None:
-        self.writes: list[tuple[int, bool, surface_module.PhysxSurfaceVelocityTwist]] = []
-        self.close_count = 0
-
-    def write(self, index: int, *, enabled: bool, twist: surface_module.PhysxSurfaceVelocityTwist) -> None:
-        self.writes.append((index, enabled, twist))
-
-    def close(self) -> None:
-        self.close_count += 1
+    def Set(self, value):
+        self.values.append(value)
 
 
-def _surface_spec(name: str = "Belt", **kwargs) -> SurfaceVelocitySpec:
-    """Return one replicated belt description for facade tests."""
-    return SurfaceVelocitySpec(prim_path=f"{{ENV_REGEX_NS}}/{name}", velocity=0.4, **kwargs)
+def _surface_spec(name: str = "Belt", velocity: float = 0.4, **kwargs) -> SurfaceVelocitySpec:
+    return SurfaceVelocitySpec(prim_path=f"{{ENV_REGEX_NS}}/{name}", velocity=velocity, **kwargs)
 
 
 def test_twist_conversion_normalizes_straight_direction() -> None:
     """Straight surface speed is independent of the authored direction magnitude."""
-    spec = _surface_spec(direction=(3.0, 4.0, 0.0))
-
-    twist = surface_module.compute_surface_velocity_twist(spec, velocity=2.0)
-
-    np.testing.assert_allclose(twist.linear_velocity, (1.2, 1.6, 0.0))
+    twist = surface_module.compute_surface_velocity_twist(_surface_spec(direction=(3.0, 4.0, 0.0), velocity=-2.0))
+    np.testing.assert_allclose(twist.linear_velocity, (-1.2, -1.6, 0.0))
     assert twist.angular_velocity_deg == (0.0, 0.0, 0.0)
 
 
 def test_twist_conversion_uses_degrees_and_compensates_curved_pivot() -> None:
     """Curved belts rotate about their local pivot rather than the rigid-body origin."""
     spec = _surface_spec(
-        direction=(0.0, 0.0, 2.0),
-        curved=True,
-        radius=2.0,
-        pivot_point=(2.0, 0.0, 0.0),
+        direction=(0.0, 0.0, 2.0), curved=True, radius=2.0, pivot_point=(2.0, 0.0, 0.0), velocity=math.pi
     )
-
-    twist = surface_module.compute_surface_velocity_twist(spec, velocity=math.pi)
-
+    twist = surface_module.compute_surface_velocity_twist(spec)
     np.testing.assert_allclose(twist.angular_velocity_deg, (0.0, 0.0, 90.0), atol=1.0e-12)
     np.testing.assert_allclose(twist.linear_velocity, (0.0, -math.pi, 0.0), atol=1.0e-12)
 
 
-def test_curved_twist_requires_an_explicit_radius() -> None:
-    """A native angular rate cannot be inferred from unspecified task geometry."""
-    spec = _surface_spec(curved=True)
-
-    with pytest.raises(ValueError, match="positive radius"):
-        surface_module.compute_surface_velocity_twist(spec)
-
-
-def test_facade_ramps_playback_and_preserves_commands_on_reset(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Full resets restart playback without erasing policy-visible command state."""
-    writer = _FakeWriter()
-    monkeypatch.setattr(surface_module, "_PhysxSchemaSurfaceWriter", lambda *args, **kwargs: writer)
-    facade = surface_module.SurfaceVelocity(2, (_surface_spec(),))
-
-    assert facade.prim_paths == ("/World/envs/env_0/Belt", "/World/envs/env_1/Belt")
-    assert facade.num_surfaces == 2
-    assert [record[2].linear_velocity for record in writer.writes] == [(0.0, 0.0, 0.0)] * 2
-
-    facade.update(0.25)
-    np.testing.assert_allclose([record[2].linear_velocity[0] for record in writer.writes[-2:]], (0.1, 0.1))
-
-    facade.set_velocities(torch.tensor([0.8], requires_grad=True), indices=torch.tensor([0]))
-    facade.set_enabled(False, indices=[1])
-    facade.update(0.25)
-    np.testing.assert_allclose(facade.get_commanded_velocities(), (0.8, 0.4))
-    np.testing.assert_allclose(facade.get_velocities(), (0.8, 0.0))
-
-    writes_before_reset = list(writer.writes)
-    facade.reset(env_ids=torch.tensor([0]))
-    assert writer.writes == writes_before_reset
-    facade.reset(env_ids=[1, 0])
-    np.testing.assert_allclose(facade.get_commanded_velocities(), (0.8, 0.4))
-    assert facade.get_enabled().tolist() == [1, 0]
-    np.testing.assert_allclose(writer.writes[-2][2].linear_velocity, (0.0, 0.0, 0.0))
-
-    facade.close()
-    facade.close()
-    assert writer.close_count == 1
-    assert [(index, enabled) for index, enabled, _ in writer.writes[-2:]] == [(0, False), (1, False)]
+def test_ramp_reset_and_callback_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Full resets restart the ramp; partial resets and steady playback avoid USD writes."""
+    attributes = {f"/World/envs/env_{i}/Belt": tuple(_Attribute() for _ in range(3)) for i in range(2)}
+    monkeypatch.setattr(surface_module, "_surface_attributes", lambda prim, **kwargs: attributes[prim])
+    register = Mock(return_value=Mock())
+    monkeypatch.setitem(
+        sys.modules,
+        "isaaclab_physx.physics.physx_manager",
+        SimpleNamespace(
+            IsaacEvents=SimpleNamespace(POST_PHYSICS_STEP="step"),
+            PhysxManager=SimpleNamespace(register_callback=register),
+        ),
+    )
+    adapter = surface_module.SurfaceVelocity(
+        2, (_surface_spec(),), stage=SimpleNamespace(GetPrimAtPath=lambda path: path)
+    )
+    adapter.start()
+    adapter.start()
+    register.assert_called_once()
+    update = register.call_args.args[0]
+    for enabled, linear, angular in attributes.values():
+        assert enabled.values[-1] is True and tuple(linear.values[-1]) == (0, 0, 0)
+    update(0.25)
+    for _, linear, _ in attributes.values():
+        np.testing.assert_allclose(linear.values[-1], (0.1, 0, 0))
+    writes = len(attributes["/World/envs/env_0/Belt"][1].values)
+    adapter.reset(torch.tensor([0]))
+    assert len(attributes["/World/envs/env_0/Belt"][1].values) == writes
+    update(1.0)
+    writes += 1
+    update(1.0)
+    assert len(attributes["/World/envs/env_0/Belt"][1].values) == writes
+    for _, linear, _ in attributes.values():
+        np.testing.assert_allclose(linear.values[-1], (0.4, 0, 0))
+    adapter.reset([1, 0])
+    for _, linear, _ in attributes.values():
+        assert tuple(linear.values[-1]) == (0, 0, 0)
+    update(0.25)
+    for _, linear, _ in attributes.values():
+        np.testing.assert_allclose(linear.values[-1], (0.1, 0, 0))
+    adapter.reset()
+    adapter.close()
+    adapter.close()
+    register.return_value.deregister.assert_called_once()
+    for enabled, linear, angular in attributes.values():
+        assert enabled.values[-1] is False
+        assert tuple(linear.values[-1]) == tuple(angular.values[-1]) == (0, 0, 0)
+    with pytest.raises(RuntimeError, match="closed"):
+        adapter.start()
 
 
 def test_authoring_helper_applies_kinematic_local_surface_schema(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -117,7 +113,7 @@ def test_authoring_helper_applies_kinematic_local_surface_schema(monkeypatch: py
     monkeypatch.setattr(UsdPhysics.CollisionAPI, "Apply", Mock(return_value=surface_api))
     monkeypatch.setattr(pxr, "PhysxSchema", schema, raising=False)
 
-    surface_module.apply_surface_velocity_api(prim, _surface_spec(), velocity_scale=0.0)
+    surface_module.apply_surface_velocity_api(prim)
 
     assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
     rigid_body = UsdPhysics.RigidBodyAPI(prim)
