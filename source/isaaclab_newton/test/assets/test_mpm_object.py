@@ -11,6 +11,8 @@ import numpy as np
 import pytest
 import torch
 
+pytestmark = pytest.mark.kitless
+
 newton = pytest.importorskip("newton")
 
 from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg

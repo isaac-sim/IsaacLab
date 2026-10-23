@@ -15,6 +15,8 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
 
 from isaaclab.renderers.segmentation_colors import pack_rgba, random_color_from_id
 
+pytestmark = pytest.mark.kitless
+
 DEVICE = "cuda:0"
 
 

@@ -23,6 +23,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.utils.warp.math_ops import transform_to_vec_quat
 
+pytestmark = pytest.mark.kitless
+
 # ---------------------------------------------------------------------------
 # transform_to_vec_quat
 # ---------------------------------------------------------------------------

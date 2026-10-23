@@ -24,6 +24,8 @@ import scipy.spatial.transform as tf
 import torch
 import warp as wp
 
+pytestmark = pytest.mark.kitless
+
 # OVRTX-only CI jobs collect the consolidated isaaclab_ov test suite without
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
