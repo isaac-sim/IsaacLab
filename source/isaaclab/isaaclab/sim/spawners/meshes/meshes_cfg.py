@@ -91,6 +91,26 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
 
 @configclass
+class MeshCustomCfg(MeshCfg):
+    """Configuration parameters for a mesh authored from vertices and triangular faces.
+
+    Collision defaults to exact triangles. Use inherited ``mesh_collision_props``
+    to choose another collision approximation. See :meth:`spawn_mesh_custom` for more information.
+    """
+
+    func: Callable | str = "{DIR}.meshes:spawn_mesh_custom"
+
+    vertices: tuple[tuple[float, float, float], ...] = MISSING
+    """Vertex positions [m]."""
+
+    faces: tuple[tuple[int, int, int], ...] = MISSING
+    """Triangle vertex indices with counter-clockwise front-face winding."""
+
+    subdivision_scheme: Literal["none", "catmullClark", "loop", "bilinear"] = "none"
+    """USD subdivision scheme. Defaults to ``"none"`` to preserve the authored surface."""
+
+
+@configclass
 class MeshSphereCfg(MeshCfg):
     """Configuration parameters for a sphere mesh prim with deformable properties.
 
