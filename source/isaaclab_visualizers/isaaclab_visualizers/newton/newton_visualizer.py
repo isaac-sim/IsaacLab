@@ -59,6 +59,7 @@ from isaaclab_visualizers.newton.newton_visualization_markers import render_newt
 
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
 from .newton_recording import NewtonRecordingPanel, hover_tooltip
+from .newton_rtx_appearance import BACKGROUNDS, RtxAppearance
 
 logger = logging.getLogger(__name__)
 
@@ -343,7 +344,10 @@ class NewtonViewerGL(ViewerGL):
                         "Wait for the monitor's refresh before showing each frame. Prevents screen tearing,"
                         " but can lower the window rate."
                     )
-                if _g._ui_callbacks.get("rendering") and imgui.tree_node("Appearance"):
+                owner = viewer._owner
+                if owner is not None and owner.rtx_rendering:
+                    owner._draw_rtx_appearance(imgui)
+                elif _g._ui_callbacks.get("rendering") and imgui.tree_node("Appearance###appearance"):
                     for callback in _g._ui_callbacks["rendering"]:
                         callback(imgui)
                     imgui.tree_pop()
@@ -803,6 +807,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._tracking_error = ""
         self._sensor_tiles: dict[object, tuple[int, ...]] = {}
         """Environments each multi-environment scene camera tiles, by image view."""
+        self._rtx_appearance: RtxAppearance | None = None
+        self._rtx_appearance_failed = False
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -910,6 +916,75 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._draw_tracking_camera_controls(imgui, follower)
         elif self.current_image_view in self._sensor_tiles:
             self._draw_sensor_controls(imgui, self.current_image_view)
+
+    def _rtx_appearance_controller(self) -> RtxAppearance | None:
+        """Create the OVRTX appearance controller on first use, or None when it cannot be created."""
+        if self._rtx_appearance is None and not self._rtx_appearance_failed:
+            view = self._rtx_view()
+            try:
+                camera = view.camera
+                renderer = self._sim.get_or_create_backend(camera.cfg.renderer_cfg)
+                self._rtx_appearance = RtxAppearance(
+                    self._sim.stage,
+                    renderer,
+                    camera._render_data.render_product_path,
+                    camera.cfg.background_color,
+                )
+            except Exception:
+                logger.exception("[NewtonVisualizer] The OVRTX appearance controls are unavailable.")
+                self._rtx_appearance_failed = True
+        return self._rtx_appearance
+
+    def _draw_rtx_appearance(self, imgui) -> None:
+        """Draw the Appearance options the OVRTX view supports: its background and the scene's lights."""
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        if not imgui.tree_node("Appearance###rtx_appearance"):
+            return
+        appearance = self._rtx_appearance_controller()
+        if appearance is None or not appearance.available:
+            imgui.text_disabled("Not available for this renderer")
+            imgui.tree_pop()
+            return
+        edited = False
+
+        def tip(text: str) -> None:
+            hover_tooltip(imgui, text)
+
+        changed, index = imgui.combo("Background", appearance.background, list(BACKGROUNDS))
+        tip("Show the scene's sky, or one solid color")
+        if changed:
+            appearance.background = index
+            edited |= appearance.apply_background()
+        if appearance.background == 1:
+            changed, color = imgui.color_edit3("Color", list(appearance.background_color))
+            tip("Solid background color")
+            if changed:
+                appearance.background_color = tuple(float(c) for c in color)
+                edited |= appearance.apply_background()
+        if appearance.lights:
+            changed, scale = imgui.slider_float("Intensity", appearance.light_scale, 0.0, 3.0, "%.2fx")
+            tip("Light intensity of the whole scene, relative to what it was authored with")
+            if changed:
+                appearance.light_scale = scale
+                edited |= appearance.apply_lights()
+            changed, tint = imgui.color_edit3("Light Tint", list(appearance.light_tint))
+            tip("Tints every light in the scene; white keeps the colors the scene authored")
+            if changed:
+                appearance.light_tint = tuple(float(c) for c in tint)
+                edited |= appearance.apply_lights()
+        else:
+            imgui.text_disabled("This scene has no adjustable lights")
+        if imgui.button("Reset##rtx_appearance"):
+            edited |= appearance.reset()
+        tip("Return to the scene's own lights and background")
+        if appearance.error:
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0))
+            imgui.text_wrapped(appearance.error)
+            imgui.pop_style_color()
+        if edited:
+            self._rtx_view().invalidate()
+            self._last_render_step = -1
+        imgui.tree_pop()
 
     def _source_rank(self, view) -> int:
         """Order the Camera Source list: the free Perspective, then Tracking Cameras, then scene sensors."""
