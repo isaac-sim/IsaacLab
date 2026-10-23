@@ -1,21 +1,17 @@
 # Experimental conveyor support
 
-These adapters stage conveyor integration in `isaaclab_contrib`; their API is
+This adapter stages Newton conveyor integration in `isaaclab_contrib`; its API is
 experimental and is not exported from Isaac Lab core or the backend packages.
 
 - `surface_velocity.SurfaceVelocitySpec` describes a straight or curved surface
-  in the collision prim's local frame. `SurfaceVelocityView` describes the shared
-  control operations.
+  in the collision prim's local frame.
 - `newton.SurfaceVelocity` uses Newton's upstream `ConveyorForceModel`. The
   adapter owns replicated surface/body bindings and solver lifecycle integration,
   including hard resets and registration before CUDA graph capture. It supports
   the Newton MJWarp solver; other Newton solvers are outside this adapter's scope.
-- `physx.SurfaceVelocity` uses native `PhysxSurfaceVelocityAPI` on CPU.
-  Author the API before simulation parsing with `apply_surface_velocity_api`.
-  This path requires the PhysX backend and Kit; GPU dynamics are unsupported.
 
-Both adapters retain commanded speeds while disabled and restart their startup
-ramp on a full reset. Newton also clears stale forces for selected worlds.
-Newton uses the spec's traction parameters; PhysX uses authored contact materials.
+The adapter retains commanded speeds while disabled, restarts its startup ramp
+on a full reset, and clears stale forces for selected worlds. The surface spec
+controls traction parameters.
 
 No meshes, assets, task registrations, or policy checkpoints are bundled here.

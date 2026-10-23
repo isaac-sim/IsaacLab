@@ -5,6 +5,6 @@
 
 """Experimental conveyor support for contributed tasks.
 
-Backend adapters are imported explicitly from :mod:`.newton` or :mod:`.physx` so
-importing the surface descriptions does not load either optional backend.
+The Newton adapter is imported explicitly from :mod:`.newton` so importing the
+surface descriptions does not load the optional backend.
 """
