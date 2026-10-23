@@ -41,7 +41,8 @@ class KeyboardSubscription:
         """Unsubscribe."""
         if not self._closed:
             self._closed = True
-            self._source._remove_subscription(self)
+            if not self._source.closed:
+                self._source._subscriptions.remove(self)
 
     def __enter__(self) -> KeyboardSubscription:
         return self
@@ -65,13 +66,13 @@ class KeyEventSource:
     - Closing the source delivers a final focus loss to every listener; afterwards
       :meth:`add_key_listener` raises :class:`RuntimeError`.
 
-    A backend subclasses this, implements :meth:`_start_listening`, :meth:`_stop_listening` and
-    :meth:`_release`, and reports events through :meth:`_emit_key` and :meth:`_emit_focus_lost`.
+    The visualizer connects native events when its window initializes and closes the source before
+    the window closes. Backend bridges report events through :meth:`_emit_key` and
+    :meth:`_emit_focus_lost`; adding or removing a listener never changes native window resources.
     """
 
     def __init__(self) -> None:
         self._subscriptions: list[KeyboardSubscription] = []
-        self._listening = False
         self._closed = False
 
     @property
@@ -80,7 +81,7 @@ class KeyEventSource:
         return self._closed
 
     def add_key_listener(self, on_key: KeyCallback, on_focus_lost: FocusLostCallback) -> KeyboardSubscription:
-        """Subscribe to key presses and releases; the backend starts listening with the first listener.
+        """Subscribe to key presses and releases from the initialized window.
 
         Args:
             on_key: Called with the key's W3C ``KeyboardEvent.code`` and whether it was pressed.
@@ -94,43 +95,20 @@ class KeyEventSource:
         """
         if self._closed:
             raise RuntimeError(f"{type(self).__name__} is closed")
-        if not self._listening:
-            self._start_listening()
-            self._listening = True
         subscription = KeyboardSubscription(self, on_key, on_focus_lost)
         self._subscriptions.append(subscription)
         return subscription
 
     def close(self) -> None:
-        """Stop listening, release the backend, and deliver a final focus loss to every listener."""
+        """Close every subscription and deliver a final focus loss to its listener."""
         if self._closed:
             return
         self._closed = True
         subscriptions, self._subscriptions = self._subscriptions, []
-        try:
-            if self._listening:
-                self._listening = False
-                self._stop_listening()
-        finally:
-            try:
-                self._release()
-            finally:
-                for subscription in subscriptions:
-                    subscription._closed = True
-                    _call(subscription._on_focus_lost)
-
-    # Backend hooks ---------------------------------------------------------------------------------
-
-    def _start_listening(self) -> None:
-        """Hook the window's key events. Called when the first listener subscribes."""
-
-    def _stop_listening(self) -> None:
-        """Unhook the window's key events. Called when the last listener unsubscribes, and on close."""
-
-    def _release(self) -> None:
-        """Drop references to the backend's window and viewer. Called once, on close."""
-
-    # Event reporting -------------------------------------------------------------------------------
+        for subscription in subscriptions:
+            if not subscription.closed:
+                subscription._closed = True
+                _call(subscription._on_focus_lost)
 
     def _emit_key(self, code: str, pressed: bool) -> None:
         """Report a key press or release to every listener."""
@@ -143,17 +121,6 @@ class KeyEventSource:
         for subscription in list(self._subscriptions):
             if not subscription.closed:
                 _call(subscription._on_focus_lost)
-
-    # Internals -------------------------------------------------------------------------------------
-
-    def _remove_subscription(self, subscription: KeyboardSubscription) -> None:
-        if subscription not in self._subscriptions:
-            return
-        self._subscriptions.remove(subscription)
-        if not self._subscriptions and self._listening:
-            # stays listening if unhooking raises, so close or the next listener does not hook twice
-            self._stop_listening()
-            self._listening = False
 
 
 def _call(callback: Callable, *args) -> None:

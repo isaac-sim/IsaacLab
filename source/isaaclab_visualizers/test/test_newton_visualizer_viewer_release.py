@@ -38,6 +38,7 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     monkeypatch.setattr(newton_visualizer.ViewerGL, "close", lambda self: events.append("close"))
     viewer = object.__new__(newton_visualizer.NewtonViewerGL)
     viewer._close_requested = False
+    viewer.keyboard_frame_hook = lambda: events.append("keyboard")
     if requested:
         viewer.request_close()
     viewer.renderer = Mock()
@@ -45,7 +46,7 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
 
     viewer.end_frame()
 
-    assert events == (["frame", "context", "close"] if requested else ["frame"])
+    assert events == (["frame", "keyboard", "context", "close"] if requested else ["frame", "keyboard"])
 
 
 @pytest.mark.parametrize("failure", [False, True])
@@ -101,3 +102,16 @@ def test_close_unhooks_keyboard_before_releasing_the_viewer(visualizer_type, bac
     assert visualizer._key_event_source is None
     assert visualizer.key_event_source is None
     assert visualizer._is_closed
+
+
+def test_keyboard_camera_movement_can_be_disabled(monkeypatch):
+    moved = []
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "_update_camera", lambda self, dt: moved.append(dt))
+    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    visualizer._viewer = viewer
+    visualizer.set_camera_keys_enabled(False)
+    viewer._update_camera(0.1)
+    visualizer.set_camera_keys_enabled(True)
+    viewer._update_camera(0.2)
+    assert moved == [0.2]

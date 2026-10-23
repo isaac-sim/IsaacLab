@@ -1718,6 +1718,7 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
 
                 kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
                 assert kit_visualizers, "Expected an initialized Kit visualizer."
+                assert kit_visualizers[0].key_event_source is not None, "Window input is missing."
                 assert omni.timeline.get_timeline_interface().is_playing(), (
                     "The Kit toolbar must show Pause while the simulation is running."
                 )
@@ -1731,6 +1732,7 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                     if isinstance(viz, NewtonVisualizer) and not isinstance(viz, NewtonRTXVisualizer)
                 ]
                 assert newton_visualizers, "Expected an initialized Newton visualizer."
+                assert newton_visualizers[0].key_event_source is not None, "Window input is missing."
                 viewer = getattr(newton_visualizers[0], "_viewer", None)
                 assert viewer is not None, "Newton viewer was not created."
 

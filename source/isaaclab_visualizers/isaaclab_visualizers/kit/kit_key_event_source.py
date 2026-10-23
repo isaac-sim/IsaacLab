@@ -8,13 +8,9 @@
 from __future__ import annotations
 
 import functools
-import logging
-from types import SimpleNamespace
 from typing import Any
 
 from isaaclab.visualizers import KeyEventSource
-
-logger = logging.getLogger(__name__)
 
 
 @functools.cache
@@ -77,71 +73,49 @@ def _carb_key_name_to_w3c() -> dict[str, str]:
     return table
 
 
-def _kit() -> SimpleNamespace:
-    """The Kit modules the source uses, imported only when it starts listening."""
-    import carb.input
-    import omni.appwindow
-    from carb.eventdispatcher import get_eventdispatcher
-
-    return SimpleNamespace(input=carb.input, appwindow=omni.appwindow, dispatcher=get_eventdispatcher())
-
-
 class KitKeyEventSource(KeyEventSource):
     """Keys typed into the Kit application window.
 
-    Reads the default app window's ``carb.input`` keyboard, whose codes name physical key positions,
-    while a listener is subscribed, and reports a focus loss when the window loses OS focus. The raw
+    Reads the supplied app window's ``carb.input`` keyboard, whose codes name physical key positions,
+    for the window's lifetime, and reports a focus loss when the window loses OS focus. The raw
     keyboard stream also carries keys typed into Kit's own UI (text fields included), and Kit has no
     Python query for UI keyboard ownership, so they are reported too.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._input: Any = None
-        self._keyboard: Any = None
-        self._keyboard_subscription: Any = None
-        self._focus_observer: Any = None
-        self._event_types: Any = None
+    def __init__(self, app_window: Any) -> None:
+        """Connect the initialized Kit window's keyboard and focus events."""
+        import carb.input
+        import omni.appwindow
+        from carb.eventdispatcher import get_eventdispatcher
 
-    def _start_listening(self) -> None:
-        kit = _kit()
-        app_window = kit.appwindow.get_default_app_window()
-        input_interface = kit.input.acquire_input_interface()
-        keyboard = app_window.get_keyboard()
-        subscription = input_interface.subscribe_to_keyboard_events(keyboard, self._on_keyboard_event)
+        super().__init__()
+        self._input = carb.input.acquire_input_interface()
+        self._keyboard = app_window.get_keyboard()
+        self._event_types = carb.input.KeyboardEventType
+        self._keyboard_subscription = self._input.subscribe_to_keyboard_events(self._keyboard, self._on_keyboard_event)
         try:
-            self._focus_observer = kit.dispatcher.observe_event(
+            self._focus_observer = get_eventdispatcher().observe_event(
                 filter=app_window.get_event_key(),
-                event_name=kit.appwindow.GLOBAL_EVENT_WINDOW_FOCUS,
+                event_name=omni.appwindow.GLOBAL_EVENT_WINDOW_FOCUS,
                 on_event=self._on_focus_event,
                 observer_name="isaaclab_visualizers.KitKeyEventSource",
             )
         except BaseException:
-            input_interface.unsubscribe_to_keyboard_events(keyboard, subscription)
-            raise
-        self._input, self._keyboard, self._keyboard_subscription = input_interface, keyboard, subscription
-        self._event_types = kit.input.KeyboardEventType
-
-    def _stop_listening(self) -> None:
-        # Unhook the keyboard first: if that raises, both hooks stay in place and a retry can finish.
-        if self._keyboard_subscription is not None:
             self._input.unsubscribe_to_keyboard_events(self._keyboard, self._keyboard_subscription)
-            self._keyboard_subscription = None
-        observer, self._focus_observer = self._focus_observer, None
-        if observer is not None:
-            try:
-                observer.reset()
-            except Exception:
-                # The keyboard is already unhooked, so the source is no longer listening either way.
-                logger.exception("[KitKeyEventSource] Failed to remove the window focus observer")
+            raise
 
-    def _release(self) -> None:
-        # A focus observer is still here only if unhooking failed on close: drop it rather than leak it.
-        observer, self._focus_observer = self._focus_observer, None
-        self._keyboard_subscription = None
-        self._input = self._keyboard = self._event_types = None
-        if observer is not None:
-            observer.reset()
+    def close(self) -> None:
+        """Disconnect the window and notify listeners, including when native cleanup fails."""
+        if self.closed:
+            return
+        try:
+            try:
+                self._input.unsubscribe_to_keyboard_events(self._keyboard, self._keyboard_subscription)
+            finally:
+                self._focus_observer.reset()
+        finally:
+            self._input = self._keyboard = self._keyboard_subscription = self._focus_observer = self._event_types = None
+            super().close()
 
     def _on_keyboard_event(self, event, *args, **kwargs) -> bool:
         event_types = self._event_types

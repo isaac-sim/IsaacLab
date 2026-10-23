@@ -237,8 +237,8 @@ class BaseVisualizer(ABC):
         """Keyboard input from this visualizer's local window, or ``None`` when there is none.
 
         Consumers subscribe to the keys pressed and released while the window has focus, e.g. for
-        keyboard teleoperation or script hotkeys. The source is created on first access after the
-        visualizer is initialized, and the visualizer closes it when the visualizer closes. ``None``
+        keyboard teleoperation or script hotkeys. The source connects when the visualizer initializes
+        its window, and the visualizer closes it before releasing that window. ``None``
         before initialization, after close, and for backends or modes with no local window that can
         report keys (the default).
         """

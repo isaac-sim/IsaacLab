@@ -53,7 +53,7 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
-from .newton_key_event_source import NewtonKeyEventSource, viewer_window
+from .newton_key_event_source import NewtonKeyEventSource
 
 logger = logging.getLogger(__name__)
 
@@ -507,10 +507,6 @@ class NewtonVisualizerBase(BaseVisualizer):
     @property
     def key_event_source(self) -> NewtonKeyEventSource | None:
         """Keys typed into the viewer window; ``None`` before initialization, after close, or when headless."""
-        if self._key_event_source is None and self._viewer is not None:
-            window = viewer_window(self._viewer)
-            if window is not None:
-                self._key_event_source = NewtonKeyEventSource(self._viewer, window)
         return self._key_event_source
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
@@ -535,6 +531,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.camera_keys_suspended = not self._camera_keys_enabled
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+        if not self._runtime_headless:
+            self._key_event_source = NewtonKeyEventSource(self._viewer)
 
     def log_mesh(
         self,

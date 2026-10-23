@@ -5,7 +5,7 @@
 
 # pyright: reportPrivateUsage=none
 
-"""Tests for the Kit and Newton keyboard sources and the visualizers that own them.
+"""Tests for the Kit and Newton keyboard sources over their native windows' lifetimes.
 
 Every backend runs against window, viewer and Kit doubles, so no display, Kit app or GPU is needed.
 The contract they share is tested in ``source/isaaclab/test/visualizers/test_key_event_source.py``.
@@ -15,28 +15,18 @@ from __future__ import annotations
 
 import ast
 import importlib.util
-import logging
 import os
 import pathlib
 import subprocess
 import sys
 from types import SimpleNamespace
 
-import isaaclab_visualizers.kit.kit_key_event_source as kit_key_event_source
 import isaaclab_visualizers.newton.newton_key_event_source as newton_key_event_source
-import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.kit.kit_key_event_source import KitKeyEventSource, _carb_key_name_to_w3c
-from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
-from isaaclab_visualizers.newton import (
-    NewtonGLBackendCfg,
-    NewtonGLVisualizer,
-    NewtonRTXBackendCfg,
-    NewtonRTXVisualizer,
-)
-from isaaclab_visualizers.newton.newton_key_event_source import NewtonKeyEventSource, _symbol_table, viewer_window
+from isaaclab_visualizers.newton.newton_key_event_source import NewtonKeyEventSource
 
-from isaaclab.visualizers import KeyEventSource, VisualizerCfg
+from isaaclab.visualizers import KeyEventSource
 
 pytestmark = [pytest.mark.unit]
 
@@ -124,6 +114,7 @@ class _FakeKit:
 
         interface = SimpleNamespace(subscribe_to_keyboard_events=subscribe, unsubscribe_to_keyboard_events=unsubscribe)
         window = SimpleNamespace(get_keyboard=lambda: keyboard, get_event_key=lambda: "app-window")
+        self.window = window
         self.namespace = SimpleNamespace(
             input=SimpleNamespace(
                 acquire_input_interface=lambda: interface,
@@ -146,12 +137,18 @@ class _FakeKit:
 @pytest.fixture
 def kit(monkeypatch) -> _FakeKit:
     fake = _FakeKit()
-    monkeypatch.setattr(kit_key_event_source, "_kit", lambda: fake.namespace)
+    monkeypatch.setitem(sys.modules, "carb", SimpleNamespace(input=fake.namespace.input))
+    monkeypatch.setitem(sys.modules, "carb.input", fake.namespace.input)
+    monkeypatch.setitem(
+        sys.modules, "carb.eventdispatcher", SimpleNamespace(get_eventdispatcher=lambda: fake.namespace.dispatcher)
+    )
+    monkeypatch.setitem(sys.modules, "omni", SimpleNamespace(appwindow=fake.namespace.appwindow))
+    monkeypatch.setitem(sys.modules, "omni.appwindow", fake.namespace.appwindow)
     return fake
 
 
 def test_kit_hooks_keyboard_and_focus_once(kit):
-    source = KitKeyEventSource()
+    source = KitKeyEventSource(kit.window)
     _, first = _listen(source)
     _, second = _listen(source)
     assert len(kit.keyboard_callbacks) == len(kit.focus_callbacks) == 1
@@ -159,12 +156,17 @@ def test_kit_hooks_keyboard_and_focus_once(kit):
     first.close()
     assert len(kit.keyboard_callbacks) == 1
     second.close()
+    assert len(kit.keyboard_callbacks) == len(kit.focus_callbacks) == 1
+    recorder, _ = _listen(source)
+    kit.key(kit.KEY_PRESS, "W")
+    assert recorder.events == [("KeyW", True)]
+    source.close()
     assert kit.keyboard_callbacks == kit.focus_callbacks == []
     assert (kit.unsubscribed, kit.observers_reset) == (1, 1)
 
 
 def test_kit_reports_physical_key_presses_and_releases(kit):
-    source = KitKeyEventSource()
+    source = KitKeyEventSource(kit.window)
     recorder, _ = _listen(source)
     results = [
         kit.key(kit.KEY_PRESS, "W"),
@@ -177,14 +179,14 @@ def test_kit_reports_physical_key_presses_and_releases(kit):
 
 
 def test_kit_ignores_char_events_without_reading_the_key(kit):
-    source = KitKeyEventSource()
+    source = KitKeyEventSource(kit.window)
     recorder, _ = _listen(source)
     assert kit.key(kit.CHAR) == [True]
     assert recorder.events == []
 
 
 def test_kit_window_blur_is_a_focus_loss(kit):
-    source = KitKeyEventSource()
+    source = KitKeyEventSource(kit.window)
     recorder, _ = _listen(source)
     kit.key(kit.KEY_PRESS, "W")
     kit.focus(True)
@@ -194,39 +196,8 @@ def test_kit_window_blur_is_a_focus_loss(kit):
     assert recorder.events == [("KeyW", True)]
 
 
-def test_kit_failed_unhook_keeps_both_hooks(kit):
-    source = KitKeyEventSource()
-    _, subscription = _listen(source)
-    kit.fail_unsubscribe = True
-    with pytest.raises(RuntimeError, match="unsubscribe"):
-        subscription.close()
-    assert len(kit.keyboard_callbacks) == len(kit.focus_callbacks) == 1
-
-    # still listening: a new listener gets blur without a second hook
-    recorder, _ = _listen(source)
-    kit.focus(False)
-    assert recorder.focus_lost == 1
-    assert len(kit.keyboard_callbacks) == 1
-
-
-def test_kit_failed_focus_unhook_still_stops_listening(kit, caplog):
-    """A focus observer that fails to reset after the keyboard unhooks is logged, not left half-listening."""
-    source = KitKeyEventSource()
-    _, subscription = _listen(source)
-    kit.fail_reset = True
-    with caplog.at_level(logging.ERROR):
-        subscription.close()
-    assert kit.keyboard_callbacks == []
-    assert "window focus observer" in caplog.text
-
-    kit.fail_reset = False
-    recorder, _ = _listen(source)  # hooks the keyboard again
-    kit.key(kit.KEY_PRESS, "W")
-    assert recorder.events == [("KeyW", True)]
-
-
 def test_kit_close_drops_the_focus_hook_when_unhooking_fails(kit):
-    source = KitKeyEventSource()
+    source = KitKeyEventSource(kit.window)
     _listen(source)
     kit.fail_unsubscribe = True
     with pytest.raises(RuntimeError, match="unsubscribe"):
@@ -236,25 +207,36 @@ def test_kit_close_drops_the_focus_hook_when_unhooking_fails(kit):
 
 
 def test_kit_focus_hook_failure_rolls_back_the_keyboard_hook(kit):
-    source = KitKeyEventSource()
     kit.fail_observe = True
     with pytest.raises(RuntimeError, match="observe"):
-        _listen(source)
+        KitKeyEventSource(kit.window)
     assert kit.keyboard_callbacks == []
 
     kit.fail_observe = False
+    source = KitKeyEventSource(kit.window)
     recorder, _ = _listen(source)
     kit.key(kit.KEY_PRESS, "W")
     assert recorder.events == [("KeyW", True)]
 
 
 def test_kit_close_unhooks_and_releases_the_window(kit):
-    source = KitKeyEventSource()
+    source = KitKeyEventSource(kit.window)
     recorder, _ = _listen(source)
     source.close()
     assert kit.keyboard_callbacks == kit.focus_callbacks == []
     assert recorder.focus_lost == 1
     assert source._input is None and source._keyboard is None
+
+
+def test_kit_failed_focus_cleanup_still_closes_and_notifies(kit):
+    source = KitKeyEventSource(kit.window)
+    recorder, subscription = _listen(source)
+    kit.fail_reset = True
+    with pytest.raises(RuntimeError, match="reset"):
+        source.close()
+    assert kit.keyboard_callbacks == []
+    assert source.closed and subscription.closed and recorder.focus_lost == 1
+    source.close()
 
 
 @pytest.mark.parametrize(
@@ -299,9 +281,10 @@ def _pyglet_keys() -> SimpleNamespace:
 @pytest.fixture
 def keys(monkeypatch) -> SimpleNamespace:
     namespace = _pyglet_keys()
-    table = _symbol_table(namespace)
-    monkeypatch.setattr(newton_key_event_source, "_pyglet_symbol_to_w3c", lambda: table)
-    return namespace
+    monkeypatch.setitem(sys.modules, "pyglet.window", SimpleNamespace(key=namespace))
+    newton_key_event_source._pyglet_symbol_to_w3c.cache_clear()
+    yield namespace
+    newton_key_event_source._pyglet_symbol_to_w3c.cache_clear()
 
 
 class _FakeWindow:
@@ -331,13 +314,14 @@ class _FakeGui:
         return self.capturing
 
 
-def _newton_viewer(gui: _FakeGui | None = None) -> SimpleNamespace:
-    return SimpleNamespace(gui=gui, camera_keys_suspended=False, keyboard_frame_hook=None)
+def _newton_viewer(window: _FakeWindow, gui: _FakeGui | None = None) -> SimpleNamespace:
+    return SimpleNamespace(renderer=SimpleNamespace(window=window), gui=gui, keyboard_frame_hook=None)
 
 
 def test_newton_forwards_window_keys(keys):
-    window, viewer = _FakeWindow(), _newton_viewer(_FakeGui())
-    source = NewtonKeyEventSource(viewer, window)
+    window = _FakeWindow()
+    viewer = _newton_viewer(window, _FakeGui())
+    source = NewtonKeyEventSource(viewer)
     recorder, subscription = _listen(source)
     assert len(window.frames) == 1 and viewer.keyboard_frame_hook is not None
 
@@ -347,13 +331,18 @@ def test_newton_forwards_window_keys(keys):
     assert recorder.events == [("KeyW", True), ("KeyW", False), ("Enter", True)]
 
     subscription.close()
+    assert len(window.frames) == 1 and viewer.keyboard_frame_hook is not None
+    recorder, _ = _listen(source)
+    window.dispatch("on_key_press", keys.W, 0)
+    assert recorder.events == [("KeyW", True)]
+    source.close()
     assert window.frames == [] and viewer.keyboard_frame_hook is None
 
 
 def test_newton_ui_taking_the_keyboard_is_a_focus_loss_on_the_next_frame(keys):
     window, gui = _FakeWindow(), _FakeGui()
-    viewer = _newton_viewer(gui)
-    source = NewtonKeyEventSource(viewer, window)
+    viewer = _newton_viewer(window, gui)
+    source = NewtonKeyEventSource(viewer)
     recorder, _ = _listen(source)
     window.dispatch("on_key_press", keys.W, 0)
 
@@ -371,7 +360,7 @@ def test_newton_ui_taking_the_keyboard_is_a_focus_loss_on_the_next_frame(keys):
 
 def test_newton_viewer_without_gui_forwards_keys(keys):
     window = _FakeWindow()
-    source = NewtonKeyEventSource(_newton_viewer(gui=None), window)
+    source = NewtonKeyEventSource(_newton_viewer(window, gui=None))
     recorder, _ = _listen(source)
     window.dispatch("on_key_press", keys.W, 0)
     assert recorder.events == [("KeyW", True)]
@@ -385,7 +374,7 @@ def test_newton_viewer_without_gui_forwards_keys(keys):
 def test_newton_key_released_after_shift_changes(keys, unshifted, shifted, code, shift_first):
     """X11 names a digit or punctuation key by its shifted symbol while Shift is held."""
     window = _FakeWindow()
-    source = NewtonKeyEventSource(_newton_viewer(_FakeGui()), window)
+    source = NewtonKeyEventSource(_newton_viewer(window, _FakeGui()))
     recorder, _ = _listen(source)
     press, release = (shifted, unshifted) if shift_first else (unshifted, shifted)
 
@@ -397,7 +386,7 @@ def test_newton_key_released_after_shift_changes(keys, unshifted, shifted, code,
 
 def test_newton_window_deactivation_is_a_focus_loss(keys):
     window = _FakeWindow()
-    source = NewtonKeyEventSource(_newton_viewer(_FakeGui()), window)
+    source = NewtonKeyEventSource(_newton_viewer(window, _FakeGui()))
     recorder, _ = _listen(source)
     window.dispatch("on_key_press", keys.W, 0)
     window.dispatch("on_deactivate")
@@ -405,52 +394,34 @@ def test_newton_window_deactivation_is_a_focus_loss(keys):
     assert recorder.events == [("KeyW", True)]
 
 
-def test_newton_failed_unhook_keeps_the_frame_hook(keys):
-    window, viewer = _FakeWindow(), _newton_viewer(_FakeGui())
-    source = NewtonKeyEventSource(viewer, window)
-    _, subscription = _listen(source)
+def test_newton_failed_unhook_still_closes_and_notifies(keys):
+    window = _FakeWindow()
+    viewer = _newton_viewer(window, _FakeGui())
+    source = NewtonKeyEventSource(viewer)
+    recorder, subscription = _listen(source)
 
     def fail(**handlers):
         raise RuntimeError("remove_handlers")
 
     window.remove_handlers = fail
     with pytest.raises(RuntimeError, match="remove_handlers"):
-        subscription.close()
-    assert len(window.frames) == 1 and viewer.keyboard_frame_hook is not None
-
-    with pytest.raises(RuntimeError, match="remove_handlers"):
         source.close()
     assert viewer.keyboard_frame_hook is None  # the closed source is never polled again
+    assert source.closed and subscription.closed and recorder.focus_lost == 1
+    window.dispatch("on_key_press", keys.W, 0)  # a leftover native hook is inert
+    assert recorder.events == []
 
 
 def test_newton_close_unhooks_and_releases_the_window(keys):
-    window, viewer = _FakeWindow(), _newton_viewer(_FakeGui())
-    source = NewtonKeyEventSource(viewer, window)
+    window = _FakeWindow()
+    viewer = _newton_viewer(window, _FakeGui())
+    source = NewtonKeyEventSource(viewer)
     recorder, _ = _listen(source)
 
     source.close()
     assert window.frames == [] and viewer.keyboard_frame_hook is None
     assert recorder.focus_lost == 1
     assert source._viewer is None and source._window is None
-
-
-def test_viewer_window_is_none_without_a_window():
-    window = object()
-    assert viewer_window(SimpleNamespace(renderer=SimpleNamespace(headless=False, window=window))) is window
-    assert viewer_window(SimpleNamespace(renderer=SimpleNamespace(headless=True, window=window))) is None
-
-
-def test_gl_viewer_polls_keyboard_ownership_after_each_frame(monkeypatch):
-    events: list[str] = []
-    monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
-    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
-    viewer._close_requested = False
-    viewer.keyboard_frame_hook = lambda: events.append("poll")
-
-    viewer.end_frame()
-    viewer.keyboard_frame_hook = None
-    viewer.end_frame()
-    assert events == ["frame", "poll", "frame"]
 
 
 @pytest.mark.parametrize(
@@ -468,138 +439,13 @@ def test_gl_viewer_polls_keyboard_ownership_after_each_frame(monkeypatch):
         ("GRAVE", "Backquote"),
     ],
 )
-def test_pyglet_symbols_map_to_w3c_codes(pyglet_name, code):
-    keys = _pyglet_keys()
-    assert _symbol_table(keys)[getattr(keys, pyglet_name)] == code
+def test_pyglet_symbols_map_to_w3c_codes(keys, pyglet_name, code):
+    assert newton_key_event_source._pyglet_symbol_to_w3c()[getattr(keys, pyglet_name)] == code
 
 
 # ---------------------------------------------------------------------------
-# Visualizer ownership
+# Import boundary
 # ---------------------------------------------------------------------------
-
-
-def _newton_gl_viewer(headless: bool) -> newton_visualizer.NewtonViewerGL:
-    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
-    viewer.renderer = SimpleNamespace(headless=headless, window=_FakeWindow())
-    viewer.gui = None
-    viewer.camera_keys_suspended = False
-    viewer.keyboard_frame_hook = None
-    viewer.close = lambda: None  # the RTX visualizer closes its window
-    return viewer
-
-
-_NEWTON_VISUALIZERS = [(NewtonGLVisualizer, NewtonGLBackendCfg), (NewtonRTXVisualizer, NewtonRTXBackendCfg)]
-
-
-def _newton_visualizer(viewer, visualizer_type=NewtonGLVisualizer, backend_cfg=NewtonGLBackendCfg):
-    visualizer = visualizer_type(VisualizerCfg(backend=backend_cfg()))
-    visualizer._viewer = viewer
-    return visualizer
-
-
-@pytest.mark.parametrize(("visualizer_type", "backend_cfg"), _NEWTON_VISUALIZERS)
-def test_newton_visualizer_key_event_source_lifecycle(keys, visualizer_type, backend_cfg):
-    assert _newton_visualizer(None, visualizer_type, backend_cfg).key_event_source is None  # not initialized
-    headless = _newton_visualizer(_newton_gl_viewer(headless=True), visualizer_type, backend_cfg)
-    assert headless.key_event_source is None
-
-    viewer = _newton_gl_viewer(headless=False)
-    visualizer = _newton_visualizer(viewer, visualizer_type, backend_cfg)
-    source = visualizer.key_event_source
-    assert isinstance(source, NewtonKeyEventSource) and visualizer.key_event_source is source
-    recorder, _ = _listen(source)
-
-    visualizer.close()
-    assert source.closed and recorder.focus_lost == 1
-    assert viewer.keyboard_frame_hook is None
-    assert visualizer._viewer is None and visualizer.key_event_source is None
-
-
-@pytest.mark.parametrize(("visualizer_type", "backend_cfg"), _NEWTON_VISUALIZERS)
-def test_viewer_skips_camera_keys_while_disabled(monkeypatch, visualizer_type, backend_cfg):
-    moved: list[float] = []
-    monkeypatch.setattr(newton_visualizer.ViewerGL, "_update_camera", lambda self, dt: moved.append(dt))
-    viewer = _newton_gl_viewer(headless=False)
-    visualizer = _newton_visualizer(viewer, visualizer_type, backend_cfg)
-
-    viewer._update_camera(0.1)
-    visualizer.set_camera_keys_enabled(False)
-    viewer._update_camera(0.2)
-    visualizer.set_camera_keys_enabled(True)
-    viewer._update_camera(0.3)
-    assert moved == [0.1, 0.3]
-
-
-@pytest.mark.parametrize(("visualizer_type", "backend_cfg"), _NEWTON_VISUALIZERS)
-def test_newton_focus_loss_during_shutdown_cannot_create_a_new_source(keys, visualizer_type, backend_cfg):
-    visualizer = _newton_visualizer(_newton_gl_viewer(headless=False), visualizer_type, backend_cfg)
-    source = visualizer.key_event_source
-    seen = []
-    source.add_key_listener(lambda code, pressed: None, lambda: seen.append(visualizer.key_event_source))
-
-    visualizer.close()
-    assert seen == [source] and source.closed  # the closing source, not a new one
-    assert visualizer.key_event_source is None
-
-
-def _kit_visualizer(monkeypatch, *, initialized: bool, headless: bool) -> KitVisualizer:
-    visualizer = object.__new__(KitVisualizer)
-    visualizer._is_initialized = initialized
-    visualizer._is_closed = False
-    visualizer._runtime_headless = headless
-    visualizer._key_event_source = None
-    visualizer._camera_choices = []
-    visualizer._viewport_camera_xform_ops = {}
-    visualizer._viewport_camera_pose_cache = {}
-    visualizer._camera_image_provider = None
-    visualizer._camera_image_window = None
-    visualizer._rgb_annotator = None
-    visualizer._rgb_render_product = None
-    visualizer._owns_kit_timeline = False
-    visualizer._image_views = []
-    visualizer.torn_down = []
-    monkeypatch.setattr(visualizer, "_teardown_backend_menubar_label", lambda: visualizer.torn_down.append("menu"))
-    monkeypatch.setattr(visualizer, "_restore_env_visibility", lambda: visualizer.torn_down.append("visibility"))
-    return visualizer
-
-
-def test_kit_visualizer_key_event_source_lifecycle(monkeypatch, kit):
-    assert _kit_visualizer(monkeypatch, initialized=False, headless=False).key_event_source is None
-    assert _kit_visualizer(monkeypatch, initialized=True, headless=True).key_event_source is None
-
-    visualizer = _kit_visualizer(monkeypatch, initialized=True, headless=False)
-    source = visualizer.key_event_source
-    assert isinstance(source, KitKeyEventSource) and visualizer.key_event_source is source
-    recorder, _ = _listen(source)
-
-    visualizer.close()
-    assert source.closed and recorder.focus_lost == 1
-    assert kit.keyboard_callbacks == []
-    assert not visualizer._is_initialized and visualizer.key_event_source is None
-
-
-def test_kit_focus_loss_during_shutdown_cannot_create_a_new_source(monkeypatch, kit):
-    visualizer = _kit_visualizer(monkeypatch, initialized=True, headless=False)
-    source = visualizer.key_event_source
-    seen = []
-    source.add_key_listener(lambda code, pressed: None, lambda: seen.append(visualizer.key_event_source))
-
-    visualizer.close()
-    assert seen == [source] and source.closed  # the closing source, not a new one
-    assert visualizer.key_event_source is None
-    assert kit.keyboard_callbacks == []
-
-
-def test_kit_visualizer_close_survives_a_failing_key_source(monkeypatch, kit, caplog):
-    visualizer = _kit_visualizer(monkeypatch, initialized=True, headless=False)
-    _listen(visualizer.key_event_source)
-    kit.fail_unsubscribe = True
-
-    with caplog.at_level(logging.ERROR):
-        visualizer.close()
-    assert visualizer.torn_down == ["menu", "visibility"]
-    assert visualizer._is_closed and visualizer.key_event_source is None
-    assert "Keyboard input cleanup failed" in caplog.text
 
 
 def test_backends_import_without_a_display_or_kit():
@@ -607,7 +453,6 @@ def test_backends_import_without_a_display_or_kit():
         "import sys\n"
         "from isaaclab_visualizers.kit.kit_key_event_source import KitKeyEventSource\n"
         "from isaaclab_visualizers.newton.newton_key_event_source import NewtonKeyEventSource\n"
-        "KitKeyEventSource(); NewtonKeyEventSource(object(), object())\n"
         "assert 'pyglet.window' not in sys.modules, 'pyglet.window'\n"
         "assert 'carb' not in sys.modules, 'carb'\n"
     )

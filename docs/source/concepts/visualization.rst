@@ -730,6 +730,10 @@ Each Newton window has its own source. Kit visualizers share the Kit application
 them reports the same keys; a consumer that listens to every visualizer must accept a key from more
 than one source.
 
+The visualizer connects native keyboard and focus events when its window initializes and
+disconnects them before the window closes. A subscription only adds or removes a listener;
+it does not initialize window resources. The source owns no held-key state or camera policy.
+
 Close the subscription when you are done with it. A consumer that uses the camera's motion keys
 also turns off keyboard camera movement with
 :meth:`~isaaclab.visualizers.BaseVisualizer.set_camera_keys_enabled`; a Newton window then stops
@@ -747,9 +751,11 @@ while the right mouse button is held, is unaffected:
            (held.add if pressed else held.discard)(code)
 
        visualizer.set_camera_keys_enabled(False)
-       with source.add_key_listener(on_key, held.clear):
-           ...
-       visualizer.set_camera_keys_enabled(True)
+       try:
+           with source.add_key_listener(on_key, held.clear):
+               ...  # use held while stepping the simulation
+       finally:
+           visualizer.set_camera_keys_enabled(True)
 
 Subscribe, unsubscribe and close on the thread that steps the visualizer; callbacks run there too,
 in event order. Events arrive as the window reports them: key repeat can arrive as further presses,

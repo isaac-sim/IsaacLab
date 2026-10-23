@@ -92,8 +92,6 @@ class KitVisualizer(BaseVisualizer):
     @property
     def key_event_source(self) -> KitKeyEventSource | None:
         """Keys typed into the Kit window; ``None`` before initialization, after close, or when Kit runs headless."""
-        if self._key_event_source is None and self._is_initialized and not self._runtime_headless:
-            self._key_event_source = KitKeyEventSource()
         return self._key_event_source
 
     @property
@@ -166,6 +164,10 @@ class KitVisualizer(BaseVisualizer):
         self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
         if self._controls_kit_timeline:
             self.play()
+        if not self._runtime_headless:
+            import omni.appwindow
+
+            self._key_event_source = KitKeyEventSource(omni.appwindow.get_default_app_window())
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.

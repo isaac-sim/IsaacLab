@@ -18,15 +18,6 @@ def _pyglet_symbol_to_w3c() -> dict[int, str]:
     """Map pyglet key symbols to W3C ``KeyboardEvent.code`` strings (imports ``pyglet.window``)."""
     from pyglet.window import key
 
-    return _symbol_table(key)
-
-
-def _symbol_table(key: Any) -> dict[int, str]:
-    """Map the symbols of a ``pyglet.window.key``-like namespace to W3C ``KeyboardEvent.code`` strings.
-
-    pyglet reports layout-mapped symbols rather than physical positions, so a symbol maps to the key
-    that types the same character on a US layout.
-    """
     table: dict[int, str] = {}
     for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
         table[getattr(key, letter)] = f"Key{letter}"
@@ -109,15 +100,10 @@ def _symbol_table(key: Any) -> dict[int, str]:
     return table
 
 
-def viewer_window(viewer: Any) -> Any | None:
-    """The pyglet window of a Newton viewer, or ``None`` when it has none (headless)."""
-    return None if viewer.renderer.headless else viewer.renderer.window
-
-
 class NewtonKeyEventSource(KeyEventSource):
     """Keys typed into a Newton viewer window.
 
-    Hooks the viewer's pyglet window while a listener is subscribed. pyglet reports layout-mapped key
+    Hooks the initialized viewer's pyglet window until close. pyglet reports layout-mapped key
     symbols, so codes name the key that types the same character on a US layout rather than the
     physical key. Presses and releases pair up reliably on a US layout, including when Shift
     changes while a key is held; elsewhere this is best effort: a key whose shifted character
@@ -126,17 +112,16 @@ class NewtonKeyEventSource(KeyEventSource):
     ImGui takes the keyboard, listeners see a focus loss, as when the window loses focus.
     """
 
-    def __init__(self, viewer: Any, window: Any) -> None:
+    def __init__(self, viewer: Any) -> None:
         """Initialize the source.
 
         Args:
             viewer: The :class:`~isaaclab_visualizers.newton.newton_visualizer.NewtonViewerGL` whose
                 ImGui UI may take the keyboard.
-            window: The viewer's pyglet window (see :func:`viewer_window`).
         """
         super().__init__()
         self._viewer = viewer
-        self._window = window
+        self._window = viewer.renderer.window
         self._ui_has_keyboard = False
         # pushed and removed as one handler frame on the window
         self._handlers = {
@@ -145,20 +130,19 @@ class NewtonKeyEventSource(KeyEventSource):
             "on_deactivate": self._on_deactivate,
         }
 
-    def _start_listening(self) -> None:
         self._window.push_handlers(**self._handlers)
         self._viewer.keyboard_frame_hook = self._poll_ui_keyboard
 
-    def _stop_listening(self) -> None:
-        # Remove the handlers first: if that raises, the frame hook stays with them.
-        self._window.remove_handlers(**self._handlers)
-        self._viewer.keyboard_frame_hook = None
-
-    def _release(self) -> None:
-        # The frame hook is still set only if unhooking failed on close: never leave it on the viewer.
-        if self._viewer.keyboard_frame_hook == self._poll_ui_keyboard:
+    def close(self) -> None:
+        """Disconnect the window and notify listeners, including when native cleanup fails."""
+        if self.closed:
+            return
+        try:
+            self._window.remove_handlers(**self._handlers)
+        finally:
             self._viewer.keyboard_frame_hook = None
-        self._viewer = self._window = None
+            self._viewer = self._window = None
+            super().close()
 
     def _poll_ui_keyboard(self) -> bool:
         """Track whether ImGui owns the keyboard, reporting a focus loss when it takes it."""
