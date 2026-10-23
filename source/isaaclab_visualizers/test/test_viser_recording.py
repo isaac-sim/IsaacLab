@@ -34,10 +34,11 @@ def _visualizer(clients: int, record_path: str | None) -> tuple[ViserVisualizer,
         backend=SimpleNamespace(
             model=SimpleNamespace(num_envs=1, body_count=1), geometry_offsets=None, state_0=object()
         ),
-        cfg=SimpleNamespace(streaming_view=False, enable_markers=False),
+        cfg=SimpleNamespace(
+            streaming_view=False, enable_markers=False, backend=SimpleNamespace(record_to_viser=record_path)
+        ),
         _sim_time=0.0,
         _paused_rendering=False,
-        _active_record_path=record_path,
     )
     visualizer._render_live_plots = lambda: None
     visualizer._push_streaming_frame = lambda: None
