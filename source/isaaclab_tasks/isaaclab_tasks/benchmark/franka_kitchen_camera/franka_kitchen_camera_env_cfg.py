@@ -67,6 +67,9 @@ def spawn_kitchen_set(
 
 KITCHEN_CFG = AssetBaseCfg(
     prim_path="{ENV_REGEX_NS}/Kitchen",
+    # Keep Newton's visual geometry when using its renderer.
+    # RTX renderers get the kitchen from the USD stage or their own clone context.
+    cloning_contexts=preset(default=None, ovrtx=(), isaacsim_rtx=(), rtx=()),
     # z = -1.05 m is the height of the Reach scene's ground plane.
     init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.71, 0.28, -1.05)),
     spawn=UsdFileCfg(
