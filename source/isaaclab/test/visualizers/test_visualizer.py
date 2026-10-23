@@ -16,7 +16,14 @@ import pytest
 from isaaclab.utils import validate
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+from isaaclab.visualizers.visualizer_cfg import (
+    ImageViewCfg,
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
+    VisualizerBackendCfg,
+    VisualizerCfg,
+    WindowCfg,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -28,11 +35,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 @pytest.mark.parametrize(
     "module_name,cfg_name,implementation",
     [
-        ("isaaclab_visualizers.kit", "KitVisualizerCfg", "KitVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonGLVisualizerCfg", "NewtonGLVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonRTXVisualizerCfg", "NewtonRTXVisualizer"),
-        ("isaaclab_visualizers.rerun", "RerunVisualizerCfg", "RerunVisualizer"),
-        ("isaaclab_visualizers.viser", "ViserVisualizerCfg", "ViserVisualizer"),
+        ("isaaclab_visualizers.kit", "KitBackendCfg", "KitVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonGLBackendCfg", "NewtonGLVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonRTXBackendCfg", "NewtonRTXVisualizer"),
+        ("isaaclab_visualizers.rerun", "RerunBackendCfg", "RerunVisualizer"),
+        ("isaaclab_visualizers.viser", "ViserBackendCfg", "ViserVisualizer"),
     ],
 )
 def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):
@@ -41,13 +48,15 @@ def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implemen
     class_type = cfg.class_type
     assert isinstance(class_type, ResolvableString)
     assert class_type.__name__ == implementation
-    assert cfg.streaming_sensor_prim_path is None
-    assert "cameras" in vars(cfg) and "camera" not in vars(cfg)
+    assert not vars(VisualizerCfg()).keys() & vars(cfg).keys()
     assert not any(name.startswith(("streaming_cam_", "tiled_cam_")) for name in vars(cfg))
 
 
 def test_visualizer_cfg_camera_sources():
+    # Cross-config default merging belongs to launch preparation.
+    assert "apply_defaults" not in vars(VisualizerCfg)
     cfg = VisualizerCfg()
+    assert cfg.backend == []
     assert cfg.focal_length == 12.0
     assert cfg.background_color is None
     assert cfg.streaming_view is False
@@ -74,6 +83,11 @@ def test_visualizer_cfg_validates_presentation():
     for fps in (0.0, -1.0, float("inf"), float("nan")):
         with pytest.raises(ValueError, match="WindowCfg.fps"):
             validate(WindowCfg(fps=fps))
+    cfg = VisualizerCfg(view=ImageViewCfg(source="camera"), backend=[VisualizerBackendCfg(visualizer_type="newton_gl")])
+    validate(cfg)
+    cfg.backend.append(VisualizerBackendCfg(visualizer_type="viser"))
+    with pytest.raises(ValueError, match="requires a Newton GL or RTX"):
+        validate(cfg)
 
 
 #

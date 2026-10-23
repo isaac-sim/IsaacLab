@@ -185,6 +185,11 @@ Breaking Changes
 Preset CLI
 ~~~~~~~~~~
 
+Task preset utilities now share ``isaaclab_tasks.utils.hydra``. Replace imports from
+``isaaclab_tasks.utils.preset_cli`` or ``isaaclab_tasks.utils.preset_target`` with imports from
+``isaaclab_tasks.utils.hydra``. The package-level ``from isaaclab_tasks.utils import setup_preset_cli``
+entry point is unchanged.
+
 ``isaaclab_tasks.utils.fold_preset_tokens`` has been removed. ``setup_preset_cli()`` now returns ``physics=``,
 ``renderer=``, and ``presets=`` tokens verbatim, and ``register_task()`` parses them directly. Scripts should assign
 the returned remainder to ``sys.argv`` unchanged.
@@ -493,7 +498,7 @@ URDF & MJCF Importers Updated
 
 Both importers have been rewritten for Isaac Sim 6.0. Several configuration settings have been removed, renamed, or
 replaced. See the
-`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/migration/migrating_to_isaaclab_3-0.html>`__
+:ref:`migration guide <migrating-to-isaaclab-3-0>`
 for details.
 
 Updated Dependencies
@@ -519,7 +524,7 @@ Migration Guide
 
 For a comprehensive guide on migrating from Isaac Lab 2.x to 3.0, including code examples, API rename tables, and
 automated tooling, see the
-`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/migration/migrating_to_isaaclab_3-0.html>`__.
+:ref:`migration guide <migrating-to-isaaclab-3-0>`.
 
 v2.3.2
 ======

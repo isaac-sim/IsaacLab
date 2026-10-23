@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Performance smoke gate: compare a PR's runtime benchmark against develop's history.
+"""Performance smoke gate: compare a PR's runtime benchmark against the default branch's history.
 
 * :mod:`metrics`  -- the runtime bundle's shape
 * :mod:`contract` -- which runs are comparable

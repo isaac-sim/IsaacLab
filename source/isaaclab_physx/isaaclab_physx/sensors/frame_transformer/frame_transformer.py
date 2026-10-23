@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import re
 import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -20,8 +19,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .frame_transformer_data import FrameTransformerData
 from .kernels import frame_transformer_update_kernel
@@ -126,16 +123,6 @@ class FrameTransformer(BaseFrameTransformer):
             stacklevel=2,
         )
         return self._target_frame_body_names
-
-    """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        # resolve indices and mask
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        # reset the timers and counters
-        super().reset(None, env_mask)
 
     """
     Implementation.
@@ -254,10 +241,11 @@ class FrameTransformer(BaseFrameTransformer):
         ]
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
+        self._check_env_count(self._frame_physx_view.count, " or ".join(body_names_regex), len(tracked_body_names))
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
         # by frame name correctly
@@ -423,6 +411,7 @@ class FrameTransformer(BaseFrameTransformer):
         # the getter lazily allocates its output buffer and refreshes the same memory in place
         # on every call, so the cached view (and the recorded launch that consumes it) stays
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        self._backend_manager.update_kinematics()
         transforms = self._frame_physx_view.get_transforms()
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)

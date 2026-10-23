@@ -106,7 +106,7 @@ class H1RoughDemo:
         self._viewers = [
             visualizer
             for visualizer in self.env.unwrapped.sim.visualizers
-            if visualizer.cfg.visualizer_type in {"newton_gl", "newton_rtx"}
+            if visualizer.cfg.backend.visualizer_type in {"newton_gl", "newton_rtx"}
         ]
         self._key_to_control = {
             "i": torch.tensor([FORWARD_SPEED, 0.0, 0.0], device=self.device),

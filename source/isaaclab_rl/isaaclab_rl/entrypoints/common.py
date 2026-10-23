@@ -450,7 +450,7 @@ def show_run_summary(
         action: Workflow name, either ``"train"`` or ``"play"``.
     """
     renderer = _renderer_name(env_cfg)
-    visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
+    visualizers = [cfg.backend.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs]
     screen.summary(
         f"Isaac Lab · {action}",
         {
@@ -542,12 +542,12 @@ def create_isaaclab_env(
 
 
 def close_env(env: gym.Env) -> None:
-    """Close the outermost environment wrapper without interrupting its teardown.
+    """Close the outermost environment wrapper; another SIGINT forces exit.
 
     Args:
         env: Environment to close on the entrypoint's main thread.
     """
-    previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
         env.close()
     finally:

@@ -21,8 +21,10 @@ import warp as wp
 pytestmark = pytest.mark.unit
 
 from isaaclab.envs.mdp.observations import (
+    CameraImageBase,
     image_depth,
     image_features,
+    image_normals,
     image_rgb,
     image_segmentation,
     stacked_image,
@@ -143,6 +145,23 @@ class TestFrameStacking:
 
 class TestModalityTerms:
     """Per-modality reading, validation and normalization."""
+
+    @pytest.mark.parametrize("term_cls", CameraImageBase.__subclasses__(), ids=lambda cls: cls.__name__)
+    def test_constructs_without_data_type(self, term_cls):
+        """Every camera image term declares a default data type, so its config may omit it."""
+        outputs = {
+            name: _random_rgb() for name in ("rgb", "distance_to_image_plane", "normals", "semantic_segmentation")
+        }
+        _, observe = _make_term(term_cls, _make_env(outputs), normalize=False)
+        assert observe().shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS)
+
+    def test_normals_map_to_unit_range(self):
+        """Normalized normals are mapped from ``[-1, 1]`` to ``[0, 1]``."""
+        normals = torch.linspace(-1.0, 1.0, NUM_ENVS * HEIGHT * WIDTH * CHANNELS).reshape(
+            NUM_ENVS, HEIGHT, WIDTH, CHANNELS
+        )
+        _, observe = _make_term(image_normals, _make_env({"normals": normals}))
+        torch.testing.assert_close(observe(), (normals + 1.0) * 0.5)
 
     def test_rgb_drops_alpha_and_accepts_constant_mean(self):
         """Albedo's unused alpha channel is dropped and a constant mean replaces the per-image mean."""

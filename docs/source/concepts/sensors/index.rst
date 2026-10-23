@@ -4,33 +4,7 @@
 Sensors
 ========
 
-.. seealso::
-
-   These pages are the source of truth for the ``isaaclab-using-sensors-actuators`` agent skill
-   (`skills/user/use-sensors-actuators/ <../../../../skills/user/use-sensors-actuators/SKILL.md>`__).
-   When sensor behavior changes, keep the API documentation, maintained demos, these concept pages,
-   and the skill synchronized.
-
-Sensors turn simulation state or rendered scene data into batched measurements. Every Isaac Lab
-sensor derives from :class:`~isaaclab.sensors.SensorBase` and follows the same lifecycle:
-
-* ``prim_path`` selects the prim or prims measured in every cloned environment.
-* ``update_period`` sets the sampling period in simulated seconds. A value of ``0.0`` samples every
-  simulation step.
-* :meth:`~isaaclab.sensors.SensorBase.update` advances the sensor clock. Sensor data is evaluated
-  lazily when the :attr:`~isaaclab.sensors.SensorBase.data` property is read, unless recomputation or
-  debug visualization is requested.
-* :meth:`~isaaclab.sensors.SensorBase.reset` clears per-environment timestamps and internal state.
-
-With eager sensor updates (``scene.cfg.lazy_sensor_update=False``), ``scene.update(dt)`` refreshes
-sensor data before returning. It advances sensor clocks in scene order, updating ordinary sensors
-individually and collecting sensors that support batch updates. After the loop, it refreshes the
-collected sensors' pending buffers together. Each sensor retains its own update period and reset
-state. Camera sensors use this mechanism to :ref:`batch captures by renderer <renderer-camera-batching>`.
-
-Sensor data is exposed through :class:`~isaaclab.utils.warp.ProxyArray` buffers, including camera
-outputs. Use the ``torch`` property for a cached zero-copy Torch view or ``warp`` for the underlying
-Warp array.
+Sensors provide batched measurements of simulation state and camera images.
 
 Choose a sensor
 ---------------
@@ -64,6 +38,32 @@ Choose a sensor
      - Incoming joint reaction force and torque
      - Force/torque sensing and contact-rich control
 
+Sampling and data access
+------------------------
+
+All sensors inherit from :class:`~isaaclab.sensors.SensorBase` and share these settings
+and methods:
+
+* ``prim_path`` selects the prim or prims measured in every cloned environment.
+* ``update_period`` sets the sampling period in simulated seconds. A value of ``0.0`` samples every
+  simulation step.
+* :meth:`~isaaclab.sensors.SensorBase.update` advances the sensor clock. Sensor data is evaluated
+  lazily when the :attr:`~isaaclab.sensors.SensorBase.data` property is read, unless recomputation or
+  debug visualization is requested.
+* :meth:`~isaaclab.sensors.SensorBase.reset` clears per-environment timestamps and internal state.
+
+Cleared measurement outputs remain available after reset until the next sensor update.
+Sensors that derive poses, ray hits, or images invalidate those cached results for a fresh read.
+Reading sensor data never advances physics.
+
+Set ``scene.cfg.lazy_sensor_update=False`` to refresh data during ``scene.update(dt)``.
+Sensors keep their own sampling periods and reset state. Sensors that support
+batching refresh together; cameras :ref:`batch captures by renderer <renderer-camera-batching>`.
+
+Sensor data is exposed through :class:`~isaaclab.utils.warp.ProxyArray` buffers, including camera
+outputs. Use the ``torch`` property for a cached zero-copy Torch view or ``warp`` for the underlying
+Warp array.
+
 .. toctree::
    :maxdepth: 1
    :hidden:
@@ -75,3 +75,10 @@ Choose a sensor
    imu
    pva
    joint_wrench_sensor
+
+.. Maintenance notes
+
+   These pages are the source of truth for the ``isaaclab-using-sensors-actuators`` agent skill
+   (`skills/user/use-sensors-actuators/ <../../../../skills/user/use-sensors-actuators/SKILL.md>`__).
+   When sensor behavior changes, keep the API documentation, maintained demos, these concept pages,
+   and the skill synchronized.

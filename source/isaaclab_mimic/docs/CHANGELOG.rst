@@ -3,6 +3,26 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.5 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo collision-world initialization for native environment copies that have no destination
+  geometry in USD. Imported the selected world's authored sources using the clone plan and preserved
+  destination names and environment placement without modifying the simulation stage.
+
+
+2.1.4 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Separated locomanipulation SDG configuration from runtime imports and left URDF retrieval to the IK controller, allowing task configuration before simulation launch.
+
+
 2.1.3 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

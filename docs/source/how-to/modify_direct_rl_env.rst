@@ -136,8 +136,6 @@ where you started the simulation.
     :figwidth: 100%
     :alt: result of training Isaac-H1-Direct-v0 task
 
-In this tutorial, we learnt how to make minor modifications to an existing environment without affecting the original code.
-
-It is important to note, however, that while the changes to be made may be small, they may not always work on the first try,
-as there may be deeper dependencies on the original assets in the environment being modified.
-In these cases, it is advisable to analyze the code of the available examples in detail in order to make an appropriate adjustment.
+When replacing an asset, check the task's joint names, action dimensions, observation
+layout, and reward terms. These may depend on the original robot even when the
+scene change is small.

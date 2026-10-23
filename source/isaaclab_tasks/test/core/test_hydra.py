@@ -18,7 +18,6 @@ from isaaclab.utils import clone, configclass
 from isaaclab_tasks.utils import hydra as hydra_mod
 from isaaclab_tasks.utils.hydra import (
     PresetCfg,
-    _format_unknown_presets_error,
     collect_presets,
     preset,
     resolve_presets,
@@ -412,13 +411,6 @@ def test_presetcfg_attribute_error_for_unknown_attribute():
         _ = cfg.completely_unknown
 
 
-def test_format_unknown_presets_error_calls_out_legacy_aliases():
-    """The unknown-preset error should explicitly mention the rename for legacy aliases."""
-    msg = _format_unknown_presets_error({"newton", "typo"}, {"fast": ["env"]})
-    assert "newton' was renamed to 'newton_mjwarp'" in msg
-    assert "typo" in msg
-
-
 def test_user_stacklevel_warning_origin_is_outside_hydra_module():
     """``_normalize_preset_name`` warnings should not be attributed to hydra.py itself."""
     with warnings.catch_warnings(record=True) as caught:
@@ -448,13 +440,29 @@ def test_collect_presets_root_level():
 
 def test_register_task_mixed_overrides():
     """Global presets, path presets, preset-path scalars, global scalars, and bare args apply together."""
-    overrides = ["presets=fast", "env.decimation=10", "env.backend=newton_mjwarp", "env.backend.dt=0.001", "--flag"]
-    env_cfg, agent_cfg, hydra_args = _register(PresetCfgEnvCfg(), overrides=overrides)
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, fast=8)
+    env.range = preset(default=(0.6, 1.7), fast=(0.25, 2.5))
+    agent = PresetCfgAgentCfg()
+    agent.learning_rate = preset(default=3e-4, fast=1e-3)
+    overrides = [
+        "presets=fast",
+        "env.decimation=10",
+        "env.range=(0.1, 0.9)",
+        "agent.learning_rate=fast",
+        "agent.learning_rate=1e-5",
+        "env.backend=newton_mjwarp",
+        "env.backend.dt=0.001",
+        "--flag",
+    ]
+    env_cfg, agent_cfg, hydra_args = _register(env, agent, overrides)
     assert isinstance(env_cfg.observations, FastObservationsCfg)
     assert isinstance(agent_cfg.policy, FastPolicyCfg)
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.001
     assert env_cfg.decimation == 10
+    assert env_cfg.range == (0.1, 0.9)
+    assert agent_cfg.learning_rate == 1e-5
     assert hydra_args == ["--flag"]
 
 
@@ -861,14 +869,9 @@ def test_collect_presets_discovers_presets_inside_dict_valued_alternatives():
     """
     cfg = PresetResolvesToDictEnvCfg()
     presets = collect_presets(cfg)
-    offset_paths = [p for p in presets if "offset" in p]
-    fraction_paths = [p for p in presets if "fraction" in p]
-    assert len(offset_paths) > 0, (
-        f"OffsetCfg inside dict-valued preset alternative not discovered. Found: {list(presets.keys())}"
-    )
-    assert len(fraction_paths) > 0, (
-        f"FractionCfg inside dict-valued preset alternative not discovered. Found: {list(presets.keys())}"
-    )
+    for strategy in ("strategy_a", "strategy_b"):
+        assert f"events.params.terms.{strategy}.params.offset" in presets
+        assert f"events.params.terms.{strategy}.params.fraction" in presets
 
 
 def test_resolve_preset_resolving_to_dict_walks_contents():
@@ -1181,20 +1184,16 @@ def test_resolve_presets_idempotent():
     assert second.backend.dt == first.backend.dt
 
 
-def test_unknown_global_preset_name_detected():
-    """``register_task`` rejects a selected preset name that no PresetCfg declares (e.g. a typo)."""
-    import gymnasium as gym
-
-    gym.register(
-        id="Isaac-Hydra-UnknownPreset-Test",
-        entry_point="dummy:Env",
-        kwargs={"env_cfg_entry_point": PresetCfgEnvCfg},
+def test_unknown_global_preset_name_detected(monkeypatch):
+    """Unknown presets report the bad names, legacy renames, and available config paths."""
+    monkeypatch.setattr(
+        "isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry",
+        lambda *_: {"mode": preset(default=1, fast=2)},
     )
-    try:
-        with pytest.raises(ValueError, match="typo_preset"):
-            hydra_mod.register_task("Isaac-Hydra-UnknownPreset-Test", None, overrides=["presets=typo_preset"])
-    finally:
-        del gym.registry["Isaac-Hydra-UnknownPreset-Test"]
+    with pytest.raises(ValueError, match="typo_preset") as error:
+        hydra_mod.register_task("test", None, overrides=["presets=typo_preset,newton"])
+    assert "newton' was renamed to 'newton_mjwarp'" in str(error.value)
+    assert "env.mode" in str(error.value) and "fast" in str(error.value)
 
 
 def test_resolve_presets_errors_on_no_default():
@@ -1279,8 +1278,7 @@ def test_resolve_presets_errors_on_cyclic_preset_at_root():
 # =============================================================================
 
 from isaaclab.physics import PhysicsCfg as _RealPhysicsCfg  # noqa: E402
-
-from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
+from isaaclab.renderers.renderer_cfg import RendererCfg as _RealRendererCfg  # noqa: E402
 
 
 @configclass
@@ -1295,51 +1293,42 @@ class _PhysxPhysicsCfg(_RealPhysicsCfg):
     dt: float = 0.005
 
 
-def test_resolve_active_presets_records_physics_hit_for_selector():
-    """End-to-end: selecting a name that resolves to a real PhysicsCfg records a PHYSICS hit."""
+@pytest.mark.parametrize("typed", [False, True])
+def test_register_task_validates_physics_selector(monkeypatch, typed):
+    """A typed choice must select a physics configuration, not merely a same-named scalar."""
 
     @configclass
-    class PhysicsPresetCfg(PresetCfg):
-        default: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
-        newton_mjwarp: _NewtonPhysicsCfg = _NewtonPhysicsCfg()
+    class Cfg:
+        physics = preset(default=_PhysxPhysicsCfg(), newton_mjwarp=_NewtonPhysicsCfg()) if typed else None
+        armature = preset(default=0.0, newton_mjwarp=0.01)
+
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", lambda *_: Cfg())
+    if typed:
+        cfg, _, _ = hydra_mod.register_task("test", "", overrides=["physics=newton_mjwarp"])
+        assert isinstance(cfg.physics, _NewtonPhysicsCfg) and cfg.armature == 0.01
+        with pytest.raises(ValueError, match="Unknown preset\\(s\\): does_not_exist") as error:
+            hydra_mod.register_task("test", "", overrides=["physics=does_not_exist"])
+        assert "newton_mjwarp" in str(error.value)
+    else:
+        with pytest.raises(ValueError, match="physics=newton_mjwarp"):
+            hydra_mod.register_task("test", "", overrides=["physics=newton_mjwarp"])
+        cfg, _, _ = hydra_mod.register_task("test", "", overrides=["presets=newton_mjwarp"])
+        assert cfg.armature == 0.01
+
+
+def test_register_task_explains_unavailable_typed_selectors(monkeypatch):
+    """A defaults-only task should report all selectors and explain how to use its defaults."""
 
     @configclass
-    class EnvWithPhysicsCfg:
-        physics: PhysicsPresetCfg = PhysicsPresetCfg()
+    class Cfg:
+        physics: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
+        renderer: _RealRendererCfg = _RealRendererCfg()
 
-    typed_hits: dict[str, set[PresetTarget]] = {}
-    hydra_mod._resolve_active_presets(
-        EnvWithPhysicsCfg(), ["newton_mjwarp"], {}, root_path="env", typed_hits=typed_hits
-    )
-    assert PresetTarget.PHYSICS in typed_hits.get("newton_mjwarp", set())
-    # physics=newton_mjwarp therefore validates.
-    hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
-
-
-def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
-    """A name resolving only to a scalar records no typed hit, so a physics= selector raises."""
-
-    @configclass
-    class EnvWithScalarOnlyCfg:
-        # ``newton_mjwarp`` here only tunes a scalar -- no PhysicsCfg involved.
-        armature: PresetCfg = preset(default=0.0, newton_mjwarp=0.01)
-
-    consumed: set[str] = set()
-    typed_hits: dict[str, set[PresetTarget]] = {}
-    hydra_mod._resolve_active_presets(
-        EnvWithScalarOnlyCfg(),
-        ["newton_mjwarp"],
-        {},
-        root_path="env",
-        consumed_selected=consumed,
-        typed_hits=typed_hits,
-    )
-    assert "newton_mjwarp" in consumed and PresetTarget.PHYSICS not in typed_hits.get("newton_mjwarp", set())
-    # presets=newton_mjwarp (broadcast) is trusted: no entry in ``requested`` -> no error.
-    hydra_mod._validate_typed_presets({}, typed_hits)
-    # physics=newton_mjwarp (typed selector) must error.
-    with pytest.raises(ValueError, match="physics=newton_mjwarp"):
-        hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", lambda *_: Cfg())
+    with pytest.raises(ValueError, match="registered default configuration") as error:
+        hydra_mod.register_task("test", "", overrides=["physics=isaacsim_physx", "renderer=isaacsim_rtx"])
+    assert "physics=isaacsim_physx" in str(error.value)
+    assert "renderer=isaacsim_rtx" in str(error.value)
 
 
 # =============================================================================
