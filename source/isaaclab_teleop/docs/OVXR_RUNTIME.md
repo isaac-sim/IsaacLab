@@ -200,3 +200,28 @@ The mirror defaults `OMNIUI_BACKEND` to `opengl` before OVUI initialization and
 preserves an explicit application setting. The setting persists after shutdown;
 an already initialized OVUI backend cannot be reconfigured. The Vulkan backend
 is unsupported by the mirror copy path.
+
+## Physics and rendering on separate GPUs
+
+For GPU-intensive physics, select the physics device with `--device` and the
+rendering devices with `--ovrtx_active_cuda_gpus`. Both rendering device options
+require `--ovxr` in the teleoperation CLI:
+
+```bash
+uv run --extra ovxr isaaclab teleop run --ovxr \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --physics newton_mjwarp --device cuda:1 \
+    --ovrtx_active_cuda_gpus 0 --geometry_publication_device cuda:0
+```
+
+By default, GPU physics and rendering use the same CUDA device; CPU physics
+leaves GPU selection to OVRTX. `--geometry_publication_device cuda:N` copies
+foreign-GPU deforming geometry to a reusable buffer on the selected device and
+waits for completion before publishing it. It does not select the physics or
+rendering device. Omit it to preserve source-buffer placement. CPU data and
+already-local geometry keep their placement; mixed CPU/CUDA geometry batches
+are unsupported by OVStage.
+
+Custom geometry producers must order updates on their current Warp stream and
+avoid concurrent mutation during publication. These controls do not change
+physics fidelity or guarantee a rendering rate.

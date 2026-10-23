@@ -32,6 +32,8 @@ class OVRTXBackendCfg(BackendCfg):
     """None shares the simulation scene; standalone renderers retain their own scene policy."""
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Native renderer log destination."""
+    active_cuda_gpus: str | None = None
+    """Explicit rendering devices, or None to follow the simulation/native default."""
     log_level: str = "verbose"
     """Native renderer log level."""
     use_ovstage: bool = MISSING
@@ -73,6 +75,28 @@ class OVRTXRendererCfg(RendererCfg):
     stay current. ``camera.data.info[output_name]["capture"]`` carries the image's matching
     ``pos_w``, ``quat_w_world``, ``intrinsic_matrices``, and per-environment ``frame`` indices.
     The ovstage path does not support pipelining and renders synchronously.
+    """
+
+    active_cuda_gpus: str | None = None
+    """Comma-separated CUDA device indices used by the native renderer (e.g. ``"0,1"``).
+
+    Defaults to the simulation CUDA device; CPU simulations use native GPU selection.
+    Set before native initialization; this does not
+    change physics, camera output placement, or the geometry publication destination.
+    """
+
+    geometry_publication_device: str | None = None
+    """Optional ``"cuda:N"`` destination for completed OVStage geometry snapshots.
+
+    Defaults to None (source placement). Set to the rendering GPU to copy foreign-GPU points
+    before publication returns; this does not select the rendering GPU or change physics.
+    CPU-only and already-local CUDA inputs keep their placement. Mixed CPU/CUDA batches,
+    implicit ``"cuda"`` devices and custom CUDA-context aliases are unsupported. Requires OVStage.
+
+    Producers must serialize updates on their current Warp streams and retain inputs until
+    publication returns. Unrelated streams and concurrent mutation are not synchronized.
+    One reusable buffer per foreign geometry is retained through Stage copy-in; enabling this
+    option adds copy work and device memory, without adding a frame queue.
     """
 
     temp_usd_dir: str | None = None

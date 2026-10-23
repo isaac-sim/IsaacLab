@@ -122,6 +122,23 @@ parser.add_argument(
     help="Bounded render-worker bootstrap timeout in seconds (default: 180 for cold RTX startup).",
 )
 parser.add_argument(
+    "--ovrtx_active_cuda_gpus",
+    type=str,
+    default=None,
+    help="Comma-separated CUDA indices for OVRTX rendering, e.g. 0. Does not select physics or camera outputs.",
+)
+parser.add_argument(
+    "--geometry_publication_device",
+    type=str,
+    default=None,
+    metavar="CUDA_DEVICE",
+    help=(
+        "Destination CUDA device for completed OVStage geometry publication, e.g. cuda:0. "
+        "Adds copy work for geometry on another GPU; unset preserves renderer configuration. "
+        "Requires --ovxr; does not select physics or rendering placement."
+    ),
+)
+parser.add_argument(
     "--ovxr_desktop_mirror",
     action="store_true",
     default=False,
@@ -174,6 +191,10 @@ if args_cli.ovxr_bootstrap_frames < 0:
     parser.error("--ovxr_bootstrap_frames must be non-negative")
 if args_cli.ovxr_worker_timeout <= 0:
     parser.error("--ovxr_worker_timeout must be positive")
+if not args_cli.using_ovxr and (
+    args_cli.geometry_publication_device is not None or args_cli.ovrtx_active_cuda_gpus is not None
+):
+    parser.error("--geometry_publication_device and --ovrtx_active_cuda_gpus require --ovxr")
 if args_cli.ovxr_desktop_mirror and not args_cli.using_ovxr:
     parser.error("--ovxr_desktop_mirror requires --ovxr")
 if args_cli.ovxr_pip_camera is not None and not args_cli.using_ovxr:
@@ -362,7 +383,10 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, bool, bool, tuple[object, 
             raise ValueError("Select up to three unique OVXR PiP cameras")
         if len(names) > 1 and args_cli.ovxr_pip_view_position is not None:
             raise ValueError("A PiP position override requires one camera; multiple panels use task layout")
-        renderer_cfg = OVRTXRendererCfg()
+        renderer_cfg = OVRTXRendererCfg(
+            active_cuda_gpus=args_cli.ovrtx_active_cuda_gpus,
+            geometry_publication_device=args_cli.geometry_publication_device,
+        )
         for camera_name in names:
             camera_cfg = getattr(env_cfg.scene, camera_name, None)
             if not isinstance(camera_cfg, CameraCfg):
@@ -575,7 +599,14 @@ def main(  # noqa: C901
                     desktop_mirror_max_fps=args_cli.ovxr_desktop_mirror_fps,
                     auxiliary_cameras=tuple(selected_cameras),
                 ),
-                renderer_cfg=selected_cameras[0].camera_cfg.renderer_cfg if selected_cameras else OVRTXRendererCfg(),
+                renderer_cfg=(
+                    selected_cameras[0].camera_cfg.renderer_cfg
+                    if selected_cameras
+                    else OVRTXRendererCfg(
+                        active_cuda_gpus=args_cli.ovrtx_active_cuda_gpus,
+                        geometry_publication_device=args_cli.geometry_publication_device,
+                    )
+                ),
             )
 
         try:

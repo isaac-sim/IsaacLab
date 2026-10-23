@@ -443,7 +443,13 @@ class OVRTXBackend:
         # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
         sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
-            active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
+            active_cuda_gpus=(
+                cfg.active_cuda_gpus
+                if cfg.active_cuda_gpus is not None
+                else str(sim_device.ordinal)
+                if sim_device.is_cuda
+                else None
+            ),
             log_file_path=cfg.log_file_path,
             log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
@@ -579,6 +585,7 @@ class OVRTXRenderer(BaseRenderer):
         self._ovstage_last_scene_ordinal: int | None = None
         self._ovstage_pair_poisoned = False
         self._auxiliary_camera_stage_deferred = False
+        self._geometry_publication: _GeometryPublicationBuffers | None = None
         self._warp_device = wp.get_device(self._sim.device)
         self._device = str(self._warp_device)
         self._camera_render_data: list[OVRTXCameraRenderData] = []
@@ -633,6 +640,10 @@ class OVRTXRenderer(BaseRenderer):
                 raise RuntimeError("OVXR session requires exactly one environment")
             if not self._use_ovstage or self.backend._ovxr_session_owner is not self:
                 raise RuntimeError("OVXR requires its reserved private OVStage renderer")
+        if self.cfg.geometry_publication_device is not None and self._geometry_publication is None:
+            if not self._use_ovstage:
+                raise ValueError("geometry_publication_device requires OVStage")
+            self._geometry_publication = _GeometryPublicationBuffers(self.cfg.geometry_publication_device)
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
@@ -1333,7 +1344,11 @@ class OVRTXRenderer(BaseRenderer):
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        if self._use_ovstage:
+        if self._geometry_publication is not None:
+            self._geometry_publication.write(
+                self.scene.stage, binding, self._geometry_paths, points, self.scene.ordinal
+            )
+        elif self._use_ovstage:
             self.scene.stage.write_attribute(
                 binding,
                 "points",
@@ -1527,6 +1542,8 @@ class OVRTXRenderer(BaseRenderer):
                 resources.callback(self._transform_writes.close)
                 resources.callback(self._geometry_writes.close)
                 resources.callback(self.geometry_resources.close)
+                if self._geometry_publication is not None:
+                    resources.callback(self._geometry_publication.close)
                 for geometry in (*self.meshes.values(), *self.markers.values()):
                     resources.callback(geometry.close)
                 for render_data in tuple(self._camera_render_data):
@@ -1538,6 +1555,7 @@ class OVRTXRenderer(BaseRenderer):
             self._geometry_offsets.clear()
             self._geometry_paths = []
             self._geometry_timestamp = -1
+            self._geometry_publication = None
             self._transforms_timestamp = -1
             self._output_id_color_buffers.clear()
             self._initialized_scene = False
@@ -2388,6 +2406,71 @@ class OVRTXMarkers:
                 raise ExceptionGroup("OVRTX renders failed before marker cleanup", errors)
         self._transforms = self._selection = self._stage = None
         self._local_transforms = None
+
+
+class _GeometryPublicationBuffers:
+    """Own completed cross-device point snapshots through synchronous Stage copy-in."""
+
+    def __init__(self, device: str):
+        if re.fullmatch(r"cuda:(0|[1-9][0-9]*)", device) is None:
+            raise ValueError("geometry_publication_device must name an explicit CUDA device, e.g. 'cuda:0'")
+        self._device = wp.get_device(device)
+        self._torch_stream: torch.cuda.Stream | None = None
+        self._stream: wp.Stream | None = None
+        self._buffers: dict[str, wp.array] = {}
+        self._sources: list[wp.array] = []
+        self._failed = False
+
+    def write(self, stage, binding, paths: Sequence[str], points: list[wp.array], ordinal: int) -> None:
+        """Copy foreign-GPU points and wait for Stage to consume the batch."""
+        if self._failed:
+            raise RuntimeError("Geometry publication failed; close and recreate the renderer")
+        # Reuse is safe only after the entire write completes.
+        self._failed = True
+        self._sources = points
+        published = list(points)
+        for index, (path, source) in enumerate(zip(paths, points, strict=True)):
+            if not source.device.is_cuda or source.device == self._device:
+                continue
+            if self._stream is None:
+                # Retain Torch's nonblocking stream; Warp-created streams are blocking.
+                self._torch_stream = torch.cuda.Stream(device=str(self._device))
+                self._stream = wp.stream_from_torch(self._torch_stream)
+            target = self._buffers.get(path)
+            if target is None or target.shape != source.shape or target.dtype != source.dtype:
+                # Warp pool allocations and their first copy must use the same stream.
+                with wp.ScopedStream(self._stream, sync_enter=False):
+                    target = wp.empty_like(source, device=self._device)
+                self._buffers[path] = target
+            self._stream.wait_stream(source.device.stream)
+            wp.copy(target, source, stream=self._stream)
+            published[index] = target
+        if self._stream is not None:
+            wp.synchronize_stream(self._stream)
+        # Include same-device producer work in Stage's input dependency.
+        stream = self._device.stream if any(point.device.is_cuda for point in published) else None
+        if stream is not None and self._stream is not None:
+            self._stream.wait_stream(stream)
+            stream = self._stream
+        stage.write_attribute(
+            binding,
+            "points",
+            ordinal=ordinal,
+            tensors=[points_tensor_from_warp(point) for point in published],
+            is_array=True,
+            semantic=ovstage.AttributeSemantic.POINT,
+            cuda_stream=(stream.cuda_stream or 1) if stream is not None else None,
+        ).wait()
+        self._sources = []
+        self._failed = False
+
+    def close(self) -> None:
+        """Drain copy/native consumption before releasing inputs, including after failure."""
+        with contextlib.ExitStack() as resources:
+            resources.callback(self._buffers.clear)
+            resources.callback(self._sources.clear)
+            if self._stream is not None:
+                resources.callback(wp.synchronize_stream, self._stream)
 
 
 _BufferT = TypeVar("_BufferT", wp.array, SceneDataFormat.TransposedMatrix44d)

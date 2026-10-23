@@ -8,6 +8,7 @@
 import ast
 import contextlib
 import logging
+import runpy
 import signal
 import sys
 from pathlib import Path
@@ -94,6 +95,76 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
     assert caught.value is failure
     camera.close.assert_called_once_with()
     assert env.close.call_count == int(stage != "environment")
+
+
+@pytest.mark.parametrize("device,camera_count", [(None, 0), ("cuda:0", 0), ("cuda:1", 3)])
+def test_geometry_publication_cli_reaches_shared_xr_renderer(monkeypatch, device, camera_count):
+    """The real parser and entry route defaults/overrides to one stereo/PiP renderer config."""
+    import isaaclab_teleop
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+    from isaaclab_teleop.isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
+
+    from isaaclab.sensors import CameraCfg
+
+    script = Path(__file__).resolve().parents[3] / "scripts/environments/teleoperation/teleop_se3_agent.py"
+    argv = [str(script), "--task", "Test", "--ovxr", "--physics", "ovphysx"]
+    if device is not None:
+        argv += ["--geometry_publication_device", device]
+        argv += ["--ovrtx_active_cuda_gpus", "1"]
+    names = [f"camera_{index}" for index in range(camera_count)]
+    if names:
+        argv += ["--ovxr_pip_head_locked", "--ovxr_pip_camera", *names]
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    namespace = runpy.run_path(str(script))["main"].__globals__
+    config = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1, **{name: CameraCfg(prim_path=f"/World/{name}") for name in names}),
+        sim=SimpleNamespace(device="cpu", physics=object()),
+        terminations=SimpleNamespace(time_out=1),
+        isaac_teleop=SimpleNamespace(
+            xr_camera_feeds=[XrCameraFeedCfg(camera_name=name) for name in names],
+            xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked"),
+        ),
+    )
+    namespace.update(
+        ManagerBasedRLEnvCfg=SimpleNamespace,
+        resolve_task_config=lambda *_args, overrides: (config, None),
+        validate_launch=lambda *_args: ((), ()),
+    )
+    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
+    camera_session = SimpleNamespace(close=Mock())
+    monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", Mock(return_value=camera_session))
+    captured = []
+    stopped = RuntimeError("Stop before native startup")
+
+    def prepare(_sim, cfg, renderer_cfg):
+        captured.append((cfg, renderer_cfg))
+        raise stopped
+
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    resolved = namespace["_resolve_env_cfg"]()
+    with pytest.raises(RuntimeError) as caught:
+        namespace["main"](*resolved)
+    assert caught.value is stopped
+    assert len(captured) == 1
+    session, renderer = captured[0]
+    assert renderer.geometry_publication_device == device
+    assert renderer.active_cuda_gpus == ("1" if device is not None else None)
+    assert renderer.log_file_path == OVRTXRendererCfg().log_file_path
+    assert len(session.auxiliary_cameras) == camera_count
+    assert all(camera.camera_cfg.renderer_cfg is renderer for camera in session.auxiliary_cameras)
+    camera_session.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    "option,value", [("--geometry_publication_device", "cuda:0"), ("--ovrtx_active_cuda_gpus", "0")]
+)
+def test_render_device_cli_requires_ovxr(monkeypatch, option, value):
+    script = Path(__file__).resolve().parents[3] / "scripts/environments/teleoperation/teleop_se3_agent.py"
+    monkeypatch.setattr(sys, "argv", [str(script), "--task", "Test", option, value])
+    with pytest.raises(SystemExit) as caught:
+        runpy.run_path(str(script))
+    assert caught.value.code == 2
 
 
 def test_input_cleanup_failure_prevents_borrowed_owner_release(entry_namespace):
