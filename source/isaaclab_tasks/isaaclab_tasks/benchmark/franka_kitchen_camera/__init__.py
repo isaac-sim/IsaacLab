@@ -8,7 +8,7 @@
 import gymnasium as gym
 
 gym.register(
-    id="Isaac-Reach-Franka-Kitchen-Camera",
+    id="Isaac-Reach-Franka-Kitchen-Camera-Benchmark",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={"env_cfg_entry_point": f"{__name__}.franka_kitchen_camera_env_cfg:FrankaKitchenCameraEnvCfg"},

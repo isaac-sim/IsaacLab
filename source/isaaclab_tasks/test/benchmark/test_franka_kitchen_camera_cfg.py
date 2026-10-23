@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the ``Isaac-Reach-Franka-Kitchen-Camera`` task's registration, presets, and kitchen spawner.
+"""Tests for the ``Isaac-Reach-Franka-Kitchen-Camera-Benchmark`` task's registration, presets, and kitchen spawner.
 
 No Kit/GPU required: the config is loaded and resolved through the registry, and the spawner runs on
 a small stand-in for the Kitchen Set.
@@ -22,7 +22,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-_TASK = "Isaac-Reach-Franka-Kitchen-Camera"
+_TASK = "Isaac-Reach-Franka-Kitchen-Camera-Benchmark"
 _DATA_TYPES = (
     "rgb",
     "depth",
