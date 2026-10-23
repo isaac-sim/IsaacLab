@@ -17,11 +17,11 @@
       logger
       math
       mesh
-      tensor_processors
       noise
       seed
       sensors
       string
+      tensor_processors
       timer
       types
       version
@@ -124,6 +124,37 @@ Mesh operations
    :imported-members:
    :show-inheritance:
 
+Noise operations
+~~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.noise
+   :members:
+   :imported-members:
+   :inherited-members:
+   :show-inheritance:
+   :exclude-members: __init__, func
+
+Seed operations
+~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.seed
+   :members:
+   :show-inheritance:
+
+Sensor operations
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.sensors
+   :members:
+   :show-inheritance:
+
+String operations
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.string
+   :members:
+   :show-inheritance:
+
 Tensor processors
 ~~~~~~~~~~~~~~~~~
 
@@ -185,37 +216,6 @@ Old imports remain supported and emit ``DeprecationWarning`` with migration inst
    :inherited-members:
    :show-inheritance:
    :exclude-members: __init__, func
-
-Noise operations
-~~~~~~~~~~~~~~~~
-
-.. automodule:: isaaclab.utils.noise
-   :members:
-   :imported-members:
-   :inherited-members:
-   :show-inheritance:
-   :exclude-members: __init__, func
-
-Seed operations
-~~~~~~~~~~~~~~~
-
-.. automodule:: isaaclab.utils.seed
-   :members:
-   :show-inheritance:
-
-Sensor operations
-~~~~~~~~~~~~~~~~~
-
-.. automodule:: isaaclab.utils.sensors
-   :members:
-   :show-inheritance:
-
-String operations
-~~~~~~~~~~~~~~~~~
-
-.. automodule:: isaaclab.utils.string
-   :members:
-   :show-inheritance:
 
 Image operations
 ~~~~~~~~~~~~~~~~

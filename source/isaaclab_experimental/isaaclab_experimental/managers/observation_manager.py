@@ -682,6 +682,7 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
+                term_cfg._migrate_modifiers()
                 # resolve common terms in the config
                 # Warp-first signature is (env, out, **params)
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=2)

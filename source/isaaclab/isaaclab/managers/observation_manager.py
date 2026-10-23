@@ -389,7 +389,7 @@ class ObservationManager(ManagerBase):
         6. Apply delay based on :attr:`ObservationTermCfg.delay_min_lag` and :attr:`ObservationTermCfg.delay_max_lag`
         7. Append the delayed observation to history if requested
 
-        We apply noise to the computed term first to maintain the integrity of how noise affects the data
+        We apply noise before clipping and scaling to maintain the integrity of how noise affects the data
         as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
         could be artificially constrained or amplified, which might misrepresent how noise naturally occurs
         in the data.
@@ -419,7 +419,7 @@ class ObservationManager(ManagerBase):
         term_cfgs = self._group_obs_term_cfgs[group_name]
         obs_terms = zip(group_term_names, term_cfgs)
 
-        # evaluate terms: compute, add noise, clip, scale, custom tensor_processors
+        # evaluate terms: compute, apply custom tensor processors, add noise, clip, scale
         for term_name, term_cfg in obs_terms:
             output_spec = self._term_output_specs.get((group_name, term_name))
             owned = output_spec is not None
@@ -569,7 +569,7 @@ class ObservationManager(ManagerBase):
 
         self._group_obs_term_delay_buffer: dict[str, dict[str, DelayBuffer]] = {}
         self._group_obs_term_history_buffer: dict[str, dict] = {}
-        # create a list to store classes instances, e.g., for tensor_processors and noise models
+        # create a list to store class instances, e.g., for tensor processors and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
         self._group_obs_class_instances: list[tensor_processors.TensorProcessor | noise.NoiseModel] = []
 
@@ -647,6 +647,7 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
+                term_cfg._migrate_modifiers()
                 term_cfg.validate_config()
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)

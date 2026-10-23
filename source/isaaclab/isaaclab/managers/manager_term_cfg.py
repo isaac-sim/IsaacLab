@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any, Literal
@@ -236,6 +237,14 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
 
+    modifiers: list[TensorProcessorCfg] | None = None
+    """Deprecated alias for :attr:`tensor_processors`, to be removed in a future release.
+
+    During manager initialization, a non-None value emits a :class:`FutureWarning`, is forwarded
+    to :attr:`tensor_processors`, and is cleared from this field. Set only one of the two fields;
+    providing both raises :class:`ValueError`, even for empty lists.
+    """
+
     def validate_config(self):
         """Validate observation delay bounds."""
         if type(self.delay_min_lag) is not int or type(self.delay_max_lag) is not int:
@@ -244,6 +253,21 @@ class ObservationTermCfg(ManagerTermBaseCfg):
             raise ValueError("Observation delay requires 0 <= delay_min_lag <= delay_max_lag.")
         if not 0.0 <= self.delay_hold_prob <= 1.0:
             raise ValueError("delay_hold_prob must be in [0, 1].")
+
+    def _migrate_modifiers(self) -> None:
+        """Normalize the deprecated field after user edits and before manager preparation."""
+        if self.modifiers is None:
+            return
+        if self.tensor_processors is not None:
+            raise ValueError("Set only one of 'modifiers' and 'tensor_processors'.")
+        warnings.warn(
+            "ObservationTermCfg.modifiers is deprecated and will be removed in a future release."
+            " Use ObservationTermCfg.tensor_processors instead.",
+            FutureWarning,
+            stacklevel=5,
+        )
+        self.tensor_processors = self.modifiers
+        self.modifiers = None
 
 
 @configclass

@@ -11,6 +11,7 @@ from __future__ import annotations
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 from collections import namedtuple
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -872,19 +873,55 @@ def test_class_tensor_processor_roundtrip_preserves_func_and_params():
     assert prepared_tensor_processor_cfg.func.reset_count == 1
 
 
-def test_stateless_tensor_processor_cfg_roundtrip_preserves_signature_validation():
-    """Serialized function processors retain their parameters and compute observations."""
+@pytest.mark.parametrize("configuration", ["current", "legacy_constructor", "legacy_assignment", "legacy_warp"])
+def test_stateless_tensor_processor_cfg_roundtrip_preserves_signature_validation(configuration):
+    """Current and deprecated processor fields preserve parameters and compute observations."""
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
-    cfg.policy.dummy.tensor_processors = [
-        tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 2.0})
-    ]
-    update_from_dict(cfg, to_dict(cfg))
+    manager_type = ObservationManager
+    processors = [tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 2.0})]
+    if configuration == "current":
+        cfg.policy.dummy.tensor_processors = processors
+    elif configuration == "legacy_constructor":
+        cfg.policy.dummy = ObservationTermCfg(func=dummy_observation, modifiers=processors)
+    elif configuration == "legacy_assignment":
+        cfg.policy.dummy.modifiers = processors
+    else:
+        from isaaclab_experimental.managers import ObservationManager as WarpObservationManager
+        from isaaclab_experimental.utils import tensor_processors as warp_processors
+
+        def warp_observation(env, out, out_dim):
+            out.assign(env.observation.numpy().reshape(-1))
+
+        manager_type = WarpObservationManager
+        cfg.policy.dummy = ObservationTermCfg(func=warp_observation, params={"out_dim": 1})
+        cfg.policy.dummy.modifiers = [
+            warp_processors.TensorProcessorCfg(func=warp_processors.bias, params={"value": 2.0})
+        ]
+    if configuration != "legacy_warp":
+        update_from_dict(cfg, to_dict(cfg))
 
     env = DummyEnv()
-    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    warning = (
+        nullcontext()
+        if configuration == "current"
+        else pytest.warns(FutureWarning, match=r"ObservationTermCfg\.modifiers.*tensor_processors")
+    )
+    with warning as recorded:
+        manager = manager_type(cfg, cast("ManagerBasedEnv", env))
+    if recorded is not None:
+        assert recorded[0].filename == __file__
     observations = manager.compute()["policy"]
     torch.testing.assert_close(observations, env.observation + 2.0)
+
+
+def test_observation_rejects_conflicting_processor_fields():
+    """Neither processor field silently overrides the other, even for empty lists."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.dummy.modifiers = []
+    cfg.policy.dummy.tensor_processors = []
+    with pytest.raises(ValueError, match="Set only one of 'modifiers' and 'tensor_processors'"):
+        ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))
 
 
 def test_class_tensor_processor_validates_constructed_instance():

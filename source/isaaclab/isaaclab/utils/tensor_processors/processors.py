@@ -62,7 +62,7 @@ def bias(data: torch.Tensor, value: float) -> torch.Tensor:
 
 
 ##
-# Sample of class based tensor_processors
+# Sample of class based tensor processors
 ##
 
 
