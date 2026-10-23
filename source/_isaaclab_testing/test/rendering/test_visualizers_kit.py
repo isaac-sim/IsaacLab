@@ -157,7 +157,7 @@ def test_visualizer_images_and_motion(scene, mode, physics, request, caplog, cap
             for _ in range(3):
                 kit.step(0.0)
                 kit.render_rgb_array()
-                visualizer.current_image_view.camera.update(0.0, force_recompute=True)
+                visualizer.current_image_view.camera.update(runtime.sim.get_rendering_dt(), force_recompute=True)
             visualizer.current_image_view.invalidate()
             return visualizer.render_tiled_rgb_array().copy()
 

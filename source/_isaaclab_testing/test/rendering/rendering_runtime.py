@@ -54,7 +54,7 @@ class RenderingScene:
     def render_camera(self) -> None:
         """Render and refresh the camera without advancing physics."""
         self.sim.render()
-        self.camera.update(0.0, force_recompute=True)
+        self.camera.update(self.sim.get_rendering_dt(), force_recompute=True)
 
     def stabilize_camera(self, render_updates: int = 5) -> None:
         """Prime renderer history without advancing physics."""

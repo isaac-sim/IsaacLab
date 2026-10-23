@@ -39,6 +39,15 @@ _NO_SSIM = {
     RenderBufferKind.MOTION_VECTORS,
 }
 _ALPHA_ONLY_AOVS = {RenderBufferKind.INSTANCE_SEGMENTATION, RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST}
+# Class colors in the synthetic scene's references; OVRTX's runtime IDs may arrive in another order.
+_OVRTX_SEMANTIC_COLORS = {
+    "ground": (27, 186, 239, 255),
+    "robot": (240, 4, 111, 255),
+    "moving_cube": (33, 243, 3, 255),
+    "table": (220, 179, 62, 255),
+    "cylinder": (97, 5, 219, 255),
+    "sphere": (15, 238, 97, 255),
+}
 
 
 def run_rendering_case(
@@ -177,6 +186,9 @@ def run_rendering_case(
                 scene.expected_instances,
                 min_semantic_pixels=scene.min_semantic_pixels,
                 exact_instance_metadata=case.renderer != "newton_warp",
+                semantic_colors=(
+                    _OVRTX_SEMANTIC_COLORS if case.scene == "rendering_scene" and case.renderer == "ovrtx" else None
+                ),
             )
         failures = []
         for aov in case.golden_aovs:
@@ -207,7 +219,9 @@ def validate_segmentation(
     *,
     min_semantic_pixels: dict[str, int] | None = None,
     exact_instance_metadata: bool = True,
+    semantic_colors: dict[str, tuple[int, int, int, int]] | None = None,
 ) -> None:
+    """Check label coverage and optionally recolor semantic output into the reference palette."""
     min_semantic_pixels = min_semantic_pixels or {}
     required_labels = frozenset(expected_instances.values())
     semantic = outputs.get(RenderBufferKind.SEMANTIC_SEGMENTATION)
@@ -217,6 +231,8 @@ def validate_segmentation(
         assert metadata is not None and "idToLabels" in metadata
         id_to_labels = metadata["idToLabels"]
         channels = min(semantic.shape[-1], 4)
+        canonical = semantic.clone() if semantic_colors is not None else None
+        normalized = semantic.is_floating_point() and semantic.max().item() <= 1.0
         for label in required_labels:
             colors = [
                 key for key, entry in id_to_labels.items() if isinstance(entry, dict) and entry.get("class") == label
@@ -226,9 +242,13 @@ def validate_segmentation(
             for value in colors:
                 value = ast.literal_eval(value) if isinstance(value, str) else value
                 color = torch.tensor(value[:channels], device=semantic.device, dtype=semantic.dtype)
-                if semantic.is_floating_point() and semantic.max().item() <= 1.0:
+                if normalized:
                     color = color / 255.0
-                rendered_pixels += int(torch.all(semantic[..., :channels] == color, dim=-1).sum().item())
+                mask = torch.all(semantic[..., :channels] == color, dim=-1)
+                rendered_pixels += int(mask.sum().item())
+                if canonical is not None:
+                    color = semantic.new_tensor(semantic_colors[label][:channels])
+                    canonical[mask] = color / 255.0 if normalized else color
             assert rendered_pixels, f"The semantic output does not contain required label {label!r}."
             if label in min_semantic_pixels:
                 minimum = min_semantic_pixels[label]
@@ -242,6 +262,8 @@ def validate_segmentation(
             if isinstance(entry, dict) and "class" in entry and entry["class"] not in {"BACKGROUND", "UNLABELLED"}
         }
         assert labels == required_labels, f"Semantic labels differ: expected {required_labels}, got {labels}."
+        if canonical is not None:
+            outputs[RenderBufferKind.SEMANTIC_SEGMENTATION] = canonical
 
     instance = outputs.get(RenderBufferKind.INSTANCE_SEGMENTATION)
     if instance is None:

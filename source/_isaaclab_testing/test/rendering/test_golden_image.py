@@ -108,7 +108,7 @@ def test_update_mode_overwrites_and_passes(tmp_path: Path, monkeypatch: pytest.M
     assert Image.open(golden).getpixel((0, 0)) == (0, 255, 0)
 
 
-def test_semantic_segmentation_enforces_minimum_visible_area() -> None:
+def test_semantic_segmentation_labels_and_visible_area() -> None:
     kind = RenderBufferKind.SEMANTIC_SEGMENTATION
     table, background = (153, 74, 33, 255), (0, 0, 0, 0)
     outputs = {kind: torch.tensor([background, table], dtype=torch.uint8).reshape(1, 1, 2, 4)}
@@ -118,6 +118,22 @@ def test_semantic_segmentation_enforces_minimum_visible_area() -> None:
     validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 1})
     with pytest.raises(AssertionError, match="visible pixels"):
         validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 2})
+
+    # Numeric IDs may change, but each class must retain its spatial mask.
+    robot = (246, 184, 59, 255)
+    palette = {"table": table, "robot": robot}
+    expected["/World/Robot"] = "robot"
+    reference = torch.tensor([background, table, robot], dtype=torch.uint8).reshape(1, 1, 3, 4)
+    renumbered = torch.tensor([background, robot, table], dtype=torch.uint8).reshape(1, 1, 3, 4)
+    info[kind]["idToLabels"] = {robot: {"class": "table"}, table: {"class": "robot"}}
+    outputs[kind] = renumbered.clone()
+    validate_segmentation(outputs, info, expected, semantic_colors=palette)
+    assert torch.equal(outputs[kind], reference)
+
+    outputs[kind] = renumbered
+    info[kind]["idToLabels"] = {robot: {"class": "robot"}, table: {"class": "table"}}
+    validate_segmentation(outputs, info, expected, semantic_colors=palette)
+    assert not torch.equal(outputs[kind], reference)
 
 
 def _instance_segmentation_data():
