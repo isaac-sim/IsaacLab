@@ -88,7 +88,8 @@ Teleoperation
 
 Isaac Lab supports teleoperation of robots through a variety of input devices including keyboard, SpaceMouse, and XR headsets.
 
-Run the following command to spin up the environment and teleoperate the robot using the keyboard. Familiarize yourself
+Run the following command to spin up the environment and teleoperate the robot using the keyboard: click the
+visualizer window and type (see :ref:`isaac-teleop-keyboard`). Familiarize yourself
 with the controls and perform the stacking task. The order of the stacked cubes should be blue (bottom), red (middle), green (top).
 Once you feel sufficiently comfortable with the controls, you may shutdown
 the environment by quitting the script with Ctrl+C.
@@ -145,12 +146,15 @@ the key bindings are:
       Move arm along z-axis: Push or pull the SpaceMouse
       Rotate arm: Twist the SpaceMouse
 
+.. _isaac-teleop-spacemouse-permissions:
+
 .. tip::
 
-   If the SpaceMouse is not detected, you most likely need additional user permissions. The ``hidapi``
-   wheel installed by Isaac Lab bundles a backend that talks to the device over ``libusb``, so it needs
-   read and write access to the USB node under ``/dev/bus/usb`` -- granting access to ``/dev/hidraw*``
-   alone is **not** sufficient, and without USB access the device is enumerated without a product name.
+   If the SpaceMouse is not detected, you most likely need additional user permissions. Isaac Capture
+   reads the SpaceMouse from its HID node (``/dev/hidraw*``). Without the ``isaacteleop`` package, the
+   :class:`~isaaclab.devices.Se3SpaceMouse` reads it through the ``hidapi`` wheel's ``libusb``
+   backend instead, which needs read and write access to the USB node under ``/dev/bus/usb``; without
+   it the device is enumerated without a product name. The rule below grants both.
 
    Grant the permission by installing a udev rule for the 3Dconnexion vendor id:
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -52,6 +53,11 @@ class Se2SpaceMouse(DeviceBase):
         Args:
             cfg: Configuration for the spacemouse device.
         """
+        warnings.warn(
+            "Se2SpaceMouse is deprecated. Please use isaaclab_teleop.se2_spacemouse_teleop_cfg instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # listener thread, started once the device is found
         self._thread = None
         # store inputs

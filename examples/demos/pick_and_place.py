@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 from collections.abc import Sequence
 
 import torch
@@ -45,7 +46,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, index_fill_, instantiate, replace
 from isaaclab.utils.math import sample_uniform
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, add_key_callbacks
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
@@ -326,30 +327,46 @@ def main() -> None:
         pick_and_place.reset()
         actions = torch.zeros((pick_and_place.num_envs, 4), device=pick_and_place.device)
         teleop = None
+        teleop_device = contextlib.ExitStack()
         if pick_and_place.sim.has_gui:
             teleop_cfg = Se3KeyboardCfg(pos_sensitivity=10.0, sim_device=pick_and_place.device)
-            teleop = instantiate(teleop_cfg)
-            teleop.add_callback("N", lambda: pick_and_place.auto_aim(cube=True))
-            teleop.add_callback("M", lambda: pick_and_place.auto_aim(cube=False))
+            try:
+                from isaaclab_teleop.script_input import open_teleop_device
+            except ImportError:  # without the teleop or mimic extra
+                teleop = instantiate(teleop_cfg)
+            else:
+                teleop = teleop_device.enter_context(open_teleop_device(teleop_cfg))
+            add_key_callbacks(
+                {"N": lambda: pick_and_place.auto_aim(cube=True), "M": lambda: pick_and_place.auto_aim(cube=False)}
+            )
             print(teleop)
             print("Pick up the purple cube and drop it on the red sphere, in ALL environments at once.")
             print("\tW/S and A/D move the gantries, Q/E latch them UP/DOWN, K toggles the grippers.")
             print("\tN/M make the grippers track the cube/target position.")
         step_count = 0
+        teleop_active = True
         try:
             while pick_and_place.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
-                if teleop is not None:
-                    cmd = teleop.advance()
+                cmd = teleop.advance() if teleop is not None else None
+                # P / B pause and resume an Isaac Capture device; paused, the scene renders without stepping
+                events = getattr(teleop, "last_control_events", None)
+                if events is not None and events.is_active is not None:
+                    teleop_active = events.is_active
+                if not teleop_active:
+                    pick_and_place.sim.render()
+                    continue
+                if cmd is not None:
                     actions[:, :2] = cmd[:2]
                     # Latch the gantry height effort; the z joint moves up for negative effort
                     if cmd[2] != 0:
                         actions[:, 2] = -200.0 if cmd[2] > 0 else 100.0
-                    # Se3Keyboard reports +1 for open, the surface gripper uses -1 for open
+                    # the keyboard reports +1 for open, the surface gripper uses -1 for open
                     actions[:, 3] = -cmd[6]
                 with torch.inference_mode():
                     pick_and_place.step(actions)
                 step_count += 1
         finally:
+            teleop_device.close()
             pick_and_place.close()
 
 

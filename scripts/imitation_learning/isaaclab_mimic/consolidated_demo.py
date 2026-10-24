@@ -180,25 +180,29 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
         return torch.concat([delta_pose, gripper_vel], dim=1)
 
 
+def teleop_device_cfg():
+    """The ``--teleop_device`` config; imported once the simulation is launched."""
+    from isaaclab.devices import Se3KeyboardCfg, Se3SpaceMouseCfg
+
+    device_cfgs = {
+        "keyboard": Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
+        "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
+    }
+    device_cfg = device_cfgs.get(args_cli.teleop_device.lower())
+    if device_cfg is None:
+        raise ValueError(f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'.")
+    return device_cfg
+
+
 async def run_teleop_robot(
-    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface=None
+    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface
 ):
     """Run teleop robot."""
+    from isaaclab_teleop import poll_control_events
+
     global num_recorded
     should_reset_teleop_instance = False
-    # create controller if needed
-    if teleop_interface is None:
-        # the teleop devices need the Kit runtime, which is running by the time this coroutine executes
-        from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
-
-        if args_cli.teleop_device.lower() == "keyboard":
-            teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-        elif args_cli.teleop_device.lower() == "spacemouse":
-            teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-        else:
-            raise ValueError(
-                f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'."
-            )
+    teleop_active = True
 
     # add teleoperation key for reset current recording instance
     def reset_teleop_instance():
@@ -223,10 +227,18 @@ async def run_teleop_robot(
             should_reset_teleop_instance = False
             success_step_count = 0
 
-        # get keyboard command
-        delta_pose, gripper_command = teleop_interface.advance()
-        # convert to torch
-        delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(1, 1)
+        # get the device command [dx, dy, dz, drx, dry, drz, gripper]; every env submits one action per
+        # round (see env_loop), so hold still with the gripper open while an Isaac Capture session starts
+        # or is paused (P / B pause and resume it)
+        action = teleop_interface.advance()
+        ctrl = poll_control_events(teleop_interface)
+        if ctrl.is_active is not None:
+            teleop_active = ctrl.is_active
+        if action is None or not teleop_active:
+            action = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        delta_pose = action[:6].to(dtype=torch.float, device=env.device).repeat(1, 1)
+        # the gripper value is +1 to open and -1 to close; pre_process_actions takes "close" as True
+        gripper_command = bool(action[6] < 0)
         # compute actions based on environment
         teleop_action = pre_process_actions(delta_pose, gripper_command)
 
@@ -440,6 +452,14 @@ def run_consolidated_demo(env_cfg, success_term):
         shared_datagen_info_pool.load_from_dataset_file(args_cli.input_file)
         print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")
 
+    # the teleoperated env's device, closed after the env loop
+    teleop_device = contextlib.ExitStack()
+    teleop_interface = None
+    if args_cli.teleop_env_index is not None:
+        from isaaclab_teleop.script_input import open_teleop_device
+
+        teleop_interface = teleop_device.enter_context(open_teleop_device(teleop_device_cfg()))
+
     # make data generator object
     data_generator_asyncio_tasks = []
     for i in range(num_envs):
@@ -447,7 +467,13 @@ def run_consolidated_demo(env_cfg, success_term):
             data_generator_asyncio_tasks.append(
                 asyncio_event_loop.create_task(
                     run_teleop_robot(
-                        env, i, env_action_queue, shared_datagen_info_pool, success_term, args_cli.output_file
+                        env,
+                        i,
+                        env_action_queue,
+                        shared_datagen_info_pool,
+                        success_term,
+                        args_cli.output_file,
+                        teleop_interface,
                     )
                 )
             )
@@ -470,7 +496,8 @@ def run_consolidated_demo(env_cfg, success_term):
     except asyncio.CancelledError:
         print("Tasks were cancelled.")
 
-    env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop)
+    with teleop_device:
+        env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop)
 
 
 if __name__ == "__main__":

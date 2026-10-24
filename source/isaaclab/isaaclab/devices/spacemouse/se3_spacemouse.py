@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -61,6 +62,11 @@ class Se3SpaceMouse(DeviceBase):
         Args:
             cfg: Configuration object for space-mouse settings.
         """
+        warnings.warn(
+            "Se3SpaceMouse is deprecated. Please use isaaclab_teleop.se3_spacemouse_teleop_cfg instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity
