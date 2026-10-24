@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+4.2.2 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept tactile queries explicitly invalidated after initialization and reset so reads
+  reflect the current scene state without waiting for another physics step.
+
+
 4.2.1 (2026-10-23)
 ~~~~~~~~~~~~~~~~~~
 

@@ -3,6 +3,18 @@ Changelog
 
 .. towncrier release notes start
 
+7.1.1 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reduced OVRTX scene-export overhead and preserved nested material bindings by retaining clean file-backed USD references and instances during rendering initialization.
+* Refreshed sensor and frame-view kinematics after articulation state writes.
+* Rejected incomplete native sensor bindings instead of shrinking the scene's
+  environment rows and shared scheduling buffers.
+
+
 7.1.0 (2026-10-23)
 ~~~~~~~~~~~~~~~~~~
 

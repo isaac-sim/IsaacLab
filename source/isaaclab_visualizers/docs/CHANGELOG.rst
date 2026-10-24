@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+4.0.1 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Invalidated RTX camera observations explicitly after marker and runtime mesh edits,
+  allowing zero-time visualizer refreshes without advancing sensor sampling clocks.
+
+
 4.0.0 (2026-10-21)
 ~~~~~~~~~~~~~~~~~~
 
