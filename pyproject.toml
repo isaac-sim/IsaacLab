@@ -75,7 +75,8 @@ dependencies = [
     "tensorboard",
     "numba>=0.63.1",
     # ----- rl utilities -----
-    "hydra-core",
+    # rc2 is the tested floor for ConfigStore replace=True; switch to stable 1.4 when released.
+    "hydra-core>=1.4.0rc2",
     "h5py>=3.15.0",
     "packaging",
     "rich",

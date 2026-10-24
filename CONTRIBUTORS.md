@@ -114,6 +114,7 @@ Guidelines for modifications:
 * HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
+* Ivan Wang
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
