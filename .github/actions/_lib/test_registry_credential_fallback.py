@@ -3,12 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the registry-scoped docker credential fallback.
+"""Check registry credentials and image digests with local Docker stubs.
 
-Covers the helper that drops one registry's stored credential and the composite
-action's guards around it, plus the base image digest resolution that feeds the
-dependency-cache key. The action bodies are extracted from their action.yml and
-run under bash against stubbed executables, so no registry access is needed.
+The actions resolve Bash from PATH; compute-deps-hash uses mapfile (Bash 4+).
+On macOS, prepend the directory containing a newer Bash to PATH when running pytest.
 """
 
 from __future__ import annotations
@@ -16,6 +14,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -45,6 +44,8 @@ def _step_body(action_path: Path) -> str:
 
 def _write_config(path: Path, registries: list[str]) -> Path:
     config = {"credsStore": "", "auths": {name: {"auth": "redacted"} for name in registries}}
+    if "nvcr.io" in registries:
+        config["credHelpers"] = {"nvcr.io": "example"}
     path.write_text(json.dumps(config), encoding="utf-8")
     return path
 
@@ -55,9 +56,13 @@ def _auths(path: Path) -> set[str]:
 
 def _write_stub_docker(bin_dir: Path, body: str) -> None:
     bin_dir.mkdir(parents=True, exist_ok=True)
-    script = bin_dir / "docker"
-    script.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
-    script.chmod(0o755)
+    trace = bin_dir.parent / "docker-calls.log"
+    trace.write_text("")
+    body = f"printf '%s\\n' \"$*\" >> {shlex.quote(str(trace))}\n{body}"
+    for name, source in {"docker": body, "sleep": "exit 0"}.items():
+        script = bin_dir / name
+        script.write_text(f"#!/usr/bin/env bash\n{source}\n", encoding="utf-8")
+        script.chmod(0o755)
 
 
 def _run_setup(
@@ -88,7 +93,9 @@ def _run_setup(
     if extra_env:
         env.update(extra_env)
     Path(env["GITHUB_ENV"]).touch()
-    return subprocess.run(["bash", str(body)], env=env, capture_output=True, text=True, check=False)
+    result = subprocess.run(["bash", str(body)], env=env, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    return result
 
 
 # A stub that refuses credentials but serves an anonymous config (empty auths).
@@ -103,23 +110,21 @@ exit 1
 
 
 def test_public_nvcr_drops_only_that_registry(tmp_path: Path) -> None:
-    """The refused nvcr.io credential goes; the push credentials stay."""
     result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS)
-    assert result.returncode == 0, result.stderr
     assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
+    assert not json.loads((tmp_path / "cfg" / "config.json").read_text()).get("credHelpers")
+    assert "::warning::" not in result.stdout
 
 
 def test_non_nvcr_reference_is_left_alone(tmp_path: Path) -> None:
     """A Docker Hub base image keeps its credential, which is also pull-rate budget."""
-    result = _run_setup(tmp_path, "ubuntu:24.04", _DENY_UNLESS_ANONYMOUS)
-    assert result.returncode == 0, result.stderr
+    _run_setup(tmp_path, "ubuntu:24.04", _DENY_UNLESS_ANONYMOUS)
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
 def test_readable_image_keeps_credentials(tmp_path: Path) -> None:
     """A private image the credentials can read must not trigger the fallback."""
-    result = _run_setup(tmp_path, "nvcr.io/example/isaac-sim:latest", "exit 0")
-    assert result.returncode == 0, result.stderr
+    _run_setup(tmp_path, "nvcr.io/example/isaac-sim:latest", "exit 0")
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
@@ -127,7 +132,6 @@ def test_transient_failure_keeps_credentials(tmp_path: Path) -> None:
     """A registry outage is not an authorization refusal, so nothing is dropped."""
     stub = 'echo "error: received unexpected HTTP status: 503" >&2\nexit 1'
     result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", stub)
-    assert result.returncode == 0, result.stderr
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
     assert "::warning::" in result.stdout
 
@@ -141,7 +145,7 @@ def test_transient_anonymous_failure_is_retried(tmp_path: Path) -> None:
     stub = """
 config="${DOCKER_CONFIG:-}/config.json"
 if [ -f "$config" ] && grep -q '"auths":{}' "$config"; then
-  counter=/tmp/il_anon_attempts
+  counter="$ANON_ATTEMPTS"
   n=$(cat "$counter" 2>/dev/null || echo 0)
   n=$((n + 1))
   echo "$n" > "$counter"
@@ -154,19 +158,18 @@ fi
 echo "denied: Access Denied" >&2
 exit 1
 """
-    Path("/tmp/il_anon_attempts").unlink(missing_ok=True)
-    try:
-        result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", stub)
-        assert result.returncode == 0, result.stderr
-        assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
-    finally:
-        Path("/tmp/il_anon_attempts").unlink(missing_ok=True)
+    _run_setup(
+        tmp_path,
+        "nvcr.io/nvidia/isaac-sim:6.2.0",
+        stub,
+        extra_env={"ANON_ATTEMPTS": str(tmp_path / "anonymous-attempts")},
+    )
+    assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
 
 
 def test_unowned_config_is_never_modified(tmp_path: Path) -> None:
     """A config this action did not create belongs to the runner and stays intact."""
-    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS, owned=False)
-    assert result.returncode == 0, result.stderr
+    _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS, owned=False)
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
@@ -178,14 +181,13 @@ def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
     """
     ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
     stub = 'echo "the probe must not run again" >&2\nexit 1'
-    result = _run_setup(
+    _run_setup(
         tmp_path,
         ref,
         stub,
         extra_env={"SETUP_DOCKER_CONFIG_CHECKED_REF": ref},
     )
-    assert result.returncode == 0, result.stderr
-    assert "already checked" in result.stdout
+    assert (tmp_path / "docker-calls.log").read_text() == ""
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
@@ -196,7 +198,7 @@ def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> N
     _write_config(runner_config, ["nvcr.io", _ECR, _HUB])
     removed_config = tmp_path / "removed-config"
     ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
-    result = _run_setup(
+    _run_setup(
         tmp_path,
         ref,
         _DENY_UNLESS_ANONYMOUS,
@@ -207,7 +209,6 @@ def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> N
             "TMPDIR": str(tmp_path),
         },
     )
-    assert result.returncode == 0, result.stderr
     updates = dict(line.split("=", 1) for line in (tmp_path / "github-env").read_text().splitlines())
     recreated_config = Path(updates["DOCKER_CONFIG"]) / "config.json"
     assert _auths(recreated_config) == {_ECR, _HUB}
@@ -217,7 +218,6 @@ def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> N
 def test_registry_host_canonicalization() -> None:
     """Case, port, and Docker Hub spellings resolve to one registry identity."""
     helper = _load_helper()
-    assert helper.registry_host("nvcr.io/nvidia/isaac-sim:6.2.0") == "nvcr.io"
     assert helper.registry_host("NVCR.IO/nvidia/isaac-sim:6.2.0") == "nvcr.io"
     assert helper.registry_host("nvcr.io:443/nvidia/isaac-sim:6.2.0") == "nvcr.io"
     assert helper.registry_host("ubuntu:24.04") == "index.docker.io"
@@ -238,93 +238,85 @@ def test_helper_reports_when_nothing_matched(tmp_path: Path) -> None:
     assert _auths(config) == {_ECR}
 
 
-def test_helper_also_clears_credential_helpers(tmp_path: Path) -> None:
-    """A credHelpers entry would re-supply the credential, so it goes too."""
-    config = tmp_path / "config.json"
-    config.write_text(
-        json.dumps({"credHelpers": {"nvcr.io": "example"}, "auths": {"nvcr.io": {"auth": "redacted"}}}),
-        encoding="utf-8",
-    )
-    result = subprocess.run(
-        ["python3", str(_STRIP_HELPER), str(config), "nvcr.io/nvidia/isaac-sim:6.2.0"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    written = json.loads(config.read_text(encoding="utf-8"))
-    assert not written.get("auths")
-    assert not written.get("credHelpers")
-
-
-def _run_hash(tmp_path: Path, image: str, version: str, stub: str) -> subprocess.CompletedProcess:
+def _run_hash(
+    tmp_path: Path, image: str, version: str, stub: str
+) -> tuple[subprocess.CompletedProcess, dict[str, str]]:
     bin_dir = tmp_path / "bin"
     _write_stub_docker(bin_dir, stub)
-    body = _step_body(_HASH_ACTION)
-    marker = 'case "${ISAACSIM_VERSION}" in'
-    lines = body.splitlines()
-    start = next(index for index, line in enumerate(lines) if marker in line)
-    end = next(index for index, line in enumerate(lines) if "base_image_uniq_id=" in line)
-    script = tmp_path / "digest.sh"
-    script.write_text(
-        "\n".join(lines[start : end + 1]) + '\necho "RESULT=${base_image_uniq_id}"\n',
-        encoding="utf-8",
-    )
+    checkout = tmp_path / "checkout"
+    if not checkout.exists():
+        checkout.mkdir()
+        subprocess.run(["git", "init", "--quiet", str(checkout)], check=True, capture_output=True)
+        (checkout / "Dockerfile").write_text("FROM scratch\n")
+        subprocess.run(["git", "add", "Dockerfile"], cwd=checkout, check=True, capture_output=True)
+    script = tmp_path / "hash.sh"
+    script.write_text(_step_body(_HASH_ACTION), encoding="utf-8")
+    output = tmp_path / "github-output"
+    output.write_text("")
     env = {
         "PATH": f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+        "DOCKERFILE_PATH": "Dockerfile",
         "ISAACSIM_BASE_IMAGE": image,
         "ISAACSIM_VERSION": version,
+        "TARGET_PLATFORM": "linux/amd64",
+        "GITHUB_OUTPUT": str(output),
     }
-    return subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True, check=False)
+    result = subprocess.run(["bash", str(script)], cwd=checkout, env=env, capture_output=True, text=True, check=False)
+    return result, dict(line.split("=", 1) for line in output.read_text().splitlines())
 
 
 def test_digest_pinned_tag_skips_the_network(tmp_path: Path) -> None:
-    """A tag that already carries a digest is its own cache identity."""
-    stub = 'echo "the manifest read must not run" >&2\nexit 1'
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", f"latest-develop@{_DIGEST}", stub)
-    assert result.returncode == 0, result.stderr
-    assert f"RESULT=nvcr.io/example/isaac-sim:latest-develop@{_DIGEST}:{_DIGEST}" in result.stdout
+    hashes = []
+    for digest in (_DIGEST, "sha256:" + "b" * 64):
+        result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", f"latest-develop@{digest}", "exit 1")
+        assert result.returncode == 0, result.stderr
+        hashes.append(output["hash"])
+        assert (tmp_path / "docker-calls.log").read_text() == ""
+    assert hashes[0] != hashes[1]
 
 
 def test_malformed_digest_pin_fails(tmp_path: Path) -> None:
-    """A malformed pin must not reach the cache key."""
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest@sha256:short", "exit 0")
+    result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest@sha256:short", "exit 0")
     assert result.returncode == 1
     assert "malformed digest pin" in result.stdout
+    assert output == {}
 
 
 def test_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
-    """An authorization refusal will not clear on its own, so it fails immediately."""
     stub = 'echo "denied: Access Denied" >&2\nexit 1'
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
+    result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
     assert "cannot be read with the credentials available" in result.stdout
-    assert "attempt 2/" not in result.stdout
+    calls = (tmp_path / "docker-calls.log").read_text().splitlines()
+    assert len(calls) == 1
+    assert calls[0].startswith("buildx imagetools inspect ")
+    assert output == {}
 
 
 def test_truncated_digest_is_rejected(tmp_path: Path) -> None:
-    """A value that merely starts with sha256: is not a digest and must not be accepted.
-
-    This distinguishes an exact-format check from a prefix check: a prefix check
-    would accept the value below and fold it into the dependency-cache key.
-    """
     stub = "echo '\"sha256:abc123\"'"
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
+    result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
-    assert "RESULT=" not in result.stdout
+    assert output == {}
 
 
 def test_trailing_output_after_a_digest_is_rejected(tmp_path: Path) -> None:
-    """Extra stdout alongside a well-formed digest must not reach the cache key."""
     stub = f"echo '\"{_DIGEST} unexpected\"'"
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
+    result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
-    assert "RESULT=" not in result.stdout
+    assert output == {}
 
 
 def test_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
-    """A warning emitted alongside a good digest is not concatenated into it."""
-    stub = f'echo "buildx warning" >&2\necho \'"{_DIGEST}"\''
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
-    assert result.returncode == 0, result.stderr
-    assert f"RESULT=nvcr.io/example/isaac-sim:latest-release-6-2:{_DIGEST}" in result.stdout
+    hashes = []
+    for digest, warning in (
+        (_DIGEST, ""),
+        (_DIGEST, 'echo "buildx warning" >&2\n'),
+        ("sha256:" + "b" * 64, 'echo "buildx warning" >&2\n'),
+    ):
+        stub = warning + f"echo '\"{digest}\"'"
+        result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
+        assert result.returncode == 0, result.stderr
+        hashes.append(output["hash"])
+    assert hashes[0] == hashes[1]
+    assert hashes[1] != hashes[2]

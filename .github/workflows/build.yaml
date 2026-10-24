@@ -4,14 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Docker builds and their dependent tests run only on a labeled PR event, a push to a protected
-# branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
-# GitHub treats skipped required jobs as successful status checks.
-#
-# GitHub cannot filter label names at trigger time, so adding any label to a PR
-# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
-# other label events queue behind it so that a triage label cannot cancel a
-# build whose required checks have already been reported.
+# Any label starts a run because GitHub cannot filter label names at trigger time.
+# Ordinary label events queue to avoid cancelling builds with reported required checks.
 #
 # Pushes to protected branches still run the post-merge integration tests.
 #
@@ -61,11 +55,13 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
     branches:
       - main
       - develop
       - 'release/**'
+      - codex/performance-ci-activation
+      - codex/performance-source-verification
   workflow_dispatch:
 
 # Concurrency control to prevent parallel runs on the same PR
@@ -73,7 +69,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Push and workflow_dispatch events carry no label, so this stays false for them and
   # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
@@ -91,9 +87,35 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      issues: read
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
+      activated: ${{ steps.activation.outputs.activated }}
     steps:
+    - name: Check PR update activation
+      id: activation
+      continue-on-error: true
+      timeout-minutes: 5
+      uses: actions/github-script@v9
+      with:
+        script: |
+          // Label history preserves activation after run-ci removes its triggering label.
+          core.setOutput('activated', 'false');
+          if (context.eventName !== 'pull_request' || context.payload.action !== 'synchronize') {
+            core.setOutput('activated', 'true');
+            return;
+          }
+          for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
+            ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
+            request: {timeout: 60000},
+          })) {
+            // GITHUB_TOKEN labeler events cannot trigger another workflow.
+            if (response.data.some(event => event.event === 'labeled'
+                && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
+              core.setOutput('activated', 'true');
+              return;
+            }
+          }
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -195,10 +217,16 @@ jobs:
   #region build jobs
   build:
     name: Build Base Docker Image
-    runs-on: [self-hosted, gpu]
+    # Fail the build check when activation is missing so an untested PR cannot merge.
+    runs-on: ${{ fromJSON(needs.changes.outputs.activated == 'true' && '["self-hosted", "gpu"]' || '["ubuntu-latest"]') }}
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     steps:
+    - name: Explain missing PR activation
+      if: needs.changes.outputs.activated != 'true'
+      run: |
+        echo '::error::Docker CI has not been activated, or prior activation could not be verified. Apply a label or use the existing run-ci command. No GPU build or benchmark was started.'
+        exit 1
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
@@ -230,6 +258,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
+      needs.changes.outputs.activated == 'true' &&
       needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
@@ -978,9 +1007,15 @@ jobs:
         chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
 
         container=""
+        benchmark_pid=""
         cleanup_container() {
           if [ -n "$container" ]; then
             docker rm -f "$container" >/dev/null 2>&1 || true
+          fi
+          if [ -n "$benchmark_pid" ]; then
+            kill "$benchmark_pid" 2>/dev/null || true
+            wait "$benchmark_pid" 2>/dev/null || true
+            benchmark_pid=""
           fi
         }
         trap cleanup_container EXIT
@@ -1006,8 +1041,12 @@ jobs:
               --seed 42 \
               --benchmark_formatter schema \
               --output_path /tmp/benchmark-output \
-              $args"
+              $args" &
+          benchmark_pid=$!
+          # Bash can run cancellation traps while waiting with its builtin wait.
+          wait "$benchmark_pid"
           local status=$?
+          benchmark_pid=""
           docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
           cleanup_container
           container=""
