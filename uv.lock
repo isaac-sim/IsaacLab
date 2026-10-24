@@ -886,6 +886,18 @@ nvtx = [
 ]
 
 [[package]]
+name = "cupy-cuda12x"
+version = "14.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cuda-pathfinder" },
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/5b/65124de2dbaf2e85109f611a41947e39acd6dd938751c04b4c4d7bf6fc82/cupy_cuda12x-14.2.0-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:f82141761f2c81905d49387464ae29438887956d99063381c93a1d5d1b7d32e8", size = 136111459, upload-time = "2026-08-20T02:40:04.909Z" },
+]
+
+[[package]]
 name = "cycler"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1747,6 +1759,40 @@ wheels = [
 ]
 
 [[package]]
+name = "isaaccapture"
+version = "1.7.44a1"
+source = { registry = "https://pypi.nvidia.com/" }
+dependencies = [
+    { name = "isaacteleop" },
+    { name = "numpy" },
+    { name = "pyyaml" },
+]
+wheels = [
+    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.44a1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:bba80a67891474bc2cf9ddc4b6b0bd6ea78977f8d4d5cf38c4e7f2aae02c781c" },
+]
+
+[package.optional-dependencies]
+cloudxr = [
+    { name = "cryptography" },
+    { name = "cupy-cuda12x" },
+    { name = "pillow" },
+    { name = "websockets" },
+]
+retargeters = [
+    { name = "cmeel-tinyxml2" },
+    { name = "cmeel-urdfdom" },
+    { name = "dex-retargeting" },
+    { name = "nlopt" },
+    { name = "pin" },
+    { name = "pyyaml" },
+    { name = "scipy" },
+    { name = "torch" },
+]
+ui = [
+    { name = "imgui", extra = ["glfw"] },
+]
+
+[[package]]
 name = "isaaclab"
 version = "41.0.3"
 source = { editable = "source/isaaclab" }
@@ -1959,9 +2005,9 @@ skrl-jax = [
 ]
 teleop = [
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "isaaccapture", extra = ["cloudxr", "retargeters", "ui"], marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
     { name = "isaaclab-mimic" },
     { name = "isaaclab-teleop" },
-    { name = "isaacteleop", extra = ["cloudxr", "retargeters", "ui"], marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
 ]
 test = [
     { name = "coverage" },
@@ -2015,6 +2061,7 @@ requires-dist = [
     { name = "hydra-core" },
     { name = "imgui-bundle", specifier = ">=1.92.5" },
     { name = "ipywidgets", marker = "extra == 'mimic'", specifier = ">=8.1.5" },
+    { name = "isaaccapture", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.7.44a1" },
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
@@ -2035,7 +2082,6 @@ requires-dist = [
     { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
     { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.2.0.0" },
     { name = "isaacsim-asset-isolated", marker = "extra == 'importers'", specifier = "==6.2.0.0" },
-    { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.145" },
     { name = "jax", extras = ["cuda13"], marker = "sys_platform == 'linux' and extra == 'skrl-jax'" },
     { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
@@ -2743,33 +2789,13 @@ wheels = [
 
 [[package]]
 name = "isaacteleop"
-version = "1.4.145"
+version = "1!1.7.44a1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
-    { name = "numpy" },
-    { name = "pyyaml" },
+    { name = "isaaccapture" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacteleop/isaacteleop-1.4.145-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:b18b210535b28516593bb6e85ffb70a6e8265d9547365c818e38920184ee7b40" },
-]
-
-[package.optional-dependencies]
-cloudxr = [
-    { name = "cryptography" },
-    { name = "websockets" },
-]
-retargeters = [
-    { name = "cmeel-tinyxml2" },
-    { name = "cmeel-urdfdom" },
-    { name = "dex-retargeting" },
-    { name = "nlopt" },
-    { name = "pin" },
-    { name = "pyyaml" },
-    { name = "scipy" },
-    { name = "torch" },
-]
-ui = [
-    { name = "imgui", extra = ["glfw"] },
+    { url = "https://pypi.nvidia.com/isaacteleop/isaacteleop-1%211.7.44a1-py3-none-any.whl", hash = "sha256:d09008a3ece5ae4e2debb9b7f0fa8a58aaa4632c9f025c487bfbf946dd2829f8" },
 ]
 
 [[package]]
