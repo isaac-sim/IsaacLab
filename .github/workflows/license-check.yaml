@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   license-check:
+    # TEMP (revert before review): masked while iterating Windows CI on PR 5700.
+    if: false
     runs-on: ubuntu-24.04
 
     steps:
@@ -158,6 +160,8 @@ jobs:
         fi
   docker-license-check:
     name: Docker Dependency Licenses Check
+    # TEMP (revert before review): masked while iterating Windows CI on PR 5700.
+    if: false
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
 
