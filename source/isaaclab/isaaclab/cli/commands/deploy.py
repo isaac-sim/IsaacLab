@@ -39,6 +39,12 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
     parser.add_argument("--task", required=True, help="Name of the registered Isaac Lab task.")
     parser.add_argument("--pipeline", required=True, help="Path to the exported LEAPP YAML pipeline description.")
     parser.add_argument("--seed", type=int, default=None, help="Seed for the environment.")
+    parser.add_argument(
+        "--max_steps",
+        type=int,
+        default=-1,
+        help="Maximum policy steps to run, or -1 to continue until simulation stops.",
+    )
     add_launcher_args(parser)
 
     if argv is None:
@@ -49,7 +55,7 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
     sys.argv = [original_argv[0]] + hydra_args
     try:
         task_name = args_cli.task.split(":")[-1]
-        env_cfg, _ = resolve_task_config(task_name, "")
+        env_cfg, _ = resolve_task_config(task_name, "", play_mode=True)
 
         if args_cli.seed is not None:
             env_cfg.seed = args_cli.seed
@@ -61,24 +67,30 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
             # imported after the simulation runtime has started.
             from ...envs import LeappDeploymentEnv
 
-            env = LeappDeploymentEnv(env_cfg, args_cli.pipeline)
+            env = LeappDeploymentEnv(
+                env_cfg,
+                args_cli.pipeline,
+                controller_owned_write_handlers=LeappDeploymentEnv.simulated_controller_owned_write_handlers(),
+            )
 
-            if getattr(args_cli, "headless", False):
-                logger.warning(
-                    "Running deploy without a viewport. This happens when headless mode is active, "
-                    "including the default case where no visualizer was selected. The policy may be "
-                    "stepping normally, but no viewport will appear unless you specify the "
-                    "`--visualizer` field."
-                )
-
-            logger.info(f"Deploying task '{task_name}' with LEAPP pipeline: {args_cli.pipeline}")
-            logger.info(f"Num envs: {env.num_envs}, decimation: {env.cfg.decimation}, step_dt: {env.step_dt:.4f}s")
-
-            env.reset()
             try:
+                if getattr(args_cli, "headless", False):
+                    logger.warning(
+                        "Running deploy without a viewport. This happens when headless mode is active, "
+                        "including the default case where no visualizer was selected. The policy may be "
+                        "stepping normally, but no viewport will appear unless you specify the "
+                        "`--visualizer` field."
+                    )
+
+                logger.info(f"Deploying task '{task_name}' with LEAPP pipeline: {args_cli.pipeline}")
+                logger.info(f"Num envs: {env.num_envs}, decimation: {env.cfg.decimation}, step_dt: {env.step_dt:.4f}s")
+
+                env.reset()
+                step_count = 0
                 with torch.inference_mode():
-                    while env.sim.is_running():
+                    while env.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
                         env.step()
+                        step_count += 1
             finally:
                 env.close()
     except KeyboardInterrupt:
