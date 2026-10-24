@@ -74,9 +74,6 @@ class _FakeProvider:
     def num_envs(self) -> int:
         return self._num_envs
 
-    def get_camera_transforms(self):
-        return None
-
 
 class _FakeVisualizer(BaseVisualizer):
     """Minimal visualizer for orchestration tests."""
@@ -390,9 +387,6 @@ class _DummyViserSceneDataProvider:
     @property
     def num_envs(self) -> int:
         return 4
-
-    def get_camera_transforms(self):
-        return {}
 
     def create_mapping(self, paths):
         return None
@@ -770,6 +764,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
             (None, "optical_flow", None, (ValueError, "optical_flow")),
             ("/Scenes/world_2/Camera", "rgb", [camera], None),
             ("/Scenes/world_.*/Camera", "rgb", [camera], None),
+            ("/Scenes/*/Camera", "rgb", [camera], None),
         ):
             cfg.cameras = [SceneCameraCfg(prim_path=path)] if path is not None else None
             cfg.streaming_gt_types = (channel,)

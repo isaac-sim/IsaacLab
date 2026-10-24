@@ -653,6 +653,7 @@ def test_frame_transformer_nested_rigid_bodies(device):
     with _ovphysx_sim_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
         scene_cfg.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         scene_cfg.robot.spawn.activate_contact_sensors = True
         scene_cfg.frame_transformer = FrameTransformerCfg(

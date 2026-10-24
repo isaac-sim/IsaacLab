@@ -662,7 +662,7 @@ class KitVisualizer(BaseVisualizer):
 
         RTX scene partitioning culls per-env geometry by the camera's non-primvar
         ``omni:scenePartition`` token. Interactive viewport cameras live outside
-        ``/World/envs`` and are created by Kit, so they do not inherit the env-root
+        the environment roots and are created by Kit, so they do not inherit the env-root
         primvar authored by the renderer. When the RTX spectator-view setting is
         enabled, leaving the viewport camera unpartitioned shows all environments.
         Otherwise, the viewport is assigned to the first visible environment.
@@ -671,7 +671,7 @@ class KitVisualizer(BaseVisualizer):
         if num_envs <= 0:
             return
 
-        env_prim = usd_stage.GetPrimAtPath("/World/envs/env_0")
+        env_prim = usd_stage.GetPrimAtPath(self._sim.get_clone_plan().env_template.format(0))
         env_partition_attr = env_prim.GetAttribute("primvars:omni:scenePartition")
         if not env_partition_attr.IsValid() or env_partition_attr.Get() is None:
             return
@@ -840,7 +840,7 @@ class KitVisualizer(BaseVisualizer):
         for env_id in range(num_envs):
             if env_id in visible:
                 continue
-            env_path = f"/World/envs/env_{env_id}"
+            env_path = self._sim.get_clone_plan().env_template.format(env_id)
             prim = usd_stage.GetPrimAtPath(env_path)
             if not prim.IsValid():
                 continue

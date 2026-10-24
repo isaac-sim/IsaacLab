@@ -240,7 +240,7 @@ class OvstageBackend:
 
 def export_stage_to_string(
     stage: Usd.Stage,
-    num_envs: int,
+    clone_env_paths: Sequence[str],
     source_paths: tuple[str, ...],
     keep_env_roots: bool = True,
     *,
@@ -255,7 +255,7 @@ def export_stage_to_string(
 
     Args:
         stage: USD stage to export.
-        num_envs: Number of parallel environments. Source filtering is skipped for one environment.
+        clone_env_paths: Declared environment roots. Source filtering is skipped for one environment.
         source_paths: Prototype subtrees retained with their materials and descendants.
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
         env_paths: Environment frames to create in the private export before native cloning.
@@ -279,27 +279,27 @@ def export_stage_to_string(
     ).Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     prim_paths = []
-    if num_envs > 1:
-        envs_path = Sdf.Path("/World/envs")
-        envs_prim = export_stage.GetPrimAtPath(envs_path)
-
+    if len(clone_env_paths) > 1:
         source_path_set = frozenset(map(Sdf.Path, source_paths))
         retained_env_paths = frozenset(map(Sdf.Path, env_paths))
         ancestors = {prefix for source in source_path_set for prefix in source.GetPrefixes()}
-        prims = iter(Usd.PrimRange(envs_prim))
-        next(prims, None)
-        for prim in prims:
-            path = prim.GetPath()
-            if path in source_path_set:
-                prims.PruneChildren()
-            elif (
-                path not in ancestors
-                and path not in retained_env_paths
-                and not (keep_env_roots and path.GetParentPath() == envs_path)
-            ):
-                # Kit may already have USD copies; explicit routing may also exclude a prototype.
-                prim_paths.append(path)
-                prims.PruneChildren()
+        for env_path in clone_env_paths:
+            env_root = export_stage.GetPrimAtPath(env_path)
+            if not env_root:
+                continue
+            prims = iter(Usd.PrimRange(env_root))
+            for prim in prims:
+                path = prim.GetPath()
+                if path in source_path_set:
+                    prims.PruneChildren()
+                elif (
+                    path not in ancestors
+                    and path not in retained_env_paths
+                    and not (keep_env_roots and path == env_root.GetPath())
+                ):
+                    # Kit may already have USD copies; routing may also exclude a prototype.
+                    prim_paths.append(path)
+                    prims.PruneChildren()
 
         with Sdf.ChangeBlock():
             for prim_path in prim_paths:
