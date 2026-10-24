@@ -231,7 +231,7 @@ def test_configure_logging_basic():
 
 
 def test_configure_logging_with_file():
-    """Test configure_logging with file logging enabled in a custom (nested) log directory."""
+    """Test configure_logging with file logging in a custom (nested) directory and that reconfiguring releases it."""
     with tempfile.TemporaryDirectory() as temp_dir:
         custom_log_dir = os.path.join(temp_dir, "custom_logs")
         logger = configure_logging(logging_level="DEBUG", save_logs_to_file=True, log_dir=custom_log_dir)
@@ -270,6 +270,11 @@ def test_configure_logging_with_file():
         # Check filename format: isaaclab_YYYY-MM-DD_HH-MM-SS.log
         pattern = r"isaaclab_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log"
         assert re.match(pattern, log_files[0]), f"Log filename {log_files[0]} doesn't match expected pattern"
+
+        # Reconfiguring closes the replaced file handler, so the temporary directory can be removed
+        # (an open file cannot be deleted on Windows)
+        configure_logging(logging_level="DEBUG", save_logs_to_file=False)
+        assert file_handler.stream is None
 
 
 def test_configure_logging_levels():
@@ -337,7 +342,8 @@ def test_configure_logging_default_log_dir():
     assert os.path.dirname(log_file_path) == os.path.join(tempfile.gettempdir(), "isaaclab", "logs")
     assert os.path.basename(log_file_path).startswith("isaaclab_")
 
-    # Cleanup
+    # Cleanup: reconfigure first to close the file handler (an open file cannot be deleted on Windows)
+    configure_logging(logging_level="INFO", save_logs_to_file=False)
     if os.path.exists(log_file_path):
         os.remove(log_file_path)
 
