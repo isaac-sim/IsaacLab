@@ -6,12 +6,14 @@
 import os
 import tempfile
 
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -19,17 +21,25 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib.steering_wheel import (
+    condition_newton_steering_wheel_detail_collisions as _condition_newton_steering_wheel_detail_collisions,
+)
+from isaaclab_tasks.contrib.teleop_physics_cfg import TeleopPhysicsCfg
 
 from . import mdp
+from .gr1t2_kitless_action_cfg import GR1T2KitlessPinkInverseKinematicsActionCfg
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
+
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
+from isaaclab_tasks.contrib.packing_table import condition_packing_table_for_kitless_ovphysx  # isort: skip
 
 
 def build_gr1t2_pickplace_pipeline():
@@ -259,7 +269,13 @@ def build_gr1t2_pickplace_pipeline():
         }
     )
 
-    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
+    pipeline = OutputCombiner(
+        {
+            "action": connected_reorderer.output("output"),
+            HandsSource.LEFT: hands.output(HandsSource.LEFT),
+            HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
+        }
+    )
     return pipeline, [left_dex, right_dex]
 
 
@@ -383,7 +399,7 @@ class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    upper_body_ik = PinkInverseKinematicsActionCfg(
+    upper_body_ik = GR1T2KitlessPinkInverseKinematicsActionCfg(
         pink_controlled_joint_names=[
             "left_shoulder_pitch_joint",
             "left_shoulder_roll_joint",
@@ -582,6 +598,8 @@ class EventCfg:
 class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
+
     # Scene settings
     scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5)
     # Basic settings
@@ -660,12 +678,21 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         self.image_obs_list = ["robot_pov_cam"]
 
         if ISAACLAB_TELEOP_AVAILABLE:
-            from isaaclab_teleop import GloveHapticFeedbackCfg, IsaacTeleopCfg, XrCameraFeedCfg, XrCfg
+            from isaaclab_teleop import (
+                GloveHapticFeedbackCfg,
+                IsaacTeleopCfg,
+                XrCameraFeedCfg,
+                XrCameraFeedLayoutCfg,
+                XrCfg,
+            )
 
             # Isaac Capture-based teleoperation pipeline.
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                # The shared anchor places the default eye inside the robot head.
+                # Exclude visual meshes from the eye partition, not source visibility.
+                excluded_visual_meshes=["/World/envs/env_0/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
                 pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
@@ -680,6 +707,11 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                         max_update_hz=0.0,
                     )
                 ],
+                xr_camera_feed_layout=XrCameraFeedLayoutCfg(
+                    placement="world",
+                    world_position_m=(0.0, 0.8, 1.6),
+                    world_orientation_xyzw=(0.70710678, 0.0, 0.0, 0.70710678),
+                ),
             )
 
             # Per-finger haptic glove feedback: vibrate each finger of the operator's
@@ -690,3 +722,226 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
+
+    def stabilize_for_kitless_ovphysx(self) -> None:
+        """Configure the GR1T2 asset and action boundaries for kitless OVPhysX."""
+        action_cfg = self.actions.upper_body_ik
+        action_cfg.controller.urdf_path = os.path.join(
+            os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
+        )
+        action_cfg.kitless_ovphysx_enabled = True
+        # Do not apply retargeter defaults before hand tracking starts.
+        self.isaac_teleop.require_initial_bimanual_hand_tracking = True
+        _apply_kitless_ovphysx_drive_gains(self.scene.robot)
+        _condition_kitless_ovphysx_robot_spawn_properties(self.scene.robot)
+        _condition_kitless_ovphysx_gr1t2_stage(self.scene.robot, action_cfg)
+        condition_packing_table_for_kitless_ovphysx(self.scene.packing_table)
+
+    def stabilize_for_kitless_newton_mjwarp(self) -> None:
+        """Configure GR1T2 actuators and contacts for kitless Newton."""
+        action_cfg = self.actions.upper_body_ik
+        action_cfg.controller.urdf_path = os.path.join(
+            os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
+        )
+        action_cfg.kitless_ovphysx_enabled = True
+        self.isaac_teleop.require_initial_bimanual_hand_tracking = True
+        _stabilize_gr1t2_for_kitless_newton_mjwarp(self)
+        _condition_kitless_ovphysx_gr1t2_stage(self.scene.robot, action_cfg, widen_hand_limits=False)
+        _wrap_packing_table_collision_for_newton(self.scene.packing_table)
+
+
+def _stabilize_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Apply Newton actuator, allocation-budget, and wheel-collision preparation."""
+    from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+
+    # Match the kitless OVPhysX task: internal finger contacts must not force
+    # compliant thumb drives away from their commands. Object contacts remain.
+    fragments = env_cfg.scene.robot.spawn.articulation_props
+    for fragment in fragments if isinstance(fragments, list) else [fragments]:
+        if isinstance(fragment, NewtonArticulationCfg):
+            fragment.self_collision_enabled = False
+
+    groups = env_cfg.scene.robot.actuators
+    contracts = {
+        "head": (["head_.*"], 80.0, 8.0, 0.03, 80.0),
+        "trunk": (["waist_.*"], 500.0, 50.0, 0.10, 250.0),
+        "legs": ([".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"], 300.0, 30.0, 0.125, 250.0),
+        "right-arm": (["right_shoulder_.*", "right_elbow_.*", "right_wrist_.*"], 1200.0, 60.0, 0.30, 800.0),
+        "left-arm": (["left_shoulder_.*", "left_elbow_.*", "left_wrist_.*"], 1200.0, 60.0, 0.30, 800.0),
+    }
+    for name, (joint_names, stiffness, damping, armature, effort_limit) in contracts.items():
+        actuator = groups.get(name)
+        if actuator is None:
+            actuator = ImplicitActuatorCfg(joint_names_expr=joint_names)
+            groups[name] = actuator
+        actuator.joint_names_expr = joint_names
+        actuator.stiffness = stiffness
+        actuator.damping = damping
+        actuator.armature = armature
+        actuator.effort_limit_sim = effort_limit
+
+    for side, name in (("L", "left-hand"), ("R", "right-hand")):
+        # The action conditions all eleven targets to the asset's mimic
+        # relation. Driving the whole hand gives Newton the same compliant
+        # hand targets as the OVPhysX path.
+        hand = groups[name]
+        hand.joint_names_expr = [f"{side}_.*"]
+        hand.stiffness = 5.0
+        hand.damping = 0.5
+        hand.armature = 0.02
+        hand.effort_limit_sim = 20.0
+        groups.pop(f"{name}-slaved", None)
+
+    solver_cfg = env_cfg.sim.physics.solver_cfg
+    solver_cfg.nconmax = 4096
+    solver_cfg.njmax = 1536
+    _condition_newton_steering_wheel_detail_collisions(env_cfg.scene.object)
+
+
+def _wrap_packing_table_collision_for_newton(asset_cfg: AssetBaseCfg) -> None:
+    """Use the shared USD collision preparation for the packing-table asset."""
+    from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
+
+    configure_packing_table_collisions(asset_cfg)
+
+
+def _apply_kitless_ovphysx_drive_gains(robot_cfg: ArticulationCfg) -> None:
+    """Restore stable actuator coverage around the Kit-tuned arm drives."""
+    from isaaclab.actuators import ImplicitActuatorCfg
+
+    groups = {
+        "head": (["head_.*"], 80.0, 8.0, 0.03, 80.0),
+        "legs": ([".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"], 300.0, 30.0, 0.10, 250.0),
+        "right-hand": (None, 5.0, 0.5, 0.001, 20.0),
+        "left-hand": (None, 5.0, 0.5, 0.001, 20.0),
+    }
+    for group_name, (joint_expr, stiffness, damping, armature, effort_limit) in groups.items():
+        actuator = robot_cfg.actuators.get(group_name)
+        if actuator is None:
+            assert joint_expr is not None
+            actuator = ImplicitActuatorCfg(joint_names_expr=list(joint_expr))
+            robot_cfg.actuators[group_name] = actuator
+        actuator.stiffness = stiffness
+        actuator.damping = damping
+        actuator.armature = armature
+        actuator.effort_limit_sim = effort_limit
+
+    if robot_cfg.spawn is not None and robot_cfg.spawn.articulation_props is not None:
+        fragments = robot_cfg.spawn.articulation_props
+        for fragment in fragments if isinstance(fragments, list) else [fragments]:
+            if isinstance(fragment, PhysxArticulationCfg):
+                fragment.enabled_self_collisions = False
+
+
+def _condition_kitless_ovphysx_robot_spawn_properties(robot_cfg: ArticulationCfg) -> None:
+    """Limit robot contact depenetration for kitless OVPhysX."""
+    if robot_cfg.spawn is not None and robot_cfg.spawn.rigid_props is not None:
+        fragments = robot_cfg.spawn.rigid_props
+        for fragment in fragments if isinstance(fragments, list) else [fragments]:
+            if isinstance(fragment, PhysxRigidBodyCfg):
+                fragment.max_depenetration_velocity = 0.1
+
+
+def _author_kitless_ovphysx_contact_offsets(prim) -> bool:
+    """Author Kit-parity offsets on a collision prim before OVPhysX parses it."""
+    from pxr import Sdf
+
+    schemas = prim.GetMetadata("apiSchemas")
+    applied = [str(schema) for schema in (schemas.GetAddedOrExplicitItems() if schemas else [])]
+    if not any(schema.startswith("PhysicsCollisionAPI") for schema in applied):
+        return False
+    if not any(schema.startswith("PhysxCollisionAPI") for schema in applied):
+        list_op = Sdf.TokenListOp()
+        list_op.explicitItems = [*applied, "PhysxCollisionAPI"]
+        prim.SetMetadata("apiSchemas", list_op)
+    prim.CreateAttribute("physxCollision:contactOffset", Sdf.ValueTypeNames.Float).Set(0.001)
+    prim.CreateAttribute("physxCollision:restOffset", Sdf.ValueTypeNames.Float).Set(0.0)
+    return True
+
+
+def _condition_kitless_ovphysx_gr1t2_stage(
+    robot_cfg: ArticulationCfg,
+    action_cfg: GR1T2KitlessPinkInverseKinematicsActionCfg,
+    *,
+    widen_hand_limits: bool = True,
+) -> None:
+    """Condition the spawned GR1T2 hand description before kitless physics parses it.
+
+    The raw asset has near-singular finger inertia, hard PhysX-only mimic
+    constraints, and hand rest poses exactly on physical limits. Those inputs
+    are stable after Kit's asset preparation but are ill-conditioned when read
+    directly by OVPhysX. This spawn boundary floors inertia, removes the hard
+    constraints that conflict with direct hand drives, and optionally keeps the
+    physical limits inactive for OVPhysX. Newton retains the anatomical limits
+    because bounding drive targets alone does not bound simulated positions. The
+    original mimic relations and anatomical limits are recorded on the typed
+    action config for target conditioning. The source USD and normal Kit path
+    remain unchanged.
+    """
+    if robot_cfg.spawn is None or getattr(robot_cfg.spawn, "_kitless_ovphysx_doctored", False):
+        return
+    original_spawn = robot_cfg.spawn.func
+
+    def _spawn_and_condition(prim_path, cfg, *args, **kwargs):
+        import math
+
+        from pxr import Gf, Sdf, Usd
+
+        prim = original_spawn(prim_path, cfg, *args, **kwargs)
+        action_cfg.hand_joint_limits.clear()
+        action_cfg.hand_mimic_relations.clear()
+
+        # Collision meshes below instanceable ``collisions`` scopes are
+        # immutable proxies. De-instance those scopes so the parser-visible
+        # collision prims can receive the OVPhysX contact offsets.
+        for child in Usd.PrimRange(prim):
+            if child.GetName() == "collisions" and child.IsInstanceable():
+                child.SetInstanceable(False)
+
+        for child in Usd.PrimRange(prim):
+            _author_kitless_ovphysx_contact_offsets(child)
+            inertia = child.GetAttribute("physics:diagonalInertia")
+            if inertia and inertia.HasValue():
+                value = inertia.Get()
+                if min(value) < 1.0e-4:
+                    inertia.Set(Gf.Vec3f(*(max(component, 1.0e-4) for component in value)))
+
+            is_hand_joint = child.GetName()[:2] in ("L_", "R_") and child.GetTypeName() == "PhysicsRevoluteJoint"
+            schemas = child.GetMetadata("apiSchemas")
+            applied = list(schemas.GetAddedOrExplicitItems()) if schemas else []
+            kept = [schema for schema in applied if not str(schema).startswith("PhysxMimicJointAPI")]
+            if len(kept) != len(applied):
+                gearing = child.GetAttribute("physxMimicJoint:rotZ:gearing")
+                offset = child.GetAttribute("physxMimicJoint:rotZ:offset")
+                reference = child.GetRelationship("physxMimicJoint:rotZ:referenceJoint")
+                targets = reference.GetTargets() if reference else []
+                if gearing and gearing.HasValue() and targets:
+                    action_cfg.hand_mimic_relations[child.GetName()] = (
+                        targets[0].name,
+                        float(gearing.Get()),
+                        float(offset.Get()) if offset and offset.HasValue() else 0.0,
+                    )
+                list_op = Sdf.TokenListOp()
+                list_op.explicitItems = kept
+                child.SetMetadata("apiSchemas", list_op)
+                for property_name in [name for name in child.GetPropertyNames() if name.startswith("physxMimicJoint:")]:
+                    if not child.RemoveProperty(property_name):
+                        mimic_attr = child.GetAttribute(property_name)
+                        if mimic_attr and mimic_attr.GetTypeName() == Sdf.ValueTypeNames.Float:
+                            mimic_attr.Set(0.0)
+
+            if is_hand_joint:
+                lower = child.GetAttribute("physics:lowerLimit")
+                upper = child.GetAttribute("physics:upperLimit")
+                if lower and upper and lower.HasValue() and upper.HasValue():
+                    action_cfg.hand_joint_limits[child.GetName()] = (
+                        math.radians(float(lower.Get())),
+                        math.radians(float(upper.Get())),
+                    )
+                    if widen_hand_limits:
+                        lower.Set(-720.0)
+                        upper.Set(720.0)
+        return prim
+
+    robot_cfg.spawn.func = _spawn_and_condition
+    robot_cfg.spawn._kitless_ovphysx_doctored = True

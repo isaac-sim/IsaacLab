@@ -145,9 +145,10 @@ to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next
 
 .. note::
 
-   ``teleop`` cannot be combined with ``ov`` or ``ovphysx`` in a single ``uv run``: the
-   bundled Isaac Sim pins ``packaging==26.0`` while those runtimes require ``<24``. Install
-   the OV runtimes separately when you need them.
+   For XR teleoperation without Isaac Sim, follow the
+   :ref:`kitless XR guide <kitless-xr>`. It explains how to select a source-built
+   Isaac Capture wheel and its optional OVXR dependencies. The Kit setup below
+   uses the published ``teleop`` extra.
 
 Complete these steps first:
 
@@ -695,10 +696,9 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
 
 .. important::
 
-   Manus gloves and other external push-device peripherals require
-   ``NV_CXR_ENABLE_PUSH_DEVICES=1``. The shipped ``.env`` profiles set this to ``0``
-   (optimised for headset optical hand tracking). Create a custom ``.env`` file with the value set
-   to ``1`` and pass it via ``--cloudxr_env`` instead of the plain command above:
+   The shipped ``cloudxrjs`` profile sets ``NV_CXR_ENABLE_PUSH_DEVICES=0`` for headset optical
+   hands. Manus gloves and other external push-device peripherals instead require a custom
+   ``.env`` file with push devices enabled, passed via ``--cloudxr_env``:
 
    .. tab-set::
 

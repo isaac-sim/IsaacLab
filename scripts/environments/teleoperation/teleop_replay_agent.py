@@ -7,10 +7,17 @@
 
 This is the non-interactive counterpart to ``teleop_se3_agent.py``. It builds
 a teleop environment, attaches an :class:`~isaaclab_teleop.IsaacTeleopDevice`
-configured in :class:`isacteleop.teleop_session_manager.SessionMode.REPLAY`,
+configured in :class:`isaacteleop.teleop_session_manager.SessionMode.REPLAY`,
 and pumps the simulation loop until the recorded operator presses STOP (or
 ``--max_replay_duration_s`` elapses, or the simulator is closed). The user-journey
 teleop script remains ``teleop_se3_agent.py``.
+
+OVXR viewer:
+    ``--ovxr`` presents replay through an independently owned OVXR session while
+    tracker and control input remain sourced from MCAP. Optional camera quads
+    use ``--ovxr_pip_camera NAME --ovxr_pip_head_locked``; desktop mirror uses
+    ``--ovxr_desktop_mirror``. See ``source/isaaclab_teleop/docs/OVXR_RUNTIME.md``
+    for installation and launch instructions.
 
 Inputs:
     ``--replay_file`` is an MCAP capture produced by Isaac Capture's
@@ -19,7 +26,7 @@ Inputs:
     messages (head / hands / controllers) plus the ``_teleop_control``
     ``MessageChannelTracker`` that captured the operator's START / STOP /
     RESET gestures. TeleopCore's
-    :class:`~isacteleop.deviceio_session.ReplaySession` re-emits all of
+    :class:`~isaacteleop.deviceio_session.ReplaySession` re-emits all of
     them on the same monotonic-time cadence they were recorded on, so
     :func:`~isaaclab_teleop.poll_control_events` returns the same edges
     here that ``record_demos.py``'s loop saw at recording time.
@@ -64,28 +71,27 @@ End-of-replay termination:
 
 Stats output:
     The wall-clock deltas between successive ``env.sim.render()`` calls
-    produced during the active window are recorded as a per-rendered-frame
+    produced during the active window are recorded as a per-render-call
     interval series (N gated renders produce N-1 samples). Pre-START
     render-only frames, warmup ticks, and post-quit render-only
     spin-down are excluded so the numbers reflect the steady-state
     replay workload rather than agent bookkeeping overhead. Per-run samples are summarised into mean / p50 / p90 /
     p95 / p99 / min / max / stddev (under ``cpu_frame_time_ms``) plus
-    derived FPS metrics (under ``fps``). Both blocks are reported on
-    a **per-render** basis -- ``cpu_frame_time_ms`` is the wall time
-    between rendered frames and ``fps`` is the render rate, matching
-    what the simulator's HUD shows and what the headset wearer /
-    spectator actually perceives during real-time teleop. The two
+    derived call-rate metrics (under the legacy ``fps`` key). Both blocks measure
+    successive application ``env.sim.render()`` calls, not completed renderer
+    frames, encoded video, or client/headset presentation. The two
     blocks stay self-consistent: ``fps.mean`` equals ``1000 /
     cpu_frame_time_ms.mean`` (harmonic mean of FPS = total frames /
     total step time). Each interval is the wall-clock delta between
     successive ``env.sim.render`` calls, so a run needs at least two
-    rendered frames during the active window to contribute. The agent
+    render calls during the active window to contribute. The agent
     asserts this per-run inside :func:`_run_single_replay`: if a run
     stepped the env but produced no usable intervals (0 or 1 renders
     -- typically the sim is not rendering, or the active window closed
     too quickly), it raises ``RuntimeError`` immediately, so the
     remaining replays never start and no stdout summary or JSON file
-    is written. Partial reports are never emitted: CI relies on
+    is written. OVXR owns rendering independently, so application render-call
+    timing statistics remain empty for OVXR replays. Partial reports are never emitted: CI relies on
     "no JSON output" as an unambiguous failure signal.
 
     Each active iteration also emits one ``GpuStatsProvider.sample()``
@@ -117,6 +123,8 @@ Stats output:
           "task": "IsaacContrib-PickPlace-GR1T2-Abs",
           "replay_file": "/tmp/pickplace_gr1t2.mcap",
           "num_replays": 5,
+          "requested_num_replays": 5,
+          "batch_complete": true,
           "outcomes": {"success": 4, "failure": 1, "incomplete": 0, "timeout": 0},
           "success_rate": 0.8,
           "env_cfg": {
@@ -147,7 +155,7 @@ Stats output:
                 "mean": ..., "p50": ..., "p90": ..., "p95": ..., "p99": ...,
                 "min": ..., "max": ..., "stddev": ..., "n": ...
               },
-              "fps": {  # per-render rate (matches simulator HUD)
+              "fps": {  # application render-call rate, not headset presentation
                 "mean": ..., "min_instantaneous": ..., "max_instantaneous": ...
               },
               "gpu_stats": {
@@ -251,8 +259,9 @@ XR-active replay:
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+import sys
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args, launch_simulation, validate_launch
 
 parser = argparse.ArgumentParser(
     description=(
@@ -262,6 +271,13 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("--task", type=str, required=True, help="Name of the task.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
+parser.add_argument(
+    "--ovxr", action="store_true", help="Present recorded motion through kitless OVXR; input stays MCAP."
+)
+parser.add_argument("--ovxr_pip_camera", nargs="+", default=None, help="Task camera names to show as OVXR panels.")
+parser.add_argument("--ovxr_pip_head_locked", action="store_true", help="Use the supported head-locked PiP layout.")
+parser.add_argument("--ovxr_desktop_mirror", action="store_true", help="Open the optional OVUI eye mirror.")
+parser.add_argument("--ovxr_session_mode", choices=("ar", "vr"), default="ar")
 parser.add_argument(
     "--replay_file",
     type=str,
@@ -329,9 +345,9 @@ parser.add_argument(
     type=float,
     default=300.0,
     help=(
-        "Safety cap on how long to wait for omni.usd to finish loading the stage before"
-        " proceeding anyway. Hit only when something is misconfigured (missing asset, slow"
-        " Nucleus, etc.); a warning is logged and replay continues. Default is 300s."
+        "Safety cap for initial stage readiness. Kit stage loading warns and continues"
+        " at this cap; OVXR render-worker bootstrap fails and drains on expiry."
+        " Default is 300s."
     ),
 )
 parser.add_argument(
@@ -372,8 +388,10 @@ parser.add_argument(
     ),
 )
 add_launcher_args(parser)
-# forward unrecognized args as Hydra-style task config overrides
-args_cli, hydra_overrides = parser.parse_known_args()
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+
+args_cli, hydra_overrides = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_overrides
 
 # Enable external camera rendering by default so the replay mimics the production teleop env (perf
 # parity with live camera rendering); ``--disable_external_cameras`` turns it off. The
@@ -381,8 +399,8 @@ args_cli, hydra_overrides = parser.parse_known_args()
 # the launcher; this selects a camera-rendering experience that provides RTX/DLSS.
 # Everywhere else we read ``args_cli.disable_external_cameras`` directly.
 args_cli.enable_cameras = not args_cli.disable_external_cameras
-# the stage-load wait and the RTX settings use Kit APIs directly
-args_cli.require_kit = True
+# Let the resolved task/preset select Kit; only Kit paths use its stage-load APIs.
+args_cli.require_kit = False
 
 """Rest everything follows."""
 
@@ -390,8 +408,8 @@ args_cli.require_kit = True
 import json
 import logging
 import os
+import signal
 import statistics
-import sys
 import time
 from collections.abc import Sequence
 from contextlib import contextmanager
@@ -410,17 +428,20 @@ from isaaclab_teleop import (
     create_isaac_teleop_device,
     poll_control_events,
 )
+from isaaclab_teleop.action_policy import initial_hand_tracking_issue, prepare_teleop_action, prepare_teleop_backend
 
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils._manual_success import _prepare_success_term
+from isaaclab.utils.version import has_kit
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import parse_env_cfg
 
 logger = logging.getLogger(__name__)
 
 # Resolve CLI profile names once; runtime construction receives a path or None.
+if args_cli.ovxr and args_cli.cloudxr_env is None:
+    args_cli.cloudxr_env = "cloudxrjs"
 if args_cli.cloudxr_env is not None:
     if not args_cli.cloudxr_env.strip() or args_cli.cloudxr_env.lower() == "none":
         args_cli.cloudxr_env = None
@@ -446,7 +467,7 @@ keys) do not require a bump."""
 class _RunStats:
     """Per-replay performance + outcome record.
 
-    ``active_frame_times_ms`` is the per-rendered-frame series: wall-clock
+    ``active_frame_times_ms`` is the per-render-call series: wall-clock
     deltas between successive :meth:`SimulationContext.render` calls
     produced from inside ``env.step`` during the active window
     (post-START, pre-terminator). Pre-START render-only frames, warmup
@@ -469,6 +490,8 @@ class _RunStats:
     outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
     active_frame_times_ms: list[float] = field(default_factory=list)
     active_iterations: int = 0
+    rejected_action_frames: int = 0
+    last_action_rejection: str | None = None
     active_render_calls: int = 0
     active_duration_s: float = 0.0
     success_step_count: int = 0  # final consecutive-success counter at terminator
@@ -482,6 +505,8 @@ class _RunStats:
             "run_index": run_index,
             "outcome": self.outcome,
             "active_iterations": self.active_iterations,
+            "rejected_action_frames": self.rejected_action_frames,
+            "last_action_rejection": self.last_action_rejection,
             "active_duration_s": round(self.active_duration_s, 6),
             "success_step_count": self.success_step_count,
             "cpu_frame_time_ms": _compute_frame_stats(self.active_frame_times_ms),
@@ -545,7 +570,7 @@ def _compute_frame_stats(samples_ms: list[float]) -> dict:
 
 
 def _compute_fps_stats(samples_ms: list[float]) -> dict:
-    """Compute FPS stats from per-rendered-frame intervals (in ms).
+    """Compute render-call rate stats from application intervals (in ms).
 
     All three fields are derived from the same ``samples_ms`` series
     that feeds ``cpu_frame_time_ms`` and stay self-consistent with it:
@@ -556,7 +581,7 @@ def _compute_fps_stats(samples_ms: list[float]) -> dict:
     ``n / active_duration_s`` (dragged down by inter-step bookkeeping).
 
     ``min_instantaneous`` and ``max_instantaneous`` are derived from
-    the slowest / fastest individual rendered frame respectively.
+    the slowest / fastest individual render-call interval respectively.
     """
     n = len(samples_ms)
     if n == 0:
@@ -798,6 +823,8 @@ def _build_report(args, env_cfg, all_runs: list[_RunStats]) -> dict:
         "task": args.task,
         "replay_file": args.replay_file,
         "num_replays": len(all_runs),
+        "requested_num_replays": args.num_replays,
+        "batch_complete": len(all_runs) == args.num_replays,
         "outcomes": outcomes_count,
         "success_rate": success_rate,
         "env_cfg": env_perf_cfg,
@@ -978,8 +1005,7 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     Mirrors the gating in :meth:`TeleopSessionLifecycle._ensure_cloudxr_runtime`
     (``--cloudxr_env`` set, ``--auto_launch_cloudxr`` enabled,
     ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` env var not set) so behavior parity
-    is preserved, including ``ISAACLAB_CXR_ACCEPT_EULA=1`` for the CloudXR
-    license, which is read through the same shared helper.
+    is preserved.
 
     Args:
         cloudxr_env_path: Resolved CloudXR ``.env`` file path, or ``None``
@@ -999,13 +1025,12 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
         logger.info("CloudXR auto-launch skipped (ISAACLAB_CXR_SKIP_AUTOLAUNCH=1)")
         return None
 
-    from isaaclab_teleop import cloudxr_eula_accepted
     from isaacteleop.cloudxr import CloudXRLauncher
 
     launcher = CloudXRLauncher(
         install_dir=str(Path.home() / ".cloudxr"),
         env_config=cloudxr_env_path,
-        accept_eula=cloudxr_eula_accepted(),
+        accept_eula=False,
     )
     logger.info("CloudXR runtime launched (process-scoped, shared across replays)")
     return launcher
@@ -1049,13 +1074,17 @@ def _prepare_env_cfg(
         task: Registered task name to load the env config for.
         num_envs: Number of parallel environments.
         device: Simulation device (e.g. ``"cuda:0"``).
-        overrides: Hydra-style ``key=value`` overrides forwarded to :func:`parse_env_cfg`.
+        overrides: Hydra-style ``key=value`` overrides passed to :func:`resolve_task_config`.
 
     Returns:
         Tuple ``(env_cfg, success_term)``. ``success_term`` is ``None`` when
         the env doesn't define a ``success`` termination term.
     """
-    env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs, overrides=overrides)
+    overrides = list(overrides)
+    env_cfg, _ = resolve_task_config(task, "", overrides=overrides)
+    if device is not None:
+        env_cfg.sim.device = device
+    env_cfg.scene.num_envs = num_envs
     env_cfg.env_name = task.split(":")[-1]
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise ValueError(
@@ -1072,27 +1101,77 @@ def _prepare_env_cfg(
         env_cfg.terminations.time_out = None
     # Keep camera configs when external cameras are enabled (defaulted on) so the replay
     # renders them for production parity; otherwise strip them for a lighter headless replay.
-    if args_cli.disable_external_cameras:
+    if args_cli.ovxr:
+        if args_cli.num_envs != 1 or args_cli.xr:
+            raise ValueError("--ovxr requires one environment and no Kit XR or local visualizer")
+        if os.environ.setdefault("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
+            raise ValueError("--ovxr requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1")
+        from isaaclab_ov.renderers import OVRTXRendererCfg
+
+        from isaaclab.sensors import CameraCfg
+
+        names = args_cli.ovxr_pip_camera or []
+        if names and args_cli.disable_external_cameras:
+            raise ValueError("OVXR PiP conflicts with --disable_external_cameras")
+        if len(names) > 3 or len(names) != len(set(names)):
+            raise ValueError("Select up to three unique OVXR PiP cameras")
+        if names and not args_cli.ovxr_pip_head_locked:
+            raise ValueError("OVXR replay PiP requires --ovxr_pip_head_locked")
+        renderer_cfg = OVRTXRendererCfg()
+        for name in names:
+            camera = getattr(env_cfg.scene, name, None)
+            feeds = [feed for feed in env_cfg.isaac_teleop.xr_camera_feeds if feed.enabled and feed.camera_name == name]
+            if not isinstance(camera, CameraCfg) or len(feeds) != 1:
+                raise ValueError(f"OVXR camera {name!r} requires a CameraCfg and one enabled XrCameraFeedCfg")
+            camera.renderer_cfg = renderer_cfg
+        env_cfg = remove_camera_configs(env_cfg, keep=tuple(names))
+    elif args_cli.ovxr_pip_camera or args_cli.ovxr_desktop_mirror or args_cli.ovxr_pip_head_locked:
+        raise ValueError("OVXR presentation options require --ovxr")
+    elif args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
-    return env_cfg, success_term
+    if env_cfg.sim.physics is None:
+        from isaaclab.physics import PhysicsCfg
+
+        env_cfg.sim.physics = PhysicsCfg()
+    configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
+    if args_cli.ovxr:
+        from isaaclab.visualizers import VisualizerBackendCfg
+
+        if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
+            raise ValueError("--ovxr requires no Kit runtime or local visualizer")
+    args_cli.require_kit = bool(kit_sources)
+    prepare_teleop_backend(env_cfg, env_cfg.sim.physics)
+    return (env_cfg, success_term)
 
 
-def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice) -> None:
+def _replay_requires_hard_sim_reset(physics_backend: str | None) -> bool:
+    """Return whether replay must rebuild the simulator before an environment reset."""
+    return physics_backend is None or not physics_backend.startswith("newton")
+
+
+def _reset_replay_environment(env: object, *, hard_sim_reset: bool, reset_recorder: bool) -> None:
+    """Reset replay-owned environment state in backend-safe order."""
+    if hard_sim_reset:
+        env.sim.reset()
+    if reset_recorder:
+        env.recorder_manager.reset()
+    env.reset()
+
+
+def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice, *, hard_sim_reset: bool) -> None:
     """Run the full env+teleop reset cycle used by ``record_demos.py``.
 
     Mirrors :func:`scripts.tools.record_demos.handle_reset` (sans the
     instruction-display update, which the headless replay agent doesn't
-    own). ``env.sim.reset()`` does the hard physics reinit that keeps Pink
-    IK seeded against fresh articulation views; see the initial-reset note
-    in :func:`main`. ``env.recorder_manager.reset()`` is a no-op when no
-    recorders are configured (the default for this script), but kept for
-    parity with record_demos.py so future recorder additions don't have to
-    re-derive the call sequence.
+    own). The optional hard physics reset keeps Pink seeded against fresh
+    articulation views on PhysX backends. Newton instead retains the solver
+    constructed before replay. ``env.recorder_manager.reset()`` is a no-op
+    when no recorders are configured (the default for this script), but kept
+    for parity with record_demos.py so future recorder additions don't have
+    to re-derive the call sequence.
     """
     print("Resetting environment...")
-    env.sim.reset()
-    env.recorder_manager.reset()
-    env.reset()
+    _reset_replay_environment(env, hard_sim_reset=hard_sim_reset, reset_recorder=True)
     teleop_interface.reset()
 
 
@@ -1125,14 +1204,138 @@ def _process_success_condition(
 
 
 _RENDERER_SETTLE_FRAMES: int = 30
-"""Number of additional render frames pumped after the USD stage finishes loading.
+"""Additional Kit render ticks after asynchronous USD asset loading.
 
-The stage-load status flips to ``count_loading == 0`` as soon as every referenced asset
-has been resolved, but the renderer pipeline (shader compilation, articulation-view
-binding, material warm-up) typically needs a few more event-loop ticks to converge. Thirty
-frames at the default render cadence is ~0.5 s on most machines and is deterministic
-per-machine -- unlike a wall-clock delay it does not have to be tuned for hardware.
+This legacy Kit warmup is not a kitless renderer-completion or FPS guarantee.
 """
+
+
+class _ReplayPresentation:
+    """Own a batch's viewer independently of each recorded-input session."""
+
+    def __init__(self, env_cfg):
+        from isaaclab_ov.renderers import OVRTXRendererCfg
+        from isaaclab_teleop import OvLibrariesXrConfig, OvLibrariesXrSession
+        from isaaclab_teleop.camera_feed import resolve_static_panel_pose
+        from isaaclab_teleop.isaac_teleop_cfg import XrCameraFeedLayoutCfg
+        from isaaclab_teleop.ov_libraries_xr import OvLibrariesXrCameraConfig
+
+        cameras = []
+        for name in args_cli.ovxr_pip_camera or []:
+            feed = next(
+                feed for feed in env_cfg.isaac_teleop.xr_camera_feeds if feed.enabled and feed.camera_name == name
+            )
+            space, position, orientation = resolve_static_panel_pose(
+                feed, XrCameraFeedLayoutCfg(placement="head_locked")
+            )
+            cameras.append(
+                OvLibrariesXrCameraConfig(
+                    name=name,
+                    camera_cfg=getattr(env_cfg.scene, name),
+                    max_fps=min(30.0, feed.max_update_hz) if feed.max_update_hz > 0 else 30.0,
+                    panel_width_m=feed.panel_width_m,
+                    position=position,
+                    orientation_xyzw=orientation,
+                    space=space,
+                )
+            )
+        self.session = OvLibrariesXrSession.prepare(
+            env_cfg.sim,
+            OvLibrariesXrConfig(
+                application_name=f"isaaclab-ovxr-replay-{args_cli.task}",
+                session_mode=args_cli.ovxr_session_mode,
+                cloudxr_env_file=args_cli.cloudxr_env,
+                auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+                desktop_mirror_enabled=args_cli.ovxr_desktop_mirror,
+                auxiliary_cameras=tuple(cameras),
+            ),
+            cameras[0].camera_cfg.renderer_cfg if cameras else OVRTXRendererCfg(),
+        )
+        self.xr_cfg = env_cfg.isaac_teleop.xr_cfg
+        self.device = None
+        self.started = False
+        self.reset_generation = 0
+        self.pending = None
+        self.force = False
+
+    def start(self, env, device):
+        if not self.started:
+            if not self.session.start_render_worker(
+                env,
+                tracking_anchor_path=device.xr_render_anchor_path,
+                hidden_visual_prims=self.xr_cfg.hidden_visual_prims,
+                excluded_visual_meshes=self.xr_cfg.excluded_visual_meshes,
+                external_anchor_state=device.external_anchor_state,
+                timeout_s=args_cli.max_stage_load_wait_s,
+            ):
+                raise RuntimeError("OVXR viewer shut down before replay startup")
+            self.started = True
+        else:
+            self.session.set_external_anchor_state(device.external_anchor_state)
+        self.publish(env, changed=True, reset=True)
+
+    def publish(self, env, *, changed=False, reset=False):
+        if reset:
+            self.reset_generation += 1
+            self.force = True
+        if changed or reset:
+            self.pending = (self.reset_generation, env.sim.get_physics_step_count())
+        if self.pending is not None and self.session.request_render(self.pending, force=self.force) is not None:
+            self.pending = None
+            self.force = False
+        self.session.report_host_timing(env.sim.get_physics_step_count(), env.sim.get_physics_dt())
+
+    def close(self):
+        if self.device is not None and self.device.session_cleanup_failed:
+            raise RuntimeError("Replay input did not drain; retaining its borrowed environment")
+        self.session.close()
+
+
+def _warmup_replay(env, run_index: int, presentation) -> None:
+    """Wait for Kit assets or pump the independently owned viewer before input."""
+    # Only an active Kit application owns the asynchronous USD loader.
+    # Kitless environments finish their stage construction before this call.
+    if run_index == 0:
+        if has_kit():
+            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import wait_for_stage_load
+
+            print("Waiting for USD stage to finish loading...")
+            wait_for_stage_load(args_cli.max_stage_load_wait_s, settle_frames=_RENDERER_SETTLE_FRAMES)
+
+        # Optional extra wall-clock buffer on top of the deterministic
+        # wait. Useful as an escape hatch when the deterministic check
+        # is not enough (e.g. very slow shader compilation paths).
+        if args_cli.replay_start_delay_s > 0:
+            print(
+                f"Additional warmup buffer: rendering for {args_cli.replay_start_delay_s:.1f}s"
+                " before consuming MCAP frames."
+            )
+            buffer_start_s = time.monotonic()
+            while env.sim.is_running() and time.monotonic() - buffer_start_s < args_cli.replay_start_delay_s:
+                if presentation is None:
+                    env.sim.render()
+                else:
+                    if presentation.session.shutdown_requested:
+                        raise RuntimeError("OVXR viewer closed before replay started")
+                    presentation.publish(env)
+                    time.sleep(0.01)
+
+
+def _advance_replay_input(device, cfg, presentation):
+    """Read recorded input using the viewer owner's target transform when needed."""
+    target_path = cfg.target_frame_prim_path if presentation is not None else None
+    if target_path is None:
+        return device.advance()
+    return device.advance(target_T_world=presentation.session.get_target_frame_T_world(target_path))
+
+
+def _render_replay_idle(env, presentation) -> None:
+    """Keep the selected presentation responsive without advancing physics."""
+    if presentation is None:
+        env.sim.render()
+    else:
+        presentation.publish(env)
+        time.sleep(env.step_dt)
 
 
 def _run_single_replay(
@@ -1141,6 +1344,7 @@ def _run_single_replay(
     success_term: object | None,
     run_index: int,
     total_runs: int,
+    presentation: _ReplayPresentation | None = None,
 ) -> _RunStats:
     """Run a single replay pass against ``env`` and return the per-run stats.
 
@@ -1190,13 +1394,16 @@ def _run_single_replay(
     # its IPC connection.
     teleop_interface = create_isaac_teleop_device(
         isaac_teleop_cfg,
-        sim_device=args_cli.device,
+        sim_device=env.sim.device,
         callbacks={},
         cloudxr_env_file=None,
         auto_launch_cloudxr=False,
         mcap_replay_path=args_cli.replay_file,
         enable_debug_visualization=args_cli.enable_debug_visualization,
+        ovxr_session=presentation is not None,
     )
+    if presentation is not None:
+        presentation.device = teleop_interface
     if run_index == 0:
         print(f"Using teleop device: {teleop_interface}")
 
@@ -1228,45 +1435,29 @@ def _run_single_replay(
             env.sim.render = _orig_sim_render
 
     with _patched_sim_render(), teleop_interface:
-        # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
-        # does a hard physics reinit (re-binds articulation views, plays the
-        # timeline) that ``env.reset()`` alone does not perform. Pink IK reads
-        # ``data.joint_pos.torch`` every step to seed Pinocchio's configuration
-        # and to compute ``target = curr + delta``; if the articulation view is
-        # stale, every IK call produces zero-delta arm targets while the
-        # hand-finger path (which bypasses IK) keeps tracking. See PR #5507.
-        env.sim.reset()
-        env.reset()
+        # PhysX backends need the hard reset that refreshes articulation views
+        # before Pink reads them (PR #5507). Newton's constructed solver must
+        # instead remain alive across the ordinary environment reset.
+        _reset_replay_environment(
+            env,
+            hard_sim_reset=_replay_requires_hard_sim_reset(env.scene.physics_backend),
+            reset_recorder=False,
+        )
         teleop_interface.reset()
-
-        # Deterministic warmup is only required on the first run -- once the
-        # stage has been streamed in and the renderer settled, subsequent
-        # runs share the same stage and only need the per-run ``env.sim.reset``
-        # above. Skipping it on later runs saves the renderer-settle frames
-        # at the cost of doing nothing measurable (the wait returns
-        # immediately on a fully-loaded stage anyway).
-        if run_index == 0:
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import wait_for_stage_load
-
-            print("Waiting for USD stage to finish loading...")
-            wait_for_stage_load(args_cli.max_stage_load_wait_s, settle_frames=_RENDERER_SETTLE_FRAMES)
-
-            # Optional extra wall-clock buffer on top of the deterministic
-            # wait. Useful as an escape hatch when the deterministic check
-            # is not enough (e.g. very slow shader compilation paths).
-            if args_cli.replay_start_delay_s > 0:
-                print(
-                    f"Additional warmup buffer: rendering for {args_cli.replay_start_delay_s:.1f}s"
-                    " before consuming MCAP frames."
-                )
-                buffer_start_s = time.monotonic()
-                while env.sim.is_running() and time.monotonic() - buffer_start_s < args_cli.replay_start_delay_s:
-                    env.sim.render()
+        # Replay has no headset client to send START.  Match record_demos.py's
+        # canonical non-XR lifecycle: its host reset is a pulse and the local
+        # start command drives the control graph into RUNNING for the capture.
+        teleop_interface.request_start()
+        if presentation is not None:
+            presentation.start(env, teleop_interface)
+        _warmup_replay(env, run_index, presentation)
 
         print(
             f"Replay {run_index + 1}/{total_runs} started; replaying MCAP from {args_cli.replay_file}"
             f" (max_replay_duration_s={args_cli.max_replay_duration_s:.1f})."
         )
+        action_state: dict = {}
+        initialized_hand_tracking: set[str] = set()
         teleop_active = False
         teleop_was_active = False  # only terminate on STOP after a real START
         success_step_count = 0
@@ -1297,7 +1488,11 @@ def _run_single_replay(
                         stats.outcome = "timeout"
                         break
 
-                    action = teleop_interface.advance()
+                    if presentation is not None and presentation.session.shutdown_requested:
+                        print("OVXR viewer requested shutdown before replay completed.")
+                        stats.outcome = "incomplete"
+                        break
+                    action = _advance_replay_input(teleop_interface, isaac_teleop_cfg, presentation)
                     ctrl = poll_control_events(teleop_interface)
 
                     # Track active state from the replayed _teleop_control
@@ -1329,24 +1524,56 @@ def _run_single_replay(
                         break
 
                     if ctrl.should_reset:
-                        _handle_reset(env, teleop_interface)
+                        action_state.clear()
+                        initialized_hand_tracking.clear()
+                        _handle_reset(
+                            env,
+                            teleop_interface,
+                            hard_sim_reset=_replay_requires_hard_sim_reset(env.scene.physics_backend),
+                        )
+                        # _handle_reset() intentionally performs a host reset
+                        # (pause=False). Reassert the canonical headset-free
+                        # start so a recorded reset cannot leave replay paused.
+                        teleop_interface.request_start()
                         success_step_count = 0
+                        if presentation is not None:
+                            presentation.publish(env, changed=True, reset=True)
                         continue
 
                     # Gate stepping on the active state (mirrors
                     # teleop_se3_agent.py:309-328). Pre-START operator
                     # setup frames render only; the recorded START flips
                     # us into the stepping branch.
+                    if not teleop_active:
+                        action_state.clear()
                     if action is None or not teleop_active:
-                        env.sim.render()
+                        _render_replay_idle(env, presentation)
+                        continue
+
+                    issue = initial_hand_tracking_issue(
+                        teleop_interface,
+                        initialized_hand_tracking,
+                        required=getattr(isaac_teleop_cfg, "require_initial_bimanual_hand_tracking", False),
+                    )
+                    if issue is None:
+                        action, issue = prepare_teleop_action(
+                            env,
+                            action,
+                            isaac_teleop_cfg.action_conditioner,
+                            isaac_teleop_cfg.action_validator,
+                            action_state,
+                        )
+                    if issue is not None:
+                        stats.rejected_action_frames += 1
+                        stats.last_action_rejection = issue
+                        _render_replay_idle(env, presentation)
                         continue
 
                     # Gate the render shim to this env.step call so
                     # only renders fired from within it contribute
                     # interval samples.
                     iter_start_s = time.perf_counter()
-                    if active_start_s is None:
-                        active_start_s = iter_start_s
+                    active_start_s = iter_start_s if active_start_s is None else active_start_s
                     actions = action.repeat(env.num_envs, 1)
                     sampling_active[0] = True
                     try:
@@ -1355,6 +1582,8 @@ def _run_single_replay(
                         sampling_active[0] = False
                     last_active_end_s = time.perf_counter()
                     stats.active_iterations += 1
+                    if presentation is not None:
+                        presentation.publish(env, changed=True)
 
                     # Snapshot GPU state right after env.step so the
                     # sample reflects the active workload (post-render
@@ -1376,7 +1605,7 @@ def _run_single_replay(
                     # meaningful replay. End the run with a failure
                     # outcome so the batch's exit code reflects it.
                     if bool(terminated.any().item()) or bool(truncated.any().item()):
-                        print("Replay failure: env terminated/truncated mid-trajectory; ending run.")
+                        print("Replay environment terminated; ending run.")
                         stats.outcome = "failure"
                         break
 
@@ -1425,7 +1654,8 @@ def _run_single_replay(
 
     # Fail loud before returning so the next replay never starts and
     # the batch produces no partial report. See _assert_run_measured.
-    _assert_run_measured(stats, run_index)
+    if presentation is None:
+        _assert_run_measured(stats, run_index)
     return stats
 
 
@@ -1439,10 +1669,11 @@ def main() -> int:
     multi-run batches start essentially instantly.
 
     Per-replay control flow (see :func:`_run_single_replay` for details):
-        * Pre-loop warmup: ``wait_for_stage_load`` polls
+        * First-run Kit warmup: ``wait_for_stage_load`` polls
           ``omni.usd.UsdContext.get_stage_loading_status`` until the
           simulator reports zero pending assets, then renders a fixed number of
-          settle frames (only on ``run_index == 0``). An optional
+          settle frames only when Kit is active and ``run_index == 0``.
+          Kitless runs do not import Kit's asset loader. An optional
           ``--replay_start_delay_s`` buffer can be appended for hardware
           that needs more grace. ``advance()`` is not called during
           warmup so ``ReplaySession.update`` does not consume MCAP
@@ -1490,16 +1721,18 @@ def main() -> int:
         persisted to disk; a one-line-per-run stdout summary is always
         printed. See the module docstring for the full JSON schema.
 
-    Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
-    always runs, even when device construction or any subsequent setup
-    raises -- otherwise the USD stage would leak across CI runs.
+    Cleanup drains replay input before the optional OVXR owner releases its
+    borrowed environment. Without that owner the batch closes the environment
+    directly. Failed input drain retains borrowed resources and raises rather
+    than releasing a stage that a worker may still use. Repeated shutdown signals
+    request owner shutdown without interrupting its drain.
 
     Returns:
-        The host process exit code, mapped from the worst-of-N outcome
-        across the multi-run batch: ``0`` if every run's
-        ``success_term`` fired, ``2`` if any run hit
-        ``--max_replay_duration_s``, otherwise ``1`` (any failure or
-        incomplete run).
+        ``1`` if the requested batch did not finish. For a complete batch,
+        return the worst-of-N outcome: ``0`` if every run met task success,
+        ``2`` if any run hit
+        ``--max_replay_duration_s``, otherwise ``1`` (any failure or incomplete
+        run). The report retains each completed run's outcome in either case.
     """
     if args_cli.num_replays < 1:
         raise ValueError(f"--num_replays must be >= 1; got {args_cli.num_replays}")
@@ -1517,7 +1750,7 @@ def main() -> int:
             "MCAP replay requires env_cfg.isaac_teleop to be set."
         )
 
-    with launch_simulation(env_cfg, args_cli):
+    with launch_simulation(env_cfg, args_cli, cleanup_context=not args_cli.ovxr):
         exit_code = _run_replay_batch(env_cfg, success_term)
     return exit_code
 
@@ -1528,8 +1761,14 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
     Returns:
         The host process exit code, see :func:`main`.
     """
+    from isaaclab.sim import SimulationContext
+
+    previous_context = SimulationContext.instance()
     env: gym.Env | None = None
     cloudxr_launcher = None
+    presentation = None
+    previous_handlers = {}
+    shutting_down = False
     all_runs: list[_RunStats] = []
 
     try:
@@ -1540,9 +1779,24 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
         # ``_run_single_replay``). This is what lets ``--num_replays > 1``
         # work in XR-active mode without losing the OpenXR runtime
         # IPC between runs.
-        cloudxr_launcher = _maybe_launch_cloudxr(args_cli.cloudxr_env, args_cli.auto_launch_cloudxr)
+        if args_cli.ovxr:
+            presentation = _ReplayPresentation(env_cfg)
 
-        if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
+            def request_shutdown(_signum, _frame):
+                nonlocal shutting_down
+                if not presentation.started and not shutting_down:
+                    # Begin normal unwinding during construction or peer-gated
+                    # startup; subsequent signals must not interrupt owner drain.
+                    shutting_down = True
+                    raise KeyboardInterrupt
+                shutting_down = True
+                presentation.session.request_shutdown()
+
+            previous_handlers = {sig: signal.signal(sig, request_shutdown) for sig in (signal.SIGINT, signal.SIGTERM)}
+        else:
+            cloudxr_launcher = _maybe_launch_cloudxr(args_cli.cloudxr_env, args_cli.auto_launch_cloudxr)
+
+        if args_cli.require_kit and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr):
             from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
             apply_isaac_rtx_global_settings(IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"))
@@ -1556,18 +1810,33 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
                 success_term=success_term,
                 run_index=run_idx,
                 total_runs=args_cli.num_replays,
+                presentation=presentation,
             )
             all_runs.append(run_stats)
             print(f"Replay {run_idx + 1}/{args_cli.num_replays} outcome: {run_stats.outcome}")
-            if not env.sim.is_running():
+            if not env.sim.is_running() or (presentation is not None and presentation.session.shutdown_requested):
                 # The simulator was closed externally mid-batch; stop the
                 # outer loop rather than spawning a fresh device against
                 # a dead app.
                 break
     finally:
-        if env is not None:
-            env.close()
-            print("Environment closed")
+        shutting_down = True
+        try:
+            if presentation is not None:
+                presentation.close()
+            if env is not None:
+                if presentation is None or not presentation.session.async_worker_owns_environment:
+                    env.close()
+                print("Environment closed")
+            elif presentation is None or not presentation.session.async_worker_owns_environment:
+                # Construction may have created a context before returning env.
+                # Only run after proven input/viewer drain; preserve older contexts.
+                context = SimulationContext.instance()
+                if context is not None and context is not previous_context:
+                    SimulationContext.clear_instance()
+        finally:
+            for sig, handler in previous_handlers.items():
+                signal.signal(sig, handler)
         if cloudxr_launcher is not None:
             try:
                 cloudxr_launcher.stop()
@@ -1579,6 +1848,8 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
     _print_stdout_summary(report)
     if args_cli.stats_output_file is not None:
         _write_json_report(args_cli.stats_output_file, report)
+    if len(all_runs) != args_cli.num_replays:
+        return 1
     return _exit_code_for_outcomes(all_runs)
 
 
