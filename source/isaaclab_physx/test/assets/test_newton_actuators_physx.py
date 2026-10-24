@@ -300,10 +300,11 @@ def test_reset_clears_actuator_state_of_selected_envs(rollouts: _Rollouts) -> No
     """Resetting environment 0 clears the delay history of its DoFs only."""
     articulation = rollouts.robots["delayed"]
     adapter = articulation.newton_actuator_adapter
+    # The PhysX mirror builds only delay input processors, so a processor state is a delay buffer.
     delay_states = [
-        (actuator, state.delay_state)
+        (actuator, state.input_processor_states[0])
         for actuator, state in zip(adapter.actuators, adapter._states_a)
-        if state is not None and getattr(state, "delay_state", None) is not None
+        if state is not None and state.input_processor_states
     ]
     assert delay_states
     assert all((delay_state.num_pushes.numpy() > 0).all() for _, delay_state in delay_states)

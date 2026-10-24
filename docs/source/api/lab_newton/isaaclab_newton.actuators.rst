@@ -8,11 +8,17 @@ isaaclab_newton.actuators
 .. autosummary::
    :nosignatures:
 
-   DriveBam
+   BamFriction
+   BamGroup
+   get_bam_group
 
-BAM Servo Drive
----------------
+BAM Servo Runtime
+-----------------
 
-.. autoclass:: DriveBam
+.. autoclass:: BamFriction
     :members:
-    :show-inheritance:
+
+.. autoclass:: BamGroup
+    :members:
+
+.. autofunction:: get_bam_group

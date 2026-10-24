@@ -11,10 +11,11 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
-from newton import JointType, Model
-from newton.actuators import Actuator
+from newton import Model, ModelFlags
+from newton.actuators import DriveBAM, InputProcessorBacklash, InputProcessorRandomDelay
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg
@@ -22,13 +23,12 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import build_implicit_dof_mask
 from isaaclab.actuators.newton import kernels as actuator_kernels
-from isaaclab.actuators.newton.adapter import NewtonActuatorSelection
+from isaaclab.actuators.newton.adapter import NewtonActuatorAdapter, NewtonActuatorSelection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 
-from isaaclab_newton.actuators.bam import DriveBam
+from isaaclab_newton.actuators.bam import BamFriction, BamGroup
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
 
 if TYPE_CHECKING:
     from .articulation import Articulation
@@ -47,7 +47,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         """
         super().__init__(articulation)
         self._bam_cfgs: dict[str, BamActuatorCfg] = {}
-        self._bam_group_dofs: dict[str, set[int]] = {}
+        self.bam_groups: dict[str, BamGroup] = {}
+        """Isaac Lab-side runtime of each Newton-executed BAM group, keyed by group name."""
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation
@@ -68,16 +69,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         self._bam_cfgs = {name: cfg for name, cfg in actuator_cfgs.items() if isinstance(cfg, BamActuatorCfg)}
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
-        # BAM shares supply sag and command delay over an environment's DOFs. The first articulation to
-        # activate the path creates every drive's state, so the stride is set for all BAM drives here.
-        model_actuators = (
-            self._articulation._backend_manager.backend.model.actuators
-            if self._articulation._backend_manager.backend is not None
-            else []
-        )
-        for actuator in model_actuators:
-            if isinstance(actuator.drive, DriveBam):
-                actuator.drive.env_dof_stride = len(actuator.indices) // self.num_instances
         self._articulation._backend_manager.activate_newton_actuator_path()
 
         return native_group_names
@@ -147,17 +138,11 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
         self._articulation._backend_manager.register_post_actuator_callback(_post_actuator)
         if self._bam_cfgs:
-            # Each group's model DOFs within one environment pair the Newton actuators with their groups.
-            first_dof = self._joint_dof_offset()
-            all_joints = list(range(self.num_joints))
-            self._bam_group_dofs = {}
-            for name in self._bam_cfgs:
-                ids = collection._group_joint_indices[name]
-                ids = all_joints[ids] if isinstance(ids, slice) else ids.tolist()
-                self._bam_group_dofs[name] = {first_dof + j for j in articulation.map_joint_ids_to_backend(ids)}
-            self._sample_bam_startup_parameters()
-            # The MJWarp binding needs the solver, which does not exist yet.
-            self._articulation._backend_manager.register_solver_init_callback(self._bind_bam_actuators)
+            if adapter is None:
+                raise RuntimeError(f"BAM groups {sorted(self._bam_cfgs)} have no Newton actuators.")
+            self._create_bam_groups(collection, adapter)
+            # The friction needs the solver's load observables, and the solver does not exist yet.
+            self._articulation._backend_manager.register_solver_init_callback(self._bind_bam_friction)
 
         if adapter is None:
             return None
@@ -236,121 +221,119 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if self._native_actuator_path_active and self._articulation._backend_manager._adapter is not None:
             self._articulation._backend_manager._adapter.reset(env_ids)
 
-    def _bam_actuators(self) -> list[tuple[Actuator, list[str]]]:
-        """Return the Newton BAM actuators that drive this articulation, each with the BAM groups it drives.
+    def _create_bam_groups(self, collection: ActuatorCollection, adapter: NewtonActuatorAdapter) -> None:
+        """Create the supply and friction state of each BAM group.
 
-        Newton merges structurally identical actuators across groups and articulations, so an
-        actuator belongs here when any of its DOFs belongs to one of this articulation's BAM groups.
+        Each group gets one battery per environment and per-DOF friction state. Their resets follow every adapter
+        reset.
+
+        Raises:
+            RuntimeError: If a group's DOFs are not driven by Newton's BAM drive reading its battery, with exactly
+                its configured random delay and backlash processors.
         """
-        adapter = self._articulation._backend_manager._adapter
-        if adapter is None:
-            return []
-        owned = []
+        dofs_per_env = adapter.num_joints
+        # Input processors of each BAM DOF, with the backlash velocity feedback setting.
+        bam_processors: dict[int, list[tuple[type, bool | None]]] = {}
         for actuator in adapter.actuators:
-            if not isinstance(actuator.drive, DriveBam):
+            # A drive on its own supply voltage would ignore the group's battery.
+            if not isinstance(actuator.drive, DriveBAM) or not actuator.drive.supply_from_control:
                 continue
-            local_dofs = set((actuator.indices.numpy() % adapter.num_joints).tolist())
-            names = [name for name, dofs in self._bam_group_dofs.items() if dofs & local_dofs]
-            if names:
-                owned.append((actuator, names))
-        return owned
+            kinds = [(type(p), getattr(p, "velocity_feedback", None)) for p in actuator.input_processors]
+            bam_processors.update((dof, kinds) for dof in actuator.indices.numpy().tolist())
 
-    def _sample_bam_startup_parameters(self) -> None:
-        """Sample the per-environment BAM supply voltage and sag gain once per Newton actuator.
+        # Group DOFs, environment-major and in group joint order. Instance e lives in environment e.
+        all_joints = list(range(self.num_joints))
+        local_dofs = {}
+        for name in self._bam_cfgs:
+            ids = collection._group_joint_indices[name]
+            ids = all_joints[ids] if isinstance(ids, slice) else ids.tolist()
+            backend_ids = np.asarray(self._articulation.map_joint_ids_to_backend(ids))
+            local_dofs[name] = self._joint_dof_offset() + backend_ids
+        env_offsets = np.arange(self.num_instances)[:, None] * dofs_per_env
 
-        A USD prim is shared by every clone, so these ranges are sampled here and held across resets.
-
-        Raises:
-            ValueError: If BAM groups or articulations sharing a Newton actuator disagree on settings
-                that Newton does not use to group actuators.
-        """
-        for actuator, names in self._bam_actuators():
-            drive = actuator.drive
-            cfgs = [self._bam_cfgs[name] for name in names]
-            settings = {
-                (c.vin_range, c.vin_drop_gain_range, c.stiff_frictionloss, c.backlash_joint_template) for c in cfgs
-            }
-            if len(settings) > 1:
-                raise ValueError(
-                    f"BAM groups {names} share a Newton actuator and must agree on 'vin_range',"
-                    " 'vin_drop_gain_range', 'stiff_frictionloss' and 'backlash_joint_template'."
+        for name, cfg in self._bam_cfgs.items():
+            dofs = env_offsets + local_dofs[name]
+            if not set(bam_processors).issuperset(dofs.ravel().tolist()):
+                raise RuntimeError(f"BAM group '{name}' is not driven by Newton's DriveBAM with supply_from_control.")
+            # Newton skips an unregistered processor token silently, and a stale one would read a play hinge.
+            expected = []
+            if cfg.max_delay > 0:
+                expected.append((InputProcessorRandomDelay, None))
+            if cfg.backlash_joint_template is not None:
+                expected.append((InputProcessorBacklash, cfg.backlash_velocity_feedback))
+            if any(bam_processors[dof] != expected for dof in dofs.ravel().tolist()):
+                wanted = [
+                    cls.__name__ + ("" if flag is None else f"(velocity_feedback={flag})") for cls, flag in expected
+                ]
+                raise RuntimeError(
+                    f"BAM group '{name}' must read its servos through exactly these processors: {wanted}."
                 )
-            (setting,) = settings
-            if drive.startup_settings == setting:
-                # Another articulation sharing this drive already sampled it.
-                continue
-            if drive.startup_settings is not None:
-                raise ValueError(
-                    "Articulations sharing a Newton BAM actuator must agree on 'vin_range', 'vin_drop_gain_range',"
-                    f" 'stiff_frictionloss' and 'backlash_joint_template' (got {drive.startup_settings} and {setting})."
-                )
-            drive.startup_settings = setting
-            for values, value_range in ((drive.vin, cfgs[0].vin_range), (drive.sag_gain, cfgs[0].vin_drop_gain_range)):
-                if value_range is None:
-                    continue
-                per_env = wp.to_torch(values).view(-1, drive.env_dof_stride)
-                samples = torch.empty(per_env.shape[0], 1, device=per_env.device, dtype=per_env.dtype)
-                per_env.copy_(samples.uniform_(*value_range).expand_as(per_env))
+            nominal_voltage, sag_gain = self._sample_bam_supply(cfg)
+            battery_offset = adapter.add_batteries(dofs, nominal_voltage, sag_gain, min_voltage=max(cfg.vin_min, 0.0))
+            friction = BamFriction(cfg.motor, wp.array(dofs.ravel(), dtype=wp.uint32, device=self.device), dofs_per_env)
+            adapter.register_reset_callback(friction.reset)
 
-    def _bind_bam_backlash(self, actuator: Actuator, template: str) -> None:
-        """Resolve each servo's sibling play hinge to its model coordinate index.
+            self.bam_groups[name] = BamGroup(
+                num_envs=self.num_instances,
+                friction=friction,
+                adapter=adapter,
+                battery_offset=battery_offset,
+            )
 
-        Raises:
-            ValueError: If a servo or its play-hinge sibling is missing or not revolute.
+    def _sample_bam_supply(self, cfg: BamActuatorCfg) -> tuple[wp.array, wp.array]:
+        """Sample the per-environment supply voltage and sag gain, held across resets.
+
+        Both ranges are drawn from the global torch generator, voltage first, with shape ``(num_envs, 1)``.
+
+        Returns:
+            The nominal voltage [V] and sag gain [V/(N.m)] of each environment, shape ``(num_envs,)`` each.
         """
-        model = self._articulation._backend_manager.backend.model
-        q_start = model.joint_q_start.numpy()
-        qd_start = model.joint_qd_start.numpy()
-        joint_types = model.joint_type.numpy()
-        worlds = model.joint_world.numpy()
-        joints = {(int(world), label): index for index, (world, label) in enumerate(zip(worlds, model.joint_label))}
-        dof_to_joint = {int(start): index for index, start in enumerate(qd_start[:-1])}
-        indices = []
-        for dof in actuator.indices.numpy():
-            joint = dof_to_joint[int(dof)]
-            parent, _, name = model.joint_label[joint].rpartition("/")
-            twin_label = f"{parent}/{template.format(name)}"
-            twin = joints.get((int(worlds[joint]), twin_label))
-            if joint_types[joint] != JointType.REVOLUTE:
-                raise ValueError(f"BAM backlash requires a revolute servo joint: {model.joint_label[joint]}")
-            if twin is None or joint_types[twin] != JointType.REVOLUTE:
-                raise ValueError(f"BAM backlash requires a revolute sibling play hinge: {twin_label}")
-            indices.append(int(q_start[twin]))
-        actuator.drive.backlash_pos_indices = wp.array(indices, dtype=wp.uint32, device=self.device)
+        samples = []
+        for value_range, default in ((cfg.vin_range, cfg.vin), (cfg.vin_drop_gain_range, 0.0)):
+            values = torch.full((self.num_instances, 1), default, device=self.device, dtype=torch.float32)
+            if value_range is not None:
+                values.uniform_(*value_range)
+            samples.append(wp.from_torch(values.view(-1)))
+        return samples[0], samples[1]
 
-    def _bind_bam_actuators(self) -> None:
-        """Bind this articulation's BAM actuators to the MJWarp solver, once per Newton actuator.
+    def _bind_bam_friction(self) -> None:
+        """Feed each BAM group's friction budget from the solver's load observables.
 
-        Each step, the pre-actuator hook gathers the previous solve's external load and the
-        post-actuator hook publishes the drive's friction budget before the substeps.
+        Each step, the pre-actuator hook computes the budget from the previous solve's loads and publishes it as the
+        servos' joint friction, and the post-actuator hook records the applied effort for the next budget.
 
         Raises:
-            ValueError: If the active solver is not MJWarp or runs CPU MuJoCo (``use_mujoco_cpu=True``).
+            ValueError: If the active solver does not export its bias, constraint and friction-loss forces.
         """
         solver = self._articulation._backend_manager._solver
-        if not MjWarpActuatorBridge.is_available(solver):
+        kinds = {"qfrc_bias", "qfrc_constraint", "qfrc_frictionloss"}
+        if not kinds <= solver.supported_observables:
             raise ValueError(
-                "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
+                "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg), which exports joint loads."
             )
+        self._articulation._backend_manager.request_solver_observables(kinds)
         model = self._articulation._backend_manager.backend.model
-        for actuator, names in self._bam_actuators():
-            drive = actuator.drive
-            if drive.external_torque is not None:
-                continue
-            # Start-up sampling already checked that the groups sharing this actuator agree.
-            cfg = self._bam_cfgs[names[0]]
-            if drive.has_backlash:
-                self._bind_bam_backlash(actuator, cfg.backlash_joint_template)
-            bridge = MjWarpActuatorBridge(solver, model, actuator.indices, self.device)
-            drive.external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
-            if cfg.stiff_frictionloss:
-                bridge.stiffen_friction_constraint()
-            self._articulation._backend_manager.register_pre_actuator_callback(
-                lambda bridge=bridge, out=drive.external_torque: bridge.gather_external_torque(out)
-            )
-            self._articulation._backend_manager.register_post_actuator_callback(
-                lambda bridge=bridge, drive=drive: bridge.publish_dof_friction(drive.friction_budget)
-            )
+        for group in self.bam_groups.values():
+
+            def update_budget(friction: BamFriction = group.friction) -> None:
+                loads = self._articulation._backend_manager._solver_observables
+                friction.compute_budget(
+                    self._articulation._backend_manager.backend.state_0.joint_qd,
+                    loads.qfrc_bias,
+                    loads.qfrc_constraint,
+                    loads.qfrc_frictionloss,
+                    model.joint_friction,
+                )
+
+            def record_effort(friction: BamFriction = group.friction) -> None:
+                # The adapter zeroes the actuated DOFs of joint_f before the actuators add their clamped effort.
+                friction.record_applied_effort(self._articulation._backend_manager.backend.control.joint_f)
+
+            self._articulation._backend_manager.register_pre_actuator_callback(update_budget)
+            self._articulation._backend_manager.register_post_actuator_callback(record_effort)
+        self._articulation._backend_manager.register_pre_actuator_callback(
+            lambda: solver.notify_model_changed(ModelFlags.JOINT_DOF_FORCE_PROPERTIES)
+        )
 
     def _joint_dof_offset(self) -> int:
         """Return the first selected joint DOF's model offset within an environment."""

@@ -13,7 +13,7 @@ import inspect
 import logging
 import re
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -150,6 +150,16 @@ def _or_world_reset_mask_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask
 def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
     """Mark selected worlds for solver reset without requesting FK."""
     world_mask[env_ids[wp.tid()]] = True
+
+
+@wp.kernel(enable_backward=False)
+def _zero_reset_world_dofs(
+    world_mask: wp.array(dtype=wp.bool), dofs_per_world: int, values: wp.array(dtype=wp.float32)
+):
+    """Zero the per-DOF values of the worlds flagged for reset."""
+    dof = wp.tid()
+    if world_mask[dof // dofs_per_world]:
+        values[dof] = 0.0
 
 
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
@@ -481,6 +491,8 @@ class NewtonManager(PhysicsManager):
     backend: NewtonBackend | None = None
     """Borrowed native resource shared by physics and scene consumers; the simulation registry owns it."""
     _solver: SolverBase | None = None
+    _solver_observables: SolverBase.Observables | None = None
+    """Observables the solver writes on every substep, or None until one is requested."""
     _use_single_state: bool | None = None
     """Use only one state for both input and output for solver stepping. Requires solver support."""
 
@@ -627,6 +639,7 @@ class NewtonManager(PhysicsManager):
             self._collision_pipeline = None
             self._contacts = None
             self._solver = None
+            self._solver_observables = None
             self._eval_fk = _eval_fk_unbound
             self._reset_solver_internals_delegate = _reset_solver_internals_unbound
             self._adapter = None
@@ -672,6 +685,7 @@ class NewtonManager(PhysicsManager):
         if not (self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
             return
         self._reset_solver_internals_delegate(self._world_reset_mask)
+        self._clear_reset_world_observables()
         self._eval_fk(self._world_reset_mask, self._fk_reset_mask)
         if self._fk_reset_mask is not None:
             self._fk_reset_mask.zero_()
@@ -821,6 +835,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._num_envs = None
         self._solver = None
+        self._solver_observables = None
         self._use_single_state = None
         self._supports_rigid_body_force_input = False
         self._contacts = None
@@ -1537,10 +1552,10 @@ class NewtonManager(PhysicsManager):
     ) -> None:
         """Run one solver substep.
 
-        Default invokes :attr:`_solver` once.  Subclasses can override to
-        batch multiple solvers within a single substep.
+        Default invokes :attr:`_solver` once, exporting the requested :attr:`_solver_observables`.
+        Subclasses can override to batch multiple solvers within a single substep.
         """
-        self._solver.step(state_0, state_1, control, contacts, substep_dt)
+        self._solver.step(state_0, state_1, control, contacts, substep_dt, observables=self._solver_observables)
 
     def _solver_specific_clear(self) -> None:
         """Solver-specific cleanup hook called from :meth:`clear`.
@@ -1886,6 +1901,43 @@ class NewtonManager(PhysicsManager):
             device=self._device,
         )
         self._adapter.finalize(self.backend.control)
+
+    def request_solver_observables(self, kinds: Iterable[str]) -> None:
+        """Have the solver export *kinds* on every substep, in addition to the kinds requested before.
+
+        Call once the solver exists and before CUDA graph capture, e.g. from a :meth:`register_solver_init_callback`
+        hook. A request for new kinds reallocates :attr:`_solver_observables`, so read the arrays from there when
+        stepping rather than keeping them.
+
+        Raises:
+            ValueError: If the solver does not export a requested kind.
+        """
+        kinds = set(kinds)
+        if self._solver_observables is not None:
+            if kinds <= self._solver_observables.kinds:
+                return
+            kinds |= self._solver_observables.kinds
+        self._solver_observables = self._solver.observables(kinds)
+
+    def _clear_reset_world_observables(self) -> None:
+        """Zero the per-DOF solver observables of the worlds flagged for reset.
+
+        The solver writes observables only while stepping, so a reset world would otherwise expose the terminated
+        episode's values, such as its last joint loads, until its next solve.
+        """
+        if self._solver_observables is None or self._world_reset_mask is None:
+            return
+        model = self.backend.model
+        for kind in self._solver_observables.kinds:
+            values = getattr(self._solver_observables, kind)
+            if values.dtype == wp.float32 and values.shape == (model.joint_dof_count,):
+                wp.launch(
+                    _zero_reset_world_dofs,
+                    dim=model.joint_dof_count,
+                    inputs=[self._world_reset_mask, model.joint_dof_count // model.world_count],
+                    outputs=[values],
+                    device=values.device,
+                )
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.

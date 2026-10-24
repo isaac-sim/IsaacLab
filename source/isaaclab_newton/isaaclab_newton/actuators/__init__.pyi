@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "DriveBam",
+    "BamFriction",
+    "BamGroup",
+    "get_bam_group",
 ]
 
-from .bam import DriveBam
+from .bam import BamFriction, BamGroup, get_bam_group

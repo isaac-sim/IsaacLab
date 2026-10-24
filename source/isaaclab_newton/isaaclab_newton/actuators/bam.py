@@ -3,61 +3,41 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton-native BAM servo drive.
+"""The BAM servo part that Newton's native BAM path does not provide.
 
-Importing this module registers :class:`DriveBam` under the ``NewtonBamDriveAPI`` USD token.
+Newton runs the firmware and motor (:class:`~newton.actuators.DriveBAM`), the supply
+(:class:`~newton.actuators.Battery`), the random command lag (:class:`~newton.actuators.InputProcessorRandomDelay`),
+the play-angle read (:class:`~newton.actuators.InputProcessorBacklash`) and the effort clamp. Isaac Lab adds the
+gearbox friction that MJWarp applies as a DOF friction constraint.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
+import numpy as np
 import warp as wp
-from newton.actuators import ComponentKind, DriveBase, register_actuator_component
 
-from isaaclab.actuators.actuator_bam_cfg import BAM_DRIVE_API
+from isaaclab.actuators.actuator_bam_cfg import BAM_MODEL_FLAGS, BamMotorCfg
 
-from .bam_kernels import bam_delay_kernel, bam_friction_kernel, bam_motor_kernel, bam_state_reset_kernel
+from .bam_kernels import bam_friction_budget_kernel, gather_dof_values_kernel, zero_masked_envs_kernel
+
+if TYPE_CHECKING:
+    from isaaclab.actuators.newton import NewtonActuatorAdapter
+    from isaaclab.assets import Articulation
 
 
-class DriveBam(DriveBase):
-    """BAM voltage-domain servo drive.
+class BamFriction:
+    """Gearbox friction of BAM servos, which MuJoCo applies as a DOF friction constraint.
 
-    Each step delays the position command, sags the supply, runs the firmware proportional
-    loop to a PWM duty cycle, converts it to motor torque, and publishes the gearbox friction
-    budget that MJWarp applies as a constraint. Only the position target is consumed.
-
-    The drive clamps its own effort: authoring a registered clamping schema next to the
-    unregistered ``NewtonBamDriveAPI`` token hides the drive from Newton's schema discovery.
+    Before each actuator step, :meth:`compute_budget` turns the servo velocity, the previous solve's external
+    load and the previous step's applied effort into a velocity-independent friction budget, and writes it into the
+    model's joint friction for the next solve. After the step, :meth:`record_applied_effort` stores the clamped
+    effort for the next budget. Both run in CUDA graphs.
     """
 
-    SHARED_PARAMS: ClassVar[set[str]] = {
-        "has_backlash",
-        "stribeck",
-        "load_dependent",
-        "quadratic",
-        "vin_min",
-        "min_delay",
-        "max_delay",
-        "delay_hold_prob",
-        "delay_update_period",
-        "delay_seed",
-    }
-
-    PER_DOF_PARAMS: ClassVar[tuple[str, ...]] = (
-        "kp_fw",
-        "kp_scale",
-        "kd_scale",
-        "vin",
-        "sag_gain",
-        "friction_scale",
-        "kt",
-        "resistance",
-        "error_gain",
-        "max_pwm",
-        "max_current",
+    COEFFICIENTS: ClassVar[tuple[str, ...]] = (
         "friction_base",
         "friction_stribeck",
         "dtheta_stribeck",
@@ -68,402 +48,169 @@ class DriveBam(DriveBase):
         "load_friction_external_stribeck",
         "load_friction_motor_quad",
         "load_friction_external_quad",
-        "max_effort",
     )
-    """Per-DOF parameter arrays, shape ``(N,)`` each."""
+    """Fit coefficients copied per DOF from :class:`~isaaclab.actuators.BamMotorCfg`."""
 
-    external_torque: wp.array[float] | None
-    """External gearbox load of the previous MJWarp solve [N.m], shape ``(N,)``. Bound by the MJWarp bridge."""
-
-    backlash_pos_indices: wp.array[wp.uint32] | None
-    """Play-hinge coordinate indices, shape ``(N,)``. Bound before stepping for backlash drives."""
-
-    env_dof_stride: int
-    """DOFs per environment, which share one supply and one command-delay stream."""
-
-    startup_settings: tuple | None
-    """BAM settings the start-up sampling ran with, or None if it has not run."""
-
-    friction_budget: wp.array[float] | None
-    """Velocity-independent friction budget of the last step [N.m], shape ``(N,)``."""
-
-    effective_vin: wp.array[float] | None
-    """Supply voltage after sag of the last step [V], shape ``(N,)``."""
-
-    motor_torque: wp.array[float] | None
-    """Motor torque of the last step, before friction [N.m], shape ``(N,)``."""
-
-    @dataclass
-    class State(DriveBase.State):
-        """Double-buffered per-DOF state of the BAM drive."""
-
-        prev_motor_torque: wp.array[float] | None = None
-        """Unclamped motor torque of the previous step, used for supply sag [N.m], shape ``(N,)``."""
-
-        prev_applied_torque: wp.array[float] | None = None
-        """Clamped effort of the previous step, used for friction [N.m], shape ``(N,)``."""
-
-        delay_ring: wp.array2d[float] | None = None
-        """Past position commands [rad or m], shape ``(N, max(max_delay, 1))``."""
-
-        delay_lag: wp.array[wp.int32] | None = None
-        """Current command lag [physics steps], shape ``(N,)``."""
-
-        delay_fill: wp.array[wp.int32] | None = None
-        """Number of valid entries in :attr:`delay_ring`, shape ``(N,)``."""
-
-        delay_step_count: wp.array[wp.int32] | None = None
-        """Steps since the last reset, shape ``(N,)``."""
-
-        delay_phase: wp.array[wp.int32] | None = None
-        """Offset of the lag-resampling period per environment, shape ``(N,)``."""
-
-        delay_rng_seed: wp.array[wp.int32] | None = None
-        """Episode seed per environment, shape ``(N,)``."""
-
-        delay_update_period: int = 0
-        """Lag-resampling period [physics steps]."""
-
-        env_dof_stride: int = 1
-        """DOFs sharing one command-delay stream."""
-
-        delay_seed: int = 0
-        """Base seed of the lag and phase draws."""
-
-        reset_count: int = 0
-        """Number of resets applied, which decorrelates successive episodes."""
-
-        def assign(self, other: DriveBam.State) -> None:
-            """Copy another state into this one, keeping this state's array storage."""
-            self.prev_motor_torque.assign(other.prev_motor_torque)
-            self.prev_applied_torque.assign(other.prev_applied_torque)
-            self.delay_ring.assign(other.delay_ring)
-            self.delay_lag.assign(other.delay_lag)
-            self.delay_fill.assign(other.delay_fill)
-            self.delay_step_count.assign(other.delay_step_count)
-            self.delay_phase.assign(other.delay_phase)
-            self.delay_rng_seed.assign(other.delay_rng_seed)
-            self.delay_update_period = other.delay_update_period
-            self.env_dof_stride = other.env_dof_stride
-            self.delay_seed = other.delay_seed
-            self.reset_count = other.reset_count
-
-        def reset(self, mask: wp.array[wp.bool] | None = None) -> None:
-            self.reset_count += 1
-            wp.launch(
-                bam_state_reset_kernel,
-                dim=len(self.prev_motor_torque),
-                inputs=[
-                    mask,
-                    self.prev_motor_torque,
-                    self.prev_applied_torque,
-                    self.delay_ring,
-                    self.delay_lag,
-                    self.delay_fill,
-                    self.delay_step_count,
-                    self.delay_phase,
-                    self.delay_rng_seed,
-                    self.delay_update_period,
-                    self.env_dof_stride,
-                    self.delay_seed + self.reset_count,
-                ],
-                device=self.prev_motor_torque.device,
-            )
-
-    @classmethod
-    def resolve_arguments(cls, args: dict[str, Any]) -> dict[str, Any]:
-        """Resolve shared settings and per-DOF coefficients from a USD actuator prim.
+    def __init__(self, motor: BamMotorCfg, dof_indices: wp.array, dofs_per_env: int):
+        """Initialize the friction state of a set of servo DOFs.
 
         Args:
-            args: Authored attribute values, keyed by snake-case name.
-
-        Returns:
-            Shared settings and per-DOF coefficients.
-
-        Raises:
-            ValueError: If names are unknown, coefficients are missing, or delays are invalid.
+            motor: Identified motor and gearbox fit.
+            dof_indices: DOF index of each servo slot into ``joint_qd``-shaped arrays, shape ``(N,)``.
+            dofs_per_env: DOFs per environment in the layout of :paramref:`dof_indices`.
         """
-        unknown = set(args) - cls.SHARED_PARAMS - set(cls.PER_DOF_PARAMS)
-        if unknown:
-            raise ValueError(f"Unknown BAM parameter(s): {', '.join(sorted(unknown))}")
-        required = {"kt", "resistance", "error_gain", "max_pwm", "kp_fw", "vin", "friction_base"}
-        if args.get("stribeck", 0):
-            required.update(("friction_stribeck", "dtheta_stribeck", "alpha"))
-        if args.get("load_dependent", 0):
-            required.update(("load_friction_motor", "load_friction_external"))
-            if args.get("stribeck", 0):
-                required.update(("load_friction_motor_stribeck", "load_friction_external_stribeck"))
-        if args.get("quadratic", 0):
-            if not args.get("stribeck", 0) or not args.get("load_dependent", 0):
-                raise ValueError("BAM quadratic friction requires stribeck and load_dependent")
-            required.update(("load_friction_motor_quad", "load_friction_external_quad"))
-        missing = required - args.keys()
-        if missing:
-            raise ValueError(f"{BAM_DRIVE_API} is missing coefficient(s): {', '.join(sorted(missing))}")
-
-        min_delay = int(args.get("min_delay", 0))
-        max_delay = int(args.get("max_delay", 0))
-        delay_hold_prob = float(args.get("delay_hold_prob", 0.0))
-        if min_delay < 0:
-            raise ValueError(f"min_delay must not be negative, got {min_delay}")
-        if max_delay < min_delay:
-            raise ValueError(f"max_delay ({max_delay}) must not be below min_delay ({min_delay})")
-        if not 0.0 <= delay_hold_prob <= 1.0:
-            raise ValueError(f"delay_hold_prob must lie in [0, 1], got {delay_hold_prob}")
-
-        resolved: dict[str, Any] = {
-            "has_backlash": int(args.get("has_backlash", 0)),
-            "stribeck": int(args.get("stribeck", 0)),
-            "load_dependent": int(args.get("load_dependent", 0)),
-            "quadratic": int(args.get("quadratic", 0)),
-            "vin_min": float(args.get("vin_min", -math.inf)),
-            "min_delay": min_delay,
-            "max_delay": max_delay,
-            "delay_hold_prob": delay_hold_prob,
-            "delay_update_period": int(args.get("delay_update_period", 0)),
-            "delay_seed": int(args.get("delay_seed", 0)),
+        device = dof_indices.device
+        num_dofs = len(dof_indices)
+        flags = BAM_MODEL_FLAGS[motor.model]
+        self.stribeck = flags["stribeck"]
+        self.load_dependent = flags["load_dependent"]
+        self.quadratic = flags["quadratic"]
+        self.dof_indices = dof_indices
+        """DOF index of each slot into ``joint_qd``-shaped arrays, shape ``(N,)``."""
+        self._dofs_per_env = dofs_per_env
+        self.coefficients = {
+            name: wp.array(np.full(num_dofs, getattr(motor, name), dtype=np.float32), device=device)
+            for name in self.COEFFICIENTS
         }
-        # Zero disables optional friction terms and the firmware current limiter.
-        defaults = dict.fromkeys(cls.PER_DOF_PARAMS, 0.0)
-        defaults.update(
-            kp_scale=1.0,
-            kd_scale=1.0,
-            friction_scale=1.0,
-            dtheta_stribeck=1.0,
-            alpha=1.0,
-            max_effort=float(args["vin"]) * float(args["kt"]) / float(args["resistance"]),
-        )
-        for name in cls.PER_DOF_PARAMS:
-            resolved[name] = float(args.get(name, defaults[name]))
-        return resolved
+        """Fit coefficients per slot, shape ``(N,)`` each."""
+        self.friction_scale = wp.ones(num_dofs, dtype=wp.float32, device=device)
+        """Multiplier of the friction budget [-], shape ``(N,)``."""
+        self.external_torque = wp.zeros(num_dofs, dtype=wp.float32, device=device)
+        """External gearbox load of the previous solve, as of the last budget [N.m], shape ``(N,)``."""
+        self.prev_applied_torque = wp.zeros(num_dofs, dtype=wp.float32, device=device)
+        """Clamped effort of the previous step [N.m], shape ``(N,)``. Zeroed on reset."""
+        self.friction_budget = wp.zeros(num_dofs, dtype=wp.float32, device=device)
+        """Velocity-independent friction budget of the last step [N.m], shape ``(N,)``."""
 
-    def __init__(
+    def compute_budget(
         self,
-        *,
-        has_backlash: int = 0,
-        stribeck: int = 0,
-        load_dependent: int = 0,
-        quadratic: int = 0,
-        vin_min: float = -math.inf,
-        min_delay: int = 0,
-        max_delay: int = 0,
-        delay_hold_prob: float = 0.0,
-        delay_update_period: int = 0,
-        delay_seed: int = 0,
-        **per_dof: wp.array,
-    ):
-        """Initialize the drive from Newton's resolved arguments.
-
-        Args:
-            has_backlash: Whether the encoder reads through a passive play hinge.
-            stribeck: Whether the Stribeck friction terms are active.
-            load_dependent: Whether gearbox friction grows with the transmitted torque.
-            quadratic: Whether the quadratic load-coupling term is active.
-            vin_min: Lower bound on the sagged supply voltage [V]. The default ``-inf`` keeps only
-                the 0 V floor.
-            min_delay: Minimum command delay [physics steps].
-            max_delay: Maximum command delay [physics steps]. ``0`` disables the delay.
-            delay_hold_prob: Probability of keeping the current lag instead of resampling it.
-            delay_update_period: Physics steps between lag resamples. ``0`` resamples every step.
-            delay_seed: Base seed of the lag and phase draws.
-            per_dof: One ``(N,)`` array per entry of :attr:`PER_DOF_PARAMS`.
-        """
-        self.has_backlash = bool(has_backlash)
-        self.backlash_pos_indices = None
-        self.stribeck = stribeck
-        self.load_dependent = load_dependent
-        self.quadratic = quadratic
-        self.vin_min = vin_min
-        self.min_delay = min_delay
-        self.max_delay = max_delay
-        self.delay_hold_prob = delay_hold_prob
-        self.delay_update_period = delay_update_period
-        self.delay_seed = delay_seed
-        # Newton's selection API reads and writes per-DOF parameters by attribute name.
-        for name in self.PER_DOF_PARAMS:
-            setattr(self, name, per_dof[name])
-
-        self.external_torque = None
-        self.env_dof_stride = 1
-        self.startup_settings = None
-        self.friction_budget = None
-        self.effective_vin = None
-        self.motor_torque = None
-        self._delayed_target: wp.array[float] | None = None
-        self._next_state_arrays: dict[str, wp.array] = {}
-
-    """
-    Newton component interface.
-    """
-
-    def finalize(self, device: wp.Device, num_actuators: int) -> None:
-        self.friction_budget = wp.zeros(num_actuators, dtype=wp.float32, device=device)
-        self.effective_vin = wp.zeros(num_actuators, dtype=wp.float32, device=device)
-        self.motor_torque = wp.zeros(num_actuators, dtype=wp.float32, device=device)
-        self._delayed_target = wp.empty(num_actuators, dtype=wp.float32, device=device)
-        self._next_state_arrays = {
-            "prev_motor_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            "prev_applied_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            "delay_ring": wp.zeros((num_actuators, max(self.max_delay, 1)), dtype=wp.float32, device=device),
-            "delay_lag": wp.zeros(num_actuators, dtype=wp.int32, device=device),
-            "delay_fill": wp.zeros(num_actuators, dtype=wp.int32, device=device),
-            "delay_step_count": wp.zeros(num_actuators, dtype=wp.int32, device=device),
-        }
-
-    def is_stateful(self) -> bool:
-        return True
-
-    def is_graphable(self) -> bool:
-        return True
-
-    def state(self, num_actuators: int, device: wp.Device) -> DriveBam.State:
-        state = DriveBam.State(
-            prev_motor_torque=wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            prev_applied_torque=wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            delay_ring=wp.zeros((num_actuators, max(self.max_delay, 1)), dtype=wp.float32, device=device),
-            delay_lag=wp.zeros(num_actuators, dtype=wp.int32, device=device),
-            delay_fill=wp.zeros(num_actuators, dtype=wp.int32, device=device),
-            delay_step_count=wp.zeros(num_actuators, dtype=wp.int32, device=device),
-            delay_phase=wp.zeros(num_actuators, dtype=wp.int32, device=device),
-            delay_rng_seed=wp.full(num_actuators, self.delay_seed, dtype=wp.int32, device=device),
-            delay_update_period=self.delay_update_period,
-            env_dof_stride=self.env_dof_stride,
-            delay_seed=self.delay_seed,
-        )
-        # Seed environments and phases identically in both ping-pong buffers.
-        if self.max_delay > 0:
-            wp.launch(
-                bam_state_reset_kernel,
-                dim=num_actuators,
-                inputs=[
-                    None,
-                    state.prev_motor_torque,
-                    state.prev_applied_torque,
-                    state.delay_ring,
-                    state.delay_lag,
-                    state.delay_fill,
-                    state.delay_step_count,
-                    state.delay_phase,
-                    state.delay_rng_seed,
-                    self.delay_update_period,
-                    self.env_dof_stride,
-                    self.delay_seed,
-                ],
-                device=device,
-            )
-        return state
-
-    def compute(
-        self,
-        positions: wp.array[float],
-        velocities: wp.array[float],
-        target_pos: wp.array[float],
-        target_vel: wp.array[float],
-        feedforward: wp.array[float] | None,
-        pos_indices: wp.array[wp.uint32],
-        vel_indices: wp.array[wp.uint32],
-        target_pos_indices: wp.array[wp.uint32],
-        target_vel_indices: wp.array[wp.uint32],
-        forces: wp.array[float],
-        state: DriveBam.State,
-        dt: float,
-        device: wp.Device | None = None,
+        joint_qd: wp.array,
+        qfrc_bias: wp.array,
+        qfrc_constraint: wp.array,
+        qfrc_frictionloss: wp.array,
+        joint_friction: wp.array,
     ) -> None:
-        num_actuators = len(forces)
-        scratch = self._next_state_arrays
+        """Compute this step's friction budget and write it into the joint friction.
+
+        The force arrays are the previous solve's, as Newton's MuJoCo solver exports them.
+
+        Args:
+            joint_qd: Joint velocities of the simulation state [rad/s].
+            qfrc_bias: Gravity, Coriolis and centrifugal forces [N.m].
+            qfrc_constraint: Constraint forces, including each DOF's friction loss [N.m].
+            qfrc_frictionloss: Each DOF's own friction-loss force [N.m].
+            joint_friction: Joint friction the solver applies [N.m]; the servo DOFs receive the budget.
+
+        All arrays are indexed by :attr:`dof_indices`.
+        """
         wp.launch(
-            kernel=bam_delay_kernel,
-            dim=num_actuators,
+            bam_friction_budget_kernel,
+            dim=len(self.dof_indices),
             inputs=[
-                target_pos,
-                target_pos_indices,
-                state.delay_ring,
-                state.delay_lag,
-                state.delay_fill,
-                state.delay_step_count,
-                state.delay_phase,
-                self.min_delay,
-                self.max_delay,
-                self.delay_hold_prob,
-                self.delay_update_period,
-                state.delay_rng_seed,
-            ],
-            outputs=[
-                self._delayed_target,
-                scratch["delay_ring"],
-                scratch["delay_lag"],
-                scratch["delay_fill"],
-                scratch["delay_step_count"],
-            ],
-            device=device,
-        )
-        wp.launch(
-            kernel=bam_motor_kernel,
-            dim=num_actuators,
-            inputs=[
-                positions,
-                velocities,
-                self._delayed_target,
-                pos_indices,
-                vel_indices,
-                self.backlash_pos_indices,
-                self.kp_fw,
-                self.kp_scale,
-                self.kd_scale,
-                self.vin,
-                self.sag_gain,
-                self.kt,
-                self.resistance,
-                self.error_gain,
-                self.max_pwm,
-                self.max_current,
-                state.prev_motor_torque,
-                self.vin_min,
-                self.env_dof_stride,
-            ],
-            outputs=[self.motor_torque, self.effective_vin],
-            device=device,
-        )
-        wp.launch(
-            kernel=bam_friction_kernel,
-            dim=num_actuators,
-            inputs=[
-                velocities,
-                vel_indices,
-                self.motor_torque,
-                self.external_torque,
+                joint_qd,
+                self.dof_indices,
+                qfrc_bias,
+                qfrc_constraint,
+                qfrc_frictionloss,
+                self.prev_applied_torque,
                 self.friction_scale,
-                self.friction_base,
-                self.friction_stribeck,
-                self.dtheta_stribeck,
-                self.alpha,
-                self.load_friction_motor,
-                self.load_friction_external,
-                self.load_friction_motor_stribeck,
-                self.load_friction_external_stribeck,
-                self.load_friction_motor_quad,
-                self.load_friction_external_quad,
-                self.max_effort,
-                state.prev_applied_torque,
+                *(self.coefficients[name] for name in self.COEFFICIENTS),
                 self.stribeck,
                 self.load_dependent,
                 self.quadratic,
             ],
-            outputs=[
-                forces,
-                self.friction_budget,
-                scratch["prev_motor_torque"],
-                scratch["prev_applied_torque"],
-            ],
-            device=device,
+            outputs=[self.external_torque, self.friction_budget, joint_friction],
+            device=self.dof_indices.device,
         )
 
-    def update_state(self, current_state: DriveBam.State, next_state: DriveBam.State) -> None:
-        for name, scratch in self._next_state_arrays.items():
-            wp.copy(getattr(next_state, name), scratch)
-        # The phase and seed only change on reset.
-        wp.copy(next_state.delay_phase, current_state.delay_phase)
-        wp.copy(next_state.delay_rng_seed, current_state.delay_rng_seed)
+    def record_applied_effort(self, joint_f: wp.array) -> None:
+        """Store the effort the actuators applied this step.
+
+        Args:
+            joint_f: Control efforts after the actuator step [N.m], indexed by :attr:`dof_indices`.
+        """
+        wp.launch(
+            gather_dof_values_kernel,
+            dim=len(self.dof_indices),
+            inputs=[joint_f, self.dof_indices],
+            outputs=[self.prev_applied_torque],
+            device=self.dof_indices.device,
+        )
+
+    def reset(self, env_mask: wp.array | None = None) -> None:
+        """Clear the applied-effort history of the masked environments.
+
+        Args:
+            env_mask: Per-environment boolean reset mask, or None to reset every environment.
+        """
+        wp.launch(
+            zero_masked_envs_kernel,
+            dim=len(self.dof_indices),
+            inputs=[env_mask, self.dof_indices, self._dofs_per_env],
+            outputs=[self.prev_applied_torque],
+            device=self.dof_indices.device,
+        )
 
 
-register_actuator_component(BAM_DRIVE_API, DriveBam, ComponentKind.DRIVE)
+@dataclass
+class BamGroup:
+    """Isaac Lab-side runtime of one Newton-executed BAM actuator group.
+
+    Slot arrays are ordered environment-major, then by the group's joints.
+    """
+
+    num_envs: int
+    """Number of environments."""
+
+    friction: BamFriction
+    """Gearbox friction of the group's servos."""
+
+    adapter: NewtonActuatorAdapter
+    """Adapter whose batteries power the group."""
+
+    battery_offset: int
+    """Index of environment 0's battery in :attr:`NewtonActuatorAdapter.battery`."""
+
+    @property
+    def friction_scale(self) -> wp.array:
+        """Live multiplier of the friction budget [-], shape ``(num_envs, num_group_joints)``. Writable."""
+        return self.friction.friction_scale.reshape((self.num_envs, -1))
+
+    @property
+    def friction_budget(self) -> wp.array:
+        """Friction budget of the last step [N.m], shape ``(num_envs, num_group_joints)``."""
+        return self.friction.friction_budget.reshape((self.num_envs, -1))
+
+    @property
+    def nominal_voltage(self) -> wp.array:
+        """Live unloaded supply voltage [V], shape ``(num_envs,)``. Writable."""
+        return self.adapter.battery.nominal_voltage[self.battery_offset : self.battery_offset + self.num_envs]
+
+    @property
+    def sag_gain(self) -> wp.array:
+        """Live supply sag per unit of total motor torque [V/(N.m)], shape ``(num_envs,)``. Writable."""
+        return self.adapter.battery.sag_gain[self.battery_offset : self.battery_offset + self.num_envs]
+
+    @property
+    def voltage(self) -> wp.array:
+        """Supply voltage of the last step [V], shape ``(num_envs,)``."""
+        return self.adapter.battery.voltage[self.battery_offset : self.battery_offset + self.num_envs]
+
+
+def get_bam_group(articulation: Articulation, name: str) -> BamGroup:
+    """Return the Isaac Lab-side runtime of a Newton-executed BAM actuator group.
+
+    Args:
+        articulation: Newton articulation that owns the group.
+        name: Actuator group name.
+
+    Returns:
+        The group's friction and supply state.
+
+    Raises:
+        KeyError: If the articulation has no Newton-executed BAM group *name*.
+    """
+    groups = getattr(getattr(articulation, "_actuator_control", None), "bam_groups", {})
+    if name not in groups:
+        raise KeyError(f"No Newton-executed BAM actuator group '{name}'.")
+    return groups[name]

@@ -8,7 +8,6 @@
   .. autosummary::
 
     NewtonManager
-    MjWarpActuatorBridge
     NewtonCfg
     NewtonBackendCfg
     NewtonBuilderCfg
@@ -46,13 +45,6 @@ Physics Manager
 .. autoclass:: NewtonManager
   :members:
   :inherited-members:
-  :show-inheritance:
-
-Actuator Solver Access
-----------------------
-
-.. autoclass:: MjWarpActuatorBridge
-  :members:
   :show-inheritance:
 
 Physics Configuration
