@@ -620,6 +620,8 @@ class NewtonManager(PhysicsManager):
                 self._pre_actuator_callbacks.clear()
                 self._post_actuator_callbacks.clear()
                 self._post_step_callbacks.clear()
+                # Contact sensors re-register on PHYSICS_READY and get Newton sensors built for the new model.
+                self._newton_contact_sensors.clear()
             # Release the cached collision pipeline, contacts and CUDA graph;
             # they point at the old model's freed buffers (CUDA 700 on next step).
             self._graph = None
@@ -2021,7 +2023,8 @@ class NewtonManager(PhysicsManager):
 
         Compiles the Isaac Lab regular expressions and delegates to
         :class:`newton.sensors.SensorContact`, which full-matches compiled patterns
-        against model labels.
+        against model labels. Identical requests share one Newton sensor, since callers
+        keep references to its output arrays.
 
         Args:
             body_names_expr: Expression for body names to sense.
@@ -2055,6 +2058,8 @@ class NewtonManager(PhysicsManager):
             _hashable_key(contact_partners_body_expr),
             _hashable_key(contact_partners_shape_expr),
         )
+        if sensor_key in self._newton_contact_sensors:
+            return sensor_key
 
         with Timer(
             name="newton_contact_sensor",
