@@ -161,7 +161,11 @@ class KitVisualizer(BaseVisualizer):
         if not self._runtime_headless:
             import omni.appwindow
 
-            self._key_event_source = KitKeyEventSource(omni.appwindow.get_default_app_window())
+            # keyboard input is optional: a failure here must not stop the visualizer from starting
+            try:
+                self._key_event_source = KitKeyEventSource(omni.appwindow.get_default_app_window())
+            except Exception:
+                logger.exception("[KitVisualizer] Keyboard input is unavailable")
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.

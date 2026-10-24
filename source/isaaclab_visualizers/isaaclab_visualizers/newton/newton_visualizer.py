@@ -526,7 +526,11 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._viewer.camera_keys_suspended = not self._camera_keys_enabled
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if not self._runtime_headless:
-            self._key_event_source = NewtonKeyEventSource(self._viewer)
+            # keyboard input is optional: a failure here must not stop the visualizer from starting
+            try:
+                self._key_event_source = NewtonKeyEventSource(self._viewer)
+            except Exception:
+                logger.exception("[%s] Keyboard input is unavailable", type(self).__name__)
 
     def log_mesh(
         self,
