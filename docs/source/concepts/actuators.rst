@@ -360,10 +360,14 @@ targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic 
     :alt: Position step response for a damping sweep.
 
 
-Try the :ref:`interactive PD tuning demo <interactive-demo-joint-pd>` to adjust
-stiffness and damping on a suspended arm with step and sine commands. Its live
-plot compares target and measured angles. Tune a real robot using its own mass,
-actuator model, effort limits, and timestep.
+Adjust stiffness and damping on a suspended arm with step and sine commands.
+The live plot compares target and measured angles. Tune a real robot using its
+own mass, actuator model, effort limits, and timestep.
+
+.. isaaclab-demos:: joint_pd
+   :title: Explore PD gains
+   :physics: rigid
+   :activity: tuning
 
 
 Armature

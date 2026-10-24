@@ -24,6 +24,15 @@ rigid-body scenes, the named-entry coupling options are:
 * :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
   coupling between named solver entries.
 
+Explore material stiffness, cloth and cable bending, and pulley loads in these
+compact scenes. The pulley workshop compares an ideal force reference with the
+reaction measured by its VBD cable simulation.
+
+.. isaaclab-demos:: stiffness, cloth_bending, cable_bending, pulley
+   :title: Explore VBD materials and cables
+   :physics: vbd
+   :activity: tuning
+
 Start from a Supported Deformable Task
 --------------------------------------
 
@@ -458,10 +467,6 @@ for volume deformables:
       - Default: ``0.0`` [Pa*s]. Damping for tetrahedral elements. Increase it to reduce oscillations after deformation, but avoid overdamping if the object should rebound.
 
 
-Try the :ref:`interactive material demo <interactive-demo-stiffness>` to vary
-shear and volume stiffness independently, with fixed reference cubes.
-
-
 Surface Deformable Materials
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -489,10 +494,6 @@ for cloth or surface deformables:
       - Default: ``5.0`` [N*m]. Bending stiffness. Increase it for stiffer cloth folds; decrease it for softer draping.
     * - ``edge_kd``
       - Default: ``1.0e-2`` [N*m*s]. Bending damping. Increase it to damp fold oscillations.
-
-Try the :ref:`interactive cloth demo <interactive-demo-cloth-bending>` to compare
-bending stiffness while three sheets drape over horizontal rollers.
-
 
 Tuning Workflow
 ---------------

@@ -15,6 +15,7 @@ import re
 import sys
 from html import escape
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from docutils import nodes
 from docutils.parsers.rst import directives
@@ -121,6 +122,56 @@ class IsaacLabBenchmarkData(SphinxDirective):
         payload = json.dumps(snapshots).replace("<", "\\u003c")
         html = f'<script type="application/json" data-environment-benchmark-rows>{payload}</script>'
         return [nodes.raw("", html, format="html")]
+
+
+class IsaacLabDemos(SphinxDirective):
+    """Embed the external interactive gallery without maintaining a second catalog."""
+
+    optional_arguments = 1
+    final_argument_whitespace = True
+    has_content = False
+    option_spec = {
+        "title": directives.unchanged_required,
+        "physics": lambda value: directives.choice(value, ("rigid", "vbd", "mpm")),
+        "activity": lambda value: directives.choice(value, ("tuning", "policy", "scripted")),
+    }
+
+    def run(self) -> list[nodes.Node]:
+        base = self.config.isaaclab_demo_base_url
+        address = urlsplit(base)
+        if address.scheme not in {"http", "https"} or not address.netloc:
+            raise self.error("isaaclab_demo_base_url must be an absolute HTTP or HTTPS URL.")
+        ids = [value.strip() for value in self.arguments[0].split(",")] if self.arguments else []
+        if any(not re.fullmatch(r"[A-Za-z0-9_-]+", value) for value in ids):
+            raise self.error("Demo IDs must use letters, numbers, underscores or hyphens, separated by commas.")
+        title = escape(self.options.get("title", "Interactive demos"), quote=True)
+        html = (
+            '<section class="isaaclab-demos" data-isaaclab-demos '
+            f'data-base-url="{escape(base, quote=True)}" data-demo-ids="{escape(",".join(ids), quote=True)}" '
+            f'data-physics="{self.options.get("physics", "")}" data-activity="{self.options.get("activity", "")}" '
+            f'aria-label="{title}">'
+            '<div class="isaaclab-demos-heading">'
+            f"<strong>{title}</strong>"
+            f'<a href="{escape(base, quote=True)}" target="_blank" rel="noopener noreferrer" '
+            'aria-label="Open demo gallery in a new tab">Open gallery</a>'
+            "</div>"
+            '<p class="isaaclab-demos-status" role="status" aria-live="polite">'
+            "Interactive demos load when this section is visible.</p>"
+            f'<iframe class="isaaclab-demos-frame" title="{title}" loading="lazy" '
+            'height="320" allow="fullscreen" aria-busy="true"></iframe>'
+            "<noscript><p>Enable JavaScript to use the embedded gallery, or open the demo gallery above.</p></noscript>"
+            "</section>"
+        )
+        return [nodes.raw("", html, format="html", isaaclab_demos=True)]
+
+
+def _add_demo_assets(
+    app: Sphinx, pagename: str, templatename: str, context: dict, doctree: nodes.document | None
+) -> None:
+    """Load the embed bridge only on pages that contain a gallery."""
+    if doctree is not None and any(node.get("isaaclab_demos") for node in doctree.findall(nodes.raw)):
+        app.add_css_file("css/interactive-demos.css")
+        app.add_js_file("css/interactive-demos.js", loading_method="defer")
 
 
 class IsaacLabCloneCommands(SphinxDirective):
@@ -349,8 +400,10 @@ def setup(app):
     app.add_builder(IsaacLabHTMLBuilder, override=True)
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
+    app.add_config_value("isaaclab_demo_base_url", "https://maxkra15.github.io/isaaclab-browser-demos/lab/", "env")
     app.connect("build-finished", _write_doc_redirects)
     app.connect("config-inited", _configure_source_links)
+    app.connect("html-page-context", _add_demo_assets)
     app.add_config_value("isaaclab_latest_branch", "main", "env")
     app.add_config_value("isaaclab_wheel_version", "", "env")
     app.add_config_value("isaaclab_wheel_source_tag", "", "env")
@@ -360,6 +413,7 @@ def setup(app):
     app.add_config_value("ovrtx_spec", "", "env")
     app.add_role("isaaclab-source", IsaacLabSourceLink())
     app.add_directive("isaaclab-benchmark-data", IsaacLabBenchmarkData)
+    app.add_directive("isaaclab-demos", IsaacLabDemos)
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
     app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)

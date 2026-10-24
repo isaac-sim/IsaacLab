@@ -131,8 +131,10 @@ Reuse the ``interactive-releases`` publishing branch and upload commit-named arc
 Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
 ``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
 The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
-under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
-assets and preserve older links. The development source tree contains the staging script, documentation links,
+under ``docs/_build/demos/`` before publishing Pages. Stage only the current gallery's physics bundles and
+required shared assets; keep older gallery entry points as redirects. When updating the archive, review the
+staging script's retired-bundle list against the current catalog so superseded builds do not accumulate in
+the documentation artifact. The development source tree contains the staging script, documentation links,
 and small thumbnails. Run the staging step from the repository root:
 
 .. code-block:: bash
@@ -150,6 +152,22 @@ Open ``http://localhost:8000/current/index.html`` for the docs or
 ``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
 ``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
 The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+
+Use ``isaaclab-demos`` to embed the external gallery in a guide without copying its catalog or simulator bundles:
+
+.. code-block:: rst
+
+   .. isaaclab-demos:: stiffness, cloth_bending
+      :title: Explore cloth stiffness
+      :physics: vbd
+      :activity: tuning
+
+Use stable gallery IDs, or omit the IDs for the full gallery. The ``title``, ``physics``
+(``rigid``, ``vbd``, ``mpm``), and ``activity`` (``tuning``, ``policy``, ``scripted``) options are optional.
+The embed loads near the viewport and starts a simulation only when the reader chooses a demo.
+It follows the documentation theme and always provides an external gallery link.
+Set the Sphinx ``isaaclab_demo_base_url`` configuration value to choose the gallery host;
+for a local preview, pass ``-D isaaclab_demo_base_url=http://localhost:8805/lab/`` to Sphinx.
 
 .. caution::
 
