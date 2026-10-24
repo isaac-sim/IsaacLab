@@ -136,3 +136,5 @@ def test_source_does_not_own_backend_lifecycle_or_controller_state():
         "capture_keyboard",
     )
     assert all(not hasattr(source, name) for name in forbidden)
+    subscription = source.add_key_listener(lambda code, pressed: None, lambda: None)
+    assert not hasattr(subscription, "_closed"), "Subscription lifetime is owned by its source reference."

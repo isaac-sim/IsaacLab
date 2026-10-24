@@ -29,7 +29,6 @@ def _pyglet_symbol_to_w3c() -> dict[int, str]:
     named = {
         "SPACE": "Space",
         "RETURN": "Enter",
-        "ENTER": "Enter",
         "ESCAPE": "Escape",
         "TAB": "Tab",
         "BACKSPACE": "Backspace",
@@ -94,9 +93,7 @@ def _pyglet_symbol_to_w3c() -> dict[int, str]:
         "QUESTION": "Slash",
     }
     for name, code in named.items():
-        symbol = getattr(key, name, None)
-        if symbol is not None:
-            table[symbol] = code
+        table[getattr(key, name)] = code
     return table
 
 
@@ -123,14 +120,7 @@ class NewtonKeyEventSource(KeyEventSource):
         self._viewer = viewer
         self._window = viewer.renderer.window
         self._ui_has_keyboard = False
-        # pushed and removed as one handler frame on the window
-        self._handlers = {
-            "on_key_press": self._on_key_press,
-            "on_key_release": self._on_key_release,
-            "on_deactivate": self._on_deactivate,
-        }
-
-        self._window.push_handlers(**self._handlers)
+        self._window.push_handlers(self)
         self._viewer.keyboard_frame_hook = self._poll_ui_keyboard
 
     def close(self) -> None:
@@ -138,7 +128,7 @@ class NewtonKeyEventSource(KeyEventSource):
         if self.closed:
             return
         try:
-            self._window.remove_handlers(**self._handlers)
+            self._window.remove_handlers(self)
         finally:
             self._viewer.keyboard_frame_hook = None
             self._viewer = self._window = None
@@ -146,26 +136,29 @@ class NewtonKeyEventSource(KeyEventSource):
 
     def _poll_ui_keyboard(self) -> bool:
         """Track whether ImGui owns the keyboard, reporting a focus loss when it takes it."""
-        viewer = self._viewer
-        if viewer is None:  # released, with handlers left behind by a failed unhook
+        if self.closed:  # a failed native unhook can leave callbacks behind
             return False
+        viewer = self._viewer
         has_keyboard = viewer.gui is not None and bool(viewer.gui.is_keyboard_capturing())
         if has_keyboard and not self._ui_has_keyboard:
             self._emit_focus_lost()
         self._ui_has_keyboard = has_keyboard
         return has_keyboard
 
-    def _on_key_press(self, symbol: int, modifiers: int) -> None:
+    def on_key_press(self, symbol: int, modifiers: int) -> None:
+        """Forward a pyglet key press unless the UI owns keyboard input."""
         if self._poll_ui_keyboard():
             return
         code = _pyglet_symbol_to_w3c().get(symbol)
         if code is not None:
             self._emit_key(code, True)
 
-    def _on_key_release(self, symbol: int, modifiers: int) -> None:
+    def on_key_release(self, symbol: int, modifiers: int) -> None:
+        """Forward a pyglet key release."""
         code = _pyglet_symbol_to_w3c().get(symbol)
         if code is not None:
             self._emit_key(code, False)
 
-    def _on_deactivate(self) -> None:
+    def on_deactivate(self) -> None:
+        """Release the listener's held keys when the window loses focus."""
         self._emit_focus_lost()

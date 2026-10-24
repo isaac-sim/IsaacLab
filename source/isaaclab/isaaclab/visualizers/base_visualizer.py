@@ -22,6 +22,7 @@ import warp as wp
 from ..utils import validate
 from ..utils.backend_utils import FactoryBase
 from .image_view import ImageView
+from .key_event_source import KeyEventSource
 from .visualizer_cfg import (
     ImageViewCfg,
     PerspectiveCameraCfg,
@@ -35,7 +36,6 @@ if TYPE_CHECKING:
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..sensors import Camera
     from ..sim import SimulationContext
-    from .key_event_source import KeyEventSource
 
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,7 @@ class BaseVisualizer(ABC):
         self._sim_time = 0.0
         self.current_image_view: ImageView | None = None
         self._image_views: list[ImageView] = []
+        self._key_event_source: KeyEventSource | None = None
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -242,7 +243,7 @@ class BaseVisualizer(ABC):
         before initialization, after close, and for backends or modes with no local window that can
         report keys (the default).
         """
-        return None
+        return self._key_event_source
 
     def set_camera_keys_enabled(self, enabled: bool) -> None:
         """Enable or disable moving this visualizer's camera with the keyboard.
@@ -446,3 +447,12 @@ class BaseVisualizer(ABC):
     def stop(self) -> None:
         """Handle simulation stop. No-op by default."""
         pass
+
+    def _close_key_event_source(self) -> None:
+        """Close window input before native teardown; cleanup failures must not retain the window."""
+        source, self._key_event_source = self._key_event_source, None
+        if source is not None:
+            try:
+                source.close()
+            except Exception:
+                logger.exception("[%s] Keyboard input cleanup failed", type(self).__name__)

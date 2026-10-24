@@ -501,13 +501,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
-        self._key_event_source: NewtonKeyEventSource | None = None
         self._camera_keys_enabled = True
-
-    @property
-    def key_event_source(self) -> NewtonKeyEventSource | None:
-        """Keys typed into the viewer window; ``None`` before initialization, after close, or when headless."""
-        return self._key_event_source
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -687,7 +681,6 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
-        self._key_event_source = None
         self._pending_mesh_submissions.clear()
         for view in self._image_views:
             if view.render == self._capture_frame:
@@ -704,19 +697,6 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._camera_keys_enabled = enabled
         if self._viewer is not None:
             self._viewer.camera_keys_suspended = not enabled
-
-    def _close_key_event_source(self) -> None:
-        """Unhook keyboard input while the window is still open; subclasses call this first in ``close()``.
-
-        The reference stays until :meth:`close` finishes, so a focus-loss callback reading
-        :attr:`key_event_source` during shutdown gets the closing source instead of a new one.
-        """
-        if self._key_event_source is not None:
-            try:
-                self._key_event_source.close()
-            except Exception:
-                # keyboard input must not keep the viewer resources from being released
-                logger.exception("[%s] Keyboard input cleanup failed", type(self).__name__)
 
     def supports_markers(self) -> bool:
         """Return whether visualization markers are enabled for this viewer."""

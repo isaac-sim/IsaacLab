@@ -13,18 +13,19 @@ The contract they share is tested in ``source/isaaclab/test/visualizers/test_key
 
 from __future__ import annotations
 
-import ast
-import importlib.util
 import os
 import pathlib
+import runpy
 import subprocess
 import sys
 from types import SimpleNamespace
 
 import isaaclab_visualizers.newton.newton_key_event_source as newton_key_event_source
+import pyglet
 import pytest
-from isaaclab_visualizers.kit.kit_key_event_source import KitKeyEventSource, _carb_key_name_to_w3c
+from isaaclab_visualizers.kit.kit_key_event_source import KitKeyEventSource
 from isaaclab_visualizers.newton.newton_key_event_source import NewtonKeyEventSource
+from pyglet.event import EventDispatcher
 
 from isaaclab.visualizers import KeyEventSource
 
@@ -254,8 +255,11 @@ def test_kit_failed_focus_cleanup_still_closes_and_notifies(kit):
         ("GRAVE_ACCENT", "Backquote"),
     ],
 )
-def test_kit_key_names_map_to_w3c_codes(carb_name, code):
-    assert _carb_key_name_to_w3c()[carb_name] == code
+def test_kit_key_names_map_to_w3c_codes(kit, carb_name, code):
+    source = KitKeyEventSource(kit.window)
+    recorder, _ = _listen(source)
+    kit.key(kit.KEY_PRESS, carb_name)
+    assert recorder.events == [(code, True)]
 
 
 # ---------------------------------------------------------------------------
@@ -263,47 +267,23 @@ def test_kit_key_names_map_to_w3c_codes(carb_name, code):
 # ---------------------------------------------------------------------------
 
 
-def _pyglet_keys() -> SimpleNamespace:
-    """The constants of ``pyglet/window/key.py``, read without importing ``pyglet.window`` (needs a display)."""
-    spec = importlib.util.find_spec("pyglet")
-    if spec is None or spec.origin is None:
-        pytest.skip("pyglet is not installed")
-    tree = ast.parse((pathlib.Path(spec.origin).parent / "window" / "key.py").read_text())
-    constants = {}
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and type(node.value.value) is int:
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    constants[target.id] = node.value.value
-    return SimpleNamespace(**constants)
-
-
 @pytest.fixture
-def keys(monkeypatch) -> SimpleNamespace:
-    namespace = _pyglet_keys()
+def keys(monkeypatch):
+    # Load the real constants without importing pyglet.window, which opens a display.
+    namespace = SimpleNamespace(**runpy.run_path(str(pathlib.Path(pyglet.__file__).parent / "window/key.py")))
     monkeypatch.setitem(sys.modules, "pyglet.window", SimpleNamespace(key=namespace))
     newton_key_event_source._pyglet_symbol_to_w3c.cache_clear()
     yield namespace
     newton_key_event_source._pyglet_symbol_to_w3c.cache_clear()
 
 
-class _FakeWindow:
-    """pyglet window double with a handler stack."""
+class _Window(EventDispatcher):
+    """Real pyglet event dispatch without a native display."""
 
-    def __init__(self) -> None:
-        self.frames: list[dict] = []
 
-    def push_handlers(self, **handlers) -> None:
-        self.frames.append(handlers)
-
-    def remove_handlers(self, **handlers) -> None:
-        self.frames.remove(handlers)
-
-    def dispatch(self, name: str, *args) -> None:
-        for frame in reversed(self.frames):
-            if name in frame:
-                frame[name](*args)
-                return
+_Window.register_event_type("on_key_press")
+_Window.register_event_type("on_key_release")
+_Window.register_event_type("on_deactivate")
 
 
 class _FakeGui:
@@ -314,55 +294,55 @@ class _FakeGui:
         return self.capturing
 
 
-def _newton_viewer(window: _FakeWindow, gui: _FakeGui | None = None) -> SimpleNamespace:
+def _newton_viewer(window: _Window, gui: _FakeGui | None = None) -> SimpleNamespace:
     return SimpleNamespace(renderer=SimpleNamespace(window=window), gui=gui, keyboard_frame_hook=None)
 
 
 def test_newton_forwards_window_keys(keys):
-    window = _FakeWindow()
+    window = _Window()
     viewer = _newton_viewer(window, _FakeGui())
     source = NewtonKeyEventSource(viewer)
     recorder, subscription = _listen(source)
-    assert len(window.frames) == 1 and viewer.keyboard_frame_hook is not None
+    assert len(window._event_stack) == 1 and viewer.keyboard_frame_hook is not None
 
-    window.dispatch("on_key_press", keys.W, 0)
-    window.dispatch("on_key_release", keys.W, 0)
-    window.dispatch("on_key_press", keys.RETURN, 0)
+    window.dispatch_event("on_key_press", keys.W, 0)
+    window.dispatch_event("on_key_release", keys.W, 0)
+    window.dispatch_event("on_key_press", keys.RETURN, 0)
     assert recorder.events == [("KeyW", True), ("KeyW", False), ("Enter", True)]
 
     subscription.close()
-    assert len(window.frames) == 1 and viewer.keyboard_frame_hook is not None
+    assert len(window._event_stack) == 1 and viewer.keyboard_frame_hook is not None
     recorder, _ = _listen(source)
-    window.dispatch("on_key_press", keys.W, 0)
+    window.dispatch_event("on_key_press", keys.W, 0)
     assert recorder.events == [("KeyW", True)]
     source.close()
-    assert window.frames == [] and viewer.keyboard_frame_hook is None
+    assert window._event_stack == [] and viewer.keyboard_frame_hook is None
 
 
 def test_newton_ui_taking_the_keyboard_is_a_focus_loss_on_the_next_frame(keys):
-    window, gui = _FakeWindow(), _FakeGui()
+    window, gui = _Window(), _FakeGui()
     viewer = _newton_viewer(window, gui)
     source = NewtonKeyEventSource(viewer)
     recorder, _ = _listen(source)
-    window.dispatch("on_key_press", keys.W, 0)
+    window.dispatch_event("on_key_press", keys.W, 0)
 
     gui.capturing = True  # e.g. a text field was clicked: no key press needed
     viewer.keyboard_frame_hook()
     viewer.keyboard_frame_hook()
     assert recorder.focus_lost == 1
 
-    window.dispatch("on_key_press", keys.A, 0)  # typed into the UI
+    window.dispatch_event("on_key_press", keys.A, 0)  # typed into the UI
     gui.capturing = False
     viewer.keyboard_frame_hook()
-    window.dispatch("on_key_release", keys.A, 0)
+    window.dispatch_event("on_key_release", keys.A, 0)
     assert recorder.events == [("KeyW", True), ("KeyA", False)]  # the press stayed in the UI
 
 
 def test_newton_viewer_without_gui_forwards_keys(keys):
-    window = _FakeWindow()
+    window = _Window()
     source = NewtonKeyEventSource(_newton_viewer(window, gui=None))
     recorder, _ = _listen(source)
-    window.dispatch("on_key_press", keys.W, 0)
+    window.dispatch_event("on_key_press", keys.W, 0)
     assert recorder.events == [("KeyW", True)]
 
 
@@ -373,34 +353,34 @@ def test_newton_viewer_without_gui_forwards_keys(keys):
 @pytest.mark.parametrize("shift_first", [False, True], ids=["shift-after-press", "shift-before-press"])
 def test_newton_key_released_after_shift_changes(keys, unshifted, shifted, code, shift_first):
     """X11 names a digit or punctuation key by its shifted symbol while Shift is held."""
-    window = _FakeWindow()
+    window = _Window()
     source = NewtonKeyEventSource(_newton_viewer(window, _FakeGui()))
     recorder, _ = _listen(source)
     press, release = (shifted, unshifted) if shift_first else (unshifted, shifted)
 
-    window.dispatch("on_key_press", getattr(keys, press), 0)
-    window.dispatch("on_key_release", getattr(keys, release), 0)
+    window.dispatch_event("on_key_press", getattr(keys, press), 0)
+    window.dispatch_event("on_key_release", getattr(keys, release), 0)
 
     assert recorder.events == [(code, True), (code, False)]
 
 
 def test_newton_window_deactivation_is_a_focus_loss(keys):
-    window = _FakeWindow()
+    window = _Window()
     source = NewtonKeyEventSource(_newton_viewer(window, _FakeGui()))
     recorder, _ = _listen(source)
-    window.dispatch("on_key_press", keys.W, 0)
-    window.dispatch("on_deactivate")
+    window.dispatch_event("on_key_press", keys.W, 0)
+    window.dispatch_event("on_deactivate")
     assert recorder.focus_lost == 1
     assert recorder.events == [("KeyW", True)]
 
 
 def test_newton_failed_unhook_still_closes_and_notifies(keys):
-    window = _FakeWindow()
+    window = _Window()
     viewer = _newton_viewer(window, _FakeGui())
     source = NewtonKeyEventSource(viewer)
     recorder, subscription = _listen(source)
 
-    def fail(**handlers):
+    def fail(*handlers):
         raise RuntimeError("remove_handlers")
 
     window.remove_handlers = fail
@@ -408,18 +388,18 @@ def test_newton_failed_unhook_still_closes_and_notifies(keys):
         source.close()
     assert viewer.keyboard_frame_hook is None  # the closed source is never polled again
     assert source.closed and subscription.closed and recorder.focus_lost == 1
-    window.dispatch("on_key_press", keys.W, 0)  # a leftover native hook is inert
+    window.dispatch_event("on_key_press", keys.W, 0)  # a leftover native hook is inert
     assert recorder.events == []
 
 
 def test_newton_close_unhooks_and_releases_the_window(keys):
-    window = _FakeWindow()
+    window = _Window()
     viewer = _newton_viewer(window, _FakeGui())
     source = NewtonKeyEventSource(viewer)
     recorder, _ = _listen(source)
 
     source.close()
-    assert window.frames == [] and viewer.keyboard_frame_hook is None
+    assert window._event_stack == [] and viewer.keyboard_frame_hook is None
     assert recorder.focus_lost == 1
     assert source._viewer is None and source._window is None
 

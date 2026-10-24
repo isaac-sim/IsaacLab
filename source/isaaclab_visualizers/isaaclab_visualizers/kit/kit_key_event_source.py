@@ -7,70 +7,58 @@
 
 from __future__ import annotations
 
-import functools
 from typing import Any
 
 from isaaclab.visualizers import KeyEventSource
 
-
-@functools.cache
-def _carb_key_name_to_w3c() -> dict[str, str]:
-    """Map ``carb.input.KeyboardInput`` names to W3C ``KeyboardEvent.code`` strings."""
-    table: dict[str, str] = {}
-    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-        table[letter] = f"Key{letter}"
-    for digit in "0123456789":
-        table[f"KEY_{digit}"] = f"Digit{digit}"
-        table[f"NUMPAD_{digit}"] = f"Numpad{digit}"
-    for n in range(1, 13):
-        table[f"F{n}"] = f"F{n}"
-    table.update(
-        {
-            "SPACE": "Space",
-            "ENTER": "Enter",
-            "ESCAPE": "Escape",
-            "TAB": "Tab",
-            "BACKSPACE": "Backspace",
-            "DEL": "Delete",
-            "INSERT": "Insert",
-            "HOME": "Home",
-            "END": "End",
-            "PAGE_UP": "PageUp",
-            "PAGE_DOWN": "PageDown",
-            "UP": "ArrowUp",
-            "DOWN": "ArrowDown",
-            "LEFT": "ArrowLeft",
-            "RIGHT": "ArrowRight",
-            "LEFT_SHIFT": "ShiftLeft",
-            "RIGHT_SHIFT": "ShiftRight",
-            "LEFT_CONTROL": "ControlLeft",
-            "RIGHT_CONTROL": "ControlRight",
-            "LEFT_ALT": "AltLeft",
-            "RIGHT_ALT": "AltRight",
-            "LEFT_SUPER": "MetaLeft",
-            "RIGHT_SUPER": "MetaRight",
-            "CAPS_LOCK": "CapsLock",
-            "MINUS": "Minus",
-            "EQUAL": "Equal",
-            "LEFT_BRACKET": "BracketLeft",
-            "RIGHT_BRACKET": "BracketRight",
-            "SEMICOLON": "Semicolon",
-            "APOSTROPHE": "Quote",
-            "GRAVE_ACCENT": "Backquote",
-            "BACKSLASH": "Backslash",
-            "COMMA": "Comma",
-            "PERIOD": "Period",
-            "SLASH": "Slash",
-            "NUMPAD_ADD": "NumpadAdd",
-            "NUMPAD_SUBTRACT": "NumpadSubtract",
-            "NUMPAD_MULTIPLY": "NumpadMultiply",
-            "NUMPAD_DIVIDE": "NumpadDivide",
-            "NUMPAD_DEL": "NumpadDecimal",
-            "NUMPAD_ENTER": "NumpadEnter",
-            "NUMPAD_EQUAL": "NumpadEqual",
-        }
-    )
-    return table
+_CARB_KEY_CODES = {
+    **{letter: f"Key{letter}" for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
+    **{f"KEY_{digit}": f"Digit{digit}" for digit in "0123456789"},
+    **{f"NUMPAD_{digit}": f"Numpad{digit}" for digit in "0123456789"},
+    **{f"F{n}": f"F{n}" for n in range(1, 13)},
+    "SPACE": "Space",
+    "ENTER": "Enter",
+    "ESCAPE": "Escape",
+    "TAB": "Tab",
+    "BACKSPACE": "Backspace",
+    "DEL": "Delete",
+    "INSERT": "Insert",
+    "HOME": "Home",
+    "END": "End",
+    "PAGE_UP": "PageUp",
+    "PAGE_DOWN": "PageDown",
+    "UP": "ArrowUp",
+    "DOWN": "ArrowDown",
+    "LEFT": "ArrowLeft",
+    "RIGHT": "ArrowRight",
+    "LEFT_SHIFT": "ShiftLeft",
+    "RIGHT_SHIFT": "ShiftRight",
+    "LEFT_CONTROL": "ControlLeft",
+    "RIGHT_CONTROL": "ControlRight",
+    "LEFT_ALT": "AltLeft",
+    "RIGHT_ALT": "AltRight",
+    "LEFT_SUPER": "MetaLeft",
+    "RIGHT_SUPER": "MetaRight",
+    "CAPS_LOCK": "CapsLock",
+    "MINUS": "Minus",
+    "EQUAL": "Equal",
+    "LEFT_BRACKET": "BracketLeft",
+    "RIGHT_BRACKET": "BracketRight",
+    "SEMICOLON": "Semicolon",
+    "APOSTROPHE": "Quote",
+    "GRAVE_ACCENT": "Backquote",
+    "BACKSLASH": "Backslash",
+    "COMMA": "Comma",
+    "PERIOD": "Period",
+    "SLASH": "Slash",
+    "NUMPAD_ADD": "NumpadAdd",
+    "NUMPAD_SUBTRACT": "NumpadSubtract",
+    "NUMPAD_MULTIPLY": "NumpadMultiply",
+    "NUMPAD_DIVIDE": "NumpadDivide",
+    "NUMPAD_DEL": "NumpadDecimal",
+    "NUMPAD_ENTER": "NumpadEnter",
+    "NUMPAD_EQUAL": "NumpadEqual",
+}
 
 
 class KitKeyEventSource(KeyEventSource):
@@ -114,13 +102,13 @@ class KitKeyEventSource(KeyEventSource):
             finally:
                 self._focus_observer.reset()
         finally:
-            self._input = self._keyboard = self._keyboard_subscription = self._focus_observer = self._event_types = None
+            self._input = self._keyboard = self._keyboard_subscription = self._focus_observer = None
             super().close()
 
     def _on_keyboard_event(self, event, *args, **kwargs) -> bool:
-        event_types = self._event_types
-        if event_types is None:
+        if self.closed:
             return True
+        event_types = self._event_types
         # KeyboardEvent is a union: CHAR events carry a character, not a key.
         if event.type in (event_types.KEY_PRESS, event_types.KEY_REPEAT):
             pressed = True
@@ -128,7 +116,7 @@ class KitKeyEventSource(KeyEventSource):
             pressed = False
         else:
             return True
-        code = _carb_key_name_to_w3c().get(event.input.name)
+        code = _CARB_KEY_CODES.get(event.input.name)
         if code is not None:
             self._emit_key(code, pressed)
         # let Kit keep processing the event

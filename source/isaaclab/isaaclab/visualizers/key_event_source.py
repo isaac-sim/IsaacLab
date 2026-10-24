@@ -27,22 +27,20 @@ class KeyboardSubscription:
     """
 
     def __init__(self, source: KeyEventSource, on_key: KeyCallback, on_focus_lost: FocusLostCallback) -> None:
-        self._source = source
+        self._source: KeyEventSource | None = source
         self._on_key = on_key
         self._on_focus_lost = on_focus_lost
-        self._closed = False
 
     @property
     def closed(self) -> bool:
         """Whether the subscription no longer receives callbacks."""
-        return self._closed
+        return self._source is None
 
     def close(self) -> None:
         """Unsubscribe."""
-        if not self._closed:
-            self._closed = True
-            if not self._source.closed:
-                self._source._subscriptions.remove(self)
+        source, self._source = self._source, None
+        if source is not None and not source.closed:
+            source._subscriptions.remove(self)
 
     def __enter__(self) -> KeyboardSubscription:
         return self
@@ -107,7 +105,7 @@ class KeyEventSource:
         subscriptions, self._subscriptions = self._subscriptions, []
         for subscription in subscriptions:
             if not subscription.closed:
-                subscription._closed = True
+                subscription.close()
                 _call(subscription._on_focus_lost)
 
     def _emit_key(self, code: str, pressed: bool) -> None:
