@@ -98,6 +98,12 @@ jobs:
         id: sync
         timeout-minutes: 30
         run: |
+          if ($env:CACHE_MODE -eq 'save') {
+            # Pull requests run in the kept environment and uv cache, so a run that publishes caches
+            # installs from neither.
+            if (Test-Path $env:UV_PROJECT_ENVIRONMENT) { Remove-Item -Recurse -Force $env:UV_PROJECT_ENVIRONMENT }
+            $env:UV_CACHE_DIR = "$env:RUNNER_TEMP\uv-cache"
+          }
           uv sync --frozen --extra test --extra isaacsim --extra ov
           if ($LASTEXITCODE -ne 0) {
             # A job killed mid-sync can leave the kept environment broken, so rebuild it once.
