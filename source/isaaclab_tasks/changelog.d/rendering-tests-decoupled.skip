@@ -1,1 +1,0 @@
-Moved rendering coverage into direct scenes, retained registered-task stage checks, and restored camera task smoke coverage.
