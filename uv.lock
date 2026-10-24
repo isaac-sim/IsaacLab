@@ -1957,6 +1957,9 @@ skrl-jax = [
     { name = "jax", version = "0.11.2", source = { registry = "https://pypi.org/simple" }, extra = ["cuda13"], marker = "sys_platform != 'win32'" },
     { name = "skrl", extra = ["jax"] },
 ]
+skrl-warp = [
+    { name = "skrl", extra = ["warp"] },
+]
 teleop = [
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
     { name = "isaaclab-mimic" },
@@ -2089,8 +2092,9 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.5.1" },
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.5.1" },
     { name = "scipy", specifier = ">=1.11.0" },
-    { name = "skrl", marker = "extra == 'skrl'", specifier = ">=2.1.0" },
-    { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.0" },
+    { name = "skrl", marker = "extra == 'skrl'", specifier = ">=2.1.1" },
+    { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.1" },
+    { name = "skrl", extras = ["warp"], marker = "extra == 'skrl-warp'", specifier = ">=2.1.1" },
     { name = "sphinx", marker = "extra == 'dev'", specifier = ">=7.0,<9" },
     { name = "sphinx-book-theme", marker = "extra == 'dev'", specifier = ">=1.1" },
     { name = "sphinx-copybutton", marker = "extra == 'dev'" },
@@ -2122,7 +2126,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-warp", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -5275,7 +5279,7 @@ wheels = [
 
 [[package]]
 name = "skrl"
-version = "2.1.0"
+version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gymnasium" },
@@ -5283,9 +5287,9 @@ dependencies = [
     { name = "tensorboard" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0b/bb/8ac912d477c7e18065281021e3d68db2d91034a09ff1668247733490703c/skrl-2.1.0.tar.gz", hash = "sha256:4a1c925b5e025cda3133023331a46f4197ddc5ce420abc01b95e934235402f08", size = 253522, upload-time = "2026-05-10T20:06:54.3Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/5a/9c116f0f590a52fd21935cae65473779704e80db89e7f55a1de8323b728c/skrl-2.1.1.tar.gz", hash = "sha256:f8eb4939200c85b37a79a6847f78b7eb9fc32e70fa69201b4716204d536b06e7", size = 252550, upload-time = "2026-10-21T07:39:11.156Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/de/eca16c14e27a986ddc0314711a6bc42bb70c247073c7f62c390e4ffaa5ed/skrl-2.1.0-py3-none-any.whl", hash = "sha256:5d0cf61fcf81243018220dacbd4a04c84250c1e67274aaeac1779cd53db44e23", size = 458097, upload-time = "2026-05-10T20:06:52.3Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/81/25a1962f3bcc3a8208a239e91e33b9823d89a03fa90dbd2e7e4c9b9f4f0e/skrl-2.1.1-py3-none-any.whl", hash = "sha256:ef39a87ef2f34fc1c4963a0b2b56022add7c6b29937bcbc63d2f4c37a8c46c00", size = 459647, upload-time = "2026-10-21T07:39:09.914Z" },
 ]
 
 [package.optional-dependencies]
@@ -5297,6 +5301,10 @@ jax = [
     { name = "jaxlib", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "jaxlib", version = "0.11.2", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "optax" },
+]
+warp = [
+    { name = "warp-lang" },
+    { name = "warp-nn" },
 ]
 
 [[package]]
@@ -6127,6 +6135,17 @@ wheels = [
     { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:47cd93636828dd16e55eeb4e77a0e3547b5fb0f383000a3d228629df68f28fd8" },
     { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:5051271048da956a8b94e2db9771ce60ce9591a3ac5bb49037f3d6812d1eea00" },
     { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-win_amd64.whl", hash = "sha256:ca35c82242a7553046f09023bbe56750b5c3d9af72625bd1a905a56d3189771d" },
+]
+
+[[package]]
+name = "warp-nn"
+version = "0.4.1"
+source = { registry = "https://pypi.nvidia.com/" }
+dependencies = [
+    { name = "warp-lang" },
+]
+wheels = [
+    { url = "https://pypi.nvidia.com/warp-nn/warp_nn-0.4.1-py3-none-any.whl", hash = "sha256:5a598043603f9a7c30ee5f02d832ac3c2065b9621d5c57f3a2dd8b64bb3be387" },
 ]
 
 [[package]]

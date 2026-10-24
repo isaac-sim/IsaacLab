@@ -246,7 +246,7 @@ before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
 any combination resolves into one environment. The ``--extra all`` shortcut installs the
 curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser`` extras.
-It does not include Isaac Sim or the specialized ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``,
+It does not include Isaac Sim or the specialized ``skrl-jax``, ``skrl-warp``, ``rlinf``, ``mimic``, ``teleop``,
 ``tetrahedralization``, ``video``, and ``leapp`` extras; request them by name:
 
 .. code-block:: bash
@@ -436,6 +436,8 @@ have dedicated commands below.
      - The corresponding RL framework.
    * - ``skrl-jax``
      - skrl with CUDA-enabled JAX.
+   * - ``skrl-warp``
+     - skrl with NVIDIA Warp.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
@@ -453,7 +455,7 @@ have dedicated commands below.
      - Developer test and documentation tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
-(``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and
+(``skrl-jax``, ``skrl-warp``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and
 the developer ``test`` tooling remain opt-in.
 
 .. note::

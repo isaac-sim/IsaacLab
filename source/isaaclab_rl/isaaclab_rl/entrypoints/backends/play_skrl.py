@@ -122,7 +122,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
-            show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
+            show_run_summary(screen, args_cli, env_cfg, library=f"skrl ({args_cli.ml_framework})", action="play")
             runner_cls = import_skrl_runner(args_cli.ml_framework)
             apply_env_overrides(args_cli, env_cfg)
             args_cli.seed = resolve_seed(args_cli.seed)
