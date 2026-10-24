@@ -1314,12 +1314,12 @@ def test_newton_visualizer_cfg():
     validate(cfg)
 
 
-@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
-def test_newton_gl_background_color(color: tuple[float, float, float] | None) -> None:
-    cfg = VisualizerCfg(background_color=color, backend=NewtonGLBackendCfg())
+@pytest.mark.parametrize(("color", "exposure"), [((0.1, 0.2, 0.3), 0.8), (None, None)])
+def test_newton_gl_background_color(color: tuple[float, float, float] | None, exposure: float | None) -> None:
+    cfg = VisualizerCfg(background_color=color, backend=NewtonGLBackendCfg(exposure=exposure))
     visualizer = NewtonGLVisualizer(cfg)
     visualizer._viewer = SimpleNamespace(
-        renderer=SimpleNamespace(),
+        renderer=SimpleNamespace(exposure=1.0),
     )
 
     visualizer._configure_viewer()
@@ -1329,6 +1329,7 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     expected_lower = cfg.backend.sky_lower_color if color is None else color
     assert visualizer._viewer.renderer.sky_upper == expected_upper
     assert visualizer._viewer.renderer.sky_lower == expected_lower
+    assert visualizer._viewer.renderer.exposure == (1.0 if exposure is None else exposure)
 
 
 def test_newton_rtx_visualizer_rejects_kit_physics_backend():
