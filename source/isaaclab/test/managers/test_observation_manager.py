@@ -457,14 +457,16 @@ def test_compute_with_2d_history(setup_env):
 
 
 @pytest.mark.parametrize(
-    ("history_order", "expected_values"),
+    ("history_order", "history_newest_first", "expected_values"),
     [
-        (None, [2.0, 3.0, 3.0, 4.0, 11.0, 12.0]),
-        ("time", [2.0, 3.0, 11.0, 3.0, 4.0, 12.0]),
+        (None, None, [2.0, 3.0, 3.0, 4.0, 11.0, 12.0]),
+        ("time", None, [2.0, 3.0, 11.0, 3.0, 4.0, 12.0]),
+        (None, True, [3.0, 4.0, 2.0, 3.0, 12.0, 11.0]),
+        ("time", True, [3.0, 4.0, 12.0, 2.0, 3.0, 11.0]),
     ],
 )
-def test_group_history_flatten_order(setup_env, history_order, expected_values):
-    """Flattened group history keeps the selected term or time ordering."""
+def test_group_history_flatten_order(setup_env, history_order, history_newest_first, expected_values):
+    """Flattened group history keeps the selected term or time ordering and history direction."""
     env = setup_env
 
     def first_term(env):
@@ -473,7 +475,7 @@ def test_group_history_flatten_order(setup_env, history_order, expected_values):
     def second_term(env):
         return env.data.lin_vel_w[:, :1]
 
-    cfg = ObservationGroupCfg(history_length=2)
+    cfg = ObservationGroupCfg(history_length=2, history_newest_first=history_newest_first)
     if history_order is not None:
         cfg.history_order = history_order
     cfg.first = ObservationTermCfg(func=first_term)
@@ -488,6 +490,33 @@ def test_group_history_flatten_order(setup_env, history_order, expected_values):
     assert manager.group_obs_dim["policy"] == (6,)
     assert observation.shape == (env.num_envs, 6)
     torch.testing.assert_close(observation, torch.tensor(expected_values).expand(env.num_envs, -1))
+
+
+def test_unflattened_term_history_newest_first(setup_env):
+    """A term-level newest-first history puts the current step first without flattening."""
+    env = setup_env
+    cfg = ObservationGroupCfg(concatenate_terms=False)
+    cfg.position = ObservationTermCfg(
+        func=lambda env: env.data.pos_w[:, :2], history_length=3, flatten_history_dim=False, history_newest_first=True
+    )
+    manager = ObservationManager({"policy": cfg}, env)
+
+    for step in range(4):
+        env.data.pos_w[:, :2] = float(step)
+        observation = manager.compute(update_history=True)["policy"]["position"]
+
+    expected = torch.tensor([3.0, 2.0, 1.0]).view(1, 3, 1).expand(env.num_envs, 3, 2)
+    torch.testing.assert_close(observation, expected)
+
+
+def test_time_order_rejects_mixed_history_direction(setup_env):
+    """Time-ordered groups reject terms whose history directions differ."""
+    cfg = ObservationGroupCfg(history_length=2, history_order="time")
+    cfg.first = ObservationTermCfg(func=lambda env: env.data.pos_w[:, :2], history_newest_first=True)
+    cfg.second = ObservationTermCfg(func=lambda env: env.data.lin_vel_w[:, :1])
+
+    with pytest.raises(ValueError, match="history_newest_first"):
+        ObservationManager({"policy": cfg}, setup_env)
 
 
 def test_invalid_observation_config(setup_env):

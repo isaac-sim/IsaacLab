@@ -51,7 +51,8 @@ class ObservationManager(ManagerBase):
     Observations can also have history. This means a running history is updated per sim step. History can be controlled
     per :class:`ObservationTermCfg` (See the :attr:`ObservationTermCfg.history_length` and
     :attr:`ObservationTermCfg.flatten_history_dim`). History can also be controlled via :class:`ObservationGroupCfg`
-    where group configuration overwrites per term configuration if set. History follows an oldest to newest ordering.
+    where group configuration overwrites per term configuration if set. History dim order is set by
+    :attr:`ObservationTermCfg.history_newest_first` or :attr:`ObservationGroupCfg.history_newest_first`.
 
     The observation manager can be used to compute observations for all the groups or for a specific group. The
     observations are computed by calling the registered functions for each term in the group. The functions are
@@ -285,6 +286,7 @@ class ObservationManager(ManagerBase):
                             "delay_hold_prob",
                             "history_length",
                             "flatten_history_dim",
+                            "history_newest_first",
                         ]:
                             overloads[k] = v
                     desc.update(overloads)
@@ -313,6 +315,7 @@ class ObservationManager(ManagerBase):
                         "delay_hold_prob",
                         "history_length",
                         "flatten_history_dim",
+                        "history_newest_first",
                     ]:
                         formatted_item["overloads"][k] = v
                     elif k in ["modifiers", "description", "units"]:
@@ -481,11 +484,14 @@ class ObservationManager(ManagerBase):
                     )
                     circular_buffer.append(obs)
 
-                if term_cfg.flatten_history_dim:
-                    obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
-                else:
-                    obs = circular_buffer.buffer
+                obs = circular_buffer.buffer
                 owned = False
+                if term_cfg.history_newest_first:
+                    # flip always copies, so the result no longer borrows the history storage
+                    obs = obs.flip(dims=[1])
+                    owned = True
+                if term_cfg.flatten_history_dim:
+                    obs = obs.reshape(self._env.num_envs, -1)
             # Secure borrowed storage before another term can overwrite it, including shared scratch buffers.
             group_obs[term_name] = obs if owned else obs.clone()
 
@@ -549,7 +555,7 @@ class ObservationManager(ManagerBase):
             self._term_output_specs[group_name, term_name] = (shape, sample.dtype, sample.device)
         return shape
 
-    def _prepare_terms(self):
+    def _prepare_terms(self):  # noqa: C901
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
@@ -631,6 +637,7 @@ class ObservationManager(ManagerBase):
                     "history_length",
                     "flatten_history_dim",
                     "history_order",
+                    "history_newest_first",
                     "concatenate_dim",
                 ]:
                     continue
@@ -653,6 +660,8 @@ class ObservationManager(ManagerBase):
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
                     term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
+                if group_cfg.history_newest_first is not None:
+                    term_cfg.history_newest_first = group_cfg.history_newest_first
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
@@ -767,6 +776,13 @@ class ObservationManager(ManagerBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
                     # call reset (in-case above call to get obs dims changed the state)
                     term_cfg.func.reset()
+            # time-major output joins terms per history index, so all terms must share the direction
+            directions = {cfg.history_newest_first for cfg in self._group_obs_term_cfgs[group_name]}
+            if self._group_obs_time_major[group_name] and len(directions) > 1:
+                raise ValueError(
+                    f"Observation group '{group_name}' uses history_order='time' but its terms mix"
+                    " history_newest_first values. Set history_newest_first on the group instead."
+                )
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
