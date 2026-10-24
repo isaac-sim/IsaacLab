@@ -86,6 +86,7 @@
             ["IsaacContrib-Humanoid-AMP-Dance-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Run-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Walk-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
+            ["IsaacContrib-Inhand-Roll-Allegro-v0", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "", "environment-previews/allegro_rotate.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||"]],
             ["IsaacContrib-Keyboard-SO101", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "", "environment-previews/so101_keyboard.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||"]],
             ["IsaacContrib-Lift-Cube-Franka", "rl_games,rsl_rl,skrl,sb3", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-Franka-IK-Abs", "", "", "", "", "environment-previews/franka_lift.jpg"],
