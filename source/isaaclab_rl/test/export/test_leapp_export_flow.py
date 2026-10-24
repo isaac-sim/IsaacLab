@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import importlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -139,6 +140,7 @@ class _DirectTensorEnv(_TensorEnv, DirectRLEnv):
     ("backend", "task", "checkpoint_task", "direct"),
     [
         pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, id="rsl-rl-cnn"),
+        pytest.param("rsl_rl_distillation", MANAGER_TASK, MANAGER_TASK, False, id="rsl-rl-student"),
         pytest.param("rl_games", MANAGER_TASK, MANAGER_TASK, False, id="rl-games-lstm"),
         pytest.param("skrl", MANAGER_TASK, MANAGER_TASK, False, id="skrl"),
         pytest.param("sb3", MANAGER_TASK, MANAGER_TASK, False, id="sb3-dict-normalization"),
@@ -150,14 +152,26 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
     """Load a native checkpoint, export the real backend policy, and replay changed observations."""
     from leapp import InferenceManager
 
-    from isaaclab_rl.entrypoints.backends import export_rl_games, export_rsl_rl, export_sb3, export_skrl
-
-    modules = {"rsl_rl": export_rsl_rl, "rl_games": export_rl_games, "skrl": export_skrl, "sb3": export_sb3}
-    module = modules[backend]
+    distillation = backend == "rsl_rl_distillation"
+    if distillation:
+        backend = "rsl_rl"
+    module = importlib.import_module(f"isaaclab_rl.entrypoints.backends.export_{backend}")
     torch.set_num_threads(1)
     torch.manual_seed(42)
     np.random.seed(42)
     agent_cfg = load_cfg_from_registry(checkpoint_task, f"{backend}_cfg_entry_point")
+    if distillation:
+        from isaaclab_rl.rsl_rl import RslRlDistillationAlgorithmCfg, RslRlDistillationRunnerCfg
+
+        agent_cfg = RslRlDistillationRunnerCfg(
+            experiment_name="leapp_student",
+            num_steps_per_env=15,
+            max_iterations=1,
+            student=agent_cfg.actor,
+            teacher=agent_cfg.critic,
+            algorithm=RslRlDistillationAlgorithmCfg(num_learning_epochs=2, learning_rate=1.0e-3, gradient_length=15),
+            obs_groups={"student": agent_cfg.obs_groups["actor"], "teacher": ["critic"]},
+        )
     checkpoint = _CREATORS[backend](_CheckpointEnv(checkpoint_task, backend), agent_cfg, tmp_path)
     env_cfg = load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point")
     connected = backend == "rsl_rl" and task == MANAGER_TASK and not direct

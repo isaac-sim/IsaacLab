@@ -941,3 +941,13 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
         assert not destination.alg.optimizer.state
     else:
         torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])
+
+
+def test_rsl_custom_distillation_requires_teacher_checkpoint():
+    """A custom distillation algorithm must fail before the expensive scene is constructed."""
+    from isaaclab_rl.entrypoints.backends.train_rsl_rl import _resolve_checkpoint
+
+    args = SimpleNamespace(checkpoint=None)
+    cfg = SimpleNamespace(class_name="DistillationRunner", algorithm=SimpleNamespace(class_name="custom:Distillation"))
+    with pytest.raises(ValueError, match="requires --checkpoint"):
+        _resolve_checkpoint(args, cfg, "/unused")
