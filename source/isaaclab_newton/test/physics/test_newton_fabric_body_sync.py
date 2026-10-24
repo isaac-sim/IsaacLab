@@ -26,9 +26,17 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_newton.assets import MPMObjectCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    MPMSolverCfg,
+    NewtonCfg,
+    VBDSolverCfg,
+    XPBDSolverCfg,
+)
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_visualizers.kit import KitBackendCfg
@@ -40,6 +48,7 @@ from usdrt import Sdf as RtSdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -430,9 +439,30 @@ def test_nested_articulation_follows_root_pose_writes():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
+@pytest.mark.parametrize(
+    "point_path", ["gpu", "legacy-kit", "streaming", "streaming-gpu", "cpu", "unsupported-gpu-device"]
+)
+def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(
+    monkeypatch, particle_render_settings, point_path
+):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
-    cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
+    kit_version = tuple(map(int, simulation_app.get_kit_version_short().split(".")))
+    gpu_points = point_path in {"gpu", "streaming-gpu"} and kit_version >= (110, 4)
+    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path.startswith("streaming") else "Mesh")
+    particle_render_settings.set(
+        "/isaaclab/render/points_update_mode",
+        "gpu"
+        if point_path in {"streaming-gpu", "unsupported-gpu-device"}
+        else "cpu"
+        if point_path == "cpu"
+        else "auto",
+    )
+    if point_path == "legacy-kit":
+        app = Mock(wraps=simulation_app)
+        app.get_kit_version_short.return_value = "110.3"
+        monkeypatch.setattr(omni.kit.app, "get_app", lambda: app)
+    device = "cpu" if point_path == "unsupported-gpu-device" else "cuda:0"
+    cfg = SimulationCfg(device=device, physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
         parent = UsdGeom.Xform.Define(sim.stage, "/World/Geometry")
         parent.AddTranslateOp().Set(UsdGf.Vec3d(10.0, 20.0, 30.0))
@@ -465,6 +495,10 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
             )
         )
         fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        if point_path == "unsupported-gpu-device":
+            with pytest.raises(RuntimeError, match="CUDA simulation device"):
+                fabric.update_geometries(provider, 0)
+            return
         fabric.update_geometries(provider, 0)
         simulation_app.update()
         wp.synchronize_device(sim.device)
@@ -489,7 +523,20 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 1)
         fabric.update_geometries(provider, 2)
         np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
-        fabric.update_geometries(provider, 3)
+        copy = wp.copy
+        point_readbacks = []
+
+        def copy_without_point_readback(dest, src, *args, **kwargs):
+            if src.device.is_cuda and dest.device.is_cpu:
+                assert not gpu_points, "Particle rendering copied points to CPU"
+                point_readbacks.append(src.size)
+            return copy(dest, src, *args, **kwargs)
+
+        # Only the cloud is due here; a CUDA cloud must enter Fabric without a host copy.
+        with monkeypatch.context() as patch:
+            patch.setattr(wp, "copy", copy_without_point_readback)
+            fabric.update_geometries(provider, 3)
+        assert point_readbacks == ([] if gpu_points else [3])
         np.testing.assert_allclose(
             _fabric_curve_points_world(str(cloud.GetPath())), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6
         )
@@ -508,6 +555,102 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 3)
         wp.synchronize_device(sim.device)
         np.testing.assert_allclose(_fabric_curve_points_world(mesh_path), points[mesh_path].numpy(), atol=1.0e-6)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+@pytest.mark.parametrize("point_path", ["gpu", "streaming", "streaming-gpu"])
+def test_mpm_particle_writes_and_resets_are_visible_in_rtx(monkeypatch, particle_render_settings, point_path):
+    """RTX must render particle writes and resets independently for cloned MPM assets."""
+    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path.startswith("streaming") else "Mesh")
+    if point_path == "streaming-gpu":
+        kit_version = tuple(map(int, simulation_app.get_build_version().split("+")[0].split(".")))
+        if kit_version < (110, 4, 1):
+            pytest.skip("Streamed GPU rendering requires a compatible fixed Kit build")
+    points_mode = "gpu" if point_path == "streaming-gpu" else "auto"
+
+    @configclass
+    class ParticleSceneCfg(InteractiveSceneCfg):
+        red = MPMObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Red",
+            spawn=MPMGridCfg(
+                lower=(-0.1, -0.1, -0.1),
+                upper=(0.1, 0.1, 0.1),
+                voxel_size=0.2,
+                particle_placement="cell_center",
+                visual_color=(1.0, 0.0, 0.0),
+            ),
+            init_state=MPMObjectCfg.InitialStateCfg(pos=(-0.4, 0.0, 1.0)),
+        )
+        green = replace(red, prim_path="{ENV_REGEX_NS}/Green")
+        green.spawn.visual_color = (0.0, 1.0, 0.0)
+        green.init_state.pos = (0.4, 0.0, 1.0)
+        camera = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Camera",
+            height=128,
+            width=128,
+            data_types=["rgb"],
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), convention="opengl"),
+            spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=20.0),
+            renderer_cfg=IsaacRtxRendererCfg(
+                global_settings=IsaacRtxRendererGlobalSettingsCfg(points_update_mode=points_mode)
+            ),
+        )
+        light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0))
+
+    cfg = SimulationCfg(
+        device="cuda:0",
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.2), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        scene = InteractiveScene(ParticleSceneCfg(num_envs=2, env_spacing=4.0))
+        sim.register_interactive_scene(scene)
+        try:
+            sim.reset()
+            scene.reset()
+
+            def centers():
+                for _ in range(4):
+                    _render(sim, scene)
+                rgb = scene["camera"].data.output["rgb"].torch[..., :3].to(torch.float32)
+                values = []
+                for image in rgb:
+                    for channel in (0, 1):
+                        others = image[..., [value for value in range(3) if value != channel]].amax(-1)
+                        pixels = torch.nonzero((image[..., channel] > 40) & (image[..., channel] > others * 1.5))
+                        assert len(pixels) >= 5, "The colored particle cloud is absent from RTX"
+                        values.append(pixels.to(torch.float32).mean(0))
+                return torch.stack(values)
+
+            before = centers()
+            # No rigid transforms are published in this scene. A new physics timestamp
+            # must not make particle rendering wait for an empty transform hierarchy.
+            assert sim.get_scene_data_provider().transform_count == 0
+            sim.step(render=False)
+
+            def unexpected_particle_wait(*_args, **_kwargs):
+                raise AssertionError("Particle-only rendering synchronized an empty rigid hierarchy")
+
+            if point_path != "streaming" and tuple(map(int, simulation_app.get_kit_version_short().split("."))) >= (
+                110,
+                4,
+            ):
+                with monkeypatch.context() as patch:
+                    patch.setattr(wp, "synchronize_stream", unexpected_particle_wait)
+                    patch.setattr(wp, "synchronize_device", unexpected_particle_wait)
+                    sim.render()
+                    scene["camera"].update(sim.get_rendering_dt(), force_recompute=True)
+            state = scene["red"].data.default_particle_state_w.torch[1:2].clone()
+            state[..., 1] += 0.4
+            scene["red"].write_particle_state_to_sim_index(state, env_ids=[1])
+            moved = centers()
+            assert torch.linalg.vector_norm(moved[2] - before[2]) > 10
+            torch.testing.assert_close(moved[[0, 1, 3]], before[[0, 1, 3]], rtol=0.0, atol=2.0)
+            scene["red"].reset(env_ids=[1])
+            torch.testing.assert_close(centers(), before, rtol=0.0, atol=2.0)
+        finally:
+            sim.register_interactive_scene(None)
 
 
 @pytest.mark.isaacsim_ci
@@ -585,6 +728,22 @@ def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
             yield sim, scene, view
         finally:
             sim.register_interactive_scene(None)
+
+
+@pytest.fixture
+def particle_render_settings():
+    """Restore the process-wide geometry settings after each particle render case."""
+    settings = get_settings_manager()
+    original = {
+        path: settings.get(path)
+        for path in ("/UJITSO/geometry", "/UJITSO/geometryTypes", "/isaaclab/render/points_update_mode")
+    }
+    settings.set("/UJITSO/geometry", False)
+    try:
+        yield settings
+    finally:
+        for path, value in original.items():
+            settings.set(path, value)
 
 
 def _render(sim, scene) -> None:
