@@ -192,6 +192,9 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             use_ovstage = share_ovstage or value == "1"
             if share_ovstage and not with_ovphysx:
                 raise ValueError("Shared OVStage cloning requires OVPhysX.")
+        leased = [renderer for renderer in renderers if renderer._active_ov_libraries_render_lease is not None]
+        if leased and (not use_ovstage or share_ovstage):
+            raise RuntimeError("OVXR requires a private rendering OVStage")
         if share_ovstage and sim.backend_manager.backend is not None and sim.backend_manager.backend.owns_scene:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
@@ -230,6 +233,15 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
             renderer._use_ovstage = use_ovstage
+            if renderer in leased:
+                if renderer.backend._ovxr_session_owner is not None or scene._ovxr_session_owner is not None:
+                    raise RuntimeError("The native pair already has an OVXR lease")
+                with scene.stage.get_attribute_write_floor() as floor:
+                    floor.wait()
+                    if int(floor.fetch()) != 0:
+                        raise RuntimeError("OVXR session requires an unused private OVStage")
+                renderer.backend._ovxr_session_owner = renderer
+                scene._ovxr_session_owner = renderer
             if renderer.cfg.async_rendering and use_ovstage:
                 logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
 

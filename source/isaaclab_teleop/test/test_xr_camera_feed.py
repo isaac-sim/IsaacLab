@@ -544,6 +544,36 @@ def test_manual_layout_preserves_per_feed_transforms():
     assert resolved is not cfgs
 
 
+def test_static_world_panel_pose_applies_feed_offset_in_panel_plane():
+    cfg = XrCameraFeedCfg(camera_name="robot_pov_cam", offset_m=(0.0, -0.15))
+    layout = XrCameraFeedLayoutCfg(
+        placement="world",
+        world_position_m=(0.0, 0.8, 1.6),
+        world_orientation_xyzw=(0.70710678, 0.0, 0.0, 0.70710678),
+    )
+
+    space, position, orientation = camera_feed.resolve_static_panel_pose(cfg, layout)
+
+    assert space == "world"
+    assert position == pytest.approx((0.0, 0.8, 1.45))
+    assert orientation == pytest.approx((0.70710678, 0.0, 0.0, 0.70710678))
+
+
+def test_static_panel_pose_keeps_viewer_start_and_head_locked_offsets():
+    cfg = XrCameraFeedCfg(camera_name="robot_pov_cam", offset_m=(0.1, -0.2), distance_m=0.9)
+
+    assert camera_feed.resolve_static_panel_pose(cfg, XrCameraFeedLayoutCfg()) == (
+        "viewer_start",
+        (0.1, -0.2, -0.9),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+    assert camera_feed.resolve_static_panel_pose(cfg, XrCameraFeedLayoutCfg(placement="head_locked")) == (
+        "head_locked",
+        (0.1, -0.2, -0.9),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+
+
 @pytest.mark.parametrize(
     ("layout", "expected"),
     [

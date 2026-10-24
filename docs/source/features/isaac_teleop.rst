@@ -1162,9 +1162,10 @@ can be referenced via constants:
      - ``0``
      - ``0``
 
-All three profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
-tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
-this to ``1`` in a custom profile (see below).
+The ``cloudxrjs`` profile sets ``NV_CXR_ENABLE_PUSH_DEVICES=1`` to admit its WebXR
+input path. The AVP and standalone profiles set it to ``0`` for headset optical
+hand tracking. Custom profiles for external push-device peripherals such as
+Manus gloves must enable this setting.
 They also set ``NV_ENABLE_POSE_WAIT=0`` so CloudXR does not throttle the application when frame
 times spike. This favors lower latency over CloudXR's pose-wait smoothing.
 
@@ -1204,8 +1205,9 @@ Copy a shipped profile and edit it:
    cp $(uv run --extra teleop,isaacsim python -c \
        "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/my-cloudxr.env
 
-Edit ``~/my-cloudxr.env`` to change any values (e.g. ``NV_CXR_ENABLE_PUSH_DEVICES=1`` for
-Manus gloves), then pass it via ``--cloudxr_env ~/my-cloudxr.env``.
+Edit ``~/my-cloudxr.env`` to change any values, then pass it via
+``--cloudxr_env ~/my-cloudxr.env``. Keep ``NV_CXR_ENABLE_PUSH_DEVICES=0`` for headset optical hands;
+enable it only for external push-device peripherals such as Manus gloves.
 
 Disable auto-launch
 ~~~~~~~~~~~~~~~~~~~
@@ -1265,6 +1267,33 @@ other value, keeps the interactive prompt. Acceptance is recorded in
 through this variable -- later runs no longer prompt. The variable applies to every script
 that launches the runtime, including the process-scoped launcher in
 ``teleop_replay_agent.py``.
+
+.. _isaac-teleop-ovxr-mcap:
+
+Replay MCAP with a Kitless OVXR Viewer
+--------------------------------------
+
+The MCAP replay entrypoint can present recorded input through an independent
+OVXR viewer. Follow the :ref:`kitless XR guide <kitless-xr>` to install Isaac
+Capture with its OVXR extra and select the compatible rendering dependencies.
+
+.. code-block:: bash
+
+   uv run --extra ovxr python \
+       scripts/environments/teleoperation/teleop_replay_agent.py \
+       --task IsaacContrib-PickPlace-GR1T2-Abs --physics ovphysx \
+       --device cpu --num_envs 1 --ovxr \
+       --replay_file /absolute/path/to/session.mcap
+
+Use ``--physics newton_mjwarp`` for Newton. MCAP supplies tracker and control
+input; the connected client supplies the view. A recorded STOP, task success
+or failure, or the replay duration limit ends the run. The separate
+``isaaclab teleop replay`` command replays HDF5 demonstrations through Kit.
+
+Add ``--ovxr_pip_camera robot_pov_cam --ovxr_pip_head_locked`` for a camera
+panel, or ``--ovxr_desktop_mirror`` for the optional desktop window. See the
+kitless XR guide for build prerequisites, camera selection and display requirements.
+
 
 .. _isaac-teleop-xr-anchor:
 
@@ -1518,8 +1547,10 @@ Kit Scene UI presentation
 PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
 an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
 and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
-the camera selection configuration usable when a future kitless entry point no longer provides
-Scene UI. Render-product tuning is also best-effort: backends without a compatible render product
+the camera selection configuration usable without Scene UI. The
+:ref:`kitless XR guide <kitless-xr>` uses separate OpenXR quad
+layers and does not import Scene UI; those layers are visible in the headset/client, not in the
+passive eye-image desktop mirror. Render-product tuning is also best-effort: backends without a compatible render product
 keep the Camera-buffer path, and schema-authoring failures warn while PiP continues. Other
 configuration, camera-buffer, and panel-initialization errors still fail during startup.
 

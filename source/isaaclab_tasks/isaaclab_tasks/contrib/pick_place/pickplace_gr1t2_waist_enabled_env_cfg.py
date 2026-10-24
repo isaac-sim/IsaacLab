@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
 import tempfile
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -16,7 +17,13 @@ from .pickplace_gr1t2_env_cfg import (
     ObjectTableSceneCfg,
     ObservationsCfg,
     TerminationsCfg,
+    _apply_kitless_ovphysx_drive_gains,
+    _condition_kitless_ovphysx_gr1t2_stage,
+    _condition_kitless_ovphysx_robot_spawn_properties,
+    _stabilize_gr1t2_for_kitless_newton_mjwarp,
+    _wrap_packing_table_collision_for_newton,
     build_gr1t2_pickplace_pipeline,
+    condition_packing_table_for_kitless_ovphysx,
 )
 
 
@@ -66,6 +73,8 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                # Exclude head visuals from the operator camera, not the source scene.
+                excluded_visual_meshes=["/World/envs/env_0/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
                 pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
@@ -81,3 +90,25 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
+
+    def stabilize_for_kitless_ovphysx(self) -> None:
+        """Prepare the existing GR asset while retaining the movable waist."""
+        action_cfg = self.actions.upper_body_ik
+        action_cfg.controller.urdf_path = os.path.join(
+            os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
+        )
+        action_cfg.kitless_ovphysx_enabled = True
+        self.isaac_teleop.require_initial_bimanual_hand_tracking = True
+        _apply_kitless_ovphysx_drive_gains(self.scene.robot)
+        _condition_kitless_ovphysx_robot_spawn_properties(self.scene.robot)
+        _condition_kitless_ovphysx_gr1t2_stage(self.scene.robot, action_cfg)
+        condition_packing_table_for_kitless_ovphysx(self.scene.packing_table)
+
+    def stabilize_for_kitless_newton_mjwarp(self) -> None:
+        """Configure GR1T2 actuators and contacts for kitless Newton."""
+        # Keep the USD exporter as the default; select this model for Newton preparation.
+        self.actions.upper_body_ik.controller.urdf_path = os.path.join(
+            os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
+        )
+        _stabilize_gr1t2_for_kitless_newton_mjwarp(self)
+        _wrap_packing_table_collision_for_newton(self.scene.packing_table)

@@ -42,11 +42,11 @@ def _simulation(monkeypatch):
 
 def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
-    renderer.backend = SimpleNamespace(renderer=MagicMock())
+    renderer.backend = SimpleNamespace(renderer=MagicMock(), _ovxr_session_owner=None)
     renderer.scene = renderer.backend
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer._device = "cpu"
-    renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
+    renderer._warp_device = SimpleNamespace(ordinal=0, is_cuda=True, stream=SimpleNamespace(cuda_stream=99))
     return renderer, renderer.backend.renderer
 
 
@@ -57,7 +57,7 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
     renderer.cfg.async_rendering = mode == "async"
     use_ovstage = mode == "ovstage"
     renderer._use_ovstage = use_ovstage
-    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=42))
+    renderer._warp_device = SimpleNamespace(is_cuda=True, stream=SimpleNamespace(cuda_stream=42))
     points = {
         path: wp.array(np.arange(count * 3, dtype=np.float32).reshape(count, 3), dtype=wp.vec3f, device="cpu")
         for path, count in (
@@ -189,7 +189,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, paths[0]).AddScaleOp().Set(Gf.Vec3d(2, 3, 4) if scaled else Gf.Vec3d(1))
     renderer.scene.clone_copies = [(paths[0], [])]
-    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=0))
+    renderer._warp_device = SimpleNamespace(is_cuda=True, stream=SimpleNamespace(cuda_stream=0))
     renderer._use_ovstage = use_ovstage
     renderer.scene.ordinal = 5
     writes = []
