@@ -175,6 +175,7 @@ class OvstageBackend:
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
+        self._ovxr_session_owner = None
         self.resources = contextlib.ExitStack()
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
@@ -225,6 +226,8 @@ class OvstageBackend:
 
     def close(self) -> None:
         """Release borrowers, then the path dictionary and stage."""
+        if self._ovxr_session_owner is not None:
+            raise RuntimeError("Cannot destroy or reset a stage with an active OVXR lease")
         self.resources.close()
         self.stage = self.paths = None
 
@@ -274,9 +277,11 @@ def export_stage_to_string(
     settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
     settings = UsdRender.Settings.Define(export_stage, settings_path)
     settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
-    settings.GetPrim().CreateAttribute(
+    show_all = settings.GetPrim().CreateAttribute(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-    ).Set(True)
+    )
+    if not show_all.HasAuthoredValueOpinion():
+        show_all.Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     prim_paths = []
     if num_envs > 1:

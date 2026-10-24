@@ -461,7 +461,7 @@ class TestWpToTorchShim:
         assert not deprecation, "shim must not re-warn after the first call"
 
     def test_requires_grad_forwarded_to_raw_wp_array(self):
-        """``wp.to_torch(wp.array)`` still produces a torch view and forwards ``requires_grad``."""
+        """Native and empty CPU views preserve dtype, shape and gradient selection."""
         import isaaclab.utils.warp  # noqa: F401  # ensure shim is installed
 
         arr = wp.array([1.0, 2.0], dtype=wp.float32, device="cpu")
@@ -469,3 +469,22 @@ class TestWpToTorchShim:
         assert isinstance(t, torch.Tensor)
         assert t.shape == (2,)
         assert t.requires_grad is False
+
+        empty_ids = wp.from_torch(torch.arange(4, dtype=torch.int32)[:0])
+        ids = wp.to_torch(empty_ids)
+        assert ids.shape == (0,) and ids.dtype == torch.int32
+        assert ids.data_ptr() == 0 and ids.stride() == (1,)
+
+        for inherited, override, expected, has_grad in (
+            (False, None, False, False),
+            (True, None, True, True),
+            (True, False, False, False),
+            (False, True, True, False),
+        ):
+            empty = wp.zeros((0, 3), dtype=wp.float32, device="cpu", requires_grad=inherited)
+            view = wp.to_torch(empty, requires_grad=override)
+            assert view.shape == (0, 3) and view.dtype == torch.float32
+            assert view.requires_grad is expected
+            assert (view.grad is not None) is has_grad
+            if has_grad:
+                assert view.grad.shape == (0, 3) and view.grad.dtype == torch.float32

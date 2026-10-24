@@ -72,7 +72,8 @@ class MyEnvCfg(ManagerBasedRLEnvCfg):
 
 Create a function that builds your Isaac Capture retargeting pipeline. The builder should return an
 `OutputCombiner` with an `"action"` key containing the flattened action tensor (typically via
-`TensorReorderer`). Optionally return a list of retargeters to expose in the tuning UI:
+`TensorReorderer`). A setup factory may also return retargeters for the tuning UI;
+unpack those before assigning the two configuration callbacks:
 
 ```python
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
@@ -108,7 +109,11 @@ reference tasks, camera selection, layout, placement, renderer, disable, and kit
 ```python
 from isaaclab_teleop import IsaacTeleopCfg, IsaacTeleopDevice
 
-cfg = IsaacTeleopCfg(pipeline_builder=my_pipeline_builder)
+pipeline, retargeters = my_pipeline_builder()
+cfg = IsaacTeleopCfg(
+    pipeline_builder=lambda: pipeline,
+    retargeters_to_tune=lambda: retargeters,
+)
 
 with IsaacTeleopDevice(cfg) as device:
     device.add_callback("RESET", env.reset)

@@ -47,12 +47,44 @@ def test_teleop_workflow_help_exposes_task_preset_selectors(source_checkout_root
     assert "physics=NAME" in result.stdout
     assert "renderer=NAME" in result.stdout
     assert "presets=NAME[,NAME,...]" in result.stdout
+    if command == "run":
+        assert re.search(r"^\s+--ovxr(?:\s|$)", result.stdout, re.MULTILINE)
+        assert not re.search(r"^\s+--kitless_xr(?:[,\s]|$)", result.stdout, re.MULTILINE)
+        assert "--kitless_xr_" not in result.stdout
+
+
+def test_ovxr_omitted_launch_options_match_documented_defaults(source_checkout_root, monkeypatch):
+    """The shortened user command retains the profile, launch policy and visualizers."""
+    from isaaclab.app import validate_launch
+
+    monkeypatch.delenv("LIVESTREAM", raising=False)
+    script = source_checkout_root / "scripts/environments/teleoperation/teleop_se3_agent.py"
+
+    def parse(arguments):
+        monkeypatch.setattr(sys, "argv", [str(script), *arguments])
+        return runpy.run_path(str(script))["args_cli"]
+
+    implicit = parse(["--ovxr"])
+    explicit = parse(["--ovxr", "--viz", "none", "--auto_launch_cloudxr", "--cloudxr_env", "cloudxrjs"])
+    assert implicit.auto_launch_cloudxr is explicit.auto_launch_cloudxr is True
+    assert implicit.cloudxr_env == explicit.cloudxr_env
+    assert implicit.cloudxr_env.endswith(".env")
+    left, right = vars(implicit).copy(), vars(explicit).copy()
+    from isaaclab.sim import SimulationCfg
+
+    left_cfg, right_cfg = SimulationCfg(), SimulationCfg()
+    validate_launch(left_cfg, left)
+    validate_launch(right_cfg, right)
+    assert left_cfg.visualizer_cfgs == right_cfg.visualizer_cfgs == []
+    assert parse(["--ovxr", "--no-auto_launch_cloudxr"]).auto_launch_cloudxr is False
+    assert parse(["--ovxr", "--cloudxr_env", "none"]).cloudxr_env is None
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
 def test_teleop_dispatches_to_an_existing_script(source_checkout_root: Path, command, script_parts):
     """``isaaclab teleop`` forwards the remaining arguments to a script that exists."""
-    args = [command, "--task", "IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "--xr"]
+    selector = "--ovxr" if command == "run" else "--xr"
+    args = [command, "--task", "IsaacContrib-PickPlace-Locomanipulation-G1-Abs", selector]
 
     with (
         mock.patch.object(sys, "argv", ["isaaclab", "teleop", *args]),
