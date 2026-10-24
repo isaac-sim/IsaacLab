@@ -10,7 +10,7 @@ test-supplied joint state and external load.
 """
 
 import sys
-from dataclasses import MISSING, fields
+from dataclasses import fields
 from types import SimpleNamespace
 
 import numpy as np
@@ -28,6 +28,7 @@ from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrappe
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, define_actuator_properties
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
 
@@ -70,12 +71,9 @@ def make_cfg(goldens: dict[str, np.ndarray], **overrides) -> BamActuatorCfg:
     return BamActuatorCfg(**{"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW, **overrides})
 
 
-def make_stage(servo_usd: str, cfg: BamActuatorCfg | None = None) -> Usd.Stage:
-    """Open a fresh fixture layer, optionally authoring its actuators from *cfg*."""
-    stage = Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
-    if cfg is not None:
-        author_actuator_prims(stage, "/Robot", {"servo": cfg})
-    return stage
+def make_stage(servo_usd: str) -> Usd.Stage:
+    """Open a fresh fixture layer."""
+    return Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
 
 
 def make_actuator(servo_usd: str, num_envs: int, device: str, **drive_overrides: float | int) -> SimpleNamespace:
@@ -152,14 +150,28 @@ def test_bam_requires_the_newton_backend(monkeypatch, goldens):
         define_actuator_properties("/Robot", {"servo": make_cfg(goldens)})
 
 
-def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd):
-    """Authored USD values cannot fill a missing setting, and an unsupported model would author another friction law."""
-    with pytest.raises(TypeError, match="kp_fw"):
-        author_actuator_prims(make_stage(servo_usd), "/Robot", {"servo": make_cfg(goldens, kp_fw=MISSING)})
-    cfg = make_cfg(goldens)
-    cfg.motor.model = "m3"
-    with pytest.raises(ValueError, match="model"):
-        author_actuator_prims(make_stage(servo_usd), "/Robot", {"servo": cfg})
+def make_bare_stage(servo_usd: str) -> Usd.Stage:
+    """Open the fixture without its BAM actuator prims, so authoring defines new ones."""
+    stage = make_stage(servo_usd)
+    for name in JOINT_NAMES:
+        stage.RemovePrim(f"/Robot/servo_{name}_actuator")
+    return stage
+
+
+@pytest.mark.parametrize(
+    "edit, match",
+    [
+        (lambda cfg: replace(cfg, kp_fw=None), "does not set 'kp_fw'"),
+        (lambda cfg: replace(cfg, motor=replace(cfg.motor, max_current=None)), "does not set 'motor.max_current'"),
+        (lambda cfg: replace(cfg, motor=replace(cfg.motor, model=None)), "does not set 'motor.model'"),
+        (lambda cfg: replace(cfg, motor=replace(cfg.motor, model="m3")), "Unsupported BAM model"),
+    ],
+    ids=["no_kp_fw", "no_max_current", "no_model", "unsupported_model"],
+)
+def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd, edit, match):
+    """A new actuator needs the complete fit, and an unsupported model would author another friction law."""
+    with pytest.raises(ValueError, match=match):
+        author_actuator_prims(make_bare_stage(servo_usd), "/Robot", {"servo": edit(make_cfg(goldens))})
 
 
 @pytest.mark.parametrize(
@@ -187,7 +199,10 @@ def test_authored_prim_resolves_to_the_bam_drive(goldens, servo_usd, model, flag
         delay_update_period=4,
     )
     cfg.motor.model = model
-    stage = make_stage(servo_usd, cfg)
+    # Unset fields take their documented defaults on a new actuator.
+    cfg.motor.max_pwm = cfg.motor.alpha = None
+    stage = make_bare_stage(servo_usd)
+    author_actuator_prims(stage, "/Robot", {"servo": cfg})
 
     voltage = max(voltage_range) if voltage_range is not None else VIN
     expected_limit = limit if limit is not None else voltage * cfg.motor.kt / cfg.motor.resistance
@@ -214,45 +229,46 @@ def test_authored_prim_resolves_to_the_bam_drive(goldens, servo_usd, model, flag
         assert resolved["delay_hold_prob"] == pytest.approx(0.25)
         assert resolved["delay_update_period"] == 4
         assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == flags
+        assert (resolved["max_pwm"], resolved["alpha"]) == (1.0, 1.0)
 
 
-def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd):
-    """A serialized asset's fit and joint friction seed are replaced, including runtime parameter values."""
-    # An int literal must not leave an int-typed attribute that truncates the replacement value.
-    cfg = make_cfg(goldens, kp_fw=200)
-    # Constraint allocation needs a positive seed even for a fit with zero Coulomb friction.
-    cfg.motor.friction_base = 0.0
-    stage = make_stage(servo_usd)
-    for name in JOINT_NAMES:
-        stage.RemovePrim(f"/Robot/servo_{name}_actuator")
-    author_actuator_prims(stage, "/Robot", {"servo": cfg})
-    seeds = []
+def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, caplog):
+    """A partial configuration keeps the asset's fit and runtime values and overrides only what it sets."""
+    asset = make_stage(servo_usd)
     for index, name in enumerate(JOINT_NAMES):
-        prim = stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
+        prim = asset.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
         prim.GetAttribute("newton:frictionScale").Set(2.0)
-        friction = stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction")
-        assert friction.Get() > 0.0
-        seeds.append(friction.Get())
-        friction.Set(2.0 * friction.Get())
+        prim.CreateAttribute("newton:hasBacklash", Sdf.ValueTypeNames.Int).Set(1)
+        # A sparse asset leaves the current limit to the drive's default; the config need not restate it.
+        prim.RemoveProperty("newton:maxCurrent")
+        asset.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Set(0.0)
     path = tmp_path / "robot.usda"
-    stage.Export(str(path))
+    asset.Export(str(path))
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().subLayerPaths.append(str(path))
-    cfg.kp_fw = 123.5
+    cfg = BamActuatorCfg(joint_names_expr=[".*"], kp_fw=123.5)
     cfg.motor.friction_base = 0.012
-    author_actuator_prims(stage, "/Robot", {"servo": cfg})
+    # Part of the stall torque inputs: the asset's torque limit stays, with a warning.
+    cfg.vin_range = (6.5, 8.2)
+    with caplog.at_level("WARNING"):
+        author_actuator_prims(stage, "/Robot", {"servo": cfg})
+    assert "actuator_effort_limit" in caplog.text
 
-    parsed = [entry for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot")) if (entry := parse_actuator_prim(prim))]
-    assert len(parsed) == len(JOINT_NAMES)
-    for entry in parsed:
+    for index, name in enumerate(JOINT_NAMES):
+        entry = parse_actuator_prim(stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator"))
         resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
-        assert resolved["kt"] == pytest.approx(goldens["attr_kt"].item())
+        assert resolved["kt"] == pytest.approx(0.3 + index * 0.1)
         assert resolved["kp_fw"] == pytest.approx(123.5)
         assert resolved["friction_base"] == pytest.approx(0.012)
-        assert resolved["friction_scale"] == 1.0
-    for name, seed in zip(JOINT_NAMES, seeds, strict=True):
-        assert stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Get() == seed
+        assert resolved["friction_scale"] == pytest.approx(2.0)
+        assert resolved["vin"] == pytest.approx(VIN)
+        assert resolved["max_current"] == 0.0
+        # The unset friction model and backlash template keep the asset's m6 and backlash flags.
+        assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
+        assert resolved["has_backlash"] == 1
+        # Constraint allocation needs a positive friction seed; BAM overwrites it before each solve.
+        assert stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Get() > 0.0
 
 
 """

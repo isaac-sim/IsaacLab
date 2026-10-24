@@ -46,12 +46,14 @@ class DCMotorCfg(IdealPDActuatorCfg):
 
     class_type: type["DCMotor"] | str = "{DIR}.actuator_pd:DCMotor"
 
-    saturation_effort: dict[str, float] | float = MISSING
+    saturation_effort: dict[str, float] | float | None = None
     """Peak motor force/torque of the electric DC motor [N or N·m, depending on joint type].
 
     The motor's stall torque reflected at the joint, i.e. the torque produced at zero speed.
     Joints in the same group that sit behind different gear reductions need different values,
-    so this accepts a joint-name-pattern dictionary as well as a scalar.
+    so this accepts a joint-name-pattern dictionary as well as a scalar. Required by the Isaac Lab
+    actuator model; with :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, None keeps the value of the
+    joint's USD actuator (see :ref:`USD actuator overrides <actuators-usd-override>`).
     """
 
 
@@ -64,8 +66,13 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     min_delay: int = 0
     """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
-    max_delay: int = 0
-    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+    max_delay: int | None = None
+    """Maximum number of physics time-steps with which the actuator command may be delayed.
+
+    None applies no delay on the Isaac Lab model. With :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`,
+    None keeps the delay of the joint's USD actuator and zero removes it (see :ref:`USD actuator overrides
+    <actuators-usd-override>`).
+    """
 
 
 @configclass
