@@ -128,12 +128,24 @@ When ``out`` is None, the callable returns an observation normally. When supplie
 return that exact tensor without retaining it, resizing it, or replacing its storage.
 
 The manager checks the signature once during initialization. Only an explicitly declared keyword-only
-``out=None`` enables destination writes; accepting arbitrary ``**kwargs`` does not. The manager probes
-the ordinary call to infer shape, dtype and device, which must remain constant, then allocates a fresh
-contiguous destination for each computation. ``out`` is reserved and must not appear in term ``params``.
+``out=None`` enables destination writes; accepting arbitrary ``**kwargs`` does not. The output shape,
+dtype and device must remain constant. The manager allocates a fresh contiguous destination for each
+computation. ``out`` is reserved and must not appear in term ``params``.
 Custom modifiers, noise and history retain their usual snapshot protections. Built-in
 :class:`~isaaclab.envs.mdp.observations.image_rgb` terms use this interface automatically to avoid a
 second full-image copy for normalized uint8 images. Existing observation configurations require no changes.
+
+Class-based observation terms can set :attr:`ManagerTermBase.output_spec` during construction to
+``(shape, dtype, device)``, where ``shape`` includes the environment axis. This describes the raw term
+output, before manager modifiers, delay, or history. The manager uses that specification without evaluating
+the term during setup. Terms without a specification retain the existing single probe. All class terms
+are reset after setup, as before.
+
+The built-in RGB, depth, normals, and segmentation terms derive their specifications from initialized
+camera buffers. Constructing their observation manager does not capture images or populate frame history.
+For example, a term returning one float per environment can declare
+``self.output_spec = ((env.num_envs, 1), torch.float32, torch.device(env.device))``. Shapes belong to the
+term implementation; observation configurations do not need duplicate dimensions.
 
 .. autoclass:: ObservationManager
     :members:

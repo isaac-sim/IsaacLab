@@ -39,11 +39,20 @@ CHANNELS = 3
 SENSOR_CFG = SceneEntityCfg("tiled_camera")
 
 
+class _Camera:
+    def __init__(self, outputs):
+        self._data = SimpleNamespace(output={name: ProxyArray(wp.from_torch(buf)) for name, buf in outputs.items()})
+        self.reads = 0
+
+    @property
+    def data(self):
+        self.reads += 1
+        return self._data
+
+
 def _make_env(outputs: dict[str, torch.Tensor], device: str = "cpu") -> SimpleNamespace:
     """Mock env exposing ``env.scene.sensors["tiled_camera"].data.output`` over ``outputs``."""
-    camera = SimpleNamespace(
-        data=SimpleNamespace(output={name: ProxyArray(wp.from_torch(buf)) for name, buf in outputs.items()})
-    )
+    camera = _Camera(outputs)
     sensors = {"tiled_camera": camera}
     scene = SimpleNamespace(sensors=sensors, keys=sensors.keys)
     return SimpleNamespace(num_envs=NUM_ENVS, device=device, scene=scene)
@@ -225,32 +234,35 @@ def test_image_features_flattens_encoder_output():
 
 
 @pytest.mark.parametrize(
-    ("frame_stack", "channel_first", "normalize", "dtype"),
+    ("term_cls", "data_type", "channels", "frame_stack", "channel_first", "normalize", "dtype"),
     [
-        (1, False, True, torch.uint8),
-        (2, True, True, torch.uint8),
-        (1, True, False, torch.uint8),
-        (2, False, True, torch.float32),
+        (image_rgb, "rgb", 3, 1, False, True, torch.uint8),
+        (image_rgb, "rgb", 3, 2, True, True, torch.uint8),
+        (image_rgb, "rgb", 3, 1, True, False, torch.uint8),
+        (image_rgb, "albedo", 4, 2, False, True, torch.float32),
+        (image_depth, "distance_to_image_plane", 1, 2, True, True, torch.float32),
+        (image_normals, "normals", 3, 1, False, True, torch.float32),
+        (image_segmentation, "semantic_segmentation", 4, 2, False, True, torch.uint8),
+        (image_segmentation, "semantic_segmentation", 1, 1, True, True, torch.int32),
     ],
 )
-def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
-    """Manager destinations preserve RGB math, layout, frame order and snapshot lifetime."""
-    camera = _random_rgb().to(dtype)
-    env = _make_env({"rgb": camera})
+def test_image_manager_output(term_cls, data_type, channels, frame_stack, channel_first, normalize, dtype):
+    """Setup does not capture; declared outputs match direct terms and preserve retained frames."""
+    camera = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, channels), dtype=torch.uint8).to(dtype)
+    env = _make_env({data_type: camera})
     env.sim = SimpleNamespace(is_playing=lambda: True)
+    params = dict(data_type=data_type, frame_stack=frame_stack, channel_first=channel_first, normalize=normalize)
     cfg = ObservationGroupCfg()
-    cfg.image = ObservationTermCfg(
-        func=image_rgb,
-        params={"frame_stack": frame_stack, "channel_first": channel_first, "normalize": normalize},
-    )
+    cfg.image = ObservationTermCfg(func=term_cls, params=params)
     manager = ObservationManager({"policy": cfg}, env)
-    manager.compute()
-    first = camera.clone()
-    camera.copy_(_random_rgb())
-    frames = [camera] if frame_stack == 1 else [first, camera]
-    expected = torch.cat([_rgb_reference(f) if normalize else f for f in frames], dim=-1)
-    if channel_first:
-        expected = expected.permute(0, 3, 1, 2)
+    assert env.scene.sensors["tiled_camera"].reads == 0
+    # Direct calls determine output metadata from real frames, independently of manager allocation.
+    _, observe = _make_term(term_cls, _make_env({data_type: camera}), **params)
+    first = observe()
+    assert manager.group_obs_dim["policy"] == first.shape[1:]
+    torch.testing.assert_close(manager.compute()["policy"], first, atol=1e-5, rtol=1e-5)
+    camera.copy_(torch.randint(0, 255, camera.shape, dtype=torch.uint8))
+    expected = observe()
     result = manager.compute()["policy"]
     torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
     camera.zero_()
