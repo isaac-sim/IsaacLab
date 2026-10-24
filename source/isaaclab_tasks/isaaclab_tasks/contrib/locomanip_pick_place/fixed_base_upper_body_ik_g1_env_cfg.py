@@ -13,6 +13,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -20,7 +21,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
-from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg
+from isaaclab_tasks.contrib.teleop_physics_cfg import TeleopPhysicsCfg
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
@@ -261,18 +262,20 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     # Unitree G1 Humanoid robot - fixed base configuration
     robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
-    robot_pov_cam = g1_robot_pov_camera_cfg()
+    # Share the calibrated head view with the locomomanipulation G1 task.
+
+    # Mount above each hand, looking along wrist-local +X with +Z up.
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
@@ -374,6 +377,8 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     controlled using upper body IK.
     """
 
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
+
     # Scene settings
     scene: FixedBaseUpperBodyIKG1SceneCfg = FixedBaseUpperBodyIKG1SceneCfg(num_envs=1, env_spacing=2.5)
     # MDP settings
@@ -394,6 +399,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
+        self.num_rerenders_on_reset = 3
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
@@ -442,3 +448,15 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
+
+    def stabilize_for_kitless_ovphysx(self) -> None:
+        """Prepare the table collision authoring; let OVPhysX cook the wheel meshes."""
+        from isaaclab_tasks.contrib.packing_table import condition_packing_table_for_kitless_ovphysx
+
+        condition_packing_table_for_kitless_ovphysx(self.scene.packing_table)
+
+    def stabilize_for_kitless_newton_mjwarp(self) -> None:
+        """Configure G1 actions, assets and contacts for kitless Newton."""
+        from .g1_kitless_newton import configure_g1_for_kitless_newton
+
+        configure_g1_for_kitless_newton(self)

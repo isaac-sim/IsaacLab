@@ -37,8 +37,9 @@ def _wp_to_torch_with_proxyarray(a, requires_grad=None):
 
     The shim routes :class:`ProxyArray` arguments to their cached ``.torch``
     view (a zero-copy :class:`torch.Tensor` of the same underlying memory) and
-    emits a one-shot :class:`DeprecationWarning`. For any other input type,
-    the original :func:`warp.to_torch` handles the call as before.
+    emits a one-shot :class:`DeprecationWarning`. Empty CPU arrays use DLPack
+    because NumPy rejects their null-pointer array interface. Other native
+    arrays keep the original :func:`warp.to_torch` conversion.
     """
     global _WP_TO_TORCH_WARNED
     if isinstance(a, ProxyArray):
@@ -51,6 +52,19 @@ def _wp_to_torch_with_proxyarray(a, requires_grad=None):
                 stacklevel=2,
             )
         return a.torch
+    if isinstance(a, wp.array) and a.size == 0 and a.device is not None and a.device.is_cpu:
+        # Preserve Warp's structured-array rejection before the DLPack fallback.
+        if isinstance(a.dtype, wp._src.codegen.Struct):
+            return _WP_TO_TORCH_ORIGINAL(a, requires_grad=requires_grad)
+        import torch
+
+        if requires_grad is None:
+            requires_grad = a.requires_grad
+        tensor = torch.from_dlpack(wp.to_dlpack(a))
+        tensor.requires_grad = requires_grad
+        if requires_grad and a.requires_grad:
+            tensor.grad = torch.from_dlpack(wp.to_dlpack(a.grad))
+        return tensor
     return _WP_TO_TORCH_ORIGINAL(a, requires_grad=requires_grad)
 
 

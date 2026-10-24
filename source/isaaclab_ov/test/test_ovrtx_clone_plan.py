@@ -88,7 +88,12 @@ def _simulation(monkeypatch):
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = SimpleNamespace(
-        clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None, render_products=set()
+        clone_copies=[],
+        clone_env_paths=[],
+        population_env_paths=[],
+        clone_positions=None,
+        render_products=set(),
+        _ovxr_session_owner=None,
     )
     renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
@@ -99,7 +104,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
     )
-    renderer._warp_device = SimpleNamespace(ordinal=0)
+    renderer._warp_device = SimpleNamespace(ordinal=0, is_cuda=True)
     renderer.scene.next_camera_id = 0
     return renderer
 
@@ -279,6 +284,7 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
 
     class Device:
         ordinal = 1
+        is_cuda = True
 
         def __str__(self):
             return "cuda:1"

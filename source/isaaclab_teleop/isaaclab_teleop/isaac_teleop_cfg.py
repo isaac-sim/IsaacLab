@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.utils import configclass
 
@@ -244,6 +244,27 @@ class IsaacTeleopCfg:
 
     When ``False`` (the default), the teleop session remains inactive until a
     ``"START"`` command is received from xr_core via the message bus.
+    """
+
+    require_initial_bimanual_hand_tracking: bool = False
+    """Wait for both hands to be present before the first environment step.
+
+    An environment or device reset clears the initialization latch. Later
+    tracking loss follows the configured retargeting pipeline's behavior.
+    """
+
+    action_conditioner: Callable[[Any, Any, dict[str, Any]], Any] | None = None
+    """Optional task-owned pre-step action conditioner.
+
+    The callable receives ``(env, action, state)``. The launcher retains the
+    state dictionary across active frames and clears it on pause or reset.
+    """
+
+    action_validator: Callable[[Any], str | None] | None = None
+    """Optional task-owned fail-closed action validator.
+
+    Return ``None`` for a valid action or a concise reason to render without a
+    physics step. Validation runs both before and after conditioning.
     """
 
     retargeters_to_tune: Callable[[], list[BaseRetargeter]] | None = None
