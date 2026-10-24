@@ -39,9 +39,21 @@ class NewtonVBDManager(NewtonManager):
 
     def _build_solver(self, model: Model, solver_cfg: VBDSolverCfg) -> None:
         """Construct VBD and configure its base-manager state."""
+        self._needs_collision_pipeline = True
+        if (
+            solver_cfg.rigid_contact_history
+            and model.body_count > 0
+            and not solver_cfg.integrate_with_external_rigid_solver
+        ):
+            if self._collision_cfg is None or self._collision_cfg.contact_matching == "disabled":
+                raise ValueError(
+                    "VBDSolverCfg.rigid_contact_history requires NewtonCfg.collision_cfg with "
+                    "contact_matching='latest' or 'sticky'."
+                )
+            # Newton sizes persistent history from the pipeline before VBD construction.
+            self._initialize_contacts()
         self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
         self._use_single_state = False
-        self._needs_collision_pipeline = True
         self._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
         self._update_joint_state = solver_cfg.update_joint_state and not solver_cfg.integrate_with_external_rigid_solver
 
