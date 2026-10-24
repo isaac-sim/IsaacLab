@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import json
 import os
+import sys
 import tempfile
 import uuid
 
@@ -41,7 +42,7 @@ def create_test_episode(device):
 def temp_dir():
     """Create a temporary directory for test datasets."""
     # On Windows, libhdf5 releases its file handle shortly after close(), so the cleanup can race it.
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=sys.platform == "win32") as d:
         yield d
 
 
