@@ -510,8 +510,10 @@ def find_global_fixed_joint_prim(
     between the two bodies. When a fixed joint has only one target body, it is considered to attach the body
     to the simulation world.
 
-    This function finds the fixed joint prim that has only one target under the specified prim path. If no such
-    fixed joint prim exists, it returns None.
+    If the prim itself is a fixed joint that attaches a rigid body to the world, as for an articulation rooted at
+    its fixed world joint, that joint is returned (see :func:`_is_world_fixed_joint`). Otherwise, this function
+    finds the joint prim that has only one target under the specified prim path. If no such joint prim exists, it
+    returns None.
 
     Args:
         prim_path: The prim path to search for the fixed joint prim.
@@ -520,7 +522,7 @@ def find_global_fixed_joint_prim(
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
 
     Returns:
-        The fixed joint prim that has only one target. If no such fixed joint prim exists, it returns None.
+        The fixed joint prim that attaches the prim to the world. If no such joint prim exists, it returns None.
 
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
@@ -539,6 +541,12 @@ def find_global_fixed_joint_prim(
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
+    # an articulation rooted at its fixed world joint: the prim itself is that joint
+    if _is_world_fixed_joint(prim):
+        joint_prim = UsdPhysics.Joint(prim)
+        if not check_enabled_only or joint_prim.GetJointEnabledAttr().Get():
+            return joint_prim
+
     # note: some assets author fixed joints with the generic "Joint" schema, so every joint is checked
     # and a joint missing one of its two body targets is taken to attach the asset to the world.
     for child_prim in Usd.PrimRange(prim):
@@ -550,6 +558,43 @@ def find_global_fixed_joint_prim(
         if not joint_prim.GetBody0Rel().GetTargets() or not joint_prim.GetBody1Rel().GetTargets():
             return joint_prim
     return None
+
+
+def _is_world_fixed_joint(prim: Usd.Prim) -> bool:
+    """Check whether a prim is a fixed joint that attaches a rigid body to the simulation world.
+
+    One body target of the joint must be a rigid body or a prim under one. The other side counts as the world when
+    its body target is empty or names no prim, or when neither the target nor an ancestor is a rigid body or a
+    collider. A collider without a rigid-body ancestor is a static body, not the world.
+    :func:`find_global_fixed_joint_prim` applies this rule to the prim it is called on; for the joints under that
+    prim it treats only an empty body target as the world.
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if the prim is a fixed joint between a rigid body and the world.
+    """
+    from pxr import UsdPhysics  # noqa: PLC0415
+
+    # a plain UsdPhysics.Joint is a free D6 joint, so it is excluded on purpose, unlike in the subtree search
+    if not prim.IsA(UsdPhysics.FixedJoint):
+        return False
+    joint = UsdPhysics.FixedJoint(prim)
+    stage = prim.GetStage()
+
+    def resolve(rel: Usd.Relationship) -> str:
+        """Resolve a body relationship of the joint to ``"body"``, ``"static"`` or ``"world"``."""
+        targets = rel.GetTargets()
+        if not targets or not stage.GetPrimAtPath(targets[0]):
+            return "world"
+        if get_first_matching_ancestor_prim(targets[0], lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI), stage=stage):
+            return "body"
+        if get_first_matching_ancestor_prim(targets[0], lambda p: p.HasAPI(UsdPhysics.CollisionAPI), stage=stage):
+            return "static"
+        return "world"
+
+    return sorted((resolve(joint.GetBody0Rel()), resolve(joint.GetBody1Rel()))) == ["body", "world"]
 
 
 def has_deformable_body_api(prim: Usd.Prim) -> bool:
