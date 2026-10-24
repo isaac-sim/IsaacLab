@@ -978,7 +978,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                             njmax=256,
                             nconmax=512,
                         ),
-                        bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Table"],
+                        bodies=[r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Table"],
                         # Let Newton derive body and global static shape visibility without explicit ownership.
                         include_body_shapes=False,
                         # Refine rigid integration with three substeps per coupled interval.
@@ -1004,12 +1004,12 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                             project_outside_colliders=False,
                         ),
                         bodies=[
-                            r"/World/envs/env_.*/MPMWorkSurface",
-                            r"/World/envs/env_.*/MPMBinFloor",
-                            r"/World/envs/env_.*/MPMBinFront",
-                            r"/World/envs/env_.*/MPMBinBack",
-                            r"/World/envs/env_.*/MPMBinLeft",
-                            r"/World/envs/env_.*/MPMBinRight",
+                            r"{ENV_REGEX_NS}/MPMWorkSurface",
+                            r"{ENV_REGEX_NS}/MPMBinFloor",
+                            r"{ENV_REGEX_NS}/MPMBinFront",
+                            r"{ENV_REGEX_NS}/MPMBinBack",
+                            r"{ENV_REGEX_NS}/MPMBinLeft",
+                            r"{ENV_REGEX_NS}/MPMBinRight",
                         ],
                         shape_label_patterns=[GROUND_PLANE_SHAPE_PATTERN],
                         all_particles=True,
@@ -1024,7 +1024,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerProxyMappingCfg(
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
-                        bodies=[r"/World/envs/env_.*/Robot/ee_link/Paddle"],
+                        bodies=[r"{ENV_REGEX_NS}/Robot/ee_link/Paddle"],
                         mode="lagged",
                         mass_scale=self.proxy_mass_scale,
                         collision_pipeline=None,

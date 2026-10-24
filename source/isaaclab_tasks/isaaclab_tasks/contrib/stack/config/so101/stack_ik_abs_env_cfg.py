@@ -297,6 +297,6 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 # also uses ``Robot/base``). The clutch's reset-origin home (_BASE_T_GRIPPER_HOME)
                 # provides the engage seed, so no live end-effector feed is needed. Teleop runs a
                 # single env (env_0).
-                target_frame_prim_path="/World/envs/env_0/Robot/base",
+                target_frame_prim_path="{ENV_REGEX_NS}/Robot/base",
                 **({"xr_cfg": self.xr} if self.xr is not None else {}),
             )
