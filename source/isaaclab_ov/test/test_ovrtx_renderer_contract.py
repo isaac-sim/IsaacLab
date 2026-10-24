@@ -395,26 +395,27 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         pytest.skip("OVRTX rendering requires CUDA")
     SimulationContext.instance().device = "cuda:0"
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
+    env_template = "/Lab/Cells/Cell{}" if use_ovstage else "/World/envs/env_{}"
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdGeom.Xform.Define(stage, env_template.format(0))
     if not use_ovstage:
-        UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+        UsdGeom.Xform.Define(stage, env_template.format(1))
     # RTX clips deforming meshes to initial partition bounds; this off-camera wall encloses their motion.
     # https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html#limitations
-    wall = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Wall")
+    wall = UsdGeom.Cube.Define(stage, env_template.format(0) + "/Wall")
     wall.CreateSizeAttr(8.0)
     wall.AddTranslateOp().Set(Gf.Vec3d(10, 0, 3))
     batches, initial_points = [], []
     for index, x in enumerate((0.0, 2.0)):
-        camera = UsdGeom.Camera.Define(stage, f"/World/envs/env_0/cam{index}")
+        camera = UsdGeom.Camera.Define(stage, env_template.format(0) + f"/cam{index}")
         camera.CreateProjectionAttr("orthographic")
         camera.CreateHorizontalApertureAttr(20.0)
         camera.CreateVerticalApertureAttr(20.0)
         camera.AddTranslateOp().Set(Gf.Vec3d(x, 0, 5))
-        path = f"/World/envs/env_0/object{index}"
+        path = env_template.format(0) + f"/object{index}"
         if geometry == "rigid":
             cube = UsdGeom.Cube.Define(stage, path)
             cube.CreateSizeAttr(1.0)
@@ -442,7 +443,15 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         initial_points.append(np.asarray(vertices, dtype=np.float32))
         source = SceneDataFormat.Points()
         source.points = wp.array(vertices, dtype=wp.vec3f, device="cuda:0")
-        batches.append((source, {path.replace("env_0", f"env_{world}"): (0, len(vertices)) for world in range(2)}))
+        batches.append(
+            (
+                source,
+                {
+                    path.replace(env_template.format(0), env_template.format(world)): (0, len(vertices))
+                    for world in range(2)
+                },
+            )
+        )
 
     renderer = SimulationContext.instance().get_or_create_backend(OVRTXRendererCfg(async_rendering=asynchronous))
     publication = types.SimpleNamespace(
@@ -450,10 +459,11 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     )
     renderer._sdp = SceneDataProvider(publication)
     plan = make_clone_plan(
-        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+", cloning_contexts=renderer.cfg.cloning_contexts),),
+        (AssetBaseCfg(prim_path=env_template.format("[^/]+"), cloning_contexts=renderer.cfg.cloning_contexts),),
         ((0,),),
         2,
         positions=np.zeros((2, 3), dtype=np.float32),
+        env_template=env_template,
     )
     sim = SimulationContext.instance()
     sim.plan = plan
@@ -493,7 +503,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                 device="cuda:0",
                 num_instances=2,
                 view_count=2,
-                camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
+                camera_prim_paths=tuple(
+                    env_template.format(i) + f"/cam{index}" for i in range(1 if use_ovstage else 2)
+                ),
             )
             rd = renderer.create_render_data(spec)
             data = CameraData.allocate(

@@ -186,7 +186,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                 entries=[
                     CouplerEntryCfg(
                         name="rigid",
-                        bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Fixtures"],
+                        bodies=[r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Fixtures"],
                         substeps=1,
                         solver_cfg=MJWarpSolverCfg(
                             cone="elliptic",
@@ -200,7 +200,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                     ),
                     CouplerEntryCfg(
                         name="cable",
-                        bodies=[r"/World/envs/env_.*/Cable"],
+                        bodies=[r"{ENV_REGEX_NS}/Cable"],
                         substeps=1,
                         include_static_shapes=True,
                         solver_cfg=VBDSolverCfg(

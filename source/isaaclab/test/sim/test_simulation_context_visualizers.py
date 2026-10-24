@@ -764,6 +764,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
             (None, "optical_flow", None, (ValueError, "optical_flow")),
             ("/Scenes/world_2/Camera", "rgb", [camera], None),
             ("/Scenes/world_.*/Camera", "rgb", [camera], None),
+            ("/Scenes/*/Camera", "rgb", [camera], None),
         ):
             cfg.cameras = [SceneCameraCfg(prim_path=path)] if path is not None else None
             cfg.streaming_gt_types = (channel,)
