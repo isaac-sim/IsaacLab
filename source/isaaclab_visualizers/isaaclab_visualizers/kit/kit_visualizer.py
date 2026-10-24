@@ -159,10 +159,10 @@ class KitVisualizer(BaseVisualizer):
         if self._controls_kit_timeline:
             self.play()
         if not self._runtime_headless:
-            import omni.appwindow
-
             # keyboard input is optional: a failure here must not stop the visualizer from starting
             try:
+                import omni.appwindow
+
                 self._key_event_source = KitKeyEventSource(omni.appwindow.get_default_app_window())
             except Exception:
                 logger.exception("[KitVisualizer] Keyboard input is unavailable")
