@@ -199,6 +199,7 @@ Guidelines for modifications:
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
+* Sanghyun Yun
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
