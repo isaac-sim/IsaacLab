@@ -172,49 +172,6 @@ raise AssertionError('The program did not reach launch_simulation')
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_teapot_uses_only_newton_gl():
-    """The GL-only demo rejects other backends before launch and needs no task presets."""
-    script = script_cases.ROOT / "examples/demos/teapot_fill.py"
-    code = """
-import runpy
-import sys
-
-import isaaclab.app
-from isaaclab_visualizers.newton import NewtonGLBackendCfg
-
-def check_launch(cfg, args):
-    assert isinstance(cfg.visualizer_cfgs.backend, NewtonGLBackendCfg)
-    assert cfg.visualizer_cfgs.backend.show_particles
-    assert 'isaaclab_tasks' not in sys.modules
-    isaaclab.app.validate_launch(cfg, args)
-    assert [view.backend.visualizer_type for view in cfg.visualizer_cfgs] == ['newton_gl']
-    raise SystemExit(0)
-
-isaaclab.app.launch_simulation = check_launch
-script = sys.argv[1]
-sys.argv = [script, '--visualizer', 'newton_gl', '--fluid_render_mode', 'both']
-namespace = runpy.run_path(script)
-parser = namespace['parser']
-for option, value in (
-    ('--visualizer', 'newton_rtx'), ('--viz', 'kit'), ('--viz', 'newton_gl,rerun'), ('--viz', 'none')
-):
-    try:
-        parser.parse_args([option, value])
-    except SystemExit as error:
-        assert error.code == 2
-    else:
-        raise AssertionError(f'Teapot accepted unsupported visualizer: {value}')
-assert parser.parse_args([]).visualizer == 'newton_gl'
-assert parser.parse_args(['--viz', 'newton_gl']).visualizer == 'newton_gl'
-namespace['main']()
-raise AssertionError('The demo did not reach launch_simulation')
-"""
-    result = subprocess.run(
-        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
 def test_mpm_surface_reconstruction_defaults_to_newton_gl():
     """The surface example must launch with base Newton dependencies by default."""
     script = script_cases.ROOT / "scripts" / "tutorials" / "08_mpm" / "surface_reconstruction.py"

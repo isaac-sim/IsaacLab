@@ -4,15 +4,28 @@ Non-RL manager-based environment with a Rizon 4s / Sharpa hand, two sockets,
 a spring-clip connector and a VBD cable. One end is fixed; the loose end starts
 physically grasped. The example inserts, releases, regrasps, presses the clip and
 extracts in one continuous simulation.
-NewtonGL shows one full-detail GB300 rack. Kit and Newton RTX compose the full
-data-center USD and eight foreground racks through USD-only scene cloning;
-this scenery adds no physics bodies or colliders. Cinematic overlays remain local.
+Newton GL starts with the detailed gold switch front and all RJ45 ports, without
+the rack or surrounding data-center facility.
+Kit and Newton RTX default to the data-center USD and eight foreground racks
+through USD-only scene cloning. Scenery adds no physics bodies or colliders.
+Cinematic overlays remain local.
 
 ```bash
 uv run isaaclab example sharpa-rj45
+uv run isaaclab example sharpa-rj45 --backdrop datacenter
 uv run --extra ovrtx isaaclab example sharpa-rj45 --viz newton_rtx
-uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
+uv run --extra isaacsim isaaclab example sharpa-rj45 --viz kit
 ```
+
+Omitting `--viz` selects Newton GL. Add `--extra video` and `--video` to record a run.
+The defaults above use `--backdrop auto`. In Newton GL, `--backdrop datacenter`
+loads one full rack without the facility.
+
+The default GL front is a prepared, self-contained USD with three material meshes;
+startup does not crop or rebuild the rack. It currently lives on the internal
+`isaac-dev.ov.nvidia.com` Nucleus server and requires access to that server until
+promotion to the public asset bundle. A local visual root uses the same
+`Environments/GB300/switch_front_c0ddcdf9d4ef.usdc` layout.
 
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK
 and action manager. Native hydroelastic hand–housing/clip contact is enabled;

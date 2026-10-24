@@ -12,6 +12,7 @@ sequence. The managed dependencies include the Newton hydroelastic contact corre
 .. code-block:: bash
 
     uv run isaaclab example sharpa-rj45
+    uv run isaaclab example sharpa-rj45 --backdrop datacenter
     uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
     uv run isaaclab example sharpa-rj45 --viz none
 
@@ -76,6 +77,10 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--settle_duration_s", type=float, default=0.0, help="Initial physical grasp hold [s].")
     parser.add_argument("--video", action="store_true", help="Record with the standard task video recorder.")
+    parser.add_argument(
+        "--backdrop", choices=("auto", "datacenter"), default="auto",
+        help="Scenery: auto shows the gold switch front and RJ45 ports in GL, or the datacenter in Kit/RTX.",
+    )  # fmt: skip
     parser.add_argument(
         "--failure_tail_s", type=float, default=0.0, help="Simulate with held targets after a fault [s]."
     )
@@ -505,11 +510,18 @@ def _run(args: argparse.Namespace) -> int:
             )
         ]
     with launch_simulation(cfg, args):
+        cfg.sim.physics.load_visual_shapes = any(
+            viz.backend.visualizer_type == "newton_gl" for viz in cfg.sim.visualizer_cfgs
+        )
+        if args.backdrop == "auto":
+            for viz in cfg.sim.visualizer_cfgs:
+                if viz.backend.visualizer_type == "newton_gl":
+                    viz.backend.texture_max_size = 1024
         rack_path = configure_visual_scene(cfg)
         env = instantiate(cfg)
         try:
             observations, _ = env.reset(seed=args.seed)
-            add_gl_visuals(env, rack_path)
+            add_gl_visuals(env, rack_path, front_only=args.backdrop == "auto")
             if env.action_manager.total_action_dim != 29:
                 raise RuntimeError("The example must provide absolute TCP and 22 finger targets.")
             robot = env.scene["robot"]
@@ -619,7 +631,10 @@ def _run(args: argparse.Namespace) -> int:
                 ),
                 flush=True,
             )
-            return 0 if success else 1
+            if not success:
+                # Kit must receive the failure before its launcher closes.
+                raise SystemExit(1)
+            return 0
         finally:
             env.close()
 

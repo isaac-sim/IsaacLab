@@ -40,7 +40,9 @@ def main() -> None:
 
         # Launch owns the final display and recording producers, including Kit
         # added for livestreaming. Resolve render allocation before scene construction.
-        cfg.sim.physics.load_visual_shapes = bool(cfg.sim.visualizer_cfgs)
+        cfg.sim.physics.load_visual_shapes = any(
+            visualizer.backend.visualizer_type == "newton_gl" for visualizer in cfg.sim.visualizer_cfgs
+        )
         cfg.grains_per_particle = args.grains_per_particle if cfg.sim.visualizer_cfgs else 0
         if args.keep_open and not any(not visualizer.headless for visualizer in cfg.sim.visualizer_cfgs):
             parser.error("--keep_open requires a desktop visualizer.")
@@ -118,7 +120,10 @@ def _parse_args():
     parser.add_argument("--max_steps", type=int, default=8000)
     parser.add_argument("--camera", choices=("follow", "fixed"), default="follow")
     parser.add_argument(
-        "--backdrop", choices=("kitchen", "studio"), default="kitchen", help="Kit and RTX render backdrop."
+        "--backdrop",
+        choices=("auto", "kitchen", "studio"),
+        default="auto",
+        help="Render backdrop; auto uses the studio in GL and kitchen in Kit/RTX.",
     )
     parser.add_argument("--video", action="store_true", help="Record an MP4 at 1x simulation speed.")
     parser.add_argument("--video_fps", type=int, choices=(25, 30, 50, 60, 100), default=None)
@@ -143,6 +148,8 @@ def _parse_args():
         parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
+    if args.backdrop == "auto":
+        args.backdrop = "kitchen" if {"kit", "newton_rtx"}.intersection(args.visualizer) else "studio"
     if any(name not in ("newton_gl", "newton_rtx", "kit", "none") for name in args.visualizer):
         parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx, kit or none.")
     if args.keep_open and args.headless:
@@ -154,12 +161,12 @@ def _parse_args():
 
 def _make_env_cfg(args, video_stride):
     from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import (
         CoffeeDemoEnvCfg,
+        CoffeeGLBackendCfg,
         CoffeeKitBackendCfg,
         CoffeeRTXVisualizerCfg,
     )
@@ -203,10 +210,13 @@ def _make_env_cfg(args, video_stride):
         focal_length=24.0,
         background_color=(0.008, 0.014, 0.022),
     )
+    if args.backdrop == "kitchen":
+        view.eye, view.lookat = (0.86, -0.61, 0.70), (0.53, -0.03, 0.10)
     cfg.sim.visualizer_cfgs = [
         view.replace(
-            backend=NewtonGLBackendCfg(
-                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
+            backend=CoffeeGLBackendCfg(
+                backdrop=args.backdrop,
+                texture_max_size=1024 if args.backdrop == "studio" else None,
                 show_particles=args.grains_per_particle == 0,
                 particle_color=(0.095, 0.029, 0.010) if not args.water else None,
                 enable_picking=False,
@@ -243,9 +253,6 @@ def _make_env_cfg(args, video_stride):
             ),
         ),
     ]
-    if args.backdrop == "kitchen":
-        for visualizer in cfg.sim.visualizer_cfgs[1:]:
-            visualizer.eye, visualizer.lookat = (0.86, -0.61, 0.70), (0.53, -0.03, 0.10)
     return cfg
 
 

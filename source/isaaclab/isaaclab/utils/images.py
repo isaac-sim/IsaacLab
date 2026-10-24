@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Camera-image processing shared by observations, visualizers, and recording.
+"""Image processing shared by observations, visualizers, and recording.
 
 Shared camera-image operations:
 
@@ -14,6 +14,7 @@ Shared camera-image operations:
 - :class:`CameraFrameStack`, which turns raw camera frames into policy observations with optional
   channel-first layout and frame stacking;
 - the fused Warp kernels behind the uint8 fast path of :func:`normalize_rgb`;
+- :func:`resize_image` for aspect-preserving CPU image downsampling;
 - device image composition and display helpers used by visualizers and frame-capture tooling.
 """
 
@@ -22,8 +23,10 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+import numpy as np
 import torch
 import warp as wp
+from PIL import Image
 
 from .buffers import CircularBuffer
 
@@ -491,6 +494,25 @@ def _image_output(
 """
 Display helpers.
 """
+
+
+def resize_image(image: np.ndarray, max_size: int) -> np.ndarray:
+    """Downsample an image with Lanczos filtering while preserving its aspect ratio.
+
+    Args:
+        image: Uint8 RGB or RGBA pixels, shape ``(H, W, C)``. The input is not modified.
+        max_size: Positive integer limiting both output dimensions [px]. The caller validates
+            this limit before processing images.
+
+    Returns:
+        A resized pixel array, or ``image`` itself when both dimensions already fit.
+        Images are never enlarged; resized dimensions follow Pillow's thumbnail rounding.
+    """
+    if max(image.shape[:2]) <= max_size:
+        return image
+    resized = Image.fromarray(image)
+    resized.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+    return np.array(resized)
 
 
 def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) -> torch.Tensor:

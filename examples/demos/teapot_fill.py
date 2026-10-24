@@ -12,8 +12,13 @@ The teapot is a hollow, double-walled shell, so the fluid is seeded in its enclo
 
     # Fast Newton visualizer (the default):
     uvx isaaclab demo teapot-fill --device cuda:0 --visualizer newton_gl
+    # Include the full presentation assets in Newton GL:
+    uvx isaaclab demo teapot-fill --backdrop room
     # Display both the raw particles and reconstructed surface:
     uvx isaaclab demo teapot-fill --visualizer newton_gl --fluid_render_mode both
+    # Kit and OVRTX visualizers:
+    uvx --from 'isaaclab[isaacsim]' isaaclab demo teapot-fill --visualizer kit
+    uvx --from 'isaaclab[ovrtx]' isaaclab demo teapot-fill --visualizer newton_rtx
     # Fuller / coarser (faster) fill:
     uvx isaaclab demo teapot-fill --fill_level 1.0 --fill_spacing 0.003
 """
@@ -30,10 +35,11 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-from isaaclab_visualizers.newton import NewtonGLBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
@@ -66,7 +72,7 @@ def _unit_interval_float(value: str) -> float:
     return resolved
 
 
-parser = argparse.ArgumentParser(description="Newton implicit MPM teapot-fill demo.", conflict_handler="resolve")
+parser = argparse.ArgumentParser(description="Newton implicit MPM teapot-fill demo.")
 parser.add_argument("--robot", choices=["none", "rizon_sharpa"], default="none", help="Use the fixed physical grasp.")
 parser.add_argument(
     "--max_steps",
@@ -130,10 +136,19 @@ parser.add_argument(
     help="USD asset used as the pouring container (rigid collider).",
 )
 parser.add_argument(
+    "--backdrop",
+    choices=["auto", "studio", "room"],
+    default="auto",
+    help=(
+        "Backdrop: auto uses a simple studio for GL and a kitchen island for Kit/RTX;"
+        " the enclosed room is included only with --robot rizon_sharpa."
+    ),
+)
+parser.add_argument(
     "--island_usd",
     type=str,
     default=DEFAULT_ISLAND_USD,
-    help="SimReady kitchen-island USD used by every visualizer.",
+    help="SimReady kitchen-island USD used with the room backdrop.",
 )
 parser.add_argument(
     "--bowl_usd",
@@ -142,8 +157,12 @@ parser.add_argument(
     help="SimReady catch-bowl USD used for both visualization and fluid collisions.",
 )
 add_launcher_args(parser)
-parser.add_argument("--visualizer", "--viz", choices=["newton_gl"], default="newton_gl", help="Visualizer backend.")
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
+if set(args_cli.visualizer) - {"none", "kit", "newton_gl", "newton_rtx"}:
+    parser.error("The teapot demo supports newton_gl, kit, newton_rtx or none.")
+if args_cli.backdrop == "auto":
+    args_cli.backdrop = "room" if {"kit", "newton_rtx"}.intersection(args_cli.visualizer or []) else "studio"
 ROBOT_ENABLED = args_cli.robot == "rizon_sharpa"
 
 
@@ -417,6 +436,8 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     from pxr import Usd, UsdGeom
 
+    from isaaclab.utils.mesh import convert_faces_to_triangles
+
     stage = Usd.Stage.Open(usd_path)
     if stage is None:
         raise RuntimeError(f"Could not open USD asset: {usd_path}")
@@ -443,22 +464,11 @@ def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
         homogeneous = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
         transformed_points = (homogeneous @ matrix)[:, :3]
 
-        triangles: list[tuple[int, int, int]] = []
-        cursor = 0
-        for count in face_vertex_counts:
-            for k in range(1, count - 1):
-                triangles.append(
-                    (
-                        face_vertex_indices[cursor],
-                        face_vertex_indices[cursor + k],
-                        face_vertex_indices[cursor + k + 1],
-                    )
-                )
-            cursor += count
-        if not triangles:
+        triangles = convert_faces_to_triangles(face_vertex_indices, face_vertex_counts)
+        if not len(triangles):
             continue
         vertices_list.append(transformed_points.astype(np.float32))
-        triangles_list.append(np.asarray(triangles, dtype=np.int64) + vertex_offset)
+        triangles_list.append(triangles + vertex_offset)
         vertex_offset += points.shape[0]
 
     if not vertices_list:
@@ -501,7 +511,12 @@ def create_sim_cfg():
         visualizer_cfgs=VisualizerCfg(
             eye=CAMERA_EYE,
             lookat=CAMERA_TARGET,
-            backend=NewtonGLBackendCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR),
+            focal_length=24.0 if ROBOT_ENABLED else 12.0,
+            backend=NewtonGLBackendCfg(
+                show_particles=SHOW_FLUID_PARTICLES,
+                particle_color=WATER_COLOR,
+                texture_max_size=1024 if args_cli.backdrop == "studio" else None,
+            ),
         ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
@@ -528,6 +543,15 @@ def create_sim_cfg():
     if ROBOT_ENABLED:
         from rizon_sharpa_teapot import make_solver_cfg
 
+        cfg.visualizer_cfgs.backend = [
+            cfg.visualizer_cfgs.backend,
+            NewtonRTXBackendCfg(
+                render_settings={
+                    "omni:rtx:rt:ambientLight:color": ("Color3f", (0.1, 0.1, 0.1)),
+                    "omni:rtx:rt:ambientLight:intensity": ("Float", 1.0),
+                }
+            ),
+        ]
         solver_cfg = cfg.physics.solver_cfg
         solver_cfg.air_drag = 1.0
         solver_cfg.strain_basis = "P1d"
@@ -546,7 +570,7 @@ def create_sim_cfg():
     return cfg
 
 
-def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
+def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str):
     """Create the teapot-fill scene using declarative Isaac Lab assets."""
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
@@ -568,8 +592,8 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
         """Demo-local exact triangle-mesh asset config."""
 
         func: Callable | str = clone(spawn_demo_mesh)
-        vertices: list[list[float]] = MISSING
-        faces: list[list[int]] = MISSING
+        vertices: np.ndarray = MISSING
+        faces: np.ndarray = MISSING
         mesh_collision_props: sim_utils.UsdPhysicsMeshCollisionCfg | None = None
         rigid_contact_usd: str | None = None
 
@@ -581,15 +605,19 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
     class TeapotFillSceneCfg(InteractiveSceneCfg):
         """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
 
-        island = AssetBaseCfg(
-            prim_path="/World/Island",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=island_usd,
-                make_uninstanceable=True,
-                rigid_props=disable_asset_rigid_bodies,
-                collision_props=disable_asset_colliders,
-            ),
-            init_state=AssetBaseCfg.InitialStateCfg(rot=TABLE_ORIENTATION),
+        island = (
+            AssetBaseCfg(
+                prim_path="/World/Island",
+                spawn=sim_utils.UsdFileCfg(
+                    usd_path=island_usd,
+                    make_uninstanceable=True,
+                    rigid_props=disable_asset_rigid_bodies,
+                    collision_props=disable_asset_colliders,
+                ),
+                init_state=AssetBaseCfg.InitialStateCfg(rot=TABLE_ORIENTATION),
+            )
+            if island_usd is not None
+            else None
         )
 
         tabletop_collider = AssetBaseCfg(
@@ -605,7 +633,7 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
                     dynamic_friction=TABLE_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visible=False,
+                visible=args_cli.backdrop == "studio",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=(0.0, 0.0, TABLE_TOP_Z - TABLE_HALF_EXTENTS[2]),
@@ -645,8 +673,8 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             # asset's authored convex decomposition is unsuitable for a hollow
             # MPM collider and SolverImplicitMPM does not accept convex meshes.
             spawn=DemoMeshCfg(
-                vertices=container_vertices.tolist(),
-                faces=container_faces.tolist(),
+                vertices=container_vertices,
+                faces=container_faces,
                 rigid_props=[
                     sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
                     PhysxRigidBodyCfg(disable_gravity=True),
@@ -670,8 +698,8 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
         fluid = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Fluid",
             spawn=MPMPointsCfg(
+                positions=fluid_points,
                 visible=SHOW_FLUID_PARTICLES,
-                positions=fluid_points.tolist(),
                 mass=particle_mass,
                 radius=particle_radius,
                 material=MPMParticleMaterialCfg(
@@ -725,7 +753,7 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(*ROBOT_BASE_POS[:2], 0.5 * ROBOT_BASE_POS[2])),
         )
-        if {"kit", "newton_gl", "newton_rtx"}.intersection(args_cli.visualizer or []):
+        if args_cli.backdrop == "room":
             cfg.room = AssetBaseCfg(
                 prim_path="/World/Room",
                 spawn=sim_utils.UsdFileCfg(
@@ -787,20 +815,35 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None, 
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
     sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
+    viewer_scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    with launch_simulation({"sim": sim_cfg, "scene": viewer_scene_cfg}, args_cli):
+        # Newton GL renders model geometry; Kit and OVRTX consume the authored USD scene.
+        sim_cfg.physics.load_visual_shapes = any(
+            viewer.backend.visualizer_type == "newton_gl" for viewer in sim_cfg.visualizer_cfgs
+        )
         if ROBOT_ENABLED:
             from rizon_sharpa_teapot import configured_asset_path
 
             configured_asset_path()
+        if any(viewer.backend.visualizer_type == "kit" for viewer in sim_cfg.visualizer_cfgs):
+            from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
+            apply_isaac_rtx_global_settings(IsaacRtxRendererGlobalSettingsCfg(enable_translucency=True))
         container_usd = retrieve_file_path(args_cli.container_usd)
-        island_usd = retrieve_file_path(args_cli.island_usd)
+        island_usd = retrieve_file_path(args_cli.island_usd) if args_cli.backdrop == "room" else None
         bowl_usd = retrieve_file_path(args_cli.bowl_usd)
 
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg(container_usd, island_usd, bowl_usd))
+        scene_cfg = create_scene_cfg(container_usd, island_usd, bowl_usd)
+        # Keep perspective cameras declared by launch before native RTX scene construction.
+        vars(scene_cfg).update(
+            {name: cfg for name, cfg in vars(viewer_scene_cfg).items() if isinstance(cfg, CameraCfg)}
+        )
+        scene = InteractiveScene(scene_cfg)
         sim.reset()
         robot_motion = None
         if ROBOT_ENABLED:
@@ -831,7 +874,7 @@ def main() -> None:
             )
             robot.write_joint_position_to_sim_index(position=robot_motion.initial_joint_positions)
             sim.forward()
-        surface_renderer = create_surface_renderer(sim) if SHOW_FLUID_SURFACE else None
+        surface_renderer = create_surface_renderer(sim) if SHOW_FLUID_SURFACE and sim.visualizers else None
         surface_triangle_count = surface_renderer.update() if surface_renderer is not None else 0
 
         print(
