@@ -9,6 +9,7 @@ The guides below cover task-specific configuration and deployment tools.
 
     ../how-to/policy_inference_in_usd
     02_gear_assembly/gear_assembly_policy
+    06_displayport_insertion/displayport_insertion_policy
     03_compass_with_NuRec/compass_navigation_policy_with_NuRec
     04_reach/reach_policy
     05_leapp/exporting_policies_with_leapp
