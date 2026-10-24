@@ -20,7 +20,6 @@ from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, path_expr_to_glob
 
 import isaaclab_ov.tensor_types as TT
-from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
@@ -123,7 +122,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the tensor binding and allocates buffers."""
         super()._initialize_impl()
 
-        physx_instance = OvPhysxManager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._physx_instance = physx_instance
@@ -141,17 +140,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._num_bodies = self._wrench_binding.body_count
         self._data._body_names = list(self._wrench_binding.body_names)
 
-        # OVPhysX clone_usd=False means SensorBase's USD-glob count only saw env_0;
-        # the binding's ``count`` reports the true number of articulation instances
-        # (one per env).  Mirrors how OVPhysX Articulation reads ``sample.count``
-        # directly as ``num_instances``.
-        binding_num_envs = self._wrench_binding.count
-        if binding_num_envs != self._num_envs:
-            self._num_envs = binding_num_envs
-            self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask_torch = wp.to_torch(self._reset_mask)
-            self._create_timing_buffers()
+        self._check_env_count(self._wrench_binding.count, self.cfg.prim_path)
 
         # Wrench storage as (N, L) spatial_vectorf, read each step via the view. The view
         # reinterprets this structured buffer off the binding's flat float32 shape and caches
@@ -210,7 +199,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[
                 env_mask,
                 self._wrench_buf,
-                self._timestamp,
                 self._data._force,
                 self._data._torque,
             ],

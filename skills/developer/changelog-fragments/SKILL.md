@@ -24,10 +24,10 @@ Do not use this skill for pure docs, CI, tools, or skills changes unless they al
 
 ## Validation
 
-Run the changelog gate against the PR base (here, `upstream/develop`):
+Run the changelog gate against the PR base (here, `upstream/main`):
 
 ```bash
-uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+uv run python tools/changelog/cli.py check upstream/main --include-worktree
 ```
 
 For pre-commit validation, set `ISAACLAB_CHANGELOG_BASE_REF` to the same base. Follow the guide's Tools section for the final formatting gate.

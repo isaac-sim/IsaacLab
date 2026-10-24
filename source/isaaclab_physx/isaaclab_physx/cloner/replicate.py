@@ -14,19 +14,14 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab import cloner
-from isaaclab.sim import SimulationContext
+from isaaclab.assets import DeformableObjectCfg
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
 
 
-class PhysxReplicateContext:
+class PhysxReplicateContext(cloner.ReplicateContext):
     """Apply one clone plan through the PhysX replicator."""
-
-    replicate_priority = 0
-
-    def __init__(self, sim: SimulationContext):
-        self.stage = sim.stage
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Register the PhysX replicator for this context's source declarations.
@@ -35,6 +30,11 @@ class PhysxReplicateContext:
             plan: Replication layout shared by every clone backend.
             asset_prototype_ids: Asset definitions routed to PhysX.
         """
+        # PhysX's native replicator does not attach surface or volume deformables, even
+        # when those assets are copied through USD. All spawned assets already have USD
+        # copies, so let PhysX discover the complete scene without a replicator hook.
+        if any(isinstance(cfg, DeformableObjectCfg) for cfg in plan.asset_cfgs):
+            return
         sources = cloner.path.get_asset_prototype_paths(plan)
         templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
             plan, include_world_indices=True
@@ -48,7 +48,7 @@ class PhysxReplicateContext:
         copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         usd_only = any(i not in asset_prototype_ids for i, source in enumerate(sources) if source is not None)
-        _replicate_instances(self.stage, copies, env_ids, usd_only, exclude_self_replication=True)
+        _replicate_instances(self._sim.stage, copies, env_ids, usd_only, exclude_self_replication=True)
 
 
 def physx_replicate(
@@ -132,7 +132,7 @@ def _replicate_instances(
     excluded_paths = (
         list(dict.fromkeys(native_paths))
         if has_usd_only_sources
-        else list(dict.fromkeys(("/World/template", *env_namespaces)))
+        else list(dict.fromkeys((*[source for source, _, _ in physx_queue], *env_namespaces)))
     )
 
     def attach_fn(_stage_id: int):

@@ -5,28 +5,26 @@
 
 from __future__ import annotations
 
-import re
 from collections import deque
-from typing import TYPE_CHECKING, Any
-from weakref import ref
+from typing import Any
+from weakref import WeakValueDictionary, ref
 
 import numpy as np
 import warp as wp
 
+from .. import cloner
 from .. import sim as sim_utils
+from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from ..sensors import camera, contact_sensor
 from ..utils.buffers import TimestampedBuffer
 from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
-if TYPE_CHECKING:
-    from pxr import Usd
-
 REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
     "kit": (True, False),
     "newton_gl": (False, True),
     "newton": (False, True),
-    "newton_rtx": (True, True),
+    "newton_rtx": (True, False),
     "rerun": (False, True),
     "viser": (False, True),
     "isaac_rtx": (True, False),
@@ -64,8 +62,9 @@ class SceneDataProvider:
             backend: The simulation backend that supplies raw transform data.
         """
         self.backend = backend
-        self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
+        self.cameras: WeakValueDictionary[str, camera.Camera] = WeakValueDictionary()
+        """Borrowed cameras by prim expression, including cameras spawned without an InteractiveScene."""
         self._cache: dict[Any, TimestampedBuffer] = {}
         self._transform_mappings: dict[tuple, wp.array | None] = {}
 
@@ -173,14 +172,14 @@ class SceneDataProvider:
         return self._interactive_scene
 
     def get_camera_sensors(self) -> dict[str, camera.Camera]:
-        """Return Isaac Lab camera sensors keyed by scene sensor name."""
-        if self._interactive_scene is None:
-            return {}
-        return {
-            name: sensor
-            for name, sensor in self._interactive_scene.sensors.items()
-            if isinstance(sensor, camera.Camera)
-        }
+        """Return cameras by scene name, or by prim expression for directly spawned cameras."""
+        cameras = dict(self.cameras)
+        if self._interactive_scene is not None:
+            for name, sensor in self._interactive_scene.sensors.items():
+                if isinstance(sensor, camera.Camera):
+                    cameras.pop(sensor.cfg.prim_path, None)
+                    cameras[name] = sensor
+        return cameras
 
     def get_contact_sensors(self) -> dict[str, contact_sensor.BaseContactSensor]:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
@@ -199,26 +198,56 @@ class SceneDataProvider:
 
     @property
     def num_envs(self) -> int:
-        """Number of environments discovered from ``/World/envs/env_<id>`` prims.
-
-        Cached on first call. Returns ``0`` when no USD stage is available or when
-        no ``/World/envs/env_<id>`` prims exist.
-        """
-        if self._num_envs_cache is not None:
-            return self._num_envs_cache
-        self._num_envs_cache = _discover_num_envs(sim_utils.SimulationContext.instance().stage)
-        return self._num_envs_cache
+        """Number of worlds in the clone plan, or ``0`` before a plan is published."""
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        return 0 if plan is None else len(plan.topology.world_prototype_layout)
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
         """Per-camera, per-environment world transforms discovered from USD.
 
         Returns:
             Dictionary with keys ``order`` (list of template prim paths using
-            ``env_%d``), ``positions`` and ``orientations`` (per-camera, per-env
+            ``%d`` for the environment index), ``positions`` and ``orientations`` (per-camera, per-env
             lists, with ``None`` for absent envs), and ``num_envs``. Returns
             ``None`` when no USD stage is available.
         """
-        return _walk_camera_prims(sim_utils.SimulationContext.instance().stage)
+        from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+        sim = sim_utils.SimulationContext.instance()
+        if sim.stage is None:
+            return None
+        plan = sim.get_clone_plan()
+        env_template = plan.env_template if plan is not None else DEFAULT_ENV_TEMPLATE
+        num_envs = len(plan.topology.world_prototype_layout) if plan is not None else 0
+        instances = {}
+        stage_prims = deque([sim.stage.GetPseudoRoot()])
+        while stage_prims:
+            prim = stage_prims.popleft()
+            prim_path = str(prim.GetPath())
+            world_id, template_path = 0, prim_path
+            match = cloner.path.match(prim_path, env_template)
+            if match is not None and match.instance.isdigit():
+                world_id = int(match.instance)
+                template_path = env_template.format("%d") + match.suffix
+                num_envs = max(num_envs, world_id + 1)
+            imageable = UsdGeom.Imageable(prim)
+            if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
+                continue
+            if prim.IsA(UsdGeom.Camera):
+                instances.setdefault(template_path, []).append((world_id, prim))
+            stage_prims.extend(prim.GetFilteredChildren(Usd.TraverseInstanceProxies()))
+
+        positions, orientations = [], []
+        for cameras in instances.values():
+            world_positions, world_orientations = [None] * num_envs, [None] * num_envs
+            for world_id, prim in cameras:
+                if world_id < num_envs:
+                    pos, ori = sim_utils.resolve_prim_pose(prim)
+                    world_positions[world_id] = list(map(float, pos))
+                    world_orientations[world_id] = list(map(float, ori))
+            positions.append(world_positions)
+            orientations.append(world_orientations)
+        return dict(order=list(instances), positions=positions, orientations=orientations, num_envs=num_envs)
 
     def init_output(
         self,
@@ -632,99 +661,3 @@ class ConversionKernels:
         idx = ConversionKernels.get_output_index(tid, mapping)
         if idx > -1:
             output.matrices[idx] = input.matrices[tid]
-
-
-_ENV_NAME_RE = re.compile(r"^env_(\d+)$")
-_ENV_PATH_RE = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
-
-
-def _discover_num_envs(stage: Usd.Stage | None) -> int:
-    """Infer environment count from ``/World/envs/env_<id>`` prim names on ``stage``.
-
-    Args:
-        stage: USD stage to inspect, or ``None``.
-
-    Returns:
-        Number of environments discovered, or ``0`` when ``stage`` is ``None`` or no
-        ``/World/envs/env_<id>`` prims exist.
-    """
-    if stage is None:
-        return 0
-    max_env_id = -1
-    envs_root = stage.GetPrimAtPath("/World/envs")
-    if envs_root.IsValid():
-        for child in envs_root.GetChildren():
-            if match := _ENV_NAME_RE.match(child.GetName()):
-                max_env_id = max(max_env_id, int(match.group(1)))
-    return max_env_id + 1 if max_env_id >= 0 else 0
-
-
-def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
-    """Walk ``stage`` and collect per-environment camera transforms.
-
-    Args:
-        stage: USD stage to traverse, or ``None``.
-
-    Returns:
-        Dictionary with keys ``order`` (template prim paths using ``env_%d``),
-        ``positions``, ``orientations`` (per-camera, per-env, with ``None`` for
-        absent envs), and ``num_envs``. Returns ``None`` when ``stage`` is ``None``.
-    """
-    if stage is None:
-        return None
-
-    from pxr import UsdGeom  # noqa: PLC0415
-
-    shared_paths: list[str] = []
-    instances: dict[str, list[tuple[int, str]]] = {}
-    num_envs = -1
-
-    stage_prims = deque([stage.GetPseudoRoot()])
-    while stage_prims:
-        prim = stage_prims.popleft()
-        prim_path = prim.GetPath().pathString
-
-        world_id = 0
-        template_path = prim_path
-        if match := _ENV_PATH_RE.match(prim_path):
-            world_id = int(match.group("id"))
-            template_path = match.group("root") + "%d" + match.group("path")
-            if world_id > num_envs:
-                num_envs = world_id
-
-        imageable = UsdGeom.Imageable(prim)
-        if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
-            continue
-
-        if prim.IsA(UsdGeom.Camera):
-            instances.setdefault(template_path, []).append((world_id, prim_path))
-            if template_path not in shared_paths:
-                shared_paths.append(template_path)
-
-        if hasattr(UsdGeom, "TraverseInstanceProxies"):
-            child_prims = prim.GetFilteredChildren(UsdGeom.TraverseInstanceProxies())
-        else:
-            child_prims = prim.GetChildren()
-        if child_prims:
-            stage_prims.extend(child_prims)
-
-    num_envs += 1
-    positions: list[list[list[float] | None]] = []
-    orientations: list[list[list[float] | None]] = []
-
-    for template_path in shared_paths:
-        per_world_pos: list[list[float] | None] = [None] * num_envs
-        per_world_ori: list[list[float] | None] = [None] * num_envs
-        for world_id, prim_path in instances.get(template_path, []):
-            if world_id < 0 or world_id >= num_envs:
-                continue
-            prim = stage.GetPrimAtPath(prim_path)
-            if not prim.IsValid():
-                continue
-            pos, ori = sim_utils.resolve_prim_pose(prim)
-            per_world_pos[world_id] = [float(pos[0]), float(pos[1]), float(pos[2])]
-            per_world_ori[world_id] = [float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3])]
-        positions.append(per_world_pos)
-        orientations.append(per_world_ori)
-
-    return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}

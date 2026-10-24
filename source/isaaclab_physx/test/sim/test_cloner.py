@@ -17,6 +17,8 @@ import warp as wp
 from isaaclab_physx.cloner import PhysxReplicateContext, physx_replicate
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+from pxr import Sdf
+
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
     disabled_fabric_change_notifies,
@@ -136,7 +138,7 @@ def test_physx_replicate_context_consumes_plan(sim, world_prototypes):
     [
         (3, "/World/envs/env_0", True, [2]),
         (1, "/World/envs/env_0", True, []),
-        (3, "/World/template/Robot", True, [3]),
+        (3, "/Library/Robot", True, [3]),
         (3, "/World/envs/env_0", False, []),
     ],
 )
@@ -148,15 +150,14 @@ def test_physx_replicate_world_counts(sim, num_envs, src, mapped, expected_world
     ``env_0`` mapping to ``[0, 1, 2]`` only replicates to ``[1, 2]`` (2 worlds).
     With ``num_envs == 1`` the ``num_envs > 1`` guard skips registration entirely, as does
     a mapping that selects no environment.
-    Non-env sources (e.g. ``/World/template/Robot``) are never excluded because the
+    Non-env sources (e.g. ``/Library/Robot``) are never excluded because the
     self-id is not a digit.
     """
     from unittest.mock import patch
 
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")
-    sim_utils.create_prim("/World/template", "Xform")
-    sim_utils.create_prim("/World/template/Robot", "Xform")
+    sim_utils.create_prim("/Library/Robot", "Xform")
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
@@ -174,6 +175,10 @@ def test_physx_replicate_world_counts(sim, num_envs, src, mapped, expected_world
         f"Expected replicate world counts {expected_worlds}, got {replicate_calls}"
     )
     assert mock_rep.register_replicator.called == bool(expected_worlds)
+
+    if expected_worlds:
+        attach = mock_rep.register_replicator.call_args.args[1]
+        assert any(Sdf.Path(src).HasPrefix(path) for path in attach(0))
 
 
 def test_physx_replicate_isolated_source_loaded_without_replication(sim):
@@ -206,7 +211,7 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim):
 
     sim.reset()
 
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Sphere")
     assert physx_view is not None and physx_view.count == 1, (
         f"Expected 1 rigid body at /World/envs/env_0/Sphere, got {'None' if physx_view is None else physx_view.count}."
@@ -253,9 +258,8 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
     ]
     assert replicate_calls == expected, f"Expected {expected}, got {replicate_calls}."
 
-    # attach_fn always returns ["/World/template", "/World/envs"] so the replicator
-    # owns all env prims.
-    assert "/World/template" in attach_excluded
+    # Sources and destinations are owned by native replication, not the initial stage import.
+    assert all(source in attach_excluded for source, _ in expected)
     assert "/World/envs" in attach_excluded
 
 
@@ -300,7 +304,7 @@ def test_physx_replicate_self_only_source_gets_one_body(sim):
     )
     assert stats.nb_dynamic_rigids == num_envs
 
-    physx_view = sim.physics_manager.get_physics_sim_view().create_rigid_body_view("/World/envs/env_*/Object")
+    physx_view = sim.backend_manager.get_physics_sim_view().create_rigid_body_view("/World/envs/env_*/Object")
     for _ in range(10):
         sim.step()
     positions = wp.to_torch(physx_view.get_transforms())[:, :3].cpu()
@@ -364,7 +368,7 @@ def test_direct_clone_plan_multi_asset(sim):
             assert primitive_prim.GetTypeName() == "Sphere"
 
     sim.reset()
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
     assert physx_view.count == num_clones
 
@@ -405,7 +409,7 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
         assert primitive_prim.GetTypeName() == expected_types[i % len(expected_types)]
 
     sim.reset()
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
     for _ in range(100):
         sim.step()
@@ -480,7 +484,7 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
 
     sim.reset()
 
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
     assert ball_view.count == num_envs, f"Expected {num_envs} balls, got {ball_view.count}"
 

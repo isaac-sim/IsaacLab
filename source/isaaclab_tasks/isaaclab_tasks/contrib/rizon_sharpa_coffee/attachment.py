@@ -11,8 +11,9 @@ import re
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 from newton import JointType
+
+from isaaclab.sim import SimulationContext
 
 from .robot import PALM_BODY_NAME
 
@@ -40,21 +41,22 @@ class MountedSpoonAttachment:
         offset_pos: tuple[float, float, float],
         offset_rot: tuple[float, float, float, float],
     ):
-        self._model = NewtonManager.get_model()
+        self._backend_manager = SimulationContext.instance().backend_manager
+        self._model = self._backend_manager.get_model()
         palm_pattern = re.compile(robot.cfg.prim_path + "/" + re.escape(PALM_BODY_NAME))
         spoon_pattern = re.compile(spoon.cfg.prim_path)
         palm_ids, spoon_ids = [], []
+        body_world = self._model.body_world.numpy()
         for env_index in range(robot.num_instances):
-            environment = f"/env_{env_index}/"
             palms = [
                 index
                 for index, label in enumerate(self._model.body_label)
-                if environment in label and palm_pattern.fullmatch(label)
+                if body_world[index] == env_index and palm_pattern.fullmatch(label)
             ]
             spoons = [
                 index
                 for index, label in enumerate(self._model.body_label)
-                if environment in label and spoon_pattern.fullmatch(label)
+                if body_world[index] == env_index and spoon_pattern.fullmatch(label)
             ]
             if len(palms) != 1 or len(spoons) != 1:
                 raise ValueError(f"Expected one native palm and spoon in env_{env_index}; got {palms}, {spoons}.")
@@ -76,11 +78,11 @@ class MountedSpoonAttachment:
         self._qd_starts = wp.array(qd_starts[spoon_joints], dtype=int, device=self._model.device)
         self._offset = wp.transform(wp.vec3(offset_pos), wp.quat(offset_rot))
         self._enabled = wp.ones(1, dtype=int, device=self._model.device)
-        NewtonManager.register_post_actuator_callback(self.sync)
+        self._backend_manager.register_post_actuator_callback(self.sync)
 
     def sync(self) -> None:
         """Write the mounted pose and COM twist to both native state buffers."""
-        state_0, state_1 = NewtonManager.get_state_0(), NewtonManager.get_state_1()
+        state_0, state_1 = self._backend_manager.get_state_0(), self._backend_manager.get_state_1()
         wp.launch(
             _sync_mounted_spoon,
             dim=self._palm_ids.size,
