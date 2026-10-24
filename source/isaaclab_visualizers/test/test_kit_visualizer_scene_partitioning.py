@@ -8,7 +8,7 @@
 import contextlib
 import signal
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer_module
@@ -263,14 +263,18 @@ def test_viewport_camera_partition_follows_global_view_setting(
 ) -> None:
     """Global view should leave the viewport unpartitioned; fallback view should select one environment."""
     stage = Usd.Stage.CreateInMemory()
-    env_prim = stage.DefinePrim("/World/envs/env_0", "Xform")
-    env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
+    plan = SimpleNamespace(env_template="/Lab/Cell{}")
+    for index in range(4):
+        env_prim = UsdGeom.Xform.Define(stage, plan.env_template.format(index)).GetPrim()
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{index}")
     camera = UsdGeom.Camera.Define(stage, "/OmniverseKit_Persp")
     camera.GetPrim().CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
 
     visualizer = object.__new__(KitVisualizer)
+    visualizer._sim = SimpleNamespace(get_clone_plan=lambda: plan)
     visualizer._controlled_camera_path = "/OmniverseKit_Persp"
     visualizer._env_ids = [2]
+    visualizer._hidden_env_visibilities = {}
     settings = MagicMock()
     settings.get.return_value = show_global_view
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
@@ -284,19 +288,28 @@ def test_viewport_camera_partition_follows_global_view_setting(
     else:
         assert partition_attr.Get() == expected_partition
 
+    visualizer._apply_env_visibility(stage, num_envs=4, visible_env_ids=[2])
+    for index in range(4):
+        visibility = UsdGeom.Imageable(stage.GetPrimAtPath(plan.env_template.format(index))).GetVisibilityAttr().Get()
+        assert visibility == (UsdGeom.Tokens.inherited if index == 2 else UsdGeom.Tokens.invisible)
 
-def test_marker_partition_detection_uses_canonical_environment_root() -> None:
-    """The renderer-authored env_0 root should be the stage-level partition signal."""
+
+def test_marker_partition_detection_uses_declared_environment_root() -> None:
+    """Markers created before cloning should detect partitions in the declared namespace."""
     stage = Usd.Stage.CreateInMemory()
-    env_1 = stage.DefinePrim("/World/envs/env_1", "Xform")
+    plan = SimpleNamespace(env_template="/Lab/Cell{}")
+    env_1 = stage.DefinePrim(plan.env_template.format(1), "Xform")
     env_1.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_1")
     markers = object.__new__(KitVisualizationMarkers)
     markers.stage = stage
     markers._environment_ids = (1,)
+    markers._sim = SimpleNamespace(get_clone_plan=lambda: None)
 
     assert not markers._scene_partitioning_is_active()
+    markers._sim.get_clone_plan = lambda: plan
+    assert not markers._scene_partitioning_is_active()
 
-    env_0 = stage.DefinePrim("/World/envs/env_0", "Xform")
+    env_0 = stage.DefinePrim(plan.env_template.format(0), "Xform")
     env_0.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
 
     assert markers._scene_partitioning_is_active()
@@ -310,6 +323,7 @@ def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
         env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
     instancer = UsdGeom.PointInstancer.Define(stage, "/World/Visuals/markers")
     markers = object.__new__(KitVisualizationMarkers)
+    markers._sim = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/World/envs/env_{}"))
     markers.stage = stage
     markers._instancer_manager = instancer
     markers._environment_ids = None

@@ -238,23 +238,17 @@ class OVRTXBackend:
 class OVRTXCameraRenderData:
     """Owns one camera sensor's native resources and borrowed output buffers."""
 
-    def __init__(self, spec: CameraRenderSpec, render_scope_name: str):
+    def __init__(self, spec: CameraRenderSpec, render_scope_name: str, camera_paths: list[str]):
         """Create render data for a camera in its assigned render scope.
 
         Args:
             spec: Camera render specification.
             render_scope_name: Root scope containing this camera's render product and RenderVars.
+            camera_paths: Concrete camera paths in sensor row order.
         """
         self.render_scope_name = render_scope_name
         self.render_product_path = f"/{render_scope_name}/RenderProduct"
-        source = spec.camera_prim_paths[0]
-        prefix = "/World/envs/env_0/"
-        # The renderer creates these clones after loading the prototype scene.
-        self.camera_paths = (
-            [f"/World/envs/env_{i}/{source[len(prefix) :]}" for i in range(spec.num_instances)]
-            if source.startswith(prefix)
-            else list(spec.camera_prim_paths)
-        )
+        self.camera_paths = camera_paths
         self.render_var_keys = {
             source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()
         }
@@ -517,9 +511,20 @@ class OVRTXRenderer(BaseRenderer):
         """Register a camera's product and bindings in the prepared scene."""
         if str(wp.get_device(spec.device)) != self._device:
             raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
-        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}")
-        camera_paths = render_data.camera_paths
-        env_camera = any(camera_paths[0].startswith(path + "/") for path in self.scene.clone_env_paths)
+        camera_paths = list(spec.camera_prim_paths)
+        env_partitions = {Sdf.Path(path): f"env_{i}" for i, path in enumerate(self.scene.clone_env_paths)}
+        source_root = next((root for root in Sdf.Path(camera_paths[0]).GetPrefixes() if root in env_partitions), None)
+        camera_partitions = []
+        if source_root is not None:
+            # Native cloning may leave only the source camera in USD. Complete paths retain their row order.
+            if len(camera_paths) < spec.num_instances:
+                suffix = camera_paths[0][len(str(source_root)) :]
+                camera_paths = [path + suffix for path in self.scene.clone_env_paths]
+            camera_partitions = [
+                next(env_partitions[root] for root in Sdf.Path(path).GetPrefixes() if root in env_partitions)
+                for path in camera_paths
+            ]
+        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
         usd = build_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
@@ -553,13 +558,13 @@ class OVRTXRenderer(BaseRenderer):
                     tensors=np.full(spec.num_instances, True, dtype=np.bool_),
                     is_array=False,
                 ).wait()
-                if env_camera:
+                if camera_partitions:
                     self.scene.stage.write_attribute(
                         render_data.camera_xform_binding,
                         "omni:scenePartition",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [self.scene.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)],
+                            [self.scene.paths.intern_token(partition) for partition in camera_partitions],
                             dtype=np.uint64,
                         ),
                         is_array=False,
@@ -585,11 +590,11 @@ class OVRTXRenderer(BaseRenderer):
                     attribute_name="omni:resetXformStack",
                     tensor=np.full(spec.num_instances, True, dtype=np.bool_),
                 )
-                if env_camera:
+                if camera_partitions:
                     self.backend.renderer.write_attribute(
                         camera_paths,
                         "omni:scenePartition",
-                        [f"env_{i}" for i in range(spec.num_instances)],
+                        camera_partitions,
                         semantic=Semantic.TOKEN_STRING,
                     )
             render_data.camera_writes = _AsyncWriteBuffers(

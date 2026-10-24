@@ -74,9 +74,6 @@ class _FakeProvider:
     def num_envs(self) -> int:
         return self._num_envs
 
-    def get_camera_transforms(self):
-        return None
-
 
 class _FakeVisualizer(BaseVisualizer):
     """Minimal visualizer for orchestration tests."""
@@ -390,9 +387,6 @@ class _DummyViserSceneDataProvider:
     @property
     def num_envs(self) -> int:
         return 4
-
-    def get_camera_transforms(self):
-        return {}
 
     def create_mapping(self, paths):
         return None

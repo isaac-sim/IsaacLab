@@ -75,7 +75,7 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
     spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, ("/World/envs/env_0/Camera",), 2)
-    return OVRTXCameraRenderData(spec, render_scope_name="RenderCamera_0")
+    return OVRTXCameraRenderData(spec, "RenderCamera_0", [f"/World/envs/env_{i}/Camera" for i in range(2)])
 
 
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
@@ -1061,7 +1061,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovs
     renderer._initialized_scene = True
     renderer._device = "cpu"
     renderer.scene.next_camera_id = 0
-    renderer.scene.clone_env_paths = ["/World/envs/env_0", "/World/envs/env_1"]
+    renderer.scene.clone_env_paths = ["/Lab/Cell0", "/Lab/Cell1"]
     renderer._use_ovstage = use_ovstage
     renderer.scene.ordinal = 1
     renderer.backend.renderer = MagicMock()
@@ -1072,10 +1072,12 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovs
     renderer.scene.stage.query_from_path_list.side_effect = lambda paths: contextlib.nullcontext(object())
     for name in ("add_usd_reference_from_string", "apply_usd_changes", "remove_usd"):
         monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, name, MagicMock())
-    paths = [
-        [f"/World/envs/env_{i}/{name}" for i in range(2)] for name in ("CameraA", "Robot/ee_link/palm_link/CameraB")
-    ]
+    paths = [[f"/Lab/Cell{i}/{name}" for i in range(2)] for name in ("CameraA", "Robot/ee_link/palm_link/CameraB")]
+    paths[0].reverse()
+    paths[0][0] = "/Lab/Cell1/Robot/CameraA"
     paths.append(["/World/PerspectiveCamera"])
+    paths.append(paths[0][:1])
+    renderer.scene.paths.intern_token.side_effect = {"env_0": 10, "env_1": 11}.__getitem__
     cameras = [
         renderer.create_render_data(
             CameraRenderSpec(
@@ -1086,8 +1088,22 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovs
                 camera_prim_paths=camera_paths,
             )
         )
-        for index, camera_paths in enumerate((paths[0], paths[1][:1], paths[2]))
+        for index, camera_paths in enumerate((paths[0], paths[1][1:], paths[2], paths[3]))
     ]
+    if use_ovstage:
+        partitions = [
+            call.kwargs["tensors"].tolist()
+            for call in renderer.scene.stage.write_attribute.call_args_list
+            if call.args[1] == "omni:scenePartition"
+        ]
+        assert partitions == [[11, 10], [10, 11], [11]]
+    else:
+        partitions = [
+            call.args[2]
+            for call in renderer.backend.renderer.write_attribute.call_args_list
+            if len(call.args) > 1 and call.args[1] == "omni:scenePartition"
+        ]
+        assert partitions == [["env_1", "env_0"], ["env_0", "env_1"], ["env_1"]]
     assert not vars(renderer).keys() & {"_camera_xform_binding", "_camera_xform_query", "_camera_paths_list"}
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     monkeypatch.setattr(wp, "synchronize_stream", lambda stream: None)
