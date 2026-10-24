@@ -27,6 +27,8 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 
+from .kit_key_event_source import KitKeyEventSource
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -156,6 +158,14 @@ class KitVisualizer(BaseVisualizer):
         self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
         if self._controls_kit_timeline:
             self.play()
+        if not self._runtime_headless:
+            # keyboard input is optional: a failure here must not stop the visualizer from starting
+            try:
+                import omni.appwindow
+
+                self._key_event_source = KitKeyEventSource(omni.appwindow.get_default_app_window())
+            except Exception:
+                logger.exception("[KitVisualizer] Keyboard input is unavailable")
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.
@@ -198,6 +208,7 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
+        self._close_key_event_source()
         try:
             if self._owns_kit_timeline:
                 self.stop()

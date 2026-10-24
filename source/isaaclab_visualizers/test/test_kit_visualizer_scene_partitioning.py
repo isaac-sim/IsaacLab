@@ -206,7 +206,9 @@ def test_close_cleans_resources_when_timeline_stop_is_interrupted(monkeypatch, k
     ("physics_backend", "controls_timeline"),
     [("ovphysx", False), ("newton", True)],
 )
-def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend, controls_timeline):
+def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend, controls_timeline, caplog):
+    """Timeline setup must survive unavailable optional window input."""
+    monkeypatch.setitem(sys.modules, "omni.appwindow", None)
     visualizer = KitVisualizer(VisualizerCfg(backend=KitBackendCfg()))
     sim = MagicMock(has_gui=True, stage=Usd.Stage.CreateInMemory(), device="cpu")
     sim.get_scene_data_provider.return_value.num_envs = 0
@@ -228,6 +230,8 @@ def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend,
     assert visualizer._controls_kit_timeline is controls_timeline
     assert play.call_count == int(controls_timeline)
     fabric.bind_transforms.assert_called_once_with(sim.get_scene_data_provider.return_value)
+    assert visualizer.is_initialized and visualizer.key_event_source is None
+    assert "Keyboard input is unavailable" in caplog.text
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])

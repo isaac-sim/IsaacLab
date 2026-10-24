@@ -141,6 +141,9 @@ def test_visualizer_images_and_motion(scene, mode, physics, request, caplog, cap
         assert runtime.sim.is_playing()
         assert omni.timeline.get_timeline_interface().is_playing()
         kit, gl = runtime.sim.visualizers
+        if (scene, mode, physics) == ("cartpole", "viewport", "physx"):
+            assert kit.key_event_source is not None, "Window input is missing."
+            assert gl.key_event_source is None, "The headless viewer must not connect window input."
         if scene == "cartpole":
             robot = runtime.scene["robot"]
             robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch)
