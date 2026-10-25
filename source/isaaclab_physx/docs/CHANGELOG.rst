@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX environment partitioning to use the clone plan's declared namespace.
+* Fixed frame-transformer row ordering and source exclusion during cloning for custom namespaces.
+
+
 9.0.2 (2026-10-24)
 ~~~~~~~~~~~~~~~~~~
 

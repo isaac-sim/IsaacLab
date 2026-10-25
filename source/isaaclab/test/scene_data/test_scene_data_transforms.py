@@ -28,6 +28,35 @@ class _Backend(SimpleNamespace, SceneDataBackend):
     transform_paths = ()
 
 
+def test_camera_discovery_uses_clone_template_and_preserves_missing_rows(monkeypatch):
+    """USD camera discovery groups custom-root copies without losing world poses or missing rows."""
+    from pxr import Gf, Usd, UsdGeom
+
+    from isaaclab.cloner import make_clone_plan
+    from isaaclab.sim import SimulationContext
+
+    stage = Usd.Stage.CreateInMemory()
+    plan = make_clone_plan((), ((),), 3, env_template="/Lab/Cells/Cell{}")
+    for env_id in range(3):
+        root = UsdGeom.Xform.Define(stage, plan.env_template.format(env_id))
+        root.AddTranslateOp().Set(Gf.Vec3d(10 * env_id, 0, 0))
+        if env_id != 1:
+            camera = UsdGeom.Camera.Define(stage, f"{root.GetPath()}/Camera")
+            camera.AddTranslateOp().Set(Gf.Vec3d(1, 2, 3))
+        hidden = UsdGeom.Camera.Define(stage, f"{root.GetPath()}/Hidden")
+        hidden.CreateVisibilityAttr(UsdGeom.Tokens.invisible)
+    sim = SimpleNamespace(stage=stage, get_clone_plan=lambda: plan)
+    monkeypatch.setattr(SimulationContext, "_instance", sim)
+    provider = SceneDataProvider(_Backend())
+    cameras = provider.get_camera_transforms()
+    assert cameras["num_envs"] == 3
+    assert cameras["order"] == ["/Lab/Cells/Cell%d/Camera"]
+    assert cameras["positions"] == [[[1, 2, 3], None, [21, 2, 3]]]
+    assert cameras["orientations"] == [[[0, 0, 0, 1], None, [0, 0, 0, 1]]]
+    sim.stage = None
+    assert provider.get_camera_transforms() is None
+
+
 @pytest.mark.skipif(
     wp.get_cuda_device_count() == 0, reason="requires a CUDA device to reproduce the default-device mismatch"
 )
