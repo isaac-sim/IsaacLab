@@ -421,11 +421,12 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
         frame_transformer: FrameTransformerCfg = None  # type: ignore
 
     # Use multiple envs for env patterns, single env for direct paths
-    num_envs = 2 if path_prefix == "{ENV_REGEX_NS}" else 1
+    num_envs = 12 if path_prefix == "{ENV_REGEX_NS}" else 1
     env_spacing = 10.0 if path_prefix == "{ENV_REGEX_NS}" else 0.0
 
     # Create scene config with appropriate prim paths
     scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
+    scene_cfg.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
     scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
     scene_cfg.robot_1 = replace(
         ANYMAL_C_CFG,

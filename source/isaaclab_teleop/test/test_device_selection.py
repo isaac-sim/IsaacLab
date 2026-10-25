@@ -191,9 +191,13 @@ def test_creation_uses_the_resolved_config_for_both_implementations():
     from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
 
     windows = []
-    capture = create_teleop_device(IsaacTeleopCfg(), visualizers=windows, use_kit_xr_bridge=False)
+    cfg = IsaacTeleopCfg(target_frame_prim_path="{ENV_REGEX_NS}/Robot")
+    cfg.xr_cfg.anchor_prim_path = "{ENV_REGEX_NS}/Robot"
+    capture = create_teleop_device(cfg, visualizers=windows, env_prim_path="/Lab/Cells/Cell0", use_kit_xr_bridge=False)
     assert isinstance(capture, IsaacTeleopDevice)
     assert capture._session_lifecycle._visualizers is windows
+    assert capture._cfg.target_frame_prim_path == capture._cfg.xr_cfg.anchor_prim_path == "/Lab/Cells/Cell0/Robot"
+    assert cfg.target_frame_prim_path == cfg.xr_cfg.anchor_prim_path == "{ENV_REGEX_NS}/Robot"
 
 
 def test_capture_creation_failure_does_not_switch_to_a_native_device(monkeypatch):
@@ -226,4 +230,4 @@ def test_window_dependencies_and_device_creation_have_one_owner():
         for name in ("select_teleop_cfg", "create_teleop_device"):
             assert sum(node.func.id == name for node in calls) == 1, (script, name)
         factory = next(node for node in calls if node.func.id == "create_teleop_device")
-        assert any(keyword.arg == "visualizers" for keyword in factory.keywords), script
+        assert {"visualizers", "env_prim_path"} <= {keyword.arg for keyword in factory.keywords}, script

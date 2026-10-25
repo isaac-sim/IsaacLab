@@ -311,6 +311,7 @@ def run_teleoperation(
     try:
         teleop_interface = create_teleop_device(
             teleop_cfg,
+            env_prim_path=env.scene.env_prim_paths[0],
             sim_device=args_cli.device,
             callbacks=teleoperation_callbacks,
             visualizers=env.sim.visualizers,

@@ -16,6 +16,7 @@ import torch
 from scipy.spatial.transform import Rotation
 
 from isaaclab.sim.utils.stage import get_current_stage_id
+from isaaclab.utils import replace
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .command_handler import CommandHandler
@@ -553,6 +554,8 @@ def create_isaac_teleop_device(
     mcap_replay_path: str | None = None,
     enable_debug_visualization: bool = False,
     haptic_cfg: HapticFeedbackCfg | None = None,
+    *,
+    env_prim_path: str | None = None,
     visualizers: Sequence[BaseVisualizer] = (),
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
@@ -568,8 +571,8 @@ def create_isaac_teleop_device(
        land on the same device the caller uses for the simulation.
 
     Note:
-        When *sim_device* is provided, ``cfg.sim_device`` is mutated in place
-        before the device is constructed.
+        Supplying *env_prim_path* copies the configuration before expanding paths.
+        Otherwise, *sim_device* overrides ``cfg.sim_device`` in place.
 
     Args:
         cfg: Isaac Capture configuration.
@@ -608,6 +611,8 @@ def create_isaac_teleop_device(
             :class:`~isaaclab_teleop.HapticFeedbackReceiver` and renders per-hand
             output vectors on the configured device (controller, glove, ...).
 
+        env_prim_path: Concrete environment root used for ``{ENV_REGEX_NS}`` in target and XR anchor paths.
+
         visualizers: Live sequence of windows supplying keyboard input, usually ``sim.visualizers``.
 
     Returns:
@@ -626,6 +631,13 @@ def create_isaac_teleop_device(
     # for standalone -- pull in the Kit XR rendering stack we want to avoid.
     if mcap_replay_path is None and use_kit_xr_bridge:
         _enable_teleop_bridge()
+
+    if env_prim_path is not None:
+        cfg = replace(cfg)
+        if cfg.target_frame_prim_path is not None:
+            cfg.target_frame_prim_path = cfg.target_frame_prim_path.replace("{ENV_REGEX_NS}", env_prim_path)
+        if cfg.xr_cfg.anchor_prim_path is not None:
+            cfg.xr_cfg.anchor_prim_path = cfg.xr_cfg.anchor_prim_path.replace("{ENV_REGEX_NS}", env_prim_path)
 
     if sim_device is not None:
         cfg.sim_device = sim_device
