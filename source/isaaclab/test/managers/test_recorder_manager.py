@@ -198,7 +198,9 @@ def test_batched_episode_indices_and_ownership(monkeypatch):
         manager.add_to_episodes("invalid", torch.empty(2, 7))
     assert not manager._fields
     source = torch.tensor([[1.0, -0.0], [2.0, float("nan")], [3.0, 4.0]])
-    manager.add_to_episodes("obs", {"state": source})
+    # Policies commonly collect under inference_mode, then reset/export after leaving it.
+    with torch.inference_mode():
+        manager.add_to_episodes("obs", {"state": source})
     wp.init()
     manager.add_to_episodes("initial_state", wp.from_torch(torch.tensor([[10], [20], [30]], dtype=torch.int32)))
     source.fill_(99)
@@ -211,7 +213,8 @@ def test_batched_episode_indices_and_ownership(monkeypatch):
     assert snapshot.success is None
 
     manager.reset(torch.tensor([1]))
-    manager.add_to_episodes("obs/state", torch.tensor([[42.0, 43.0], [52.0, 53.0]]), [2, 1])
+    with torch.inference_mode():
+        manager.add_to_episodes("obs/state", torch.tensor([[42.0, 43.0], [52.0, 53.0]]), [2, 1])
     manager.add_to_episodes("obs/state", torch.tensor([[62.0, 63.0]]), slice(0, 1))
     assert torch.equal(manager.get_episode(1).data["obs"]["state"], torch.tensor([[52.0, 53.0]]))
     assert manager.get_episode(1).data.keys() == {"obs"}
@@ -233,7 +236,8 @@ def test_batched_episode_indices_and_ownership(monkeypatch):
 
     manager.reset()
     # A new schema is allowed once every world has released this field, e.g. manual annotation.
-    manager.add_to_episodes("obs/state", torch.zeros(3, 5, dtype=torch.bool))
+    with torch.inference_mode():
+        manager.add_to_episodes("obs/state", torch.zeros(3, 5, dtype=torch.bool))
     assert manager.get_episode(0).data["obs"]["state"].dtype == torch.bool
     manager.reset()
 

@@ -606,9 +606,11 @@ class _RecorderField:
 
     def __init__(self, name: str, value: torch.Tensor, num_envs: int, capacity: int):
         self.name = name
-        self.data = torch.empty((capacity, num_envs, *value.shape[1:]), dtype=value.dtype, device=value.device)
-        self.lengths = torch.zeros(num_envs, dtype=torch.long, device=value.device)
-        self.worlds = torch.arange(num_envs, device=value.device)
+        # Retained storage outlives the caller's inference context: reset/export may run outside it.
+        with torch.inference_mode(False):
+            self.data = torch.empty((capacity, num_envs, *value.shape[1:]), dtype=value.dtype, device=value.device)
+            self.lengths = torch.zeros(num_envs, dtype=torch.long, device=value.device)
+            self.worlds = torch.arange(num_envs, device=value.device)
         self.upper_bound = 0
 
     @torch.no_grad()
@@ -616,9 +618,12 @@ class _RecorderField:
         if value.shape[1:] != self.data.shape[2:] or value.dtype != self.data.dtype or value.device != self.data.device:
             if self.lengths.any().item():
                 raise ValueError(f"Recorder field '{self.name}' changed shape, dtype, or device with active samples.")
-            self.data = torch.empty((*self.data.shape[:2], *value.shape[1:]), dtype=value.dtype, device=value.device)
-            self.lengths = self.lengths.to(value.device)
-            self.worlds = self.worlds.to(value.device)
+            with torch.inference_mode(False):
+                self.data = torch.empty(
+                    (*self.data.shape[:2], *value.shape[1:]), dtype=value.dtype, device=value.device
+                )
+                self.lengths = self.lengths.to(value.device)
+                self.worlds = self.worlds.to(value.device)
             self.upper_bound = 0
         if env_ids is None:
             worlds, indices = self.worlds, self.lengths
@@ -631,7 +636,8 @@ class _RecorderField:
         if self.upper_bound >= capacity:
             self.upper_bound = int(self.lengths.max().item())
             if self.upper_bound >= capacity:
-                data = self.data.new_empty((2 * capacity, *self.data.shape[1:]))
+                with torch.inference_mode(False):
+                    data = self.data.new_empty((2 * capacity, *self.data.shape[1:]))
                 data[:capacity].copy_(self.data)
                 self.data = data
         self.data[indices, worlds] = value
