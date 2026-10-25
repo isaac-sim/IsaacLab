@@ -288,7 +288,7 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
         key_callbacks = {"N": play_cb, "B": pause_cb, "Q": skip_episode_cb}
         if not args_cli.auto:
             key_callbacks["S"] = mark_subtask_cb
-        add_key_callbacks(key_callbacks)
+        add_key_callbacks(env.unwrapped.sim.visualizers, key_callbacks)
 
     # simulate environment -- run everything in inference mode
     exported_episode_count = 0

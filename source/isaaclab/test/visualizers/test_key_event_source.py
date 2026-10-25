@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 
@@ -149,13 +148,15 @@ def source():
     sim = SimpleNamespace(
         visualizers=[SimpleNamespace(key_event_source=key_event_source), SimpleNamespace(key_event_source=None)]
     )
-    with patch("isaaclab.sim.SimulationContext.instance", return_value=sim):
-        yield key_event_source
+    return key_event_source, sim.visualizers
 
 
 def test_key_callbacks_fire_once_per_press(source):
     pressed = []
-    add_key_callbacks({"N": lambda: pressed.append("N"), "1": lambda: pressed.append("1"), "Escape": lambda: 0})
+    source, visualizers = source
+    add_key_callbacks(
+        visualizers, {"N": lambda: pressed.append("N"), "1": lambda: pressed.append("1"), "Escape": lambda: 0}
+    )
 
     source._emit_key("KeyN", True)
     source._emit_key("KeyN", True)  # key repeat
@@ -168,7 +169,8 @@ def test_key_callbacks_fire_once_per_press(source):
 
 def test_focus_loss_ends_a_held_key(source):
     pressed = []
-    add_key_callbacks({"N": lambda: pressed.append("N")})
+    source, visualizers = source
+    add_key_callbacks(visualizers, {"N": lambda: pressed.append("N")})
     source._emit_key("KeyN", True)
     source._emit_focus_lost()
     source._emit_key("KeyN", True)
@@ -176,7 +178,8 @@ def test_focus_loss_ends_a_held_key(source):
 
 
 def test_removing_the_key_callbacks_unsubscribes(source):
-    remove = add_key_callbacks({"N": lambda: None})
+    source, visualizers = source
+    remove = add_key_callbacks(visualizers, {"N": lambda: None})
     assert len(source._subscriptions) == 1
     remove()
     assert source._subscriptions == []

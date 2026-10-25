@@ -458,7 +458,9 @@ def run_consolidated_demo(env_cfg, success_term):
     if args_cli.teleop_env_index is not None:
         from isaaclab_teleop.script_input import open_teleop_device
 
-        teleop_interface = teleop_device.enter_context(open_teleop_device(teleop_device_cfg()))
+        teleop_interface = teleop_device.enter_context(
+            open_teleop_device(teleop_device_cfg(), env.unwrapped.sim.visualizers)
+        )
 
     # make data generator object
     data_generator_asyncio_tasks = []

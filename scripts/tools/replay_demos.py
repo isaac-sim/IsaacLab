@@ -311,7 +311,7 @@ def replay_dataset(
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    add_key_callbacks({"N": play_cb, "B": pause_cb})
+    add_key_callbacks(env.unwrapped.sim.visualizers, {"N": play_cb, "B": pause_cb})
     print('Press "B" to pause and "N" to resume the replayed actions.')
 
     # Determine if state validation should be conducted

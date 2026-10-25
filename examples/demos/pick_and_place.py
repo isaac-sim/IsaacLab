@@ -333,9 +333,10 @@ def main() -> None:
             # the keyboard runs through Isaac Capture, which the teleop extra installs
             from isaaclab_teleop.script_input import open_teleop_device
 
-            teleop = teleop_device.enter_context(open_teleop_device(teleop_cfg))
+            teleop = teleop_device.enter_context(open_teleop_device(teleop_cfg, pick_and_place.sim.visualizers))
             add_key_callbacks(
-                {"N": lambda: pick_and_place.auto_aim(cube=True), "M": lambda: pick_and_place.auto_aim(cube=False)}
+                pick_and_place.sim.visualizers,
+                {"N": lambda: pick_and_place.auto_aim(cube=True), "M": lambda: pick_and_place.auto_aim(cube=False)},
             )
             print(teleop)
             print("Pick up the purple cube and drop it on the red sphere, in ALL environments at once.")
