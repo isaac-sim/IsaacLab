@@ -72,17 +72,28 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         )[0]
         super().load_managers()
 
-    @staticmethod
-    def _in_workcell(positions: torch.Tensor) -> torch.Tensor:
-        """Identify parcels within the trained controller's local manipulation region [m]."""
-        return (
-            (positions[..., 0] > -0.25)
-            & (positions[..., 0] < 1.5)
-            & (positions[..., 1].abs() < 0.6)
-            & (positions[..., 2] < 0.4)
-            # The low merge passes beside the placement bend but is still remote transport.
-            & ((positions[..., 2] < 0.12) | (positions[..., 0] < 1.05))
-        )
+    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
+        """Advance presentation motion; pass training actions through or park during idle playback."""
+        if self._warehouse_animation:
+            self._animate_warehouse()
+        if not self.cfg.park_when_idle:
+            return super().step(action)
+        command = self.command_manager.get_term("transfer")
+        robot = self.scene["robot"]
+        joint_ids = self._warehouse_arm_joint_ids
+        parked = torch.zeros_like(action)
+        parked[:, :7] = (
+            (robot.data.default_joint_pos.torch[:, joint_ids] - robot.data.joint_pos.torch[:, joint_ids])
+            / self.cfg.actions.arm_action.scale
+        ).clamp(-0.25, 0.25)
+        # Keep invalid actions visible to the existing sanitization and termination terms.
+        use_policy = command.has_target | ~torch.isfinite(action).all(dim=1)
+        return super().step(torch.where(use_policy[:, None], action, parked))
+
+    def close(self) -> None:
+        """Release presentation attributes before closing the shared task resources."""
+        self._warehouse_animation.clear()
+        super().close()
 
     def _adapt_policy_cube_state(
         self, positions: torch.Tensor, quaternions: torch.Tensor, velocities: torch.Tensor
@@ -104,24 +115,6 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             torch.where(remote[..., None], upright, quaternions),
             torch.where(remote[..., None], transport_velocity, velocities),
         )
-
-    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Advance presentation motion; pass training actions through or park during idle playback."""
-        if self._warehouse_animation:
-            self._animate_warehouse()
-        if not self.cfg.park_when_idle:
-            return super().step(action)
-        command = self.command_manager.get_term("transfer")
-        robot = self.scene["robot"]
-        joint_ids = self._warehouse_arm_joint_ids
-        parked = torch.zeros_like(action)
-        parked[:, :7] = (
-            (robot.data.default_joint_pos.torch[:, joint_ids] - robot.data.joint_pos.torch[:, joint_ids])
-            / self.cfg.actions.arm_action.scale
-        ).clamp(-0.25, 0.25)
-        # Keep invalid actions visible to the existing sanitization and termination terms.
-        use_policy = command.has_target | ~torch.isfinite(action).all(dim=1)
-        return super().step(torch.where(use_policy[:, None], action, parked))
 
     def _animate_warehouse(self) -> None:
         """Sample USD motion using policy time, independently of render frame rate."""
@@ -150,7 +143,14 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             cube.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
             cube.write_root_velocity_to_sim_index(root_velocity=pose.new_zeros((len(env_ids), 6)), env_ids=env_ids)
 
-    def close(self) -> None:
-        """Release presentation attributes before closing the shared task resources."""
-        self._warehouse_animation.clear()
-        super().close()
+    @staticmethod
+    def _in_workcell(positions: torch.Tensor) -> torch.Tensor:
+        """Identify parcels within the trained controller's local manipulation region [m]."""
+        return (
+            (positions[..., 0] > -0.25)
+            & (positions[..., 0] < 1.5)
+            & (positions[..., 1].abs() < 0.6)
+            & (positions[..., 2] < 0.4)
+            # The low merge passes beside the placement bend but is still remote transport.
+            & ((positions[..., 2] < 0.12) | (positions[..., 0] < 1.05))
+        )

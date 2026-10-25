@@ -45,13 +45,12 @@ _THOR_TABLE_ASSET_PATH = f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/thor_table.usd"
 _A12_ENDPOINT_SEPARATION = 2.9922
 _ASSET_BELT_TOP_Z = 1.78053
 _ASSET_XY_SCALE = 2.0 * BELT_TURN_RADIUS / _A12_ENDPOINT_SEPARATION
-_CONVEYOR_SUPPORT_Z = 0.55
 # Preserve the upper frames' proportions. The scaled belt crown determines
 # the presentation translation into the policy workspace.
 _ASSET_Z_SCALE = _ASSET_XY_SCALE
-_ASSET_ROOT_Z = _CONVEYOR_SUPPORT_Z
+_ASSET_ROOT_Z = 0.55
 _ASSET_BELT_WORLD_Z = _ASSET_ROOT_Z + _ASSET_BELT_TOP_Z * _ASSET_Z_SCALE
-_WORKSPACE_ELEVATION = _ASSET_BELT_WORLD_Z - BELT_TOP_Z
+_PRESENTATION_OFFSET_Z = BELT_TOP_Z - _ASSET_BELT_WORLD_Z
 
 # A09 is a 4 m straight. Its travel-axis scale is independent of the common
 # lateral scale so one asset spans the task's complete 0.88 m straight run.
@@ -62,7 +61,7 @@ _A09_X_SCALE = 2.0 * BELT_HALF_STRAIGHT / _A09_LENGTH
 # at z=-0.795 m. Uniformly scaling that distance to the robot's height above
 # the warehouse floor puts every foot on the ground without distorting the table.
 _THOR_TABLE_LOWEST_Z = -0.795
-_THOR_TABLE_SCALE = _WORKSPACE_ELEVATION / -_THOR_TABLE_LOWEST_Z
+_THOR_TABLE_SCALE = _PRESENTATION_OFFSET_Z / _THOR_TABLE_LOWEST_Z
 
 
 _PHYSICS_SCHEMA_PREFIXES = ("Physics", "Physx", "Newton", "Mujoco")
@@ -236,7 +235,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
         self.ground = AssetBaseCfg(
             prim_path="/World/GroundPlane",
             collision_group=-1,
-            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -_WORKSPACE_ELEVATION)),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, _PRESENTATION_OFFSET_Z)),
             spawn=sim_utils.GroundPlaneCfg(visible=False, color=(0.055, 0.065, 0.082)),
         )
         self.dome_light.spawn.color = (0.70, 0.78, 0.92)
@@ -272,7 +271,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
                 _visual_usd_asset(
                     prim_path=f"{{ENV_REGEX_NS}}/Conveyor{side}{run.title()}A09Visual",
                     usd_path=str(_PRESENTATION_ASSETS / "conveyor_straight_supported.usda"),
-                    position=(right_x, y_position, _ASSET_ROOT_Z - _WORKSPACE_ELEVATION),
+                    position=(right_x, y_position, _ASSET_ROOT_Z + _PRESENTATION_OFFSET_Z),
                     scale=straight_scale,
                 ),
             )
@@ -280,7 +279,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
         self.warehouse_visual = _visual_usd_asset(
             prim_path="{ENV_REGEX_NS}/WarehouseVisual",
             usd_path=str(_PRESENTATION_ASSETS / "warehouse.usda"),
-            position=(0.0, 0.0, -_WORKSPACE_ELEVATION),
+            position=(0.0, 0.0, _PRESENTATION_OFFSET_Z),
             scale=(1.0, 1.0, 1.0),
         )
         for cube_id in range(4):
@@ -332,7 +331,6 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
     scene: ConveyorFrankaA09A12SceneCfg = ConveyorFrankaA09A12SceneCfg(
         num_envs=1,
         env_spacing=24.0,
-        replicate_physics=True,
     )
 
     def __post_init__(self) -> None:
@@ -358,8 +356,8 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
             "minimum": (-0.4, -1.2, -0.05),
             "maximum": (2.85, 1.2, 0.8),
         }
-        self.sim.visualizer_cfgs.eye = (4.8, -5.2, 3.0 - _WORKSPACE_ELEVATION)
-        self.sim.visualizer_cfgs.lookat = (0.9, 0.6, 0.95 - _WORKSPACE_ELEVATION)
+        self.sim.visualizer_cfgs.eye = (4.8, -5.2, 3.0 + _PRESENTATION_OFFSET_Z)
+        self.sim.visualizer_cfgs.lookat = (0.9, 0.6, 0.95 + _PRESENTATION_OFFSET_Z)
         self.sim.visualizer_cfgs.focal_length = 24.0
 
     def play_mode(self) -> None:
