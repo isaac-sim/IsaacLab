@@ -894,6 +894,7 @@ dependencies = [
     { name = "numpy" },
 ]
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/8c/5fe3f6719c2d4560c79c62ef6d9b7d6c34d145879ddc0c1a41f8153ad0a6/cupy_cuda12x-14.2.0-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:b74340aa7271f0f081f77e2e5107bac75af19b86df29213db7ada90e14428efe", size = 147490427, upload-time = "2026-08-20T02:40:00.196Z" },
     { url = "https://files.pythonhosted.org/packages/7c/5b/65124de2dbaf2e85109f611a41947e39acd6dd938751c04b4c4d7bf6fc82/cupy_cuda12x-14.2.0-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:f82141761f2c81905d49387464ae29438887956d99063381c93a1d5d1b7d32e8", size = 136111459, upload-time = "2026-08-20T02:40:04.909Z" },
 ]
 
@@ -1768,6 +1769,7 @@ dependencies = [
     { name = "pyyaml" },
 ]
 wheels = [
+    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.44a1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:b266c52af35a93e85133fe195243d616e9ba41c70e6d88ee6a7183be0fcfb324" },
     { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.44a1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:bba80a67891474bc2cf9ddc4b6b0bd6ea78977f8d4d5cf38c4e7f2aae02c781c" },
 ]
 
@@ -2005,7 +2007,7 @@ skrl-jax = [
 ]
 teleop = [
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
-    { name = "isaaccapture", extra = ["cloudxr", "retargeters", "ui"], marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "isaaccapture", extra = ["cloudxr", "retargeters", "ui"], marker = "sys_platform != 'win32'" },
     { name = "isaaclab-mimic" },
     { name = "isaaclab-teleop" },
 ]
@@ -2061,7 +2063,7 @@ requires-dist = [
     { name = "hydra-core" },
     { name = "imgui-bundle", specifier = ">=1.92.5" },
     { name = "ipywidgets", marker = "extra == 'mimic'", specifier = ">=8.1.5" },
-    { name = "isaaccapture", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.7.44a1" },
+    { name = "isaaccapture", extras = ["retargeters", "ui", "cloudxr"], marker = "sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.7.44a1" },
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
@@ -3156,8 +3158,11 @@ version = "7.0.0a3"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ff/4f/7857f1ad3949c5f4f1bd4a06b0cc80d8b4418294a11b0ba9091bd66808b3/lxml-7.0.0a3.tar.gz", hash = "sha256:032fbe02d001d2ad7ad3bd2d4d387d651adf7f910bdf85d1633ff7ea4fe26011", size = 5079184, upload-time = "2026-06-17T02:00:37.63Z" }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/13/1fe68741c8f76e14c64d149b6d43bca17877a7ed3ffab0461a3c90aa9203/lxml-7.0.0a3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:82a37bda527ce5671827daf698ca99028c6291225a2e8e6b4a5305d1a3a00b62", size = 5029652, upload-time = "2026-06-17T01:56:36.197Z" },
     { url = "https://files.pythonhosted.org/packages/8c/f6/26ecaa3f0cb5022fa8c95bfa079cdd0ee022cb3c1b12c4ce8327f36a737a/lxml-7.0.0a3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:2944e368c90d28ec749f4ee403207063f103f4dcd525f4b9de39adbf3e6bb2bf", size = 5206190, upload-time = "2026-06-17T01:56:38.422Z" },
+    { url = "https://files.pythonhosted.org/packages/69/28/58d59576619512ceda96cac7478877603e3b5b17f71d126abc8a05f4db07/lxml-7.0.0a3-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6a8d30425433c52722eada9140598228a5d65f22fe6c8cf6f11d58a9c6e06dbc", size = 5107935, upload-time = "2026-06-17T01:56:40.94Z" },
     { url = "https://files.pythonhosted.org/packages/61/be/169445c66bb304884631da3aeb92ff889a5d7ec2b666e640b93a50d7b3ec/lxml-7.0.0a3-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:79f77375e15c8af12597c18edba55de83d8df2aee37a2b4904083d4e5fe100c6", size = 5351840, upload-time = "2026-06-17T01:56:45.592Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/75/7744d7c7faf610784917ddc1bf925d8e9ef8de8947d594e474b1adf08ed8/lxml-7.0.0a3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:bdfc1708df864b873b26e0429528a8c721a2c7500a859b1353a39a531a7f0aeb", size = 5154105, upload-time = "2026-06-17T01:56:55.334Z" },
     { url = "https://files.pythonhosted.org/packages/51/d7/5ca72059bef4c7ecd7c535e214aed0b908a2fd284f263c4d615c30e401e5/lxml-7.0.0a3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:1f24edf92b881d7a8ce7c154d61cf3fae0dfe758ad3f64ee2313a6210459ce6f", size = 5370450, upload-time = "2026-06-17T01:57:04.757Z" },
 ]
 
@@ -3509,6 +3514,7 @@ dependencies = [
     { name = "numpy" },
 ]
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/1d/382ab0aadfdf75782899eea7bbc7fa42846ac850666614ba8211f913a6a6/nlopt-2.11.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4c6b3d5f9dbfa2d049fc89611e8bb70e8ff2ebbea61c3d5e295783080fc06143", size = 389198, upload-time = "2026-07-17T06:50:47.223Z" },
     { url = "https://files.pythonhosted.org/packages/d0/0d/9f826469fdc6dd21f18c52dbe209b2c7a29b71d2b6bb21f494bcc7260085/nlopt-2.11.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b7ea0d34cb00ed71fb032ff24a1b5599a61ca0101984c3fdfd954eca569e8ad2", size = 402848, upload-time = "2026-07-17T06:50:48.233Z" },
 ]
 
