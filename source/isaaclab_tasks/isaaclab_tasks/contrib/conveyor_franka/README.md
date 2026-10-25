@@ -95,8 +95,11 @@ Remote inventory is represented through canonical waiting-slot observations beca
 the checkpoint learned compact, flat returns. Local states and physical interactions
 remain exact. Class dispatch uses supervisory metadata; the state-based policy does
 not recognize color. Playback parks the arm between transfers and after sorting.
-Invalid actions still reach sanitization and termination. The unchanged checkpoint
-can miss grasps and reset before finishing; reliable complete-batch sorting is not established.
+Invalid actions still reach sanitization and termination. The shared racetrack
+checkpoint has not demonstrated successful warehouse sorting: a two-environment,
+2,400-step check completed no transfers despite active arrivals, with no safety
+resets or non-finite observations. Evaluate warehouse training with physical
+transfer and complete-batch sorting metrics.
 
 `commands.transfer.parcel_colors` sets appearances and `parcel_destinations` sets
 conveyor IDs; each color must have one destination. Set `randomize_arrivals=False`
