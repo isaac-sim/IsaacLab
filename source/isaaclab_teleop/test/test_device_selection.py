@@ -149,22 +149,21 @@ def test_environment_device_precedence(monkeypatch, capture_available, requested
     defaults = {"keyboard": Se3KeyboardCfg(pos_sensitivity=0.2), "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.3)}
     # Explicit names override the declared pipeline; an unnamed native request still uses the env's keyboard.
     env = _env_cfg(IsaacTeleopCfg() if requested_device is not None or not capture_available else None, **env_devices)
+    if not capture_available:
+        # keyboard, gamepad and SpaceMouse need Isaac Capture; there is no fallback to the native devices
+        with pytest.raises(ImportError, match="teleop extra"):
+            select_teleop_cfg(env, requested_device, defaults, "cpu")
+        return
     cfg = select_teleop_cfg(env, requested_device, defaults, "cpu")
-    if capture_available:
-        from isaacteleop.schema import KeyboardOutput, Point, SpaceMouseOutput
+    from isaacteleop.schema import KeyboardOutput, Point, SpaceMouseOutput
 
-        payload = (
-            KeyboardOutput([17])
-            if requested_device is None
-            else SpaceMouseOutput(translation=Point(0, 1, 0), connected=True)
-        )
-        _, result = _action(cfg, payload)
-        assert result["action"][0][0] == pytest.approx(sensitivity)
-    else:
-        assert cfg.pos_sensitivity == sensitivity
-        assert cfg is (
-            next(iter(env.teleop_devices.devices.values())) if env_devices else defaults[requested_device or "keyboard"]
-        )
+    payload = (
+        KeyboardOutput([17])
+        if requested_device is None
+        else SpaceMouseOutput(translation=Point(0, 1, 0), connected=True)
+    )
+    _, result = _action(cfg, payload)
+    assert result["action"][0][0] == pytest.approx(sensitivity)
 
 
 def test_declared_pipeline_and_unsupported_native_devices(monkeypatch):

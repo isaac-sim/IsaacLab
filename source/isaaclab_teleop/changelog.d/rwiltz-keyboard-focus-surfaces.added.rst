@@ -9,5 +9,6 @@
   ``--xr`` they run headset-free on the standalone CloudXR profile.
 * Added :mod:`isaaclab_teleop.device_selection`, which translates an :mod:`isaaclab.devices`
   keyboard, gamepad or SpaceMouse config into the equivalent pipeline and resolves each script's
-  ``--teleop_device`` request once. Device creation retained the native config and factory when
-  Capture was unavailable or the requested device required the native implementation.
+  ``--teleop_device`` request once. Keyboard, gamepad and SpaceMouse require Isaac Capture (the
+  ``teleop`` extra); devices without a Capture pipeline, such as OpenXR hand tracking, keep their
+  native implementation.

@@ -44,8 +44,7 @@ parser.add_argument(
     help=(
         "Teleop device name: an entry of env_cfg.teleop_devices.devices, or a built-in device (keyboard,"
         " spacemouse, gamepad). When omitted, the Isaac Capture pipeline is used if configured in the env,"
-        " otherwise keyboard. Keyboard, gamepad and spacemouse run through Isaac Capture when the isaacteleop"
-        " package is installed, and through the isaaclab.devices devices otherwise."
+        " otherwise keyboard. Keyboard, gamepad and spacemouse run through Isaac Capture (the teleop extra)."
     ),
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")

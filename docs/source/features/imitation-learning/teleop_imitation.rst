@@ -151,8 +151,8 @@ the key bindings are:
 .. tip::
 
    If the SpaceMouse is not detected, you most likely need additional user permissions. Isaac Capture
-   reads the SpaceMouse from its HID node (``/dev/hidraw*``). Without the ``isaacteleop`` package, the
-   :class:`~isaaclab.devices.Se3SpaceMouse` reads it through the ``hidapi`` wheel's ``libusb``
+   reads the SpaceMouse from its HID node (``/dev/hidraw*``). The
+   :class:`~isaaclab.devices.Se3SpaceMouse` device reads it through the ``hidapi`` wheel's ``libusb``
    backend instead, which needs read and write access to the USB node under ``/dev/bus/usb``; without
    it the device is enumerated without a product name. The rule below grants both.
 

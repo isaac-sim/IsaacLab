@@ -40,22 +40,35 @@ _PIPELINES = {
 }
 
 
+def _require_isaaccapture() -> None:
+    if importlib.util.find_spec("isaacteleop") is None:
+        raise ImportError(
+            "Keyboard, gamepad and SpaceMouse teleoperation runs through Isaac Capture, which is not installed."
+            " Install Isaac Lab's teleop extra (e.g. `uv sync --extra teleop`); it is available on Linux."
+        )
+
+
 def select_teleop_cfg(
     env_cfg: Any,
     device_name: str | None,
     default_device_cfgs: Mapping[str, DeviceCfg],
     sim_device: str,
 ) -> IsaacTeleopCfg | DeviceCfg:
-    """Resolve a device once before scene startup, retaining native configs when Capture is unavailable.
+    """Resolve a device once before scene startup.
 
     An unnamed request prefers the environment's Capture pipeline, then its keyboard or the script's default.
-    A named request prefers the environment's device, then the script's built-ins. Unknown names raise
-    before launching the simulation. Native devices and their retargeters remain supported.
+    A named request prefers the environment's device, then the script's built-ins. Keyboard, gamepad and
+    SpaceMouse resolve to their Isaac Capture pipeline; devices without one (e.g. OpenXR hand tracking) keep
+    their native config. Unknown names raise before launching the simulation.
+
+    Raises:
+        ImportError: If the request runs through Isaac Capture and it is not installed.
+        ValueError: If the requested device is unknown.
     """
-    capture_available = importlib.util.find_spec("isaacteleop") is not None
     if device_name is None:
         declared = getattr(env_cfg, "isaac_teleop", None)
-        if capture_available and declared is not None:
+        if declared is not None:
+            _require_isaaccapture()
             return declared
         device_name = "keyboard"
     devices = getattr(env_cfg, "teleop_devices", None)
@@ -64,9 +77,10 @@ def select_teleop_cfg(
         device_cfg = default_device_cfgs.get(device_name.lower())
     if device_cfg is None:
         raise ValueError(f"Unknown teleop device: {device_name!r}")
-    entry = _PIPELINES.get(type(device_cfg)) if capture_available else None
+    entry = _PIPELINES.get(type(device_cfg))
     if entry is None:
         return device_cfg
+    _require_isaaccapture()
     builder, fields = entry
     return builder(**{field: getattr(device_cfg, field) for field in fields}, sim_device=sim_device)
 

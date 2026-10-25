@@ -23,7 +23,7 @@ optional arguments:
     --teleop_device           Teleop device name: an env teleop_devices entry, or keyboard /
                               spacemouse. When omitted, Isaac Capture is used if configured,
                               otherwise keyboard. Keyboard and spacemouse run through Isaac Capture
-                              when isaacteleop is installed, else through isaaclab.devices.
+                              (the teleop extra).
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
     --num_demos               Number of demonstrations to record. (default: 0)
@@ -66,8 +66,7 @@ parser.add_argument(
     help=(
         "Teleop device name: an entry of env_cfg.teleop_devices.devices, or a built-in device (keyboard,"
         " spacemouse). When omitted, the Isaac Capture pipeline is used if configured in the env, otherwise"
-        " keyboard. Keyboard and spacemouse run through Isaac Capture when the isaacteleop package is installed,"
-        " and through the isaaclab.devices devices otherwise."
+        " keyboard. Keyboard and spacemouse run through Isaac Capture (the teleop extra)."
     ),
 )
 parser.add_argument(
