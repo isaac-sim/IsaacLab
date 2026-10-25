@@ -235,45 +235,46 @@ def test_configure_logging_with_file():
     with tempfile.TemporaryDirectory() as temp_dir:
         custom_log_dir = os.path.join(temp_dir, "custom_logs")
         logger = configure_logging(logging_level="DEBUG", save_logs_to_file=True, log_dir=custom_log_dir)
+        try:
+            # Should return root logger
+            assert logger is not None
+            # Root logger level matches the requested level
+            assert logger.level == logging.DEBUG
 
-        # Should return root logger
-        assert logger is not None
-        # Root logger level matches the requested level
-        assert logger.level == logging.DEBUG
+            # Should have two handlers (stream + file)
+            assert len(logger.handlers) == 2
 
-        # Should have two handlers (stream + file)
-        assert len(logger.handlers) == 2
+            # Check stream handler
+            stream_handler = logger.handlers[0]
+            assert isinstance(stream_handler, logging.StreamHandler)
+            assert isinstance(stream_handler.formatter, ColoredFormatter)
+            assert stream_handler.level == logging.DEBUG
+            stream_format = stream_handler.formatter._fmt  # type: ignore
+            assert "%(asctime)s" in stream_format
+            assert "%(filename)s" in stream_format
 
-        # Check stream handler
-        stream_handler = logger.handlers[0]
-        assert isinstance(stream_handler, logging.StreamHandler)
-        assert isinstance(stream_handler.formatter, ColoredFormatter)
-        assert stream_handler.level == logging.DEBUG
-        stream_format = stream_handler.formatter._fmt  # type: ignore
-        assert "%(asctime)s" in stream_format
-        assert "%(filename)s" in stream_format
+            # Check file handler: always DEBUG, with a more detailed format including line numbers
+            file_handler = logger.handlers[1]
+            assert isinstance(file_handler, logging.FileHandler)
+            assert file_handler.level == logging.DEBUG
+            file_format = file_handler.formatter._fmt  # type: ignore
+            assert "%(asctime)s" in file_format
+            assert "%(lineno)d" in file_format
 
-        # Check file handler: always DEBUG, with a more detailed format including line numbers
-        file_handler = logger.handlers[1]
-        assert isinstance(file_handler, logging.FileHandler)
-        assert file_handler.level == logging.DEBUG
-        file_format = file_handler.formatter._fmt  # type: ignore
-        assert "%(asctime)s" in file_format
-        assert "%(lineno)d" in file_format
+            # Custom directory should be created and hold the log file
+            assert os.path.isdir(custom_log_dir)
+            assert os.path.dirname(file_handler.baseFilename) == custom_log_dir
+            log_files = [f for f in os.listdir(custom_log_dir) if f.startswith("isaaclab_")]
+            assert len(log_files) == 1
 
-        # Custom directory should be created and hold the log file
-        assert os.path.isdir(custom_log_dir)
-        assert os.path.dirname(file_handler.baseFilename) == custom_log_dir
-        log_files = [f for f in os.listdir(custom_log_dir) if f.startswith("isaaclab_")]
-        assert len(log_files) == 1
-
-        # Check filename format: isaaclab_YYYY-MM-DD_HH-MM-SS.log
-        pattern = r"isaaclab_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log"
-        assert re.match(pattern, log_files[0]), f"Log filename {log_files[0]} doesn't match expected pattern"
-
-        # Reconfiguring closes the replaced file handler, so the temporary directory can be removed
-        # (an open file cannot be deleted on Windows)
-        configure_logging(logging_level="DEBUG", save_logs_to_file=False)
+            # Check filename format: isaaclab_YYYY-MM-DD_HH-MM-SS.log
+            pattern = r"isaaclab_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log"
+            assert re.match(pattern, log_files[0]), f"Log filename {log_files[0]} doesn't match expected pattern"
+        finally:
+            # Reconfiguring closes the replaced file handler, so the temporary directory can be removed
+            # (an open file cannot be deleted on Windows). Running it in `finally` keeps a failed assertion
+            # above from leaving the file open and masking the real failure with a PermissionError.
+            configure_logging(logging_level="DEBUG", save_logs_to_file=False)
         assert file_handler.stream is None
 
 
