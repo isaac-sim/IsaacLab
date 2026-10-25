@@ -147,6 +147,7 @@ Guidelines for modifications:
 * Lukas Fröhlich
 * Manuel Schweiger
 * Marco Alesiani
+* Mark Finean
 * Masoud Moghani
 * Mateo Guaman Castro
 * Matthew Taylor
