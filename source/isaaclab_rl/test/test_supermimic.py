@@ -79,6 +79,42 @@ def test_native_ownership_has_no_external_training_package():
             assert not any(name.startswith(("argparse", "gymnasium", "wandb", "isaaclab.envs")) for name in imports), (
                 path
             )
+    source = Path(ISAACLAB_ROOT) / "source"
+    assert not (source / "isaaclab_physicsnemo").exists()
+    newton = source / "isaaclab_newton/isaaclab_newton"
+    task_core = source / "isaaclab_tasks/isaaclab_tasks/core"
+    paths = (
+        *newton.glob("physics/nerd*.py"),
+        newton / "envs/mdp/recorders.py",
+        task_core / "cartpole/cartpole_nerd_env_cfg.py",
+        *task_core.glob("velocity/config/anymal_c/*.py"),
+        learning.parent / "nerd.py",
+    )
+    for path in paths:
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef)):
+                assert node.name not in {"TransitionCapture", "NewtonBinding", "TrajectoryDatasetRecorder"}, path
+            imports = []
+            if isinstance(node, ast.Import):
+                imports = [item.name for item in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                imports = [node.module or ""]
+            forbidden = ("isaaclab_physicsnemo", "supermimic", "argparse", "gymnasium", "wandb")
+            if path.is_relative_to(newton):
+                forbidden += ("isaaclab_rl", "isaaclab_tasks")
+            if path.is_relative_to(task_core) and path.name != "__init__.py":
+                forbidden += ("isaaclab_rl", "physicsnemo")
+            # Registration files legitimately import Gym, but never learner implementations.
+            if path.name != "__init__.py":
+                assert not any(name.startswith(forbidden) for name in imports), path
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    assert not (
+                        isinstance(target, ast.Attribute)
+                        and isinstance(target.value, ast.Name)
+                        and target.value.id == "NewtonManager"
+                    ), "Solver state belongs to the simulation's manager instance."
 
 
 def test_native_task_registration_and_optional_capture():

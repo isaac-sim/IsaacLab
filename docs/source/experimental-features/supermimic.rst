@@ -1,7 +1,17 @@
 .. _supermimic:
 
+Learned dynamics with NeRD and SuperMimic
+=========================================
+
+Isaac Lab supports two experimental learned-dynamics workflows in its native task and learning
+packages. Cartpole and ANYmal C collect offline NeRD datasets and train policies in a learned
+Newton solver. G1 motion tracking uses the SuperMimic online model-based learning workflow.
+Both use :class:`~isaaclab.managers.RecorderManager` to capture transitions before autoreset,
+with storage selected independently by the consumer. PhysicsNeMo Robotics owns the NeRD network;
+Isaac Lab owns task configuration, capture, optimization and the Newton integration.
+
 SuperMimic motion tracking
-==========================
+--------------------------
 
 The experimental ``IsaacContrib-Motion-Tracking-G1`` task integrates the
 `SuperMimic workflow <https://github.com/zita-ch/supermimic_vibed>`__ into Isaac Lab.
@@ -144,6 +154,10 @@ PhysicsNeMo Robotics ``0.1.0.dev0`` at revision ``a81160ef`` and PhysicsNeMo ``2
 development environment. A clean, released package combination is not established here;
 the experimental dependency must be supplied separately.
 
+The offline NeRD workflow below uses that same network implementation with temporal attention.
+Its generalized-coordinate state and fixed offline normalization differ from SuperMimic's
+task-specific state and online statistics. Those representations are intentionally distinct.
+
 Logging and preemption
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -199,3 +213,122 @@ training forwarder or moving learner ownership into the task.
 
 The source adaptation preserves the upstream SuperMimic MIT notice in
 ``docs/licenses/dependencies/supermimic-license.txt``.
+
+Offline NeRD: Cartpole and ANYmal C
+-----------------------------------
+
+The registered tasks live in ``isaaclab_tasks.core.cartpole.cartpole_nerd_env_cfg`` and
+``isaaclab_tasks.core.velocity.config.anymal_c.nerd_env_cfg``. Each has a numerical teacher,
+a task-independent ``-Explore`` configuration, and a ``-Learned`` configuration for policy
+training/playback. They use ordinary action, observation, reward and termination managers.
+The exploration tasks configure ``NeRDRecorderCfg``; teacher and learned playback leave capture
+disabled by default. Algorithm settings are registered under ``nerd_cfg_entry_point`` and are
+selected from the recording's task metadata, without launching a simulation during offline fitting.
+
+The shared Newton representation and solver live in ``isaaclab_newton.physics``. The recorder
+term lives in ``isaaclab_newton.envs.mdp.recorders``. ``isaaclab_rl.nerd`` owns offline window
+sampling and optimization. The two scripts under ``scripts/learning/nerd`` are composition roots
+for collection and fitting; policy learning uses the existing reinforcement-learning scripts.
+There is no additional integration package or external task launcher.
+
+Cartpole records applied efforts at 120 Hz. ANYmal C records executed joint-position targets
+over a 20 ms control period, including the teacher's four 5 ms ANYdrive updates. Its state
+features use the root heading frame, body-frame gravity, and four fixed foot-sphere probes.
+The learned solver predicts that entire period, then uses Newton forward kinematics to update
+body state. The numerical collision and constraint solve is replaced; fixed probe feature
+queries and forward kinematics remain. Both numerical and learned physics enable CUDA graphs.
+The learned manager retains a private Torch allocation pool for its captured temporaries.
+
+Collect and fit
+~~~~~~~~~~~~~~~
+
+Install the optional PhysicsNeMo Robotics dependency described above. These commands use
+``--no-sync`` to preserve that separately installed experimental dependency:
+
+.. code-block:: bash
+
+   uv run --no-sync python scripts/learning/nerd/record.py \
+       --task Isaac-Cartpole-NeRD-Explore --output logs/nerd/cartpole/data.hdf5 \
+       --num_envs 1024 --steps 1500
+   uv run --no-sync python scripts/learning/nerd/train.py \
+       --dataset logs/nerd/cartpole/data.hdf5 --output logs/nerd/cartpole/model \
+       --wandb_project <project> --wandb_entity <entity>
+
+   uv run --no-sync python scripts/learning/nerd/record.py \
+       --task Isaac-Velocity-Flat-Anymal-C-NeRD-Explore --output logs/nerd/anymal/data.hdf5 \
+       --num_envs 4096 --steps 600 --action_scale 1.5
+   uv run --no-sync python scripts/learning/nerd/train.py \
+       --dataset logs/nerd/anymal/data.hdf5 --output logs/nerd/anymal/model \
+       --wandb_project <project> --wandb_entity <entity>
+
+The default Cartpole recipe uses 30,000 updates and ten input frames. ANYmal C uses 60,000
+updates and thirteen frames, with its network geometry configured alongside the task. The
+training loop samples history from flattened device-resident transitions, so memory does not
+multiply by history length. Data must still fit on the selected device. ``--config`` accepts
+JSON overrides of ``NeRDTrainCfg``. For a smoke test, collect 32 steps in four worlds and fit
+with ``--max_updates 3 --batch_size 16 --log_interval 1 --save_interval 1``.
+
+Collection writes native HDF5 episodes, a JSON representation descriptor, and the resolved
+task YAML beside the dataset. Keep those files together. The recorder publishes preallocated
+``state``, ``next_state``, ``control``, ``contacts``, ``terminated`` and ``truncated`` tensors.
+Contact features come from the pre-state; executed control is read after the step; the terminal
+successor is read before reset. An online consumer can read ``latest`` with
+``record_to_episodes=False`` and feed replay or a prediction-error objective without a writer.
+
+Fitting splits complete episodes, repeats the first frame for reset prefixes, includes terminal
+transitions, and rejects discontinuous episodes. It reports training/held-out normalized MSE
+and held-out delta MSE. These measure dynamics prediction, not policy task performance.
+
+``last.pt`` contains network weights, fixed normalization, physical model identity, frame and
+control conventions, optimizer state, sampler state and progress. Saves are atomic, happen at
+least every 120 seconds between updates, and are uploaded synchronously when W&B is enabled.
+SIGINT/SIGTERM finishes the current update and saves. Resume with:
+
+.. code-block:: bash
+
+   uv run --no-sync python scripts/learning/nerd/train.py \
+       --dataset logs/nerd/anymal/data.hdf5 --output logs/nerd/anymal/model \
+       --checkpoint logs/nerd/anymal/model/last.pt --max_updates 80000 \
+       --wandb_project <project> --wandb_entity <entity>
+
+The checkpoint owns the normalization statistics. Data, split, network and optimization settings
+must match; the update budget can increase without changing the learning-rate decay schedule.
+
+Train and evaluate a policy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Select the learned task and pass its dynamics checkpoint through normal task overrides:
+
+.. code-block:: bash
+
+   uv run --no-sync python scripts/reinforcement_learning/train.py \
+       --rl_library rsl_rl --task Isaac-Cartpole-NeRD-Learned --num_envs 4096 \
+       env.sim.physics.solver_cfg.checkpoint=logs/nerd/cartpole/model/last.pt
+   uv run --no-sync python scripts/reinforcement_learning/train.py \
+       --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-C-NeRD-Learned --num_envs 4096 \
+       env.sim.physics.solver_cfg.checkpoint=logs/nerd/anymal/model/last.pt
+
+   uv run --no-sync python scripts/reinforcement_learning/play.py \
+       --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-C-NeRD \
+       --checkpoint /path/to/policy/model_299.pt --num_envs 16 --video --video_length 600
+
+The last command evaluates the learned-physics policy in MuJoCo Warp. To evaluate the same
+policy in learned physics, use ``-Learned`` and the same dynamics-checkpoint override. The
+policy observation/action layouts and objectives agree between the two configurations.
+ANYmal's acceleration penalty uses the control period in both solvers. Contact-force rewards,
+torque penalties and physics randomizations absent from the model's inputs are disabled in both.
+
+Scope and migration
+~~~~~~~~~~~~~~~~~~~
+
+These are joint-backed rigid scenes with fixed physical parameters. The solver rejects a changed
+physical model, unsupported timing, external body wrenches and unmodeled velocity commands.
+ANYmal's fixed-plane probes do not represent rough terrain. A rough-terrain model needs a matching
+terrain feature contract for collection and learned rollout; changing the task's terrain alone
+does not provide that contract.
+
+Native HDF5 and checkpoints replace the experimental ``isaaclab_physicsnemo`` Zarr/artifact
+launchers. Existing artifacts are not silently converted or treated as compatible. Historical
+training results from that branch are not new validation of this workflow. The native integration
+tests cover both tasks, terminal capture and retained values, offline update/resume, and repeated
+learned-solver graph replay with asynchronous resets and intervening tensor allocations.
