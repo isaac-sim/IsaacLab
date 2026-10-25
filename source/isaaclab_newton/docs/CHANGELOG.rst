@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+10.1.1 (2026-10-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Routed frame-transformer, PVA, and frame-view state reads through the existing lazy
+  scene-data state accessor so the Newton manager resolves pending kinematics.
+* Initialized PVA pose and quaternion buffers to their identity reset defaults.
+
+
 10.1.0 (2026-10-23)
 ~~~~~~~~~~~~~~~~~~~
 
