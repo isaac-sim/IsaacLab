@@ -72,6 +72,7 @@ def test_checkpoint_interface_and_invalid_action_recovery(task):
     """Both real tasks preserve learned feature ordering, finite rewards and independent reset flags."""
     with closing(_environment(task)) as env:
         obs, _ = env.reset()
+        torch.testing.assert_close(env.scene["robot"].data.root_pos_w.torch[:, 2], env.scene.env_origins[:, 2])
         assert obs["policy"].shape == (2, 123)
         assert env.action_manager.total_action_dim == 8
         assert env.physics_dt == 1 / 120 and env.step_dt == 1 / 60
