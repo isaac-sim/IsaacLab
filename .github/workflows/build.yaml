@@ -725,6 +725,8 @@ jobs:
         cache-tag: cache-curobo
         # SkillGen's simulator-driven dataset test remains available for manual runs.
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
+        # test_pink_ik.py (~7 min) bounds the job; the two planner files (~3 min) finish beside it.
+        test-jobs: "3"
         container-name: isaac-lab-curobo-test
 
     # Folded from the former standalone verify-curobo-non-root job: reuses
