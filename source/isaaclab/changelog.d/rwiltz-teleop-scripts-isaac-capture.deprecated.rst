@@ -6,5 +6,5 @@
   :func:`~isaaclab_teleop.se3_gamepad_teleop_cfg`, :func:`~isaaclab_teleop.se3_spacemouse_teleop_cfg`
   and their SE(2) counterparts), which run the device through Isaac Capture. The device
   configs (:class:`~isaaclab.devices.Se3KeyboardCfg`, ...) are not deprecated: the teleop scripts
-  run an environment's ``teleop_devices`` entries through the equivalent Isaac Capture pipeline
-  when the ``isaacteleop`` package is installed, and through these devices otherwise.
+  run an environment's ``teleop_devices`` entries through the equivalent Isaac Capture pipeline.
+  Isaac Lab's scripts no longer construct these devices; they remain for code that does.

@@ -44,7 +44,7 @@ from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass, index_fill_, instantiate, replace
+from isaaclab.utils import configclass, index_fill_, replace
 from isaaclab.utils.math import sample_uniform
 from isaaclab.visualizers import VisualizerCfg, add_key_callbacks
 
@@ -330,12 +330,10 @@ def main() -> None:
         teleop_device = contextlib.ExitStack()
         if pick_and_place.sim.has_gui:
             teleop_cfg = Se3KeyboardCfg(pos_sensitivity=10.0, sim_device=pick_and_place.device)
-            try:
-                from isaaclab_teleop.script_input import open_teleop_device
-            except ImportError:  # without the teleop or mimic extra
-                teleop = instantiate(teleop_cfg)
-            else:
-                teleop = teleop_device.enter_context(open_teleop_device(teleop_cfg))
+            # the keyboard runs through Isaac Capture, which the teleop extra installs
+            from isaaclab_teleop.script_input import open_teleop_device
+
+            teleop = teleop_device.enter_context(open_teleop_device(teleop_cfg))
             add_key_callbacks(
                 {"N": lambda: pick_and_place.auto_aim(cube=True), "M": lambda: pick_and_place.auto_aim(cube=False)}
             )

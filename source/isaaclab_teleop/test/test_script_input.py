@@ -12,6 +12,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import isaaclab_teleop.device_selection as device_selection
 import isaaclab_teleop.script_input as script_input
 import pytest
 from isaaclab_teleop.isaac_teleop_cfg import CLOUDXR_STANDALONE_ENV
@@ -20,17 +21,15 @@ from isaaclab_teleop.script_input import open_teleop_device
 pytestmark = pytest.mark.unit
 
 
-def test_without_isaacteleop_the_device_config_is_instantiated(monkeypatch):
-    monkeypatch.setattr(script_input, "_isaacteleop_available", lambda: False)
-    device = object()
-    with patch("isaaclab.utils.instantiate", return_value=device) as instantiate:
-        with open_teleop_device("cfg") as opened:
-            assert opened is device
-    instantiate.assert_called_once_with("cfg")
+def test_without_isaacteleop_opening_a_device_raises(monkeypatch):
+    monkeypatch.setattr(device_selection, "_isaacteleop_available", lambda: False)
+    with pytest.raises(ImportError, match="teleop extra"):
+        with open_teleop_device(SimpleNamespace(name="keyboard", sim_device="cpu")):
+            pass
 
 
 def test_with_isaacteleop_the_pipeline_runs_headset_free(monkeypatch):
-    monkeypatch.setattr(script_input, "_isaacteleop_available", lambda: True)
+    monkeypatch.setattr(device_selection, "_isaacteleop_available", lambda: True)
     monkeypatch.setattr(script_input, "pipeline_from_device_cfg", lambda cfg, sim_device: f"pipeline:{cfg.name}")
     device = MagicMock()
     device.__enter__.return_value = device
