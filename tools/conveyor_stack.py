@@ -100,7 +100,7 @@ def main() -> None:
             checks = []
             if args.check:
                 tests = [
-                    "source/isaaclab/test/sim/test_spawn_meshes.py",
+                    "source/isaaclab/test/sim/test_spawn_from_files.py::test_spawn_mesh_from_triangle_data",
                     "source/isaaclab_contrib/test/conveyors/test_surface_velocity_spec.py",
                     "source/isaaclab_contrib/test/conveyors/test_surface_velocity_newton.py",
                     "source/isaaclab_contrib/test/conveyors/test_surface_velocity_physx.py",

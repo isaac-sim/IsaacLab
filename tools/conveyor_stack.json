@@ -5,10 +5,6 @@
   "integration_branch": "maximiliank/conveyor-franka-env",
   "components": [
     {
-      "pr": 8326,
-      "name": "Custom mesh spawning"
-    },
-    {
       "pr": 8327,
       "name": "Experimental conveyor support in Contrib"
     },
@@ -26,14 +22,8 @@
     }
   ],
   "snapshot": {
-    "base": "b03345bbf2c9a54eb03f9bd823ae19c0ca3a014e",
+    "base": "259e1a8cf79de53c52ca395599ac1cd9bc395b28",
     "components": [
-      {
-        "pr": 8326,
-        "name": "Custom mesh spawning",
-        "head": "dae0d8cab4e969531040ad9d3fb849e478f50ef7",
-        "merged": false
-      },
       {
         "pr": 8327,
         "name": "Experimental conveyor support in Contrib",
@@ -43,35 +33,35 @@
       {
         "pr": 8331,
         "name": "Racetrack transfer task",
-        "head": "4c83011cb260afb2d2079be02437d759a7b69e2e",
+        "head": "b702f94a3074fc3816df7aa35c5240c771ff65fa",
         "merged": false
       },
       {
         "pr": 8332,
         "name": "Warehouse sorting task",
-        "head": "645b74052afddb8ff67bc62c2c903eb2d3bb04b1",
+        "head": "8ff9bf90dbc270fd9fe51b4070118e585db2d13e",
         "merged": false
       },
       {
         "pr": 8794,
         "name": "Optional native CPU PhysX support",
-        "head": "fa4e8fe509bdf6e7deb1726243f6269e4817c703",
+        "head": "fbe9220ded233c3cf102bfa8c14251d3e2350872",
         "merged": false
       }
     ],
     "checks": [
-      "Newton 1.8 / MuJoCo 3.15 / Isaac Sim 6.2 from current main; dependency pins preserved",
-      "115 Newton manager tests, 15 conveyor/spec cases, 19 native mesh cases, 13 task/geometry cases, 4 warehouse asset cases and 5 optional PhysX cases passed",
-      "Existing physical transport test fails when solver observables are not forwarded",
-      "Newton GPU checkpoint playback: eight environments, 1200 steps, 14 transfers, zero failures/non-finite observations",
-      "Optional PhysX: exact two-environment 120-step CI smoke and 135-step native contact/full/partial/hard-reset probe passed",
-      "Fresh reconstruction from main and all five exact component heads merges without conflicts and matches the tested source/docs/lock tree",
+      "38 focused cases passed: 13 task/geometry, 4 warehouse assets, 15 Newton/spec, 5 optional PhysX and the existing native triangle-mesh owner case",
+      "Native mesh replacement matches 90 mesh inputs and 16 finalized Newton geometry/material arrays; stock cuboid colors match all six original callers",
+      "Single-pass visual stripping preserves physics ownership; normalized warehouse geometry/materials/cameras match after correcting the old duplicate robot height",
+      "84 action/tool/reset tensors and 261 dispatcher tensors match; existing keepers reject duplicate robot elevation and cross-environment slot broadcast mutations",
+      "Newton GPU checkpoint: eight environments, 1200 steps, 15 transfers, zero failures/non-finite observations",
+      "Optional PhysX native probe: two CPU environments, 135 steps, 16 surfaces, no fall-through; partial/full/hard reset and repeated close passed",
       "Full formatting/lint/changelog/LFS, lock consistency and generated environment-browser checks passed",
-      "Clean strict Sphinx HTML build passed; both JPEG preview assignments retained"
+      "Clean strict Sphinx HTML build passed; existing JPEG previews retained"
     ],
     "limitations": [
-      "Bounded playback checks do not establish complete-batch warehouse sorting quality or cross-backend numerical parity"
+      "Warehouse checkpoint model_1100: paired corrected historical/new scenes each completed zero transfers in two environments over 2400 steps (seed 41), with zero failures/non-finite observations; sorting capability remains unvalidated"
     ],
-    "checked_at": "2026-10-23T15:26:19.929705+00:00"
+    "checked_at": "2026-10-25T18:51:48.568549+00:00"
   }
 }
