@@ -25,7 +25,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg
+from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg, UsdPhysicsMeshCollisionCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
@@ -75,7 +75,6 @@ _ROBOT_INITIAL_STATE = ArticulationCfg.InitialStateCfg(
 
 def _validate_common_config(cfg: ConveyorFrankaEnvCfg) -> None:
     """Validate backend-independent timing and policy tensor contracts."""
-    cfg.conveyor_force.validate_config()
     if not cfg.sim.use_newton_actuators:
         raise ValueError("The conveyor Franka requires the shared Newton-actuator execution path.")
     if not math.isfinite(cfg.sim.dt) or cfg.sim.dt <= 0.0 or cfg.decimation <= 0:
@@ -98,13 +97,6 @@ def _collision_properties(contact_margin: float = 0.0, mujoco_priority: int = 0)
             solref=_MUJOCO_SOLREF,
         ),
     ]
-
-
-def _srgb_to_linear_channel(value: float) -> float:
-    """Convert an sRGB channel to the linear value expected by USD displayColor."""
-    if value <= 0.04045:
-        return value / 12.92
-    return ((value + 0.055) / 1.055) ** 2.4
 
 
 @configclass
@@ -294,10 +286,6 @@ class ConveyorForceCfg:
     transported_body_count_per_env: int = 4
     """Expected number of transported rigid bodies in each environment."""
 
-    def __post_init__(self) -> None:
-        """Validate conveyor force parameters."""
-        self.validate_config()
-
     def validate_config(self) -> None:
         """Validate final conveyor-force values after overrides are applied."""
         if not math.isfinite(self.speed) or self.speed < 0.0:
@@ -319,27 +307,6 @@ class ConveyorForceCfg:
             raise ValueError(f"Invalid conveyor transported-body pattern: {self.transported_body_pattern!r}.") from exc
 
 
-@sim_utils.clone
-def _spawn_shape_with_display_color(
-    prim_path: str,
-    cfg: sim_utils.CuboidCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-):
-    """Spawn a cuboid and author a renderer-independent USD display color."""
-    prim = sim_utils.spawn_cuboid(prim_path, cfg, translation, orientation, **kwargs)
-
-    if cfg.visual_material is not None:
-        from pxr import Usd, UsdGeom
-
-        display_color = tuple(_srgb_to_linear_channel(value) for value in cfg.visual_material.diffuse_color)
-        for child in Usd.PrimRange(prim):
-            if child.IsA(UsdGeom.Gprim):
-                UsdGeom.Gprim(child).CreateDisplayColorAttr([display_color])
-    return prim
-
-
 def _static_cuboid(
     prim_path: str,
     size: tuple[float, float, float],
@@ -351,7 +318,6 @@ def _static_cuboid(
         prim_path=prim_path,
         init_state=AssetBaseCfg.InitialStateCfg(pos=pos),
         spawn=sim_utils.CuboidCfg(
-            func=_spawn_shape_with_display_color,
             size=size,
             collision_props=_collision_properties(),
             physics_material=RigidBodyMaterialBaseCfg(static_friction=0.7, dynamic_friction=0.7, restitution=0.0),
@@ -372,7 +338,10 @@ def _conveyor_asset(
         spawn = sim_utils.CuboidCfg(size=spec.size)
         position = spec.position
     else:
-        spawn = sim_utils.MeshCustomCfg(vertices=spec.vertices, faces=spec.faces)
+        spawn = sim_utils.MeshFileCfg(
+            mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(vertices=spec.vertices, faces=spec.faces),
+            mesh_collision_props=UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
+        )
         position = (0.0, 0.0, 0.0)
     spawn.visible = visual_material is not None
     spawn.visual_material = visual_material
@@ -397,7 +366,6 @@ def _cube(
 ) -> RigidObjectCfg:
     """Build one numbered dynamic transfer cube."""
     spawn = sim_utils.CuboidCfg(
-        func=_spawn_shape_with_display_color,
         size=(0.04, 0.04, 0.04),
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         mass_props=sim_utils.MassCfg(mass=0.05),
@@ -503,7 +471,7 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL task for commanded conveyor-to-conveyor cube transfer."""
 
     class_type: type | str = "{DIR}.conveyor_franka_env:ConveyorFrankaEnv"
-    scene: ConveyorFrankaSceneCfg = ConveyorFrankaSceneCfg(num_envs=256, env_spacing=3.0, replicate_physics=True)
+    scene: ConveyorFrankaSceneCfg = ConveyorFrankaSceneCfg(num_envs=256, env_spacing=3.0)
     conveyor_force: ConveyorForceCfg = ConveyorForceCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
@@ -523,8 +491,7 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
                 solver="newton",
                 integrator="implicitfast",
                 # Per-environment capacities include headroom for all four cubes,
-                # the gripper, table, belts, and guard contacts without allocating
-                # the previous 256k-contact scene-wide driver buffers.
+                # the gripper, table, belts, and guard contacts.
                 njmax=300,
                 nconmax=200,
                 impratio=1.0,

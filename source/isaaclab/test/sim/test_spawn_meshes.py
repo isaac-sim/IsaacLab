@@ -160,37 +160,6 @@ def test_invalid_edge_refinement(sim):
         cfg.func("/World/Invalid", cfg)
 
 
-def test_spawn_custom_mesh(sim):
-    """Test spawning an exact collision mesh from authored triangle data."""
-    cfg = sim_utils.MeshCustomCfg(
-        vertices=((-0.5, -0.5, 0.0), (0.5, -0.5, 0.0), (0.5, 0.5, 0.0), (-0.5, 0.5, 0.0)),
-        faces=((0, 1, 2), (0, 2, 3)),
-        collision_props=sim_utils.CollisionBaseCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.4, 0.8)),
-    )
-    prim = cfg.func("/World/CustomMesh", cfg)
-
-    assert prim.IsValid()
-    mesh_prim = sim.stage.GetPrimAtPath("/World/CustomMesh/geometry/mesh")
-    assert mesh_prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
-    assert mesh_prim.GetAttribute("faceVertexIndices").Get() == [0, 1, 2, 0, 2, 3]
-    assert mesh_prim.GetAttribute("subdivisionScheme").Get() == "none"
-    assert mesh_prim.GetAttribute("physics:approximation").Get() == "none"
-    assert not mesh_prim.GetAttribute("primvars:displayColor").HasAuthoredValue()
-
-
-def test_spawn_custom_mesh_rejects_malformed_data(sim):
-    """Reject lossy face indices and non-finite USD points before authoring any prim."""
-    cfg = sim_utils.MeshCustomCfg(vertices=((0, 0, 0), (1, 0, 0), (0, 1, 0)), faces=((0, 1, 2),))
-    for invalid, message in (
-        (cfg.replace(faces=((0, 1.9, 2),)), "integer"),
-        (cfg.replace(vertices=((float("nan"), 0, 0), (1, 0, 0), (0, 1, 0))), "finite"),
-    ):
-        with pytest.raises(ValueError, match=message):
-            invalid.func("/World/InvalidCustomMesh", invalid)
-        assert not sim.stage.GetPrimAtPath("/World/InvalidCustomMesh").IsValid()
-
-
 """
 Physics properties.
 """
