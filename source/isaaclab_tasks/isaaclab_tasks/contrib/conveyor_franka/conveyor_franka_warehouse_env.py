@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -30,9 +31,10 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
     Newton viewers show a static approximation of the warehouse dressing.
     """
 
-    def __init__(self, cfg: ConveyorFrankaA09A12EnvCfg, render_mode: str | None = None, **kwargs):
+    cfg: ConveyorFrankaA09A12EnvCfg
+
+    def __init__(self, cfg: ConveyorFrankaA09A12EnvCfg, render_mode: str | None = None, **kwargs) -> None:
         self._warehouse_animation: list[tuple[Usd.Attribute, Usd.Attribute]] = []
-        self._warehouse_arm_joint_ids: list[int] | None = None
         cfg.scene._configure_route_assets(cfg.commands.transfer.parcel_colors)
         super().__init__(cfg, render_mode=render_mode, **kwargs)
         viewer = next((viz.cfg for viz in self.sim.visualizers if viz.cfg.backend.visualizer_type == "kit"), None)
@@ -65,6 +67,9 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         assets = tuple(self.scene[f"cube_{i}"] for i in range(self.cfg.conveyor_force.transported_body_count_per_env))
         self.conveyor_cube_pool = ConveyorCubePool(assets, self.num_envs, self.device)
         self._parcel_start_positions = torch.tensor(warehouse_parcel_positions(), device=self.device)
+        self._warehouse_arm_joint_ids = self.scene["robot"].find_joints(
+            self.cfg.actions.arm_action.joint_names, preserve_order=True
+        )[0]
         super().load_managers()
 
     @staticmethod
@@ -79,7 +84,9 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             & ((positions[..., 2] < 0.12) | (positions[..., 0] < 1.05))
         )
 
-    def _adapt_policy_cube_state(self, positions, quaternions, velocities):
+    def _adapt_policy_cube_state(
+        self, positions: torch.Tensor, quaternions: torch.Tensor, velocities: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Represent remote inventory as waiting slots while keeping local manipulation states exact."""
         origins = self.scene.env_origins[:, None, :]
         local = positions - origins
@@ -106,10 +113,6 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             return super().step(action)
         command = self.command_manager.get_term("transfer")
         robot = self.scene["robot"]
-        if self._warehouse_arm_joint_ids is None:
-            self._warehouse_arm_joint_ids = robot.find_joints(
-                self.cfg.actions.arm_action.joint_names, preserve_order=True
-            )[0]
         joint_ids = self._warehouse_arm_joint_ids
         parked = torch.zeros_like(action)
         parked[:, :7] = (
@@ -129,7 +132,7 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             for source, target in self._warehouse_animation:
                 target.Set(source.Get(time_code))
 
-    def _reset_idx(self, env_ids) -> None:
+    def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
         """Shuffle a mixed batch across the authored feeds in selected environments."""
         if isinstance(env_ids, slice):
             env_ids = self.scene._ALL_INDICES[env_ids]

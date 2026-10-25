@@ -85,7 +85,7 @@ class ConveyorSortCommand(ConveyorTransferCommand):
         positions_w = cube_values(env, "root_pos_w", all_cubes=True)
         positions = positions_w - env.scene.env_origins[:, None]
         local = env._in_workcell(positions)
-        rows = torch.arange(self.num_envs, device=self.device)
+        rows = env.scene._ALL_INDICES
         physical_target = pool.slot_ids[rows, self.target_cube_ids]
         held = self._physical_cube_acquisition_mask(positions_w[rows, physical_target]) & self.has_target
         self.has_target &= ~self.pending_success & (local[rows, physical_target] | held)
@@ -104,12 +104,12 @@ class ConveyorSortCommand(ConveyorTransferCommand):
         available = candidates.gather(1, pool.slot_ids)
         eligible = available.any(dim=1) & ~self.has_target
         choices = torch.where(available, positions[..., 0].gather(1, pool.slot_ids), -torch.inf).argmax(dim=1)
-        for slot in range(4):
-            env_ids = torch.where(eligible & (choices == slot))[0]
-            if env_ids.numel():
-                self.set_goal(slot, env_ids)
-                self.has_target[env_ids] = True
-                self.command_counter[env_ids] += 1
+        env_ids = eligible.nonzero(as_tuple=False).flatten()
+        slots = choices[env_ids]
+        physical_ids = pool.slot_ids[env_ids, slots]
+        self._assign_goal(env_ids, slots, (positions[env_ids, physical_ids, 1] < 0.0).long())
+        self.has_target[env_ids] = True
+        self.command_counter[env_ids] += 1
         # A class is counted only after leaving the elevated supply and landing on a loop.
         velocities = cube_values(env, "root_lin_vel_w", all_cubes=True)
         on_loop = (positions[..., 2] > 0.04) & (positions[..., 2] < 0.20) & (velocities[..., 2].abs() < 0.15)
