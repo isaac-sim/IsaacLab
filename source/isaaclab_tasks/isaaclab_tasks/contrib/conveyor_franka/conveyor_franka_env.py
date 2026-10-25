@@ -29,6 +29,25 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         super().__init__(cfg, render_mode=render_mode, **kwargs)
         self._setup_goal_selector()
 
+    def load_managers(self) -> None:
+        """Bind the fixed Panda tool frame before manager terms inspect it."""
+        hand_ids, _ = self.scene["robot"].find_bodies("panda_hand")
+        if len(hand_ids) != 1:
+            raise ValueError(f"Expected one Panda hand body, found {len(hand_ids)}.")
+        self._conveyor_hand_body_id = hand_ids[0]
+        self._conveyor_tool_offset = torch.tensor((0.0, 0.0, 0.1034), dtype=torch.float32, device=self.device).expand(
+            self.num_envs, -1
+        )
+        super().load_managers()
+
+    def close(self) -> None:
+        """Release conveyor callbacks before the physics scene is destroyed."""
+        conveyor_driver = self._conveyor_driver
+        if conveyor_driver is not None:
+            conveyor_driver.close()
+            self._conveyor_driver = None
+        super().close()
+
     def _init_sim(self) -> None:
         """Register solved-contact hooks before the first reset captures the solver."""
         driver = SurfaceVelocity(
@@ -52,17 +71,6 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             self._conveyor_driver = None
             raise
 
-    def load_managers(self) -> None:
-        """Bind the fixed Panda tool frame before manager terms inspect it."""
-        hand_ids, _ = self.scene["robot"].find_bodies("panda_hand")
-        if len(hand_ids) != 1:
-            raise ValueError(f"Expected one Panda hand body, found {len(hand_ids)}.")
-        self._conveyor_hand_body_id = hand_ids[0]
-        self._conveyor_tool_offset = torch.tensor((0.0, 0.0, 0.1034), dtype=torch.float32, device=self.device).expand(
-            self.num_envs, -1
-        )
-        super().load_managers()
-
     def _setup_goal_selector(self) -> None:
         """Attach one task panel to the first GL visualizer."""
         for visualizer in self.sim.visualizers:
@@ -83,11 +91,3 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         conveyor_driver = self._conveyor_driver
         if conveyor_driver is not None:
             conveyor_driver.reset(env_ids)
-
-    def close(self) -> None:
-        """Release conveyor callbacks before the physics scene is destroyed."""
-        conveyor_driver = self._conveyor_driver
-        if conveyor_driver is not None:
-            conveyor_driver.close()
-            self._conveyor_driver = None
-        super().close()
