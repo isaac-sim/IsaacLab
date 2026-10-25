@@ -70,8 +70,8 @@ PER_TEST_STARTUP_TIMEOUTS = {
 """Per-test startup timeouts for cold external asset downloads."""
 
 PYTEST_WORKERS = {
-    # Standalone launches already use independent subprocesses; overlap two simulator startups.
-    "test_standalone_scripts.py": 2,
+    # Standalone launches already use independent subprocesses; overlap four simulator startups.
+    "test_standalone_scripts.py": 4,
     # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
     # stays whole: its workers would each start the RTX renderer, and one environment dominates it.
     "test_contrib_environments_kit.py": 2,
@@ -108,15 +108,22 @@ These tests are skipped in the base image CI jobs and run in the dedicated
 CUROBO_TESTS = [
     *CUROBO_PLANNER_TESTS,
     "test_generate_dataset_skillgen.py",
-    "test_contrib_environments_kit.py",
-    "test_contrib_environments_kit_cameras.py",
-    "test_contrib_environments_kitless.py",
 ]
 """A list of tests that require cuRobo installation.
 
 These tests are skipped in the base image CI jobs and run separately in the
-dedicated ``test-curobo`` and ``test-contrib-environments`` CI jobs which use the cuRobo
-Docker image.
+dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
+"""
+
+CONTRIB_ENVIRONMENT_TESTS = [
+    "test_contrib_environments_kit.py",
+    "test_contrib_environments_kit_cameras.py",
+    "test_contrib_environments_kitless.py",
+]
+"""Contributed-environment smoke tests.
+
+These tests are skipped in the package CI jobs and run in the dedicated
+``test-contrib-environments`` CI job.
 """
 
 QUARANTINED_TESTS: list[str] = [
@@ -142,6 +149,8 @@ TESTS_TO_SKIP = [
     "test_record_video.py",  # Failing
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
+    # contributed environments - run via the test-contrib-environments CI job
+    *CONTRIB_ENVIRONMENT_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
