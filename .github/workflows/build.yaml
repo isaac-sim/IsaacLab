@@ -228,9 +228,7 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    # Runs on push too, with no test consumer, so a dependency change merged to a protected
-    # branch publishes its deps-<hash> image before PRs rebase onto it. Otherwise the first
-    # PR after each merge pays the 25-45 min cuRobo build on its critical path.
+    # Also runs on push so PRs find the cuRobo deps image already built.
     if: needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
@@ -726,7 +724,7 @@ jobs:
         cache-tag: cache-curobo
         # SkillGen's simulator-driven dataset test remains available for manual runs.
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
-        # test_pink_ik.py (~7 min) bounds the job; the two planner files (~3 min) finish beside it.
+        # The planner files finish alongside test_pink_ik.py (~7 min).
         test-jobs: "3"
         container-name: isaac-lab-curobo-test
 

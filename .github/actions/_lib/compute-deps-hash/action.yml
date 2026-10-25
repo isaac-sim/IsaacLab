@@ -116,10 +116,7 @@ runs:
         esac
         base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${base_image_digest}"
 
-        # The nightly changelog job bumps every touched package's own ``version =`` line in its
-        # pyproject.toml and editable uv.lock entry. That changes no installed dependency, but
-        # hashing it made the first PR after each bump rebuild both images (20-45 min). Drop
-        # those lines; third-party lock entries (``source = { registry ...``) keep theirs.
+        # Skip first-party ``version =`` lines so nightly version bumps do not rebuild the images.
         mapfile -t manifest_files < <(git ls-files | grep -E "${deps_manifest_pattern}" || true)
         file_hash=$(
           {
