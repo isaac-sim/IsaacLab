@@ -29,60 +29,9 @@ from ..utils import (
     props_expr,
     resolve_deformable_slot,
 )
-from .meshes_cfg import MeshCustomCfg
 
 if TYPE_CHECKING:
     from . import meshes_cfg
-
-
-@clone
-def spawn_mesh_custom(
-    prim_path: str,
-    cfg: meshes_cfg.MeshCustomCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-) -> Usd.Prim:
-    """Create a USD mesh from explicitly authored vertices and triangular faces.
-
-    This spawner is intended for custom static geometry such as terrain patches,
-    tracks, and fixtures that cannot be represented by the generated mesh
-    primitives. Face winding is preserved, so counter-clockwise faces define the
-    colliding side when exact triangle-mesh collision is selected.
-
-    Args:
-        prim_path: Prim path or pattern at which to spawn the asset.
-        cfg: Custom mesh configuration.
-        translation: Translation relative to the parent prim [m].
-        orientation: Quaternion orientation in ``(x, y, z, w)`` order.
-        **kwargs: Additional cloning keyword arguments.
-
-    Returns:
-        The created root prim.
-
-    Raises:
-        ValueError: If the vertex or face arrays are malformed, a face index is
-            out of range.
-    """
-    del kwargs
-    with np.errstate(over="ignore"):
-        vertices = np.asarray(cfg.vertices, dtype=np.float32)
-    if not np.isfinite(vertices).all():
-        raise ValueError("Custom mesh vertices must be finite USD float32 points.")
-    faces = np.asarray(cfg.faces)
-    if not np.issubdtype(faces.dtype, np.integer):
-        raise ValueError("Custom mesh face indices must be integers.")
-    if vertices.ndim != 2 or vertices.shape[1:] != (3,) or len(vertices) < 3:
-        raise ValueError(f"Custom mesh vertices must have shape (N, 3) with N >= 3, got {vertices.shape}.")
-    if faces.ndim != 2 or faces.shape[1:] != (3,) or len(faces) < 1:
-        raise ValueError(f"Custom mesh faces must have shape (M, 3) with M >= 1, got {faces.shape}.")
-    if np.any(faces < 0) or np.any(faces >= len(vertices)):
-        raise ValueError(f"Custom mesh face indices must be in [0, {len(vertices) - 1}].")
-
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
-    stage = get_current_stage()
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, mesh, translation, orientation, stage=stage)
-    return stage.GetPrimAtPath(prim_path)
 
 
 @clone
@@ -447,7 +396,7 @@ def _spawn_mesh_geom_from_mesh(
             "points": mesh.vertices,
             "faceVertexIndices": mesh.faces.flatten(),
             "faceVertexCounts": np.asarray([3] * len(mesh.faces)),
-            "subdivisionScheme": getattr(cfg, "subdivision_scheme", "bilinear"),
+            "subdivisionScheme": "bilinear",
         },
         stage=stage,
     )
@@ -479,16 +428,13 @@ def _spawn_mesh_geom_from_mesh(
         )
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
-        if isinstance(cfg, MeshCustomCfg):
-            collision_approximation = "none"
-        elif cfg.__class__.__name__ == "MeshSphereCfg":
+        if cfg.__class__.__name__ == "MeshSphereCfg":
             collision_approximation = "boundingSphere"
         elif cfg.__class__.__name__ == "MeshCuboidCfg":
             collision_approximation = "boundingCube"
         else:
             # for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg
             collision_approximation = "convexHull"
-        # apply collision approximation to mesh
         # note: for primitives, we use the convex hull approximation -- this should be sufficient for most cases.
         UsdPhysics.MeshCollisionAPI.Apply(mesh_prim).GetApproximationAttr().Set(collision_approximation)
         # collision properties anchor at the geometry prim
