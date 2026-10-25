@@ -161,11 +161,11 @@ class NewtonCfg(PhysicsCfg):
     :attr:`class_type` explicitly.
     """
 
-    class_type: type[NewtonManager] | str | None = None
+    class_type: type[NewtonManager] | str | None = field(default=None, init=False)
     """The class type of the :class:`NewtonManager`.
 
     Auto-set in :meth:`__post_init__` from :attr:`solver_cfg.class_type`.
-    Users normally do not set this directly.
+    It is not a constructor argument, so replacing a solver derives the matching manager again.
     """
 
     num_substeps: int = 1
@@ -294,10 +294,6 @@ class NewtonCfg(PhysicsCfg):
 
     def __post_init__(self):
         # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
-        # Refuse a user-set value: setting both is ambiguous and was
-        # previously silently overwritten.
-        if self.class_type is not None:
-            raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
             raise ValueError(
                 "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "
