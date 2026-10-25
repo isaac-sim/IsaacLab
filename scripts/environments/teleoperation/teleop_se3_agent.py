@@ -116,14 +116,13 @@ import logging
 import gymnasium as gym
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
+from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV, IsaacTeleopCfg
+from isaaclab_teleop.device_selection import create_teleop_device, select_teleop_cfg
 
 from isaaclab.devices import DeviceCfg, Se3GamepadCfg, Se3KeyboardCfg, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
-from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils import instantiate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift import mdp
@@ -142,15 +141,6 @@ else:
         "avp": CLOUDXR_AVP_ENV,
         "standalone": CLOUDXR_STANDALONE_ENV,
     }.get(args_cli.cloudxr_env.lower(), args_cli.cloudxr_env)
-
-
-def _builtin_device_cfgs(sensitivity: float) -> dict[str, DeviceCfg]:
-    """The built-in devices, by ``--teleop_device`` name, for names the environment does not declare."""
-    return {
-        "keyboard": Se3KeyboardCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.05 * sensitivity),
-        "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.05 * sensitivity),
-        "gamepad": Se3GamepadCfg(pos_sensitivity=0.1 * sensitivity, rot_sensitivity=0.1 * sensitivity),
-    }
 
 
 def main() -> None:  # noqa: C901
@@ -181,16 +171,24 @@ def main() -> None:  # noqa: C901
         # add termination condition for reaching the goal otherwise the environment won't reset
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
 
-    from isaaclab_teleop.device_selection import select_isaac_teleop_cfg
-
-    # Isaac Capture serves the request when it can: the env's isaac_teleop pipeline, or the
-    # keyboard, gamepad or spacemouse it names. Otherwise the isaaclab.devices device does.
-    isaac_teleop_cfg = select_isaac_teleop_cfg(
-        env_cfg, args_cli.teleop_device, _builtin_device_cfgs(args_cli.sensitivity), args_cli.device
+    teleop_cfg = select_teleop_cfg(
+        env_cfg,
+        args_cli.teleop_device,
+        {
+            "keyboard": Se3KeyboardCfg(
+                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+            ),
+            "spacemouse": Se3SpaceMouseCfg(
+                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+            ),
+            "gamepad": Se3GamepadCfg(
+                pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
+            ),
+        },
+        args_cli.device,
     )
-    use_isaac_teleop = isaac_teleop_cfg is not None
-    if use_isaac_teleop:
-        env_cfg.isaac_teleop = isaac_teleop_cfg
+    if isinstance(teleop_cfg, IsaacTeleopCfg):
+        env_cfg.isaac_teleop = teleop_cfg
 
     # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
     # path. Without --xr, Isaac Capture runs standalone (I/O only) and renders
@@ -202,13 +200,17 @@ def main() -> None:  # noqa: C901
             env_cfg = remove_camera_configs(env_cfg)
 
     with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
-        run_teleoperation(env_cfg, use_isaac_teleop, cleanup)
+        run_teleoperation(env_cfg, teleop_cfg, cleanup)
 
 
-def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cleanup: ExitStack) -> None:  # noqa: C901
+def run_teleoperation(
+    env_cfg: ManagerBasedRLEnvCfg, teleop_cfg: IsaacTeleopCfg | DeviceCfg, cleanup: ExitStack
+) -> None:  # noqa: C901
     """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
     from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
-    from isaaclab_teleop import XrCameraFeedSession
+    from isaaclab_teleop import XrCameraFeedSession, poll_control_events
+
+    use_isaac_teleop = isinstance(teleop_cfg, IsaacTeleopCfg)
 
     camera_feed_session = XrCameraFeedSession.prepare(
         env_cfg,
@@ -307,45 +309,17 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
         teleoperation_active = True
 
     try:
-        if use_isaac_teleop:
-            from isaaclab_teleop import create_isaac_teleop_device, poll_control_events
-
-            teleop_interface = create_isaac_teleop_device(
-                env_cfg.isaac_teleop,
-                sim_device=args_cli.device,
-                callbacks=teleoperation_callbacks,
-                cloudxr_env_file=args_cli.cloudxr_env,
-                auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
-                enable_debug_visualization=args_cli.enable_debug_visualization,
-                use_kit_xr_bridge=args_cli.xr,
-                haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
-            )
-
-        else:
-            # Task-declared devices take precedence only when explicitly selected.
-            if args_cli.teleop_device is not None and args_cli.teleop_device in env_cfg.teleop_devices.devices:
-                teleop_interface = create_teleop_device(
-                    args_cli.teleop_device, env_cfg.teleop_devices.devices, teleoperation_callbacks
-                )
-            else:
-                device_name = "keyboard" if args_cli.teleop_device is None else args_cli.teleop_device.lower()
-                device_cfg = _builtin_device_cfgs(args_cli.sensitivity).get(device_name)
-                if device_cfg is None:
-                    logger.error(
-                        f"--teleop_device={args_cli.teleop_device} was passed but no matching entry exists in"
-                        " env_cfg.teleop_devices and it is not a built-in device name. Either remove"
-                        " --teleop_device to use the Isaac Capture pipeline, or add a"
-                        f" '{args_cli.teleop_device}' entry under teleop_devices in the environment config."
-                        " Built-in devices: keyboard, spacemouse, gamepad."
-                    )
-                    env.close()
-                    return
-                teleop_interface = instantiate(device_cfg)
-                for key, callback in teleoperation_callbacks.items():
-                    try:
-                        teleop_interface.add_callback(key, callback)
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Failed to add callback for key {key}: {e}")
+        teleop_interface = create_teleop_device(
+            teleop_cfg,
+            sim_device=args_cli.device,
+            callbacks=teleoperation_callbacks,
+            visualizers=env.sim.visualizers,
+            cloudxr_env_file=args_cli.cloudxr_env,
+            auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+            enable_debug_visualization=args_cli.enable_debug_visualization,
+            use_kit_xr_bridge=args_cli.xr,
+            haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
+        )
     except Exception as e:
         logger.error(f"Failed to create teleop device: {e}")
         env.close()

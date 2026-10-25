@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
@@ -16,6 +16,7 @@ import torch
 from scipy.spatial.transform import Rotation
 
 from isaaclab.sim.utils.stage import get_current_stage_id
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .command_handler import CommandHandler
 from .control_events import ControlEvents
@@ -89,20 +90,20 @@ class IsaacTeleopDevice:
             )
 
             # Poses in world frame (default)
-            with IsaacTeleopDevice(cfg) as device:
+            with IsaacTeleopDevice(cfg, visualizers=env.sim.visualizers) as device:
                 while running:
                     action = device.advance()
                     env.step(action.repeat(num_envs, 1))
 
             # Config-driven rebase into robot base frame
             cfg.target_frame_prim_path = "/World/Robot/base_link"
-            with IsaacTeleopDevice(cfg) as device:
+            with IsaacTeleopDevice(cfg, visualizers=env.sim.visualizers) as device:
                 while running:
                     action = device.advance()
                     env.step(action.repeat(num_envs, 1))
 
             # Explicit rebase into robot base frame
-            with IsaacTeleopDevice(cfg) as device:
+            with IsaacTeleopDevice(cfg, visualizers=env.sim.visualizers) as device:
                 while running:
                     robot_T_world = get_robot_base_transform()
                     action = device.advance(target_T_world=robot_T_world)
@@ -124,6 +125,7 @@ class IsaacTeleopDevice:
         mcap_replay_path: str | None = None,
         enable_debug_visualization: bool = False,
         haptic_cfg: HapticFeedbackCfg | None = None,
+        visualizers: Sequence[BaseVisualizer] = (),
     ):
         """Initialize the Isaac Capture device.
 
@@ -160,6 +162,8 @@ class IsaacTeleopDevice:
                 the device renders per-hand output vectors pushed via
                 :meth:`send_haptic` on the configured device (controller, glove,
                 ...).  ``None`` disables haptics.
+            visualizers: Live sequence of windows supplying keyboard input, usually ``sim.visualizers``.
+                The default empty sequence disables window input.
         """
         self._cfg = cfg
         self._target_world_matrix = None
@@ -175,6 +179,7 @@ class IsaacTeleopDevice:
             mcap_replay_path=mcap_replay_path,
             enable_debug_visualization=enable_debug_visualization,
             haptic_cfg=haptic_cfg,
+            visualizers=visualizers,
         )
 
         self._prev_right_a_pressed = False
@@ -548,6 +553,7 @@ def create_isaac_teleop_device(
     mcap_replay_path: str | None = None,
     enable_debug_visualization: bool = False,
     haptic_cfg: HapticFeedbackCfg | None = None,
+    visualizers: Sequence[BaseVisualizer] = (),
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
 
@@ -602,6 +608,8 @@ def create_isaac_teleop_device(
             :class:`~isaaclab_teleop.HapticFeedbackReceiver` and renders per-hand
             output vectors on the configured device (controller, glove, ...).
 
+        visualizers: Live sequence of windows supplying keyboard input, usually ``sim.visualizers``.
+
     Returns:
         A fully configured :class:`IsaacTeleopDevice` ready for use in a
         ``with`` block.
@@ -635,6 +643,7 @@ def create_isaac_teleop_device(
         mcap_replay_path=mcap_replay_path,
         enable_debug_visualization=enable_debug_visualization,
         haptic_cfg=haptic_cfg,
+        visualizers=visualizers,
     )
 
     if callbacks is not None:

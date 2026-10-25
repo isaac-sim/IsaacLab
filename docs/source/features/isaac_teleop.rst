@@ -772,6 +772,15 @@ held keys when the window loses focus. Like every Isaac Capture session, a keybo
 OpenXR session: without ``--xr`` the scripts launch a CloudXR runtime with the standalone profile
 (see :ref:`isaac-teleop-standalone`), so no headset is needed.
 
+The scripts resolve the requested device once before scene startup through
+``isaaclab_teleop.device_selection.select_teleop_cfg`` and create it through
+``create_teleop_device`` after the environment initializes. Native compatibility stays at that
+boundary; a Capture initialization error is reported without selecting a different device.
+For direct use of :func:`~isaaclab_teleop.create_isaac_teleop_device` or
+:class:`~isaaclab_teleop.IsaacTeleopDevice`, pass ``visualizers=sim.visualizers`` to supply
+window input explicitly. The session keeps this live sequence so later windows can join;
+omitting it creates a session without window input.
+
 .. list-table::
    :header-rows: 1
    :widths: 25 75

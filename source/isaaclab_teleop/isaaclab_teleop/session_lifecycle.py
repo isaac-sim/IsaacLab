@@ -12,11 +12,14 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from contextlib import ExitStack
 from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 import torch
+
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
     from isaacteleop.cloudxr import CloudXRLauncher
@@ -265,6 +268,7 @@ class TeleopSessionLifecycle:
         mcap_replay_path: str | None = None,
         enable_debug_visualization: bool = False,
         haptic_cfg: HapticFeedbackCfg | None = None,
+        visualizers: Sequence[BaseVisualizer] = (),
     ):
         """Initialize the session lifecycle manager.
 
@@ -305,6 +309,8 @@ class TeleopSessionLifecycle:
                 per-hand output vectors pushed via :meth:`push_haptic` are
                 rendered on the configured device (controller, glove, ...).
                 ``None`` disables haptics entirely.
+            visualizers: Live sequence of windows supplying keyboard input. Pass ``sim.visualizers``;
+                the default empty sequence disables window input.
 
         Raises:
             ValueError: If both *mcap_record_path* and *mcap_replay_path*
@@ -358,11 +364,9 @@ class TeleopSessionLifecycle:
         # Fallback for host-initiated resets when no control pipeline is configured
         self._pending_reset = False
 
-        # Keyboards: the visualizer windows feeding the pipeline's keyboards, and the operator's key
-        # presses, read straight from those windows so each press is consumed once whatever the
-        # retargeting mode.
-        self._keyboard_detachers: list[Callable[[], None]] = []
-        self._attached_visualizers: list[Any] = []
+        # Keep the supplied live sequence so windows initialized later can join the session.
+        self._visualizers = visualizers
+        self._keyboard_attachments: dict[BaseVisualizer, ExitStack | None] = {}
         self._pipeline_keyboards: list[Any] | None = None  # found once per session
         self._pressed_keys: list[int] = []
 
@@ -739,34 +743,28 @@ class TeleopSessionLifecycle:
         """
         if self._pipeline is None or self._is_replay:
             return
-        try:
-            from isaaclab.sim import SimulationContext
-
-            sim = SimulationContext.instance()
-        except Exception:
-            return
-        if sim is None:
-            return
         if self._pipeline_keyboards is None:
             from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource, find_sources
 
             self._pipeline_keyboards = find_sources(self._pipeline, KeyboardSource)
         keyboards = self._pipeline_keyboards
-        for visualizer in sim.visualizers:
+        for visualizer in self._visualizers:
             # a visualizer without a window that reports keys has no source
             source = visualizer.key_event_source
-            if source is None or any(visualizer is attached for attached in self._attached_visualizers):
+            if source is None or visualizer in self._keyboard_attachments:
                 continue
             # attached even if this fails, so a failing window is not retried every step
-            self._attached_visualizers.append(visualizer)
+            self._keyboard_attachments[visualizer] = None
             try:
-                for keyboard in keyboards:
-                    self._keyboard_detachers.append(keyboard.attach(source, capture=False).close)
-                if keyboards:
-                    visualizer.set_camera_keys_enabled(False)
-                    self._keyboard_detachers.append(lambda v=visualizer: v.set_camera_keys_enabled(True))
-                listener = _ControlKeyListener(self._pressed_keys)
-                self._keyboard_detachers.append(source.add_key_listener(listener.on_key, listener.on_focus_lost).close)
+                with ExitStack() as attachments:
+                    for keyboard in keyboards:
+                        attachments.callback(keyboard.attach(source, capture=False).close)
+                    if keyboards:
+                        attachments.callback(visualizer.set_camera_keys_enabled, True)
+                        visualizer.set_camera_keys_enabled(False)
+                    listener = _ControlKeyListener(self._pressed_keys)
+                    attachments.callback(source.add_key_listener(listener.on_key, listener.on_focus_lost).close)
+                    self._keyboard_attachments[visualizer] = attachments.pop_all()
             except Exception as e:
                 logger.warning(f"Keyboard input from {type(visualizer).__name__} is unavailable: {e}")
                 continue
@@ -774,13 +772,14 @@ class TeleopSessionLifecycle:
 
     def _detach_keyboards(self) -> None:
         """Detach every visualizer window, releasing held keys and restoring keyboard camera movement."""
-        detachers, self._keyboard_detachers = self._keyboard_detachers, []
-        for detach in detachers:
+        attachments, self._keyboard_attachments = self._keyboard_attachments, {}
+        for attachment in attachments.values():
+            if attachment is None:
+                continue
             try:
-                detach()
+                attachment.close()
             except Exception as e:
                 logger.debug(f"Suppressed error detaching a visualizer keyboard: {e}")
-        self._attached_visualizers = []
         self._pipeline_keyboards = None
 
     def drain_pressed_keys(self) -> list[int]:

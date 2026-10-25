@@ -7,14 +7,17 @@
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
 from types import SimpleNamespace
 
 import isaaclab_teleop.device_selection as device_selection
 import pytest
 from isaaclab_teleop import IsaacTeleopCfg
-from isaaclab_teleop.device_selection import pipeline_from_device_cfg, select_isaac_teleop_cfg
+from isaaclab_teleop.device_selection import create_teleop_device, select_teleop_cfg
 
 from isaaclab.devices import (
+    DeviceBase,
     DeviceCfg,
     DevicesCfg,
     Se2GamepadCfg,
@@ -50,7 +53,7 @@ def recorded(monkeypatch):
             return f"pipeline:{name}"
 
         monkeypatch.setitem(device_selection._PIPELINES, cfg_type, (builder, fields))
-    monkeypatch.setattr(device_selection, "_isaacteleop_available", lambda: True)
+    monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: object())
     return calls
 
 
@@ -76,7 +79,7 @@ class TestPipelineFromDeviceCfg:
     def test_every_legacy_device_reads_its_own_device(self, cfg_type, source_name):
         nodes = pytest.importorskip("isaacteleop.retargeting_engine.deviceio_source_nodes")
 
-        cfg = pipeline_from_device_cfg(cfg_type(), "cpu")
+        cfg = select_teleop_cfg(_env_cfg(), "device", {"device": cfg_type()}, "cpu")
 
         assert isinstance(cfg, IsaacTeleopCfg)
         assert len(nodes.find_sources(cfg.pipeline_builder(), getattr(nodes, source_name))) == 1
@@ -112,42 +115,115 @@ class TestPipelineFromDeviceCfg:
         ids=lambda value: type(value).__name__ if not isinstance(value, dict) else "",
     )
     def test_config_reaches_its_builder_with_every_setting(self, recorded, device_cfg, expected):
-        pipeline_from_device_cfg(device_cfg, "cuda:0")
+        select_teleop_cfg(_env_cfg(), "device", {"device": device_cfg}, "cuda:0")
 
         assert recorded == [(BUILDERS[type(device_cfg)], {**expected, "sim_device": "cuda:0"})]
 
     def test_unsupported_config_has_no_pipeline(self):
-        assert pipeline_from_device_cfg(DeviceCfg(), "cpu") is None
+        cfg = DeviceCfg()
+        assert select_teleop_cfg(_env_cfg(), "device", {"device": cfg}, "cpu") is cfg
 
 
 class TestSelectIsaacTeleopCfg:
-    def test_without_isaacteleop_selects_nothing(self, recorded, monkeypatch):
-        monkeypatch.setattr(device_selection, "_isaacteleop_available", lambda: False)
-
-        assert select_isaac_teleop_cfg(_env_cfg(isaac_teleop="declared"), None, DEFAULTS, "cpu") is None
+    def test_without_isaacteleop_selects_native_keyboard(self, recorded, monkeypatch):
+        monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: None)
+        cfg = Se3KeyboardCfg(pos_sensitivity=0.9)
+        env_cfg = _env_cfg(isaac_teleop="declared", keyboard=cfg)
+        assert select_teleop_cfg(env_cfg, None, DEFAULTS, "cpu") is env_cfg.teleop_devices.devices["keyboard"]
 
     def test_declared_pipeline_wins_without_a_device_name(self, recorded):
-        assert select_isaac_teleop_cfg(_env_cfg(isaac_teleop="declared"), None, DEFAULTS, "cpu") == "declared"
+        assert select_teleop_cfg(_env_cfg(isaac_teleop="declared"), None, DEFAULTS, "cpu") == "declared"
         assert recorded == []
 
     def test_default_keyboard_without_a_declared_pipeline(self, recorded):
-        assert select_isaac_teleop_cfg(_env_cfg(), None, DEFAULTS, "cpu") == "pipeline:se3_keyboard_teleop_cfg"
+        assert select_teleop_cfg(_env_cfg(), None, DEFAULTS, "cpu") == "pipeline:se3_keyboard_teleop_cfg"
         assert recorded[0][1]["pos_sensitivity"] == 0.2
+
+        recorded.clear()
+        env_cfg = _env_cfg(keyboard=Se3KeyboardCfg(pos_sensitivity=0.9))
+        select_teleop_cfg(env_cfg, None, DEFAULTS, "cpu")
+        assert recorded[0][1]["pos_sensitivity"] == 0.9
 
     def test_environment_device_wins_over_the_default(self, recorded):
         env_cfg = _env_cfg(isaac_teleop="declared", spacemouse=Se3SpaceMouseCfg(pos_sensitivity=0.9))
 
-        assert select_isaac_teleop_cfg(env_cfg, "spacemouse", DEFAULTS, "cpu") == "pipeline:se3_spacemouse_teleop_cfg"
+        assert select_teleop_cfg(env_cfg, "spacemouse", DEFAULTS, "cpu") == "pipeline:se3_spacemouse_teleop_cfg"
         assert recorded[0][1]["pos_sensitivity"] == 0.9
 
     def test_default_serves_a_name_the_environment_lacks(self, recorded):
-        assert (
-            select_isaac_teleop_cfg(_env_cfg(), "spacemouse", DEFAULTS, "cpu") == "pipeline:se3_spacemouse_teleop_cfg"
-        )
+        assert select_teleop_cfg(_env_cfg(), "spacemouse", DEFAULTS, "cpu") == "pipeline:se3_spacemouse_teleop_cfg"
         assert recorded[0][1]["pos_sensitivity"] == 0.3
 
-    def test_unknown_or_unsupported_device_selects_nothing(self, recorded):
+    def test_unsupported_device_retains_its_config_and_unknown_name_raises(self, recorded):
         env_cfg = _env_cfg(handtracking=DeviceCfg())
 
-        assert select_isaac_teleop_cfg(env_cfg, "handtracking", DEFAULTS, "cpu") is None
-        assert select_isaac_teleop_cfg(env_cfg, "joystick", DEFAULTS, "cpu") is None
+        assert (
+            select_teleop_cfg(env_cfg, "handtracking", DEFAULTS, "cpu")
+            is env_cfg.teleop_devices.devices["handtracking"]
+        )
+        with pytest.raises(ValueError, match="joystick"):
+            select_teleop_cfg(env_cfg, "joystick", DEFAULTS, "cpu")
+
+
+class _NativeDevice(DeviceBase):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.callbacks = {}
+
+    def reset(self):
+        pass
+
+    def add_callback(self, key, callback):
+        self.callbacks[key] = callback
+
+
+def test_creation_uses_the_resolved_config_for_both_implementations():
+    """Native callbacks and explicitly supplied Capture windows reach the selected device."""
+    cfg = DeviceCfg(class_type=_NativeDevice)
+
+    def callback():
+        pass
+
+    native = create_teleop_device(cfg, callbacks={"R": callback}, use_kit_xr_bridge=False)
+    assert native.cfg is cfg and native.callbacks == {"R": callback}
+
+    from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+
+    windows = []
+    capture = create_teleop_device(IsaacTeleopCfg(), visualizers=windows, use_kit_xr_bridge=False)
+    assert isinstance(capture, IsaacTeleopDevice)
+    assert capture._session_lifecycle._visualizers is windows
+
+
+def test_capture_creation_failure_does_not_switch_to_a_native_device(monkeypatch):
+    from isaaclab_teleop import isaac_teleop_device
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("Capture initialization failed")
+
+    monkeypatch.setattr(isaac_teleop_device, "create_isaac_teleop_device", fail)
+    with pytest.raises(RuntimeError, match="Capture initialization failed"):
+        create_teleop_device(IsaacTeleopCfg())
+
+
+def test_window_dependencies_and_device_creation_have_one_owner():
+    """Keep global window discovery and repeated device-selection branches out of the session/scripts."""
+    root = Path(__file__).resolve().parents[3]
+    session = ast.parse((root / "source/isaaclab_teleop/isaaclab_teleop/session_lifecycle.py").read_text())
+    assert not any(isinstance(node, ast.Name) and node.id == "SimulationContext" for node in ast.walk(session))
+    assert not any(
+        isinstance(node, ast.Attribute) and node.attr in ("_attached_visualizers", "_keyboard_detachers")
+        for node in ast.walk(session)
+    )
+    for script in ("scripts/environments/teleoperation/teleop_se3_agent.py", "scripts/tools/record_demos.py"):
+        tree = ast.parse((root / script).read_text())
+        assert not any(
+            isinstance(node, ast.FunctionDef) and node.name in ("_builtin_device_cfgs", "setup_teleop_device")
+            for node in ast.walk(tree)
+        )
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)]
+        for name in ("select_teleop_cfg", "create_teleop_device"):
+            assert sum(node.func.id == name for node in calls) == 1, (script, name)
+        factory = next(node for node in calls if node.func.id == "create_teleop_device")
+        assert any(keyword.arg == "visualizers" for keyword in factory.keywords), script

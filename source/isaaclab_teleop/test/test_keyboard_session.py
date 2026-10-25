@@ -136,13 +136,11 @@ class _Visualizer:
         self.key_event_source._emit_focus_lost()
 
 
-def _start(lifecycle, *visualizers):
+def _start(lifecycle):
     """Start a lifecycle reading *visualizers*, without launching CloudXR, a system check or OpenXR."""
     import isaacteleop.teleop_session_manager as tsm
 
-    sim = SimpleNamespace(visualizers=[*visualizers, SimpleNamespace(key_event_source=None)])
     with (
-        patch("isaaclab.sim.SimulationContext.instance", return_value=sim),
         patch.object(lifecycle, "_ensure_cloudxr_runtime") as ensure_cloudxr,
         patch.object(lifecycle, "_run_system_check"),
         patch.object(tsm, "TeleopSession", MagicMock()),
@@ -152,8 +150,8 @@ def _start(lifecycle, *visualizers):
 
 
 def _started_lifecycle(cfg, *visualizers, **kwargs):
-    lifecycle = TeleopSessionLifecycle(cfg, use_kit_xr_bridge=False, **kwargs)
-    return lifecycle, _start(lifecycle, *visualizers)
+    lifecycle = TeleopSessionLifecycle(cfg, use_kit_xr_bridge=False, visualizers=list(visualizers), **kwargs)
+    return lifecycle, _start(lifecycle)
 
 
 @pytest.fixture
@@ -177,11 +175,19 @@ def test_keyboard_session_takes_the_standard_path(visualizer):
 
 def test_visualizer_feeds_the_keyboard_and_the_control_keys(visualizer):
     """The pipeline's keyboard and the control keys read the window; its camera keys are off until stop."""
-    lifecycle, _ = _started_lifecycle(_keyboard_cfg(), visualizer)
+    windows = [visualizer]
+    lifecycle = TeleopSessionLifecycle(_keyboard_cfg(), use_kit_xr_bridge=False, visualizers=windows)
+    _start(lifecycle)
     assert visualizer.listener_count == 2
     assert visualizer.camera_keys == [False]
+    later = _Visualizer()
+    windows.append(later)
+    lifecycle._attach_keyboards()
+    lifecycle._attach_keyboards()
+    assert later.listener_count == 2 and later.camera_keys == [False]
 
     lifecycle.stop()
+    assert later.listener_count == 0 and later.camera_keys == [False, True]
     assert visualizer.listener_count == 0
     assert visualizer.camera_keys == [False, True]
 
@@ -220,7 +226,7 @@ def test_presses_do_not_carry_into_the_next_session(visualizer):
     lifecycle, _ = _started_lifecycle(_keyboard_cfg(), visualizer)
     visualizer.tap("KeyR")
     lifecycle.stop()
-    _start(lifecycle, visualizer)
+    _start(lifecycle)
     try:
         visualizer.press("KeyR")  # the stale tap is gone; a new press counts
         assert lifecycle.drain_pressed_keys() == [KEY_R]
@@ -244,9 +250,15 @@ def test_another_window_losing_focus_does_not_repeat_a_held_key():
 def test_a_failing_window_does_not_stop_the_session(visualizer):
     """A window whose keyboard cannot be attached is skipped with a warning; the others still work."""
     broken = _Visualizer()
-    broken.set_camera_keys_enabled = MagicMock(side_effect=RuntimeError("no window"))
+
+    def set_camera_keys(enabled):
+        if not enabled:
+            raise RuntimeError("no window")
+
+    broken.set_camera_keys_enabled = set_camera_keys
     lifecycle, _ = _started_lifecycle(_keyboard_cfg(), broken, visualizer)
     try:
+        assert broken.listener_count == 0
         visualizer.tap("KeyB")
         assert lifecycle.drain_pressed_keys() == [KEY_B]
     finally:
