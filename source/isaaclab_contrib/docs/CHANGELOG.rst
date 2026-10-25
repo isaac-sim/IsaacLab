@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+4.2.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed coupled solver body and shape selectors to expand ``{ENV_REGEX_NS}`` from the simulation's
+  clone template while preserving the original configuration for reuse.
+
+
 4.2.2 (2026-10-24)
 ~~~~~~~~~~~~~~~~~~
 
