@@ -16,9 +16,9 @@ import torch
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 from isaaclab.utils import instantiate
 
-from isaaclab_tasks.contrib.nist.utils.sampling import Sampler, SamplerCfg
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
+from ...nist.utils.sampling import Sampler, SamplerCfg
 from .reset_events import ConveyorResetRecipe
 
 if TYPE_CHECKING:
