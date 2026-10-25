@@ -48,7 +48,7 @@ class ConveyorRelativeJointPositionAction(JointAction):
             raise ValueError("workspace bounds must be finite.")
         self._previous_actions = torch.zeros_like(self._raw_actions)
         self._invalid_actions = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._position_targets = self._asset.data.joint_pos.torch[:, self._joint_ids].clone()
+        self._processed_actions = self._asset.data.joint_pos.torch[:, self._joint_ids].clone()
 
     @property
     def previous_actions(self) -> torch.Tensor:
@@ -71,23 +71,20 @@ class ConveyorRelativeJointPositionAction(JointAction):
         limits = self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids]
         lower = torch.maximum(limits[..., 0] + self.cfg.joint_limit_margin, self._workspace_lower)
         upper = torch.minimum(limits[..., 1] - self.cfg.joint_limit_margin, self._workspace_upper)
-        self._position_targets = torch.clamp(positions + delta, min=lower, max=upper)
-        self._processed_actions = self._position_targets
+        self._processed_actions = torch.clamp(positions + delta, min=lower, max=upper)
 
     def apply_actions(self) -> None:
         """Hold the policy-step target through all physics substeps."""
-        self._asset.actuators.target_command.set_position_index(value=self._position_targets, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(
+            value=self._processed_actions, joint_ids=self._joint_ids
+        )
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         """Initialize targets from the sampled reset pose."""
         super().reset(env_ids)
+        env_ids = slice(None) if env_ids is None else env_ids
         positions = self._asset.data.joint_pos.torch[:, self._joint_ids]
-        if env_ids is None:
-            self._position_targets[:] = positions
-            self._processed_actions[:] = positions
-        else:
-            self._position_targets[env_ids] = positions[env_ids]
-            self._processed_actions[env_ids] = positions[env_ids]
+        self._processed_actions[env_ids] = positions[env_ids]
         self._previous_actions[env_ids] = 0.0
         self._invalid_actions[env_ids] = False
 
