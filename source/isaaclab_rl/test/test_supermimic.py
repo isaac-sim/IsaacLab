@@ -94,7 +94,12 @@ def test_native_ownership_has_no_external_training_package():
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)):
-                assert node.name not in {"TransitionCapture", "NewtonBinding", "TrajectoryDatasetRecorder"}, path
+                assert node.name not in {
+                    "TransitionCapture",
+                    "NewtonBinding",
+                    "TrajectoryDatasetRecorder",
+                    "_fp32_parallel_nerd_attention",
+                }, path
             imports = []
             if isinstance(node, ast.Import):
                 imports = [item.name for item in node.names]

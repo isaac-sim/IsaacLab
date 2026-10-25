@@ -14,6 +14,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import torch
+import torch.distributed as dist
 
 from isaaclab.utils import to_dict
 
@@ -41,13 +42,19 @@ def main():
     args = parser.parse_args()
     if min(args.save_interval, args.save_seconds, args.log_interval) <= 0:
         parser.error("Checkpoint and logging intervals must be positive.")
+    distributed = int(os.environ.get("WORLD_SIZE", "1")) > 1
+    if distributed:
+        if args.device.startswith("cuda"):
+            args.device = f"cuda:{os.environ['LOCAL_RANK']}"
+            torch.cuda.set_device(args.device)
+        dist.init_process_group(backend="nccl" if args.device.startswith("cuda") else "gloo")
+    rank = dist.get_rank() if distributed else 0
     task = json.loads(args.dataset[0].with_suffix(".json").read_text())["task"]
     task_cfg = load_cfg_from_registry(task, "nerd_cfg_entry_point")
-    cfg = NeRDTrainCfg() if isinstance(task_cfg, dict) else task_cfg
-    if isinstance(task_cfg, dict):
-        cfg.from_dict(task_cfg)
+    settings = task_cfg if isinstance(task_cfg, dict) else to_dict(task_cfg)
     if args.config:
-        cfg.from_dict(json.loads(args.config.read_text()))
+        settings.update(json.loads(args.config.read_text()))
+    cfg = NeRDTrainCfg(**settings)
     if args.max_updates is not None:
         cfg.max_updates = args.max_updates
     if args.batch_size is not None:
@@ -66,7 +73,7 @@ def main():
     if learner.updates >= cfg.max_updates:
         parser.error("The requested update limit has already been reached.")
     logging = nullcontext(None)
-    if args.wandb_project:
+    if args.wandb_project and rank == 0:
         import wandb
 
         identity = saved.get("wandb") if saved else None
@@ -93,35 +100,44 @@ def main():
 
     handlers = {signum: signal.signal(signum, stop) for signum in (signal.SIGINT, signal.SIGTERM)}
     try:
-        with logging as run, (args.output / "metrics.jsonl").open("a") as metrics:
+        metrics_file = (args.output / "metrics.jsonl").open("a") if rank == 0 else nullcontext(None)
+        with logging as run, metrics_file as metrics:
             if run:
                 run.define_metric("update")
                 run.define_metric("*", step_metric="update")
             last_save = time.monotonic()
-            while learner.updates < cfg.max_updates and not stopped:
+            while learner.updates < cfg.max_updates:
                 values = learner.update()
                 checkpoint_due = (
                     learner.updates % args.save_interval == 0 or time.monotonic() - last_save >= args.save_seconds
                 )
                 finished = learner.updates == cfg.max_updates or stopped
+                if distributed:
+                    decisions = torch.tensor([checkpoint_due, finished], dtype=torch.int32, device=args.device)
+                    dist.all_reduce(decisions, op=dist.ReduceOp.MAX)
+                    checkpoint_due, finished = decisions.tolist()
                 if learner.updates % args.log_interval == 0 or finished or checkpoint_due:
                     values |= learner.validate()
                     values["update"] = learner.updates
-                    metrics.write(json.dumps(values) + "\n")
-                    metrics.flush()
-                    print(json.dumps(values), flush=True)
+                    if metrics:
+                        metrics.write(json.dumps(values) + "\n")
+                        metrics.flush()
+                        print(json.dumps(values), flush=True)
                     if run:
                         run.log(values)
                 if checkpoint_due or finished:
                     checkpoint = learner.checkpoint()
-                    checkpoint["training_cfg"] = settings
-                    checkpoint["wandb"] = {"id": run.id, "project": run.project, "entity": run.entity} if run else None
-                    temporary = target.with_suffix(".tmp")
-                    with temporary.open("wb") as stream:
-                        torch.save(checkpoint, stream)
-                        stream.flush()
-                        os.fsync(stream.fileno())
-                    os.replace(temporary, target)
+                    if rank == 0:
+                        checkpoint["training_cfg"] = settings
+                        checkpoint["wandb"] = (
+                            {"id": run.id, "project": run.project, "entity": run.entity} if run else None
+                        )
+                        temporary = target.with_suffix(".tmp")
+                        with temporary.open("wb") as stream:
+                            torch.save(checkpoint, stream)
+                            stream.flush()
+                            os.fsync(stream.fileno())
+                        os.replace(temporary, target)
                     if run:
                         artifact = wandb.Artifact(f"nerd-{run.id}", type="model", metadata={"update": learner.updates})
                         artifact.add_file(str(target), name="last.pt")
@@ -130,10 +146,16 @@ def main():
                             logged.wait(timeout=180)
                         run.log({"update": learner.updates, "checkpoint/durable_update": learner.updates})
                     last_save = time.monotonic()
+                if finished:
+                    break
     finally:
         for signum, handler in handlers.items():
             signal.signal(signum, handler)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        if dist.is_initialized():
+            dist.destroy_process_group()

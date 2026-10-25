@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""ANYmal C target-controlled dynamics and locomotion tasks."""
+"""ANYmal C target- and effort-conditioned dynamics and locomotion tasks."""
 
 import math
 
@@ -131,3 +131,22 @@ class AnymalCNeRDLearnedEnvCfg(AnymalCNeRDEnvCfg):
         self.decimation = self.sim.render_interval = 1
         self.sim.physics = self.sim.physics.replace(solver_cfg=NeRDSolverCfg())
         self.scene.robot.actuators = {"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)}
+
+
+@configclass
+class AnymalCNeRDEffortExplorationEnvCfg(AnymalCNeRDExplorationEnvCfg):
+    """Capture each 5 ms physics transition after ANYdrive computes and clips the applied efforts."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.decimation = 1
+        self.recorders.transition.control = "joint_f"
+
+
+@configclass
+class AnymalCNeRDEffortLearnedEnvCfg(AnymalCNeRDEnvCfg):
+    """Keep ANYdrive and run four 5 ms learned physics steps per 20 ms policy action."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.sim.physics = self.sim.physics.replace(solver_cfg=NeRDSolverCfg())

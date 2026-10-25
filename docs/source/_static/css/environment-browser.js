@@ -50,6 +50,8 @@
             ["Isaac-Shadow-Handover-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "environment-previews/shadow_hand_over.jpg", false, {}, {"skrl": "MAPPO"}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "ovphysx||"]],
             ["Isaac-Shadow-Handover", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "randomized", "environment-previews/shadow_hand_over.jpg", false, {}, {}, "", null, ["||", "||randomized", "isaacsim_physx||", "isaacsim_physx||randomized", "newton_mjwarp||", "newton_mjwarp||randomized", "ovphysx||", "ovphysx||randomized"]],
             ["Isaac-Velocity-Flat-Anymal-C-NeRD", "rsl_rl", "", "", ""],
+            ["Isaac-Velocity-Flat-Anymal-C-NeRD-Effort-Explore", "rsl_rl", "", "", ""],
+            ["Isaac-Velocity-Flat-Anymal-C-NeRD-Effort-Learned", "rsl_rl", "", "", ""],
             ["Isaac-Velocity-Flat-Anymal-C-NeRD-Explore", "rsl_rl", "", "", ""],
             ["Isaac-Velocity-Flat-Anymal-C-NeRD-Learned", "rsl_rl", "", "", ""],
             ["Isaac-Velocity-Flat-AnymalD", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/anymal_d_flat.jpg", true, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],

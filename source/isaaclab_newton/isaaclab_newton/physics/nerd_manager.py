@@ -10,7 +10,8 @@ import math
 import newton
 import torch
 import warp as wp
-from physicsnemo_robotics.models.parallel_nerd import ParallelNeRD
+
+from isaaclab.utils import string_to_callable
 
 from .nerd import JointDynamics, model_signature
 from .newton_manager import NewtonManager
@@ -35,7 +36,7 @@ class SolverNeRD(newton.solvers.SolverBase):
         if not model.device.is_cuda:
             raise ValueError("The native NeRD solver currently requires CUDA.")
         saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
-        if saved["format"] != "isaaclab-nerd-v1":
+        if saved["format"] != "isaaclab-nerd-v2":
             raise ValueError("Expected a native Isaac Lab NeRD checkpoint.")
         self.dynamics = JointDynamics(saved["dynamics"], model)
         if model_signature(model) != saved["dynamics"]["model"]:
@@ -43,7 +44,9 @@ class SolverNeRD(newton.solvers.SolverBase):
         self.frame_dt = saved["dynamics"]["frame_dt"]
         device = model.device.alias
         self.network = (
-            ParallelNeRD(self.dynamics.input_dim, self.dynamics.codec.prediction_shape[0], **saved["network_cfg"])
+            string_to_callable(saved["network_type"])(
+                self.dynamics.input_dim, self.dynamics.codec.prediction_shape[0], **saved["network_cfg"]
+            )
             .to(device)
             .eval()
         )
@@ -74,8 +77,7 @@ class SolverNeRD(newton.solvers.SolverBase):
         if not math.isclose(dt, self.frame_dt, rel_tol=1e-9):
             raise ValueError(f"NeRD frame is {self.frame_dt}s, received {dt}s.")
         with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(self.model.device))):
-            torch._assert_async(~wp.to_torch(state_in.body_f).any(), "NeRD has no external body-wrench input.")
-            torch._assert_async(~wp.to_torch(control.joint_target_qd).any(), "NeRD has no velocity-target input.")
+            self.dynamics.check_inputs(state_in, control)
             if self.dynamics.descriptor["control"] == "joint_target_q":
                 action = wp.to_torch(control.joint_target_q)
             else:
@@ -133,8 +135,8 @@ class NewtonNeRDManager(NewtonManager):
         self._supports_contact_sensors = False
 
     def set_decimation(self, decimation):
-        if decimation != 1:
-            raise ValueError("NeRD predicts a complete control period; set decimation=1.")
+        if decimation != 1 and self._solver.dynamics.descriptor["control"] == "joint_target_q":
+            raise ValueError("Target-conditioned NeRD predicts a complete control period; set decimation=1.")
         super().set_decimation(decimation)
 
     def _capture_graph(self, capture_target):

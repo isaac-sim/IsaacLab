@@ -5,6 +5,8 @@
 
 """Native recorder terms for generalized-coordinate learned dynamics."""
 
+from functools import partial
+
 import torch
 import warp as wp
 
@@ -19,7 +21,7 @@ class NeRDRecorderCfg(RecorderTermCfg):
     class_type: str = "{DIR}.recorders:NeRDRecorder"
     asset_name: str = "robot"
     control: str = "joint_f"
-    """Executed joint efforts or position targets, in Newton coordinate order."""
+    """Explicit applied efforts (fixed implicit damping retained) or position targets, in Newton order."""
     heading: bool = False
     contact_bodies: tuple[str, ...] = ()
     root_body: str = ""
@@ -50,7 +52,7 @@ class NeRDRecorder(RecorderTerm):
 
         self.manager = env.sim.backend_manager
         self.robot = env.scene[cfg.asset_name]
-        if cfg.control == "joint_f" and env.cfg.decimation != 1:
+        if cfg.control == "joint_f" and (env.cfg.decimation != 1 or env.cfg.sim.physics.num_substeps != 1):
             raise ValueError("Effort recording requires one physics step per environment step.")
         model = self.manager.get_model()
         self.dynamics = JointDynamics(
@@ -60,6 +62,9 @@ class NeRDRecorder(RecorderTerm):
             heading=cfg.heading,
             contact_bodies=cfg.contact_bodies,
             root_body=cfg.root_body,
+        )
+        self.manager.register_state_force_callback(
+            partial(self.dynamics.check_inputs, control=self.manager.get_control())
         )
         columns = {
             name.rsplit("/", 1)[-1]: int(start)

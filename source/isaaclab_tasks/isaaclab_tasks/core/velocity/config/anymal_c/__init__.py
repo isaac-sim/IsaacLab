@@ -11,6 +11,8 @@ for suffix, config in (
     ("", "AnymalCNeRDEnvCfg"),
     ("-Explore", "AnymalCNeRDExplorationEnvCfg"),
     ("-Learned", "AnymalCNeRDLearnedEnvCfg"),
+    ("-Effort-Explore", "AnymalCNeRDEffortExplorationEnvCfg"),
+    ("-Effort-Learned", "AnymalCNeRDEffortLearnedEnvCfg"),
 ):
     gym.register(
         id=f"Isaac-Velocity-Flat-Anymal-C-NeRD{suffix}",

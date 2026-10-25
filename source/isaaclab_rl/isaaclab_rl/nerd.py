@@ -14,10 +14,10 @@ from pathlib import Path
 
 import h5py
 import torch
+import torch.distributed as dist
 from isaaclab_newton.physics.nerd import JointDynamics
-from physicsnemo_robotics.models.parallel_nerd import ParallelNeRD
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, string_to_callable
 
 
 @configclass
@@ -33,6 +33,11 @@ class NeRDTrainCfg:
     validation_fraction: float = 0.1
     seed: int = 7
     compile: bool = True
+    network_type: str = "physicsnemo_robotics.models.parallel_nerd:ParallelNeRD"
+    """Network class with a temporal_attention_spans configuration and a predict_last method."""
+    precision: str = "float32"
+    """Projection precision: float32, float16 or bfloat16; parameters and losses remain FP32."""
+    max_gradient_retries: int = 8
     network: dict = {
         "num_heads": 4,
         "head_dim": 64,
@@ -42,6 +47,17 @@ class NeRDTrainCfg:
         "rms_norm_eps": 1.0e-6,
         "linear_probe": True,
     }
+
+
+class _PredictLast(torch.nn.Module):
+    """Expose the newest prediction through forward so DDP owns gradient synchronization."""
+
+    def __init__(self, network):
+        super().__init__()
+        self.network = network
+
+    def forward(self, inputs):
+        return self.network.predict_last(inputs)
 
 
 class OfflineNeRD:
@@ -62,7 +78,18 @@ class OfflineNeRD:
         ):
             raise ValueError("Learning rates, decay duration and gradient clip norm must be positive and finite.")
         self.cfg, self.device = cfg, device
-        self.generator = torch.Generator(device=device).manual_seed(cfg.seed)
+        self.rank = dist.get_rank() if dist.is_initialized() else 0
+        self.world_size = dist.get_world_size() if dist.is_initialized() else 1
+        if cfg.batch_size % self.world_size:
+            raise ValueError("The global batch size must be divisible by the distributed world size.")
+        if cfg.precision not in ("float32", "float16", "bfloat16") or cfg.max_gradient_retries < 1:
+            raise ValueError("Select float32, float16 or bfloat16 and a positive gradient retry limit.")
+        self.dtype = getattr(torch, cfg.precision)
+        self.device_type = torch.device(device).type
+        if self.dtype == torch.float16 and self.device_type != "cuda":
+            raise ValueError("FP16 fitting requires CUDA.")
+        self.scaler = torch.amp.GradScaler("cuda", enabled=self.dtype == torch.float16)
+        self.generator = torch.Generator(device=device).manual_seed(cfg.seed + self.rank)
         self.updates = 0
         self.identity = []
         self.dynamics = None
@@ -121,12 +148,15 @@ class OfflineNeRD:
             self.target_scale = train_y.std(0, correction=0) + 1.0e-6
         else:
             if (
-                checkpoint["datasets"] != self.identity
+                checkpoint["format"] != "isaaclab-nerd-v2"
+                or checkpoint["datasets"] != self.identity
                 or checkpoint["dynamics"] != self.dynamics.descriptor
                 or checkpoint["train_episodes"] != self.train_episodes
                 or checkpoint["network_cfg"] != cfg.network
+                or checkpoint["network_type"] != cfg.network_type
+                or len(checkpoint["generators"]) != self.world_size
             ):
-                raise ValueError("Resume requires the same datasets, representation, split and network.")
+                raise ValueError("Resume requires the same datasets, representation, split, network and rank count.")
             # The checkpoint owns fixed normalization, including across GPU/runtime changes.
             for name in ("input_mean", "input_scale", "target_mean", "target_scale"):
                 setattr(self, name, checkpoint[name].to(device))
@@ -135,15 +165,21 @@ class OfflineNeRD:
         history = 1 + sum(span - 1 for span in cfg.network["temporal_attention_spans"])
         self.offsets = torch.arange(1 - history, 1, device=device)
         torch.manual_seed(cfg.seed)
-        self.model = ParallelNeRD(self.dynamics.input_dim, self.dynamics.codec.prediction_shape[0], **cfg.network).to(
-            device
-        )
-        self.predict = torch.compile(self.model.predict_last) if cfg.compile else self.model.predict_last
+        self.model = string_to_callable(cfg.network_type)(
+            self.dynamics.input_dim, self.dynamics.codec.prediction_shape[0], **cfg.network
+        ).to(device)
+        self.predict = _PredictLast(self.model)
+        if self.world_size > 1:
+            device_ids = [torch.device(device).index] if self.device_type == "cuda" else None
+            self.predict = torch.nn.parallel.DistributedDataParallel(self.predict, device_ids=device_ids)
+        if cfg.compile:
+            self.predict = torch.compile(self.predict)
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=cfg.learning_rate, weight_decay=0.0)
         if checkpoint is not None:
             self.model.load_state_dict(checkpoint["model"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
-            self.generator.set_state(checkpoint["generator"].cpu())
+            self.generator.set_state(checkpoint["generators"][self.rank].cpu())
+            self.scaler.load_state_dict(checkpoint["scaler"])
             self.updates = checkpoint["updates"]
 
     def sample(self, ids, count):
@@ -157,39 +193,69 @@ class OfflineNeRD:
         self.optimizer.param_groups[0]["lr"] = self.cfg.learning_rate + (
             self.cfg.final_learning_rate - self.cfg.learning_rate
         ) * min(self.updates / self.cfg.learning_rate_decay_updates, 1.0)
-        x, y = self.sample(self.train_ids, self.cfg.batch_size)
-        self.optimizer.zero_grad(set_to_none=True)
-        loss = (self.predict(x) - y).square().mean()
-        if not torch.isfinite(loss):
-            raise FloatingPointError(f"Nonfinite NeRD training loss at update {self.updates}.")
-        loss.backward()
-        norm = torch.nn.utils.clip_grad_norm_(
-            self.model.parameters(), self.cfg.gradient_clip_norm, error_if_nonfinite=True
-        )
-        self.optimizer.step()
+        x, y = self.sample(self.train_ids, self.cfg.batch_size // self.world_size)
+        for _ in range(self.cfg.max_gradient_retries):
+            self.optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(self.device_type, dtype=self.dtype, enabled=self.dtype != torch.float32):
+                prediction = self.predict(x)
+            loss = (prediction.float() - y).square().mean()
+            finite = torch.isfinite(loss).to(torch.int32)
+            if self.world_size > 1:
+                dist.all_reduce(finite, op=dist.ReduceOp.MIN)
+            if not finite:
+                raise FloatingPointError(f"Nonfinite NeRD training loss at update {self.updates}.")
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            norm = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.cfg.gradient_clip_norm, error_if_nonfinite=not self.scaler.is_enabled()
+            )
+            scale = self.scaler.get_scale()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            if self.scaler.get_scale() >= scale:
+                break
+        else:
+            raise FloatingPointError(f"NeRD gradients overflowed repeatedly at update {self.updates}.")
+        if self.world_size > 1:
+            dist.all_reduce(loss.detach())
+            loss.detach().div_(self.world_size)
         self.updates += 1
         return {"train/normalized_mse": float(loss.detach()), "train/gradient_norm": float(norm)}
 
     @torch.no_grad()
     def validate(self):
         self.model.eval()
-        squared, physical, count = 0.0, 0.0, 0
-        for ids in self.validation_ids.split(self.cfg.batch_size):
+        totals = torch.zeros(3, dtype=torch.float64, device=self.device)
+        for ids in self.validation_ids[self.rank :: self.world_size].split(self.cfg.batch_size):
+            if not len(ids):
+                continue
             history = (ids[:, None] + self.offsets).clamp_min(self.starts[ids, None])
-            error = self.predict(self.inputs[history]) - self.targets[ids]
-            squared += error.square().sum()
-            physical += (error * self.target_scale).square().sum()
-            count += error.numel()
-        return {"validation/normalized_mse": float(squared / count), "validation/delta_mse": float(physical / count)}
+            with torch.autocast(self.device_type, dtype=self.dtype, enabled=self.dtype != torch.float32):
+                prediction = self.model.predict_last(self.inputs[history])
+            error = prediction.float() - self.targets[ids]
+            totals[0] += error.square().sum()
+            totals[1] += (error * self.target_scale).square().sum()
+            totals[2] += error.numel()
+        if self.world_size > 1:
+            dist.all_reduce(totals)
+        return {
+            "validation/normalized_mse": float(totals[0] / totals[2]),
+            "validation/delta_mse": float(totals[1] / totals[2]),
+        }
 
     def checkpoint(self):
         """Return a deployable and resumable snapshot; the composition root publishes it atomically."""
+        generators = [self.generator.get_state().cpu()]
+        if self.world_size > 1:
+            generators = [None] * self.world_size
+            dist.all_gather_object(generators, self.generator.get_state().cpu())
         return {
-            "format": "isaaclab-nerd-v1",
+            "format": "isaaclab-nerd-v2",
             "dynamics": self.dynamics.descriptor,
             "datasets": self.identity,
             "train_episodes": self.train_episodes,
             "network_cfg": self.cfg.network,
+            "network_type": str(self.cfg.network_type),
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "input_mean": self.input_mean,
@@ -197,5 +263,6 @@ class OfflineNeRD:
             "target_mean": self.target_mean,
             "target_scale": self.target_scale,
             "updates": self.updates,
-            "generator": self.generator.get_state(),
+            "generators": generators,
+            "scaler": self.scaler.state_dict(),
         }

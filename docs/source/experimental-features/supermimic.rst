@@ -239,6 +239,20 @@ body state. The numerical collision and constraint solve is replaced; fixed prob
 queries and forward kinematics remain. Both numerical and learned physics enable CUDA graphs.
 The learned manager retains a private Torch allocation pool for its captured temporaries.
 
+``Isaac-Velocity-Flat-Anymal-C-NeRD-Effort-Explore`` records every 5 ms using the applied effort
+after ANYdrive and its effort limits. The matching ``-Effort-Learned`` task keeps ANYdrive
+outside NeRD and advances learned physics four times per 20 ms policy action. Use these task
+names with the commands below for a physics-only model. The existing target-conditioned
+tasks retain their 20 ms actuator-plus-physics contract. Their checkpoints are not interchangeable.
+
+Effort capture requires ``decimation=1`` and ``num_substeps=1``. Explicit position controllers
+are supported because their final applied effort is available in ``joint_f``. Implicit position
+drives are rejected: their solver-generated force and integration derivative are not represented
+by that input. Fixed implicit damping with a zero velocity target remains part of the physical
+model. Capture and deployment both reject external body wrenches and unrepresented velocity
+targets. CUDA graphs stay enabled; the existing ANYdrive implementation steps outside the
+graph, with learned physics replayed at each 5 ms tick.
+
 Collect and fit
 ~~~~~~~~~~~~~~~
 
@@ -265,7 +279,8 @@ The default Cartpole recipe uses 30,000 updates and ten input frames. ANYmal C u
 updates and thirteen frames, with its network geometry configured alongside the task. The
 training loop samples history from flattened device-resident transitions, so memory does not
 multiply by history length. Data must still fit on the selected device. ``--config`` accepts
-JSON overrides of ``NeRDTrainCfg``. For a smoke test, collect 32 steps in four worlds and fit
+JSON overrides of ``NeRDTrainCfg``; a supplied ``network`` dictionary replaces the task's
+network geometry. For a smoke test, collect 32 steps in four worlds and fit
 with ``--max_updates 3 --batch_size 16 --log_interval 1 --save_interval 1``.
 
 Collection writes native HDF5 episodes, a JSON representation descriptor, and the resolved
@@ -293,6 +308,44 @@ SIGINT/SIGTERM finishes the current update and saves. Resume with:
 
 The checkpoint owns the normalization statistics. Data, split, network and optimization settings
 must match; the update budget can increase without changing the learning-rate decay schedule.
+
+Model and precision options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``network_type`` selects the PhysicsNeMo network class. ParallelNeRD is the default. To use
+VectorNeRD, supply a JSON configuration such as:
+
+.. code-block:: json
+
+   {
+     "network_type": "physicsnemo_robotics.models.nerd:NewtonNeRDVectorTransformer",
+     "network": {
+       "num_heads": 8, "hidden_size": 192, "head_hidden": 64,
+       "temporal_depth": 4, "position_encoding": "relative_lag",
+       "temporal_attention_spans": [4, 3, 3, 3]
+     }
+   }
+
+``precision`` accepts ``float32`` (default), ``bfloat16`` or ``float16``. Parameters, normalized
+targets and losses remain FP32. FP16 uses a saved gradient scaler and retries a skipped update
+with the same samples; a nonfinite forward prediction stops training. ParallelNeRD FP16 requires
+the dependency's attention matrix multiplications to disable autocast explicitly. The original
+integration's runtime monkeypatch is not used. Development validation used PhysicsNeMo Robotics
+revision ``a81160ef`` plus the attention-accumulation fix ``ee6d2e0``. That fix is an unpublished
+dependency; the earlier revision alone is insufficient for safe FP16 fitting.
+
+Launch distributed fitting through Torch's standard launcher:
+
+.. code-block:: bash
+
+   uv run --no-sync python -m torch.distributed.run --standalone --nproc_per_node=2 \
+       scripts/learning/nerd/train.py --dataset logs/nerd/anymal/data.hdf5 \
+       --output logs/nerd/anymal/distributed --batch_size 4096
+
+The batch size is global and must be divisible by the rank count. Each rank holds the dataset,
+draws an independent sample stream and participates in gradient averaging. Validation is
+partitioned across ranks. Rank zero owns logs, checkpoint publication and W&B uploads.
+Checkpoints save every rank's sampler state; resume requires the same rank count.
 
 Train and evaluate a policy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -323,6 +376,10 @@ Scope and migration
 
 These are joint-backed rigid scenes with fixed physical parameters. The solver rejects a changed
 physical model, unsupported timing, external body wrenches and unmodeled velocity commands.
+Physical identity includes fixed-root orientation/height, body flags, collision filtering and
+per-world topology. Horizontal reset-origin translations are ignored only for translation-invariant
+flat scenes. Version-2 checkpoints include architecture, gradient-scaler and per-rank sampler
+state. Recollect/refit datasets whose older physical fingerprint omitted these properties.
 ANYmal's fixed-plane probes do not represent rough terrain. A rough-terrain model needs a matching
 terrain feature contract for collection and learned rollout; changing the task's terrain alone
 does not provide that contract.
@@ -332,3 +389,11 @@ launchers. Existing artifacts are not silently converted or treated as compatibl
 training results from that branch are not new validation of this workflow. The native integration
 tests cover both tasks, terminal capture and retained values, offline update/resume, and repeated
 learned-solver graph replay with asynchronous resets and intervening tensor allocations.
+They also cover the 5 ms effort path, VectorNeRD, FP16 update/resume and two-rank CPU gradient
+averaging against an independent combined-batch update. These are integration checks, not
+long-horizon policy benchmarks or a multi-GPU scaling measurement.
+
+Joint wrenches and contact forces are not learned outputs. Reconstruction requires the physical
+model, contact law and acceleration in addition to position/velocity. Endpoint state alone does
+not generally determine a unique contact-force distribution. Analytic reconstruction is being
+validated separately and is not exposed as a learned-solver sensor capability.

@@ -15,6 +15,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from contextlib import nullcontext
 from dataclasses import fields
 
 import newton
@@ -129,7 +130,7 @@ class JointDynamics:
                     layout[field.name] = value.tolist() if isinstance(value, torch.Tensor) else value
             layout["world_count"] = 1
             descriptor = {
-                "version": 1,
+                "version": 2,
                 "frame_dt": frame_dt,
                 "control": control,
                 "heading": heading,
@@ -139,6 +140,8 @@ class JointDynamics:
                 "model": model_signature(model),
             }
         else:
+            if descriptor["version"] != 2:
+                raise ValueError("NeRD requires descriptor version 2; recollect data with complete physical identity.")
             layout = dict(descriptor["layout"])
             for name in ("continuous_q_mask", "root_translation_mask"):
                 layout[name] = torch.tensor(layout[name], dtype=torch.bool)
@@ -148,6 +151,13 @@ class JointDynamics:
             codec_type = HeadingJointStateCodec if descriptor["heading"] else JointStateCodec
             self.codec = codec_type(layout=JointLayout(**layout)) if model is None else codec_type(model)
         self.descriptor = descriptor
+        if model is not None:
+            if descriptor["control"] == "joint_f" and np.any(model.joint_target_ke.numpy()):
+                raise ValueError(
+                    "Effort-conditioned NeRD cannot omit an implicit position drive. Use an explicit actuator "
+                    "that publishes applied effort to joint_f; fixed damping with zero velocity target is supported."
+                )
+            self._input_valid = torch.empty(2, dtype=torch.bool, device=model.device.alias).unbind()
         self.contact_encoder = self.contact_adapter = None
         if model is not None and descriptor["contact_bodies"]:
             # The probe library compares local geometry across replicas. USD world-transform
@@ -221,18 +231,37 @@ class JointDynamics:
             return torch.empty(self.codec.batch_size, 0, device=state.joint_q.device.alias)
         return self.contact_adapter.encode_tokens(self.contact_encoder.encode_state(state))
 
+    def check_inputs(self, state, control):
+        """Reject unrepresented inputs at the same solver boundary during capture and deployment."""
+        # Persistent reduction outputs also work inside the numerical teacher's Warp CUDA graph.
+        device = state.body_f.device
+        stream = torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))) if device.is_cuda else nullcontext()
+        with stream:
+            for value, valid, message in (
+                (state.body_f, self._input_valid[0], "NeRD has no external body-wrench input."),
+                (control.joint_target_qd, self._input_valid[1], "NeRD has no velocity-target input."),
+            ):
+                torch.any(wp.to_torch(value), out=valid)
+                torch._assert_async(valid.logical_not_(), message)
+
 
 def model_signature(model: newton.Model) -> str:
     """Fingerprint the supported rigid model without mutating it or including solver/viewer attributes.
 
     Replicated worlds must have the same physical parameters. Local transform roundoff from USD
-    placement is tolerated at 1e-6; masses, gains, limits and friction remain exact. Free-root initial
-    poses and per-world origins are state, and are excluded. Mesh geometry is included by content.
+    placement is tolerated at 1e-6; masses, gains, limits and friction remain exact. Horizontal
+    translation is ignored only in scenes with no static geometry except horizontal planes.
+    Fixed-root orientation and height remain physical parameters. Mesh geometry is included by content.
     """
     digest = hashlib.sha256()
     collision_shapes = (model.shape_flags.numpy() & int(newton.ShapeFlags.COLLIDE_SHAPES)) != 0
+    shape_types, shape_bodies = model.shape_type.numpy(), model.shape_body.numpy()
+    transforms = model.shape_transform.numpy()
+    static = collision_shapes & (shape_bodies == -1)
+    horizontal = (shape_types == newton.GeoType.PLANE) & np.all(np.abs(transforms[:, 3:5]) < 1.0e-8, axis=1)
+    translation_invariant = np.all(horizontal[static])
     groups = {
-        "body": ("mass", "inertia", "com"),
+        "body": ("mass", "inertia", "com", "flags"),
         "joint": ("type", "dof_dim", "enabled", "X_p", "X_c"),
         "shape": (
             "type",
@@ -265,13 +294,11 @@ def model_signature(model: newton.Model) -> str:
         for suffix in names:
             name = entity + "_" + suffix
             array = getattr(model, name).numpy().copy()
-            if name == "joint_X_p":
-                # World-parent transforms define reset origins, not local articulation geometry.
-                array[model.joint_parent.numpy() == -1] = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+            if name == "joint_X_p" and translation_invariant:
+                array[model.joint_parent.numpy() == -1, :2] = 0.0
             if name == "shape_transform":
                 # A horizontal plane is unchanged by translation in its own plane.
-                planes = model.shape_type.numpy() == newton.GeoType.PLANE
-                array[planes, :2] = 0.0
+                array[horizontal, :2] = 0.0
             if suffix in ("X_p", "X_c", "transform"):
                 array = np.round(array.astype(np.float64), 6)
                 array[np.abs(array) < 1.0e-8] = 0.0
@@ -300,18 +327,28 @@ def model_signature(model: newton.Model) -> str:
             raise ValueError(f"NeRD cannot represent per-world variation in {name}.")
         digest.update(name.encode())
         digest.update(values[0].tobytes())
+    body_worlds = model.body_world.numpy()
+    body_ids = np.argsort(body_worlds, kind="stable").reshape(model.world_count, -1)
+    body_slots = np.empty(model.body_count, dtype=np.int64)
+    body_slots[body_ids] = np.arange(body_ids.shape[1])
     for name, values in (
         ("joint_parent", model.joint_parent.numpy()),
         ("joint_child", model.joint_child.numpy()),
         ("shape_body", model.shape_body.numpy()),
     ):
         entity = "shape" if name == "shape_body" else "joint"
-        selected = getattr(model, entity + "_world").numpy() == 0
+        worlds = getattr(model, entity + "_world").numpy()
+        selected = worlds >= 0
         if entity == "shape":
             selected &= collision_shapes
         indices = np.flatnonzero(selected)
+        indices = indices[np.argsort(worlds[indices], kind="stable")].reshape(model.world_count, -1)
+        values = np.where(values >= 0, body_slots[values.clip(min=0)], -1)
+        local = values[indices]
+        if not np.all(local == local[0]):
+            raise ValueError(f"NeRD cannot represent per-world variation in {name}.")
         digest.update(name.encode())
-        digest.update(values[indices].tobytes())
+        digest.update(local[0].tobytes())
     for shape in np.flatnonzero((model.shape_world.numpy() == 0) & collision_shapes):
         source = model.shape_source[shape]
         if source is not None:
@@ -319,6 +356,37 @@ def model_signature(model: newton.Model) -> str:
                 raise ValueError("NeRD supports primitive and mesh collision geometry only.")
             digest.update(np.asarray(source.vertices).tobytes())
             digest.update(np.asarray(source.indices).tobytes())
+    # Pair indices include visual shapes and all replicas. Normalize them to collision-only
+    # slots so headless collection and playback with a different world count have the same identity.
+    shape_world = model.shape_world.numpy()
+    local_shapes = np.flatnonzero(collision_shapes & (shape_world >= 0))
+    local_shapes = local_shapes[np.argsort(shape_world[local_shapes], kind="stable")].reshape(model.world_count, -1)
+    slots = np.full(model.shape_count, -1, dtype=np.int64)
+    slots[local_shapes] = np.arange(local_shapes.shape[1])
+    global_shapes = np.flatnonzero(collision_shapes & (shape_world == -1))
+    slots[global_shapes] = -1 - np.arange(len(global_shapes))
+    for name, pairs in (
+        ("excluded_pairs", model.shape_collision_filter_pairs_array()),
+        ("contact_pairs", model.shape_contact_pairs.numpy()),
+    ):
+        pairs = np.asarray(pairs).reshape(-1, 2)
+        pairs = pairs[collision_shapes[pairs].all(axis=1)]
+        pair_worlds = shape_world[pairs]
+        # Different local worlds cannot collide; a global shape can participate in each world.
+        pairs = pairs[(pair_worlds[:, 0] == pair_worlds[:, 1]) | (pair_worlds == -1).any(axis=1)]
+        worlds = shape_world[pairs].max(axis=1)
+        canonical = np.sort(slots[pairs], axis=1)
+        order = np.lexsort((canonical[:, 1], canonical[:, 0], worlds))
+        canonical, worlds = canonical[order], worlds[order]
+        counts = np.bincount(worlds[worlds >= 0], minlength=model.world_count)
+        if np.any(counts != counts[0]):
+            raise ValueError(f"NeRD cannot represent per-world variation in {name}.")
+        local = canonical[worlds >= 0].reshape(model.world_count, -1, 2)
+        if not np.all(local == local[0]):
+            raise ValueError(f"NeRD cannot represent per-world variation in {name}.")
+        digest.update(name.encode())
+        digest.update(local[0].tobytes())
+        digest.update(canonical[worlds == -1].tobytes())
     gravity = model.gravity.numpy()
     if not np.all(gravity == gravity[0]):
         raise ValueError("NeRD cannot represent per-world gravity variation.")
