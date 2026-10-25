@@ -32,7 +32,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
     evidence lives here; standard PPO checkpoints start a fresh sampling history on resume.
     """
 
-    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv) -> None:
         super().__init__(cfg, env)
         self._reset_term = env.event_manager.get_term_cfg("reset_from_state_table").func
         self.success_monitor = instantiate(cfg.params["success_monitor"], 1, self._reset_term.row_count, env.device)
@@ -41,7 +41,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: Sequence[int] | slice,
+        env_ids: Sequence[int] | torch.Tensor | slice,
         success_monitor: SuccessMonitorCfg,
         sampling: SamplerCfg,
         command_name: str = "transfer",
@@ -50,7 +50,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
         """Record finished episodes and draw rows for only the resetting environments."""
         del success_monitor, sampling
         ids = (
-            torch.arange(env.num_envs, device=env.device)[env_ids]
+            env.scene._ALL_INDICES[env_ids]
             if isinstance(env_ids, slice)
             else torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
         )
