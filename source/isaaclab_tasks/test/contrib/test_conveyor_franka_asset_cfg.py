@@ -124,14 +124,14 @@ def test_asset_transforms_preserve_the_original_workcell() -> None:
         warehouse_belt_sections,
     )
 
-    scene = ConveyorFrankaA09A12EnvCfg().scene
+    cfg = ConveyorFrankaA09A12EnvCfg()
+    scene = cfg.scene
     layer = Sdf.Layer.FindOrOpen(scene.warehouse_visual.spawn.usd_path)
-    scene._configure_route_assets()
-    workspace_z = scene.ground.workspace_origin_offset[2]
-    assert math.isclose(scene.robot.init_state.pos[2], workspace_z)
-    assert math.isclose(scene.cube_0.init_state.pos[2], 0.28 + workspace_z)
+    scene._configure_route_assets(cfg.commands.transfer.parcel_colors)
+    assert scene.robot.init_state.pos == ConveyorFrankaEnvCfg().scene.robot.init_state.pos
+    assert math.isclose(scene.cube_0.init_state.pos[2], 0.28)
     base_z = ConveyorFrankaEnvCfg().scene.conveyor_left_top_straight_collision.init_state.pos[2]
-    assert math.isclose(scene.warehouse_left_section_0.init_state.pos[2], base_z + workspace_z)
+    assert math.isclose(scene.warehouse_left_section_0.init_state.pos[2], base_z)
     for side, sign, original_index in (("Left", 1, 1), ("Right", -1, 0)):
         sections = warehouse_belt_sections(side, velocity=0.35)
         original = belt_collision_section_specs(side)[original_index].geometry
@@ -144,9 +144,7 @@ def test_asset_transforms_preserve_the_original_workcell() -> None:
             sign * (BELT_CENTER_Y - BELT_TURN_RADIUS),
         )
         assert 4 * visual.spawn.scale[0] == pytest.approx(2 * BELT_HALF_STRAIGHT)
-        assert visual.init_state.pos[2] + 1.78053 * visual.spawn.scale[2] == pytest.approx(
-            BELT_TOP_Z + scene.ground.workspace_origin_offset[2]
-        )
+        assert visual.init_state.pos[2] + 1.78053 * visual.spawn.scale[2] == pytest.approx(BELT_TOP_Z)
         for name, x in (
             ("RightInner", BELT_CENTER_X + BELT_HALF_STRAIGHT),
             ("LeftInner", BELT_CENTER_X - BELT_HALF_STRAIGHT),

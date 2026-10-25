@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -30,9 +31,10 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
     Newton viewers show a static approximation of the warehouse dressing.
     """
 
-    def __init__(self, cfg: ConveyorFrankaA09A12EnvCfg, render_mode: str | None = None, **kwargs):
+    cfg: ConveyorFrankaA09A12EnvCfg
+
+    def __init__(self, cfg: ConveyorFrankaA09A12EnvCfg, render_mode: str | None = None, **kwargs) -> None:
         self._warehouse_animation: list[tuple[Usd.Attribute, Usd.Attribute]] = []
-        self._warehouse_arm_joint_ids: list[int] | None = None
         cfg.scene._configure_route_assets(cfg.commands.transfer.parcel_colors)
         super().__init__(cfg, render_mode=render_mode, **kwargs)
         viewer = next((viz.cfg for viz in self.sim.visualizers if viz.cfg.backend.visualizer_type == "kit"), None)
@@ -65,21 +67,37 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         assets = tuple(self.scene[f"cube_{i}"] for i in range(self.cfg.conveyor_force.transported_body_count_per_env))
         self.conveyor_cube_pool = ConveyorCubePool(assets, self.num_envs, self.device)
         self._parcel_start_positions = torch.tensor(warehouse_parcel_positions(), device=self.device)
+        self._warehouse_arm_joint_ids = self.scene["robot"].find_joints(
+            self.cfg.actions.arm_action.joint_names, preserve_order=True
+        )[0]
         super().load_managers()
 
-    @staticmethod
-    def _in_workcell(positions: torch.Tensor) -> torch.Tensor:
-        """Identify parcels within the trained controller's local manipulation region [m]."""
-        return (
-            (positions[..., 0] > -0.25)
-            & (positions[..., 0] < 1.5)
-            & (positions[..., 1].abs() < 0.6)
-            & (positions[..., 2] < 0.4)
-            # The low merge passes beside the placement bend but is still remote transport.
-            & ((positions[..., 2] < 0.12) | (positions[..., 0] < 1.05))
-        )
+    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
+        """Advance presentation motion; pass training actions through or park during idle playback."""
+        if self._warehouse_animation:
+            self._animate_warehouse()
+        if not self.cfg.park_when_idle:
+            return super().step(action)
+        command = self.command_manager.get_term("transfer")
+        robot = self.scene["robot"]
+        joint_ids = self._warehouse_arm_joint_ids
+        parked = torch.zeros_like(action)
+        parked[:, :7] = (
+            (robot.data.default_joint_pos.torch[:, joint_ids] - robot.data.joint_pos.torch[:, joint_ids])
+            / self.cfg.actions.arm_action.scale
+        ).clamp(-0.25, 0.25)
+        # Keep invalid actions visible to the existing sanitization and termination terms.
+        use_policy = command.has_target | ~torch.isfinite(action).all(dim=1)
+        return super().step(torch.where(use_policy[:, None], action, parked))
 
-    def _adapt_policy_cube_state(self, positions, quaternions, velocities):
+    def close(self) -> None:
+        """Release presentation attributes before closing the shared task resources."""
+        self._warehouse_animation.clear()
+        super().close()
+
+    def _adapt_policy_cube_state(
+        self, positions: torch.Tensor, quaternions: torch.Tensor, velocities: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Represent remote inventory as waiting slots while keeping local manipulation states exact."""
         origins = self.scene.env_origins[:, None, :]
         local = positions - origins
@@ -98,28 +116,6 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             torch.where(remote[..., None], transport_velocity, velocities),
         )
 
-    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Advance presentation motion; pass training actions through or park during idle playback."""
-        if self._warehouse_animation:
-            self._animate_warehouse()
-        if not self.cfg.park_when_idle:
-            return super().step(action)
-        command = self.command_manager.get_term("transfer")
-        robot = self.scene["robot"]
-        if self._warehouse_arm_joint_ids is None:
-            self._warehouse_arm_joint_ids = robot.find_joints(
-                self.cfg.actions.arm_action.joint_names, preserve_order=True
-            )[0]
-        joint_ids = self._warehouse_arm_joint_ids
-        parked = torch.zeros_like(action)
-        parked[:, :7] = (
-            (robot.data.default_joint_pos.torch[:, joint_ids] - robot.data.joint_pos.torch[:, joint_ids])
-            / self.cfg.actions.arm_action.scale
-        ).clamp(-0.25, 0.25)
-        # Keep invalid actions visible to the existing sanitization and termination terms.
-        use_policy = command.has_target | ~torch.isfinite(action).all(dim=1)
-        return super().step(torch.where(use_policy[:, None], action, parked))
-
     def _animate_warehouse(self) -> None:
         """Sample USD motion using policy time, independently of render frame rate."""
         from pxr import Sdf
@@ -129,7 +125,7 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             for source, target in self._warehouse_animation:
                 target.Set(source.Get(time_code))
 
-    def _reset_idx(self, env_ids) -> None:
+    def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
         """Shuffle a mixed batch across the authored feeds in selected environments."""
         if isinstance(env_ids, slice):
             env_ids = self.scene._ALL_INDICES[env_ids]
@@ -147,7 +143,14 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             cube.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
             cube.write_root_velocity_to_sim_index(root_velocity=pose.new_zeros((len(env_ids), 6)), env_ids=env_ids)
 
-    def close(self) -> None:
-        """Release presentation attributes before closing the shared task resources."""
-        self._warehouse_animation.clear()
-        super().close()
+    @staticmethod
+    def _in_workcell(positions: torch.Tensor) -> torch.Tensor:
+        """Identify parcels within the trained controller's local manipulation region [m]."""
+        return (
+            (positions[..., 0] > -0.25)
+            & (positions[..., 0] < 1.5)
+            & (positions[..., 1].abs() < 0.6)
+            & (positions[..., 2] < 0.4)
+            # The low merge passes beside the placement bend but is still remote transport.
+            & ((positions[..., 2] < 0.12) | (positions[..., 0] < 1.05))
+        )

@@ -72,6 +72,7 @@ def test_checkpoint_interface_and_invalid_action_recovery(task):
     """Both real tasks preserve learned feature ordering, finite rewards and independent reset flags."""
     with closing(_environment(task)) as env:
         obs, _ = env.reset()
+        torch.testing.assert_close(env.scene["robot"].data.root_pos_w.torch[:, 2], env.scene.env_origins[:, 2])
         assert obs["policy"].shape == (2, 123)
         assert env.action_manager.total_action_dim == 8
         assert env.physics_dt == 1 / 120 and env.step_dt == 1 / 60
@@ -276,6 +277,17 @@ def test_sorter_dispatch_inventory_and_selected_resets():
         assert pool.slot_ids[0, 0] == 0
         assert command.metrics["sorted_parcels"].tolist() == [3, 1]
         torch.testing.assert_close(pool.assets[5].data.root_pos_w.torch[0] - env.scene.env_origins[0], positions[0, 5])
+        # Simultaneous arrivals can select different slots and opposite transfer directions.
+        waiting = positions[1, 2].clone()
+        positions[1, 2] = torch.tensor([0.75, -0.27, 0.06])
+        _place(env, positions)
+        command.has_target.zero_()
+        command._update_command()
+        assert command.target_cube_ids.tolist() == [slot, 2]
+        assert command.source_side_ids.tolist() == [0, 1]
+        positions[1, 2] = waiting
+        _place(env, positions)
+        command._update_command()
         # Carry the assigned parcel above the workcell; a remote held target must retain its slot.
         robot = env.scene["robot"]
         fingers, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
@@ -284,6 +296,7 @@ def test_sorter_dispatch_inventory_and_selected_resets():
         robot.write_joint_position_to_sim_index(position=joints)
         arms, _ = robot.find_joints("panda_joint[1-7]", preserve_order=True)
         joints[:, arms] = robot.data.default_joint_pos.torch[:, arms]
+        joints[:, arms[1]] = -0.8
         robot.write_joint_position_to_sim_index(position=joints)
         env.sim.forward()
         env.scene.update(env.step_dt)

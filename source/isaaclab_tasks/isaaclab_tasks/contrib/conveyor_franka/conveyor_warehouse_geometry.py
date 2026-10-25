@@ -11,6 +11,7 @@ import math
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -33,11 +34,14 @@ from .conveyor_geometry import (
     belt_direction,
 )
 
+if TYPE_CHECKING:
+    from pxr import Sdf
+
 _ROUTE_ASSET = Path(__file__).parent / "assets" / "conveyor_routes.usda"
 
 
 @lru_cache(maxsize=1)
-def _route_layer():
+def _route_layer() -> Sdf.Layer:
     # Import Usd to register file formats in kitless mode, without composing asset dependencies.
     from pxr import Sdf, Usd  # noqa: F401
 
@@ -140,7 +144,7 @@ def _prism(
     return MeshSpec(name, tuple(tuple(vertex) for vertex in vertices), faces)
 
 
-def warehouse_belt_sections(side: str, **kwargs: float | bool) -> tuple[ConveyorSectionSpec, ...]:
+def warehouse_belt_sections(side: str, **kwargs: float) -> tuple[ConveyorSectionSpec, ...]:
     """Build linked belt surfaces from USD while preserving the original manipulation geometry."""
     sign = belt_direction(side)
     sections = []

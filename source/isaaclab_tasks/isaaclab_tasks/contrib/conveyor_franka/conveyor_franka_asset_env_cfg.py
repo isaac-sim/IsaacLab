@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
@@ -23,14 +22,11 @@ from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 if TYPE_CHECKING:
     from pxr import Sdf, Usd
 
-    from isaaclab.terrains import TerrainImporter
-
 from . import mdp
 from .conveyor_franka_env_cfg import (
     ConveyorFrankaEnvCfg,
     ConveyorFrankaSceneCfg,
     _conveyor_asset,
-    _spawn_shape_with_display_color,
 )
 from .conveyor_geometry import (
     BELT_CENTER_X,
@@ -45,17 +41,16 @@ _THOR_TABLE_ASSET_PATH = f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/thor_table.usd"
 
 # The A12 endpoints are 2.9922 m apart, its belt crown is 1.78053 m above the
 # asset origin. USD point overrides extend the legs to the floor while keeping
-# the upper frames unchanged; the policy workspace follows the deck elevation.
+# the upper frames unchanged; presentation roots align the deck with the policy workspace.
 _A12_ENDPOINT_SEPARATION = 2.9922
 _ASSET_BELT_TOP_Z = 1.78053
 _ASSET_XY_SCALE = 2.0 * BELT_TURN_RADIUS / _A12_ENDPOINT_SEPARATION
-_CONVEYOR_SUPPORT_Z = 0.55
 # Preserve the upper frames' proportions. The scaled belt crown determines
-# how far to elevate the policy workspace.
+# the presentation translation into the policy workspace.
 _ASSET_Z_SCALE = _ASSET_XY_SCALE
-_ASSET_ROOT_Z = _CONVEYOR_SUPPORT_Z
+_ASSET_ROOT_Z = 0.55
 _ASSET_BELT_WORLD_Z = _ASSET_ROOT_Z + _ASSET_BELT_TOP_Z * _ASSET_Z_SCALE
-_WORKSPACE_ELEVATION = _ASSET_BELT_WORLD_Z - BELT_TOP_Z
+_PRESENTATION_OFFSET_Z = BELT_TOP_Z - _ASSET_BELT_WORLD_Z
 
 # A09 is a 4 m straight. Its travel-axis scale is independent of the common
 # lateral scale so one asset spans the task's complete 0.88 m straight run.
@@ -63,10 +58,10 @@ _A09_LENGTH = 4.0
 _A09_X_SCALE = 2.0 * BELT_HALF_STRAIGHT / _A09_LENGTH
 
 # The Thor table authors its mounting surface at local z=0 and its lowest foot
-# at z=-0.795 m. Uniformly scaling that distance to the elevated robot base
-# puts every foot on the global ground without distorting the table.
+# at z=-0.795 m. Uniformly scaling that distance to the robot's height above
+# the warehouse floor puts every foot on the ground without distorting the table.
 _THOR_TABLE_LOWEST_Z = -0.795
-_THOR_TABLE_SCALE = _WORKSPACE_ELEVATION / -_THOR_TABLE_LOWEST_Z
+_THOR_TABLE_SCALE = _PRESENTATION_OFFSET_Z / _THOR_TABLE_LOWEST_Z
 
 
 _PHYSICS_SCHEMA_PREFIXES = ("Physics", "Physx", "Newton", "Mujoco")
@@ -118,7 +113,7 @@ def _spawn_authored_visual(
     return prim
 
 
-def _extend_conveyor_supports(root_prim) -> None:
+def _extend_conveyor_supports(root_prim: Usd.Prim) -> None:
     """Apply authored support parameters to referenced meshes without bundling geometry."""
     import numpy as np
 
@@ -160,7 +155,7 @@ def _spawn_carton_cube(
     """Dress the original 40 mm collider with a centered, equally sized SimReady carton."""
     from pxr import UsdGeom
 
-    prim = _spawn_shape_with_display_color(prim_path, cfg, translation, orientation, **kwargs)
+    prim = sim_utils.spawn_cuboid(prim_path, cfg, translation, orientation, **kwargs)
     UsdGeom.Imageable(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh")).MakeInvisible()
     visual_cfg = sim_utils.UsdFileCfg(usd_path=cfg.parcel_usd_path)
     _spawn_authored_visual(f"{prim_path}/CartonVisual", visual_cfg)
@@ -175,23 +170,11 @@ class _ParcelCuboidCfg(sim_utils.CuboidCfg):
     """USD visual, normalized to the task's 40 mm cube."""
 
 
-def _is_physics_schema(schema_name: str) -> bool:
-    """Return whether an applied schema can add physics ownership to a visual asset."""
-    return schema_name == "IsaacConveyorAPI" or schema_name.startswith(_PHYSICS_SCHEMA_PREFIXES)
-
-
-def _make_usd_subtree_visual_only(root_prim) -> None:
+def _make_usd_subtree_visual_only(root_prim: Usd.Prim) -> None:
     """Remove physics ownership with stage overrides, preserving the source asset."""
     from pxr import Sdf, Usd, UsdPhysics
 
-    children = tuple(Usd.PrimRange(root_prim, Usd.TraverseInstanceProxies()))
-    instance_proxies = tuple(str(child.GetPath()) for child in children if child.IsInstanceProxy())
-    if instance_proxies:
-        raise RuntimeError(
-            "Visual-only USD overrides require editable descendants; set make_uninstanceable=True. "
-            f"Found instance proxies below {root_prim.GetPath()}: {instance_proxies[:3]}"
-        )
-
+    children = tuple(Usd.PrimRange(root_prim))
     with Sdf.ChangeBlock():
         for child in children:
             if not child.IsValid() or not child.IsActive():
@@ -204,17 +187,9 @@ def _make_usd_subtree_visual_only(root_prim) -> None:
                 child.SetActive(False)
                 continue
             for schema_name in tuple(child.GetAppliedSchemas()):
-                if _is_physics_schema(schema_name) and not child.RemoveAppliedSchema(schema_name):
+                is_physics = schema_name == "IsaacConveyorAPI" or schema_name.startswith(_PHYSICS_SCHEMA_PREFIXES)
+                if is_physics and not child.RemoveAppliedSchema(schema_name):
                     raise RuntimeError(f"Failed to remove physics schema {schema_name!r} from {child.GetPath()}.")
-
-    remaining = {
-        str(child.GetPath()): tuple(schema for schema in child.GetAppliedSchemas() if _is_physics_schema(schema))
-        for child in children
-        if child.IsValid() and child.IsActive()
-    }
-    remaining = {path: schemas for path, schemas in remaining.items() if schemas}
-    if remaining:
-        raise RuntimeError(f"Visual-only USD subtree still contains physics schemas: {remaining}")
 
 
 @sim_utils.clone
@@ -224,7 +199,7 @@ def _spawn_visual_only_usd(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
-):
+) -> Usd.Prim:
     """Spawn a USD asset and strip its authored physics metadata."""
     prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
 
@@ -233,29 +208,17 @@ def _spawn_visual_only_usd(
     return prim
 
 
-@configclass
-class _ElevatedGroundPlaneCfg(TerrainImporterCfg):
-    """Ground plane that reports the elevated workspace as its environment origin."""
-
-    class_type: type[TerrainImporter] | str = (
-        "{DIR}.conveyor_franka_asset_terrain:ConveyorFrankaGroundPlaneTerrainImporter"
-    )
-    workspace_origin_offset: tuple[float, float, float] = (0.0, 0.0, _WORKSPACE_ELEVATION)
-    """Translation from clone-grid origins to policy workspaces [m]."""
-
-
 def _visual_usd_asset(
     prim_path: str,
     usd_path: str,
     position: tuple[float, float, float],
     scale: tuple[float, float, float],
-    rotation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
     spawn_func: Callable = _spawn_authored_visual,
 ) -> AssetBaseCfg:
     """Build one visual asset whose authored colliders are explicitly disabled."""
     return AssetBaseCfg(
         prim_path=prim_path,
-        init_state=AssetBaseCfg.InitialStateCfg(pos=position, rot=rotation),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=position),
         spawn=sim_utils.UsdFileCfg(func=spawn_func, usd_path=usd_path, scale=scale, make_uninstanceable=True),
     )
 
@@ -268,16 +231,12 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
         """Dress the workcell and extend its returns around the fixed manipulation sections."""
         super().__post_init__()
 
-        # Matching asset and environment-origin offsets preserve the policy's local coordinates.
-        for asset in vars(self).values():
-            if isinstance(asset, AssetBaseCfg) and asset.prim_path.startswith("{ENV_REGEX_NS}/"):
-                x, y, z = asset.init_state.pos
-                asset.init_state.pos = (x, y, z + _WORKSPACE_ELEVATION)
-
-        self.ground = _ElevatedGroundPlaneCfg(
+        # Translate the warehouse dressing around the unchanged policy workspace.
+        self.ground = AssetBaseCfg(
             prim_path="/World/GroundPlane",
-            terrain_type="plane",
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.055, 0.065, 0.082), roughness=0.82),
+            collision_group=-1,
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, _PRESENTATION_OFFSET_Z)),
+            spawn=sim_utils.GroundPlaneCfg(visible=False, color=(0.055, 0.065, 0.082)),
         )
         self.dome_light.spawn.color = (0.70, 0.78, 0.92)
         self.dome_light.spawn.intensity = 700.0
@@ -289,7 +248,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
         self.tabletop = _visual_usd_asset(
             prim_path="{ENV_REGEX_NS}/RobotThorTableVisual",
             usd_path=_THOR_TABLE_ASSET_PATH,
-            position=(0.0, 0.0, _WORKSPACE_ELEVATION),
+            position=(0.0, 0.0, 0.0),
             scale=(_THOR_TABLE_SCALE,) * 3,
             spawn_func=_spawn_visual_only_usd,
         )
@@ -312,7 +271,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
                 _visual_usd_asset(
                     prim_path=f"{{ENV_REGEX_NS}}/Conveyor{side}{run.title()}A09Visual",
                     usd_path=str(_PRESENTATION_ASSETS / "conveyor_straight_supported.usda"),
-                    position=(right_x, y_position, _ASSET_ROOT_Z),
+                    position=(right_x, y_position, _ASSET_ROOT_Z + _PRESENTATION_OFFSET_Z),
                     scale=straight_scale,
                 ),
             )
@@ -320,7 +279,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
         self.warehouse_visual = _visual_usd_asset(
             prim_path="{ENV_REGEX_NS}/WarehouseVisual",
             usd_path=str(_PRESENTATION_ASSETS / "warehouse.usda"),
-            position=(0.0, 0.0, 0.0),
+            position=(0.0, 0.0, _PRESENTATION_OFFSET_Z),
             scale=(1.0, 1.0, 1.0),
         )
         for cube_id in range(4):
@@ -328,9 +287,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
             cube.spawn = _ParcelCuboidCfg(**vars(cube.spawn))
             cube.spawn.func = _spawn_carton_cube
 
-    def _configure_route_assets(
-        self, parcel_colors: tuple[str, ...] = ("blue", "orange", "green", "purple") * 6
-    ) -> None:
+    def _configure_route_assets(self, parcel_colors: tuple[str, ...]) -> None:
         """Read USD route geometry after the application selects its USD runtime."""
         from .conveyor_warehouse_geometry import warehouse_parcel_positions
 
@@ -341,22 +298,25 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
             cube = self.cube_0.copy()
             cube.spawn.parcel_usd_path = str(_PRESENTATION_ASSETS / f"parcel_{color}.usda")
             cube.prim_path = f"{{ENV_REGEX_NS}}/Cube{cube_id}"
-            cube.init_state.pos = (position[0], position[1], position[2] + _WORKSPACE_ELEVATION)
+            cube.init_state.pos = position
             setattr(self, f"cube_{cube_id}", cube)
         for side in ("Left", "Right"):
             for key in ("top_straight", "bottom_straight", "right_turn", "left_turn"):
                 setattr(self, f"conveyor_{side.lower()}_{key}_collision", None)
             for index, section in enumerate(warehouse_belt_sections(side)):
-                asset = _conveyor_asset(section.belt.prim_path, section.geometry)
-                x, y, z = asset.init_state.pos
-                asset.init_state.pos = (x, y, z + _WORKSPACE_ELEVATION)
-                setattr(self, f"warehouse_{side.lower()}_section_{index}", asset)
+                setattr(
+                    self,
+                    f"warehouse_{side.lower()}_section_{index}",
+                    _conveyor_asset(section.belt.prim_path, section.geometry),
+                )
             for guard in warehouse_guard_meshes(side):
-                asset = _conveyor_asset(f"{{ENV_REGEX_NS}}/{guard.name}Collision", guard)
-                asset.init_state.pos = (0.0, 0.0, _WORKSPACE_ELEVATION)
-                setattr(self, f"warehouse_{guard.name}_collision", asset)
+                setattr(
+                    self,
+                    f"warehouse_{guard.name}_collision",
+                    _conveyor_asset(f"{{ENV_REGEX_NS}}/{guard.name}Collision", guard),
+                )
 
-    def build_conveyor_belt_specs(self, **kwargs: float | bool) -> tuple[SurfaceVelocitySpec, ...]:
+    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[SurfaceVelocitySpec, ...]:
         """Describe the linked warehouse surfaces to the existing Newton conveyor driver."""
         return tuple(section.belt for side in ("Left", "Right") for section in warehouse_belt_sections(side, **kwargs))
 
@@ -371,7 +331,6 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
     scene: ConveyorFrankaA09A12SceneCfg = ConveyorFrankaA09A12SceneCfg(
         num_envs=1,
         env_spacing=24.0,
-        replicate_physics=True,
     )
 
     def __post_init__(self) -> None:
@@ -397,8 +356,8 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
             "minimum": (-0.4, -1.2, -0.05),
             "maximum": (2.85, 1.2, 0.8),
         }
-        self.sim.visualizer_cfgs.eye = (4.8, -5.2, 3.0)
-        self.sim.visualizer_cfgs.lookat = (0.9, 0.6, 0.95)
+        self.sim.visualizer_cfgs.eye = (4.8, -5.2, 3.0 + _PRESENTATION_OFFSET_Z)
+        self.sim.visualizer_cfgs.lookat = (0.9, 0.6, 0.95 + _PRESENTATION_OFFSET_Z)
         self.sim.visualizer_cfgs.focal_length = 24.0
 
     def play_mode(self) -> None:
