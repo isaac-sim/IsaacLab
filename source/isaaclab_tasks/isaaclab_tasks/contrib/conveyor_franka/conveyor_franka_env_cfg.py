@@ -459,7 +459,7 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                     ),
                 )
 
-    def build_conveyor_belt_specs(self, **kwargs) -> tuple[SurfaceVelocitySpec, ...]:
+    def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[SurfaceVelocitySpec, ...]:
         """Describe the velocity field on each authored collision section."""
         return tuple(
             section.belt for side in ("Left", "Right") for section in belt_collision_section_specs(side, **kwargs)
