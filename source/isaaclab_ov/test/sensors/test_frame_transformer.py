@@ -407,7 +407,7 @@ def test_frame_transformer_feet_wrt_base(device):
                 torch.testing.assert_close(bodies_quat_source_tf[:, index], body_quat_b)
 
 
-# No axis selects a branch another depends on, so each value is covered once.
+# Neither axis selects a branch the other depends on, so each value is covered once.
 @pytest.mark.parametrize(
     ("device", "source_robot", "path_prefix"),
     [("cpu", "Robot", "{ENV_REGEX_NS}"), ("cuda:0", "Robot_1", "/World")],

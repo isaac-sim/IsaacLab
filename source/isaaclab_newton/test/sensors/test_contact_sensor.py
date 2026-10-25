@@ -465,7 +465,7 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
 # ===================================================================
 
 
-# The sensor has no device-specific path; the rotated lifecycle and horizontal cases keep CPU coverage.
+# No device-specific path; the rotated cases above keep CPU coverage.
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(
     "use_mujoco_contacts",

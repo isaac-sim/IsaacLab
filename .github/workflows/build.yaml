@@ -441,9 +441,8 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
-        # Only the launch matrix: the file's other tests (supervisor, AST discovery, script wiring) ignore the
-        # runtime group and already run in isaaclab (core) [1/3]. Dedicated sensor tests cover raycasting;
-        # keep these example launches available for manual runs.
+        # Launch matrix only; the file's other tests already run in isaaclab (core) [1/3].
+        # Dedicated sensor tests cover raycasting; keep these example launches available for manual runs.
         test-k-expr: "test_standalone_script_runs_cleanly and not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
         ovrtx-shader-cache: restore
@@ -1228,9 +1227,8 @@ jobs:
         # shard. The multi-agent suite supplies Handover. Newton deterministic
         # modes generate different kernels, which only the determinism suite
         # compiles, and the contributed environments are not core tasks; uncached,
-        # both are the long poles of their PR jobs. The solver-matrix file is the
-        # only user of Kamino's collision detector, a ~140 s compile that is the
-        # isaaclab_newton job's long pole when cold.
+        # both are the long poles of their PR jobs.
+        # Only the Newton solver-matrix file compiles Kamino's collision detector (~140 s cold).
         include-files: >-
           test_environments_newton.py,
           test_multi_agent_environments.py,
