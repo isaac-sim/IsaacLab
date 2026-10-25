@@ -253,6 +253,48 @@ model. Capture and deployment both reject external body wrenches and unrepresent
 targets. CUDA graphs stay enabled; the existing ANYdrive implementation steps outside the
 graph, with learned physics replayed at each 5 ms tick.
 
+Rough terrain and live contacts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``Isaac-Velocity-Rough-Anymal-C-NeRD`` and its ``-Explore`` / ``-Learned`` variants use the
+same 5 ms applied-effort contract with Newton collision detection enabled. NeRD replaces the
+numerical dynamics solve; collision detection, ANYdrive and forward kinematics remain.
+The exploration task uses terrain-aware reset patches to avoid spawning inside raised terrain.
+The policy observations are proprioceptive; these tasks do not add a terrain-height observation.
+
+Set ``NeRDRecorderCfg.max_contacts`` to a positive capacity to select PhysicsNeMo Robotics'
+``RigidContactSetEncoder``. It captures the collision pipeline's pre-solver contacts after
+actuator evaluation, without rerunning collision detection. Each packed contact contains validity,
+body/other-body identity, dynamic-body status, point, normal, lever arm, signed gap and relative
+velocity. The learner converts these to typed, permutation-invariant contact sets: only valid
+continuous geometry is normalized; identities and masks retain their semantics. Contact and state
+histories use the same episode boundaries and repeated reset prefixes. Capacity overflow stops
+capture or deployment instead of silently dropping constraints.
+
+Terrain geometry can change between collection and deployment because it is represented through
+live contacts. The checkpoint still fixes robot geometry, inertias, gains, limits, collision filtering,
+gravity and the uniform external contact material. This contract does not support independently
+moving external objects or per-surface material variation. Wrench accuracy is a separate validation
+requirement; enabling contact conditioning does not enable learned force sensors.
+
+.. code-block:: bash
+
+   uv run --no-sync python scripts/learning/nerd/record.py \
+       --task Isaac-Velocity-Rough-Anymal-C-NeRD-Explore \
+       --output logs/nerd/rough/exploration.hdf5 --num_envs 128 --steps 1600 \
+       --action_scale 0.75 --action_hold 4
+   uv run --no-sync python scripts/learning/nerd/train.py \
+       --dataset logs/nerd/rough/exploration.hdf5 --output logs/nerd/rough/model \
+       --wandb_project <project> --wandb_entity <entity>
+
+``--action_hold`` sets the interval between action updates while retaining every physics transition.
+For locomotion data, ``--policy /path/to/exported/policy.pt`` accepts a feedforward TorchScript
+policy consuming the task's ``policy`` observations. Match its observation layout, joint ordering
+and action scale through task configuration. A policy trained in PhysX may need
+``env.scene.robot.joint_ordering=physx`` when collecting with Newton. Multiple compatible
+datasets can be passed together to ``train.py --dataset``. Use separate terrain seeds for final
+evaluation; the learner's episode split alone does not establish terrain generalization.
+
 Collect and fit
 ~~~~~~~~~~~~~~~
 
@@ -380,9 +422,8 @@ Physical identity includes fixed-root orientation/height, body flags, collision 
 per-world topology. Horizontal reset-origin translations are ignored only for translation-invariant
 flat scenes. Version-2 checkpoints include architecture, gradient-scaler and per-rank sampler
 state. Recollect/refit datasets whose older physical fingerprint omitted these properties.
-ANYmal's fixed-plane probes do not represent rough terrain. A rough-terrain model needs a matching
-terrain feature contract for collection and learned rollout; changing the task's terrain alone
-does not provide that contract.
+ANYmal's flat-model fixed-plane probes do not represent rough terrain. Use the rough task family
+to collect and fit the live-contact representation; flat and rough checkpoints are not interchangeable.
 
 Native HDF5 and checkpoints replace the experimental ``isaaclab_physicsnemo`` Zarr/artifact
 launchers. Existing artifacts are not silently converted or treated as compatible. Historical
@@ -392,6 +433,8 @@ learned-solver graph replay with asynchronous resets and intervening tensor allo
 They also cover the 5 ms effort path, VectorNeRD, FP16 update/resume and two-rank CPU gradient
 averaging against an independent combined-batch update. These are integration checks, not
 long-horizon policy benchmarks or a multi-GPU scaling measurement.
+The rough case also exercises live contact capture, contact-conditioned fitting and resume,
+deployment with a different terrain and world count, and rejection of changed contact friction.
 
 Joint wrenches and contact forces are not learned outputs. Reconstruction requires the physical
 model, contact law and acceleration in addition to position/velocity. Endpoint state alone does

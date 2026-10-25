@@ -17,6 +17,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, TerminationTermCfg
+from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporterCfg
+from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
@@ -150,3 +152,84 @@ class AnymalCNeRDEffortLearnedEnvCfg(AnymalCNeRDEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.sim.physics = self.sim.physics.replace(solver_cfg=NeRDSolverCfg())
+
+
+@configclass
+class AnymalCNeRDRoughExplorationEnvCfg(AnymalCNeRDEffortExplorationEnvCfg):
+    """Physics-step collection across rough surfaces, conditioned on all Newton rigid contacts."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        material = self.scene.ground.spawn.physics_material
+        self.scene.ground = None
+        self.scene.terrain = TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            max_init_terrain_level=None,
+            terrain_generator=ROUGH_TERRAINS_CFG.replace(
+                seed=42, num_rows=4, num_cols=6, border_width=2.0, curriculum=False
+            ),
+            physics_material=material,
+        )
+        self.sim.physics.solver_cfg.use_mujoco_contacts = False
+        self.sim.physics.solver_cfg.nconmax = 64
+        self.sim.physics.solver_cfg.njmax = 256
+        for terrain in self.scene.terrain.terrain_generator.sub_terrains.values():
+            terrain.flat_patch_sampling = {
+                "init_pos": FlatPatchSamplingCfg(
+                    num_patches=64, patch_radius=0.5, max_height_diff=0.12, x_range=(-3.0, 3.0), y_range=(-3.0, 3.0)
+                )
+            }
+        self.scene.robot.init_state.pos = (0.0, 0.0, 0.8)
+        self.events.reset_base.func = mdp.reset_root_state_from_terrain
+        self.events.reset_base.params["pose_range"] = {
+            "roll": (-0.3, 0.3),
+            "pitch": (-0.3, 0.3),
+            "yaw": (-math.pi, math.pi),
+        }
+        self.recorders.transition.contact_bodies = ()
+        self.recorders.transition.max_contacts = 64
+
+
+@configclass
+class AnymalCNeRDRoughEnvCfg(AnymalCNeRDRoughExplorationEnvCfg):
+    """Rough-terrain locomotion with native ANYdrive and proprioceptive policy observations."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.recorders.transition = None
+        self.decimation = self.sim.render_interval = 4
+        self.episode_length_s = 20.0
+        self.terminations.bad_orientation = TerminationTermCfg(
+            func=mdp.bad_orientation, params={"limit_angle": math.pi / 2}
+        )
+
+
+@configclass
+class AnymalCNeRDRoughLearnedEnvCfg(AnymalCNeRDRoughEnvCfg):
+    """Replace the numerical rough-terrain solver while retaining collisions and ANYdrive."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.sim.physics = self.sim.physics.replace(solver_cfg=NeRDSolverCfg())
+
+
+@configclass
+class AnymalCRoughNeRDTrainCfg:
+    """Contact-conditioned offline fitting; optimizer defaults belong to the shared learner."""
+
+    max_updates = 60000
+    learning_rate_decay_updates = 60000
+    batch_size = 4096
+    precision = "bfloat16"
+    network = {
+        "num_heads": 10,
+        "head_dim": 64,
+        "intermediate_size": 896,
+        "head_hidden": 192,
+        "temporal_attention_spans": (4, 4, 4, 4),
+        "rms_norm_eps": 1.0e-6,
+        "linear_probe": True,
+        "contact_slot_count": 8,
+        "contact_slot_dim": 64,
+    }

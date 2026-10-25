@@ -5,7 +5,7 @@
 
 """Shared NeRD representation for native recording, offline fitting and Newton inference.
 
-PhysicsNeMo Robotics owns the joint codec, contact probes and network. Isaac Lab owns the
+PhysicsNeMo Robotics owns the joint codec, contact encoders and network. Isaac Lab owns the
 recorded control-period contract and the heading convention used by its locomotion tasks.
 Import this module only when learned dynamics is selected; task discovery needs no PhysicsNeMo.
 """
@@ -28,9 +28,11 @@ from physicsnemo_robotics.dynamics import (
     FixedContactFeatureAdapter,
     FixedRigidContactEncoder,
     JointStateCodec,
+    RigidContactSetEncoder,
     expand_rigid_contact_shapes,
 )
 from physicsnemo_robotics.dynamics.codecs.joint import JointLayout
+from physicsnemo_robotics.newton import NewtonStepContext
 
 from isaaclab.utils.math import normalize, quat_apply, quat_apply_inverse, quat_conjugate, quat_mul
 
@@ -97,8 +99,8 @@ class HeadingJointStateCodec(JointStateCodec):
 class JointDynamics:
     """One representation used on stored tensors and, optionally, a live Newton model.
 
-    Only uniform, joint-backed rigid worlds are supported. Contacts are explicit fixed sphere
-    probes against a per-world plane; they are recomputed from each live predicted state.
+    Only uniform, joint-backed rigid worlds are supported. Contact inputs are fixed plane probes
+    or live Newton rigid contact sets, recomputed from each predicted state during deployment.
     The descriptor is JSON data, so offline training does not initialize a simulation.
     """
 
@@ -112,8 +114,11 @@ class JointDynamics:
         heading=False,
         contact_bodies=(),
         root_body="",
+        max_contacts=0,
     ):
         if descriptor is None:
+            if max_contacts < 0 or (max_contacts and contact_bodies):
+                raise ValueError("Select fixed contact_bodies or a positive Newton max_contacts capacity.")
             if control not in ("joint_f", "joint_target_q"):
                 raise ValueError("NeRD control must be joint_f or joint_target_q.")
             if (
@@ -136,8 +141,14 @@ class JointDynamics:
                 "heading": heading,
                 "contact_bodies": list(contact_bodies),
                 "root_body": root_body,
+                "max_contacts": max_contacts,
+                "contact_entities": [
+                    model.body_label[i].rsplit("/", 1)[-1] for i in np.flatnonzero(model.body_world.numpy() == 0)
+                ]
+                if max_contacts
+                else [],
                 "layout": layout,
-                "model": model_signature(model),
+                "model": model_signature(model, contact_conditioned=bool(max_contacts)),
             }
         else:
             if descriptor["version"] != 2:
@@ -151,6 +162,7 @@ class JointDynamics:
             codec_type = HeadingJointStateCodec if descriptor["heading"] else JointStateCodec
             self.codec = codec_type(layout=JointLayout(**layout)) if model is None else codec_type(model)
         self.descriptor = descriptor
+        self.max_contacts = descriptor.get("max_contacts", 0)
         if model is not None:
             if descriptor["control"] == "joint_f" and np.any(model.joint_target_ke.numpy()):
                 raise ValueError(
@@ -159,7 +171,22 @@ class JointDynamics:
                 )
             self._input_valid = torch.empty(2, dtype=torch.bool, device=model.device.alias).unbind()
         self.contact_encoder = self.contact_adapter = None
-        if model is not None and descriptor["contact_bodies"]:
+        if model is not None and self.max_contacts:
+            body_worlds = model.body_world.numpy()
+            indices = np.stack([np.flatnonzero(body_worlds == i) for i in range(model.world_count)])
+            names = [model.body_label[i].rsplit("/", 1)[-1] for i in indices[0]]
+            if names != descriptor["contact_entities"]:
+                raise ValueError("NeRD contact body order differs from the recorded representation.")
+            body_codec = BodyStateCodec(
+                model,
+                indices=indices,
+                semantic_ids=tuple(names),
+                model_frame=BodyHeadingFrame(body=names.index(descriptor["root_body"]))
+                if descriptor["heading"]
+                else None,
+            )
+            self.contact_encoder = RigidContactSetEncoder(model, body_codec, max_contacts=self.max_contacts)
+        elif model is not None and descriptor["contact_bodies"]:
             # The probe library compares local geometry across replicas. USD world-transform
             # roundoff is removed from a private view; live model arrays are never replaced.
             geometry = copy.copy(model)
@@ -210,6 +237,20 @@ class JointDynamics:
         return 14 * len(self.descriptor["contact_bodies"])
 
     @property
+    def contact_shape(self):
+        return (self.max_contacts, 17) if self.max_contacts else (self.contact_dim,)
+
+    @property
+    def contact_model_cfg(self):
+        if not self.max_contacts:
+            return {}
+        return dict(
+            contact_dim=17,
+            max_contacts=self.max_contacts,
+            num_contact_entities=len(self.descriptor["contact_entities"]),
+        )
+
+    @property
     def input_dim(self):
         return (
             self.codec.state_shape[0] + self.control_dim + (3 if self.descriptor["heading"] else 0) + self.contact_dim
@@ -222,14 +263,28 @@ class JointDynamics:
             gravity = torch.zeros_like(state[..., :3])
             gravity[..., 2] = -1.0
             values.append(quat_apply_inverse(normalize(state[..., 3:7]), gravity))
-        values.append(contacts)
+        if not self.max_contacts:
+            values.append(contacts)
         return torch.cat(values, dim=-1)
 
-    def contacts(self, state):
-        """Read fixed probes at the starting state, independently of the numerical solver's contacts."""
+    def contacts(self, state, contacts=None):
+        """Encode starting-state geometry; variable contacts must come from the live collision pipeline."""
+        if self.max_contacts:
+            dt = self.descriptor["frame_dt"]
+            context = NewtonStepContext(state, state, None, contacts, 0, 0, dt, dt)
+            values = self.contact_encoder.encode_step(context)
+            torch._assert_async((self.contact_encoder.last_overflow == 0).all(), "NeRD contact capacity overflowed.")
+            return values
         if self.contact_encoder is None:
             return torch.empty(self.codec.batch_size, 0, device=state.joint_q.device.alias)
         return self.contact_adapter.encode_tokens(self.contact_encoder.encode_state(state))
+
+    @staticmethod
+    def contact_tokens(values, mean, scale):
+        """Normalize only valid continuous geometry; endpoint indices and masks retain their types."""
+        tokens = RigidContactSetEncoder.to_variable_contact_set(values)
+        tokens.geometry.sub_(mean).div_(scale).mul_(tokens.valid.unsqueeze(-1))
+        return tokens
 
     def check_inputs(self, state, control):
         """Reject unrepresented inputs at the same solver boundary during capture and deployment."""
@@ -245,13 +300,15 @@ class JointDynamics:
                 torch._assert_async(valid.logical_not_(), message)
 
 
-def model_signature(model: newton.Model) -> str:
+def model_signature(model: newton.Model, *, contact_conditioned: bool = False) -> str:
     """Fingerprint the supported rigid model without mutating it or including solver/viewer attributes.
 
     Replicated worlds must have the same physical parameters. Local transform roundoff from USD
     placement is tolerated at 1e-6; masses, gains, limits and friction remain exact. Horizontal
     translation is ignored only in scenes with no static geometry except horizontal planes.
     Fixed-root orientation and height remain physical parameters. Mesh geometry is included by content.
+    Live-contact models instead fix robot geometry and uniform external material, allowing static
+    terrain geometry and floating-root placement to vary through the encoded state and contacts.
     """
     digest = hashlib.sha256()
     collision_shapes = (model.shape_flags.numpy() & int(newton.ShapeFlags.COLLIDE_SHAPES)) != 0
@@ -260,6 +317,26 @@ def model_signature(model: newton.Model) -> str:
     static = collision_shapes & (shape_bodies == -1)
     horizontal = (shape_types == newton.GeoType.PLANE) & np.all(np.abs(transforms[:, 3:5]) < 1.0e-8, axis=1)
     translation_invariant = np.all(horizontal[static])
+    if contact_conditioned:
+        # Geometry is a live input. Its contact law is not: every external surface must share it.
+        for name in (
+            "margin",
+            "gap",
+            "material_ke",
+            "material_kd",
+            "material_mu",
+            "material_kf",
+            "material_ka",
+            "material_restitution",
+            "material_mu_torsional",
+            "material_mu_rolling",
+        ):
+            values = getattr(model, "shape_" + name).numpy()[static]
+            if not len(values) or not np.all(values == values[0]):
+                raise ValueError("Contact-conditioned NeRD requires one uniform external contact material.")
+            digest.update(name.encode())
+            digest.update(np.asarray(values[0]).tobytes())
+        collision_shapes &= ~static
     groups = {
         "body": ("mass", "inertia", "com", "flags"),
         "joint": ("type", "dof_dim", "enabled", "X_p", "X_c"),
@@ -296,6 +373,9 @@ def model_signature(model: newton.Model) -> str:
             array = getattr(model, name).numpy().copy()
             if name == "joint_X_p" and translation_invariant:
                 array[model.joint_parent.numpy() == -1, :2] = 0.0
+            if name == "joint_X_p" and contact_conditioned:
+                roots = (model.joint_parent.numpy() == -1) & (model.joint_type.numpy() == newton.JointType.FREE)
+                array[roots, :3] = 0.0
             if name == "shape_transform":
                 # A horizontal plane is unchanged by translation in its own plane.
                 array[horizontal, :2] = 0.0

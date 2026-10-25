@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""NeRD's native capture, offline/checkpoint and graph/reset boundary on two real articulated tasks."""
+"""NeRD capture, fitting, checkpoint and graph/reset contracts across articulated tasks and contact models."""
 
 import json
 import subprocess
@@ -12,6 +12,7 @@ from pathlib import Path
 
 import gymnasium as gym
 import h5py
+import newton
 import pytest
 import torch
 import warp as wp
@@ -31,19 +32,33 @@ def never(env):
 
 @pytest.mark.parametrize(
     "task",
-    ("Isaac-Cartpole-NeRD", "Isaac-Velocity-Flat-Anymal-C-NeRD", "Isaac-Velocity-Flat-Anymal-C-NeRD-Effort"),
+    (
+        "Isaac-Cartpole-NeRD",
+        "Isaac-Velocity-Flat-Anymal-C-NeRD",
+        "Isaac-Velocity-Flat-Anymal-C-NeRD-Effort",
+        "Isaac-Velocity-Rough-Anymal-C-NeRD",
+    ),
 )
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
     pytest.importorskip("physicsnemo_robotics")
     from isaaclab_newton.physics.nerd import JointDynamics
-    from isaaclab_newton.physics.nerd_manager import SolverNeRD
 
     from isaaclab_rl.nerd import NeRDTrainCfg, OfflineNeRD
 
     torch.backends.cuda.matmul.allow_tf32 = False
     cfg, _ = resolve_task_config(task + "-Explore", None, overrides=[])
     cfg.scene.num_envs, cfg.sim.device, cfg.seed = 4, device, 7
+    if "Rough" in task:
+        from isaaclab.envs.mdp import reset_root_state_uniform
+        from isaaclab.terrains import HfRandomUniformTerrainCfg
+
+        cfg.scene.terrain.terrain_generator.num_rows = cfg.scene.terrain.terrain_generator.num_cols = 1
+        cfg.scene.terrain.terrain_generator.sub_terrains = {
+            "rough": HfRandomUniformTerrainCfg(noise_range=(-0.02, 0.02), noise_step=0.005)
+        }
+        cfg.events.reset_base.func = reset_root_state_uniform
+        cfg.events.reset_base.params["pose_range"].update(x=(0.0, 0.0), y=(0.0, 0.0), z=(-0.35, -0.35))
     cfg.recorders.transition.record_to_episodes = True
     cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_ALL
     cfg.recorders.dataset_export_dir_path = str(tmp_path)
@@ -71,6 +86,7 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
             # Stagger autoresets so prefixes and retained fields exercise different world lengths.
             env.episode_length_buf[:] = torch.arange(4, device=device)
             seen_terminal = False
+            seen_contacts = False
             with torch.inference_mode():
                 for step in range(16):
                     raw = manager.get_state_0()
@@ -79,6 +95,17 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
                     ).clone()
                     actions = torch.full((4, env.action_manager.total_action_dim), 0.1 * (step % 3 - 1), device=device)
                     env.step(actions)
+                    if "Rough" in task:
+                        contacts = capture.latest["contacts"]
+                        valid = contacts[..., 0] == 1
+                        seen_contacts |= bool(valid.any())
+                        assert (
+                            (contacts[..., 1][valid] >= 0)
+                            & (contacts[..., 1][valid] < len(descriptor["contact_entities"]))
+                        ).all()
+                        torch.testing.assert_close(
+                            contacts[..., 7:10][valid].norm(dim=-1), torch.ones_like(contacts[..., 0][valid])
+                        )
                     torch.testing.assert_close(capture.latest["state"], before, rtol=0, atol=0)
                     if descriptor["control"] == "joint_target_q":
                         # In these floating-base worlds, the final coordinates are the 12 leg targets.
@@ -115,6 +142,8 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
                         assert not torch.equal(capture.latest["next_state"][env.reset_buf], after[env.reset_buf])
                         seen_terminal = True
             assert seen_terminal and manager._graph is not None
+            if "Rough" in task:
+                assert seen_contacts
             # Last continuing sample agrees with cold episode materialization, byte for byte.
             for world in range(4):
                 episode = env.recorder_manager.get_episode(world)
@@ -144,7 +173,10 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
             "linear_probe": True,
         },
     )
-    if task.endswith("-Effort"):
+    if "Rough" in task:
+        train_cfg.network.update(contact_slot_count=2, contact_slot_dim=8)
+        train_cfg.precision = "bfloat16"
+    elif task.endswith("-Effort"):
         train_cfg.network_type = "physicsnemo_robotics.models.nerd:NewtonNeRDVectorTransformer"
         train_cfg.network = {
             "num_heads": 2,
@@ -214,9 +246,19 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
         assert all(not torch.equal(a, b) for a, b in zip(distributed["generators"], continued["generators"]))
         assert len((output / "metrics.jsonl").read_text().splitlines()) == 2
 
+    _check_graph_resets(task, device, checkpoint)
+
+
+def _check_graph_resets(task, device, checkpoint):
+    from isaaclab_newton.physics.nerd_manager import SolverNeRD
+
     cfg, _ = resolve_task_config(task + "-Learned", None, overrides=[])
     cfg.play_mode()
     cfg.scene.num_envs, cfg.sim.device, cfg.seed = 8, device, 7
+    if "Rough" in task:
+        # Unseen terrain and different world count must preserve the robot/material contract.
+        cfg.scene.terrain.terrain_generator.seed = 99
+        cfg.scene.terrain.terrain_generator.num_rows = cfg.scene.terrain.terrain_generator.num_cols = 1
     # Playback imports visual-only geometry absent from headless collection; it is not physics.
     cfg.sim.physics.load_visual_shapes = True
     cfg.sim.physics.solver_cfg.checkpoint = str(checkpoint)
@@ -230,9 +272,19 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
             env.reset()
             manager = env.sim.backend_manager
             reference = SolverNeRD(manager.get_model(), checkpoint, compile=cfg.sim.physics.solver_cfg.compile)
+            collision = newton.CollisionPipeline(manager.get_model()) if "Rough" in task else None
+            contacts = collision.contacts() if collision else None
             with torch.no_grad():
                 probe = torch.randn_like(reference.history)
-                torch.testing.assert_close(reference.predict(probe), reference.network.predict_last(probe))
+                if "Rough" in task:
+                    tokens = reference.dynamics.contact_tokens(
+                        reference.contact_history, reference.contact_mean, reference.contact_scale
+                    )
+                    torch.testing.assert_close(
+                        reference.predict(probe, tokens), reference.network.predict_last(probe, tokens)
+                    )
+                else:
+                    torch.testing.assert_close(reference.predict(probe), reference.network.predict_last(probe))
             state = manager.get_model().state()
             state.assign(manager.get_state_0())
             action = torch.zeros(8, env.action_manager.total_action_dim, device=device)
@@ -269,7 +321,9 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
                     if cfg.decimation > 1:
                         for substep in range(cfg.decimation):
                             wp.copy(replay_control.joint_f, wp.from_torch(efforts[substep]))
-                            reference.step(state, state, replay_control, None, cfg.sim.dt)
+                            if collision:
+                                collision.collide(state, contacts)
+                            reference.step(state, state, replay_control, contacts, cfg.sim.dt)
                     else:
                         reference.step(state, state, manager.get_control(), None, env.step_dt)
                     wp.synchronize_device(device)
@@ -289,7 +343,7 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
             assert addresses == (manager._solver.history.data_ptr(), manager._solver.pending_reset.data_ptr())
             with pytest.raises(ValueError, match="frame"):
                 reference.step(state, state, manager.get_control(), None, env.step_dt * 2)
-            if descriptor["control"] == "joint_target_q":
+            if reference.dynamics.descriptor["control"] == "joint_target_q":
                 with pytest.raises(ValueError, match="decimation"):
                     manager.set_decimation(2)
             # A checkpoint must reject altered physics even when tensor shapes still agree.
@@ -299,6 +353,13 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
             with pytest.raises(ValueError, match="invalidate"):
                 reference.notify_model_changed(1)
             masses.copy_(saved_masses)
+            if "Rough" in task:
+                materials = wp.to_torch(manager.get_model().shape_material_mu)
+                saved_materials = materials.clone()
+                materials.mul_(0.8)
+                with pytest.raises(ValueError, match="invalidate"):
+                    reference.notify_model_changed(1)
+                materials.copy_(saved_materials)
             if "Cartpole" in task:
                 anchors = wp.to_torch(manager.get_model().joint_X_p)
                 saved_anchors = anchors.clone()

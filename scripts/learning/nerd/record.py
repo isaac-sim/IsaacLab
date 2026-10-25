@@ -14,6 +14,7 @@ import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.managers import DatasetExportMode
+from isaaclab.utils.assets import read_file
 from isaaclab.utils.io import dump_yaml
 
 import isaaclab_tasks  # noqa: F401
@@ -27,11 +28,15 @@ def main():
     parser.add_argument("--num_envs", type=int, default=1024)
     parser.add_argument("--steps", type=int, default=1500)
     parser.add_argument("--action_scale", type=float, default=1.5, help="Uniform normalized action bound.")
+    parser.add_argument(
+        "--policy", help="Exported feedforward TorchScript policy path or URL, consuming policy observations."
+    )
+    parser.add_argument("--action_hold", type=int, default=1, help="Environment steps between action updates.")
     parser.add_argument("--seed", type=int, default=42)
     add_launcher_args(parser)
     args, overrides = setup_preset_cli(parser)
-    if args.num_envs < 1 or args.steps < 1 or args.action_scale <= 0:
-        parser.error("World/step counts and action scale must be positive.")
+    if min(args.num_envs, args.steps, args.action_hold) < 1 or args.action_scale <= 0:
+        parser.error("World/step counts, action hold and action scale must be positive.")
     path = args.output.resolve()
     if path.suffix != ".hdf5":
         parser.error("--output must end in .hdf5.")
@@ -54,19 +59,27 @@ def main():
     with launch_simulation(cfg, args):
         env = gym.make(args.task, cfg=cfg).unwrapped
         try:
-            env.reset()
+            observations, _ = env.reset()
+            policy = torch.jit.load(read_file(args.policy), map_location=env.device).eval() if args.policy else None
             capture = env.recorder_manager.get_term("transition")
             metadata = {
                 "task": args.task,
                 "seed": args.seed,
                 "action_scale": args.action_scale,
+                "policy": args.policy,
+                "action_hold": args.action_hold,
                 "dynamics": capture.dynamics.descriptor,
             }
             path.with_suffix(".json").write_text(json.dumps(metadata, indent=2) + "\n")
             with torch.inference_mode():
-                for _ in range(args.steps):
-                    actions = torch.empty(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-                    env.step(actions.uniform_(-args.action_scale, args.action_scale))
+                actions = torch.empty(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+                for step in range(args.steps):
+                    if step % args.action_hold == 0:
+                        if policy is None:
+                            actions.uniform_(-args.action_scale, args.action_scale)
+                        else:
+                            actions.copy_(policy(observations["policy"]))
+                    observations, _, _, _, _ = env.step(actions)
         finally:
             env.close()
     print(f"Recorded native transitions to {path}")

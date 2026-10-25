@@ -25,3 +25,19 @@ for suffix, config in (
             "default_agent": "rsl_rl",
         },
     )
+
+for suffix, config in (
+    ("", "AnymalCNeRDRoughEnvCfg"),
+    ("-Explore", "AnymalCNeRDRoughExplorationEnvCfg"),
+    ("-Learned", "AnymalCNeRDRoughLearnedEnvCfg"),
+):
+    gym.register(
+        id=f"Isaac-Velocity-Rough-Anymal-C-NeRD{suffix}",
+        entry_point="isaaclab.envs:ManagerBasedRLEnv", disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.nerd_env_cfg:{config}",
+            "nerd_cfg_entry_point": f"{__name__}.nerd_env_cfg:AnymalCRoughNeRDTrainCfg",
+            "rsl_rl_cfg_entry_point": "isaaclab_tasks.core.velocity.config.anymal_d.agents.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerCfg",
+            "default_agent": "rsl_rl",
+        },
+    )

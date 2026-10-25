@@ -39,13 +39,16 @@ class SolverNeRD(newton.solvers.SolverBase):
         if saved["format"] != "isaaclab-nerd-v2":
             raise ValueError("Expected a native Isaac Lab NeRD checkpoint.")
         self.dynamics = JointDynamics(saved["dynamics"], model)
-        if model_signature(model) != saved["dynamics"]["model"]:
+        if model_signature(model, contact_conditioned=bool(self.dynamics.max_contacts)) != saved["dynamics"]["model"]:
             raise ValueError("NeRD checkpoint physical model differs from the live scene.")
         self.frame_dt = saved["dynamics"]["frame_dt"]
         device = model.device.alias
         self.network = (
             string_to_callable(saved["network_type"])(
-                self.dynamics.input_dim, self.dynamics.codec.prediction_shape[0], **saved["network_cfg"]
+                self.dynamics.input_dim,
+                self.dynamics.codec.prediction_shape[0],
+                **saved["network_cfg"],
+                **self.dynamics.contact_model_cfg,
             )
             .to(device)
             .eval()
@@ -58,11 +61,22 @@ class SolverNeRD(newton.solvers.SolverBase):
         self.output_scale = saved["target_scale"].to(device)
         history = 1 + sum(span - 1 for span in saved["network_cfg"]["temporal_attention_spans"])
         self.history = torch.zeros(model.world_count, history, self.dynamics.input_dim, device=device)
+        self.contact_history = None
+        self.contact_mean = self.contact_scale = None
+        if self.dynamics.max_contacts:
+            self.contact_history = torch.zeros(model.world_count, history, *self.dynamics.contact_shape, device=device)
+            self.contact_mean, self.contact_scale = saved["contact_mean"].to(device), saved["contact_scale"].to(device)
         self.pending_reset = torch.ones(model.world_count, dtype=torch.bool, device=device)
         self.predict = torch.compile(self.network.predict_last) if compile else self.network.predict_last
         # Warm model kernels and compilation outside the host's graph capture. No physical state advances.
         with torch.no_grad(), torch.cuda.stream(wp.stream_to_torch(wp.get_stream(model.device))):
-            self.predict(self.history)
+            if self.contact_history is None:
+                self.predict(self.history)
+            else:
+                self.predict(
+                    self.history,
+                    self.dynamics.contact_tokens(self.contact_history, self.contact_mean, self.contact_scale),
+                )
 
     @torch.no_grad()
     def reset(self, state, *, world_mask=None, flags=0):
@@ -83,14 +97,24 @@ class SolverNeRD(newton.solvers.SolverBase):
             else:
                 action = wp.to_torch(control.joint_f)
             state = self.dynamics.codec.read(state_in)
-            features = self.dynamics.inputs(
-                state, action.reshape(self.model.world_count, -1), self.dynamics.contacts(state_in)
-            )
+            contact_values = self.dynamics.contacts(state_in, contacts)
+            features = self.dynamics.inputs(state, action.reshape(self.model.world_count, -1), contact_values)
             token = (features - self.mean) / self.scale
             shifted = torch.cat((self.history[:, 1:], token[:, None]), dim=1)
             self.history.copy_(torch.where(self.pending_reset[:, None, None], token[:, None], shifted))
+            if self.contact_history is None:
+                prediction = self.predict(self.history)
+            else:
+                shifted = torch.cat((self.contact_history[:, 1:], contact_values[:, None]), dim=1)
+                self.contact_history.copy_(
+                    torch.where(self.pending_reset[:, None, None, None], contact_values[:, None], shifted)
+                )
+                prediction = self.predict(
+                    self.history,
+                    self.dynamics.contact_tokens(self.contact_history, self.contact_mean, self.contact_scale),
+                )
             self.pending_reset.zero_()
-            delta = self.predict(self.history) * self.output_scale + self.output_mean
+            delta = prediction * self.output_scale + self.output_mean
             prediction = self.dynamics.codec.delta_to_state(state, delta)
             torch._assert_async(torch.isfinite(prediction).all(), "NeRD produced a nonfinite state.")
             layout = self.dynamics.codec.layout
@@ -111,7 +135,11 @@ class SolverNeRD(newton.solvers.SolverBase):
     def notify_model_changed(self, flags):
         # Fixed-base root-pose resets can notify unchanged joint properties. Verify the same
         # physical contract instead of suppressing every notification or mutating a library method.
-        if int(flags) and model_signature(self.model) != self.dynamics.descriptor["model"]:
+        if (
+            int(flags)
+            and model_signature(self.model, contact_conditioned=bool(self.dynamics.max_contacts))
+            != self.dynamics.descriptor["model"]
+        ):
             raise ValueError("Physical model changes invalidate the trained NeRD checkpoint.")
 
 
@@ -130,7 +158,7 @@ class NewtonNeRDManager(NewtonManager):
         if not math.isclose(self._solver_dt, self._solver.frame_dt, rel_tol=1e-9):
             raise ValueError("Set sim.dt to the NeRD checkpoint's control-period duration.")
         self._use_single_state = True
-        self._needs_collision_pipeline = False
+        self._needs_collision_pipeline = bool(self._solver.dynamics.max_contacts)
         self._supports_rigid_body_force_input = False
         self._supports_contact_sensors = False
 

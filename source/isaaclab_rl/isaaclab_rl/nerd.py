@@ -56,8 +56,10 @@ class _PredictLast(torch.nn.Module):
         super().__init__()
         self.network = network
 
-    def forward(self, inputs):
-        return self.network.predict_last(inputs)
+    def forward(self, inputs, contacts=None):
+        return (
+            self.network.predict_last(inputs, contacts) if contacts is not None else self.network.predict_last(inputs)
+        )
 
 
 class OfflineNeRD:
@@ -126,7 +128,7 @@ class OfflineNeRD:
                         raise ValueError(f"Episode boundary inside {path}:{name}.")
                     inputs = self.dynamics.inputs(state, control, contacts)
                     targets = self.dynamics.codec.state_to_delta(state, successor)
-                    episodes.append((inputs, targets))
+                    episodes.append((inputs, targets, contacts))
         if len(episodes) < 2:
             raise ValueError("Record at least two nonempty episodes to split training and validation.")
         order = torch.randperm(len(episodes), generator=torch.Generator().manual_seed(cfg.seed)).tolist()
@@ -135,6 +137,8 @@ class OfflineNeRD:
         self.train_episodes = order[validation_count:]
         self.inputs = torch.cat([item[0] for item in episodes])
         self.targets = torch.cat([item[1] for item in episodes])
+        self.contacts = None
+        self.contact_mean = self.contact_scale = None
         lengths = torch.tensor([len(item[0]) for item in episodes], device=device)
         starts = lengths.cumsum(0) - lengths
         self.starts = torch.repeat_interleave(starts, lengths)
@@ -162,11 +166,29 @@ class OfflineNeRD:
                 setattr(self, name, checkpoint[name].to(device))
         self.inputs.sub_(self.input_mean).div_(self.input_scale)
         self.targets.sub_(self.target_mean).div_(self.target_scale)
+        if self.dynamics.max_contacts:
+            contacts = torch.cat([item[2] for item in episodes])
+            if checkpoint is None:
+                training = contacts[self.train_ids]
+                geometry = training[..., 4:][training[..., 0] == 1]
+                if not len(geometry):
+                    raise ValueError("Contact-conditioned training requires contacts in its training split.")
+                self.contact_mean = geometry.mean(0)
+                self.contact_scale = geometry.std(0, correction=0) + 1.0e-6
+            else:
+                self.contact_mean, self.contact_scale = (
+                    checkpoint["contact_mean"].to(device),
+                    checkpoint["contact_scale"].to(device),
+                )
+            self.contacts = self.dynamics.contact_tokens(contacts, self.contact_mean, self.contact_scale)
         history = 1 + sum(span - 1 for span in cfg.network["temporal_attention_spans"])
         self.offsets = torch.arange(1 - history, 1, device=device)
         torch.manual_seed(cfg.seed)
         self.model = string_to_callable(cfg.network_type)(
-            self.dynamics.input_dim, self.dynamics.codec.prediction_shape[0], **cfg.network
+            self.dynamics.input_dim,
+            self.dynamics.codec.prediction_shape[0],
+            **cfg.network,
+            **self.dynamics.contact_model_cfg,
         ).to(device)
         self.predict = _PredictLast(self.model)
         if self.world_size > 1:
@@ -186,18 +208,22 @@ class OfflineNeRD:
         """Draw transitions uniformly, with a reset prefix that never crosses episode boundaries."""
         selected = ids[torch.randint(len(ids), (count,), device=self.device, generator=self.generator)]
         history = (selected[:, None] + self.offsets).clamp_min(self.starts[selected, None])
-        return self.inputs[history], self.targets[selected]
+        return (
+            self.inputs[history],
+            self.targets[selected],
+            self.contacts[history] if self.contacts is not None else None,
+        )
 
     def update(self):
         self.model.train()
         self.optimizer.param_groups[0]["lr"] = self.cfg.learning_rate + (
             self.cfg.final_learning_rate - self.cfg.learning_rate
         ) * min(self.updates / self.cfg.learning_rate_decay_updates, 1.0)
-        x, y = self.sample(self.train_ids, self.cfg.batch_size // self.world_size)
+        x, y, contacts = self.sample(self.train_ids, self.cfg.batch_size // self.world_size)
         for _ in range(self.cfg.max_gradient_retries):
             self.optimizer.zero_grad(set_to_none=True)
             with torch.autocast(self.device_type, dtype=self.dtype, enabled=self.dtype != torch.float32):
-                prediction = self.predict(x)
+                prediction = self.predict(x, contacts)
             loss = (prediction.float() - y).square().mean()
             finite = torch.isfinite(loss).to(torch.int32)
             if self.world_size > 1:
@@ -231,7 +257,12 @@ class OfflineNeRD:
                 continue
             history = (ids[:, None] + self.offsets).clamp_min(self.starts[ids, None])
             with torch.autocast(self.device_type, dtype=self.dtype, enabled=self.dtype != torch.float32):
-                prediction = self.model.predict_last(self.inputs[history])
+                contacts = self.contacts[history] if self.contacts is not None else None
+                prediction = (
+                    self.model.predict_last(self.inputs[history], contacts)
+                    if contacts is not None
+                    else self.model.predict_last(self.inputs[history])
+                )
             error = prediction.float() - self.targets[ids]
             totals[0] += error.square().sum()
             totals[1] += (error * self.target_scale).square().sum()
@@ -262,6 +293,8 @@ class OfflineNeRD:
             "input_scale": self.input_scale,
             "target_mean": self.target_mean,
             "target_scale": self.target_scale,
+            "contact_mean": self.contact_mean,
+            "contact_scale": self.contact_scale,
             "updates": self.updates,
             "generators": generators,
             "scaler": self.scaler.state_dict(),

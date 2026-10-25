@@ -5,7 +5,7 @@
 
 """Native recorder terms for generalized-coordinate learned dynamics."""
 
-from functools import partial
+from contextlib import nullcontext
 
 import torch
 import warp as wp
@@ -25,6 +25,8 @@ class NeRDRecorderCfg(RecorderTermCfg):
     heading: bool = False
     contact_bodies: tuple[str, ...] = ()
     root_body: str = ""
+    max_contacts: int = 0
+    """Positive capacity selects live Newton contact sets instead of fixed plane probes."""
     record_to_episodes: bool = False
     """Retain transitions through RecorderManager; streaming consumers read ``latest`` either way."""
 
@@ -62,10 +64,14 @@ class NeRDRecorder(RecorderTerm):
             heading=cfg.heading,
             contact_bodies=cfg.contact_bodies,
             root_body=cfg.root_body,
+            max_contacts=cfg.max_contacts,
         )
-        self.manager.register_state_force_callback(
-            partial(self.dynamics.check_inputs, control=self.manager.get_control())
-        )
+        self.control = self.manager.get_control()
+        self.contacts = self.manager.get_contacts()
+        self._torch_pool = torch.cuda.MemPool() if cfg.max_contacts and model.device.is_cuda else None
+        if cfg.max_contacts and (env.cfg.decimation != 1 or not self.manager._needs_collision_pipeline):
+            raise ValueError("Newton contact capture requires decimation=1 and the Newton collision pipeline.")
+        self.manager.register_state_force_callback(self._capture_solver_inputs)
         columns = {
             name.rsplit("/", 1)[-1]: int(start)
             for name, start, world in zip(model.joint_label, model.joint_q_start.numpy(), model.joint_world.numpy())
@@ -77,7 +83,7 @@ class NeRDRecorder(RecorderTerm):
             "state": torch.empty(self.num_envs, width, device=self.device),
             "next_state": torch.empty(self.num_envs, width, device=self.device),
             "control": torch.empty(self.num_envs, self.dynamics.control_dim, device=self.device),
-            "contacts": torch.empty(self.num_envs, self.dynamics.contact_dim, device=self.device),
+            "contacts": torch.empty(self.num_envs, *self.dynamics.contact_shape, device=self.device),
             "terminated": torch.empty(self.num_envs, dtype=torch.bool, device=self.device),
             "truncated": torch.empty(self.num_envs, dtype=torch.bool, device=self.device),
         }
@@ -87,8 +93,22 @@ class NeRDRecorder(RecorderTerm):
     def record_pre_step(self):
         state = self.manager.get_scene_data_backend().state
         self.dynamics.codec.read_into(state, self.latest["state"])
-        self.latest["contacts"].copy_(self.dynamics.contacts(state))
+        if not self.cfg.max_contacts:
+            self.latest["contacts"].copy_(self.dynamics.contacts(state))
         return None, None
+
+    def _capture_solver_inputs(self, state):
+        device = state.joint_q.device
+        stream = torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))) if device.is_cuda else nullcontext()
+        pool = (
+            torch.cuda.use_mem_pool(self._torch_pool, device=device.alias)
+            if self._torch_pool is not None
+            else nullcontext()
+        )
+        with stream, pool:
+            self.dynamics.check_inputs(state, self.control)
+            if self.cfg.max_contacts:
+                self.latest["contacts"].copy_(self.dynamics.contacts(state, self.contacts))
 
     def record_post_step(self):
         self.dynamics.codec.read_into(self.manager.get_state_0(), self.latest["next_state"])

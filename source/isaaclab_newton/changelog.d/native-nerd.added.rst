@@ -4,3 +4,5 @@
 * Shared capture/deployment guards reject omitted implicit position drives and external inputs.
   Physical identity retains fixed-root geometry, body flags and collision filtering; effort-conditioned
   physics supports policy decimation with the explicit actuator kept outside NeRD.
+* Added shared live Newton contact encoding for rough-terrain recording and learned deployment,
+  with synchronized reset histories, explicit capacity checks and fixed contact-material identity.
