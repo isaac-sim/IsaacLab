@@ -118,13 +118,13 @@ def physx_belt_section_specs(
 @sim_utils.clone
 def _spawn_physx_conveyor(
     prim_path: str,
-    cfg: sim_utils.MeshCustomCfg | sim_utils.CuboidCfg,
+    cfg: sim_utils.MeshFileCfg | sim_utils.CuboidCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ):
     """Spawn a hidden belt section and author native surface velocity before PhysX parsing."""
-    spawn = sim_utils.spawn_mesh_custom if isinstance(cfg, sim_utils.MeshCustomCfg) else sim_utils.spawn_cuboid
+    spawn = sim_utils.spawn_from_mesh if isinstance(cfg, sim_utils.MeshFileCfg) else sim_utils.spawn_cuboid
     prim = spawn(prim_path, cfg, translation, orientation, **kwargs)
     apply_surface_velocity_api(prim)
     return prim
@@ -147,9 +147,8 @@ def _physx_conveyor_collision(
             physics_material=_physx_material(friction),
         )
     else:
-        spawn = sim_utils.MeshCustomCfg(
-            vertices=geometry.vertices,
-            faces=geometry.faces,
+        spawn = sim_utils.MeshFileCfg(
+            mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(vertices=geometry.vertices, faces=geometry.faces),
             visible=False,
             rigid_props=_PHYSX_KINEMATIC_PROPERTIES,
             collision_props=_physx_collision_properties(contact_offset=_CONTACT_GAP),
@@ -251,7 +250,6 @@ class ConveyorFrankaPhysxEnvCfg(ConveyorFrankaEnvCfg):
         # small replicated batch explicitly.
         num_envs=1,
         env_spacing=3.0,
-        replicate_physics=True,
     )
     sim: SimulationCfg = SimulationCfg(
         # The supported GPU contact-modification path drops contacts for shapes
