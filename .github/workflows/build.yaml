@@ -1221,19 +1221,22 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        filter-pattern: "isaaclab_tasks,isaaclab_newton"
         # Warm every supported rigid core environment on Newton. MJWarp
         # specializes kernels per model config, so a small representative task
         # set leaves most of the cache to be compiled again by each PR test
         # shard. The multi-agent suite supplies Handover. Newton deterministic
         # modes generate different kernels, which only the determinism suite
         # compiles, and the contributed environments are not core tasks; uncached,
-        # both are the long poles of their PR jobs.
+        # both are the long poles of their PR jobs. The solver-matrix file is the
+        # only user of Kamino's collision detector, a ~140 s compile that is the
+        # isaaclab_newton job's long pole when cold.
         include-files: >-
           test_environments_newton.py,
           test_multi_agent_environments.py,
           test_environment_determinism.py,
-          test_contrib_environments_kitless.py
+          test_contrib_environments_kitless.py,
+          test_newton_manager_abstraction.py
         # Keep this warmer focused on rigid environments.
         test-k-expr: "not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
