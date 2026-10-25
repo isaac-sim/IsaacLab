@@ -16,10 +16,15 @@ from isaaclab.devices.gamepad import Se2GamepadCfg, Se3GamepadCfg
 from isaaclab.devices.keyboard import Se2KeyboardCfg, Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se2SpaceMouseCfg, Se3SpaceMouseCfg
 
-from .gamepad import se2_gamepad_teleop_cfg, se3_gamepad_teleop_cfg
+from .device_pipelines import (
+    se2_gamepad_teleop_cfg,
+    se2_keyboard_teleop_cfg,
+    se2_spacemouse_teleop_cfg,
+    se3_gamepad_teleop_cfg,
+    se3_keyboard_teleop_cfg,
+    se3_spacemouse_teleop_cfg,
+)
 from .isaac_teleop_cfg import IsaacTeleopCfg
-from .keyboard import se2_keyboard_teleop_cfg, se3_keyboard_teleop_cfg
-from .spacemouse import se2_spacemouse_teleop_cfg, se3_spacemouse_teleop_cfg
 
 # Each device config type, the builder of its pipeline, and the config fields the builder takes.
 _PIPELINES = {

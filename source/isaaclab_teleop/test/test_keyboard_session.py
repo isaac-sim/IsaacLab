@@ -22,7 +22,7 @@ import pytest
 
 pytest.importorskip("isaacteleop")
 
-from isaaclab_teleop.keyboard import se3_keyboard_teleop_cfg
+from isaaclab_teleop import se3_keyboard_teleop_cfg
 from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle
 from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource, find_sources
 

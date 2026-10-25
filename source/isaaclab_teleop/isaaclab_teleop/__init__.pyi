@@ -41,7 +41,10 @@ __all__ = [
 
 from .camera_feed import XrCameraFeedSession
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID, ControlEvents, SupportsControlEvents, poll_control_events
-from .gamepad import se2_gamepad_teleop_cfg, se3_gamepad_teleop_cfg
+from .device_pipelines import (
+    se2_gamepad_teleop_cfg, se2_keyboard_teleop_cfg, se2_spacemouse_teleop_cfg,
+    se3_gamepad_teleop_cfg, se3_keyboard_teleop_cfg, se3_spacemouse_teleop_cfg,
+)
 from .haptic_feedback import (
     ControllerHapticFeedbackCfg,
     GloveHapticFeedbackCfg,
@@ -59,9 +62,7 @@ from .isaac_teleop_cfg import (
     XrCameraFeedLayoutCfg,
 )
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
-from .keyboard import se2_keyboard_teleop_cfg, se3_keyboard_teleop_cfg
 from .session_lifecycle import cloudxr_eula_accepted
-from .spacemouse import se2_spacemouse_teleop_cfg, se3_spacemouse_teleop_cfg
 from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs

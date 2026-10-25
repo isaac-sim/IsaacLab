@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for :mod:`isaaclab_teleop.device_selection`: device configs -> Isaac Capture pipelines."""
+"""Public device pipelines, configuration selection and creation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,9 @@ import ast
 from pathlib import Path
 from types import SimpleNamespace
 
+import isaaclab_teleop
 import isaaclab_teleop.device_selection as device_selection
+import numpy as np
 import pytest
 from isaaclab_teleop import IsaacTeleopCfg
 from isaaclab_teleop.device_selection import create_teleop_device, select_teleop_cfg
@@ -31,138 +33,147 @@ from isaaclab.devices import (
 pytestmark = pytest.mark.unit
 
 
-BUILDERS = {
-    Se3KeyboardCfg: "se3_keyboard_teleop_cfg",
-    Se2KeyboardCfg: "se2_keyboard_teleop_cfg",
-    Se3GamepadCfg: "se3_gamepad_teleop_cfg",
-    Se2GamepadCfg: "se2_gamepad_teleop_cfg",
-    Se3SpaceMouseCfg: "se3_spacemouse_teleop_cfg",
-    Se2SpaceMouseCfg: "se2_spacemouse_teleop_cfg",
-}
-"""Each device config type and the builder that must serve it."""
-
-
-@pytest.fixture
-def recorded(monkeypatch):
-    """Record which builder ``device_selection`` calls, and with what, without changing its routing."""
-    calls = []
-    for cfg_type, (routed, fields) in list(device_selection._PIPELINES.items()):
-
-        def builder(name=routed.__name__, **kwargs):
-            calls.append((name, kwargs))
-            return f"pipeline:{name}"
-
-        monkeypatch.setitem(device_selection._PIPELINES, cfg_type, (builder, fields))
-    monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: object())
-    return calls
-
-
 def _env_cfg(isaac_teleop=None, **devices):
     return SimpleNamespace(isaac_teleop=isaac_teleop, teleop_devices=DevicesCfg(devices=devices))
 
 
-DEFAULTS = {"keyboard": Se3KeyboardCfg(pos_sensitivity=0.2), "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.3)}
+def _action(cfg, payload):
+    """Run the actual Capture graph with an encoded device snapshot."""
+    from isaacteleop.retargeting_engine.interface import TensorGroup
+
+    pipeline = cfg.pipeline_builder()
+    (source,) = pipeline.get_leaf_nodes()
+    input_name, group_type = next(iter(source.input_spec().items()))
+    group = TensorGroup(group_type)
+    group[0] = payload
+    return pipeline, pipeline.execute_pipeline({source.name: {input_name: group}})
 
 
-class TestPipelineFromDeviceCfg:
-    @pytest.mark.parametrize(
-        ("cfg_type", "source_name"),
-        [
-            (Se2KeyboardCfg, "KeyboardSource"),
-            (Se3KeyboardCfg, "KeyboardSource"),
-            (Se2GamepadCfg, "GamepadSource"),
-            (Se3GamepadCfg, "GamepadSource"),
-            (Se2SpaceMouseCfg, "SpaceMouseSource"),
-            (Se3SpaceMouseCfg, "SpaceMouseSource"),
-        ],
+@pytest.mark.parametrize(
+    ("device", "cfg_type", "builder_name", "default_action", "custom_action"),
+    [
+        ("Keyboard", Se2KeyboardCfg, "se2_keyboard_teleop_cfg", [0.8, 0.4, 1.0], [0.1, 0.2, 0.3]),
+        ("Keyboard", Se3KeyboardCfg, "se3_keyboard_teleop_cfg", [0.4, 0, 0, 0, 0.8, 0, -1], [0.7, 0, 0, 0, 0.6, 0]),
+        ("Gamepad", Se2GamepadCfg, "se2_gamepad_teleop_cfg", [1.0, 0, 0.5], [0.1, 0.02, 0.15]),
+        (
+            "Gamepad",
+            Se3GamepadCfg,
+            "se3_gamepad_teleop_cfg",
+            [1.0, 0, 0.25, 0, 0, 0.8, -1],
+            [0.7, 0.07, 0.175, 0, 0, 0.3],
+        ),
+        ("SpaceMouse", Se2SpaceMouseCfg, "se2_spacemouse_teleop_cfg", [0.8, 0.1, 0.5], [0.1, 0.05, 0.15]),
+        (
+            "SpaceMouse",
+            Se3SpaceMouseCfg,
+            "se3_spacemouse_teleop_cfg",
+            [0.4, 0.1, 0.2, 0.4, 0, 0, -1],
+            [0.7, 0.175, 0.35, 0.3, 0, 0],
+        ),
+    ],
+)
+def test_device_pipelines(device, cfg_type, builder_name, default_action, custom_action):
+    """Public defaults and converted overrides produce the right ordered float32 actions."""
+    nodes = pytest.importorskip("isaacteleop.retargeting_engine.deviceio_source_nodes")
+    from isaacteleop.schema import (
+        GamepadInputState,
+        GamepadSnapshot,
+        KeyAction,
+        KeyboardOutput,
+        KeyEvent,
+        Point,
+        SpaceMouseOutput,
     )
-    def test_every_legacy_device_reads_its_own_device(self, cfg_type, source_name):
-        nodes = pytest.importorskip("isaacteleop.retargeting_engine.deviceio_source_nodes")
+    from isaacteleop.teleop_session_manager import BUNDLED_PLUGINS_DIR
 
-        cfg = select_teleop_cfg(_env_cfg(), "device", {"device": cfg_type()}, "cpu")
+    payload = {
+        # W/T, arrows up/left, numpad 7; K closes the gripper.
+        "Keyboard": KeyboardOutput([17, 20, 103, 105, 71], [KeyEvent(0, 37, KeyAction.PRESS)]),
+        "Gamepad": GamepadSnapshot(
+            GamepadInputState(
+                west_click=True,
+                thumbstick_left_y=1.0,
+                thumbstick_left_x=0.1,
+                thumbstick_right_y=0.25,
+                thumbstick_right_x=0.5,
+            )
+        ),
+        "SpaceMouse": SpaceMouseOutput(Point(0.25, 1.0, -0.5), Point(0.0, 0.5, 0.0), [1, 1], connected=True),
+    }[device]
+    builder = getattr(isaaclab_teleop, builder_name)
+    cfg = builder()
+    assert cfg.sim_device == "cpu" and cfg.teleoperation_active_default is True
+    assert cfg.app_name == f"IsaacLab{device}Se{2 if len(default_action) == 3 else 3}"
+    if device == "Keyboard":
+        assert cfg.plugins == []
+    else:
+        assert [(p.plugin_name, p.plugin_root_id, p.search_paths, p.required) for p in cfg.plugins] == [
+            (device.lower(), device.lower(), [BUNDLED_PLUGINS_DIR], True)
+        ]
+    pipeline, result = _action(cfg, payload)
+    assert len(nodes.find_sources(pipeline, getattr(nodes, device + "Source"))) == 1
+    assert pipeline.output_types()["action"].types[0].shape == (len(default_action),)
+    assert result["action"][0].dtype == np.float32
+    np.testing.assert_allclose(result["action"][0], default_action, atol=1e-6)
+    if device == "SpaceMouse":
+        assert result["spacemouse_buttons"][0][1] == 1
 
-        assert isinstance(cfg, IsaacTeleopCfg)
-        assert len(nodes.find_sources(cfg.pipeline_builder(), getattr(nodes, source_name))) == 1
-
-    @pytest.mark.parametrize(
-        ("device_cfg", "expected"),
-        [
-            (
-                Se3KeyboardCfg(pos_sensitivity=0.7, rot_sensitivity=0.6, gripper_term=False),
-                {"pos_sensitivity": 0.7, "rot_sensitivity": 0.6, "gripper_term": False},
-            ),
-            (
-                Se2KeyboardCfg(v_x_sensitivity=0.1, v_y_sensitivity=0.2, omega_z_sensitivity=0.3),
-                {"v_x_sensitivity": 0.1, "v_y_sensitivity": 0.2, "omega_z_sensitivity": 0.3},
-            ),
-            (
-                Se3GamepadCfg(pos_sensitivity=0.7, rot_sensitivity=0.6, dead_zone=0.05, gripper_term=False),
-                {"pos_sensitivity": 0.7, "rot_sensitivity": 0.6, "dead_zone": 0.05, "gripper_term": False},
-            ),
-            (
-                Se2GamepadCfg(v_x_sensitivity=0.1, v_y_sensitivity=0.2, omega_z_sensitivity=0.3, dead_zone=0.05),
-                {"v_x_sensitivity": 0.1, "v_y_sensitivity": 0.2, "omega_z_sensitivity": 0.3, "dead_zone": 0.05},
-            ),
-            (
-                Se3SpaceMouseCfg(pos_sensitivity=0.7, rot_sensitivity=0.6, gripper_term=False),
-                {"pos_sensitivity": 0.7, "rot_sensitivity": 0.6, "gripper_term": False},
-            ),
-            (
-                Se2SpaceMouseCfg(v_x_sensitivity=0.1, v_y_sensitivity=0.2, omega_z_sensitivity=0.3),
-                {"v_x_sensitivity": 0.1, "v_y_sensitivity": 0.2, "omega_z_sensitivity": 0.3},
-            ),
-        ],
-        ids=lambda value: type(value).__name__ if not isinstance(value, dict) else "",
+    settings = (
+        dict(v_x_sensitivity=0.1, v_y_sensitivity=0.2, omega_z_sensitivity=0.3)
+        if len(custom_action) == 3
+        else dict(pos_sensitivity=0.7, rot_sensitivity=0.6, gripper_term=False)
     )
-    def test_config_reaches_its_builder_with_every_setting(self, recorded, device_cfg, expected):
-        select_teleop_cfg(_env_cfg(), "device", {"device": device_cfg}, "cuda:0")
+    if device == "Gamepad":
+        settings["dead_zone"] = 0.05
+    cfg = select_teleop_cfg(_env_cfg(), "device", {"device": cfg_type(**settings)}, "cuda:0")
+    assert cfg.sim_device == "cuda:0"
+    _, result = _action(cfg, payload)
+    assert result["action"][0].dtype == np.float32
+    np.testing.assert_allclose(result["action"][0], custom_action, atol=1e-6)
 
-        assert recorded == [(BUILDERS[type(device_cfg)], {**expected, "sim_device": "cuda:0"})]
 
-    def test_unsupported_config_has_no_pipeline(self):
-        cfg = DeviceCfg()
-        assert select_teleop_cfg(_env_cfg(), "device", {"device": cfg}, "cpu") is cfg
+@pytest.mark.parametrize("capture_available", [False, True])
+@pytest.mark.parametrize(
+    ("requested_device", "env_devices", "sensitivity"),
+    [
+        (None, {}, 0.2),
+        (None, {"keyboard": Se3KeyboardCfg(pos_sensitivity=0.9)}, 0.9),
+        ("spacemouse", {}, 0.3),
+        ("spacemouse", {"spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.9)}, 0.9),
+    ],
+)
+def test_environment_device_precedence(monkeypatch, capture_available, requested_device, env_devices, sensitivity):
+    if capture_available:
+        pytest.importorskip("isaacteleop")
+    monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: object() if capture_available else None)
+    defaults = {"keyboard": Se3KeyboardCfg(pos_sensitivity=0.2), "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.3)}
+    # Explicit names override the declared pipeline; an unnamed native request still uses the env's keyboard.
+    env = _env_cfg(IsaacTeleopCfg() if requested_device is not None or not capture_available else None, **env_devices)
+    cfg = select_teleop_cfg(env, requested_device, defaults, "cpu")
+    if capture_available:
+        from isaacteleop.schema import KeyboardOutput, Point, SpaceMouseOutput
 
-
-class TestSelectIsaacTeleopCfg:
-    def test_without_isaacteleop_selects_native_keyboard(self, recorded, monkeypatch):
-        monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: None)
-        cfg = Se3KeyboardCfg(pos_sensitivity=0.9)
-        env_cfg = _env_cfg(isaac_teleop="declared", keyboard=cfg)
-        assert select_teleop_cfg(env_cfg, None, DEFAULTS, "cpu") is env_cfg.teleop_devices.devices["keyboard"]
-
-    def test_declared_pipeline_wins_without_a_device_name(self, recorded):
-        assert select_teleop_cfg(_env_cfg(isaac_teleop="declared"), None, DEFAULTS, "cpu") == "declared"
-        assert recorded == []
-
-    def test_default_keyboard_without_a_declared_pipeline(self, recorded):
-        assert select_teleop_cfg(_env_cfg(), None, DEFAULTS, "cpu") == "pipeline:se3_keyboard_teleop_cfg"
-        assert recorded[0][1]["pos_sensitivity"] == 0.2
-
-        recorded.clear()
-        env_cfg = _env_cfg(keyboard=Se3KeyboardCfg(pos_sensitivity=0.9))
-        select_teleop_cfg(env_cfg, None, DEFAULTS, "cpu")
-        assert recorded[0][1]["pos_sensitivity"] == 0.9
-
-    def test_environment_device_wins_over_the_default(self, recorded):
-        env_cfg = _env_cfg(isaac_teleop="declared", spacemouse=Se3SpaceMouseCfg(pos_sensitivity=0.9))
-
-        assert select_teleop_cfg(env_cfg, "spacemouse", DEFAULTS, "cpu") == "pipeline:se3_spacemouse_teleop_cfg"
-        assert recorded[0][1]["pos_sensitivity"] == 0.9
-
-    def test_default_serves_a_name_the_environment_lacks(self, recorded):
-        assert select_teleop_cfg(_env_cfg(), "spacemouse", DEFAULTS, "cpu") == "pipeline:se3_spacemouse_teleop_cfg"
-        assert recorded[0][1]["pos_sensitivity"] == 0.3
-
-    def test_unsupported_device_retains_its_config_and_unknown_name_raises(self, recorded):
-        env_cfg = _env_cfg(handtracking=DeviceCfg())
-
-        assert (
-            select_teleop_cfg(env_cfg, "handtracking", DEFAULTS, "cpu")
-            is env_cfg.teleop_devices.devices["handtracking"]
+        payload = (
+            KeyboardOutput([17])
+            if requested_device is None
+            else SpaceMouseOutput(translation=Point(0, 1, 0), connected=True)
         )
-        with pytest.raises(ValueError, match="joystick"):
-            select_teleop_cfg(env_cfg, "joystick", DEFAULTS, "cpu")
+        _, result = _action(cfg, payload)
+        assert result["action"][0][0] == pytest.approx(sensitivity)
+    else:
+        assert cfg.pos_sensitivity == sensitivity
+        assert cfg is (
+            next(iter(env.teleop_devices.devices.values())) if env_devices else defaults[requested_device or "keyboard"]
+        )
+
+
+def test_declared_pipeline_and_unsupported_native_devices(monkeypatch):
+    monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: object())
+    env = _env_cfg(isaac_teleop=IsaacTeleopCfg(), handtracking=DeviceCfg())
+    assert select_teleop_cfg(env, None, {}, "cpu") is env.isaac_teleop
+    assert select_teleop_cfg(env, "handtracking", {}, "cpu") is env.teleop_devices.devices["handtracking"]
+    with pytest.raises(ValueError, match="joystick"):
+        select_teleop_cfg(env, "joystick", {}, "cpu")
 
 
 class _NativeDevice(DeviceBase):
@@ -214,6 +225,18 @@ def test_capture_creation_failure_does_not_switch_to_a_native_device(monkeypatch
 def test_window_dependencies_and_device_creation_have_one_owner():
     """Keep global window discovery and repeated device-selection branches out of the session/scripts."""
     root = Path(__file__).resolve().parents[3]
+    package = root / "source/isaaclab_teleop/isaaclab_teleop"
+    assert not any((package / name).exists() for name in ("keyboard", "gamepad", "spacemouse", "_plugins.py"))
+    pipelines = ast.parse((package / "device_pipelines.py").read_text())
+    assert not any(
+        isinstance(node, ast.ImportFrom) and (node.module or "").startswith("isaaclab.devices")
+        for node in ast.walk(pipelines)
+    )
+    packing_calls = sum(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "TensorReorderer"
+        for node in ast.walk(pipelines)
+    )
+    assert packing_calls == 1
     session = ast.parse((root / "source/isaaclab_teleop/isaaclab_teleop/session_lifecycle.py").read_text())
     assert not any(isinstance(node, ast.Name) and node.id == "SimulationContext" for node in ast.walk(session))
     assert not any(

@@ -366,7 +366,7 @@ class TeleopSessionLifecycle:
 
         # Keep the supplied live sequence so windows initialized later can join the session.
         self._visualizers = visualizers
-        self._keyboard_attachments: dict[BaseVisualizer, ExitStack | None] = {}
+        self._keyboard_attachments: dict[BaseVisualizer, ExitStack] = {}
         self._pipeline_keyboards: list[Any] | None = None  # found once per session
         self._pressed_keys: list[int] = []
 
@@ -754,9 +754,9 @@ class TeleopSessionLifecycle:
             if source is None or visualizer in self._keyboard_attachments:
                 continue
             # attached even if this fails, so a failing window is not retried every step
-            self._keyboard_attachments[visualizer] = None
+            self._keyboard_attachments[visualizer] = ExitStack()
             try:
-                with ExitStack() as attachments:
+                with self._keyboard_attachments[visualizer] as attachments:
                     for keyboard in keyboards:
                         attachments.callback(keyboard.attach(source, capture=False).close)
                     if keyboards:
@@ -774,8 +774,6 @@ class TeleopSessionLifecycle:
         """Detach every visualizer window, releasing held keys and restoring keyboard camera movement."""
         attachments, self._keyboard_attachments = self._keyboard_attachments, {}
         for attachment in attachments.values():
-            if attachment is None:
-                continue
             try:
                 attachment.close()
             except Exception as e:
