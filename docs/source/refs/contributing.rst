@@ -486,6 +486,21 @@ When a kernel operation is known before launch, specialize it with dedicated ker
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
 
+Shared Warp memory operations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Value-preserving packing, splitting, views, selected copy/fill, and mask resolution belong in
+``isaaclab.utils.warp.memory``. Callers supply frequency through array shapes, strides, and
+selectors; memory must not own body, joint, environment, or physical-quantity concepts.
+Keep derived quantities and native solver mappings with their mathematical or backend owners.
+Delete superseded layout implementations and forwarding aliases without external callers.
+
+Bind required variants and integer overloads before launch or capture. Name factories
+``make_<operation>`` and reserve ``_kernel`` for concrete launchable kernels where useful.
+Cache open-ended layout specializations in isolated modules so later callers cannot invalidate
+compiled operations. Do not generate kernels during per-step updates or flatten strided inputs.
+Check dependency direction, aliasing, selector widths, and capture replay alongside numerical results.
+
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private

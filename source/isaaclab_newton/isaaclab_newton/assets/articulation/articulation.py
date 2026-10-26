@@ -32,7 +32,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -49,6 +49,10 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+_FILL_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=True)
+_COPY_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=False)
 
 
 def _target_mode_from_gains(stiffness: float, damping: float) -> JointTargetMode:
@@ -2661,30 +2665,18 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
+                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_stiffness,
-                ],
+                inputs=[stiffness, env_ids, fixed_tendon_ids, False],
+                outputs=[self.data._fixed_tendon_stiffness, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
+                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_stiffness,
-                ],
+                inputs=[stiffness, env_ids, fixed_tendon_ids, False],
+                outputs=[self.data._fixed_tendon_stiffness, None],
                 device=self.device,
             )
         # Only updates internal buffers, does not apply the stiffness to the simulation.
@@ -2758,30 +2750,18 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
+                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_damping,
-                ],
+                inputs=[damping, env_ids, fixed_tendon_ids, False],
+                outputs=[self.data._fixed_tendon_damping, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
+                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_damping,
-                ],
+                inputs=[damping, env_ids, fixed_tendon_ids, False],
+                outputs=[self.data._fixed_tendon_damping, None],
                 device=self.device,
             )
         # Only updates internal buffers, does not apply the damping to the simulation.

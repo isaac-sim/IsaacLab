@@ -14,17 +14,17 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.rigid_object.base_rigid_object_data import vec13f
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
 from isaaclab_physx.physics import PhysxManager
-
-from ..kernels import vec13f
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -33,6 +33,10 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+_PACK_STATE_1D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1)
+_PACK_STATE_2D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2)
 
 
 class ArticulationData(BaseArticulationData):
@@ -2110,7 +2114,7 @@ class ArticulationData(BaseArticulationData):
             self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
         self._read_launch_cache.launch(
             "default_root_state",
-            shared_kernels.concat_root_pose_and_vel_to_state,
+            _PACK_STATE_1D,
             dim=self._num_instances,
             inputs=[self._default_root_pose, self._default_root_vel],
             outputs=[self._default_root_state],
@@ -2131,7 +2135,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=(self._num_instances),
                 inputs=[
                     self.root_link_pose_w,
@@ -2159,7 +2163,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w,
@@ -2187,7 +2191,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[
                     self.root_com_pose_w,
@@ -2220,7 +2224,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -2252,7 +2256,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -2286,7 +2290,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_com_pose_w,

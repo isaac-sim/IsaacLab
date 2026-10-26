@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 from isaaclab_physx.assets.articulation import Articulation
-from isaaclab_physx.assets.kernels import split_state_to_root_pose_and_vel
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import instantiate
+from isaaclab.utils.warp import memory as memory_kernels
 
 from isaaclab_contrib.actuators import Thruster
 from isaaclab_contrib.utils.types import MultiRotorActions
@@ -30,6 +30,9 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+_SPLIT_STATE = memory_kernels.make_split(wp.transformf, wp.spatial_vectorf, 1)
 
 
 class _ThrusterCollection(dict):
@@ -402,9 +405,9 @@ class Multirotor(Articulation):
         vel_output = wp.zeros(self.num_instances, dtype=wp.spatial_vectorf, device=self.device)
         # Split state into pose and vel
         wp.launch(
-            split_state_to_root_pose_and_vel,
+            _SPLIT_STATE,
             dim=self.num_instances,
-            inputs=[default_root_state_wp],
+            inputs=[default_root_state_wp, None],
             outputs=[pose_output, vel_output],
             device=self.device,
         )

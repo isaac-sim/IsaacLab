@@ -1,0 +1,1 @@
+* Added frequency-agnostic Warp memory factories for packing, splitting, selected copy/fill, and mask resolution; callers own element types, strides, and selectors. Articulation ordering variants are bound before capture.

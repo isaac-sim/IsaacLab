@@ -289,6 +289,45 @@ and Torch autograd remain in ``isaaclab.utils.math``.
 .. automodule:: isaaclab.utils.warp.math
    :members:
 
+Warp memory operations
+^^^^^^^^^^^^^^^^^^^^^^
+
+``isaaclab.utils.warp.memory`` owns value-preserving concatenation, splitting, component
+views, and selected copy/fill. Callers own attribute frequencies: resolve them into arrays,
+shapes, strides and row/column selectors before launching a memory operation. This module
+has no body, joint, or coordinate-domain registry. Coordinate-to-DoF conversions and derived
+physical properties stay with their mathematical or backend owners.
+
+Bind concrete layouts at module import, before launch or capture. Factories cache kernels
+and isolate their Warp compilation modules, so another caller's specialization cannot
+invalidate an already compiled operation. For example::
+
+    from isaaclab.utils.warp import memory
+
+    # The caller supplies element types and array rank.
+    concatenate = memory.make_concat(wp.vec2d, wp.vec3d, wp.types.vector(5, wp.float64), 2)
+    copy_selected = memory.make_write(wp.float32, 2, indexed=True, fill=False)
+
+    wp.launch(concatenate, first.shape, [first, second, combined])
+    wp.launch(copy_selected.select(rows, columns), (rows.size, columns.size),
+              [source, rows, columns, False, target, None])
+
+Indexed writes select a Cartesian product and support compact or full-shaped sources,
+strided int32/int64 selectors, optional int32 row-ID output, typed elements, and rank-3
+trailing components. Masks select full-shaped inputs. Unselected destinations are unchanged.
+All arrays retain their own strides. Copy/fill indices must be valid; overlapping destination
+indices require identical values. ``split_views`` returns aliases without allocating storage.
+
+``resolve_1d_mask`` owns selection normalization for sensors and experimental environments.
+Same-device signed integer arrays, boolean masks and slices are capturable; host sequences
+and device transfers are eager-only; temporary GPU index uploads synchronize their stream
+before releasing storage. It preserves integer widths, negative indices and array
+strides. Invalid device indices are ignored without synchronization. Scratch storage is reused,
+so callers must not retain a scratch result across another resolution using the same buffer.
+
+.. automodule:: isaaclab.utils.warp.memory
+   :members:
+
 Warp Fabric kernels
 ^^^^^^^^^^^^^^^^^^^
 

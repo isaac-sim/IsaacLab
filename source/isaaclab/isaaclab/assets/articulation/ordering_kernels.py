@@ -35,7 +35,6 @@ Axis conventions and ownership:
 
 from __future__ import annotations
 
-from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
@@ -759,9 +758,8 @@ def _write_2d_user_to_backend_with_indices_and_sim_ids(
         backend_data[env_id, user_to_backend[user_id]] = value
 
 
-@cache
-def _write_2d_user_to_backend_with_indices_dispatcher(dtype: type) -> IndexKernelDispatcher:
-    return IndexKernelDispatcher(
+_WRITE_2D_USER_TO_BACKEND_WITH_INDICES_DISPATCHERS = {
+    dtype: IndexKernelDispatcher(
         _write_2d_user_to_backend_with_indices,
         ("env_ids", "user_ids"),
         argument_types={
@@ -770,11 +768,12 @@ def _write_2d_user_to_backend_with_indices_dispatcher(dtype: type) -> IndexKerne
             "backend_data": wp.array(dtype=dtype, ndim=2),
         },
     )
+    for dtype in (wp.float32, wp.vec3f)
+}
 
 
-@cache
-def _write_2d_user_to_backend_with_indices_and_sim_ids_dispatcher(dtype: type) -> IndexKernelDispatcher:
-    return IndexKernelDispatcher(
+_WRITE_2D_USER_TO_BACKEND_WITH_INDICES_AND_SIM_IDS_DISPATCHERS = {
+    dtype: IndexKernelDispatcher(
         _write_2d_user_to_backend_with_indices_and_sim_ids,
         ("env_ids", "user_ids"),
         argument_types={
@@ -783,6 +782,8 @@ def _write_2d_user_to_backend_with_indices_and_sim_ids_dispatcher(dtype: type) -
             "backend_data": wp.array(dtype=dtype, ndim=2),
         },
     )
+    for dtype in (wp.float32, wp.transformf)
+}
 
 
 @wp.kernel
@@ -819,45 +820,6 @@ def _write_2d_user_to_backend_with_mask(
 
 
 @wp.kernel
-def _write_3d_user_to_backend_with_indices(
-    input_data: wp.array3d(dtype=Any),
-    env_ids: wp.array(dtype=Any),
-    user_ids: wp.array(dtype=Any),
-    user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
-    full_data: bool,
-    user_data: wp.array3d(dtype=Any),
-    backend_data: wp.array3d(dtype=Any),
-) -> None:
-    """Write selected component values to public- and backend-order buffers.
-
-    Args:
-        input_data: Values in caller-defined units. With full_data true, shape
-            is [num_envs, num_items, num_components] in public order;
-            otherwise it is [len(env_ids), len(user_ids), num_components].
-        env_ids: Unique selected environment indices.
-        user_ids: Unique selected public item indices.
-        user_to_backend: Read-only public-to-backend item map.
-        has_ordering: Whether to scatter values into backend_data. When false,
-            backend_data is not written and may alias user_data.
-        full_data: Whether input_data uses global public indices.
-        user_data: Public-order destination with the same dtype as input_data.
-        backend_data: Backend-order destination with the same dtype as input_data.
-    """
-    i, j, k = wp.tid()
-    env_id = wp.int32(env_ids[i])
-    user_id = wp.int32(user_ids[j])
-    if full_data:
-        value = input_data[env_id, user_id, k]
-    else:
-        value = input_data[i, j, k]
-
-    user_data[env_id, user_id, k] = value
-    if has_ordering:
-        backend_data[env_id, user_to_backend[user_id], k] = value
-
-
-@wp.kernel
 def _write_3d_user_to_backend_with_indices_and_sim_ids(
     input_data: wp.array3d(dtype=Any),
     env_ids: wp.array(dtype=Any),
@@ -880,30 +842,15 @@ def _write_3d_user_to_backend_with_indices_and_sim_ids(
         backend_data[env_id, user_to_backend[user_id], k] = value
 
 
-@cache
-def _write_3d_user_to_backend_with_indices_dispatcher(dtype: type) -> IndexKernelDispatcher:
-    return IndexKernelDispatcher(
-        _write_3d_user_to_backend_with_indices,
-        ("env_ids", "user_ids"),
-        argument_types={
-            "input_data": wp.array(dtype=dtype, ndim=3),
-            "user_data": wp.array(dtype=dtype, ndim=3),
-            "backend_data": wp.array(dtype=dtype, ndim=3),
-        },
-    )
-
-
-@cache
-def _write_3d_user_to_backend_with_indices_and_sim_ids_dispatcher(dtype: type) -> IndexKernelDispatcher:
-    return IndexKernelDispatcher(
+_WRITE_3D_USER_TO_BACKEND_WITH_INDICES_AND_SIM_IDS_DISPATCHERS = {
+    wp.float32: IndexKernelDispatcher(
         _write_3d_user_to_backend_with_indices_and_sim_ids,
         ("env_ids", "user_ids"),
         argument_types={
-            "input_data": wp.array(dtype=dtype, ndim=3),
-            "user_data": wp.array(dtype=dtype, ndim=3),
-            "backend_data": wp.array(dtype=dtype, ndim=3),
+            name: wp.array(dtype=wp.float32, ndim=3) for name in ("input_data", "user_data", "backend_data")
         },
     )
+}
 
 
 @wp.kernel
@@ -937,6 +884,36 @@ def _write_3d_user_to_backend_with_mask(
     user_data[env_id, user_id, component_id] = value
     if has_ordering:
         backend_data[env_id, user_to_backend[user_id], component_id] = value
+
+
+_WRITE_2D_USER_TO_BACKEND_WITH_MASK_KERNELS = {
+    dtype: wp.overload(
+        _write_2d_user_to_backend_with_mask,
+        {
+            "input_data": wp.array(dtype=dtype, ndim=2),
+            "user_data": wp.array(dtype=dtype, ndim=2),
+            "backend_data": wp.array(dtype=dtype, ndim=2),
+        },
+    )
+    for dtype in (
+        wp.float32,
+        wp.vec3f,
+        wp.transformf,
+    )
+}
+
+
+_WRITE_3D_USER_TO_BACKEND_WITH_MASK_KERNELS = {
+    dtype: wp.overload(
+        _write_3d_user_to_backend_with_mask,
+        {
+            "input_data": wp.array(dtype=dtype, ndim=3),
+            "user_data": wp.array(dtype=dtype, ndim=3),
+            "backend_data": wp.array(dtype=dtype, ndim=3),
+        },
+    )
+    for dtype in (wp.float32,)
+}
 
 
 def _as_warp_array(data, dtype) -> wp.array:
@@ -989,7 +966,7 @@ def write_2d_user_to_backend_with_indices(
         device: Warp launch device.
     """
     wp.launch(
-        _write_2d_user_to_backend_with_indices_dispatcher(dtype).select(env_ids, user_ids),
+        _WRITE_2D_USER_TO_BACKEND_WITH_INDICES_DISPATCHERS[dtype].select(env_ids, user_ids),
         dim=(env_ids.shape[0], user_ids.shape[0]),
         inputs=[
             _as_warp_array(input_data, dtype),
@@ -1021,7 +998,7 @@ def write_2d_user_to_backend_with_indices_and_sim_ids(
 ) -> None:
     """Write selected values and emit int32 environment indices."""
     wp.launch(
-        _write_2d_user_to_backend_with_indices_and_sim_ids_dispatcher(dtype).select(env_ids, user_ids),
+        _WRITE_2D_USER_TO_BACKEND_WITH_INDICES_AND_SIM_IDS_DISPATCHERS[dtype].select(env_ids, user_ids),
         dim=(env_ids.shape[0], user_ids.shape[0]),
         inputs=[
             _as_warp_array(input_data, dtype),
@@ -1057,7 +1034,7 @@ def write_2d_user_to_backend_with_mask(
     The launch dim is the full [num_envs, num_items] mask domain.
     """
     wp.launch(
-        _write_2d_user_to_backend_with_mask,
+        _WRITE_2D_USER_TO_BACKEND_WITH_MASK_KERNELS[dtype],
         dim=(env_mask.shape[0], user_mask.shape[0]),
         inputs=[
             _as_warp_array(input_data, dtype),
@@ -1066,42 +1043,6 @@ def write_2d_user_to_backend_with_mask(
             user_to_backend,
             has_ordering,
             _as_warp_array(user_data, dtype),
-            _as_warp_array(backend_data, dtype),
-        ],
-        device=device,
-    )
-
-
-def write_3d_user_to_backend_with_indices(
-    input_data,
-    env_ids,
-    user_ids,
-    user_to_backend,
-    has_ordering,
-    full_data,
-    user_data,
-    backend_data,
-    *,
-    dtype,
-    device,
-) -> None:
-    """Write selected component values to public- and backend-order buffers.
-
-    Launch wrapper over :func:`_write_3d_user_to_backend_with_indices`; the
-    component count of the launch dim comes from the adapted destination.
-    """
-    user_array = _as_warp_array(user_data, dtype)
-    wp.launch(
-        _write_3d_user_to_backend_with_indices_dispatcher(dtype).select(env_ids, user_ids),
-        dim=(env_ids.shape[0], user_ids.shape[0], user_array.shape[2]),
-        inputs=[
-            _as_warp_array(input_data, dtype),
-            env_ids,
-            user_ids,
-            user_to_backend,
-            has_ordering,
-            full_data,
-            user_array,
             _as_warp_array(backend_data, dtype),
         ],
         device=device,
@@ -1125,7 +1066,7 @@ def write_3d_user_to_backend_with_indices_and_sim_ids(
     """Write selected component values and emit int32 environment indices."""
     user_array = _as_warp_array(user_data, dtype)
     wp.launch(
-        _write_3d_user_to_backend_with_indices_and_sim_ids_dispatcher(dtype).select(env_ids, user_ids),
+        _WRITE_3D_USER_TO_BACKEND_WITH_INDICES_AND_SIM_IDS_DISPATCHERS[dtype].select(env_ids, user_ids),
         dim=(env_ids.shape[0], user_ids.shape[0], user_array.shape[2]),
         inputs=[
             _as_warp_array(input_data, dtype),
@@ -1160,7 +1101,7 @@ def write_3d_user_to_backend_with_mask(
     """
     user_array = _as_warp_array(user_data, dtype)
     wp.launch(
-        _write_3d_user_to_backend_with_mask,
+        _WRITE_3D_USER_TO_BACKEND_WITH_MASK_KERNELS[dtype],
         dim=(env_mask.shape[0], user_mask.shape[0], user_array.shape[2]),
         inputs=[
             _as_warp_array(input_data, dtype),

@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -34,6 +34,11 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+_COPY_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=False)
+_COPY_TRANSFORMF_2D_INDEXED = memory.make_write(wp.transformf, 2, indexed=True, fill=False)
+_COPY_FLOAT32_3D_INDEXED = memory.make_write(wp.float32, 3, indexed=True, fill=False)
 
 
 class RigidObjectCollection(BaseRigidObjectCollection):
@@ -927,17 +932,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, body_ids),
+            _COPY_FLOAT32_2D_INDEXED.select(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                masses,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_mass,
-            ],
+            inputs=[masses, env_ids, body_ids, full_data],
+            outputs=[self.data._body_mass, None],
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
@@ -1018,17 +1016,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_kernel(env_ids, body_ids),
+            _COPY_TRANSFORMF_2D_INDEXED.select(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                coms,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_com_pose_b.data,
-            ],
+            inputs=[coms, env_ids, body_ids, full_data],
+            outputs=[self.data._body_com_pose_b.data, None],
             device=self.device,
         )
         # Invalidate derived caches; preserve the COM timestamp so unread or stale entries refresh from PhysX.
@@ -1112,17 +1103,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                inertias,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_inertia,
-            ],
+            _COPY_FLOAT32_3D_INDEXED.select(env_ids, body_ids),
+            dim=(env_ids.shape[0], body_ids.shape[0], 9),
+            inputs=[inertias, env_ids, body_ids, full_data],
+            outputs=[self.data._body_inertia, None],
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.

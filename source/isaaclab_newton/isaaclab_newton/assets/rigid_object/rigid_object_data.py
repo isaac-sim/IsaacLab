@@ -12,16 +12,15 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 
-from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
+from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData, vec13f
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager
-
-from ..kernels import vec13f
 
 if TYPE_CHECKING:
     import torch
@@ -37,6 +36,9 @@ _LAZY_CAPTURE_REASON = (
     "root_com_vel_w, body_link_pose_w, body_com_vel_w) and inline the computation "
     "in your warp kernel.  See GRAPH_CAPTURE_MIGRATION.md."
 )
+
+
+_PACK_STATE_1D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1)
 
 
 class RigidObjectData(BaseRigidObjectData):
@@ -1048,7 +1050,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
                 outputs=[self._root_state_w.data],
@@ -1072,7 +1074,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
                 outputs=[self._root_link_state_w.data],
@@ -1096,7 +1098,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
                 outputs=[self._root_com_state_w.data],
@@ -1123,7 +1125,7 @@ class RigidObjectData(BaseRigidObjectData):
             self._default_root_state_ta = ProxyArray(self._default_root_state)
         self._read_launch_cache.launch(
             "default_root_state",
-            shared_kernels.concat_root_pose_and_vel_to_state,
+            _PACK_STATE_1D,
             dim=self._num_instances,
             inputs=[self._default_root_pose, self._default_root_vel],
             outputs=[self._default_root_state],
@@ -1146,7 +1148,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
                 outputs=[self._root_state_w.data],
@@ -1172,7 +1174,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
                 outputs=[self._root_link_state_w.data],
@@ -1197,7 +1199,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self._num_instances,
                 inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
                 outputs=[self._root_com_state_w.data],

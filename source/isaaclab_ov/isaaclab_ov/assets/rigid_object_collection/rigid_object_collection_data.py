@@ -11,16 +11,20 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.assets.rigid_object.base_rigid_object_data import vec13f
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+
+_PACK_STATE_2D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2)
 
 
 class RigidObjectCollectionData(BaseRigidObjectCollectionData):
@@ -284,13 +288,11 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._default_body_state is None:
-            self._default_body_state = wp.zeros(
-                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._default_body_state = wp.zeros((self.num_instances, self.num_bodies), dtype=vec13f, device=self.device)
             self._default_body_state_ta = ProxyArray(self._default_body_state)
         self._read_launch_cache.launch(
             "default_body_state",
-            shared_kernels.concat_body_pose_and_vel_to_state,
+            _PACK_STATE_2D,
             dim=(self.num_instances, self.num_bodies),
             inputs=[
                 self._default_body_pose,
@@ -487,7 +489,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_pose_w, self.body_com_vel_w],
                 outputs=[self._body_state_w.data],
@@ -509,7 +511,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_pose_w, self.body_link_vel_w],
                 outputs=[self._body_link_state_w.data],
@@ -531,7 +533,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_com_pose_w, self.body_com_vel_w],
                 outputs=[self._body_com_state_w.data],
@@ -849,9 +851,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
         self._body_com_vel_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- combined state (cached, used by deprecated concat properties)
-        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
-        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
-        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
+        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
         # -- derived properties (in-body-frame velocities)
         self._body_link_lin_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
         self._body_link_ang_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))

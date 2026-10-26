@@ -14,25 +14,23 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.rigid_object.base_rigid_object_data import vec13f
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets.kernels import (
     _compose_root_com_pose,
     _compute_heading,
-    _copy_first_body,
     _fd_joint_acc_ordered,
     _projected_gravity,
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
-    concat_body_pose_and_vel_to_state,
-    concat_root_pose_and_vel_to_state,
     get_body_com_pose_from_body_link_pose,
     get_body_link_vel_from_body_com_vel,
-    vec13f,
 )
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -41,6 +39,11 @@ from .kernels import _fd_joint_acc
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+_COPY_ROOT = memory_kernels.make_write(wp.spatial_vectorf, 1, indexed=False, fill=False)
+_PACK_STATE_1D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1)
+_PACK_STATE_2D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2)
 
 
 class ArticulationData(BaseArticulationData):
@@ -771,10 +774,10 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
-                _copy_first_body,
+                _COPY_ROOT,
                 dim=self.num_instances,
-                inputs=[backend_buffer.data],
-                outputs=[self._root_link_vel_w.data],
+                inputs=[backend_buffer.data[:, 0], None, None, True],
+                outputs=[self._root_link_vel_w.data, None],
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
         if self._root_link_vel_w_ta is None:
@@ -2495,7 +2498,7 @@ class ArticulationData(BaseArticulationData):
         )
         self._read_launch_cache.launch(
             "default_root_state",
-            concat_root_pose_and_vel_to_state,
+            _PACK_STATE_1D,
             dim=self.num_instances,
             inputs=[self._default_root_pose, self._default_root_vel],
             outputs=[self._default_root_state_buf],
@@ -2519,7 +2522,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w_buf.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_com_vel_w],
                 outputs=[self._root_state_w_buf.data],
@@ -2544,7 +2547,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_state_w_buf.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_link_vel_w],
                 outputs=[self._root_link_state_w_buf.data],
@@ -2569,7 +2572,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_state_w_buf.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                concat_root_pose_and_vel_to_state,
+                _PACK_STATE_1D,
                 dim=self.num_instances,
                 inputs=[self.root_com_pose_w, self.root_com_vel_w],
                 outputs=[self._root_com_state_w_buf.data],
@@ -2600,7 +2603,7 @@ class ArticulationData(BaseArticulationData):
         _ = self.body_com_vel_w
         self._read_launch_cache.launch(
             "body_state_w",
-            concat_body_pose_and_vel_to_state,
+            _PACK_STATE_2D,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_com_vel_w.data],
             outputs=[self._body_state_w_buf.data],
@@ -2631,7 +2634,7 @@ class ArticulationData(BaseArticulationData):
         _ = self.body_link_vel_w
         self._read_launch_cache.launch(
             "body_link_state_w",
-            concat_body_pose_and_vel_to_state,
+            _PACK_STATE_2D,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_link_vel_w.data],
             outputs=[self._body_link_state_w_buf.data],
@@ -2662,7 +2665,7 @@ class ArticulationData(BaseArticulationData):
         _ = self.body_com_vel_w
         self._read_launch_cache.launch(
             "body_com_state_w",
-            concat_body_pose_and_vel_to_state,
+            _PACK_STATE_2D,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_com_pose_w.data, self._body_com_vel_w.data],
             outputs=[self._body_com_state_w_buf.data],

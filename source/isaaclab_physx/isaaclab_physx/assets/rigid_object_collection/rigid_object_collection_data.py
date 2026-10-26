@@ -12,22 +12,25 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.assets.rigid_object.base_rigid_object_data import vec13f
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager
-
-from ..kernels import vec13f
 
 if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+_PACK_STATE_2D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2)
 
 
 class RigidObjectCollectionData(BaseRigidObjectCollectionData):
@@ -920,7 +923,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self._default_body_state = wp.zeros((self.num_instances, self.num_bodies), dtype=vec13f, device=self.device)
         self._read_launch_cache.launch(
             "default_body_state",
-            shared_kernels.concat_body_pose_and_vel_to_state,
+            _PACK_STATE_2D,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._default_body_pose, self._default_body_vel],
             outputs=[self._default_body_state],
@@ -941,7 +944,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -969,7 +972,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -997,7 +1000,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
+                _PACK_STATE_2D,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_com_pose_w,
