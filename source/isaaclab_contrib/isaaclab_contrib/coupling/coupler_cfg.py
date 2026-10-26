@@ -46,6 +46,7 @@ class CouplerEntryCfg:
 
     Each string is treated as a regex matched against full Newton body labels,
     including all descendant body labels below the matched path.
+    ``{ENV_REGEX_NS}`` expands to the simulation's declared clone template.
     """
 
     particles: list[int] = field(default_factory=list)
@@ -68,7 +69,7 @@ class CouplerEntryCfg:
     """Whether this entry owns all shapes whose body index is ``-1``."""
 
     shape_label_patterns: list[str] = field(default_factory=list)
-    """Regexes matched against full Newton shape labels for additional ownership."""
+    """Regexes matched against full Newton shape labels, with ``{ENV_REGEX_NS}`` expansion."""
 
     substeps: int = 1
     """Number of equal substeps this entry runs inside one coupled step."""
@@ -97,8 +98,7 @@ class CouplerProxyMappingCfg:
 
     String selectors use the full-label-regex semantics of
     :attr:`CouplerEntryCfg.bodies`. Raw Newton body ids may be given directly as
-    integers. The coupler resolves selectors to body ids in place, so after build
-    this list holds only integers.
+    integers. The coupler resolves a copy at build time, preserving these declarations.
     """
 
     particles: list[int] = field(default_factory=list)

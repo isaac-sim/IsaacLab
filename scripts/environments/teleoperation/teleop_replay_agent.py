@@ -1190,6 +1190,7 @@ def _run_single_replay(
     # its IPC connection.
     teleop_interface = create_isaac_teleop_device(
         isaac_teleop_cfg,
+        env_prim_path=env.scene.env_prim_paths[0],
         sim_device=args_cli.device,
         callbacks={},
         cloudxr_env_file=None,

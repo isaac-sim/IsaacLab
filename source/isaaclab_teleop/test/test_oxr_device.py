@@ -24,7 +24,7 @@ import torch
 from isaaclab_teleop import IsaacTeleopCfg
 from isaaclab_teleop.control_events import _NO_OP_EVENTS
 from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
-from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 from isaaclab_teleop.xr_anchor_utils import XrAnchorSynchronizer
 
 import carb
@@ -202,14 +202,20 @@ def test_xr_anchor(empty_env, mock_xrcore, monkeypatch):
     session.last_control_events = _NO_OP_EVENTS
     monkeypatch.setattr("isaaclab_teleop.isaac_teleop_device.TeleopSessionLifecycle", lambda *args, **kwargs: session)
     monkeypatch.setattr("isaaclab_teleop.xr_anchor_manager.XRCore", None)
-    sim_utils.create_prim("/World/Reference")
+    sim_utils.create_prim("/Lab/Cells/Cell0/Reference")
     env.sim.reset()
     stage = usdrt.Usd.Stage.Attach(sim_utils.get_current_stage_id())
-    reference = usdrt.Rt.Xformable(stage.GetPrimAtPath("/World/Reference"))
+    reference = usdrt.Rt.Xformable(stage.GetPrimAtPath("/Lab/Cells/Cell0/Reference"))
     world_matrix = reference.CreateFabricHierarchyWorldMatrixAttr()
-    cfg = IsaacTeleopCfg(target_frame_prim_path="/World/Reference", sim_device="cpu")
-    with IsaacTeleopDevice(cfg, use_kit_xr_bridge=False) as device:
-        xr_cfg = XrCfg(anchor_prim_path="/World/Reference", fixed_anchor_height=False)
+    cfg = IsaacTeleopCfg(
+        target_frame_prim_path="{ENV_REGEX_NS}/Reference",
+        sim_device="cpu",
+        xr_cfg=XrCfg(anchor_prim_path="{ENV_REGEX_NS}/Reference", fixed_anchor_height=False),
+    )
+    with create_isaac_teleop_device(cfg, use_kit_xr_bridge=False, env_prim_path="/Lab/Cells/Cell0") as device:
+        assert cfg.target_frame_prim_path == "{ENV_REGEX_NS}/Reference"
+        assert cfg.xr_cfg.anchor_prim_path == "{ENV_REGEX_NS}/Reference"
+        xr_cfg = device._cfg.xr_cfg
         core = MagicMock()
         sync = XrAnchorSynchronizer(core, xr_cfg, "/World/XRAnchor")
         with monkeypatch.context() as bound:
@@ -228,6 +234,7 @@ def test_xr_anchor(empty_env, mock_xrcore, monkeypatch):
                 np.testing.assert_allclose(displayed.ExtractTranslation(), position)
     session.start.reset_mock()
     cfg.target_frame_prim_path = "/World/Missing"
+    cfg.xr_cfg = XrCfg()
     with pytest.raises(ValueError, match="No target frame"):
         with IsaacTeleopDevice(cfg, use_kit_xr_bridge=False):
             pass

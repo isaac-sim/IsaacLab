@@ -160,7 +160,6 @@ class Imu(BaseImu):
                 env_mask,
                 self._newton_sensor.accelerometer,
                 self._newton_sensor.gyroscope,
-                self._timestamp,
             ],
             outputs=[self._data._lin_acc_b, self._data._ang_vel_b],
             device=self._device,

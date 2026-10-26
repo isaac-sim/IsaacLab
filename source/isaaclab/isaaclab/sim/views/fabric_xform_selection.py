@@ -37,6 +37,9 @@ class FabricXformSelection:
     instance's lifetime, keyed on a per-instance index attribute so their size follows the view
     rather than the stage. Accessors rebuild the view-index to Fabric-slot mapping from live Fabric
     data, so a bucket reorder can never leave it stale.
+
+    This selection owns matrix initialization. Seed modern Fabric matrices directly; views must not
+    add another USD seed pass or use legacy transform compatibility attributes.
     """
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
@@ -106,13 +109,13 @@ class FabricXformSelection:
         # A zero-prim selection is legal: the owning views allow a pattern that matches nothing, and
         # everything below degenerates to empty selections, buffers, and launches.
         child_parent_paths = [_parent_path(path) for path in self._prim_paths]
-        self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
-        parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
+        unique_parent_paths = list(dict.fromkeys(child_parent_paths))
+        parent_ordinal = {path: i for i, path in enumerate(unique_parent_paths)}
 
         # Tag children and parents with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
         for paths, index_attr in (
-            (self.unique_parent_paths, self._parent_index_attr),
+            (unique_parent_paths, self._parent_index_attr),
             (self._prim_paths, self.child_index_attr),
         ):
             group_prims: list = []
@@ -153,12 +156,11 @@ class FabricXformSelection:
         # View-side indices are uint32 to match the Fabric ``UInt`` tags; slot buffers must be
         # int32, the only index dtype ``wp.indexedfabricarray`` accepts.
         self.view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=device)
-        self.parent_view_indices = wp.array(list(range(len(self.unique_parent_paths))), dtype=wp.uint32, device=device)
         self._child_parent_map = wp.array(
             [parent_ordinal[path] for path in child_parent_paths], dtype=wp.uint32, device=device
         )
         self._child_slots_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
-        self._parent_slots_buf = wp.empty((len(self.unique_parent_paths),), dtype=wp.int32, device=device)
+        self._parent_slots_buf = wp.empty((len(unique_parent_paths),), dtype=wp.int32, device=device)
         self._parent_slot_of_child_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
 
     def world_ifa(self) -> wp.indexedfabricarray:
@@ -190,29 +192,6 @@ class FabricXformSelection:
         self.refresh_parent_selection()
         return wp.indexedfabricarray(
             fa=wp.fabricarray(self.sel_parent, self._WORLD_MATRIX_NAME), indices=self._parent_slot_of_child_buf
-        )
-
-    def parent_world_rw_ifa(self) -> wp.indexedfabricarray:
-        """Return writable parent world matrices, via a one-off selection so :attr:`sel_parent` stays read-only."""
-        import usdrt
-
-        selection = self.stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.UInt, self._parent_index_attr, usdrt.Usd.Access.Read),
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, self._WORLD_MATRIX_NAME, usdrt.Usd.Access.ReadWrite),
-            ],
-            device=self._device,
-        )
-        num_parents = len(self.unique_parent_paths)
-        self.check_count(selection.GetCount(), num_parents, self._parent_index_attr)
-        wp.launch(
-            kernel=fabric_utils.map_view_indices_to_fabric_slots,
-            dim=num_parents,
-            inputs=[wp.fabricarray(selection, self._parent_index_attr), self._parent_slots_buf],
-            device=self._device,
-        )
-        return wp.indexedfabricarray(
-            fa=wp.fabricarray(selection, self._WORLD_MATRIX_NAME), indices=self._parent_slots_buf
         )
 
     def check_count(self, found: int, expected: int, index_attr: str) -> None:
