@@ -339,12 +339,7 @@ class RenderContext:
         camera_data: CameraData,
         physics_step_count: int,
     ) -> bool:
-        """Sync scene state and capture one camera through :meth:`render_into_cameras`.
-
-        Returns:
-            Whether the renderer published a capture, as returned by
-            :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
-        """
+        """Capture one camera through :meth:`render_into_cameras` and return whether it published a capture."""
         return self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)[0]
 
     def render_into_cameras(
@@ -378,8 +373,7 @@ class RenderContext:
         for renderer, indices in groups.values():
             renderer.render_batch([requests[index][1] for index in indices])
             for index in indices:
-                _, render_data, camera_data = requests[index]
-                published[index] = renderer.read_output(render_data, camera_data)
+                published[index] = renderer.read_output(*requests[index][1:])
         return published
 
     def reset_stage_prepare_flag(self) -> None:

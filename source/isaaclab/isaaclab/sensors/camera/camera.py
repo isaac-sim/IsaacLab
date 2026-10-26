@@ -316,11 +316,9 @@ class Camera(SensorBase):
         self._renderer: BaseRenderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
         with force_log_level(logging.INFO):
             logger.info("Using renderer: %s", type(self._renderer).__name__)
-        # Render data — assigned in _initialize_impl.
+        # Render data and outputs — assigned in _initialize_impl; processors — at the first published capture.
         self._render_data = None
-        # Renderer-owned buffers, which processors read before outputs are published — assigned in _create_buffers.
         self._render_outputs: dict[str, ProxyArray] = {}
-        # Processors are constructed in order at the first published capture.
         self._tensor_processors: list[TensorProcessor] = []
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
@@ -677,8 +675,8 @@ class Camera(SensorBase):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
         if self._tensor_processors:
-            # Processors may keep per-environment history, so a mask selects their rows instead of all.
-            processor_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+            # Processors may keep per-environment history, so a mask resets only its rows.
+            processor_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero().squeeze(-1)
             for processor in self._tensor_processors:
                 processor.reset(processor_ids)
         # reset the timestamps
@@ -809,12 +807,7 @@ class Camera(SensorBase):
                 camera._apply_tensor_processors()
 
     def _apply_tensor_processors(self) -> None:
-        """Process a newly published capture and publish the processor outputs.
-
-        Each processor reads the render outputs and the outputs of earlier processors. Asynchronous
-        renderers may retain an already-processed capture, so stateful processors are called only when
-        the renderer reports a new one.
-        """
+        """Run the processors in order on a newly published capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
         buffers = dict(self._render_outputs)

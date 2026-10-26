@@ -596,10 +596,7 @@ def test_camera_updates_preserve_custom_buffer_hooks(camera_batch_context, monke
 
 
 def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batch_context):
-    """A fresh peer stays cached while due or reset cameras capture their current poses.
-
-    A masked reset retires processor history only for the masked environments.
-    """
+    """A fresh peer stays cached while due or reset cameras capture their current poses."""
     _, renderer, batches = camera_batch_context
     processor = Mock(return_value={})
     fast = _CpuCamera(renderer, "fast")
@@ -618,7 +615,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     slow.pose = 3.0
     slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
     renderer.reset.assert_called_once_with(slow._render_data, None)
-    np.testing.assert_array_equal(processor.reset.call_args.args[0], [1])
+    np.testing.assert_array_equal(processor.reset.call_args.args[0], [1])  # only the masked rows
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0

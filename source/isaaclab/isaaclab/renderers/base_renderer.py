@@ -220,8 +220,7 @@ class BaseRenderer(ABC):
                 instance to populate.
 
         Returns:
-            Whether this call published a capture. False means the outputs still hold a capture
-            that was already published, so the camera does not process it again.
+            Whether a new capture was published; False when the outputs hold an already-published one.
         """
         pass
 

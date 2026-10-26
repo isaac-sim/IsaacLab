@@ -643,8 +643,7 @@ class OVRTXRenderer(BaseRenderer):
     ) -> bool:
         """Publish this product's pixels, and copy matching metadata when a sensor requests it.
 
-        Returns False when asynchronous rendering has no new capture to publish, including the
-        priming image that the first capture after initialization or reset already published.
+        Returns False when asynchronous rendering has no new capture, such as an already-published priming image.
         """
         if self.cfg.async_rendering and not self._use_ovstage and render_data.ready is None:
             return False
