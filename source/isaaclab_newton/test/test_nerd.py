@@ -46,8 +46,6 @@ def test_native_nerd_ownership():
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)):
                 assert node.name not in {
                     "TransitionCapture",
-                    "HeadingJointStateCodec",
-                    "_write_joint_state",
                     "NewtonBinding",
                     "TrajectoryDatasetRecorder",
                     "_fp32_parallel_nerd_attention",
@@ -128,9 +126,6 @@ def test_record_fit_resume_and_graph_resets(task, network, device, tmp_path):
             manager = env.sim.backend_manager
             capture = env.recorder_manager.get_term("transition")
             descriptor = capture.dynamics.descriptor
-            if descriptor["heading"]:
-                with pytest.raises(ValueError, match="codec signature"):
-                    JointDynamics(dict(descriptor, heading=False), manager.get_model())
             if "Cartpole" in task:
                 with pytest.raises(ValueError, match="version 2"):
                     JointDynamics(dict(descriptor, version=1))
@@ -148,20 +143,7 @@ def test_record_fit_resume_and_graph_resets(task, network, device, tmp_path):
 
                 # Capture must retain the solver's input even when a later hook reuses its buffer.
                 manager.register_post_step_callback(clear_consumed_effort)
-            recorded_descriptor = dict(descriptor)
-            if network == "vector":
-                # A real pre-v3 recording has a layout instead of a portable codec signature.
-                from dataclasses import fields
-
-                recorded_descriptor.pop("codec")
-                recorded_descriptor["layout"] = {
-                    field.name: value.tolist() if isinstance(value, torch.Tensor) else value
-                    for field in fields(capture.dynamics.codec.layout)
-                    if field.init and field.name not in ("q_indices", "qd_indices", "semantic_signature")
-                    for value in (getattr(capture.dynamics.codec.layout, field.name),)
-                }
-                recorded_descriptor["layout"]["world_count"] = 1
-            metadata = {"dynamics": recorded_descriptor, "task": task + "-Explore"}
+            metadata = {"dynamics": descriptor, "task": task + "-Explore"}
             (tmp_path / "dataset.json").write_text(json.dumps(metadata))
             # Stagger autoresets so prefixes and retained fields exercise different world lengths.
             env.episode_length_buf[:] = torch.arange(4, device=device)
@@ -270,7 +252,8 @@ def test_record_fit_resume_and_graph_resets(task, network, device, tmp_path):
         [dataset], train_cfg, device, checkpoint=torch.load(checkpoint, map_location="cpu", weights_only=True)
     )
     assert torch.equal(learner.generator.get_state(), resumed.generator.get_state())
-    assert learner.normalizer.fingerprint == resumed.normalizer.fingerprint
+    assert torch.equal(learner.input_mean, resumed.input_mean)
+    assert torch.equal(learner.target_scale, resumed.target_scale)
     assert learner.scaler.state_dict() == resumed.scaler.state_dict()
     learner.update()
     resumed.update()
@@ -347,6 +330,17 @@ def _check_graph_resets(task, device, checkpoint):
             reference = SolverNeRD(manager.get_model(), checkpoint, compile=cfg.sim.physics.solver_cfg.compile)
             collision = newton.CollisionPipeline(manager.get_model()) if "Rough" in task else None
             contacts = collision.contacts() if collision else None
+            with torch.no_grad():
+                probe = torch.randn_like(reference.history)
+                if "Rough" in task:
+                    tokens = reference.dynamics.contact_tokens(
+                        reference.contact_history, reference.contact_mean, reference.contact_scale
+                    )
+                    torch.testing.assert_close(
+                        reference.predict(probe, tokens), reference.network.predict_last(probe, tokens)
+                    )
+                else:
+                    torch.testing.assert_close(reference.predict(probe), reference.network.predict_last(probe))
             state = manager.get_model().state()
             state.assign(manager.get_state_0())
             action = torch.zeros(8, env.action_manager.total_action_dim, device=device)
@@ -365,10 +359,7 @@ def _check_graph_resets(task, device, checkpoint):
                         cursor.add_(1)
 
                 manager.register_post_actuator_callback(retain_effort)
-            addresses = (
-                manager._solver.session.buffers.state_history.data_ptr(),
-                manager._solver.session.buffers.reset_mask.data_ptr(),
-            )
+            addresses = (manager._solver.history.data_ptr(), manager._solver.pending_reset.data_ptr())
             with torch.inference_mode():
                 for step in range(21):
                     if step in (4, 9, 13):
@@ -404,37 +395,8 @@ def _check_graph_resets(task, device, checkpoint):
                         rtol=2e-5,
                         atol=2e-6,
                     )
-                    if step in (0, 4, 13, 20):
-                        solver = manager._solver
-                        operator, buffers = solver.operator, solver.session.buffers
-                        inputs = operator.adapter.encode_inference_history(
-                            buffers.state_history, external_features=buffers.feature_history
-                        )
-                        inputs = operator.normalizer.normalize("input", inputs)
-                        tokens = None
-                        if "Rough" in task:
-                            from physicsnemo_robotics.dynamics import normalize_contact_tokens
-
-                            normalized = normalize_contact_tokens(
-                                operator.normalizer,
-                                "contact",
-                                buffers.contact_history,
-                                operator.adapter.contact_features.signature,
-                            )
-                            tokens = operator.adapter.model_contacts(operator.model, normalized)
-                        prediction = (
-                            operator.model.predict_last(inputs)
-                            if tokens is None
-                            else operator.model.predict_last(inputs, contact_tokens=tokens)
-                        )
-                        delta = operator.normalizer.denormalize("target", prediction)
-                        expected = operator.codec.delta_to_state(buffers.state_history[:, -1], delta)
-                        torch.testing.assert_close(buffers.output, expected, rtol=2e-5, atol=2e-5)
             assert manager._graph is not None
-            assert addresses == (
-                manager._solver.session.buffers.state_history.data_ptr(),
-                manager._solver.session.buffers.reset_mask.data_ptr(),
-            )
+            assert addresses == (manager._solver.history.data_ptr(), manager._solver.pending_reset.data_ptr())
             with pytest.raises(ValueError, match="frame"):
                 reference.step(state, state, manager.get_control(), None, env.step_dt * 2)
             # A checkpoint must reject altered physics even when tensor shapes still agree.

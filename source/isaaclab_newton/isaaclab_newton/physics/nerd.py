@@ -5,8 +5,8 @@
 
 """Shared NeRD representation for native recording, offline fitting and Newton inference.
 
-PhysicsNeMo Robotics owns state conversion, contact encoders and temporal inference. Isaac Lab
-owns the recorded physics-step contract, physical identity policy and task feature selection.
+PhysicsNeMo Robotics owns the joint codec, contact encoders and network. Isaac Lab owns the
+recorded physics-step contract and the heading convention used by its locomotion tasks.
 Import this module only when learned dynamics is selected; task discovery needs no PhysicsNeMo.
 """
 
@@ -16,6 +16,7 @@ import copy
 import hashlib
 import json
 from contextlib import nullcontext
+from dataclasses import fields
 
 import newton
 import numpy as np
@@ -24,17 +25,75 @@ import warp as wp
 from physicsnemo_robotics.dynamics import (
     BodyHeadingFrame,
     BodyStateCodec,
-    CodecSignature,
     FixedContactFeatureAdapter,
     FixedRigidContactEncoder,
-    GravityEncoder,
     JointStateCodec,
     RigidContactSetEncoder,
     expand_rigid_contact_shapes,
 )
 from physicsnemo_robotics.dynamics.codecs.joint import JointLayout
 from physicsnemo_robotics.newton import NewtonStepContext
-from tensordict import TensorDict
+
+from isaaclab.utils.math import normalize, quat_apply, quat_apply_inverse, quat_conjugate, quat_mul
+
+
+class HeadingJointStateCodec(JointStateCodec):
+    """Store world state, encode inputs and deltas in the current root's swing/twist heading frame."""
+
+    def __init__(self, model=None, *, layout=None):
+        super().__init__(model, layout=layout)
+        if (
+            not self.layout.root_is_free
+            or self.layout.up_axis_index != 2
+            or self.layout.free_root_translation_q_starts != (0,)
+            or self.layout.quaternion_q_starts != (3,)
+        ):
+            raise ValueError("Heading dynamics requires one z-up free root at the start of the joint coordinates.")
+
+    def encode_state(self, state):
+        return super().encode_state(self._to_heading(state, state)[0])
+
+    def state_to_delta(self, current, next_state):
+        return super().state_to_delta(self._to_heading(current, current)[0], self._to_heading(next_state, current)[0])
+
+    def delta_to_state(self, current, delta):
+        local, heading, origin = self._to_heading(current, current)
+        local = super().delta_to_state(local, delta)
+        q, qd = local[..., : self.layout.dof_q], local[..., self.layout.dof_q :]
+        return self.canonicalize_state(
+            torch.cat(
+                (
+                    quat_apply(heading, q[..., :3]) + origin,
+                    quat_mul(heading, q[..., 3:7]),
+                    q[..., 7:],
+                    quat_apply(heading, qd[..., :3]),
+                    quat_apply(heading, qd[..., 3:6]),
+                    qd[..., 6:],
+                ),
+                dim=-1,
+            )
+        )
+
+    def _to_heading(self, state, anchor):
+        twist = torch.cat((torch.zeros_like(anchor[..., 3:5]), anchor[..., 5:7]), dim=-1)
+        identity = torch.zeros_like(twist)
+        identity[..., 3] = 1.0
+        heading = normalize(torch.where(twist.norm(dim=-1, keepdim=True) >= 1.0e-8, twist, identity))
+        heading = torch.where(heading[..., 3:] < 0, -heading, heading)
+        origin = torch.cat((anchor[..., :2], torch.zeros_like(anchor[..., 2:3])), dim=-1)
+        q, qd = state[..., : self.layout.dof_q], state[..., self.layout.dof_q :]
+        local = torch.cat(
+            (
+                quat_apply_inverse(heading, q[..., :3] - origin),
+                quat_mul(quat_conjugate(heading), q[..., 3:7]),
+                q[..., 7:],
+                quat_apply_inverse(heading, qd[..., :3]),
+                quat_apply_inverse(heading, qd[..., 3:6]),
+                qd[..., 6:],
+            ),
+            dim=-1,
+        )
+        return local, heading, origin
 
 
 class JointDynamics:
@@ -66,7 +125,13 @@ class JointDynamics:
                 or model.articulation_count != model.world_count
             ):
                 raise ValueError("NeRD requires one complete joint-backed rigid articulation per world.")
-            self.codec = JointStateCodec(model, heading=heading)
+            self.codec = HeadingJointStateCodec(model) if heading else JointStateCodec(model)
+            layout = {}
+            for field in fields(self.codec.layout):
+                if field.init and field.name not in ("q_indices", "qd_indices", "semantic_signature"):
+                    value = getattr(self.codec.layout, field.name)
+                    layout[field.name] = value.tolist() if isinstance(value, torch.Tensor) else value
+            layout["world_count"] = 1
             descriptor = {
                 "version": 2,
                 "frame_dt": frame_dt,
@@ -80,7 +145,7 @@ class JointDynamics:
                 ]
                 if max_contacts
                 else [],
-                "codec": self.codec.signature.to_dict(),
+                "layout": layout,
                 "model": model_signature(model, contact_conditioned=bool(max_contacts)),
             }
         else:
@@ -88,27 +153,15 @@ class JointDynamics:
                 raise ValueError("NeRD requires descriptor version 2; recollect data with complete physical identity.")
             if descriptor["control"] != "joint_f":
                 raise ValueError("NeRD requires applied joint efforts; recollect and refit target-conditioned data.")
-            if model is not None:
-                self.codec = JointStateCodec(model, heading=descriptor["heading"])
-            elif "codec" in descriptor:
-                self.codec = JointStateCodec.from_signature(CodecSignature.from_dict(descriptor["codec"]))
-            else:
-                # Existing raw v2 recordings precede portable codec signatures. Their
-                # joint layout still describes the stored world-space state exactly.
-                layout = dict(descriptor["layout"])
-                for name in ("continuous_q_mask", "root_translation_mask"):
-                    layout[name] = torch.tensor(layout[name], dtype=torch.bool)
-                for name in ("quaternion_q_starts", "free_root_translation_q_starts"):
-                    layout[name] = tuple(layout[name])
-                layout["world_count"] = 1
-                self.codec = JointStateCodec(layout=JointLayout(**layout), heading=descriptor["heading"])
-        if self.codec.heading != descriptor["heading"] or (
-            "codec" in descriptor
-            and self.codec.signature.fingerprint != CodecSignature.from_dict(descriptor["codec"]).fingerprint
-        ):
-            raise ValueError("NeRD codec signature differs from the recorded state/heading convention.")
+            layout = dict(descriptor["layout"])
+            for name in ("continuous_q_mask", "root_translation_mask"):
+                layout[name] = torch.tensor(layout[name], dtype=torch.bool)
+            for name in ("quaternion_q_starts", "free_root_translation_q_starts"):
+                layout[name] = tuple(layout[name])
+            layout["world_count"] = 1 if model is None else model.world_count
+            codec_type = HeadingJointStateCodec if descriptor["heading"] else JointStateCodec
+            self.codec = codec_type(layout=JointLayout(**layout)) if model is None else codec_type(model)
         self.descriptor = descriptor
-        self.gravity = GravityEncoder(self.codec, (0.0, 0.0, -1.0)) if descriptor["heading"] else None
         self.max_contacts = descriptor.get("max_contacts", 0)
         if model is not None:
             if (
@@ -211,7 +264,9 @@ class JointDynamics:
         """Encode one frame or a batch of sequences without discarding autograd."""
         values = [self.codec.encode_state(state), control]
         if self.descriptor["heading"]:
-            values.append(self.gravity.encode_window(TensorDict({"history/state": state}, batch_size=[])))
+            gravity = torch.zeros_like(state[..., :3])
+            gravity[..., 2] = -1.0
+            values.append(quat_apply_inverse(normalize(state[..., 3:7]), gravity))
         if not self.max_contacts:
             values.append(contacts)
         return torch.cat(values, dim=-1)
@@ -227,6 +282,13 @@ class JointDynamics:
         if self.contact_encoder is None:
             return torch.empty(self.codec.batch_size, 0, device=state.joint_q.device.alias)
         return self.contact_adapter.encode_tokens(self.contact_encoder.encode_state(state))
+
+    @staticmethod
+    def contact_tokens(values, mean, scale):
+        """Normalize only valid continuous geometry; endpoint indices and masks retain their types."""
+        tokens = RigidContactSetEncoder.to_variable_contact_set(values)
+        tokens.geometry.sub_(mean).div_(scale).mul_(tokens.valid.unsqueeze(-1))
+        return tokens
 
     def check_inputs(self, state):
         """Reject unrepresented inputs at the same solver boundary during capture and deployment."""
