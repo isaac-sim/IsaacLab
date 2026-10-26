@@ -529,7 +529,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_visualizers,test_visualizers_kit.py,test_visualizers_rtx.py"
+        filter-pattern: "isaaclab_visualizers,test_visualizers_kit.py,test_visualizers_rtx.py,test_kit_headless_capture.py"
         warp-cache: restore
         ovrtx-shader-cache: restore
         test-jobs: "4"

@@ -304,7 +304,8 @@ def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
 
     if not has_kit():
         return
-    if any(viz.pumps_app_update() for viz in sim.visualizers):
+    # Kit owns on-demand capture even when its headless step does not pump the app.
+    if any(viz.pumps_app_update() or viz.cfg.backend.visualizer_type == "kit" for viz in sim.visualizers):
         return
     try:
         # Explicit on-demand frame request: pump even though headless offscreen rendering
