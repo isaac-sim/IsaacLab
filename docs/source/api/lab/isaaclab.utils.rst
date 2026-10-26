@@ -203,10 +203,6 @@ Observation terms continue to use shape-preserving single-tensor processors thro
 class processors with ``cfg.func(cfg, data_dim, device)``. Built-in filters retain this constructor
 and their single-tensor behavior; structured processors are constructed directly as above.
 
-Cameras route named render outputs through
-:attr:`~isaaclab.sensors.camera.CameraCfg.tensor_processors` by the configurations' ``inputs`` and
-``outputs``; see :ref:`camera-post-render-processing`.
-
 Migration: import ``TensorProcessor`` and ``TensorProcessorCfg`` from
 ``isaaclab.utils.tensor_processors`` in place of ``ModifierBase`` and ``ModifierCfg`` from
 ``isaaclab.utils.modifiers``. Replace ``ObservationTermCfg.modifiers`` with

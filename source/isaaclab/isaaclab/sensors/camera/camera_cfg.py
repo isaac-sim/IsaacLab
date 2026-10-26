@@ -208,33 +208,19 @@ class CameraCfg(SensorBaseCfg):
     """Renderer configuration for camera sensor."""
 
     tensor_processors: list[TensorProcessorCfg] = []
-    """Processors that compute camera outputs from render outputs after each capture. Defaults to an empty list.
+    """Processors that compute camera outputs from render outputs. Defaults to an empty list.
 
-    Each configuration's ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. The
-    camera constructs it as ``func(cfg, inputs)`` when the first capture arrives, then calls it with ``inputs``
-    after every capture, in list order. ``inputs`` maps the names in the configuration's ``inputs`` to render
-    outputs or to outputs of earlier processors. The processor returns persistent
-    :class:`~isaaclab.utils.warp.ProxyArray` outputs keyed by the names in its ``outputs``; published outputs
-    keep the camera's batch size and image dimensions.
-
-    The renderer produces every input that no earlier processor produces. :attr:`data_types` selects the
-    published outputs, and a processor output replaces a render output with the same name. Other render outputs
-    stay private: ``rgb_hdr`` is published only when listed in :attr:`data_types`. Every processor output must
-    be published or read by a later processor. Camera resets and teardown reset and close the processors.
-
-    Before the scene is cloned or exported to a renderer, camera construction calls the processor class's
-    optional ``prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method. It may author
-    settings on the camera prims and returns the configuration to use, or None to remove the processor. For
-    example, :class:`isaaclab_ppisp.PpispProcessor` resolves USD-authored coefficients and disables RTX
-    automatic exposure.
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class constructed with
+    :attr:`CameraData.output` and called with it after every capture; returned outputs are added to it. The
+    renderer produces the processors' ``inputs`` instead of their ``outputs``. Camera construction calls an
+    optional ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method before the
+    scene is cloned or exported; it returns the configuration to use, or None to remove the processor.
     """
 
     isp_cfg: Any | CameraISPMode | None = None
-    """Deprecated PPISP setting, to be removed in a future release. Defaults to None.
+    """Deprecated: add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead.
 
-    Add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead. During
-    camera construction, a non-None value emits a :class:`FutureWarning` and is forwarded to a PPISP
-    processor that produces the requested ``rgb`` and ``rgba`` outputs, ahead of any configured processors.
+    A non-None value is forwarded to that processor with a :class:`FutureWarning`.
     """
 
     def __post_init__(self):
@@ -267,24 +253,14 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate processor routing and the render outputs it requires against the renderer."""
-        # A discarded processor output usually means a misnamed output, e.g. rgb produced for an rgba request.
-        published_or_read = set(self.data_types)
-        for processor_cfg in reversed(self.tensor_processors):
-            unused = [name for name in processor_cfg.outputs if name not in published_or_read]
-            if unused:
-                raise ValueError(
-                    f"Camera tensor processor outputs {unused} are neither listed in data_types nor read by a"
-                    " later processor."
-                )
-            published_or_read.update(processor_cfg.inputs)
+        """Validate the requested data types against the selected renderer contract."""
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()
         if supported_specs is None:
             return
         supported = {str(kind) for kind in supported_specs}
-        unsupported = sorted(set(_render_data_types(self.data_types, self.tensor_processors)) - supported)
+        unsupported = sorted(set(_render_data_types(self)) - supported)
         if unsupported:
             raise ValueError(
                 f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
@@ -293,11 +269,8 @@ class CameraCfg(SensorBaseCfg):
             )
 
 
-def _render_data_types(data_types: list[str], tensor_processors: list[TensorProcessorCfg]) -> list[str]:
-    """Return the render outputs that publish ``data_types`` and feed ``tensor_processors``."""
-    produced = set()
-    processor_inputs = []
-    for processor_cfg in tensor_processors:
-        processor_inputs += [name for name in processor_cfg.inputs if name not in produced]
-        produced.update(processor_cfg.outputs)
-    return list(dict.fromkeys([*(name for name in data_types if name not in produced), *processor_inputs]))
+def _render_data_types(cfg: CameraCfg) -> list[str]:
+    """Return the data types and processor inputs that processors do not produce."""
+    produced = {name for processor_cfg in cfg.tensor_processors for name in processor_cfg.outputs}
+    inputs = [name for processor_cfg in cfg.tensor_processors for name in processor_cfg.inputs]
+    return [name for name in dict.fromkeys([*cfg.data_types, *inputs]) if name not in produced]

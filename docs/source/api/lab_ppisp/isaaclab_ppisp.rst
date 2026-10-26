@@ -22,11 +22,9 @@ The following classes are part of the public :mod:`isaaclab_ppisp` API.
    :show-inheritance:
 
 .. autoclass:: PpispProcessor
-   :members: prepare_camera
    :show-inheritance:
 
 .. autoclass:: PpispProcessorCfg
-   :members:
    :show-inheritance:
 
 .. autoclass:: PpispPipeline

@@ -38,9 +38,9 @@ Notes:
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.
   * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
-    HDR source with :func:`assert_ppisp_lifts_exposure`. The camera requests
-    the PPISP processor's HDR input privately, so ``"rgb_hdr"`` is not required
-    just to enable PPISP.
+    HDR source with :func:`assert_ppisp_lifts_exposure`. The camera also
+    requests the PPISP processor's HDR input itself, so ``"rgb_hdr"`` is not
+    required just to enable PPISP.
 """
 
 import importlib.util

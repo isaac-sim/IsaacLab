@@ -5,10 +5,8 @@
 
 """Post-render PPISP (Physically Plausible Image Signal Processing) for IsaacLab.
 
-Provides :class:`PpispProcessor`, a tensor processor that converts a camera's scene-linear HDR
-output to 8-bit color. Add :class:`PpispProcessorCfg` to
-:attr:`~isaaclab.sensors.camera.CameraCfg.tensor_processors` to apply it after every capture with
-any renderer that publishes ``rgb_hdr``.
+Add :class:`PpispProcessorCfg` to :attr:`~isaaclab.sensors.camera.CameraCfg.tensor_processors`
+to convert a camera's scene-linear HDR output to LDR RGB(A) after each capture.
 """
 
 import importlib.metadata

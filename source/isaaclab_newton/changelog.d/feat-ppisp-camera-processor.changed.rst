@@ -1,2 +1,1 @@
-* Removed PPISP composition and its internal HDR buffer from the Newton Warp renderer. Cameras apply PPISP
-  through ``CameraCfg.tensor_processors`` and request ``rgb_hdr`` from the renderer when a processor reads it.
+* Removed PPISP from the Newton Warp renderer; cameras apply it through ``CameraCfg.tensor_processors``.

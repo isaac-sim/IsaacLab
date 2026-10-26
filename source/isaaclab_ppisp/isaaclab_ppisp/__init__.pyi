@@ -39,6 +39,5 @@ from .cfg import (
     resolve_and_normalize,
 )
 from .kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
-from .pipeline import PpispPipeline
-from .processor import PpispProcessor
+from .pipeline import PpispPipeline, PpispProcessor
 from .rtx_camera_overrides import apply_rtx_exposure_overrides

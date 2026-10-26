@@ -137,39 +137,17 @@ def test_ppisp_warp_exposure_increases_ldr_output():
 
 
 def test_ppisp_processor_returns_rgb_view_of_persistent_rgba():
-    """Processor outputs reuse one RGBA buffer, and RGB views its color channels."""
-    import numpy as np
-
-    hdr = ProxyArray(wp.from_numpy(np.linspace(0.0, 1.0, 2 * 3 * 4 * 3, dtype=np.float32).reshape(2, 3, 4, 3)))
-    inputs = {"exposureOffset": 1.0, "colorLatentRed": (0.1, -0.2)}
-    cfg = PpispProcessorCfg(inputs=["hdr"], outputs=["rgb", "rgba"], isp_cfg=PpispCfg(inputs=inputs))
-    processor = cfg.func(cfg, {"hdr": hdr})
-
-    outputs = processor({"hdr": hdr})
+    """The processor applies its coefficients to persistent RGBA storage, viewed as RGB."""
+    hdr = ProxyArray(_hdr(0.25, (2, 3, 4, 3)))
+    cfg = PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.0}))
+    processor = cfg.func(cfg, {"rgb_hdr": hdr})
+    outputs = processor({"rgb_hdr": hdr})
 
     expected = _rgba((2, 3, 4, 4))
-    apply_ppisp_to_rgba(hdr.warp, expected, normalize_ppisp_cfg(PpispCfg(inputs=inputs)))
-    np.testing.assert_array_equal(outputs["rgba"].warp.numpy(), expected.numpy())
-    np.testing.assert_array_equal(outputs["rgb"].warp.numpy(), expected.numpy()[..., :3])
-    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
-    assert processor({"hdr": hdr})["rgba"] is outputs["rgba"]
-
-
-@pytest.mark.parametrize(
-    ("inputs", "outputs", "hdr_shape", "match"),
-    [
-        (["hdr", "depth"], ["rgb"], (1, 2, 2, 3), "exactly one HDR input"),
-        (["hdr"], ["albedo"], (1, 2, 2, 3), "'rgb', 'rgba', or both"),
-        (["hdr"], ["rgb"], (1, 2, 2, 4), r"shape \(N, H, W, 3\)"),
-    ],
-)
-def test_ppisp_processor_rejects_unsupported_routing(inputs, outputs, hdr_shape, match):
-    """Construction rejects routing that PPISP cannot produce instead of failing inside a kernel."""
-    cfg = PpispProcessorCfg(inputs=inputs, outputs=outputs)
-    data = {name: ProxyArray(_hdr(0.5, hdr_shape)) for name in inputs}
-
-    with pytest.raises(ValueError, match=match):
-        cfg.func(cfg, data)
+    apply_ppisp_to_rgba(hdr.warp, expected, normalize_ppisp_cfg(PpispCfg(inputs={"exposureOffset": 1.0})))
+    assert (outputs["rgba"].warp.numpy() == expected.numpy()).all()
+    assert (outputs["rgb"].warp.numpy() == expected.numpy()[..., :3]).all()
+    assert processor({"rgb_hdr": hdr})["rgba"] is outputs["rgba"]
 
 
 def test_ppisp_warp_responsivity_lifts_dim_input():

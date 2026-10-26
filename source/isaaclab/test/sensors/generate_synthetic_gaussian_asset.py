@@ -800,10 +800,9 @@ def _render_synthetic_gaussian_camera(
     width: int,
     sim_dt: float,
     stabilisation_steps: int,
-    isp_cfg: PpispCfg | CameraISPMode,
+    isp_cfg: PpispCfg | CameraISPMode | None,
     sim: SimulationContext,
 ) -> dict[str, torch.Tensor]:
-    ppisp_outputs = [name for name in ("rgb", "rgba") if name in data_types]
     cfg = CameraCfg(
         prim_path=SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
         update_period=0.0,
@@ -811,7 +810,7 @@ def _render_synthetic_gaussian_camera(
         width=width,
         data_types=data_types,
         spawn=None,
-        tensor_processors=[PpispProcessorCfg(isp_cfg=isp_cfg, outputs=ppisp_outputs)],
+        tensor_processors=[PpispProcessorCfg(isp_cfg=isp_cfg)],
         renderer_cfg=renderer_cfg,
     )
     camera = Camera(cfg)
