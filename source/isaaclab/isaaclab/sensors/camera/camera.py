@@ -26,6 +26,7 @@ from ...utils.math import (
     quat_from_matrix,
 )
 from ...utils.warp import ProxyArray
+from ...utils.warp.utils import resolve_ids
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
@@ -658,7 +659,9 @@ class Camera(SensorBase):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
-        super().reset(env_ids, env_mask)
+        reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=reset_mask)
+        self._invalidate_buffers(reset_mask)
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
@@ -688,10 +691,8 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is None:
-            raise RuntimeError("SimulationContext is not initialized.")
-        sim_ctx.get_scene_data_provider().cameras[self.cfg.prim_path] = self
+        provider = self._sim.get_scene_data_provider()
+        provider.cameras[self.cfg.prim_path] = self
 
         # Runtime paths and instance counts are available after physics initialization.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
@@ -705,9 +706,11 @@ class Camera(SensorBase):
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        sim_ctx.render_context.ensure_prepare_stage(self.stage, sim_ctx.get_scene_data_provider().num_envs)
+        self._sim.render_context.ensure_prepare_stage(self.stage, provider.num_envs)
 
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        self._view = FrameView(
+            self.cfg.prim_path, device=self._device, stage=self.stage, scene_data_backend=provider.backend
+        )
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -738,6 +741,7 @@ class Camera(SensorBase):
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     def _prepare_camera(self, env_mask: wp.array) -> None:
         """Advance capture frames and refresh requested poses before rendering."""
@@ -752,30 +756,14 @@ class Camera(SensorBase):
             return
         self._prepare_camera(env_mask)
 
-        sim_ctx = sim_utils.SimulationContext.instance()
-        renderer = self._renderer
-        assert renderer is not None
-        if sim_ctx is not None:
-            sim_ctx.render_context.render_into_camera(
-                renderer,
-                self._render_data,
-                self._data,
-                sim_ctx.get_physics_step_count(),
-            )
-        else:
-            renderer.render(self._render_data)
-            renderer.read_output(self._render_data, self._data)
+        self._sim.render_context.render_into_camera(
+            self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
+        )
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
         """Prepare due cameras and render them together through their shared context."""
         cameras = cast(Sequence[Camera], sensors)
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is None:
-            for camera in cameras:
-                camera._update_buffers_impl(camera._is_outdated)
-            return
-
         ready = []
         for camera in cameras:
             if not camera._env_mask_has_any(camera._is_outdated):
@@ -785,9 +773,10 @@ class Camera(SensorBase):
         if not ready:
             return
 
-        sim_ctx.render_context.render_into_cameras(
+        sim = ready[0]._sim
+        sim.render_context.render_into_cameras(
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
-            sim_ctx.get_physics_step_count(),
+            sim.get_physics_step_count(),
         )
 
     """
@@ -1040,31 +1029,11 @@ class Camera(SensorBase):
         """Resolve camera indices to a Warp ``int32`` array."""
         if env_ids is None:
             return None
-        if isinstance(env_ids, wp.array):
-            if env_ids.dtype != wp.int32:
-                raise TypeError(f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32.")
-            if env_ids.ndim != 1:
-                raise ValueError("Warp camera indices must be a one-dimensional array.")
-            if str(env_ids.device) == str(self._device):
-                return env_ids
-            return env_ids.to(self._device)
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
-            if not env_ids.is_contiguous():
-                env_ids = env_ids.contiguous()
-            return wp.from_torch(env_ids, dtype=wp.int32)
-        elif isinstance(env_ids, slice) and (env_ids.step or 1) > 0:
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        elif isinstance(env_ids, slice):
-            # Torch cannot slice with a negative step.
-            env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
-        else:
-            env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
-        return wp.array(env_ids, dtype=wp.int32, device=self._device)
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self._device, dtype=wp.int32)
 
     def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""
-        # A zero update period marks every camera outdated.
+        # A zero update period makes every positive-time update due.
         return self.cfg.update_period <= 0.0 or bool(np.any(env_mask.numpy()))
 
     """

@@ -16,6 +16,7 @@ import pytest
 from isaaclab.utils import validate
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.key_event_source import KeyEventSource
 from isaaclab.visualizers.visualizer_cfg import (
     ImageViewCfg,
     PerspectiveCameraCfg,
@@ -104,7 +105,8 @@ class _DummyVisualizer(BaseVisualizer):
         return
 
     def close(self) -> None:
-        self._is_closed = True
+        self._close_key_event_source()
+        super().close()
 
     def is_running(self) -> bool:
         return True
@@ -161,3 +163,17 @@ def test_physics_backend_returns_none_without_simulation_context():
     """physics_backend is None when no SimulationContext is active."""
     viz = _DummyVisualizer(VisualizerCfg())
     assert viz.physics_backend is None
+    assert viz.key_event_source is None
+
+
+def test_visualizer_retires_window_input_before_focus_loss_callbacks():
+    viz = _DummyVisualizer(VisualizerCfg())
+    source = viz._key_event_source = KeyEventSource()
+    observed = []
+    subscription = source.add_key_listener(lambda code, pressed: None, lambda: observed.append(viz.key_event_source))
+    assert viz.key_event_source is source
+
+    viz.close()
+    viz.close()
+    assert viz.key_event_source is None and source.closed and subscription.closed
+    assert observed == [None]

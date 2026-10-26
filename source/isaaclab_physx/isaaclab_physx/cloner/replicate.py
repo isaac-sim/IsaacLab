@@ -129,7 +129,7 @@ def _replicate_instances(
     excluded_paths = (
         list(dict.fromkeys(native_paths))
         if has_usd_only_sources
-        else list(dict.fromkeys(("/World/template", *env_namespaces)))
+        else list(dict.fromkeys((*[source for source, _, _ in physx_queue], *env_namespaces)))
     )
 
     def attach_fn(_stage_id: int):

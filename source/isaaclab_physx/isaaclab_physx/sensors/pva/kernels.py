@@ -17,7 +17,6 @@ def pva_update_kernel(
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
     gravity_vec_w: wp.vec3f,
-    timestamp: wp.array(dtype=wp.float32),
     # outputs
     out_pos_w: wp.array(dtype=wp.vec3f),
     out_quat_w: wp.array(dtype=wp.quatf),
@@ -44,7 +43,6 @@ def pva_update_kernel(
         offset_pos_b: Offset positions of the sensors.
         offset_quat_b: Offset quaternions of the sensors.
         gravity_vec_w: Scene-wide unit gravity direction in the world frame.
-        timestamp: Timestamp of the environment.
         out_pos_w: Output position in the world frame.
         out_quat_w: Output orientation in the world frame.
         out_lin_vel_b: Output linear velocity in the body frame.
@@ -55,11 +53,6 @@ def pva_update_kernel(
     """
     idx = wp.tid()
     if not env_mask[idx]:
-        return
-
-    # Skip envs that have not been stepped since their last reset: PhysX buffers still
-    # hold pre-reset values, so the reported acceleration would be spurious.
-    if timestamp[idx] == 0.0:
         return
 
     body_pos = wp.transform_get_translation(transforms[idx])
