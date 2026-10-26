@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 import numpy as np
 import torch
 
+from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
@@ -77,11 +78,11 @@ def _env_file_pins_gpu_index(env_file: str | None) -> bool:
 
 
 def _renderer_cuda_index() -> int | None:
-    """CUDA index the Kit renderer is pinned to, or ``None`` when it is not pinned."""
-    try:
-        import carb
-    except ImportError:
+    """CUDA index the Kit renderer is pinned to, or ``None`` when it is not pinned or Kit is not running."""
+    if not has_kit():
         return None
+    import carb
+
     setting = carb.settings.get_settings().get("/renderer/multiGpu/activeCudaGpus")
     if not setting:
         return None

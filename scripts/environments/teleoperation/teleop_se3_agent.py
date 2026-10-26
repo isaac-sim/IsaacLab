@@ -97,8 +97,6 @@ args_cli, hydra_args = setup_preset_cli(parser)
 # the launcher; this selects a camera-rendering experience that provides RTX/DLSS support.
 # Everywhere else we read ``args_cli.disable_external_cameras`` directly.
 args_cli.enable_cameras = not args_cli.disable_external_cameras
-# the teleop input devices and the RTX settings use Kit APIs directly
-args_cli.require_kit = True
 
 # Call an external callback if requested.
 if args_cli.external_callback:
@@ -130,6 +128,7 @@ from isaaclab.devices import DeviceCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.utils.version import has_kit
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift import mdp
@@ -220,7 +219,6 @@ def run_teleoperation(
     env_cfg: ManagerBasedRLEnvCfg, teleop_cfg: IsaacTeleopCfg | DeviceCfg, cleanup: ExitStack
 ) -> None:  # noqa: C901
     """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
-    from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
     from isaaclab_teleop import XrCameraFeedSession, poll_control_events
 
     use_isaac_teleop = isinstance(teleop_cfg, IsaacTeleopCfg)
@@ -232,9 +230,11 @@ def run_teleoperation(
     )
     cleanup.callback(camera_feed_session.close)
 
-    # Apply the RTX/DLSS global settings when an RTX render pipeline will run (Kit visualizer,
+    # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
     # external cameras, or XR).
-    if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
+    if has_kit() and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr):
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(
                 antialiasing_mode="DLSS",
