@@ -69,8 +69,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      # TEMP (revert before review): masked while iterating Windows CI on PR 5700.
-      should_run: 'false'
+      should_run: ${{ steps.detect.outputs.should_run }}
     steps:
     - uses: actions/checkout@v6
       with:

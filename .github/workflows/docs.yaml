@@ -55,8 +55,8 @@ jobs:
     name: Build Latest Docs
     runs-on: ubuntu-latest
     needs: [doc-build-type]
-    # TEMP (revert before review): masked while iterating Windows CI on PR 5700.
-    if: false
+    # run on non-deploy branches to build current version docs only
+    if: needs.doc-build-type.outputs.trigger-deploy != 'true'
 
     steps:
     - name: Checkout code

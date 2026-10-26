@@ -127,8 +127,7 @@ jobs:
   install-tests-x86:
     name: Installation Tests (x86)
     needs: [changes]
-    # TEMP (revert before review): masked while iterating Windows CI on PR 5700.
-    if: false
+    if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
@@ -147,8 +146,7 @@ jobs:
   install-tests-arm:
     name: Installation Tests (ARM)
     needs: [changes]
-    # TEMP (revert before review): masked while iterating Windows CI on PR 5700.
-    if: false
+    if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, aarch64]
     timeout-minutes: 90
     steps:
