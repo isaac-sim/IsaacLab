@@ -15,9 +15,6 @@ from env_test_utils import SINGLE_ENVIRONMENT_TASKS, _run_environments, setup_en
 
 _COVERED_TASKS = [
     "Isaac-Cartpole",  # Already covered by test_environment_determinism.py
-    "Isaac-Cartpole-Camera-Direct",  # Already covered by test_rendering_cartpole.py
-    "Isaac-Lift-KukaAllegro-Camera",  # Already covered by test_rendering_lift_kuka_homo_kitless.py
-    "Isaac-Reorient-Cube-Shadow-Camera-Direct",  # Already covered by test_rendering_shadow_hand_kitless.py
 ]
 
 _ENVIRONMENT_TASKS = setup_environment(

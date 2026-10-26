@@ -3,6 +3,48 @@ Changelog
 
 .. towncrier release notes start
 
+7.1.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera bindings and partition assignments for custom clone namespaces,
+  nonzero source environments, and explicitly ordered camera paths.
+* Fixed native scene export and OVPhysX frame transforms to follow declared clone destinations
+  instead of assuming the default environment namespace.
+
+
+7.1.1 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reduced OVRTX scene-export overhead and preserved nested material bindings by retaining clean file-backed USD references and instances during rendering initialization.
+* Refreshed sensor and frame-view kinematics after articulation state writes.
+* Rejected incomplete native sensor bindings instead of shrinking the scene's
+  environment rows and shared scheduling buffers.
+
+
+7.1.0 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Allowed OVPhysX frame views to read physics-body poses while keeping writes in the asset APIs.
+
+Fixed
+^^^^^
+
+* Fixed multi-mesh ray-cast targets spanning several rigid bodies and binding to bodies
+  in other environments. Sensors and targets now read shared body poses by exact path,
+  preserving environment order across native clone batches and articulation links.
+* Reported a sensor instance-count error when a ray-caster mount existed in only some
+  cloned environments, instead of failing with an unmapped native-body path.
+
+
 7.0.1 (2026-10-20)
 ~~~~~~~~~~~~~~~~~~
 

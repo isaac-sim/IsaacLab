@@ -83,7 +83,7 @@ def test_path_match_captures_the_clone_slot():
             cloner.path.match("/World/envs/env_3/Robot", invalid)
 
 
-def test_cloner_imports_without_kit():
+def test_clone_ownership_and_import_boundaries():
     """Importing the package in a clean interpreter must not drag in pxr.
 
     Topology and path queries must stay independent of USD execution. Loading pxr before
@@ -105,14 +105,31 @@ def test_cloner_imports_without_kit():
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False", "generic clone topology and queries imported the USD backend"
 
-    # Only cloning execution and its lifecycle owners may access context instances.
-    for path in Path(__file__).resolve().parents[3].glob("*/isaaclab*/**/*.py"):
-        tree = ast.parse(path.read_text())
-        if "cloner" in path.parts or path.name in {"simulation_context.py", "render_context.py"}:
+    source = Path(__file__).resolve().parents[3]
+    for file in source.glob("*/isaaclab*/**/*.py"):
+        tree = ast.parse(file.read_text())
+        # Only cloning execution and its lifecycle owners may access context instances.
+        if "cloner" not in file.parts and file.name not in {"simulation_context.py", "render_context.py"}:
+            assert not any(
+                isinstance(node, ast.Attribute) and node.attr == "clone_contexts" for node in ast.walk(tree)
+            ), f"{file} accessed clone contexts; consumers must use the plan and path/query utilities"
+        # The default layout has one owner; consumers use declarations or bound paths.
+        if file == source / "isaaclab/isaaclab/cloner/cloner_cfg.py":
             continue
-        assert not any(isinstance(node, ast.Attribute) and node.attr == "clone_contexts" for node in ast.walk(tree)), (
-            f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
-        )
+        documentation = {
+            id(node.value)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+        }
+        literals = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in documentation
+            and "/World/envs" in node.value
+        ]
+        assert not literals, f"{file}:{literals[0].lineno}: use the declared clone template or bound paths"
 
 
 @pytest.mark.parametrize("shared_assets", [(), (0,)])

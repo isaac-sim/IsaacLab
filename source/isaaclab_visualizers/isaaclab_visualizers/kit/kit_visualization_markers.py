@@ -49,18 +49,19 @@ class KitVisualizationMarkers:
     _authored_environment_ids: tuple[int, ...] | None = None
     _scene_partitioning_active: bool = False
 
-    def __init__(self, cfg: VisualizationMarkersCfg, visible: bool = True):
-        """Initialize the USD point instancer and register marker prototypes.
+    def __init__(
+        self, cfg: VisualizationMarkersCfg, visible: bool = True, *, sim: sim_utils.SimulationContext | None = None
+    ):
+        """Create a USD point instancer and its prototypes at the next free prim path.
 
-        When this backend is initialized, the :class:`UsdGeom.PointInstancer`
-        is created in the stage and the marker prims are registered into it.
-
-        .. note::
-            If a prim already exists at the requested path, the next free path
-            is used for the :class:`UsdGeom.PointInstancer` prim.
+        Args:
+            cfg: Marker prototypes and requested prim path.
+            visible: Initial marker visibility.
+            sim: Owner of the scene and clone plan; omitted for standalone USD markers.
         """
         self.cfg = cfg
-        self.stage = sim_utils.get_current_stage()
+        self._sim = sim
+        self.stage = sim.stage if sim is not None else sim_utils.get_current_stage()
         # Resolve the next free prim path before creating the point instancer.
         self.prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
         self._is_visible = visible
@@ -224,14 +225,17 @@ class KitVisualizationMarkers:
     def _scene_partitioning_is_active(self) -> bool:
         """Return whether renderer stage preparation authored environment partitions.
 
-        Renderer preparation always starts with ``env_0``, so its root is the
-        canonical stage-level signal regardless of which environments own markers.
+        The first declared environment is the stage-level signal, regardless of
+        which environments own markers.
         """
         # Markers can be created before the renderer prepares the stage, so a negative result is
         # re-checked. Partitions are never withdrawn from a stage, so a positive one is cached.
         if self._scene_partitioning_active:
             return True
-        env_prim = self.stage.GetPrimAtPath("/World/envs/env_0")
+        plan = self._sim.get_clone_plan() if self._sim is not None else None
+        if plan is None:
+            return False
+        env_prim = self.stage.GetPrimAtPath(plan.env_template.format(0))
         if not env_prim.IsValid():
             return False
         attr = env_prim.GetAttribute("primvars:omni:scenePartition")
