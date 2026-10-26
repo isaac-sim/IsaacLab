@@ -18,6 +18,7 @@ from isaaclab_newton.physics import NewtonManager
 from newton.examples.basic.example_basic_conveyor_forces import ConveyorForceModel
 from newton.solvers import SolverBase
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.physics import PhysicsEvent
 
 from .surface_velocity import SurfaceVelocitySpec, resolve_surface_velocity_paths
@@ -74,7 +75,7 @@ class SurfaceVelocity:
         body_pattern: str,
         body_count_per_env: int,
         startup_duration_s: float = 1.0,
-        env_path_format: str = "/World/envs/env_{}",
+        env_path_format: str = DEFAULT_ENV_TEMPLATE,
     ) -> None:
         """Register model and solver callbacks for the authored surfaces.
 
