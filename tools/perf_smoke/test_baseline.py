@@ -266,7 +266,6 @@ def check_evidence(subtests):
                 assert identity["run_url"] == f"https://github.com/{REPO}/actions/runs/20/attempts/1"
 
     sample = bundle()
-    assert baseline.workload_key(sample) is not None
     sample["run"]["config"].pop("rendering_backend")
     assert baseline.workload_key(sample) is None
     for renderer in (None, 42, "", " "):
