@@ -237,6 +237,17 @@ For an online consumer, a term can keep its latest batch in preallocated tensors
 ``env.recorder_manager.get_term(name)`` and copies the batch into its own replay storage.
 The term owns the lifetime of its published tensors; consumers must copy them before the next capture.
 
+The task's recorder-term configuration owns the captured schema: select the state, applied controls,
+context and terminal flags that the consumer needs. Core capture/storage does not import a world-model
+library or choose its inputs. A PhysicsNeMo learner constructs its codec and normalization at its own
+composition root; an online learner can consume the same captured batch for replay or prediction-error
+rewards. Network evaluation, optimization and checkpoint publication remain outside recorder callbacks.
+
+An export mode of ``EXPORT_NONE`` disables file export, not sample retention. To avoid episode buffers,
+a term must return ``(None, None)``. A task can offer its own ``record_to_episodes`` option that changes
+this return value while keeping capture identical. Disabling the term in the task configuration removes
+capture itself. These are three separate choices: capture, retain and export.
+
 In an RL environment, post-step callbacks run after reward and termination computation and before
 automatic reset. A term reading physical tensors directly should set
 ``requires_post_step_observations = False``. This avoids an extra observation computation and its
