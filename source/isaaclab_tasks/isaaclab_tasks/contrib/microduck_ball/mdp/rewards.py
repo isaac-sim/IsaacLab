@@ -52,16 +52,24 @@ def feet_slip(
 ) -> torch.Tensor:
     """Sum of the speeds at which the feet slide over the ball [m/s].
 
-    A foot slides when it is closer to the ball surface than ``contact_height`` [m]. Its slip speed is its velocity
-    relative to the ball surface point below it, without the part pointing into the ball.
+    A foot slides when it is closer to the ball surface than ``contact_height`` [m]. The contact point is the point
+    of the ball surface below the foot frame origin. Its slip speed is the velocity of the foot at that point relative
+    to the velocity of the ball surface there, without the part pointing into the ball.
     """
     robot, ball = env.scene[robot_cfg.name], env.scene[ball_cfg.name]
-    offset = robot.data.body_pos_w.torch[:, robot_cfg.body_ids] - ball.data.root_pos_w.torch.unsqueeze(1)
-    normal = offset / torch.linalg.norm(offset, dim=-1, keepdim=True)
-    surface_velocity = ball.data.root_lin_vel_w.torch.unsqueeze(1) + torch.cross(
-        ball.data.root_ang_vel_w.torch.unsqueeze(1).expand_as(offset), offset, dim=-1
+    ball_center = ball.data.root_pos_w.torch.unsqueeze(1)
+    normal = robot.data.body_pos_w.torch[:, robot_cfg.body_ids] - ball_center
+    normal = normal / torch.linalg.norm(normal, dim=-1, keepdim=True)
+    contact = ball_center + ball.cfg.spawn.radius * normal
+    foot_velocity = robot.data.body_com_lin_vel_w.torch[:, robot_cfg.body_ids] + torch.cross(
+        robot.data.body_com_ang_vel_w.torch[:, robot_cfg.body_ids],
+        contact - robot.data.body_com_pos_w.torch[:, robot_cfg.body_ids],
+        dim=-1,
     )
-    relative = robot.data.body_lin_vel_w.torch[:, robot_cfg.body_ids] - surface_velocity
+    surface_velocity = ball.data.root_lin_vel_w.torch.unsqueeze(1) + torch.cross(
+        ball.data.root_ang_vel_w.torch.unsqueeze(1).expand_as(contact), contact - ball_center, dim=-1
+    )
+    relative = foot_velocity - surface_velocity
     tangential = relative - torch.sum(relative * normal, dim=-1, keepdim=True) * normal
     on_ball = _foot_height_on_ball(env, robot_cfg, ball_cfg) < contact_height
     return torch.sum(torch.linalg.norm(tangential, dim=-1) * on_ball, dim=1)

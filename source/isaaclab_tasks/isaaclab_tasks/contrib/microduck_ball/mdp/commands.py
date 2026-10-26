@@ -82,6 +82,14 @@ class BallVelocityCommand(UniformVelocityCommand):
         self.gait_phase[env_ids] = torch.rand_like(self.gait_phase[env_ids])
         return extras
 
+    def _update_metrics(self):
+        # the target is a world velocity, so the tracking error is measured on the world velocity of the robot
+        error_xy = torch.linalg.norm(self.target_velocity_w - self.robot.data.root_lin_vel_w.torch[:, :2], dim=-1)
+        error_yaw = torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b.torch[:, 2])
+        self._error_xy_sum += error_xy
+        self._error_yaw_sum += error_yaw
+        self._step_count += 1.0
+
     def _update_command(self):
         super()._update_command()
         self.reference_heading += self.vel_command_b[:, 2] * self._env.step_dt
