@@ -307,7 +307,7 @@ def test_recorder_storage_boundary():
 
     source = ast.parse(inspect.getsource(module))
     assert not any(isinstance(node, ast.Attribute) and node.attr == "_episodes" for node in ast.walk(source))
-    forbidden = ("physicsnemo", "supermimic", "isaaclab_physicsnemo")
+    forbidden = ("physicsnemo", "supermimic", "isaaclab_physicsnemo", "isaaclab_rl", "isaaclab_tasks")
     for node in ast.walk(source):
         if isinstance(node, ast.Import):
             assert not any(alias.name.startswith(forbidden) for alias in node.names)

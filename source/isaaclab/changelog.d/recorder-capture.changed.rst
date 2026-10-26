@@ -7,3 +7,6 @@
   snapshot with tensor leaves. To update live recording, use ``add_to_episodes`` and
   ``set_success_to_episodes``; do not mutate the snapshot. Set ``buffer_initial_capacity``
   to control the initial allocation per field.
+
+* Documented independent capture, retention and export choices, with task-selected schemas and learner-owned
+  PhysicsNeMo integration. Core recorder storage remains independent of task and learning packages.
