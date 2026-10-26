@@ -12,8 +12,20 @@ from types import SimpleNamespace
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.managers import (
+    DatasetExportMode,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+    RecorderManager,
+    RecorderManagerBaseCfg,
+    RecorderTerm,
+    RecorderTermCfg,
+)
+from isaaclab.utils.noise import UniformNoiseCfg
 
 pytestmark = pytest.mark.unit
 
@@ -102,3 +114,86 @@ def test_obs_space_follows_clip_constraint():
             assert term_space.shape == expected_shapes[term_name]
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
+
+
+def _state_observation(env):
+    return env.scene.state
+
+
+class _PhysicalRecorder(RecorderTerm):
+    requires_post_step_observations = False
+
+    def record_post_step(self):
+        self.latest = self._env.scene.state.clone()
+        return None, None
+
+
+class _ObservationRecorder(RecorderTerm):
+    def record_post_step(self):
+        self.latest = self._env.obs_buf["policy"].clone()
+        return None, None
+
+
+def _make_stepping_env(recorder_type=None):
+    """Exercise the real step/observation/recorder owners with a minimal deterministic physics leaf."""
+    env = object.__new__(ManagerBasedRLEnv)
+    env._is_closed = True
+    env.cfg = SimpleNamespace(decimation=1, sim=SimpleNamespace(dt=0.02, render_interval=1), compute_final_obs=False)
+    env.scene = SimpleNamespace(num_envs=3, state=torch.zeros(3, 2))
+    env.scene.write_data_to_sim = lambda: None
+    env.scene.update = lambda dt: None
+    env.sim = SimpleNamespace(
+        device="cpu",
+        is_playing=lambda: True,
+        is_rendering=False,
+        step=lambda render: env.scene.state.add_(1),
+        consume_reset_request=lambda: False,
+    )
+    env._physics_handles_decimation = False
+    env._sim_step_counter = env.common_step_counter = 0
+    env.episode_length_buf = torch.zeros(3, dtype=torch.long)
+    env.render_enabled = False
+    env.video_recorders = []
+    env.extras = {}
+    env.action_manager = SimpleNamespace(process_action=lambda action: None, apply_action=lambda: None)
+    mask = torch.zeros(3, dtype=torch.bool)
+    env.termination_manager = SimpleNamespace(compute=lambda: mask, terminated=mask, time_outs=mask)
+    env.reward_manager = SimpleNamespace(compute=lambda dt: torch.zeros(3))
+    env.command_manager = SimpleNamespace(compute=lambda dt: None)
+    env.event_manager = SimpleNamespace(active_terms=[])
+    group = ObservationGroupCfg(history_length=3, flatten_history_dim=False, enable_corruption=True)
+    group.state = ObservationTermCfg(func=_state_observation, noise=UniformNoiseCfg(n_min=-0.1, n_max=0.1))
+    env.observation_manager = ObservationManager({"policy": group}, env)
+    cfg = RecorderManagerBaseCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE)
+    if recorder_type is not None:
+        cfg.capture = RecorderTermCfg(class_type=recorder_type)
+    env.recorder_manager = RecorderManager(cfg, env)
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+    return env
+
+
+def test_raw_capture_preserves_observation_noise_history_and_rng():
+    """Raw capture dispatch must not consume extra noise or advance the real policy history."""
+    outputs, states = [], []
+    for recorder_type in (None, _PhysicalRecorder, _ObservationRecorder):
+        torch.manual_seed(17)
+        env = _make_stepping_env(recorder_type)
+        history = [env.step(torch.empty(3, 0))[0]["policy"].clone() for _ in range(4)]
+        outputs.append(torch.stack(history))
+        states.append(torch.get_rng_state())
+        if recorder_type is not None:
+            term = env.recorder_manager.get_term("capture")
+            assert not env.recorder_manager._fields
+            if recorder_type is _PhysicalRecorder:
+                assert torch.equal(term.latest, torch.full((3, 2), 4.0))
+            else:
+                # The default-compatible path really supplies observations to its callback.
+                assert term.latest.shape == (3, 3, 2)
+        env.recorder_manager.close()
+    assert torch.equal(outputs[0], outputs[1])
+    assert torch.equal(states[0], states[1])
+    assert not torch.equal(outputs[0], outputs[2])
+    assert not torch.equal(states[0], states[2])
+    # After four steps the three history entries contain steps 2, 3 and 4, each noised once.
+    expected = torch.tensor([2.0, 3.0, 4.0])[None, :, None]
+    assert torch.all((outputs[1][-1] - expected).abs() <= 0.1)

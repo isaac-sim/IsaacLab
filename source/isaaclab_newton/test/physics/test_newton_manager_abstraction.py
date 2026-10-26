@@ -167,6 +167,8 @@ def test_newton_cfg_post_init_propagates_class_type(
     """``NewtonCfg.__post_init__`` lifts ``solver_cfg.class_type`` onto ``NewtonCfg.class_type``."""
     cfg = NewtonCfg(solver_cfg=solver_cfg_factory())
     assert cfg.class_type.__name__ == expected_manager.__name__
+    replaced = NewtonCfg().replace(solver_cfg=solver_cfg_factory())
+    assert replaced.class_type.__name__ == expected_manager.__name__
 
 
 @pytest.mark.parametrize(

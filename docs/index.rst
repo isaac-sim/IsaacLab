@@ -165,6 +165,7 @@ Table of Contents
 
    source/experimental-features/bleeding-edge
    source/concepts/warp_environments
+   source/experimental-features/nerd
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining

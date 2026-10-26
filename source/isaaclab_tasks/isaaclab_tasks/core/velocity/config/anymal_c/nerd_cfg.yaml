@@ -1,0 +1,17 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+max_updates: 60000
+learning_rate_decay_updates: 60000
+batch_size: 4096
+validation_fraction: 0.05
+network:
+  num_heads: 10
+  head_dim: 64
+  intermediate_size: 896
+  head_hidden: 192
+  temporal_attention_spans: [4, 4, 4, 4]
+  rms_norm_eps: 1.0e-6
+  linear_probe: true
