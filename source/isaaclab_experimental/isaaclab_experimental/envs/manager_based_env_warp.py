@@ -33,13 +33,13 @@ from isaaclab.envs.utils.io_descriptors import (
     export_articulations_data,
     export_scene_data,
 )
+from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
 from isaaclab_experimental.utils.warp import resolve_1d_mask
 

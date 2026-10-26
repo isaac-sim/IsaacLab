@@ -415,29 +415,38 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets the scene entities.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
         """
+        # entities written before masked resets existed only accept indices
+        mask_kwargs = {} if env_mask is None else {"env_mask": env_mask}
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(env_ids)
+            articulation.reset(env_ids, **mask_kwargs)
         for cable_object in self._cable_objects.values():
-            cable_object.reset(env_ids)
+            cable_object.reset(env_ids, **mask_kwargs)
         for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
+            deformable_object.reset(env_ids, **mask_kwargs)
         for rigid_object in self._rigid_objects.values():
-            rigid_object.reset(env_ids)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
+            rigid_object.reset(env_ids, **mask_kwargs)
+        if self._surface_grippers:
+            # surface grippers reset by index only
+            gripper_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+            for surface_gripper in self._surface_grippers.values():
+                surface_gripper.reset(gripper_ids)
         for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.reset(env_ids)
+            rigid_object_collection.reset(env_ids, **mask_kwargs)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(env_ids, **mask_kwargs)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

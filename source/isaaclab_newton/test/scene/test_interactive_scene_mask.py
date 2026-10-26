@@ -3,16 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for masked resets of the Warp interactive scene on Newton."""
+"""Tests for masked resets of the interactive scene on Newton."""
 
 import torch
 import warp as wp
-from isaaclab_experimental.envs import InteractiveSceneWarp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import ImuCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -45,7 +44,7 @@ def test_masked_reset_keeps_sensor_state_of_unselected_envs():
     sim_cfg = SimulationCfg(dt=1.0 / 200.0, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveSceneWarp(ImuSceneCfg(num_envs=2))
+        scene = InteractiveScene(ImuSceneCfg(num_envs=2))
         sim.reset()
         scene.reset()
         imu = scene["imu"]
