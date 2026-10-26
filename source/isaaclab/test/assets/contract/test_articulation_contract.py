@@ -34,7 +34,7 @@ from .backends import backends, read_backend_joint_state, requires
 pytestmark = pytest.mark.integration
 
 # Distinct instance, joint, body, and tendon counts so any swapped axis shows up.
-N, J, B, FT, ST = 2, 6, 7, 3, 2
+N, J, B, FT, ST = 2, 6, 7, 3, 4
 _AXIS_COUNTS = {"joint": J, "body": B, "fixed_tendon": FT, "spatial_tendon": ST}
 
 
@@ -164,6 +164,21 @@ def test_resolve_ids_accept_tensor_views(monkeypatch, backend):
 def test_commanding_a_tendon_target_schedules_the_write(monkeypatch, backend):
     art, _ = _articulation(backend, "cpu", monkeypatch, num_fixed_tendons=2)
     art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
+    assert art._fixed_tendon_target_dirty is True
+
+
+@pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
+def test_masked_tendon_target_buffers_the_selected_offsets(monkeypatch, backend):
+    """A masked length target buffers ``rest_length - target`` for the selected environments and tendons only."""
+    art, _ = _articulation(backend, "cpu", monkeypatch, num_fixed_tendons=2)
+    rest_length = art.data.fixed_tendon_rest_length.torch.clone()
+    expected = art.data.fixed_tendon_offset.torch.clone()
+    target = torch.arange(2 * N, dtype=torch.float32).reshape(N, 2) + 0.5
+    art.set_fixed_tendon_position_target_mask(
+        target=target, env_mask=_mask(N, [1], "cpu"), fixed_tendon_mask=_mask(2, [1], "cpu")
+    )
+    expected[1, 1] = rest_length[1, 1] - target[1, 1]
+    torch.testing.assert_close(art.data.fixed_tendon_offset.torch, expected)
     assert art._fixed_tendon_target_dirty is True
 
 
