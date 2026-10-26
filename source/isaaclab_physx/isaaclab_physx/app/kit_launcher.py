@@ -735,33 +735,21 @@ class KitLauncher(SimulationLauncher):
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
-        # Initialize SimulationApp
-        # hack sys module to make sure that the SimulationApp is initialized correctly
-        # this is to avoid the warnings from the simulation app about not ok modules
-        r = re.compile(".*lab.*")
-        found_modules = list(filter(r.match, list(sys.modules.keys())))
-        # remove Isaac Lab modules from sys.modules
-        hacked_modules = dict()
-        for key in found_modules:
-            hacked_modules[key] = sys.modules[key]
-            del sys.modules[key]
-
         # disable sys stdout and stderr to avoid printing the warning messages
         # this is mainly done to purge the print statements from the simulation app
+        stdout = sys.stdout
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
-        report_activity("Starting Isaac Sim")
-        self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
-        report_activity(None)
+        try:
+            report_activity("Starting Isaac Sim")
+            self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+            report_activity(None)
+        finally:
+            sys.stdout = stdout
 
-        sys.stdout = sys.__stdout__
-
-        # add Isaac Lab modules back to sys.modules
-        for key, value in hacked_modules.items():
-            sys.modules[key] = value
         # remove the threadCount argument from sys.argv if it was added for distributed training
         pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
         sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]

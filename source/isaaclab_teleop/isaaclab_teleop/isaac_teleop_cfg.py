@@ -294,11 +294,12 @@ class IsaacTeleopCfg:
 
     Typical usage: set to the robot base link prim path so that an IK
     controller receives end-effector poses in the robot's base frame.
+    :func:`create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when given an ``env_prim_path``.
 
     Example::
 
         IsaacTeleopCfg(
-            target_frame_prim_path="/World/envs/env_0/Robot/base_link",
+            target_frame_prim_path="{ENV_REGEX_NS}/Robot/base_link",
             ...
         )
     """

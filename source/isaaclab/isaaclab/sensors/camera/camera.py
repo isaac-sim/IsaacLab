@@ -755,30 +755,14 @@ class Camera(SensorBase):
             return
         self._prepare_camera(env_mask)
 
-        sim_ctx = sim_utils.SimulationContext.instance()
-        renderer = self._renderer
-        assert renderer is not None
-        if sim_ctx is not None:
-            sim_ctx.render_context.render_into_camera(
-                renderer,
-                self._render_data,
-                self._data,
-                sim_ctx.get_physics_step_count(),
-            )
-        else:
-            renderer.render(self._render_data)
-            renderer.read_output(self._render_data, self._data)
+        self._sim.render_context.render_into_camera(
+            self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
+        )
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
         """Prepare due cameras and render them together through their shared context."""
         cameras = cast(Sequence[Camera], sensors)
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is None:
-            for camera in cameras:
-                camera._update_buffers_impl(camera._is_outdated)
-            return
-
         ready = []
         for camera in cameras:
             if not camera._env_mask_has_any(camera._is_outdated):
@@ -788,9 +772,10 @@ class Camera(SensorBase):
         if not ready:
             return
 
-        sim_ctx.render_context.render_into_cameras(
+        sim = ready[0]._sim
+        sim.render_context.render_into_cameras(
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
-            sim_ctx.get_physics_step_count(),
+            sim.get_physics_step_count(),
         )
 
     """
