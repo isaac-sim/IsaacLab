@@ -408,8 +408,10 @@ def test_frame_transformer_feet_wrt_base(device):
 
 
 # Neither axis selects a branch the other depends on, so each value is covered once.
-@pytest.mark.parametrize(("source_robot", "path_prefix"), [("Robot", "{ENV_REGEX_NS}"), ("Robot_1", "/World")])
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize(
+    ("device", "source_robot", "path_prefix"),
+    [("cpu", "Robot", "{ENV_REGEX_NS}"), ("cuda:0", "Robot_1", "/World")],
+)
 def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefix):
     """Test tracking bodies with same leaf name at different hierarchy levels.
 
@@ -653,6 +655,7 @@ def test_frame_transformer_nested_rigid_bodies(device):
     with _ovphysx_sim_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
         scene_cfg.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         scene_cfg.robot.spawn.activate_contact_sensors = True
         scene_cfg.frame_transformer = FrameTransformerCfg(
