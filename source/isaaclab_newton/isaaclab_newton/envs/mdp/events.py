@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 from newton import ModelFlags
-from newton.solvers import SolverKamino
 
 from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.envs.mdp.visual_events import _compile_distribution
@@ -32,8 +31,10 @@ class randomize_rigid_body_material(ManagerTermBase):
     Newton uses one friction coefficient, so ``dynamic_friction_range``, ``num_buckets``,
     and ``make_consistent`` are ignored.
 
-    Kamino shares materials across environments. It samples one value per original
-    ``(mu, restitution)`` group and applies it to every environment, ignoring ``env_ids``.
+    With its own collision detector, Kamino shares materials across environments. It then samples
+    one value per original ``(mu, restitution)`` group and applies it to every environment, ignoring
+    ``env_ids``. With Newton's collision pipeline, Kamino reads each shape's values per contact, so
+    sampling is per environment and shape as for the other solvers.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -50,6 +51,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self.asset = asset
         self.asset_cfg = asset_cfg
         self._newton_manager = env.sim.backend_manager
+        self._shared_materials = self._newton_manager.shares_materials
         # Capture material groups on the first call, before any randomized writes.
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
@@ -109,8 +111,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         restitution_view = wp.to_torch(self._restitution_binding)
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if isinstance(self._newton_manager.backend.solver, SolverKamino):
-            # Kamino shares each material group across all environments.
+        if self._shared_materials:
+            # Kamino's collision detector shares each material group across all environments.
             if self._kamino_group_inverse is None:
                 build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)
                 _, inverse = torch.unique(build_keys, dim=0, return_inverse=True)

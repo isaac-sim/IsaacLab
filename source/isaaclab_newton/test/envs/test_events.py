@@ -98,6 +98,7 @@ def event_env(
         env.close()
 
 
+@pytest.mark.parametrize("event_env", [MJWarpSolverCfg(), KaminoPADMMSolverCfg()], indirect=True)
 def test_material_body_selection(event_env: ManagerBasedEnv):
     env = event_env
     model = env.sim.backend_manager.backend.model
@@ -272,7 +273,7 @@ def test_visual_colors_select_bodies_and_rebind(
         randomize_visual_shape(EventTermCfg(func=randomize_visual_shape, params=params), env)
 
 
-@pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg()], indirect=True)
+@pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg(use_collision_detector=True)], indirect=True)
 def test_kamino_material_groups_persist(event_env: ManagerBasedEnv):
     env = event_env
     model = env.sim.backend_manager.backend.model

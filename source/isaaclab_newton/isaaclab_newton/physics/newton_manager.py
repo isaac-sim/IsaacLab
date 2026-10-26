@@ -292,6 +292,11 @@ class NewtonManager(PhysicsManager):
         # Newton's symplectic integrator has no implicit damping.
         return False
 
+    @property
+    def shares_materials(self) -> bool:
+        """Whether contacts read one material table shared by all environments instead of per-shape values."""
+        return False
+
     @classmethod
     def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
         """Apply Newton's token deformable anchor schemas and sync the visual mesh geometry."""
