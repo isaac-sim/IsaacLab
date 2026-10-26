@@ -795,8 +795,9 @@ For direct use of :func:`~isaaclab_teleop.create_isaac_teleop_device` or
 :class:`~isaaclab_teleop.IsaacTeleopDevice`, pass ``visualizers=sim.visualizers`` to supply
 window input explicitly. The session keeps this live sequence so later windows can join;
 omitting it creates a session without window input. ``teleop_se3_agent.py`` and
-``record_demos.py`` always start Kit, so use them with ``--viz kit`` or ``--viz newton_gl``;
-``--viz newton_rtx`` needs a process without Kit.
+``record_demos.py`` start Kit only when ``--xr`` or the task needs it, so
+``--viz newton_rtx`` works with a Newton-physics task, e.g.
+``--task Isaac-Reach-Franka --viz newton_rtx physics=newton_mjwarp presets=diffik``.
 
 .. list-table::
    :header-rows: 1

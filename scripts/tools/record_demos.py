@@ -43,6 +43,7 @@ wp.config.enable_backward = False
 import argparse
 import contextlib
 import sys
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 # Isaac Lab simulation launcher
@@ -151,8 +152,6 @@ if args_cli.task is None:
 # the launcher; this selects a camera-rendering experience that provides RTX/DLSS support.
 # Everywhere else we read ``args_cli.disable_external_cameras`` directly.
 args_cli.enable_cameras = not args_cli.disable_external_cameras
-# the recording UI, the teleop input devices, and the RTX settings use Kit APIs directly
-args_cli.require_kit = True
 
 # Call an external callback if requested.
 if args_cli.external_callback:
@@ -188,6 +187,7 @@ from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.utils._manual_success import _prepare_success_term
 from isaaclab.managers import CommandTermCfg, DatasetExportMode
+from isaaclab.utils.version import has_kit
 
 import isaaclab_mimic.envs  # noqa: F401
 
@@ -375,19 +375,22 @@ def setup_ui(label_text: str, env: gym.Env) -> "InstructionDisplay":
     Returns:
         InstructionDisplay: The configured instruction display object
     """
-    import omni.ui as ui
-
-    from isaaclab.envs.ui import EmptyWindow
-
     from isaaclab_mimic.ui.instruction_display import InstructionDisplay
 
     instruction_display = InstructionDisplay(args_cli.xr)
-    if not args_cli.xr:
+    if not args_cli.xr and has_kit():
+        import omni.ui as ui
+
+        from isaaclab.envs.ui import EmptyWindow
+
         window = EmptyWindow(env, "Instruction")
         with window.ui_window_elements["main_vstack"]:
             demo_label = ui.Label(label_text)
             subtask_label = ui.Label("")
             instruction_display.set_labels(subtask_label, demo_label)
+    elif not args_cli.xr:
+        # no Kit window to show instructions in; the console reports recording progress
+        instruction_display.set_labels(SimpleNamespace(text=""), SimpleNamespace(text=""))
 
     return instruction_display
 
@@ -714,14 +717,15 @@ def record_demos(
     cleanup: contextlib.ExitStack,
 ) -> None:
     """Create the environment and record demonstrations until the session ends."""
-    from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
     from isaaclab_teleop import XrCameraFeedSession
 
     use_isaac_teleop = isinstance(teleop_cfg, IsaacTeleopCfg)
 
-    # Apply the RTX/DLSS global settings when an RTX render pipeline will run (Kit visualizer,
+    # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
     # external cameras, or XR).
-    if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
+    if has_kit() and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr):
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
         )
@@ -733,6 +737,8 @@ def record_demos(
     )
     cleanup.callback(camera_feed_session.close)
     if camera_feed_session.requires_responsive_denoising:
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(
                 carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},
