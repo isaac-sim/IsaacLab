@@ -62,9 +62,11 @@ def test_cable_friction_uses_each_bound_usd_material() -> None:
     stage = Usd.Stage.CreateInMemory()
     builder = newton.ModelBuilder()
     builder.begin_world()
+    cfg = ShoelaceEnvCfg()
+    cfg.scene.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
     expected = {}
     for side, friction in (("Left", 0.23), ("Right", 0.37)):
-        path = f"/World/envs/env_0/ShoelaceScene/Shoelace{side}/geometry/mesh"
+        path = f"/Lab/Cells/Cell0/ShoelaceScene/Shoelace{side}/geometry/mesh"
         curve = UsdGeom.BasisCurves.Define(stage, path).GetPrim()
         points = np.array([(0.0, 0.0, 0.0), (0.01, 0.0, 0.0), (0.02, 0.0, 0.0)])
         segment_length = np.linalg.norm(np.diff(points, axis=0), axis=1).mean()
@@ -78,7 +80,7 @@ def test_cable_friction_uses_each_bound_usd_material() -> None:
             expected.update({shape: friction for shape in builder.body_shapes[body]})
     builder.end_world()
 
-    configure_shoelace_builder(builder, stage, 0, np.array([0.0, 0.0, 0.0, 1.0]), ShoelaceEnvCfg())
+    configure_shoelace_builder(builder, stage, 0, np.array([0.0, 0.0, 0.0, 1.0]), cfg)
     model = builder.finalize(device="cpu")
     for shape, friction in expected.items():
         assert model.shape_material_mu.numpy()[shape] == pytest.approx(friction)
