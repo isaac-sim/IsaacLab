@@ -18,26 +18,6 @@ from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 
-def create_test_episode(device):
-    """create a test episode with dummy data."""
-    test_episode = EpisodeData()
-
-    test_episode.seed = 0
-    test_episode.success = True
-
-    test_episode.add("initial_state", torch.tensor([1, 2, 3], device=device))
-
-    test_episode.add("actions", torch.tensor([1, 2, 3], device=device))
-    test_episode.add("actions", torch.tensor([4, 5, 6], device=device))
-    test_episode.add("actions", torch.tensor([7, 8, 9], device=device))
-
-    test_episode.add("obs/policy/term1", torch.tensor([1, 2, 3, 4, 5], device=device))
-    test_episode.add("obs/policy/term1", torch.tensor([6, 7, 8, 9, 10], device=device))
-    test_episode.add("obs/policy/term1", torch.tensor([11, 12, 13, 14, 15], device=device))
-
-    return test_episode
-
-
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory for test datasets."""
@@ -145,10 +125,16 @@ def test_write_and_load_episode(temp_dir, device):
     dataset_file_handler = HDF5DatasetFileHandler()
     dataset_file_handler.create(dataset_file_path, "test_env_name")
 
-    test_episode = create_test_episode(device)
+    test_episode = EpisodeData()
+    test_episode.seed = 0
+    test_episode.success = True
+    test_episode.data = {
+        "initial_state": torch.tensor([[1, 2, 3]], device=device),
+        "actions": torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], device=device),
+        "obs": {"policy": {"term1": torch.arange(1, 16, device=device).reshape(3, 5)}},
+    }
 
     # write the episode to the dataset
-    test_episode.pre_export()
     dataset_file_handler.write_episode(test_episode)
     dataset_file_handler.flush()
 
@@ -180,7 +166,10 @@ def test_write_and_load_episode(temp_dir, device):
 
         assert torch.equal(loaded_episode.get_initial_state(), test_episode.get_initial_state())
 
+        assert torch.equal(loaded_episode.data["obs"]["policy"]["term1"], test_episode.data["obs"]["policy"]["term1"])
+
         for action in test_episode.data["actions"]:
             assert torch.equal(loaded_episode.get_next_action(), action)
+        assert loaded_episode.get_next_action() is None
 
     dataset_file_handler.close()

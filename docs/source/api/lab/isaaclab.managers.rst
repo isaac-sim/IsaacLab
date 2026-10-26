@@ -272,6 +272,13 @@ dimension. Reading a snapshot can synchronize device indices and copy data. Chan
 do not change live recording; use ``add_to_episodes`` and ``set_success_to_episodes`` for live writes.
 File export materializes these snapshots; the hot capture path does not construct per-world episodes.
 
+``EpisodeData`` now holds tensor snapshots and playback cursors. The former ``add()`` and
+``pre_export()`` methods are removed: collect through ``RecorderManager.add_to_episodes()``,
+or assign nested tensors with leading sample dimensions to ``episode.data`` when constructing a
+completed episode directly. HDF5 loading and playback retain the same tensor format.
+The unused ``RecorderTerm.close(file_path)`` hook is also removed. Dataset handlers own file
+finalization; applications explicitly close any additional resources they own.
+
 .. autoclass:: RecorderManager
     :members:
     :inherited-members:
