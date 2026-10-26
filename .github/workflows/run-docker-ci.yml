@@ -23,7 +23,6 @@ concurrency:
 jobs:
   request-docker-ci:
     name: Request Docker CI
-    # Accept a trailing line break, which some clients append to the comment.
     if: >-
       github.event.issue.pull_request &&
       contains(fromJSON('["run-ci", "run-ci\n", "run-ci\r\n"]'), github.event.comment.body)
