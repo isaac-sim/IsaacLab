@@ -8,6 +8,7 @@
 import argparse
 import asyncio
 import contextlib
+import importlib
 import re
 import runpy
 import subprocess
@@ -29,6 +30,11 @@ TELEOP_WORKFLOWS = {
     "run": ("scripts", "environments", "teleoperation", "teleop_se3_agent.py"),
     "record": ("scripts", "tools", "record_demos.py"),
     "replay": ("scripts", "tools", "replay_demos.py"),
+}
+# Workflows whose script wraps an isaaclab_teleop entrypoint module.
+TELEOP_MODULES = {
+    "run": "isaaclab_teleop.entrypoints.teleop_se3_agent",
+    "record": "isaaclab_teleop.entrypoints.record_demos",
 }
 
 
@@ -68,8 +74,8 @@ def test_teleop_dispatches_to_an_existing_script(source_checkout_root: Path, com
     assert script.is_file()
 
 
-@pytest.mark.parametrize("script_parts", TELEOP_WORKFLOWS.values(), ids=TELEOP_WORKFLOWS)
-def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, script_parts, monkeypatch):
+@pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
+def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, command, script_parts, monkeypatch):
     """Callback-owned flags are removed without losing task or viewer selections."""
     callback = ModuleType("_teleop_callback")
 
@@ -88,8 +94,11 @@ def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, 
         "--callback_option", "42", "--viz", "newton_gl", "--physics=newton_mjwarp", "--renderer", "newton_renderer",
         "env.sim.dt=0.01",
     ])  # fmt: skip
-    namespace = runpy.run_path(str(script))
-    assert namespace["args_cli"].task == "Isaac-Cartpole-Direct"
+    if command in TELEOP_MODULES:
+        args_cli = importlib.import_module(TELEOP_MODULES[command])._parse_args()
+    else:
+        args_cli = runpy.run_path(str(script))["args_cli"]
+    assert args_cli.task == "Isaac-Cartpole-Direct"
     assert set(sys.argv[1:]) == {
         "visualizer=newton_gl",
         "physics=newton_mjwarp",
@@ -110,11 +119,10 @@ def _requirement_names(requirements: list[str]) -> set[str]:
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
 def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(source_checkout_root: Path, command, script_parts):
-    """Every ``isaaclab_*`` package a teleop script imports must ship with the extras.
+    """Every ``isaaclab_*`` package a teleop workflow imports must ship with the extras.
 
-    ``record_demos.py`` imports ``isaaclab_mimic`` at module level, so an environment built
-    from ``--extra teleop`` alone used to die with ``ModuleNotFoundError`` only after Isaac Sim
-    had finished booting. This catches that class of gap without needing an install.
+    A package missing from ``--extra teleop`` fails with ``ModuleNotFoundError`` only after
+    Isaac Sim has finished booting. This catches that class of gap without needing an install.
     """
     with (source_checkout_root / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
@@ -123,7 +131,12 @@ def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(source_check
     available = _requirement_names(project["dependencies"])
     available |= _requirement_names(project["optional-dependencies"]["teleop"])
 
-    source = source_checkout_root.joinpath(*script_parts).read_text(encoding="utf-8")
+    if command in TELEOP_MODULES:
+        module_path = TELEOP_MODULES[command].replace(".", "/") + ".py"
+        source_path = source_checkout_root / "source" / "isaaclab_teleop" / module_path
+    else:
+        source_path = source_checkout_root.joinpath(*script_parts)
+    source = source_path.read_text(encoding="utf-8")
     imported = set(re.findall(r"^\s*(?:import|from)\s+(isaaclab_\w+)", source, re.MULTILINE))
 
     missing = imported - available

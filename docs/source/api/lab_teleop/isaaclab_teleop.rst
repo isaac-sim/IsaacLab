@@ -147,3 +147,14 @@ The following classes are part of the public :mod:`isaaclab_teleop` API.
 
 .. autoclass:: SystemCheckResult
    :show-inheritance:
+
+Entrypoints
+-----------
+
+.. automodule:: isaaclab_teleop.entrypoints
+
+.. autofunction:: isaaclab_teleop.entrypoints.run_teleop_se3_agent_cli
+
+.. autofunction:: isaaclab_teleop.entrypoints.run_record_demos_cli
+
+.. autofunction:: isaaclab_teleop.entrypoints.run_teleop_replay_agent_cli
