@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+from physicsnemo_robotics.dynamics.normalization import RunningNormalizer
 
 from isaaclab_tasks.contrib.g1_tracking.kinematics import mat_to_6d, so3_exp, so3_log, yaw_mat
 from isaaclab_tasks.contrib.g1_tracking.tracking import NUM_J, XI_DIM
@@ -54,36 +55,6 @@ def mlp(inp: int, hidden: list[int], out: int, act=nn.ELU, layer_norm: bool = Fa
     return nn.Sequential(*layers)
 
 
-class RunningNorm(nn.Module):
-    """Running mean/std normalizer; updated from data without gradients, frozen after ``max_count``."""
-
-    def __init__(self, dim: int, max_count: float = 2e8, eps: float = 1e-2):
-        super().__init__()
-        self.register_buffer("mean", torch.zeros(dim))
-        self.register_buffer("var", torch.ones(dim))
-        self.register_buffer("count", torch.zeros(()))
-        self.max_count, self.eps = max_count, eps
-
-    @torch.no_grad()
-    def update(self, x: torch.Tensor):
-        x = x.reshape(-1, x.shape[-1]).float()
-        if self.count >= self.max_count:
-            return
-        n = x.shape[0]
-        m, v = x.mean(0), x.var(0, unbiased=False)
-        tot = self.count + n
-        delta = m - self.mean
-        self.mean += delta * n / tot
-        self.var = (self.var * self.count + v * n + delta**2 * self.count * n / tot) / tot
-        self.count = tot
-
-    def forward(self, x):
-        return (x - self.mean) / torch.sqrt(self.var + self.eps**2)
-
-    def std(self):
-        return torch.sqrt(self.var + self.eps**2)
-
-
 WM_IN = INV_DIM + NUM_J + XI_DIM
 WM_OUT = 3 + 3 + 3 + 3 + NUM_J + NUM_J
 
@@ -124,8 +95,8 @@ class WorldModel(nn.Module):
         if network is None:
             nn.init.zeros_(self.net[-1].weight)
             nn.init.zeros_(self.net[-1].bias)
-        self.in_norm = RunningNorm(WM_IN)
-        self.out_norm = RunningNorm(WM_OUT, eps=1e-4)
+        self.in_norm = RunningNormalizer(WM_IN)
+        self.out_norm = RunningNormalizer(WM_OUT, eps=1e-4)
 
     def inputs(self, S, a, xi_n):
         return torch.cat((invariant_features(S), a, xi_n), -1)
@@ -158,10 +129,10 @@ class Policy(nn.Module):
         with torch.no_grad():
             self.dec[-1].weight.mul_(0.01)
             self.dec[-1].bias.zero_()
-        self.obs_norm = RunningNorm(obs_dim)
-        self.goal_norm = RunningNorm(goal_dim)
+        self.obs_norm = RunningNormalizer(obs_dim)
+        self.goal_norm = RunningNormalizer(goal_dim)
         self.velocity_enc = mlp(3 + obs_dim * hist, [256, 256], z_dim) if velocity else None
-        self.velocity_norm = RunningNorm(3) if velocity else None
+        self.velocity_norm = RunningNormalizer(3) if velocity else None
 
     def velocity_latent(self, obs_hist: torch.Tensor, command: torch.Tensor) -> torch.Tensor:
         """Encode a velocity command and flattened observation history into the shared action latent."""
@@ -184,7 +155,7 @@ class Critic(nn.Module):
         super().__init__()
         self.amp_dtype = amp_dtype
         self.net = mlp(in_dim, [256, 128], 1)
-        self.norm = RunningNorm(in_dim)
+        self.norm = RunningNormalizer(in_dim)
 
     def forward(self, x):
         return run_network(self.net, self.norm(x), self.amp_dtype).squeeze(-1)

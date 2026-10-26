@@ -2,3 +2,6 @@
   with MLP and optional one-frame NeRD dynamics, learner-owned replay, resumable checkpoints and W&B uploads.
 * Added joint motion and velocity training with a shared decoder and world model, separate critics,
   isolated encoder gradients, resumable optimizer state and held-command velocity playback.
+
+* Reused PhysicsNeMo Robotics online normalization for both model architectures, with persistent
+  device statistics, compatible checkpoint buffers and differentiable imagined policy rollouts.
