@@ -16,7 +16,7 @@ import pytest
 
 from isaaclab.visualizers import KeyEventSource
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 class _Recorder:

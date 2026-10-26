@@ -16,6 +16,8 @@ from rendering_runner import validate_motion_vectors, validate_segmentation
 
 from isaaclab.renderers.output_contract import RenderBufferKind
 
+pytestmark = pytest.mark.kitless
+
 
 def _image(color: tuple[int, int, int]) -> Image.Image:
     return Image.new("RGB", (24, 24), color)

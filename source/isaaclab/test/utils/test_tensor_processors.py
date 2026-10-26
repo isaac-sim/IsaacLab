@@ -16,7 +16,7 @@ from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass, to_dict
 from isaaclab.utils.warp import ProxyArray
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_legacy_modifier_imports_warn_and_preserve_aliases():

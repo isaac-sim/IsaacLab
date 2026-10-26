@@ -29,7 +29,7 @@ from pyglet.event import EventDispatcher
 
 from isaaclab.visualizers import KeyEventSource
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 class _Recorder:
