@@ -31,8 +31,6 @@ import tty
 
 import numpy as np
 
-from isaaclab.app.logging_utils import configure_console_logging
-
 logger = logging.getLogger("isaaclab.g1_deploy")
 
 CONTROL_DT = 0.02
@@ -276,7 +274,10 @@ class G1Link:
         self._command = unitree_hg_msg_dds__LowCmd_()
         self._crc = CRC()
         self._next = None
+        deadline = time.monotonic() + 30.0
         while self.state is None:
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"no rt/lowstate on domain {domain_id} via {interface} within 30s")
             time.sleep(0.02)
 
     def _on_state(self, message) -> None:
@@ -533,7 +534,7 @@ def bring_up(link: G1Link, pose: np.ndarray, kp, kd, ramp_s: float) -> None:
 
 
 def main() -> int:
-    configure_console_logging()
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s]: %(message)s", stream=sys.stdout)
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--pipeline", required=True, help="Exported LEAPP .yaml.")
     parser.add_argument("--interface", required=True, help="Network interface on the robot's subnet.")
