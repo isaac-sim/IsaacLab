@@ -102,7 +102,7 @@ jobs:
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
-        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
+        triggered-jobs-push: "Docker base + cuRobo build jobs + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
         triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
         # config.yaml is included because it controls the base image names and tags
         # consumed by the Docker build jobs.
@@ -228,9 +228,8 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.changes.outputs.should_run == 'true'
+    # Also runs on push so PRs find the cuRobo deps image already built.
+    if: needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -445,7 +444,8 @@ jobs:
         test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
         ovrtx-shader-cache: restore
-        test-jobs: "4"
+        # Four concurrent Kit launches intermittently hang microduck_warehouse at startup.
+        test-jobs: "3"
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -724,6 +724,8 @@ jobs:
         cache-tag: cache-curobo
         # SkillGen's simulator-driven dataset test remains available for manual runs.
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
+        # The planner files finish alongside test_pink_ik.py (~7 min).
+        test-jobs: "3"
         container-name: isaac-lab-curobo-test
 
     # Folded from the former standalone verify-curobo-non-root job: reuses
