@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Keyboard, gamepad and SpaceMouse Capture pipelines with shared action composition."""
+"""Keyboard, gamepad and SpaceMouse pipelines for Isaac Capture with shared action composition."""
 
 from __future__ import annotations
 

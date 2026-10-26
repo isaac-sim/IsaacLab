@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Resolve and create script teleop devices through one Capture/native selection boundary."""
+"""Resolve and create script teleop devices, translating legacy configs to Isaac Capture."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def select_teleop_cfg(
 ) -> IsaacTeleopCfg | DeviceCfg:
     """Resolve a device once before scene startup.
 
-    An unnamed request prefers the environment's Capture pipeline, then its keyboard or the script's default.
+    An unnamed request prefers the environment's Isaac Capture pipeline, then its keyboard or the script's default.
     A named request prefers the environment's device, then the script's built-ins. Keyboard, gamepad and
     SpaceMouse resolve to their Isaac Capture pipeline; devices without one (e.g. OpenXR hand tracking) keep
     their native config. Unknown names raise before launching the simulation.
@@ -87,7 +87,8 @@ def select_teleop_cfg(
     _require_isaaccapture()
     builder, fields = entry
     warnings.warn(
-        f"{type(device_cfg).__name__} is deprecated. Use isaaclab_teleop.{builder.__name__}(...) instead.",
+        f"{type(device_cfg).__name__} is deprecated in Isaac Lab 3.2. "
+        f"Use isaaclab_teleop.{builder.__name__}(...) instead.",
         FutureWarning,
         stacklevel=2,
     )
@@ -99,10 +100,10 @@ def select_teleop_cfg(
 def create_teleop_device(
     cfg: IsaacTeleopCfg | DeviceCfg, callbacks: Mapping[str, Callable] | None = None, **capture_options
 ):
-    """Create the resolved device; Capture errors propagate instead of switching implementations.
+    """Create the resolved device; Isaac Capture errors propagate instead of switching implementations.
 
     The existing native factory continues to construct native retargeters and register callbacks.
-    Capture options, including the explicit visualizer sequence, apply only to Capture devices.
+    Isaac Capture options, including the explicit visualizer sequence, apply only to Isaac Capture devices.
     """
     if isinstance(cfg, IsaacTeleopCfg):
         from .isaac_teleop_device import create_isaac_teleop_device

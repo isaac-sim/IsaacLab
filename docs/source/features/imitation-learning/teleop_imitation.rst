@@ -104,7 +104,7 @@ the environment by quitting the script with Ctrl+C.
    --teleop_device keyboard
 
 
-The Capture keyboard pipeline uses these bindings:
+The Isaac Capture keyboard pipeline uses these bindings:
 
 .. code:: text
 
@@ -133,7 +133,7 @@ To use a SpaceMouse, simply change ``--teleop_device`` accordingly:
    --sensitivity 4 \
    --teleop_device spacemouse
 
-The Capture SpaceMouse pipeline uses these bindings:
+The Isaac Capture SpaceMouse pipeline uses these bindings:
 
 .. code:: text
 

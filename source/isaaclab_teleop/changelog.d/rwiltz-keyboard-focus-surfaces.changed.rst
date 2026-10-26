@@ -6,7 +6,7 @@
   with the keyboard, gamepad and SpaceMouse devices, in place of ``isaacteleop~=1.4.145``, on Linux
   x86_64 and aarch64.
   ``isaaccapture`` is ``isaacteleop`` renamed and still provides the ``isaacteleop`` import.
-* Migrated consolidated Mimic, pick-and-place and the manual keyboard check to Capture. Deprecated
-  device configs were translated before creation, including sensitivities, dead zones, gripper output,
-  activation and output device. The old device implementations were removed instead of retained as
-  fallbacks or constructor adapters. Replay and annotation used visualizer hotkeys without a session.
+* Migrated consolidated Mimic, pick-and-place and the manual keyboard check to Isaac Capture.
+  Device configs deprecated in Isaac Lab 3.2 translate before creation, preserving sensitivities,
+  dead zones, gripper output, activation and output device. Replay and annotation use visualizer
+  hotkeys without a session.

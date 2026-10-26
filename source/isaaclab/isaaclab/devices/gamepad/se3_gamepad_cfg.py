@@ -13,10 +13,10 @@ from ..device_base import DeviceCfg
 
 @configclass
 class Se3GamepadCfg(DeviceCfg):
-    """Deprecated configuration translated to Isaac Capture before device creation.
+    """Configuration translated to Isaac Capture before device creation.
 
-    Use :func:`isaaclab_teleop.se3_gamepad_teleop_cfg` for new configurations.
-    This record preserves existing environment declarations and has no device implementation.
+    .. deprecated:: 3.2
+        Use :func:`isaaclab_teleop.se3_gamepad_teleop_cfg` for new configurations.
     """
 
     gripper_term: bool = True

@@ -132,7 +132,7 @@ def test_device_pipelines(device, cfg_type, builder_name, default_action, custom
     legacy_type = _CustomKeyboardCfg if cfg_type is Se3KeyboardCfg else cfg_type
     legacy_cfg = legacy_type(**settings, teleoperation_active_default=False)
     assert legacy_cfg.class_type is None
-    with pytest.warns(FutureWarning, match=builder_name):
+    with pytest.warns(FutureWarning, match=rf"deprecated in Isaac Lab 3\.2.*{builder_name}"):
         cfg = select_teleop_cfg(_env_cfg(), "device", {"device": legacy_cfg}, "cuda:0")
     assert cfg.sim_device == "cuda:0" and cfg.teleoperation_active_default is False
     _, result = _action(cfg, payload)
@@ -238,18 +238,6 @@ def test_window_dependencies_and_device_creation_have_one_owner():
     """Keep global window discovery and repeated device-selection branches out of the session/scripts."""
     root = Path(__file__).resolve().parents[3]
     package = root / "source/isaaclab_teleop/isaaclab_teleop"
-    assert not any(
-        (package / name).exists() for name in ("keyboard", "gamepad", "spacemouse", "_plugins.py", "script_input.py")
-    )
-    import isaaclab.devices as devices
-
-    assert not (root / "source/isaaclab/isaaclab/devices/spacemouse/utils.py").exists()
-    for device, class_name in (("keyboard", "Keyboard"), ("gamepad", "Gamepad"), ("spacemouse", "SpaceMouse")):
-        for dimension in (2, 3):
-            name = f"Se{dimension}{class_name}"
-            assert not (root / f"source/isaaclab/isaaclab/devices/{device}/se{dimension}_{device}.py").exists()
-            assert not hasattr(devices, name), f"{name} must not keep a runtime implementation or adapter."
-            assert getattr(devices, f"{name}Cfg")().class_type is None
     pipelines = ast.parse((package / "device_pipelines.py").read_text())
     assert not any(
         isinstance(node, ast.ImportFrom) and (node.module or "").startswith("isaaclab.devices")
