@@ -158,11 +158,11 @@ additionally checks ``_requires_initial_reset_before_graph_capture()``.
 Extension Contract
 ------------------
 
-A subclass must implement ``_build_solver()`` and assign four slots on the
-manager instance (``self``).
+A subclass must implement ``_build_solver()``, assign the constructed solver to
+``self.backend.solver``, and configure the three manager slots listed below.
 :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver` raises
-``RuntimeError`` if ``_solver`` is still unset. The other three are not
-validated and keep their defaults, so a subclass that forgets them runs with
+``RuntimeError`` if ``backend.solver`` is still unset. The three manager slots are
+not validated and keep their defaults, so a subclass that forgets them runs with
 double-buffered states, no collision pipeline, and no visualizer force input.
 
 .. list-table::
@@ -171,7 +171,7 @@ double-buffered states, no collision pipeline, and no visualizer force input.
 
    * - Slot
      - Meaning
-   * - ``_solver``
+   * - ``backend.solver``
      - The constructed Newton ``SolverBase`` instance.
    * - ``_use_single_state``
      - ``True`` if the solver steps in place on one ``State``; ``False`` if it
@@ -201,7 +201,7 @@ double-buffered states, no collision pipeline, and no visualizer force input.
 
    class NewtonMySolverManager(NewtonManager):
        def _build_solver(self, model: Model, solver_cfg: MySolverCfg) -> None:
-           self._solver = SolverMySolver(model, iterations=solver_cfg.iterations)
+           self.backend.solver = SolverMySolver(model, iterations=solver_cfg.iterations)
            self._use_single_state = False
            self._needs_collision_pipeline = True
            self._supports_rigid_body_force_input = True
