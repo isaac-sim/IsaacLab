@@ -16,6 +16,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils.warp.utils import resolve_ids
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -187,10 +188,7 @@ class SurfaceGripper(AssetBase):
             states: A tensor/array of floats representing the gripper command (full size).
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is not None:
-            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.set_grippers_command_index(states, env_ids, full_data=True)
 
     def set_grippers_command(self, states: torch.Tensor, indices: torch.Tensor | None = None) -> None:
@@ -274,10 +272,7 @@ class SurfaceGripper(AssetBase):
             retry_interval: The retry interval. Shape (num_envs,).
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is not None:
-            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.update_gripper_properties_index(
             max_grip_distance=max_grip_distance,
             coaxial_force_limit=coaxial_force_limit,
@@ -407,10 +402,7 @@ class SurfaceGripper(AssetBase):
         Args:
             env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
         """
-        if env_mask is not None:
-            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.reset_index(env_ids)
 
     def reset(self, indices: torch.Tensor | None = None) -> None:
@@ -552,24 +544,17 @@ class SurfaceGripper(AssetBase):
     Helper functions.
     """
 
-    def _resolve_env_ids(self, env_ids) -> wp.array:
+    def _resolve_env_ids(self, env_ids=None, env_mask: wp.array | torch.Tensor | None = None) -> wp.array:
         """Resolve environment indices to a warp array.
 
         Args:
             env_ids: Environment indices. Can be None, a slice, a list, or a torch.Tensor.
+            env_mask: Boolean mask; takes precedence over ``env_ids``.
 
         Returns:
             A warp array of int32 indices.
         """
-        if env_ids is None or env_ids == slice(None):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        elif isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self._device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32).contiguous(), dtype=wp.int32)
-        return env_ids
+        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES, device=self._device, dtype=wp.int32)
 
     def parse_gripper_parameter(
         self, cfg_value: float | int | tuple | None, default_value: float | int | tuple | None, ndim: int = 0
