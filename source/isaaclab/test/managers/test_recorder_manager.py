@@ -8,6 +8,7 @@ import ast
 import inspect
 import os
 import shutil
+import sys
 import tempfile
 import uuid
 from collections.abc import Sequence
@@ -302,17 +303,21 @@ def test_export_batched_episodes(dataset_dir, mode):
 
 
 def test_recorder_storage_boundary():
-    """Do not reintroduce per-world episode ownership or Python world loops in the append path."""
+    """Keep storage independent of consumers, with batched ownership and no Python world loops."""
     import isaaclab.managers.recorder_manager as module
 
     source = ast.parse(inspect.getsource(module))
+    # Observation evaluation belongs to explicit terms, never generic capture dispatch.
+    assert not hasattr(module.RecorderTerm, "requires_post_step_observations")
+    assert not hasattr(module.RecorderManager, "requires_post_step_observations")
+    assert not any(isinstance(node, ast.Attribute) and node.attr == "observation_manager" for node in ast.walk(source))
     assert not any(isinstance(node, ast.Attribute) and node.attr == "_episodes" for node in ast.walk(source))
-    forbidden = ("physicsnemo", "supermimic", "isaaclab_physicsnemo", "isaaclab_rl", "isaaclab_tasks")
+    allowed = sys.stdlib_module_names | {"isaaclab", "torch", "warp", "prettytable"}
     for node in ast.walk(source):
         if isinstance(node, ast.Import):
-            assert not any(alias.name.startswith(forbidden) for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            assert not (node.module or "").startswith(forbidden)
+            assert all(alias.name.split(".")[0] in allowed for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            assert (node.module or "").split(".")[0] in allowed
     field = next(node for node in source.body if isinstance(node, ast.ClassDef) and node.name == "_RecorderField")
     append = next(node for node in field.body if isinstance(node, ast.FunctionDef) and node.name == "append")
     assert not any(isinstance(node, (ast.For, ast.While, ast.comprehension)) for node in ast.walk(append))

@@ -121,8 +121,6 @@ def _state_observation(env):
 
 
 class _PhysicalRecorder(RecorderTerm):
-    requires_post_step_observations = False
-
     def record_post_step(self):
         self.latest = self._env.scene.state.clone()
         return None, None
@@ -130,7 +128,7 @@ class _PhysicalRecorder(RecorderTerm):
 
 class _ObservationRecorder(RecorderTerm):
     def record_post_step(self):
-        self.latest = self._env.obs_buf["policy"].clone()
+        self.latest = self._env.observation_manager.compute_group("state", update_history=False)
         return None, None
 
 
@@ -157,23 +155,39 @@ def _make_stepping_env(recorder_type=None):
     env.extras = {}
     env.action_manager = SimpleNamespace(process_action=lambda action: None, apply_action=lambda: None)
     mask = torch.zeros(3, dtype=torch.bool)
-    env.termination_manager = SimpleNamespace(compute=lambda: mask, terminated=mask, time_outs=mask)
+
+    def terminate():
+        mask[0] = env.common_step_counter == 4
+        return mask
+
+    env.termination_manager = SimpleNamespace(
+        active_terms=[], compute=terminate, terminated=mask, time_outs=torch.zeros_like(mask)
+    )
     env.reward_manager = SimpleNamespace(compute=lambda dt: torch.zeros(3))
     env.command_manager = SimpleNamespace(compute=lambda dt: None)
     env.event_manager = SimpleNamespace(active_terms=[])
     group = ObservationGroupCfg(history_length=3, flatten_history_dim=False, enable_corruption=True)
     group.state = ObservationTermCfg(func=_state_observation, noise=UniformNoiseCfg(n_min=-0.1, n_max=0.1))
-    env.observation_manager = ObservationManager({"policy": group}, env)
+    state = ObservationGroupCfg(enable_corruption=False)
+    state.state = ObservationTermCfg(func=_state_observation)
+    env.observation_manager = ObservationManager({"policy": group, "state": state}, env)
     cfg = RecorderManagerBaseCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE)
     if recorder_type is not None:
         cfg.capture = RecorderTermCfg(class_type=recorder_type)
     env.recorder_manager = RecorderManager(cfg, env)
+
+    def reset(env_ids):
+        env.scene.state[env_ids] = -100.0
+        env.observation_manager.reset(env_ids)
+        env.recorder_manager.reset(env_ids)
+
+    env._reset_idx = reset
     env.obs_buf = env.observation_manager.compute(update_history=True)
     return env
 
 
 def test_raw_capture_preserves_observation_noise_history_and_rng():
-    """Raw capture dispatch must not consume extra noise or advance the real policy history."""
+    """Capture sees terminal state without implicit observation work or changes to policy history/RNG."""
     outputs, states = [], []
     for recorder_type in (None, _PhysicalRecorder, _ObservationRecorder):
         torch.manual_seed(17)
@@ -184,16 +198,15 @@ def test_raw_capture_preserves_observation_noise_history_and_rng():
         if recorder_type is not None:
             term = env.recorder_manager.get_term("capture")
             assert not env.recorder_manager._fields
-            if recorder_type is _PhysicalRecorder:
-                assert torch.equal(term.latest, torch.full((3, 2), 4.0))
-            else:
-                # The default-compatible path really supplies observations to its callback.
-                assert term.latest.shape == (3, 3, 2)
+            # Both direct capture and explicit noiseless observations see the state before reset.
+            assert torch.equal(term.latest, torch.full((3, 2), 4.0))
+        assert torch.equal(env.scene.state[0], torch.full((2,), -100.0))
         env.recorder_manager.close()
     assert torch.equal(outputs[0], outputs[1])
     assert torch.equal(states[0], states[1])
-    assert not torch.equal(outputs[0], outputs[2])
-    assert not torch.equal(states[0], states[2])
-    # After four steps the three history entries contain steps 2, 3 and 4, each noised once.
+    assert torch.equal(outputs[0], outputs[2])
+    assert torch.equal(states[0], states[2])
+    # Continuing worlds retain steps 2, 3 and 4; the reset world's history starts afresh.
     expected = torch.tensor([2.0, 3.0, 4.0])[None, :, None]
-    assert torch.all((outputs[1][-1] - expected).abs() <= 0.1)
+    assert torch.all((outputs[1][-1, 1:] - expected).abs() <= 0.1)
+    assert torch.all((outputs[1][-1, 0] + 100.0).abs() <= 0.1)
