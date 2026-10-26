@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 
 import warp as wp
@@ -28,6 +28,7 @@ from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
 from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
+from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 
@@ -90,11 +91,24 @@ class NewtonCouplerManager(NewtonVBDManager):
             )
 
         self._validate_config(solver_cfg)
-        resolved_entries = [self._resolve_entry(model, entry) for entry in solver_cfg.entries]
+        env_template = self._sim.get_clone_plan().env_template
+        resolved_entries = []
+        for entry in solver_cfg.entries:
+            bodies = [
+                expand_env_regex_ns(body, env_template) if isinstance(body, str) else body for body in entry.bodies
+            ]
+            shapes = [expand_env_regex_ns(pattern, env_template) for pattern in entry.shape_label_patterns]
+            resolved_entries.append(
+                self._resolve_entry(model, replace(entry, bodies=bodies, shape_label_patterns=shapes))
+            )
         proxies: list[CouplerProxyMappingCfg] = []
         active_proxy_destinations: set[str] = set()
         if isinstance(solver_cfg, CouplerProxyCfg):
-            proxies = [self._resolve_proxy(model, proxy) for proxy in solver_cfg.proxies]
+            for proxy in solver_cfg.proxies:
+                bodies = [
+                    expand_env_regex_ns(body, env_template) if isinstance(body, str) else body for body in proxy.bodies
+                ]
+                proxies.append(self._resolve_proxy(model, replace(proxy, bodies=bodies)))
             active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
         self._validate_resolved_entries(model, resolved_entries, solver_cfg, active_proxy_destinations)
         entries = [self._build_entry(entry) for entry in resolved_entries]

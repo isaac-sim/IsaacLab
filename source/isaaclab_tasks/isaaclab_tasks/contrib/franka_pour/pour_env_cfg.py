@@ -612,9 +612,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             nconmax=400,
                         ),
                         bodies=[
-                            r"/World/envs/env_.*/Robot",
-                            r"/World/envs/env_.*/SourceCup",
-                            r"/World/envs/env_.*/TargetCup",
+                            r"{ENV_REGEX_NS}/Robot",
+                            r"{ENV_REGEX_NS}/SourceCup",
+                            r"{ENV_REGEX_NS}/TargetCup",
                         ],
                         include_static_shapes=True,
                         substeps=3,
@@ -650,7 +650,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerProxyMappingCfg(
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
-                        bodies=[r"/World/envs/env_.*/SourceCup", r"/World/envs/env_.*/TargetCup"],
+                        bodies=[r"{ENV_REGEX_NS}/SourceCup", r"{ENV_REGEX_NS}/TargetCup"],
                         # Represent the supported or grasp-constrained 50 g cup as 50 kg only in
                         # MPM's proxy view so the roughly 140 g payload cannot create unphysical recoil.
                         mass_scale=1000.0,

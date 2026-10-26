@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.test.utils import launch_test_simulation
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 launch_test_simulation()
 
@@ -23,10 +23,10 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, ImuCfg, OffsetCfg, PvaCfg
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass, replace
+from isaaclab.utils import configclass, instantiate, replace
 
 ##
 # Pre-defined configs
@@ -421,11 +421,12 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
         frame_transformer: FrameTransformerCfg = None  # type: ignore
 
     # Use multiple envs for env patterns, single env for direct paths
-    num_envs = 2 if path_prefix == "{ENV_REGEX_NS}" else 1
+    num_envs = 12 if path_prefix == "{ENV_REGEX_NS}" else 1
     env_spacing = 10.0 if path_prefix == "{ENV_REGEX_NS}" else 0.0
 
     # Create scene config with appropriate prim paths
     scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
+    scene_cfg.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
     scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
     scene_cfg.robot_1 = replace(
         ANYMAL_C_CFG,
@@ -656,6 +657,7 @@ def _make_frame_transformer(use_recorded_launch: bool = True):
     sensor._num_envs = 1
     sensor._num_target_frames = 1
     sensor._frame_physx_view = transform_view
+    sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)
     sensor._source_raw_indices = wp.array([0], dtype=wp.int32, device=device)
     sensor._target_raw_indices = wp.array([[1]], dtype=wp.int32, device=device)
     sensor._source_offset_pos_wp = wp.zeros(1, dtype=wp.vec3f, device=device)
@@ -723,10 +725,12 @@ def test_frame_transformer_invalidation_drops_cached_launch_state(monkeypatch):
     assert sensor._update_cmd is None
 
 
+@pytest.mark.parametrize("sim", test_devices(DeviceScope.ALL), indirect=True)
 def test_frame_transformer_nested_rigid_bodies(sim):
-    """Test that a matched rigid body does not include nested rigid-body descendants."""
+    """Nested link selection and sensor-first reads honor articulation state writes."""
     scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
     scene_cfg.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    scene_cfg.robot.spawn.activate_contact_sensors = True
     scene_cfg.frame_transformer = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
         target_frames=[
@@ -734,6 +738,12 @@ def test_frame_transformer_nested_rigid_bodies(sim):
         ],
     )
     scene = InteractiveScene(scene_cfg)
+    hand_path = sim_utils.resolve_matching_prims_from_source(f"{scene.env_regex_ns}/Robot/(Geometry/.*/)?panda_hand")[
+        0
+    ][1]
+    scene.sensors["pva"] = instantiate(PvaCfg(prim_path=hand_path))
+    scene.sensors["imu"] = instantiate(ImuCfg(prim_path=hand_path))
+    scene.sensors["contact"] = instantiate(ContactSensorCfg(prim_path=hand_path, track_pose=True))
 
     sim.reset()
     scene.update(sim.get_physics_dt())
@@ -748,3 +758,38 @@ def test_frame_transformer_nested_rigid_bodies(sim):
     torch.testing.assert_close(frame_data.source_quat_w.torch, robot.data.body_quat_w.torch[:, source_id])
     torch.testing.assert_close(frame_data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
     torch.testing.assert_close(frame_data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])
+
+    hand_id = robot.find_bodies("panda_hand")[0][0]
+    for index, name in enumerate(("frame_transformer", "pva", "imu", "contact"), start=1):
+        # Each reader gets its own dirty state; another sensor or asset getter cannot refresh it first.
+        joint_pos = robot.data.default_joint_pos.torch.clone()
+        joint_pos[:, 0] += 0.3 * index
+        joint_vel = torch.zeros_like(joint_pos)
+        joint_vel[:, 0] = 0.4 * index
+        robot.write_joint_position_to_sim_index(position=joint_pos)
+        robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
+        sensor = scene.sensors[name]
+        sensor.update(sim.get_physics_dt())
+        data = sensor.data
+        if name == "frame_transformer":
+            torch.testing.assert_close(data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
+            torch.testing.assert_close(data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])
+        elif name == "pva":
+            torch.testing.assert_close(data.pos_w.torch, robot.data.body_pos_w.torch[:, hand_id])
+            torch.testing.assert_close(data.quat_w.torch, robot.data.body_quat_w.torch[:, hand_id])
+            for measured, expected in (
+                (data.lin_vel_b, robot.data.body_link_lin_vel_w),
+                (data.ang_vel_b, robot.data.body_link_ang_vel_w),
+            ):
+                expected_b = math_utils.quat_apply_inverse(
+                    robot.data.body_quat_w.torch[:, hand_id], expected.torch[:, hand_id]
+                )
+                torch.testing.assert_close(measured.torch, expected_b)
+        elif name == "imu":
+            expected = math_utils.quat_apply_inverse(
+                robot.data.body_quat_w.torch[:, hand_id], robot.data.body_ang_vel_w.torch[:, hand_id]
+            )
+            torch.testing.assert_close(data.ang_vel_b.torch, expected)
+        else:
+            torch.testing.assert_close(data.pos_w.torch[:, 0], robot.data.body_pos_w.torch[:, hand_id])
+            torch.testing.assert_close(data.quat_w.torch[:, 0], robot.data.body_quat_w.torch[:, hand_id])
