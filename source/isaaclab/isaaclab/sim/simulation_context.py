@@ -448,7 +448,7 @@ class SimulationContext:
                         continue
                     path = expand_env_regex_ns(source.prim_path, env_template)
                     pattern = path.replace("%d", "[^/]+").replace("{}", "[^/]+")
-                    pattern = pattern.replace("/World/envs/*", "/World/envs/env_[^/]+")
+                    pattern = re.sub(r"(?<=/)\*(?=/|$)", "[^/]+", pattern)
                     for camera in sensors.values():
                         if camera.cfg.prim_path == path:
                             break

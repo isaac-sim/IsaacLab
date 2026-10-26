@@ -33,6 +33,7 @@ def isolated_newton_manager() -> NewtonCouplerManager:
     """Return a coupler manager with every slot touched by coupler construction set explicitly."""
     manager = NewtonCouplerManager(NewtonCfg())
     clean_values = {
+        "_sim": SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/Lab/Cells/Cell{}")),
         "backend": SimpleNamespace(
             model=None,
             state_0=None,
@@ -67,7 +68,7 @@ def _build_overlapping_body_model(*, mesh_contact: bool = False) -> Model:
             triangle-pair allocation and contact reduction in the capacity test.
     """
     builder = ModelBuilder(gravity=(0.0, 0.0, -9.81))
-    for x, label in ((-0.09, "/World/Source/body"), (0.09, "/World/Destination/body")):
+    for x, label in ((-0.09, "/Lab/Cells/Cell0/Source/body"), (0.09, "/World/Destination/body")):
         body = builder.add_body(
             xform=wp.transform(wp.vec3(x, 0.0, 1.0), wp.quat_identity()),
             mass=1.0,
@@ -93,7 +94,7 @@ def _entry_configs() -> list[CouplerEntryCfg]:
         CouplerEntryCfg(
             name="source",
             solver_cfg=XPBDSolverCfg(iterations=2),
-            bodies=[r"/World/Source/body"],
+            bodies=["{ENV_REGEX_NS}/Source/body"],
         ),
         CouplerEntryCfg(
             name="destination",
@@ -110,7 +111,7 @@ def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager
             CouplerEntryCfg(
                 name="source",
                 solver_cfg=XPBDSolverCfg(iterations=2),
-                bodies=[r"/World/Source/body"],
+                bodies=["{ENV_REGEX_NS}/Source/body"],
             ),
             CouplerEntryCfg(name="destination", solver_cfg=XPBDSolverCfg(iterations=2)),
         ],
@@ -118,7 +119,7 @@ def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager
             CouplerProxyMappingCfg(
                 source="source",
                 destination="destination",
-                bodies=[r"/World/Source/body"],
+                bodies=["{ENV_REGEX_NS}/Source/body"],
             )
         ],
     )
@@ -143,7 +144,7 @@ def test_real_coupler_constructs_resets_and_steps(
     expected_solver_type: type,
     isolated_newton_manager,
 ):
-    """Step supported coupling configurations without overwriting nested-solver joint state."""
+    """Resolve cloned/global selectors and step without overwriting nested-solver joint state."""
     model = _build_overlapping_body_model(mesh_contact=algorithm == "admm_capacity")
     entries = _entry_configs()
     if algorithm == "proxy":

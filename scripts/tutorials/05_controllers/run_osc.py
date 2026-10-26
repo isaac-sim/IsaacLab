@@ -91,7 +91,7 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     contact_forces = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/TiltedWall",
+        prim_path="{ENV_REGEX_NS}/TiltedWall",
         update_period=0.0,
         history_length=2,
         debug_vis=False,

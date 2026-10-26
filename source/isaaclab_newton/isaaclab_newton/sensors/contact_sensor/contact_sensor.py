@@ -485,7 +485,6 @@ class ContactSensor(BaseContactSensor):
                 self._newton_force_matrix_view,
                 self._newton_force_matrix_friction_view,
                 self._newton_position_matrix_view,
-                self._timestamp,
             ],
             outputs=[
                 self._data._net_forces_w,

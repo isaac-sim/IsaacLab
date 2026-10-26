@@ -20,6 +20,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext
 from isaaclab.cloner import path as cloner_path
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -315,7 +316,7 @@ def newton_physics_replicate(
     order = np.argsort(first)
     members = [np.flatnonzero(mask) for mask in world_masks[order]]
     shared = np.arange(len(sources), len(sources) + len(global_paths))
-    prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
+    prefix, suffix = (destinations[0] if destinations else DEFAULT_ENV_TEMPLATE).split("{}", 1)
     topology = PrototypeWorldTopology(
         len(sources) + len(global_paths),
         np.concatenate((shared, *members)).astype(np.int32),

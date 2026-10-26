@@ -303,7 +303,7 @@ class FrameTransformer(BaseFrameTransformer):
         """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
-        state = self._backend_manager.backend.state_0
+        state = self._backend_manager.get_scene_data_backend().state
         device = state.body_q.device
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr

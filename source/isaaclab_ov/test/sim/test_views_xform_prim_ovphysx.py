@@ -177,13 +177,18 @@ class _OvPhysxFrameViewSceneCfg(InteractiveSceneCfg):
 def test_body_frame_reads_native_pose():
     """Body views follow native writes; only the asset API may move the physics body."""
     with build_simulation_context(device="cpu", sim_cfg=OVPHYSX_SIM_CFG) as sim:
-        scene = InteractiveScene(_OvPhysxFrameViewSceneCfg(num_envs=2, env_spacing=2.0))
+        cfg = _OvPhysxFrameViewSceneCfg(num_envs=2, env_spacing=2.0)
+        cfg.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
+        cfg.cube.prim_path = "{ENV_REGEX_NS}"
+        scene = InteractiveScene(cfg)
         sim.reset()
-        view = FrameView("/World/envs/env_[^/]+/Cube", device="cpu")
+        view = FrameView(scene.env_regex_ns, device="cpu")
         pose = scene["cube"].data.root_link_pose_w.torch.clone()
         pose[:, 0] += 0.75
         scene["cube"].write_root_pose_to_sim_index(root_pose=pose)
         torch.testing.assert_close(view.get_world_poses()[0].torch, pose[:, :3])
+        # Both bodies have the same untransformed parent /Lab/Cells.
+        torch.testing.assert_close(view.get_local_poses()[0].torch, pose[:, :3])
         for writer in (view.xform_world_space_writer, view.xform_local_space_writer):
             with pytest.raises(ValueError, match="asset API"):
                 writer()

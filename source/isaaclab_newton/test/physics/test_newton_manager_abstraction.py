@@ -1022,7 +1022,7 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
 
 
 def test_forward_consumes_existing_reset_masks():
-    """Authored-state masks are consumed once, without rerunning clean FK or solver reset."""
+    """A fresh state read consumes pending FK once; raw array binding leaves it pending."""
     world_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     observed: list[tuple[list[bool], list[bool]]] = []
@@ -1036,6 +1036,7 @@ def test_forward_consumes_existing_reset_masks():
             solver_resets.append(world_mask.numpy().tolist())
 
     manager = NewtonXPBDManager(NewtonCfg())
+    manager._device = "cpu"
     manager.transforms_may_change_on_graph_replay = False
     manager._eval_fk = record_fk
     manager.backend = SimpleNamespace(
@@ -1043,8 +1044,14 @@ def test_forward_consumes_existing_reset_masks():
     )
     manager._reset_solver_internals_delegate = manager._reset_solver_internals
 
-    manager.forward()
-    manager.forward()
+    scene_backend = newton_manager_module.NewtonSceneDataBackend(manager)
+    raw_state = manager.backend.state_0
+    with wp.ScopedCapture(device="cpu"):
+        assert scene_backend.state is raw_state
+    assert observed == []
+    assert solver_resets == []
+    assert scene_backend.state is manager.backend.state_0
+    assert scene_backend.state is manager.backend.state_0
 
     assert observed == [([False, True], [True, False])]
     assert solver_resets == [[False, True]]

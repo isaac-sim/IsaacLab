@@ -7,6 +7,8 @@ __all__ = [
     "BaseVisualizer",
     "ImageView",
     "ImageViewCfg",
+    "KeyEventSource",
+    "KeyboardSubscription",
     "PerspectiveCameraCfg",
     "SceneCameraCfg",
     "VisualizerCfg",
@@ -16,4 +18,5 @@ __all__ = [
 
 from .base_visualizer import BaseVisualizer
 from .image_view import ImageView
+from .key_event_source import KeyboardSubscription, KeyEventSource
 from .visualizer_cfg import WindowCfg, ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, VisualizerBackendCfg

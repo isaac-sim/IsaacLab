@@ -700,6 +700,8 @@ def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
 def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expected_outer):
     """Proxy entries request shared contacts only when one of their solve paths consumes them."""
     model = _FakeModel()
+    model.body_label = [path.replace("/World/envs/env_0", "/Lab/Cells/Cell0") for path in model.body_label]
+    model.shape_label = [path.replace("/World/envs/env_0", "/Lab/Cells/Cell0") for path in model.shape_label]
     if case == "destination_fallback":
         fallback_proxy = CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[1], collision_pipeline=None)
     elif case == "destination_factory_fallback":
@@ -708,8 +710,13 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         )
     else:
         fallback_proxy = None
-    proxy_cfg, resolved_entries, resolved_proxies = _valid_proxy_setup(proxy=fallback_proxy)
-    recorded_entries: list[str] = []
+    proxy_cfg, resolved_entries, _ = _valid_proxy_setup(proxy=fallback_proxy)
+    for entry, name in zip(resolved_entries, ("Robot", "Object"), strict=True):
+        entry.config.bodies = [f"{{ENV_REGEX_NS}}/{name}"]
+        entry.config.particles = entry.particles
+    resolved_entries[1].config.shape_label_patterns = ["{ENV_REGEX_NS}/Object/.*"]
+    proxy_cfg.proxies[0].bodies = ["{ENV_REGEX_NS}/Robot/hand"]
+    recorded_entries, recorded_proxies = [], []
 
     if case == "mjwarp_external":
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg(use_mujoco_contacts=False)
@@ -719,30 +726,22 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     else:
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
 
+    proxy_cfg.entries = [entry.config for entry in resolved_entries]
     manager = NewtonCouplerManager(NewtonCfg())
     manager.backend = SimpleNamespace(solver=None, contact_sensors={})
 
-    monkeypatch.setattr(
-        NewtonCouplerManager,
-        "_resolve_entry",
-        lambda self, model, entry_cfg: next(entry for entry in resolved_entries if entry.config.name == entry_cfg.name),
-    )
-    monkeypatch.setattr(
-        NewtonCouplerManager,
-        "_resolve_proxy",
-        lambda self, model, proxy_cfg: next(
-            p for p in resolved_proxies if (p.source, p.destination) == (proxy_cfg.source, proxy_cfg.destination)
-        ),
-    )
+    manager._sim = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/Lab/Cells/Cell{}"))
+
     monkeypatch.setattr(
         NewtonCouplerManager,
         "_build_entry",
-        lambda self, entry: recorded_entries.append(entry.config.name) or entry.config.name,
+        lambda self, entry: recorded_entries.append(entry) or entry.config.name,
     )
     monkeypatch.setattr(
         NewtonCouplerManager,
         "_build_proxy_coupled_solver",
-        lambda self, model, entries, proxies, cfg: SimpleNamespace(
+        lambda self, model, entries, proxies, cfg: recorded_proxies.extend(proxies)
+        or SimpleNamespace(
             kind="proxy",
             get_proxy_contacts=lambda source, destination: (
                 None if case in {"destination_fallback", "destination_factory_fallback"} else object()
@@ -754,7 +753,12 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     assert manager._needs_collision_pipeline is expected_outer
     assert manager._supports_contact_sensors is False
     assert manager._supports_rigid_body_force_input is True
-    assert recorded_entries == ["rigid", "soft"]
+    assert [entry.config.name for entry in recorded_entries] == ["rigid", "soft"]
+    assert [entry.bodies for entry in recorded_entries] == [[0, 1], [2]]
+    assert recorded_entries[1].shapes == [2]
+    assert recorded_proxies[0].bodies == [1]
+    assert proxy_cfg.entries[0].bodies == ["{ENV_REGEX_NS}/Robot"]
+    assert proxy_cfg.proxies[0].bodies == ["{ENV_REGEX_NS}/Robot/hand"]
 
 
 def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
@@ -763,6 +767,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
     manager = NewtonCouplerManager(NewtonCfg())
     manager.backend = SimpleNamespace(solver=None, contact_sensors={})
+    manager._sim = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/Lab/Cells/Cell{}"))
     monkeypatch.setattr(
         NewtonCouplerManager,
         "_resolve_entry",
