@@ -6,7 +6,7 @@
 """Shared NeRD representation for native recording, offline fitting and Newton inference.
 
 PhysicsNeMo Robotics owns the joint codec, contact encoders and network. Isaac Lab owns the
-recorded control-period contract and the heading convention used by its locomotion tasks.
+recorded physics-step contract and the heading convention used by its locomotion tasks.
 Import this module only when learned dynamics is selected; task discovery needs no PhysicsNeMo.
 """
 
@@ -99,6 +99,7 @@ class HeadingJointStateCodec(JointStateCodec):
 class JointDynamics:
     """One representation used on stored tensors and, optionally, a live Newton model.
 
+    Applied joint efforts are the sole control input; actuators run outside learned physics.
     Only uniform, joint-backed rigid worlds are supported. Contact inputs are fixed plane probes
     or live Newton rigid contact sets, recomputed from each predicted state during deployment.
     The descriptor is JSON data, so offline training does not initialize a simulation.
@@ -110,7 +111,6 @@ class JointDynamics:
         model=None,
         *,
         frame_dt=None,
-        control=None,
         heading=False,
         contact_bodies=(),
         root_body="",
@@ -119,8 +119,6 @@ class JointDynamics:
         if descriptor is None:
             if max_contacts < 0 or (max_contacts and contact_bodies):
                 raise ValueError("Select fixed contact_bodies or a positive Newton max_contacts capacity.")
-            if control not in ("joint_f", "joint_target_q"):
-                raise ValueError("NeRD control must be joint_f or joint_target_q.")
             if (
                 model.particle_count
                 or model.body_count != model.joint_count
@@ -137,7 +135,7 @@ class JointDynamics:
             descriptor = {
                 "version": 2,
                 "frame_dt": frame_dt,
-                "control": control,
+                "control": "joint_f",
                 "heading": heading,
                 "contact_bodies": list(contact_bodies),
                 "root_body": root_body,
@@ -153,6 +151,8 @@ class JointDynamics:
         else:
             if descriptor["version"] != 2:
                 raise ValueError("NeRD requires descriptor version 2; recollect data with complete physical identity.")
+            if descriptor["control"] != "joint_f":
+                raise ValueError("NeRD requires applied joint efforts; recollect and refit target-conditioned data.")
             layout = dict(descriptor["layout"])
             for name in ("continuous_q_mask", "root_translation_mask"):
                 layout[name] = torch.tensor(layout[name], dtype=torch.bool)
@@ -164,12 +164,16 @@ class JointDynamics:
         self.descriptor = descriptor
         self.max_contacts = descriptor.get("max_contacts", 0)
         if model is not None:
-            if descriptor["control"] == "joint_f" and np.any(model.joint_target_ke.numpy()):
+            if (
+                np.any(model.joint_target_ke.numpy())
+                or np.any(model.joint_target_kd.numpy())
+                or model.custom_frequency_counts.get("mujoco:actuator", 0)
+            ):
                 raise ValueError(
-                    "Effort-conditioned NeRD cannot omit an implicit position drive. Use an explicit actuator "
-                    "that publishes applied effort to joint_f; fixed damping with zero velocity target is supported."
+                    "NeRD requires all motor effort in joint_f; solver-side drives are unsupported. "
+                    "Compute and clip efforts in the actuator before each physics step."
                 )
-            self._input_valid = torch.empty(2, dtype=torch.bool, device=model.device.alias).unbind()
+            self._input_valid = torch.empty((), dtype=torch.bool, device=model.device.alias)
         self.contact_encoder = self.contact_adapter = None
         if model is not None and self.max_contacts:
             body_worlds = model.body_world.numpy()
@@ -230,7 +234,7 @@ class JointDynamics:
 
     @property
     def control_dim(self):
-        return self.codec.layout.dof_q if self.descriptor["control"] == "joint_target_q" else self.codec.layout.dof_qd
+        return self.codec.layout.dof_qd
 
     @property
     def contact_dim(self):
@@ -286,18 +290,14 @@ class JointDynamics:
         tokens.geometry.sub_(mean).div_(scale).mul_(tokens.valid.unsqueeze(-1))
         return tokens
 
-    def check_inputs(self, state, control):
+    def check_inputs(self, state):
         """Reject unrepresented inputs at the same solver boundary during capture and deployment."""
         # Persistent reduction outputs also work inside the numerical teacher's Warp CUDA graph.
         device = state.body_f.device
         stream = torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))) if device.is_cuda else nullcontext()
         with stream:
-            for value, valid, message in (
-                (state.body_f, self._input_valid[0], "NeRD has no external body-wrench input."),
-                (control.joint_target_qd, self._input_valid[1], "NeRD has no velocity-target input."),
-            ):
-                torch.any(wp.to_torch(value), out=valid)
-                torch._assert_async(valid.logical_not_(), message)
+            torch.any(wp.to_torch(state.body_f), out=self._input_valid)
+            torch._assert_async(self._input_valid.logical_not_(), "NeRD has no external body-wrench input.")
 
 
 def model_signature(model: newton.Model, *, contact_conditioned: bool = False) -> str:

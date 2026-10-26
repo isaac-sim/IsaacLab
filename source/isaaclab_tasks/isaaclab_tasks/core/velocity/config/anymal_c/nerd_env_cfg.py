@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""ANYmal C target- and effort-conditioned dynamics and locomotion tasks."""
+"""ANYmal C applied-effort dynamics and locomotion tasks."""
 
 import math
 
@@ -14,7 +14,6 @@ from isaaclab_newton.physics.nerd_manager_cfg import NeRDSolverCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, TerminationTermCfg
 from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporterCfg
@@ -93,6 +92,7 @@ class AnymalCNeRDExplorationEnvCfg(AnymalCNeRDEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.decimation = 1
         self.episode_length_s = 2.0
         self.terminations.bad_orientation = None
         self.events.reset_base.params = {
@@ -116,7 +116,6 @@ class AnymalCNeRDExplorationEnvCfg(AnymalCNeRDEnvCfg):
         self.events.reset_robot_joints.func = mdp.reset_joints_by_offset
         self.events.reset_robot_joints.params = {"position_range": (-0.5, 0.5), "velocity_range": (-1.0, 1.0)}
         self.recorders.transition = NeRDRecorderCfg(
-            control="joint_target_q",
             heading=True,
             contact_bodies=("LF_FOOT", "LH_FOOT", "RF_FOOT", "RH_FOOT"),
             root_body="base",
@@ -125,28 +124,6 @@ class AnymalCNeRDExplorationEnvCfg(AnymalCNeRDEnvCfg):
 
 @configclass
 class AnymalCNeRDLearnedEnvCfg(AnymalCNeRDEnvCfg):
-    """Target-conditioned NeRD replaces the complete 20 ms numerical/actuator update."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.sim.dt = 0.02
-        self.decimation = self.sim.render_interval = 1
-        self.sim.physics = self.sim.physics.replace(solver_cfg=NeRDSolverCfg())
-        self.scene.robot.actuators = {"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)}
-
-
-@configclass
-class AnymalCNeRDEffortExplorationEnvCfg(AnymalCNeRDExplorationEnvCfg):
-    """Capture each 5 ms physics transition after ANYdrive computes and clips the applied efforts."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.decimation = 1
-        self.recorders.transition.control = "joint_f"
-
-
-@configclass
-class AnymalCNeRDEffortLearnedEnvCfg(AnymalCNeRDEnvCfg):
     """Keep ANYdrive and run four 5 ms learned physics steps per 20 ms policy action."""
 
     def __post_init__(self):
@@ -155,7 +132,7 @@ class AnymalCNeRDEffortLearnedEnvCfg(AnymalCNeRDEnvCfg):
 
 
 @configclass
-class AnymalCNeRDRoughExplorationEnvCfg(AnymalCNeRDEffortExplorationEnvCfg):
+class AnymalCNeRDRoughExplorationEnvCfg(AnymalCNeRDExplorationEnvCfg):
     """Physics-step collection across rough surfaces, conditioned on all Newton rigid contacts."""
 
     def __post_init__(self):

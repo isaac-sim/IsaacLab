@@ -99,7 +99,15 @@ def test_native_ownership_has_no_external_training_package():
                     "NewtonBinding",
                     "TrajectoryDatasetRecorder",
                     "_fp32_parallel_nerd_attention",
+                    "AnymalCNeRDEffortExplorationEnvCfg",
+                    "AnymalCNeRDEffortLearnedEnvCfg",
                 }, path
+            if isinstance(node, ast.ClassDef) and node.name == "NeRDRecorderCfg":
+                fields = {item.target.id for item in node.body if isinstance(item, ast.AnnAssign)}
+                assert fields.isdisjoint({"control", "asset_name"}), "Capture has one applied-effort contract."
+            if isinstance(node, ast.ClassDef) and node.name == "JointDynamics":
+                init = next(item for item in node.body if isinstance(item, ast.FunctionDef) and item.name == "__init__")
+                assert "control" not in {arg.arg for arg in (*init.args.args, *init.args.kwonlyargs)}
             imports = []
             if isinstance(node, ast.Import):
                 imports = [item.name for item in node.names]

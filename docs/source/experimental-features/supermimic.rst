@@ -231,27 +231,25 @@ sampling and optimization. The two scripts under ``scripts/learning/nerd`` are c
 for collection and fitting; policy learning uses the existing reinforcement-learning scripts.
 There is no additional integration package or external task launcher.
 
-Cartpole records applied efforts at 120 Hz. ANYmal C records executed joint-position targets
-over a 20 ms control period, including the teacher's four 5 ms ANYdrive updates. Its state
-features use the root heading frame, body-frame gravity, and four fixed foot-sphere probes.
-The learned solver predicts that entire period, then uses Newton forward kinematics to update
-body state. The numerical collision and constraint solve is replaced; fixed probe feature
-queries and forward kinematics remain. Both numerical and learned physics enable CUDA graphs.
-The learned manager retains a private Torch allocation pool for its captured temporaries.
+NeRD physics always consumes applied joint efforts from ``Control.joint_f``. The actuator owns
+position/velocity commands, delays, internal state and motor-effort clipping. It runs before each
+physics step, and capture copies its final effort at that same solver boundary. There is no
+target-conditioned physics mode or recorder control selector. Solver-side motor drives, including
+damping drives, and MuJoCo-specific actuators are rejected because they bypass this boundary.
+External body wrenches remain unsupported; passive physical forces are part of the fixed model.
 
-``Isaac-Velocity-Flat-Anymal-C-NeRD-Effort-Explore`` records every 5 ms using the applied effort
-after ANYdrive and its effort limits. The matching ``-Effort-Learned`` task keeps ANYdrive
-outside NeRD and advances learned physics four times per 20 ms policy action. Use these task
-names with the commands below for a physics-only model. The existing target-conditioned
-tasks retain their 20 ms actuator-plus-physics contract. Their checkpoints are not interchangeable.
+Cartpole records at 120 Hz, with its damping and effort limits implemented by a Newton actuator.
+ANYmal C records every 5 ms after ANYdrive evaluates and clips its effort. Its state features use
+the root heading frame, body-frame gravity and four fixed foot-sphere probes. The learned task
+keeps ANYdrive and advances learned physics four times per 20 ms policy action. Each NeRD step
+predicts one physics transition, then Newton forward kinematics updates body state.
 
-Effort capture requires ``decimation=1`` and ``num_substeps=1``. Explicit position controllers
-are supported because their final applied effort is available in ``joint_f``. Implicit position
-drives are rejected: their solver-generated force and integration derivative are not represented
-by that input. Fixed implicit damping with a zero velocity target remains part of the physical
-model. Capture and deployment both reject external body wrenches and unrepresented velocity
-targets. CUDA graphs stay enabled; the existing ANYdrive implementation steps outside the
-graph, with learned physics replayed at each 5 ms tick.
+Capture requires ``decimation=1`` and ``num_substeps=1``; policy training can use decimation to
+repeat actuator evaluation and learned physics. Both numerical and learned physics enable CUDA
+graphs. The learned manager retains a private Torch allocation pool for its captured temporaries.
+The existing ANYdrive implementation steps outside the graph, with learned physics replayed at
+each 5 ms tick. Position and velocity controllers are supported when their efforts are computed
+upstream; NeRD does not predict motor effort as an additional output.
 
 Rough terrain and live contacts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -312,7 +310,7 @@ Install the optional PhysicsNeMo Robotics dependency described above. These comm
 
    uv run --no-sync python scripts/learning/nerd/record.py \
        --task Isaac-Velocity-Flat-Anymal-C-NeRD-Explore --output logs/nerd/anymal/data.hdf5 \
-       --num_envs 4096 --steps 600 --action_scale 1.5
+       --num_envs 4096 --steps 2400 --action_scale 1.5 --action_hold 4
    uv run --no-sync python scripts/learning/nerd/train.py \
        --dataset logs/nerd/anymal/data.hdf5 --output logs/nerd/anymal/model \
        --wandb_project <project> --wandb_entity <entity>
@@ -328,7 +326,7 @@ with ``--max_updates 3 --batch_size 16 --log_interval 1 --save_interval 1``.
 Collection writes native HDF5 episodes, a JSON representation descriptor, and the resolved
 task YAML beside the dataset. Keep those files together. The recorder publishes preallocated
 ``state``, ``next_state``, ``control``, ``contacts``, ``terminated`` and ``truncated`` tensors.
-Contact features come from the pre-state; executed control is read after the step; the terminal
+Contact features come from the pre-state; applied effort is copied immediately before the solver; the terminal
 successor is read before reset. An online consumer can read ``latest`` with
 ``record_to_episodes=False`` and feed replay or a prediction-error objective without a writer.
 
@@ -417,11 +415,16 @@ Scope and migration
 ~~~~~~~~~~~~~~~~~~~
 
 These are joint-backed rigid scenes with fixed physical parameters. The solver rejects a changed
-physical model, unsupported timing, external body wrenches and unmodeled velocity commands.
+physical model, unsupported timing, external body wrenches and solver-side motor drives.
 Physical identity includes fixed-root orientation/height, body flags, collision filtering and
 per-world topology. Horizontal reset-origin translations are ignored only for translation-invariant
 flat scenes. Version-2 checkpoints include architecture, gradient-scaler and per-rank sampler
 state. Recollect/refit datasets whose older physical fingerprint omitted these properties.
+Target-conditioned datasets and checkpoints are rejected. The former flat ANYmal ``-Effort-Explore``
+and ``-Effort-Learned`` tasks are now the standard ``-Explore`` and ``-Learned`` tasks, with no
+compatibility aliases. Their applied-effort checkpoints retain the same input and physical contract.
+Cartpole datasets and checkpoints collected with the former solver-side damping drive must be
+recollected and refit for its actuator-owned damping.
 ANYmal's flat-model fixed-plane probes do not represent rough terrain. Use the rough task family
 to collect and fit the live-contact representation; flat and rough checkpoints are not interchangeable.
 
@@ -430,7 +433,8 @@ launchers. Existing artifacts are not silently converted or treated as compatibl
 training results from that branch are not new validation of this workflow. The native integration
 tests cover both tasks, terminal capture and retained values, offline update/resume, and repeated
 learned-solver graph replay with asynchronous resets and intervening tensor allocations.
-They also cover the 5 ms effort path, VectorNeRD, FP16 update/resume and two-rank CPU gradient
+They also cover clipped actuator effort retained before buffer reuse, rejection of legacy target
+models and solver-side drives, VectorNeRD, FP16 update/resume and two-rank CPU gradient
 averaging against an independent combined-batch update. These are integration checks, not
 long-horizon policy benchmarks or a multi-GPU scaling measurement.
 The rough case also exercises live contact capture, contact-conditioned fitting and resume,

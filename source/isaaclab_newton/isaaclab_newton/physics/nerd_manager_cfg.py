@@ -12,11 +12,12 @@ from .newton_manager_cfg import NewtonSolverCfg
 
 @configclass
 class NeRDSolverCfg(NewtonSolverCfg):
-    """Advance one recorded control period with a native NeRD checkpoint.
+    """Advance one physics step from applied joint efforts with a native NeRD checkpoint.
 
-    Use one physics substep and one environment decimation step. The checkpoint declares the
-    frame duration, modeled joints, control type and contact features. Numerical teacher settings
-    belong to the recording task, and do not change the learned frame duration.
+    Use one physics substep. Policy decimation repeats actuator evaluation and learned physics;
+    collection records each physics step separately. The checkpoint declares the frame duration,
+    modeled joints and contact features. Actuator commands, state and effort limits remain owned
+    by the actuator. Solver-side motor drives are unsupported.
     """
 
     class_type: str = "{DIR}.nerd_manager:NewtonNeRDManager"

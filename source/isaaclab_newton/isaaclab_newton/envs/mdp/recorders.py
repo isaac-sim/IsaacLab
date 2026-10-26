@@ -19,9 +19,6 @@ class NeRDRecorderCfg(RecorderTermCfg):
     """Select the transition representation independently of its consumer or storage."""
 
     class_type: str = "{DIR}.recorders:NeRDRecorder"
-    asset_name: str = "robot"
-    control: str = "joint_f"
-    """Explicit applied efforts (fixed implicit damping retained) or position targets, in Newton order."""
     heading: bool = False
     contact_bodies: tuple[str, ...] = ()
     root_body: str = ""
@@ -53,14 +50,12 @@ class NeRDRecorder(RecorderTerm):
         from isaaclab_newton.physics.nerd import JointDynamics
 
         self.manager = env.sim.backend_manager
-        self.robot = env.scene[cfg.asset_name]
-        if cfg.control == "joint_f" and (env.cfg.decimation != 1 or env.cfg.sim.physics.num_substeps != 1):
+        if env.cfg.decimation != 1 or env.cfg.sim.physics.num_substeps != 1:
             raise ValueError("Effort recording requires one physics step per environment step.")
         model = self.manager.get_model()
         self.dynamics = JointDynamics(
             model=model,
             frame_dt=env.step_dt,
-            control=cfg.control,
             heading=cfg.heading,
             contact_bodies=cfg.contact_bodies,
             root_body=cfg.root_body,
@@ -69,15 +64,9 @@ class NeRDRecorder(RecorderTerm):
         self.control = self.manager.get_control()
         self.contacts = self.manager.get_contacts()
         self._torch_pool = torch.cuda.MemPool() if cfg.max_contacts and model.device.is_cuda else None
-        if cfg.max_contacts and (env.cfg.decimation != 1 or not self.manager._needs_collision_pipeline):
-            raise ValueError("Newton contact capture requires decimation=1 and the Newton collision pipeline.")
+        if cfg.max_contacts and not self.manager._needs_collision_pipeline:
+            raise ValueError("Newton contact capture requires the Newton collision pipeline.")
         self.manager.register_state_force_callback(self._capture_solver_inputs)
-        columns = {
-            name.rsplit("/", 1)[-1]: int(start)
-            for name, start, world in zip(model.joint_label, model.joint_q_start.numpy(), model.joint_world.numpy())
-            if world == 0
-        }
-        self._target_columns = torch.tensor([columns[name] for name in self.robot.joint_names], device=self.device)
         width = self.dynamics.codec.state_shape[0]
         self.latest = {
             "state": torch.empty(self.num_envs, width, device=self.device),
@@ -106,18 +95,13 @@ class NeRDRecorder(RecorderTerm):
             else nullcontext()
         )
         with stream, pool:
-            self.dynamics.check_inputs(state, self.control)
+            self.dynamics.check_inputs(state)
+            self.latest["control"].copy_(wp.to_torch(self.control.joint_f).reshape(self.num_envs, -1))
             if self.cfg.max_contacts:
                 self.latest["contacts"].copy_(self.dynamics.contacts(state, self.contacts))
 
     def record_post_step(self):
         self.dynamics.codec.read_into(self.manager.get_state_0(), self.latest["next_state"])
-        control = self.manager.get_control()
-        value = control.joint_f if self.cfg.control == "joint_f" else control.joint_target_q
-        self.latest["control"].copy_(wp.to_torch(value).reshape(self.num_envs, -1))
-        if self.cfg.control == "joint_target_q":
-            # Explicit actuator networks consume targets without publishing them in Newton Control.
-            self.latest["control"][:, self._target_columns] = self.robot.actuators.target_command.position.torch
         self.latest["terminated"].copy_(self._env.reset_terminated)
         self.latest["truncated"].copy_(self._env.reset_time_outs)
         self._has_transition = True

@@ -11,6 +11,7 @@ from isaaclab_newton.envs.mdp.recorders import NeRDRecorderCfg, NeRDRecorderMana
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.nerd_manager_cfg import NeRDSolverCfg
 
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.utils import configclass
 
 from .cartpole_manager_env_cfg import CartpoleEnvCfg
@@ -24,6 +25,14 @@ class CartpoleNeRDEnvCfg(CartpoleEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.scene.robot.actuators = {
+            "joints": IdealPDActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=0.0,
+                damping={"slider_to_cart": 10.0, "cart_to_pole": 0.0},
+                actuator_effort_limit=400.0,
+            )
+        }
         self.decimation = self.sim.render_interval = 1
         self.sim.dt = 1.0 / 120.0
         self.sim.physics = NewtonCfg(

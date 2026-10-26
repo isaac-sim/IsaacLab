@@ -31,16 +31,16 @@ def never(env):
 
 
 @pytest.mark.parametrize(
-    "task",
+    "task,network",
     (
-        "Isaac-Cartpole-NeRD",
-        "Isaac-Velocity-Flat-Anymal-C-NeRD",
-        "Isaac-Velocity-Flat-Anymal-C-NeRD-Effort",
-        "Isaac-Velocity-Rough-Anymal-C-NeRD",
+        ("Isaac-Cartpole-NeRD", "parallel"),
+        ("Isaac-Velocity-Flat-Anymal-C-NeRD", "parallel"),
+        ("Isaac-Velocity-Flat-Anymal-C-NeRD", "vector"),
+        ("Isaac-Velocity-Rough-Anymal-C-NeRD", "parallel"),
     ),
 )
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
+def test_record_fit_resume_and_graph_resets(task, network, device, tmp_path):
     pytest.importorskip("physicsnemo_robotics")
     from isaaclab_newton.physics.nerd import JointDynamics
 
@@ -75,12 +75,20 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
             if "Cartpole" in task:
                 with pytest.raises(ValueError, match="version 2"):
                     JointDynamics(dict(descriptor, version=1))
-                gains = wp.to_torch(manager.get_model().joint_target_ke)
-                saved_gains = gains.clone()
-                gains.fill_(100.0)
-                with pytest.raises(ValueError, match="position drive"):
-                    JointDynamics(model=manager.get_model(), frame_dt=env.step_dt, control="joint_f")
-                gains.copy_(saved_gains)
+                with pytest.raises(ValueError, match="applied joint efforts"):
+                    JointDynamics(dict(descriptor, control="joint_target_q"))
+                for gains in (manager.get_model().joint_target_ke, manager.get_model().joint_target_kd):
+                    saved_gains = wp.clone(gains)
+                    gains.fill_(100.0)
+                    with pytest.raises(ValueError, match="solver-side drives"):
+                        JointDynamics(model=manager.get_model(), frame_dt=env.step_dt)
+                    wp.copy(gains, saved_gains)
+
+                def clear_consumed_effort():
+                    manager.get_control().joint_f.zero_()
+
+                # Capture must retain the solver's input even when a later hook reuses its buffer.
+                manager.register_post_step_callback(clear_consumed_effort)
             metadata = {"dynamics": descriptor, "task": task + "-Explore"}
             (tmp_path / "dataset.json").write_text(json.dumps(metadata))
             # Stagger autoresets so prefixes and retained fields exercise different world lengths.
@@ -94,6 +102,13 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
                         (wp.to_torch(raw.joint_q).reshape(4, -1), wp.to_torch(raw.joint_qd).reshape(4, -1)), -1
                     ).clone()
                     actions = torch.full((4, env.action_manager.total_action_dim), 0.1 * (step % 3 - 1), device=device)
+                    if "Cartpole" in task:
+                        # Velocity commands belong to the actuator, and capture must include damping and clipping.
+                        env.scene["robot"].actuators.target_command.set_velocity_index(
+                            value=torch.full((4, 2), 0.25, device=device)
+                        )
+                        if step == 5:
+                            actions.fill_(10.0)
                     env.step(actions)
                     if "Rough" in task:
                         contacts = capture.latest["contacts"]
@@ -107,22 +122,9 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
                             contacts[..., 7:10][valid].norm(dim=-1), torch.ones_like(contacts[..., 0][valid])
                         )
                     torch.testing.assert_close(capture.latest["state"], before, rtol=0, atol=0)
-                    if descriptor["control"] == "joint_target_q":
-                        # In these floating-base worlds, the final coordinates are the 12 leg targets.
-                        actual = capture.latest["control"][:, 7:]
-                        names = [
-                            name.rsplit("/", 1)[-1]
-                            for name in manager.get_model().joint_label[: manager.get_model().joint_count // 4]
-                        ]
-                        names = [name for name in names if name in env.scene["robot"].joint_names]
-                        expected = env.scene["robot"].actuators.target_command.position.torch[
-                            :, [env.scene["robot"].joint_names.index(name) for name in names]
-                        ]
-                        # Reset overwrites asset targets, so compare continuing rows.
-                        live = ~env.reset_buf
-                        torch.testing.assert_close(actual[live], expected[live], rtol=0, atol=0)
-                    elif "Cartpole" in task:
-                        torch.testing.assert_close(capture.latest["control"][:, 0], actions[:, 0] * 100, rtol=0, atol=0)
+                    if "Cartpole" in task:
+                        expected = (actions[:, 0] * 100 + 10 * (0.25 - before[:, 2])).clamp(-400, 400)
+                        torch.testing.assert_close(capture.latest["control"][:, 0], expected, rtol=1e-6, atol=1e-6)
                     else:
                         robot = env.scene["robot"]
                         names = [
@@ -176,7 +178,7 @@ def test_record_fit_resume_and_graph_resets(task, device, tmp_path):
     if "Rough" in task:
         train_cfg.network.update(contact_slot_count=2, contact_slot_dim=8)
         train_cfg.precision = "bfloat16"
-    elif task.endswith("-Effort"):
+    elif network == "vector":
         train_cfg.network_type = "physicsnemo_robotics.models.nerd:NewtonNeRDVectorTransformer"
         train_cfg.network = {
             "num_heads": 2,
@@ -343,9 +345,6 @@ def _check_graph_resets(task, device, checkpoint):
             assert addresses == (manager._solver.history.data_ptr(), manager._solver.pending_reset.data_ptr())
             with pytest.raises(ValueError, match="frame"):
                 reference.step(state, state, manager.get_control(), None, env.step_dt * 2)
-            if reference.dynamics.descriptor["control"] == "joint_target_q":
-                with pytest.raises(ValueError, match="decimation"):
-                    manager.set_decimation(2)
             # A checkpoint must reject altered physics even when tensor shapes still agree.
             masses = wp.to_torch(manager.get_model().body_mass)
             saved_masses = masses.clone()

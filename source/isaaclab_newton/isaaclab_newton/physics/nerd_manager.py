@@ -91,11 +91,8 @@ class SolverNeRD(newton.solvers.SolverBase):
         if not math.isclose(dt, self.frame_dt, rel_tol=1e-9):
             raise ValueError(f"NeRD frame is {self.frame_dt}s, received {dt}s.")
         with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(self.model.device))):
-            self.dynamics.check_inputs(state_in, control)
-            if self.dynamics.descriptor["control"] == "joint_target_q":
-                action = wp.to_torch(control.joint_target_q)
-            else:
-                action = wp.to_torch(control.joint_f)
+            self.dynamics.check_inputs(state_in)
+            action = wp.to_torch(control.joint_f)
             state = self.dynamics.codec.read(state_in)
             contact_values = self.dynamics.contacts(state_in, contacts)
             features = self.dynamics.inputs(state, action.reshape(self.model.world_count, -1), contact_values)
@@ -156,16 +153,11 @@ class NewtonNeRDManager(NewtonManager):
             raise ValueError("NeRD does not produce extended sensor state or solved contact forces.")
         self._solver = SolverNeRD(model, solver_cfg.checkpoint, compile=solver_cfg.compile)
         if not math.isclose(self._solver_dt, self._solver.frame_dt, rel_tol=1e-9):
-            raise ValueError("Set sim.dt to the NeRD checkpoint's control-period duration.")
+            raise ValueError("Set sim.dt to the NeRD checkpoint's physics-step duration.")
         self._use_single_state = True
         self._needs_collision_pipeline = bool(self._solver.dynamics.max_contacts)
         self._supports_rigid_body_force_input = False
         self._supports_contact_sensors = False
-
-    def set_decimation(self, decimation):
-        if decimation != 1 and self._solver.dynamics.descriptor["control"] == "joint_target_q":
-            raise ValueError("Target-conditioned NeRD predicts a complete control period; set decimation=1.")
-        super().set_decimation(decimation)
 
     def _capture_graph(self, capture_target):
         # Warp owns graph capture/replay. Isolate its Torch temporaries from the caller's caching
