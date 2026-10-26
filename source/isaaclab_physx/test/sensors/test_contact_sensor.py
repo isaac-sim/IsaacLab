@@ -119,7 +119,8 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.4, 0.6)),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0, 1.0, 1.0)),
-    contact_pose=torch.tensor([0, 1.0, 0.0, 1, 0, 0, 0]),
+    # Shallow penetration: a center on the cobblestone triangles can resolve below the mesh and lose contact.
+    contact_pose=torch.tensor([0, 1.0, 0.2, 1, 0, 0, 0]),
     non_contact_pose=torch.tensor([0, 1.0, 1.0, 1, 0, 0, 0]),
 )
 """Configuration of the sphere prim."""

@@ -408,8 +408,10 @@ def test_frame_transformer_feet_wrt_base(device):
 
 
 # Neither axis selects a branch the other depends on, so each value is covered once.
-@pytest.mark.parametrize(("source_robot", "path_prefix"), [("Robot", "{ENV_REGEX_NS}"), ("Robot_1", "/World")])
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize(
+    ("device", "source_robot", "path_prefix"),
+    [("cpu", "Robot", "{ENV_REGEX_NS}"), ("cuda:0", "Robot_1", "/World")],
+)
 def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefix):
     """Test tracking bodies with same leaf name at different hierarchy levels.
 
