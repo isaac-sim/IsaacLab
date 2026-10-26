@@ -486,23 +486,6 @@ When a kernel operation is known before launch, specialize it with dedicated ker
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
 
-Shared Warp mathematics
-^^^^^^^^^^^^^^^^^^^^^^^
-
-Coordinate transformations, rotations, intervals, and spatial algebra belong in
-``isaaclab.utils.warp.math``. Keep solver-specific gathering and scattering in backends.
-Use Warp built-ins when they express the operation, and delete superseded equations instead
-of retaining forwarding aliases without an external caller. Preserve quaternion ``xyzw``
-and spatial-vector ``(linear, angular)`` conventions explicitly; different frames or sentinel
-policies are not interchangeable.
-
-Generate required variants before launch or graph capture. ``make_binary`` generates rank-1
-and rank-2 kernels from one device operation while preserving array strides. Register variants
-in the semantic owner's module so importing another owner cannot invalidate earlier compilation.
-Specialize structural choices; numerical values remain runtime inputs. Name factories
-``make_<operation>``; reserve ``_kernel`` for concrete launchable kernels where useful.
-Verify ownership and dependency direction as well as numerical behavior and capture replay.
-
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private
@@ -540,6 +523,23 @@ For classes that own resources, expose explicit cleanup through ``close()`` or a
 
    .. literalinclude:: snippets/code_skeleton.py
       :language: python
+
+Shared Warp mathematics
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Coordinate transformations, rotations, intervals, and spatial algebra belong in
+``isaaclab.utils.warp.math``. Keep solver-specific gathering and scattering in backends.
+Use Warp built-ins when they express the operation, and delete superseded equations instead
+of retaining forwarding aliases without an external caller. Preserve quaternion ``xyzw``
+and spatial-vector ``(linear, angular)`` conventions explicitly; different frames or sentinel
+policies are not interchangeable.
+
+Generate required variants before launch or graph capture. ``make_binary`` generates rank-1
+and rank-2 kernels from one device operation while preserving array strides. Register variants
+in the semantic owner's module so importing another owner cannot invalidate earlier compilation.
+Specialize structural choices; numerical values remain runtime inputs. Name factories
+``make_<operation>``; reserve ``_kernel`` for concrete launchable kernels where useful.
+Verify ownership and dependency direction as well as numerical behavior and capture replay.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^
