@@ -27,6 +27,7 @@ from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as math_kernels
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -4035,7 +4036,7 @@ class Articulation(BaseArticulation):
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
-            articulation_kernels.update_soft_joint_pos_limits,
+            math_kernels.scale_interval_kernel,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 self.data.joint_pos_limits,

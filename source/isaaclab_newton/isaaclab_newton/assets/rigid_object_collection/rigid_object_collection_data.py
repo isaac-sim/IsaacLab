@@ -15,6 +15,7 @@ import warp as wp
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as math_kernels
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager
@@ -472,7 +473,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.body_heading_w,
+                math_kernels.heading_kernel[2],
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.FORWARD_VEC_B.warp, self.body_link_quat_w.warp],
                 outputs=[self._heading_w.data],
@@ -492,9 +493,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                math_kernels.quat_rotate_inv_kernel[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_lin_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_link_lin_vel_w.warp],
                 outputs=[self._body_link_lin_vel_b.data],
             )
             self._body_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -512,9 +513,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                math_kernels.quat_rotate_inv_kernel[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_ang_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_link_ang_vel_w.warp],
                 outputs=[self._body_link_ang_vel_b.data],
             )
             self._body_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -532,9 +533,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                math_kernels.quat_rotate_inv_kernel[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_lin_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_com_lin_vel_w.warp],
                 outputs=[self._body_com_lin_vel_b.data],
             )
             self._body_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -552,9 +553,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                math_kernels.quat_rotate_inv_kernel[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_ang_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_com_ang_vel_w.warp],
                 outputs=[self._body_com_ang_vel_b.data],
             )
             self._body_com_ang_vel_b.timestamp = self._sim_timestamp
