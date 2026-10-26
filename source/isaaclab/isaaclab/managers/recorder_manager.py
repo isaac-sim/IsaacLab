@@ -80,16 +80,6 @@ class RecorderTerm(ManagerTermBase):
           it runs after rewards and terminations, before automatic reset and the policy observation update.
     """
 
-    def __init__(self, cfg: RecorderTermCfg, env: ManagerBasedEnv):
-        """Initialize the recorder term.
-
-        Args:
-            cfg: The configuration object.
-            env: The environment instance.
-        """
-        # call the base class constructor
-        super().__init__(cfg, env)
-
     """
     User-defined callbacks.
     """
@@ -156,17 +146,6 @@ class RecorderTerm(ManagerTermBase):
             Please refer to the `record_pre_reset` function for more details.
         """
         return None, None
-
-    def close(self, file_path: str):
-        """Finalize and "clean up" the recorder term.
-
-        This can include tasks such as appending metadata (e.g. labels) to a file
-        and properly closing any associated file handles or resources.
-
-        Args:
-            file_path: the absolute path to the file
-        """
-        pass
 
 
 class RecorderManager(ManagerBase):
@@ -366,30 +345,18 @@ class RecorderManager(ManagerBase):
 
     def record_pre_step(self) -> None:
         """Trigger recorder terms for pre-step functions."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
         for term in self._terms.values():
             key, value = term.record_pre_step()
             self.add_to_episodes(key, value)
 
     def record_post_step(self) -> None:
         """Trigger recorder terms for post-step functions."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
         for term in self._terms.values():
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
 
     def record_post_physics_decimation_step(self) -> None:
         """Trigger recorder terms for post-physics step functions in the decimation loop."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
         for term in self._terms.values():
             key, value = term.record_post_physics_decimation_step()
             self.add_to_episodes(key, value)
@@ -532,9 +499,7 @@ class RecorderManager(ManagerBase):
                     handler.flush()
 
     def close(self):
-        """Closes the recorder manager by exporting any remaining data to file as well as properly
-        closes the recorder terms.
-        """
+        """Export remaining episodes if configured and close dataset files."""
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return
@@ -544,8 +509,6 @@ class RecorderManager(ManagerBase):
             self._dataset_file_handler.close()
         if self._failed_episode_dataset_file_handler is not None:
             self._failed_episode_dataset_file_handler.close()
-        for term in self._terms.values():
-            term.close(os.path.join(self.cfg.dataset_export_dir_path, self.cfg.dataset_filename))
 
     """
     Helper functions.
