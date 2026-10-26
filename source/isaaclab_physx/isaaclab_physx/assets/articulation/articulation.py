@@ -2104,6 +2104,18 @@ class Articulation(BaseArticulation):
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        # Broadcast scalar coefficients to the input shape that the kernel reads.
+        input_shape = (self.num_instances, self.num_joints) if full_data else (env_ids.shape[0], joint_ids.shape[0])
+        if isinstance(joint_friction_coeff, float):
+            joint_friction_coeff = wp.full(input_shape, joint_friction_coeff, dtype=wp.float32, device=self.device)
+        if isinstance(joint_dynamic_friction_coeff, float):
+            joint_dynamic_friction_coeff = wp.full(
+                input_shape, joint_dynamic_friction_coeff, dtype=wp.float32, device=self.device
+            )
+        if isinstance(joint_viscous_friction_coeff, float):
+            joint_viscous_friction_coeff = wp.full(
+                input_shape, joint_viscous_friction_coeff, dtype=wp.float32, device=self.device
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(

@@ -468,6 +468,7 @@ _SCALAR_WRITERS = {
     "write_joint_velocity_limit_to_sim",
     "write_joint_effort_limit_to_sim",
     "write_joint_armature_to_sim",
+    "write_joint_friction_coefficient_to_sim",
     *[writer for writer, _, axis, *_ in _WRITERS if axis in ("fixed_tendon", "spatial_tendon")],
 }
 # Tendon setters that Newton implements.
