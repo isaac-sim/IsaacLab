@@ -5,6 +5,8 @@
 
 """Configuration of learned generalized-coordinate Newton dynamics."""
 
+from typing import Literal
+
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
@@ -27,3 +29,10 @@ class NeRDSolverCfg(NewtonSolverCfg):
 
     compile: bool = True
     """Compile model inference before the native manager captures its physics CUDA graph."""
+
+    temporal: Literal["auto", "full_window", "stream"] = "auto"
+    """PhysicsNeMo temporal execution; auto uses caching when selected-world resets are supported.
+
+    Both paths run inside the manager's physics CUDA graph. Full-window execution is useful for
+    numerical comparison; requesting stream requires a compatible network reset contract.
+    """

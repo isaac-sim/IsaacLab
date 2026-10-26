@@ -17,6 +17,18 @@ sampling and optimization. The two scripts under ``scripts/learning/nerd`` are c
 for collection and fitting; policy learning uses the existing reinforcement-learning scripts.
 There is no additional integration package or external task launcher.
 
+PhysicsNeMo Robotics owns ``JointStateCodec`` (including heading conversion), ``GravityEncoder``,
+contact encoders, ``FieldNormalizer``, ``LearnedDynamicsSolver`` and its ``DynamicsInferenceSession``.
+The native solver adds checkpoint construction and the applied-effort/physical-identity guards.
+ParallelNeRD uses its resident temporal cache and repeated-frame selected-world resets; models without
+that reset capability use the shared full-window session. Isaac Lab's Newton manager captures the
+whole physics step in a Warp CUDA graph, including collision where needed, state writeback and FK.
+There is no second Isaac Lab history buffer or inference cache.
+
+The native HDF5 reader, train/validation split, optimizer schedule and durable W&B publication remain
+in the application. This is the native Isaac Lab checkpoint workflow; it does not claim to export
+PhysicsNeMo's separate portable ``DynamicsArtifact`` format.
+
 NeRD physics always consumes applied joint efforts from ``Control.joint_f``. The actuator owns
 position/velocity commands, delays, internal state and motor-effort clipping. It runs before each
 physics step, and capture copies its final effort at that same solver boundary. There is no
@@ -157,8 +169,11 @@ targets and losses remain FP32. FP16 uses a saved gradient scaler and retries a 
 with the same samples; a nonfinite forward prediction stops training. ParallelNeRD FP16 requires
 the dependency's attention matrix multiplications to disable autocast explicitly. The original
 integration's runtime monkeypatch is not used. Development validation used PhysicsNeMo Robotics
-revision ``a81160ef`` plus the attention-accumulation fix ``ee6d2e0``. That fix is an unpublished
-dependency; the earlier revision alone is insufficient for safe FP16 fitting.
+branch ``feat/resident-dynamics-ownership`` (dependency commit ``e597e95``) on top of ``ee6d2e0``. It adds resident solver
+integration, repeated-frame cache resets, canonical joint heading inputs and graph-safe stream bridging.
+A released distribution of these APIs is not yet available; install the matching dependency source
+provided with the integration review. Neither the original ``a81160ef`` revision nor stock PhysicsNeMo
+alone supplies this interface. The PR remains dependent on publishing that compatible package.
 
 Launch distributed fitting through Torch's standard launcher:
 
@@ -204,11 +219,16 @@ These are joint-backed rigid scenes with fixed physical parameters. The solver r
 physical model, unsupported timing, external body wrenches and solver-side motor drives.
 Physical identity includes fixed-root orientation/height, body flags, collision filtering and
 per-world topology. Horizontal reset-origin translations are ignored only for translation-invariant
-flat scenes. Version-2 checkpoints include architecture, gradient-scaler and per-rank sampler
-state. Recollect/refit datasets whose older physical fingerprint omitted these properties.
+flat scenes. Version-3 checkpoints serialize PhysicsNeMo's field normalizer, architecture,
+gradient-scaler and per-rank sampler state. Existing version-2 raw applied-effort recordings can be
+refit: they store world-space state, so the new heading encoder can derive its inputs from them.
+Version-2 trained checkpoints are rejected explicitly. The canonical encoder zeros the mathematically
+zero heading channel; using an old checkpoint's near-zero normalization scale could otherwise amplify
+floating-point cancellation noise. Refit rather than silently changing that model's inputs.
+Recollect datasets whose older physical fingerprint omitted the required properties.
 Target-conditioned datasets and checkpoints are rejected. The former flat ANYmal ``-Effort-Explore``
 and ``-Effort-Learned`` tasks are now the standard ``-Explore`` and ``-Learned`` tasks, with no
-compatibility aliases. Their applied-effort checkpoints retain the same input and physical contract.
+compatibility aliases. Their raw applied-effort recordings retain the physical contract and can be refit to version 3.
 Cartpole datasets and checkpoints collected with the former solver-side damping drive must be
 recollected and refit for its actuator-owned damping.
 ANYmal's flat-model fixed-plane probes do not represent rough terrain. Use the rough task family

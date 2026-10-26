@@ -7,3 +7,6 @@
   repeats the actuator and learned physics step. Target-conditioned models are rejected.
 * Added shared live Newton contact encoding for rough-terrain recording and learned deployment,
   with synchronized reset histories, explicit capacity checks and fixed contact-material identity.
+
+* Delegated heading conversion, temporal cache/reset handling and learned Newton state writeback to
+  PhysicsNeMo Robotics. ParallelNeRD deployment uses resident streaming inside the host CUDA graph.
