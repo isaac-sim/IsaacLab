@@ -9,3 +9,6 @@
   with synchronized reset histories, explicit capacity checks and fixed contact-material identity.
 * Integrated NeRD through the shared Newton backend and stateless solver hooks; learned history and
   the private Torch allocation pool remain solver-owned.
+
+* Delegated heading conversion, temporal cache/reset handling and learned Newton state writeback to
+  PhysicsNeMo Robotics. ParallelNeRD deployment uses resident streaming inside the host CUDA graph.

@@ -16,6 +16,7 @@ import h5py
 import torch
 import torch.distributed as dist
 from isaaclab_newton.physics.nerd import JointDynamics
+from physicsnemo_robotics.dynamics import FieldNormalizer, RigidContactSetEncoder
 
 from isaaclab.utils import configclass, string_to_callable
 
@@ -138,21 +139,30 @@ class OfflineNeRD:
         self.inputs = torch.cat([item[0] for item in episodes])
         self.targets = torch.cat([item[1] for item in episodes])
         self.contacts = None
-        self.contact_mean = self.contact_scale = None
         lengths = torch.tensor([len(item[0]) for item in episodes], device=device)
         starts = lengths.cumsum(0) - lengths
         self.starts = torch.repeat_interleave(starts, lengths)
         ids = torch.repeat_interleave(torch.arange(len(episodes), device=device), lengths)
         held_out = torch.isin(ids, ids.new_tensor(self.validation_episodes))
         self.train_ids, self.validation_ids = (~held_out).nonzero().flatten(), held_out.nonzero().flatten()
+        contacts = torch.cat([item[2] for item in episodes]) if self.dynamics.max_contacts else None
         if checkpoint is None:
             train_x, train_y = self.inputs[self.train_ids], self.targets[self.train_ids]
-            self.input_mean, self.target_mean = train_x.mean(0), train_y.mean(0)
-            self.input_scale = train_x.std(0, correction=0) + 1.0e-6
-            self.target_scale = train_y.std(0, correction=0) + 1.0e-6
+            means, stds = (
+                {"input": train_x.mean(0), "target": train_y.mean(0)},
+                {"input": train_x.std(0, correction=0), "target": train_y.std(0, correction=0)},
+            )
+            if contacts is not None:
+                training = contacts[self.train_ids]
+                geometry = training[..., 4:][training[..., 0] == 1]
+                if not len(geometry):
+                    raise ValueError("Contact-conditioned training requires contacts in its training split.")
+                means["contact"] = torch.cat((geometry.new_zeros(4), geometry.mean(0)))
+                stds["contact"] = torch.cat((geometry.new_ones(4), geometry.std(0, correction=0)))
+            self.normalizer = FieldNormalizer(means, stds)
         else:
             if (
-                checkpoint["format"] != "isaaclab-nerd-v2"
+                checkpoint["format"] != "isaaclab-nerd-v3"
                 or checkpoint["datasets"] != self.identity
                 or checkpoint["dynamics"] != self.dynamics.descriptor
                 or checkpoint["train_episodes"] != self.train_episodes
@@ -160,27 +170,17 @@ class OfflineNeRD:
                 or checkpoint["network_type"] != cfg.network_type
                 or len(checkpoint["generators"]) != self.world_size
             ):
-                raise ValueError("Resume requires the same datasets, representation, split, network and rank count.")
-            # The checkpoint owns fixed normalization, including across GPU/runtime changes.
-            for name in ("input_mean", "input_scale", "target_mean", "target_scale"):
-                setattr(self, name, checkpoint[name].to(device))
-        self.inputs.sub_(self.input_mean).div_(self.input_scale)
-        self.targets.sub_(self.target_mean).div_(self.target_scale)
-        if self.dynamics.max_contacts:
-            contacts = torch.cat([item[2] for item in episodes])
-            if checkpoint is None:
-                training = contacts[self.train_ids]
-                geometry = training[..., 4:][training[..., 0] == 1]
-                if not len(geometry):
-                    raise ValueError("Contact-conditioned training requires contacts in its training split.")
-                self.contact_mean = geometry.mean(0)
-                self.contact_scale = geometry.std(0, correction=0) + 1.0e-6
-            else:
-                self.contact_mean, self.contact_scale = (
-                    checkpoint["contact_mean"].to(device),
-                    checkpoint["contact_scale"].to(device),
+                raise ValueError(
+                    "Resume requires v3 canonical inputs and the same datasets, split, network and rank count."
                 )
-            self.contacts = self.dynamics.contact_tokens(contacts, self.contact_mean, self.contact_scale)
+            self.normalizer = FieldNormalizer.from_dict(checkpoint["normalizer"])
+        self.inputs = self.normalizer.normalize("input", self.inputs)
+        self.targets = self.normalizer.normalize("target", self.targets)
+        if contacts is not None:
+            # IDs/masks are categorical: normalize geometry, then restore them bit-exactly.
+            normalized = self.normalizer.normalize_with_passthrough("contact", contacts, (0, 1, 2, 3))
+            normalized = torch.where(contacts[..., :1] == 1, normalized, 0.0)
+            self.contacts = RigidContactSetEncoder.to_variable_contact_set(normalized)
         history = 1 + sum(span - 1 for span in cfg.network["temporal_attention_spans"])
         self.offsets = torch.arange(1 - history, 1, device=device)
         torch.manual_seed(cfg.seed)
@@ -265,7 +265,7 @@ class OfflineNeRD:
                 )
             error = prediction.float() - self.targets[ids]
             totals[0] += error.square().sum()
-            totals[1] += (error * self.target_scale).square().sum()
+            totals[1] += (error * (self.normalizer.stds["target"].to(error) + self.normalizer.eps)).square().sum()
             totals[2] += error.numel()
         if self.world_size > 1:
             dist.all_reduce(totals)
@@ -281,7 +281,7 @@ class OfflineNeRD:
             generators = [None] * self.world_size
             dist.all_gather_object(generators, self.generator.get_state().cpu())
         return {
-            "format": "isaaclab-nerd-v2",
+            "format": "isaaclab-nerd-v3",
             "dynamics": self.dynamics.descriptor,
             "datasets": self.identity,
             "train_episodes": self.train_episodes,
@@ -289,12 +289,7 @@ class OfflineNeRD:
             "network_type": str(self.cfg.network_type),
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
-            "input_mean": self.input_mean,
-            "input_scale": self.input_scale,
-            "target_mean": self.target_mean,
-            "target_scale": self.target_scale,
-            "contact_mean": self.contact_mean,
-            "contact_scale": self.contact_scale,
+            "normalizer": self.normalizer.to_dict(),
             "updates": self.updates,
             "generators": generators,
             "scaler": self.scaler.state_dict(),

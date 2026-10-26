@@ -5,11 +5,26 @@
 
 """Native Newton solver boundary for a temporal NeRD model."""
 
-import math
-
 import newton
 import torch
 import warp as wp
+from physicsnemo_robotics.dynamics import (
+    CompositeFeatureEncoder,
+    ControlFieldEncoder,
+    FieldNormalizer,
+    LearnedDynamicsSolver,
+    TrajectoryFieldSpec,
+    TrajectorySchema,
+    TransitionAdapter,
+    TransitionSpec,
+)
+from physicsnemo_robotics.newton import (
+    NewtonExecutionSpec,
+    NewtonModelSignature,
+    NewtonSimulationSpec,
+    NewtonSolverSignature,
+    NewtonTimeSpec,
+)
 
 from isaaclab.utils import string_to_callable
 
@@ -17,121 +32,112 @@ from .nerd import JointDynamics, model_signature
 from .newton_solver import NewtonSolver
 
 
-@wp.kernel
-def _write_joint_state(
-    values: wp.array2d(dtype=float), q: wp.array(dtype=float), qd: wp.array(dtype=float), nq: int, nv: int
-):
-    world, column = wp.tid()
-    if column < nq:
-        q[world * nq + column] = values[world, column]
-    else:
-        qd[world * nv + column - nq] = values[world, column]
+class SolverNeRD(LearnedDynamicsSolver):
+    """Native checkpoint and effort/identity policy around PhysicsNeMo's resident solver."""
 
-
-class SolverNeRD(newton.solvers.SolverBase):
-    """Fixed-storage history, resets and inference; all Python decisions are construction-time decisions."""
-
-    def __init__(self, model, checkpoint, *, compile=True):
-        super().__init__(model)
+    def __init__(self, model, checkpoint, *, compile=True, temporal="auto"):
         if not model.device.is_cuda:
             raise ValueError("The native NeRD solver currently requires CUDA.")
         saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
-        if saved["format"] != "isaaclab-nerd-v2":
-            raise ValueError("Expected a native Isaac Lab NeRD checkpoint.")
+        if saved["format"] != "isaaclab-nerd-v3":
+            raise ValueError(
+                "Refit the recorded transitions to a v3 checkpoint with canonical PhysicsNeMo heading inputs."
+            )
         self.dynamics = JointDynamics(saved["dynamics"], model)
         if model_signature(model, contact_conditioned=bool(self.dynamics.max_contacts)) != saved["dynamics"]["model"]:
             raise ValueError("NeRD checkpoint physical model differs from the live scene.")
-        self.frame_dt = saved["dynamics"]["frame_dt"]
-        device = model.device.alias
-        self.network = (
+        network = (
             string_to_callable(saved["network_type"])(
                 self.dynamics.input_dim,
                 self.dynamics.codec.prediction_shape[0],
                 **saved["network_cfg"],
                 **self.dynamics.contact_model_cfg,
             )
-            .to(device)
+            .to(model.device.alias)
             .eval()
         )
-        self.network.load_state_dict(saved["model"])
-        self.network.requires_grad_(False)
-        self.mean = saved["input_mean"].to(device)
-        self.scale = saved["input_scale"].to(device)
-        self.output_mean = saved["target_mean"].to(device)
-        self.output_scale = saved["target_scale"].to(device)
+        network.load_state_dict(saved["model"])
+        network.requires_grad_(False)
         history = 1 + sum(span - 1 for span in saved["network_cfg"]["temporal_attention_spans"])
-        self.history = torch.zeros(model.world_count, history, self.dynamics.input_dim, device=device)
-        self.contact_history = None
-        self.contact_mean = self.contact_scale = None
-        if self.dynamics.max_contacts:
-            self.contact_history = torch.zeros(model.world_count, history, *self.dynamics.contact_shape, device=device)
-            self.contact_mean, self.contact_scale = saved["contact_mean"].to(device), saved["contact_scale"].to(device)
-        self.pending_reset = torch.ones(model.world_count, dtype=torch.bool, device=device)
-        self._torch_pool = torch.cuda.MemPool()
-        self.predict = torch.compile(self.network.predict_last) if compile else self.network.predict_last
-        # Warm model kernels and compilation outside the host's graph capture. No physical state advances.
-        with torch.no_grad(), torch.cuda.stream(wp.stream_to_torch(wp.get_stream(model.device))):
-            if self.contact_history is None:
-                self.predict(self.history)
-            else:
-                self.predict(
-                    self.history,
-                    self.dynamics.contact_tokens(self.contact_history, self.contact_mean, self.contact_scale),
-                )
-
-    @torch.no_grad()
-    def reset(self, state, *, world_mask=None, flags=0):
-        with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(self.model.device))):
-            if world_mask is None:
-                self.pending_reset.fill_(True)
-            else:
-                self.pending_reset.logical_or_(wp.to_torch(world_mask)[: self.model.world_count])
-
-    @torch.no_grad()
-    def step(self, state_in, state_out, control, contacts, dt):
-        if not math.isclose(dt, self.frame_dt, rel_tol=1e-9):
-            raise ValueError(f"NeRD frame is {self.frame_dt}s, received {dt}s.")
-        with (
-            torch.cuda.stream(wp.stream_to_torch(wp.get_stream(self.model.device))),
-            torch.cuda.use_mem_pool(self._torch_pool, device=self.model.device.alias),
-        ):
-            self.dynamics.check_inputs(state_in)
-            action = wp.to_torch(control.joint_f)
-            state = self.dynamics.codec.read(state_in)
-            contact_values = self.dynamics.contacts(state_in, contacts)
-            features = self.dynamics.inputs(state, action.reshape(self.model.world_count, -1), contact_values)
-            token = (features - self.mean) / self.scale
-            shifted = torch.cat((self.history[:, 1:], token[:, None]), dim=1)
-            self.history.copy_(torch.where(self.pending_reset[:, None, None], token[:, None], shifted))
-            if self.contact_history is None:
-                prediction = self.predict(self.history)
-            else:
-                shifted = torch.cat((self.contact_history[:, 1:], contact_values[:, None]), dim=1)
-                self.contact_history.copy_(
-                    torch.where(self.pending_reset[:, None, None, None], contact_values[:, None], shifted)
-                )
-                prediction = self.predict(
-                    self.history,
-                    self.dynamics.contact_tokens(self.contact_history, self.contact_mean, self.contact_scale),
-                )
-            self.pending_reset.zero_()
-            delta = prediction * self.output_scale + self.output_mean
-            prediction = self.dynamics.codec.delta_to_state(state, delta)
-            torch._assert_async(torch.isfinite(prediction).all(), "NeRD produced a nonfinite state.")
-            layout = self.dynamics.codec.layout
-            wp.launch(
-                _write_joint_state,
-                dim=prediction.shape,
-                inputs=[
-                    wp.from_torch(prediction.contiguous()),
-                    state_out.joint_q,
-                    state_out.joint_qd,
-                    layout.dof_q,
-                    layout.dof_qd,
-                ],
-                device=self.model.device,
+        collision = newton.CollisionPipeline(model) if self.dynamics.max_contacts else None
+        # The backend owns collision. This temporary pipeline only supplies contacts for kernel warmup;
+        # the learned solver consumes the live contacts passed to step().
+        features = [ControlFieldEncoder("joint_f", per_world_shape=(self.dynamics.control_dim,))]
+        fields = [
+            TrajectoryFieldSpec(
+                "control/joint_f", "transition", dtype="float32", trailing_shape=(self.dynamics.control_dim,)
             )
-            newton.eval_fk(self.model, state_out.joint_q, state_out.joint_qd, state_out)
+        ]
+        if self.dynamics.gravity is not None:
+            features.append(self.dynamics.gravity)
+        if self.dynamics.contact_adapter is not None:
+            features.append(self.dynamics.contact_adapter)
+            fields.append(self.dynamics.contact_adapter.field_spec)
+        if self.dynamics.max_contacts:
+            fields.append(self.dynamics.contact_encoder.field_spec)
+        identity = NewtonModelSignature(
+            topology="isaaclab-uniform-joint-worlds",
+            static_fingerprint=self.dynamics.descriptor["model"],
+            newton_version=newton.__version__,
+        )
+        simulation = NewtonSimulationSpec(
+            model=identity,
+            solver=NewtonSolverSignature("isaaclab_newton.physics.nerd_solver.SolverNeRD"),
+            time=NewtonTimeSpec(solver_dt=self.dynamics.descriptor["frame_dt"], substeps=1),
+        )
+        execution = NewtonExecutionSpec(
+            stepper_implementation="isaaclab_newton.physics.nerd_solver.SolverNeRD",
+            collide_on_reset=False,
+            collide_each_substep=False,
+            clear_forces=False,
+            requires_grad=False,
+        )
+        schema = TrajectorySchema.from_specs(simulation, execution, self.dynamics.codec, fields=fields)
+        adapter = TransitionAdapter(
+            schema,
+            self.dynamics.codec,
+            TransitionSpec(history=history),
+            features=CompositeFeatureEncoder(*features),
+            contact_features=self.dynamics.contact_encoder if self.dynamics.max_contacts else None,
+        )
+
+        # Only models promising repeated-frame per-world resets can use cold streaming.
+        if temporal == "auto":
+            temporal = "stream" if getattr(network, "supports_repeated_frame_reset", False) else "full_window"
+        super().__init__(
+            model,
+            network,
+            adapter,
+            normalizer=FieldNormalizer.from_dict(saved["normalizer"]),
+            input_normalizer_key="input",
+            prediction_normalizer_key="target",
+            contact_normalizer_key="contact" if self.dynamics.max_contacts else None,
+            model_signature=adapter.schema.simulation.model,
+            continuity="off",
+            temporal=temporal,
+            compile=compile,
+        )
+        self._torch_pool = torch.cuda.MemPool()
+        # Compile on disposable state before the backend captures the entire physics frame.
+        state, control = model.state(), model.control()
+        contacts = None
+        if collision is not None:
+            contacts = collision.contacts()
+            collision.collide(state, contacts)
+        with torch.no_grad():
+            self.step(state, state, control, contacts, self.frame_dt)
+            self.reset(state)
+
+    @torch.no_grad()
+    def step(self, state_in, state_out, control, contacts, dt, *, observables=None):
+        self.dynamics.check_inputs(state_in)
+        with torch.cuda.use_mem_pool(self._torch_pool, device=self.model.device.alias):
+            super().step(state_in, state_out, control, contacts, dt, observables=observables)
+        if self.dynamics.max_contacts:
+            with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(self.model.device))):
+                torch._assert_async(
+                    (self.dynamics.contact_encoder.last_overflow == 0).all(), "NeRD contact capacity overflowed."
+                )
 
     def notify_model_changed(self, flags):
         # Fixed-base root-pose resets can notify unchanged joint properties. Verify the same
@@ -160,7 +166,7 @@ class NeRDSolver(NewtonSolver):
             or set(model.get_requested_state_attributes()) & newton.State.EXTENDED_ATTRIBUTES
         ):
             raise ValueError("NeRD does not produce extended sensor state or solved contact forces.")
-        return cls.solver_class(model, cfg.checkpoint, compile=cfg.compile)
+        return cls.solver_class(model, cfg.checkpoint, compile=cfg.compile, temporal=cfg.temporal)
 
     @classmethod
     def uses_collision_pipeline(cls, cfg, solver):
