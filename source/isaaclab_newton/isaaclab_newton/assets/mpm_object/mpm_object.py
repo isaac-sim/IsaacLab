@@ -15,6 +15,7 @@ import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
 
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
@@ -283,24 +284,10 @@ class MPMObject(BaseDeformableObject):
         self._data.default_particle_state_w = self._data.default_nodal_state_w
 
     def _resolve_env_ids(self, env_ids):
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32), dtype=wp.int32)
-        if isinstance(env_ids, Sequence):
-            return wp.array(list(env_ids), dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device, dtype=wp.int32)
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None) -> wp.array:
-        if mask is None:
-            return self._ALL_ENV_MASK
-        if isinstance(mask, torch.Tensor):
-            if mask.dtype != torch.bool:
-                mask = mask.to(torch.bool)
-            return wp.from_torch(mask.to(device=self.device).contiguous(), dtype=wp.bool)
-        return mask
+        return resolve_1d_mask(mask=mask, all_mask=self._ALL_ENV_MASK, device=self.device)
 
     def _iter_particle_states(self):
         """Yield the Newton states whose particle arrays must receive writes."""
