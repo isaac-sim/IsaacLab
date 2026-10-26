@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+29.0.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed task asset lookups, coupled solver selectors, and teleoperation paths to follow the
+  scene's clone template instead of assuming the default environment namespace.
+
+
 29.0.1 (2026-10-22)
 ~~~~~~~~~~~~~~~~~~~
 
