@@ -37,6 +37,14 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
+MATERIAL_PARAMS = {
+    "asset_cfg": SceneEntityCfg("robot", body_ids=[0]),
+    "static_friction_range": (0.5, 1.0),
+    "dynamic_friction_range": (0.0, 0.0),
+    "restitution_range": (0.3, 0.9),
+    "num_buckets": 1,
+}
+
 
 @configclass
 class ActionsCfg:
@@ -88,7 +96,8 @@ def event_env(
         decimation=1,
         observations={"policy": observations},
         actions=ActionsCfg(),
-        events={},
+        # Built by the event manager, before the solver exists.
+        events={"material": EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=MATERIAL_PARAMS)},
         seed=7,
     )
     env = ManagerBasedEnv(cfg)
@@ -271,6 +280,27 @@ def test_visual_colors_select_bodies_and_rebind(
     params["channels"] = {"roughness": (0.0, 1.0)}
     with pytest.raises(NotImplementedError, match="only the 'color' channel"):
         randomize_visual_shape(EventTermCfg(func=randomize_visual_shape, params=params), env)
+
+
+@pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg()], indirect=True)
+def test_configured_kamino_material_term_samples_per_environment(event_env: ManagerBasedEnv):
+    env = event_env
+    model = env.sim.backend_manager.backend.model
+    friction = wp.to_torch(model.shape_material_mu)
+    selected = torch.tensor(
+        [
+            index
+            for index, body in enumerate(wp.to_torch(model.shape_body).tolist())
+            if model.body_label[body].endswith("/env_1/Robot/right_tip")
+        ],
+        device=env.device,
+    )
+    untouched = torch.ones(len(friction), dtype=torch.bool, device=env.device)
+    untouched[selected] = False
+    original = friction.clone()
+    env.event_manager.apply(mode="reset", env_ids=torch.tensor([1], device=env.device), global_env_step_count=0)
+    torch.testing.assert_close(friction[untouched], original[untouched])
+    assert ((friction[selected] >= 0.5) & (friction[selected] <= 1.0)).all()
 
 
 @pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg(use_collision_detector=True)], indirect=True)

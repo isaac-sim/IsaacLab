@@ -51,7 +51,6 @@ class randomize_rigid_body_material(ManagerTermBase):
         self.asset = asset
         self.asset_cfg = asset_cfg
         self._newton_manager = env.sim.backend_manager
-        self._shared_materials = self._newton_manager.shares_materials
         # Capture material groups on the first call, before any randomized writes.
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
@@ -111,7 +110,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         restitution_view = wp.to_torch(self._restitution_binding)
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if self._shared_materials:
+        if self._newton_manager.shares_materials:
             # Kamino's collision detector shares each material group across all environments.
             if self._kamino_group_inverse is None:
                 build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)

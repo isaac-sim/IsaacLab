@@ -57,7 +57,7 @@ class NewtonKaminoManager(NewtonManager):
     @property
     def shares_materials(self) -> bool:
         """Kamino's own collision detector reads one material table; Newton's pipeline reads each shape."""
-        return not self._needs_collision_pipeline
+        return self._get_kamino_solver_cfg().use_collision_detector
 
     def _get_kamino_solver_cfg(self) -> _KaminoSolverCfgBase:
         cfg = self._cfg
