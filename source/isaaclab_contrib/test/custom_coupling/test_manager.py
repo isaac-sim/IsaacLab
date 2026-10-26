@@ -16,9 +16,8 @@ from isaaclab_newton.physics import (
     NewtonManager,
     SolverSpec,
     VBDSolverCfg,
-    usd_schema_resolvers,
 )
-from isaaclab_newton.physics.solver_specs import register_builder_attributes
+from isaaclab_newton.physics.solver_specs import register_builder_attributes, usd_schema_resolvers
 from newton import ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics

@@ -28,7 +28,6 @@ from isaaclab.utils import checked_apply, to_dict
 from isaaclab.utils.string import string_to_callable
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
-from .vbd_solver_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
     from .newton_manager_cfg import NewtonSolverCfg
@@ -234,8 +233,6 @@ def solver_kwargs(solver_cls: type, solver_cfg: Any, deterministic_mode: wp.Dete
     """Return the configuration fields matching ``solver_cls``'s constructor, plus ``deterministic`` if accepted."""
     valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
     kwargs = {key: value for key, value in to_dict(solver_cfg).items() if key in valid}
-    if isinstance(solver_cfg, VBDSolverCfg) and solver_cfg.rigid_compliant_alm is None:
-        kwargs.pop("rigid_compliant_alm", None)
     if "deterministic" in valid:
         kwargs["deterministic"] = deterministic_mode
     return kwargs

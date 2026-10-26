@@ -186,10 +186,6 @@ Solver Specifications
 
 .. autofunction:: build_from_cfg
 
-.. autofunction:: register_builder_attributes
-
-.. autofunction:: usd_schema_resolvers
-
 .. autodata:: MJWARP_SPEC
   :annotation:
 

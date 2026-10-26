@@ -38,9 +38,7 @@ __all__ = [
     "SolverSpec",
     "build_from_cfg",
     "create_builder",
-    "register_builder_attributes",
     "solver_spec",
-    "usd_schema_resolvers",
     "VBD_SPEC",
     "XPBD_SPEC",
     "VBDSolverCfg",
@@ -76,9 +74,7 @@ from .solver_specs import (
     SolverSpec,
     build_from_cfg,
     create_builder,
-    register_builder_attributes,
     solver_spec,
-    usd_schema_resolvers,
 )
 from .vbd_solver import VBD_SPEC
 from .vbd_solver_cfg import VBDSolverCfg

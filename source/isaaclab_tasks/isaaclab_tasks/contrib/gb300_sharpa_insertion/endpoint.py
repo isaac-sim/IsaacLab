@@ -10,16 +10,13 @@ from __future__ import annotations
 from dataclasses import replace
 
 import warp as wp
-from isaaclab_newton.physics.solver_specs import solver_kwargs
-from isaaclab_newton.physics.vbd_solver import VBD_SPEC
+from isaaclab_newton.physics.vbd_solver import VBD_SPEC, vbd_kwargs
 from newton import BodyFlags, Contacts, Control, Model, State, StateFlags
 from newton.solvers import SolverVBD
 
 ENDPOINT_VBD_SPEC = replace(
     VBD_SPEC,
-    build=lambda model, cfg, deterministic_mode: _EndpointVBD(
-        model, **solver_kwargs(SolverVBD, cfg, deterministic_mode)
-    ),
+    build=lambda model, cfg, deterministic_mode: _EndpointVBD(model, **vbd_kwargs(cfg, deterministic_mode)),
 )
 """VBD whose proxy lifecycle prescribes the loose cable endpoint."""
 

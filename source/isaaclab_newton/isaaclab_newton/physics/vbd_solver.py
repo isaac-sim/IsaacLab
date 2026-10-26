@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import warp as wp
 from newton import ModelBuilder, State, eval_ik
 from newton.solvers import SolverVBD
 
-from .solver_specs import SolverSpec, build_from_cfg
+from .solver_specs import SolverSpec, solver_kwargs
 
 if TYPE_CHECKING:
     from .vbd_solver_cfg import VBDSolverCfg
@@ -21,6 +22,14 @@ if TYPE_CHECKING:
 def prepare_builder(builder: ModelBuilder, cfg: VBDSolverCfg) -> None:
     """Color the completed builder before allocating the model."""
     builder.color(include_bending=True, balance_colors=False)
+
+
+def vbd_kwargs(cfg: VBDSolverCfg, deterministic_mode: wp.DeterministicMode) -> dict:
+    """Return :class:`SolverVBD` arguments, leaving ``rigid_compliant_alm`` to Newton's default when unset."""
+    kwargs = solver_kwargs(SolverVBD, cfg, deterministic_mode)
+    if cfg.rigid_compliant_alm is None:
+        del kwargs["rigid_compliant_alm"]
+    return kwargs
 
 
 def prepare_step(solver: SolverVBD, cfg: VBDSolverCfg, state: State) -> None:
@@ -43,7 +52,7 @@ def finish_step(solver: SolverVBD, cfg: VBDSolverCfg, state: State) -> None:
 
 VBD_SPEC = SolverSpec(
     prepare_builder=prepare_builder,
-    build=build_from_cfg(SolverVBD),
+    build=lambda model, cfg, deterministic_mode: SolverVBD(model, **vbd_kwargs(cfg, deterministic_mode)),
     body_forces=lambda cfg: not cfg.integrate_with_external_rigid_solver,
     prepare_step=prepare_step,
     finish_step=finish_step,

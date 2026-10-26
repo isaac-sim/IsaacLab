@@ -31,10 +31,8 @@ from isaaclab_newton.physics import (
     SolverSpec,
     VBDSolverCfg,
     XPBDSolverCfg,
-    register_builder_attributes,
-    usd_schema_resolvers,
 )
-from isaaclab_newton.physics.solver_specs import create_builder
+from isaaclab_newton.physics.solver_specs import create_builder, register_builder_attributes, usd_schema_resolvers
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
