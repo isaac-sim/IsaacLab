@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..array import index_fill_
-from .modifier_base import ModifierBase
+from .tensor_processor import TensorProcessor
 
 if TYPE_CHECKING:
-    from . import modifier_cfg
+    from . import tensor_processor_cfg
 
 ##
-# Modifiers as functions
+# Tensor processors as functions
 ##
 
 
@@ -62,12 +62,12 @@ def bias(data: torch.Tensor, value: float) -> torch.Tensor:
 
 
 ##
-# Sample of class based modifiers
+# Sample of class based tensor processors
 ##
 
 
-class DigitalFilter(ModifierBase):
-    r"""Modifier used to apply digital filtering to the input data.
+class DigitalFilter(TensorProcessor):
+    r"""Processor used to apply digital filtering to the input data.
 
     `Digital filters <https://en.wikipedia.org/wiki/Digital_filter>`_ are used to process discrete-time
     signals to extract useful parts of the signal, such as smoothing, noise reduction, or frequency separation.
@@ -129,14 +129,14 @@ class DigitalFilter(ModifierBase):
     :math:`B = [1 - \alpha]`.
     """
 
-    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(self, cfg: tensor_processor_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str):
         """Initializes digital filter.
 
         Args:
             cfg: Configuration parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
+            device: The device to run the processor on.
 
         Raises:
             ValueError: If filter coefficients are None.
@@ -191,8 +191,8 @@ class DigitalFilter(ModifierBase):
         return y_i
 
 
-class Integrator(ModifierBase):
-    r"""Modifier that applies a numerical forward integration based on a middle Reimann sum.
+class Integrator(TensorProcessor):
+    r"""Processor that applies a numerical forward integration based on a middle Reimann sum.
 
     An integrator is used to calculate the integral of a signal over time. The integral of a signal
     is the area under the curve of the signal. The integral can be approximated using numerical methods
@@ -213,14 +213,14 @@ class Integrator(ModifierBase):
     :math:`\Delta t` is the time step between samples.
     """
 
-    def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(self, cfg: tensor_processor_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str):
         """Initializes the integrator configuration and state.
 
         Args:
             cfg: Integral parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
+            device: The device to run the processor on.
         """
         # initialize parent class
         super().__init__(cfg, data_dim, device)
