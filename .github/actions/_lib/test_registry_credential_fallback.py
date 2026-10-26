@@ -328,3 +328,39 @@ def test_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 0, result.stderr
     assert f"RESULT=nvcr.io/example/isaac-sim:latest-release-6-2:{_DIGEST}" in result.stdout
+
+
+_PYPROJECT = '[project]\nname = "isaaclab"\nversion = "1.0.0"\ndependencies = ["torch==2.10.0"]\n'
+_LOCK = (
+    '[[package]]\nname = "isaaclab"\nversion = "1.0.0"\nsource = { editable = "source/isaaclab" }\n\n'
+    '[[package]]\nname = "torch"\nversion = "2.10.0"\nsource = { registry = "https://pypi.org/simple" }\n'
+)
+
+
+def _manifest_hash(tmp_path: Path, pyproject: str, lock: str) -> str:
+    """Hash a one-package repository with the action's file-hash block."""
+    repo = tmp_path / "repo"
+    (repo / "source" / "isaaclab").mkdir(parents=True, exist_ok=True)
+    (repo / "source" / "isaaclab" / "pyproject.toml").write_text(pyproject, encoding="utf-8")
+    (repo / "uv.lock").write_text(lock, encoding="utf-8")
+    (repo / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    lines = _step_body(_HASH_ACTION).splitlines()
+    pattern = next(line for line in lines if line.startswith("deps_manifest_pattern="))
+    start = next(index for index, line in enumerate(lines) if line.startswith("mapfile -t manifest_files"))
+    end = next(index for index, line in enumerate(lines) if line.startswith("deps_hash="))
+    script = "\n".join(["deps_files=(Dockerfile)", pattern, *lines[start:end], 'echo "${file_hash}"'])
+    result = subprocess.run(["bash", "-c", script], cwd=repo, capture_output=True, text=True, check=True)
+    return result.stdout.strip()
+
+
+def test_deps_hash_ignores_first_party_version_bumps(tmp_path: Path) -> None:
+    """The nightly version bump must not rebuild the images; a dependency change must."""
+    base = _manifest_hash(tmp_path / "base", _PYPROJECT, _LOCK)
+    bumped = _manifest_hash(tmp_path / "bumped", _PYPROJECT.replace("1.0.0", "1.1.0"), _LOCK.replace("1.0.0", "1.1.0"))
+    dep_changed = _manifest_hash(tmp_path / "dep", _PYPROJECT.replace("2.10.0", "2.11.0"), _LOCK)
+    lock_changed = _manifest_hash(tmp_path / "lock", _PYPROJECT, _LOCK.replace("2.10.0", "2.11.0"))
+    assert bumped == base
+    assert dep_changed != base
+    assert lock_changed != base
