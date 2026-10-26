@@ -238,10 +238,9 @@ For an online consumer, a term can keep its latest batch in preallocated tensors
 The term owns the lifetime of its published tensors; consumers must copy them before the next capture.
 
 The task's recorder-term configuration owns the captured schema: select the state, applied controls,
-context and terminal flags that the consumer needs. Core capture/storage does not import a world-model
-library or choose its inputs. A PhysicsNeMo learner constructs its codec and normalization at its own
-composition root; an online learner can consume the same captured batch for replay or prediction-error
-rewards. Network evaluation, optimization and checkpoint publication remain outside recorder callbacks.
+context and terminal flags that the consumer needs. Core capture/storage remains independent of
+downstream applications. Consumers own data processing, replay and learning; recorder callbacks only
+capture and publish the configured data.
 
 An export mode of ``EXPORT_NONE`` disables file export, not sample retention. To avoid episode buffers,
 a term must return ``(None, None)``. A task can offer its own ``record_to_episodes`` option that changes
