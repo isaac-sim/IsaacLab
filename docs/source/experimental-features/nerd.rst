@@ -195,7 +195,65 @@ The last command evaluates the learned-physics policy in MuJoCo Warp. To evaluat
 policy in learned physics, use ``-Learned`` and the same dynamics-checkpoint override. The
 policy observation/action layouts and objectives agree between the two configurations.
 ANYmal's acceleration penalty uses the control period in both solvers. Contact-force rewards,
-torque penalties and physics randomizations absent from the model's inputs are disabled in both.
+torque penalties and physics randomizations absent from the model's inputs are disabled by default in both.
+
+Reconstructed forces for rewards
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An existing applied-effort checkpoint can optionally report estimated contact forces and incoming
+joint wrenches. Enable reconstruction in the learned task configuration and declare ordinary sensors;
+no additional network or force labels are required:
+
+.. code-block:: python
+
+   from isaaclab.envs import mdp
+   from isaaclab.managers import RewardTermCfg, SceneEntityCfg
+   from isaaclab.sensors import ContactSensorCfg, JointWrenchSensorCfg
+
+   cfg.sim.physics.solver_cfg.reconstruct_forces = True
+   cfg.scene.robot.enable_joint_wrench = True
+   cfg.scene.contact_forces = ContactSensorCfg(
+       prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_friction_forces=True
+   )
+   cfg.scene.joint_wrenches = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+   cfg.rewards.contact_load = RewardTermCfg(
+       func=mdp.contact_forces,
+       weight=-1e-4,
+       params={"threshold": 100.0, "sensor_cfg": SceneEntityCfg("contact_forces")},
+   )
+
+Custom reward functions can read ``env.scene["contact_forces"].data.net_forces_w.torch`` for
+net contact forces on each sensed body in world coordinates (N). They can read
+``env.scene["robot"].data.body_joint_wrench.torch`` for incoming joint wrenches, ordered as
+``[force_x, force_y, force_z, torque_x, torque_y, torque_z]`` in N and N m, expressed in the
+child-side joint frame with torque taken about its anchor. ``JointWrenchSensor`` exposes the
+same kind of measurement through its existing ``data.force`` and ``data.torque`` interfaces.
+These are the latest physics-step measurements, not control-period averages. Contact force
+and incoming joint force are different quantities; gravity, inertia and motor effort also
+contribute to a joint reaction. The external body-force input buffer remains an input and is
+not used to publish estimates. External body-wrench inputs and IMU acceleration remain unsupported.
+
+Reconstruction runs Newton collision detection even for a flat checkpoint without contact inputs.
+It uses the physical mass matrix and contact Jacobian to project the predicted acceleration while
+holding applied motor effort fixed, enforcing unilateral contact and elliptic friction cones.
+Newton-Euler evaluation then supplies incoming joint wrenches when requested. Only the diagnostic
+acceleration is projected: the learned positions and velocities are unchanged. CUDA graph capture
+remains enabled, and persistent projection buffers belong to the solver.
+
+This is an experimental estimate, not equivalence to MuJoCo's compliant contact solver. Endpoint
+motion does not uniquely identify every contact-force distribution, and small velocity errors can
+produce large force errors after division by the physics timestep. Validate the force-dependent
+reward against held-out teacher trajectories before relying on it for policy training; successful
+state prediction alone does not establish wrench accuracy. The bounded projection uses FP64 setup
+and a fused FP32 solve with at most 1,000 iterations and a stopping tolerance of ``1e-4`` on the
+largest primal residual or force-iterate change in scaled cone coordinates. This is not a bound on
+sensor error or a guarantee that every solve reaches that tolerance.
+
+The initial implementation supports CUDA, 1--60 velocity DOFs per world, at most 60 constraint
+rows per world, joint limits, and frictionless or three-dimensional elliptic contacts. Equalities,
+tendons, joint friction loss, adhesive contacts and higher-dimensional contact cones are rejected.
+Capacity overflow and nonfinite reconstructed values fail explicitly. Each frictional contact
+uses three constraint rows, so 60 rows do not imply support for 60 simultaneous frictional contacts.
 
 Scope and migration
 ~~~~~~~~~~~~~~~~~~~
@@ -226,7 +284,6 @@ long-horizon policy benchmarks or a multi-GPU scaling measurement.
 The rough case also exercises live contact capture, contact-conditioned fitting and resume,
 deployment with a different terrain and world count, and rejection of changed contact friction.
 
-Joint wrenches and contact forces are not learned outputs. Reconstruction requires the physical
-model, contact law and acceleration in addition to position/velocity. Endpoint state alone does
-not generally determine a unique contact-force distribution. Analytic reconstruction is being
-validated separately and is not exposed as a learned-solver sensor capability.
+Force-reconstruction tests additionally cover fixed-effort support and flight, friction saturation,
+contact capacity boundaries, masked resets, and existing sensor/reward access during graph replay.
+Enabling reconstruction preserves the learned trajectory in the flat ANYmal integration test.

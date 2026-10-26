@@ -14,6 +14,7 @@ import warp as wp
 from isaaclab.utils import string_to_callable
 
 from .nerd import JointDynamics, model_signature
+from .nerd_forces import _ForceReconstruction
 from .newton_solver import NewtonSolver
 
 
@@ -31,7 +32,7 @@ def _write_joint_state(
 class SolverNeRD(newton.solvers.SolverBase):
     """Fixed-storage history, resets and inference; all Python decisions are construction-time decisions."""
 
-    def __init__(self, model, checkpoint, *, compile=True):
+    def __init__(self, model, checkpoint, *, compile=True, reconstruct_forces=False):
         super().__init__(model)
         if not model.device.is_cuda:
             raise ValueError("The native NeRD solver currently requires CUDA.")
@@ -42,6 +43,7 @@ class SolverNeRD(newton.solvers.SolverBase):
         if model_signature(model, contact_conditioned=bool(self.dynamics.max_contacts)) != saved["dynamics"]["model"]:
             raise ValueError("NeRD checkpoint physical model differs from the live scene.")
         self.frame_dt = saved["dynamics"]["frame_dt"]
+        self.reconstruction = _ForceReconstruction(model, self.frame_dt) if reconstruct_forces else None
         device = model.device.alias
         self.network = (
             string_to_callable(saved["network_type"])(
@@ -86,6 +88,8 @@ class SolverNeRD(newton.solvers.SolverBase):
                 self.pending_reset.fill_(True)
             else:
                 self.pending_reset.logical_or_(wp.to_torch(world_mask)[: self.model.world_count])
+            if self.reconstruction is not None:
+                self.reconstruction.reset(state, world_mask)
 
     @torch.no_grad()
     def step(self, state_in, state_out, control, contacts, dt):
@@ -119,6 +123,8 @@ class SolverNeRD(newton.solvers.SolverBase):
             prediction = self.dynamics.codec.delta_to_state(state, delta)
             torch._assert_async(torch.isfinite(prediction).all(), "NeRD produced a nonfinite state.")
             layout = self.dynamics.codec.layout
+            if self.reconstruction is not None:
+                self.reconstruction.prepare(state_in, control, contacts)
             wp.launch(
                 _write_joint_state,
                 dim=prediction.shape,
@@ -132,6 +138,18 @@ class SolverNeRD(newton.solvers.SolverBase):
                 device=self.model.device,
             )
             newton.eval_fk(self.model, state_out.joint_q, state_out.joint_qd, state_out)
+            if self.reconstruction is not None:
+                self.reconstruction.update(state_out)
+
+    def get_max_contact_count(self):
+        """Size the shared Newton contact buffer for force reporting."""
+        return 0 if self.reconstruction is None else self.reconstruction.solver.get_max_contact_count()
+
+    def update_contacts(self, contacts, state=None):
+        """Publish reconstructed forces on the same Newton collision rows used by the prediction."""
+        if self.reconstruction is None:
+            raise ValueError("Enable NeRDSolverCfg.reconstruct_forces to use contact sensors.")
+        self.reconstruction.solver._populate_contact_observables(contacts, contacts.force, preserve_geometry=True)
 
     def notify_model_changed(self, flags):
         # Fixed-base root-pose resets can notify unchanged joint properties. Verify the same
@@ -145,26 +163,26 @@ class SolverNeRD(newton.solvers.SolverBase):
 
 
 class NeRDSolver(NewtonSolver):
-    """Build learned dynamics through Newton's shared backend and solver lifecycle."""
+    """Build learned dynamics and optional force reconstruction through Newton's shared backend."""
 
     solver_class = SolverNeRD
     single_state = True
-    contact_sensors = False
 
     @classmethod
     def build(cls, cfg, model, mode, env_template=None):
         if not cfg.checkpoint:
             raise ValueError("NeRD requires a checkpoint path.")
-        if (
-            set(model.get_requested_contact_attributes()) & newton.Contacts.EXTENDED_ATTRIBUTES
-            or set(model.get_requested_state_attributes()) & newton.State.EXTENDED_ATTRIBUTES
-        ):
-            raise ValueError("NeRD does not produce extended sensor state or solved contact forces.")
-        return cls.solver_class(model, cfg.checkpoint, compile=cfg.compile)
+        requested_contacts = set(model.get_requested_contact_attributes()) & newton.Contacts.EXTENDED_ATTRIBUTES
+        requested_state = set(model.get_requested_state_attributes()) & newton.State.EXTENDED_ATTRIBUTES
+        if requested_contacts - {"force"} or requested_state - {"body_parent_f"}:
+            raise ValueError("NeRD force reconstruction supports contact forces and incoming joint wrenches only.")
+        if (requested_contacts or requested_state) and not cfg.reconstruct_forces:
+            raise ValueError("Enable NeRDSolverCfg.reconstruct_forces to use contact or joint-wrench sensors.")
+        return cls.solver_class(model, cfg.checkpoint, compile=cfg.compile, reconstruct_forces=cfg.reconstruct_forces)
 
     @classmethod
     def uses_collision_pipeline(cls, cfg, solver):
-        return bool(solver.dynamics.max_contacts)
+        return bool(solver.dynamics.max_contacts) or cfg.reconstruct_forces
 
     @classmethod
     def applies_body_forces(cls, cfg, solver):
