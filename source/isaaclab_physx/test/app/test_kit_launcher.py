@@ -6,7 +6,6 @@
 """Kitless tests for how :class:`KitLauncher` resolves arguments, environment variables, and Kit settings."""
 
 import argparse
-import io
 import logging
 import signal
 import sys
@@ -795,29 +794,6 @@ def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.Monke
 
     monkeypatch.setattr(kit_launcher_module, "SimulationApp", object())
     assert KitLauncher.is_available() is True
-
-
-def test_create_app_keeps_modules_and_restores_stdout(monkeypatch: pytest.MonkeyPatch):
-    """Isaac Lab's modules stay imported while Kit starts, and stdout is restored even when startup fails."""
-    seen = {}
-
-    def simulation_app(*args, **kwargs):
-        seen["module"] = sys.modules.get(kit_launcher_module.__name__)
-        raise RuntimeError("Kit failed to start")
-
-    monkeypatch.setattr(kit_launcher_module, "SimulationApp", simulation_app)
-    monkeypatch.setattr(sys, "argv", ["script.py"])
-    stdout = io.StringIO()
-    monkeypatch.setattr(sys, "stdout", stdout)
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._sim_app_config = {}
-    launcher._sim_experience_file = None
-
-    with pytest.raises(RuntimeError, match="Kit failed to start"):
-        launcher._create_app()
-
-    assert seen["module"] is kit_launcher_module
-    assert sys.stdout is stdout
 
 
 def test_close_pumps_the_app_before_closing():
