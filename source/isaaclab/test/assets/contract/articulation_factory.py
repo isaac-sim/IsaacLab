@@ -237,6 +237,7 @@ def _newton_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering,
     articulation._ALL_BODY_INDICES = indices(B, device)
     articulation._ALL_JOINT_INDICES = indices(J, device)
     articulation._ALL_ENV_MASK = wp.ones((N,), dtype=wp.bool, device=device)
+    articulation._scratch_env_mask = wp.zeros((N,), dtype=wp.bool, device=device)
     articulation._ALL_BODY_MASK = wp.ones((B,), dtype=wp.bool, device=device)
     articulation._ALL_JOINT_MASK = wp.ones((J,), dtype=wp.bool, device=device)
     articulation._resolve_and_install_ordering_maps()

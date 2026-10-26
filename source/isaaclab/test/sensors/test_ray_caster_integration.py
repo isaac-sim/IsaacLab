@@ -18,7 +18,7 @@ items from ``TODO_ray_caster_kernel_tests.md``:
 """
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.test.utils import launch_test_simulation
+from isaaclab.test.utils import launch_test_simulation, resolve_test_sim_device
 
 launch_test_simulation(enable_cameras=True)
 
@@ -66,7 +66,7 @@ _DT = 0.01
 def _make_sim_and_ground():
     """Create a blank stage with a flat ground plane at z=0."""
     sim_utils.create_new_stage()
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=_DT))
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=_DT, device=resolve_test_sim_device()))
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh(_GROUND_PATH, mesh)
     return sim
@@ -142,6 +142,53 @@ def test_rigid_body_view_path(sim_ground):
 
     hits = sensor.data.ray_hits_w.torch[0, 0].cpu().numpy()
     assert abs(hits[2]) < 0.5, f"RigidBodyView: downward ray should hit near z=0, got z={hits[2]}"
+
+
+@pytest.mark.isaacsim_ci
+def test_polygon_mesh_hits_outer_surface(sim_ground):
+    """A six-quad box reports outer surfaces rather than artificial faces across the box interior."""
+    stage = sim_utils.get_current_stage()
+    mesh = UsdGeom.Mesh.Define(stage, "/World/QuadBox")
+    mesh.CreatePointsAttr(
+        [
+            (-1, -1, -1),
+            (1, -1, -1),
+            (1, 1, -1),
+            (-1, 1, -1),
+            (-1, -1, 1),
+            (1, -1, 1),
+            (1, 1, 1),
+            (-1, 1, 1),
+        ]
+    )
+    mesh.CreateFaceVertexCountsAttr([4] * 6)
+    mesh.CreateFaceVertexIndicesAttr([0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4, 1, 2, 6, 5, 2, 3, 7, 6, 3, 0, 4, 7])
+    sim_utils.create_prim("/World/Scanner", "Xform", translation=(0.0, 0.0, 3.0))
+    sensor = instantiate(
+        RayCasterCfg(
+            prim_path="/World/Scanner",
+            mesh_prim_paths=["/World/QuadBox"],
+            offset=RayCasterCfg.OffsetCfg(pos=(0.2, 0.0, 0.3)),
+            pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(1.0, 3.0)),
+            ray_alignment="world",
+            max_distance=2.5,
+        )
+    )
+    sim_ground.reset()
+    sensor.update(_DT)
+    data = sensor.data
+    starts = sensor.ray_starts.torch
+    inside = starts[:, :, 1].abs() < 1.0
+    assert inside.sum() == 4
+    expected_hits = starts[inside].clone()
+    expected_hits[:, 2] = 1.0
+    torch.testing.assert_close(data.ray_hits_w.torch[inside], expected_hits)
+    assert torch.isinf(data.ray_hits_w.torch[~inside]).all()
+
+    # Move origins beyond the configured range; misses must replace the previous hits.
+    sensor.drift.warp.fill_(wp.vec3f(0.0, 0.0, 0.5))
+    sensor.update(_DT)
+    assert torch.isinf(sensor.data.ray_hits_w.torch).all()
 
 
 # ---------------------------------------------------------------------------

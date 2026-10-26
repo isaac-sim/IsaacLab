@@ -12,7 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -33,6 +33,7 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -2299,14 +2300,10 @@ class Articulation(BaseArticulation):
     Operations - Newton Actuator Parameter Writers.
     """
 
-    @staticmethod
-    @wp.kernel(enable_backward=False)
-    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=Any)):
-        i = wp.tid()
-        mask[wp.int32(indices[i])] = True
-
     def _env_ids_to_mask(self, env_ids: wp.array | torch.Tensor) -> wp.array:
         """Convert env_ids to a boolean Warp mask.
+
+        Needed because :func:`scatter_joint_coordinates` only takes a mask.
 
         Args:
             env_ids: Environment indices as returned by :meth:`_resolve_env_ids`, which may be a
@@ -2317,11 +2314,11 @@ class Articulation(BaseArticulation):
         """
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids)
-        mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
-        wp.launch(self._build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
-        return mask
+        if isinstance(env_ids, wp.array) and env_ids.dtype != wp.int32:
+            env_ids = wp.to_torch(env_ids)
+        return resolve_1d_mask(
+            ids=env_ids, all_mask=self._ALL_ENV_MASK, scratch_mask=self._scratch_env_mask, device=self.device
+        )
 
     """
     Operations - Setters.
@@ -2629,45 +2626,6 @@ class Articulation(BaseArticulation):
     Operations - Tendons.
     """
 
-    def _set_fixed_tendon_property_mask(
-        self,
-        data: float | torch.Tensor | wp.array,
-        buffer: wp.array,
-        fixed_tendon_mask: wp.array | torch.Tensor | None,
-        env_mask: wp.array | torch.Tensor | None,
-        name: str,
-    ) -> None:
-        """Write full (num_instances, num_fixed_tendons) data into the masked cells of a fixed tendon buffer.
-
-        Args:
-            data: Scalar or full data. A torch tensor for a ``wp.vec2f`` buffer has a trailing dimension of 2.
-            buffer: Fixed tendon staging buffer. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all the instances are updated.
-            name: Name of the data, used in shape errors.
-        """
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
-        if isinstance(data, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=buffer.shape,
-                inputs=[data, env_mask, fixed_tendon_mask],
-                outputs=[buffer],
-                device=self.device,
-            )
-            return
-        if isinstance(data, torch.Tensor):
-            data = wp.from_torch(data, dtype=buffer.dtype)
-        self.assert_shape_and_dtype(data, buffer.shape, buffer.dtype, name)
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=buffer.shape,
-            inputs=[data, env_mask, fixed_tendon_mask],
-            outputs=[buffer],
-            device=self.device,
-        )
-
     def set_fixed_tendon_stiffness_index(
         self,
         *,
@@ -2755,8 +2713,18 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._set_fixed_tendon_property_mask(
-            stiffness, self.data._fixed_tendon_stiffness, fixed_tendon_mask, env_mask, "stiffness"
+        # Resolve masks.
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        self.assert_shape_and_dtype_mask(stiffness, (env_mask, fixed_tendon_mask), wp.float32, "stiffness")
+        wp.launch(
+            articulation_kernels.float_data_to_buffer_with_mask
+            if isinstance(stiffness, float)
+            else shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(self.num_instances, self.num_fixed_tendons),
+            inputs=[stiffness, env_mask, fixed_tendon_mask],
+            outputs=[self.data._fixed_tendon_stiffness],
+            device=self.device,
         )
 
     def set_fixed_tendon_damping_index(
@@ -2847,8 +2815,18 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._set_fixed_tendon_property_mask(
-            damping, self.data._fixed_tendon_damping, fixed_tendon_mask, env_mask, "damping"
+        # Resolve masks.
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        self.assert_shape_and_dtype_mask(damping, (env_mask, fixed_tendon_mask), wp.float32, "damping")
+        wp.launch(
+            articulation_kernels.float_data_to_buffer_with_mask
+            if isinstance(damping, float)
+            else shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(self.num_instances, self.num_fixed_tendons),
+            inputs=[damping, env_mask, fixed_tendon_mask],
+            outputs=[self.data._fixed_tendon_damping],
+            device=self.device,
         )
 
     def set_fixed_tendon_limit_stiffness_index(
@@ -2897,7 +2875,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_index(
         self,
         *,
-        limit: torch.Tensor | wp.array,
+        limit: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2935,7 +2913,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_mask(
         self,
         *,
-        limit: torch.Tensor | wp.array,
+        limit: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2960,10 +2938,17 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
         if isinstance(limit, float):
             raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
-        self._set_fixed_tendon_property_mask(
-            limit, self.data._fixed_tendon_pos_limits, fixed_tendon_mask, env_mask, "limit"
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.vec2f),
+            dim=(self.num_instances, self.num_fixed_tendons),
+            inputs=[limit, env_mask, fixed_tendon_mask],
+            outputs=[self.data._fixed_tendon_pos_limits],
+            device=self.device,
         )
 
     def set_fixed_tendon_rest_length_index(
@@ -3164,18 +3149,23 @@ class Articulation(BaseArticulation):
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
-        for staged, sim_bind in (
-            (self.data._fixed_tendon_stiffness, self.data._sim_bind_fixed_tendon_stiffness),
-            (self.data._fixed_tendon_damping, self.data._sim_bind_fixed_tendon_damping),
-            (self.data._fixed_tendon_pos_limits, self.data._sim_bind_fixed_tendon_pos_limits),
-        ):
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_mask,
-                dim=staged.shape,
-                inputs=[staged, env_mask, fixed_tendon_mask],
-                outputs=[sim_bind],
-                device=self.device,
-            )
+        wp.launch(
+            articulation_kernels.copy_fixed_tendon_properties_with_mask,
+            dim=(self.num_instances, self.num_fixed_tendons),
+            inputs=[
+                env_mask,
+                fixed_tendon_mask,
+                self.data._fixed_tendon_stiffness,
+                self.data._fixed_tendon_damping,
+                self.data._fixed_tendon_pos_limits,
+            ],
+            outputs=[
+                self.data._sim_bind_fixed_tendon_stiffness,
+                self.data._sim_bind_fixed_tendon_damping,
+                self.data._sim_bind_fixed_tendon_pos_limits,
+            ],
+            device=self.device,
+        )
         # the solver keeps its own copy of the tendon properties and only re-reads them when notified
         self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 
@@ -3483,6 +3473,7 @@ class Articulation(BaseArticulation):
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._scratch_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
         self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
@@ -3758,15 +3749,7 @@ class Articulation(BaseArticulation):
         Returns:
             Environment indices.
         """
-        if isinstance(env_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if (env_ids is None) or (env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device)
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
@@ -3777,13 +3760,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
-        if isinstance(joint_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(joint_ids, list):
-            return wp.array(joint_ids, dtype=wp.int32, device=self.device)
-        if (joint_ids is None) or (joint_ids == slice(None)):
-            return self._ALL_JOINT_INDICES
-        return joint_ids
+        return resolve_ids(ids=joint_ids, all_ids=self._ALL_JOINT_INDICES, device=self.device)
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
@@ -3794,13 +3771,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        if (body_ids is None) or (body_ids == slice(None)):
-            return self._ALL_BODY_INDICES
-        return body_ids
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self.device)
 
     def _resolve_fixed_tendon_ids(
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
@@ -3813,13 +3784,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
-        if isinstance(tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(tendon_ids, list):
-            return wp.array(tendon_ids, dtype=wp.int32, device=self.device)
-        if (tendon_ids is None) or (tendon_ids == slice(None)):
-            return self._ALL_FIXED_TENDON_INDICES
-        return tendon_ids
+        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_FIXED_TENDON_INDICES, device=self.device)
 
     def _resolve_spatial_tendon_ids(
         self, spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
@@ -3832,18 +3797,21 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
-        if isinstance(spatial_tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(spatial_tendon_ids, list):
-            return wp.array(spatial_tendon_ids, dtype=wp.int32, device=self.device)
-        if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
-            return self._ALL_SPATIAL_TENDON_INDICES
-        return spatial_tendon_ids
+        return resolve_ids(ids=spatial_tendon_ids, all_ids=self._ALL_SPATIAL_TENDON_INDICES, device=self.device)
 
     @staticmethod
     def _to_torch_ids(ids: wp.array | torch.Tensor) -> torch.Tensor:
         """View resolved indices as a torch tensor for indexing."""
         return (wp.to_torch(ids) if isinstance(ids, wp.array) else ids).long()
+
+    def _select_full_data(
+        self, data: float | torch.Tensor | wp.array, env_ids: wp.array | torch.Tensor, ids: wp.array | torch.Tensor
+    ) -> float | torch.Tensor:
+        """Select the rows and columns of full (num_instances, num_items, ...) data given by the indices."""
+        if isinstance(data, float):
+            return data
+        data = wp.to_torch(data) if isinstance(data, wp.array) else data
+        return data[self._to_torch_ids(env_ids)[:, None], self._to_torch_ids(ids)]
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
         """Resolve a mask to a warp array.
@@ -3854,12 +3822,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of mask.
         """
-        if mask is None:
-            return full_mask
-
-        if isinstance(mask, torch.Tensor):
-            return wp.from_torch(mask, dtype=wp.bool)
-        return mask
+        return resolve_1d_mask(mask=mask, all_mask=full_mask, device=self.device)
 
     """
     Deprecated methods.

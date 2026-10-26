@@ -465,7 +465,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+# No device-specific path; the rotated cases above keep CPU coverage.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [

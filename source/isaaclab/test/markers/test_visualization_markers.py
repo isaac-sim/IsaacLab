@@ -27,6 +27,7 @@ from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunBackendCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserBackendCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import make_clone_plan
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -139,7 +140,9 @@ def test_marker_backend_selection(
     )()
 
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: fake_sim))
-    monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
+    monkeypatch.setattr(
+        VisualizationMarkers, "_ensure_kit_backend", lambda self, sim=None: self._backends.append("kit")
+    )
     monkeypatch.setattr(VisualizationMarkers, "_ensure_newton_backend", lambda self: self._backends.append("newton"))
 
     marker._ensure_backends_initialized()
@@ -195,10 +198,6 @@ def test_environment_ids_author_scene_partitions_and_rebuild_only_on_change(sim,
 
     sim._has_offscreen_render = True
     stage = sim_utils.get_current_stage()
-    for env_id in range(2):
-        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
-
     config = VisualizationMarkersCfg(
         prim_path="/World/Visuals/cached_partition_marker",
         markers={"test": sim_utils.SphereCfg(radius=0.1)},
@@ -206,6 +205,14 @@ def test_environment_ids_author_scene_partitions_and_rebuild_only_on_change(sim,
     test_marker = VisualizationMarkers(config)
     translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
     environment_ids = torch.tensor([1, 0], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=environment_ids)
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert not primvar or not primvar.GetAttr().HasAuthoredValueOpinion()
+    plan = make_clone_plan((), ((),), 2, env_template="/Lab/Cells/Cell{}")
+    sim.set_clone_plan(plan)
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(plan.env_template.format(env_id), "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
     test_marker.visualize(translations=translations, environment_ids=environment_ids)
 
     primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
@@ -419,7 +426,6 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
 
     provider = SimpleNamespace(
         get_transforms=lambda output, **kwargs: False,
-        get_camera_transforms=lambda: {},
         get_contact_sensors=lambda: {},
     )
     monkeypatch.setattr(module, "render_newton_visualization_markers", render_markers)
