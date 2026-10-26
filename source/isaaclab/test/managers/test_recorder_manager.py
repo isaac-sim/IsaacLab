@@ -307,6 +307,10 @@ def test_recorder_storage_boundary():
     import isaaclab.managers.recorder_manager as module
 
     source = ast.parse(inspect.getsource(module))
+    # Observation evaluation belongs to explicit terms, never generic capture dispatch.
+    assert not hasattr(module.RecorderTerm, "requires_post_step_observations")
+    assert not hasattr(module.RecorderManager, "requires_post_step_observations")
+    assert not any(isinstance(node, ast.Attribute) and node.attr == "observation_manager" for node in ast.walk(source))
     assert not any(isinstance(node, ast.Attribute) and node.attr == "_episodes" for node in ast.walk(source))
     allowed = sys.stdlib_module_names | {"isaaclab", "torch", "warp", "prettytable"}
     for node in ast.walk(source):

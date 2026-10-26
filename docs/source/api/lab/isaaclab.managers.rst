@@ -247,10 +247,19 @@ a term must return ``(None, None)``. A task can offer its own ``record_to_episod
 this return value while keeping capture identical. Disabling the term in the task configuration removes
 capture itself. These are three separate choices: capture, retain and export.
 
-In an RL environment, post-step callbacks run after reward and termination computation and before
-automatic reset. A term reading physical tensors directly should set
-``requires_post_step_observations = False``. This avoids an extra observation computation and its
-noise draws. Existing terms default to ``True``. Callback dispatch is independent of this setting.
+In an RL environment, post-step callbacks capture the completed physical transition after rewards
+and terminations, before automatic reset. Recorder dispatch does not compute observations.
+Physical-state terms read the scene directly; pre-step observation terms read the existing
+``env.obs_buf`` used by the policy.
+
+**Migration:** Custom post-step terms must no longer assume that ``env.obs_buf`` has been refreshed;
+it still contains the preceding policy input. To capture observations of the completed transition,
+call ``env.observation_manager.compute_group("recording", update_history=False)`` explicitly
+inside the term. Configure that observation group without history or delay when current measurements
+are needed. This does not advance observation history, but noise and modifiers still run:
+use a separate noiseless group to avoid changing subsequent policy noise draws. No extra
+observation computation occurs just because a recorder is enabled. Non-RL manager-based environments
+already update their normal observations before post-step capture.
 
 Returning a field path and a batched tensor (or nested dictionary of tensors) retains samples in
 the manager. Each field has a time-major allocation and independent per-world insertion indices,
