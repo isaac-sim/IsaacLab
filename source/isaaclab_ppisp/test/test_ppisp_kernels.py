@@ -147,6 +147,7 @@ def test_ppisp_processor_returns_rgb_view_of_persistent_rgba():
     apply_ppisp_to_rgba(hdr.warp, expected, normalize_ppisp_cfg(PpispCfg(inputs={"exposureOffset": 1.0})))
     assert (outputs["rgba"].warp.numpy() == expected.numpy()).all()
     assert (outputs["rgb"].warp.numpy() == expected.numpy()[..., :3]).all()
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
     assert processor({"rgb_hdr": hdr})["rgba"] is outputs["rgba"]
 
 

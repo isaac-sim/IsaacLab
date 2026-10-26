@@ -221,9 +221,13 @@ class CameraCfg(SensorBaseCfg):
     """
 
     isp_cfg: Any | CameraISPMode | None = None
-    """Deprecated: add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead.
+    """PPISP coefficients, or a mode that discovers them from the camera prims. Defaults to None (no PPISP).
 
-    A non-None value is forwarded to that processor with a :class:`FutureWarning`.
+    Camera construction forwards a non-None value to an ``isaaclab_ppisp.PpispProcessorCfg`` at the front of
+    :attr:`tensor_processors` with a :class:`FutureWarning`, then resets this field to None.
+
+    .. deprecated:: 42.0.0
+        Add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead.
     """
 
     def __post_init__(self):

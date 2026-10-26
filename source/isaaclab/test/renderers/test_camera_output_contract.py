@@ -85,10 +85,12 @@ def test_camera_isp_is_resolved_during_construction():
                 isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}),
             ))  # fmt: skip
         without_isp = instantiate(replace(cfg, prim_path="/World/PlainCamera", spawn=_SPAWN))
+        rebuilt = instantiate(spawned.cfg)
 
         assert authored.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 3.0
         assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["exposureOffset"] == 2.0
         assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 1.0
+        assert len(rebuilt.cfg.tensor_processors) == 1  # the deprecated value is forwarded once
         assert without_isp.cfg.tensor_processors == []  # discovery found no PPISP attributes
         assert cfg.tensor_processors[0].isp_cfg is CameraISPMode.AUTO_CAMERA
         assert prim.GetAttribute("exposure").Get() == 2.0  # Newton does not use RTX exposure.
