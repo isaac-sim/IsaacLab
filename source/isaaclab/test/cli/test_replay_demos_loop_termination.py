@@ -77,7 +77,7 @@ class _DatasetFileHandlerStub:
 
     def load_episode(self, episode_name, device):
         episode = EpisodeData()
-        episode.data = {"initial_state": {}, "actions": list(self._actions)}
+        episode.data = {"initial_state": {}, "actions": self._actions}
         return episode
 
 
