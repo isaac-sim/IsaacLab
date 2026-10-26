@@ -1,5 +1,5 @@
 Contribution Guidelines
-=======================
+================
 
 .. Maintenance notes
 
@@ -588,18 +588,6 @@ When a kernel operation is known before launch, specialize it with dedicated ker
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
 
-Shared Warp wrench composition
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-``isaaclab.utils.warp.wrench`` owns force, torque, and moment-arm composition. Generate bounded
-index/mask and set/add variants before launch, and keep destination-buffer selection in
-``WrenchComposer``. Name factories ``make_<operation>`` and concrete launchable kernels with
-``_kernel`` where useful. Keep common math independent of domain-specific wrench policy.
-
-When a thread exclusively owns an output cell, use explicit read-add-write assignments.
-Warp array ``+=`` can lower to atomic addition; reserve atomics for concurrent reduction.
-Validate frame conventions, partial updates, and capture replay as well as ownership boundaries.
-
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private
@@ -694,6 +682,18 @@ Python factory caching reuses kernel objects; Warp separately owns compilation a
 Warm up the actual execution path before graph capture, including the needed selector dtypes.
 Later specializations must not invalidate kernels already compiled or captured. Check this alongside
 dependency direction, aliasing, selector widths, and replay with changed inputs.
+
+Shared Warp wrench composition
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``isaaclab.utils.warp.wrench`` owns force, torque, and moment-arm composition. Generate bounded
+index/mask and set/add variants before launch, and keep destination-buffer selection in
+``WrenchComposer``. Name factories ``make_<operation>`` and concrete launchable kernels with
+``_kernel`` where useful. Keep common math independent of domain-specific wrench policy.
+
+When a thread exclusively owns an output cell, use explicit read-add-write assignments.
+Warp array ``+=`` can lower to atomic addition; reserve atomics for concurrent reduction.
+Validate frame conventions, partial updates, and capture replay as well as ownership boundaries.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^
