@@ -27,3 +27,12 @@ class NeRDSolverCfg(NewtonSolverCfg):
 
     compile: bool = True
     """Compile model inference before the native manager captures its physics CUDA graph."""
+
+    reconstruct_forces: bool = False
+    """Estimate contact forces and incoming joint wrenches from predicted motion and applied effort.
+
+    Enables ordinary contact sensors, joint-wrench sensors and ``ArticulationData.body_joint_wrench``.
+    Adds collision and inverse-dynamics work to every physics step. Estimates use a constrained
+    acceleration projection; they neither change learned motion nor reproduce MuJoCo's contact law.
+    Validate force-based rewards on held-out motion before using them for policy training.
+    """

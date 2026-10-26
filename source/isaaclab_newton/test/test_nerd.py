@@ -19,8 +19,10 @@ import torch
 import warp as wp
 
 from isaaclab.app import launch_simulation
-from isaaclab.managers import DatasetExportMode
+from isaaclab.envs.mdp.rewards import contact_forces
+from isaaclab.managers import DatasetExportMode, RewardTermCfg, SceneEntityCfg
 from isaaclab.paths import ISAACLAB_ROOT
+from isaaclab.sensors import ContactSensorCfg, JointWrenchSensorCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import to_dict
 
@@ -66,6 +68,8 @@ def test_native_nerd_ownership():
             forbidden = ("isaaclab_physicsnemo", "supermimic", "argparse", "gymnasium", "wandb")
             if path.is_relative_to(newton):
                 forbidden += ("isaaclab_rl", "isaaclab_tasks")
+            if path.parent.name == "physics":
+                forbidden += ("isaaclab.sensors", "isaaclab.assets", "isaaclab_newton.sensors")
             if path.is_relative_to(task_core) and path.name != "__init__.py":
                 forbidden += ("isaaclab_rl", "physicsnemo")
             # Registration files legitimately import Gym, but never learner implementations.
@@ -302,10 +306,10 @@ def test_record_fit_resume_and_graph_resets(task, network, device, tmp_path):
         assert all(not torch.equal(a, b) for a, b in zip(distributed["generators"], continued["generators"]))
         assert len((output / "metrics.jsonl").read_text().splitlines()) == 2
 
-    _check_graph_resets(task, device, checkpoint)
+    _check_graph_resets(task, device, checkpoint, forces="Flat-Anymal" in task and network == "parallel")
 
 
-def _check_graph_resets(task, device, checkpoint):
+def _check_graph_resets(task, device, checkpoint, forces=False):
     from isaaclab_newton.physics.nerd_manager import SolverNeRD
 
     cfg, _ = resolve_task_config(task + "-Learned", None, overrides=[])
@@ -319,6 +323,16 @@ def _check_graph_resets(task, device, checkpoint):
     cfg.sim.physics.load_visual_shapes = True
     cfg.sim.physics.solver_cfg.checkpoint = str(checkpoint)
     cfg.sim.physics.solver_cfg.compile = "Anymal" in task
+    if forces:
+        cfg.sim.physics.solver_cfg.reconstruct_forces = True
+        cfg.scene.robot.enable_joint_wrench = True
+        cfg.scene.contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3)
+        cfg.scene.joint_wrenches = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+        cfg.rewards.estimated_contact = RewardTermCfg(
+            func=contact_forces,
+            weight=-1e-4,
+            params={"threshold": 100.0, "sensor_cfg": SceneEntityCfg("contact_forces")},
+        )
     for name, term in vars(cfg.terminations).items():
         if term is not None:
             term.func, term.params = never, {}
@@ -360,6 +374,7 @@ def _check_graph_resets(task, device, checkpoint):
 
                 manager.register_post_actuator_callback(retain_effort)
             addresses = (manager._solver.history.data_ptr(), manager._solver.pending_reset.data_ptr())
+            contact_peak = wrench_peak = 0.0
             with torch.inference_mode():
                 for step in range(21):
                     if step in (4, 9, 13):
@@ -395,6 +410,17 @@ def _check_graph_resets(task, device, checkpoint):
                         rtol=2e-5,
                         atol=2e-6,
                     )
+                    if forces:
+                        contact_force = env.scene["contact_forces"].data.net_forces_w.torch
+                        joint_wrench = env.scene["robot"].data.body_joint_wrench.torch
+                        assert torch.isfinite(contact_force).all()
+                        assert torch.isfinite(env.scene["joint_wrenches"].data.force.torch).all()
+                        assert torch.isfinite(joint_wrench).all()
+                        assert torch.isfinite(env.reward_manager.compute(env.step_dt)).all()
+                        contact_peak = max(contact_peak, contact_force.abs().max().item())
+                        wrench_peak = max(wrench_peak, joint_wrench.abs().max().item())
+            if forces:
+                assert contact_peak > 0 and wrench_peak > 0
             assert manager._graph is not None
             assert addresses == (manager._solver.history.data_ptr(), manager._solver.pending_reset.data_ptr())
             with pytest.raises(ValueError, match="frame"):
