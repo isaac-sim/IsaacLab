@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import json
-import os
-import shutil
-import tempfile
-import uuid
 
 import h5py
 import pytest
@@ -18,49 +14,19 @@ from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test datasets."""
-    temp_dir = tempfile.mkdtemp()
-    yield temp_dir
-    # cleanup after tests
-    shutil.rmtree(temp_dir)
+def test_create_dataset_file(tmp_path, monkeypatch):
+    """Accept absolute paths, omitted extensions and bare filenames."""
+    monkeypatch.chdir(tmp_path)
+    for path in (str(tmp_path / "absolute.hdf5"), str(tmp_path / "no_extension"), "relative.hdf5"):
+        dataset_file_handler = HDF5DatasetFileHandler()
+        dataset_file_handler.create(path, "test_env_name")
+        dataset_file_handler.close()
+    assert {path.name for path in tmp_path.iterdir()} == {"absolute.hdf5", "no_extension.hdf5", "relative.hdf5"}
 
 
-def test_create_dataset_file(temp_dir, monkeypatch):
-    """Test creating a new dataset file."""
-    # create a dataset file given a file name with extension
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(dataset_file_path, "test_env_name")
-    dataset_file_handler.close()
-
-    # check if the dataset is created
-    assert os.path.exists(dataset_file_path)
-
-    # create a dataset file given a file name without extension
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(dataset_file_path, "test_env_name")
-    dataset_file_handler.close()
-
-    # check if the dataset is created
-    assert os.path.exists(dataset_file_path + ".hdf5")
-
-    # create a dataset file given a bare file name in the current working directory
-    monkeypatch.chdir(temp_dir)
-    dataset_file_name = f"{uuid.uuid4()}.hdf5"
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(dataset_file_name, "test_env_name")
-    dataset_file_handler.close()
-
-    # check if the dataset is created
-    assert os.path.exists(os.path.join(temp_dir, dataset_file_name))
-
-
-def test_add_env_args_preserves_existing_args_after_reopen(temp_dir):
-    """Test extending environment arguments after reopening a dataset."""
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+def test_env_args_follow_active_file(tmp_path):
+    """Preserve metadata on reopen, then discard it when reusing the handler for a new file."""
+    dataset_file_path = str(tmp_path / "first.hdf5")
     dataset_file_handler = HDF5DatasetFileHandler()
     dataset_file_handler.create(dataset_file_path, "test_env_name")
     dataset_file_handler.close()
@@ -75,16 +41,7 @@ def test_add_env_args_preserves_existing_args_after_reopen(temp_dir):
 
     assert env_args == {"env_name": "test_env_name", "type": 2, "custom_arg": "custom_value"}
 
-
-def test_create_resets_env_args_when_reusing_handler(temp_dir):
-    """Test environment arguments do not leak between datasets."""
-    first_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    second_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(first_dataset_path, "first_env")
-    dataset_file_handler.add_env_args({"custom_arg": "custom_value"})
-    dataset_file_handler.close()
-
+    second_dataset_path = str(tmp_path / "second.hdf5")
     dataset_file_handler.create(second_dataset_path, "second_env")
     dataset_file_handler.close()
 
@@ -95,13 +52,15 @@ def test_create_resets_env_args_when_reusing_handler(temp_dir):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_write_and_load_episode(temp_dir, device):
-    """Test writing and loading an episode to and from the dataset file."""
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+def test_write_and_load_episode(tmp_path, device):
+    """Round-trip episode data and metadata, then play every action through exhaustion."""
+    dataset_file_path = str(tmp_path / "episodes.hdf5")
     dataset_file_handler = HDF5DatasetFileHandler()
     dataset_file_handler.create(dataset_file_path, "test_env_name")
 
     test_episode = EpisodeData()
+    assert test_episode.is_empty()
+    assert test_episode.get_next_action() is None
     test_episode.seed = 0
     test_episode.success = True
     test_episode.data = {
@@ -109,6 +68,9 @@ def test_write_and_load_episode(temp_dir, device):
         "actions": torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], device=device),
         "obs": {"policy": {"term1": torch.arange(1, 16, device=device).reshape(3, 5)}},
     }
+    assert not test_episode.is_empty()
+    # Reading an absent action must not advance the cursor before data becomes available.
+    assert torch.equal(test_episode.get_next_action(), test_episode.data["actions"][0])
 
     # write the episode to the dataset
     dataset_file_handler.write_episode(test_episode)
@@ -140,7 +102,7 @@ def test_write_and_load_episode(temp_dir, device):
         assert loaded_episode.seed == test_episode.seed
         assert loaded_episode.success == test_episode.success
 
-        assert torch.equal(loaded_episode.get_initial_state(), test_episode.get_initial_state())
+        assert torch.equal(loaded_episode.get_initial_state(), test_episode.data["initial_state"])
 
         assert torch.equal(loaded_episode.data["obs"]["policy"]["term1"], test_episode.data["obs"]["policy"]["term1"])
 
