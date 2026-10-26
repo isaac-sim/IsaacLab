@@ -19,6 +19,7 @@ from ... import sim as sim_utils
 from ...markers import VisualizationMarkers
 from ...terrains.trimesh.utils import make_plane
 from ...utils import math as math_utils
+from ...utils.mesh import convert_faces_to_triangles
 from ...utils.seed import WarpRng
 from ...utils.warp import ProxyArray, convert_to_warp_mesh
 from ...utils.warp.kernels import raycast_mesh_masked_kernel
@@ -107,7 +108,9 @@ class BaseRayCaster(SensorBase):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
-        super().reset(env_ids, env_mask)
+        reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=reset_mask)
+        self._invalidate_buffers(reset_mask)
         # Drift buffers start at zero, so zero ranges (the defaults) need no resampling.
         sample_drift = any(self.cfg.drift_range)
         ray_cast_range_list = tuple(
@@ -186,6 +189,7 @@ class BaseRayCaster(SensorBase):
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
         self._initialize_rays_impl()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     def _initialize_pose_tracking(self) -> None:
         """Initialize backend-specific sensor pose tracking.
@@ -228,6 +232,7 @@ class BaseRayCaster(SensorBase):
                 points = np.matmul(points, transform_matrix[:3, :3].T)
                 points += transform_matrix[:3, 3]
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
+                indices = convert_faces_to_triangles(indices, np.asarray(mesh_prim.GetFaceVertexCountsAttr().Get()))
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self._device)
                 logger.info(
                     f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."

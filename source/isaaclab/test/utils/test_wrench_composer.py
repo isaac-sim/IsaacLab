@@ -477,8 +477,9 @@ def test_deprecated_writers_warn_and_keep_add_and_set_behavior() -> None:
 def test_invalid_selection_and_empty_wrench_input_are_reported() -> None:
     composer = _make_composer()
 
-    with pytest.raises(TypeError, match="env_ids must be"):
-        composer.add_forces_and_torques_index(forces=_vectors(torch.ones((1, 2, 3))), env_ids=(0,))
+    env_ids = ProxyArray(wp.array([0], dtype=wp.int32, device=composer.device))
+    with pytest.raises(TypeError, match="ProxyArray is output-only"):
+        composer.add_forces_and_torques_index(forces=_vectors(torch.ones((1, 2, 3))), env_ids=env_ids)
     for method in ("add_forces_and_torques_index", "set_forces_and_torques_mask"):
         with pytest.warns(UserWarning, match="No forces or torques"):
             getattr(composer, method)()

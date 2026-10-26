@@ -10,10 +10,11 @@ __all__ = [
     "clone_obs_buffer",
     "buffers",
     "modifiers",
+    "tensor_processors",
     "noise",
     "warp",
 ]
 
 from .torch_utils import clone_obs_buffer
 from .warp_capture import CapturedStage, captured, eager
-from . import buffers, modifiers, noise, warp
+from . import buffers, modifiers, tensor_processors, noise, warp

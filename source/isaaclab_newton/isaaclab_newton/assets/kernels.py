@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -960,6 +961,89 @@ def set_body_link_velocity_to_sim(
     body_acc_w[env_id, body_id] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
+@wp.kernel
+def set_body_com_pose_to_sim_mask(
+    data: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    body_com_pose_w: wp.array2d(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+):
+    """Write body COM pose data, and the link poses derived from it, for the selected environments and bodies.
+
+    Args:
+        data: Input array of body COM poses. Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        body_mask: Input array of body mask. Shape is (num_bodies,).
+        body_com_pose_w: Output array where body COM poses are written. Shape is (num_envs, num_bodies).
+        body_link_pose_w: Output array where body link poses (derived from COM) are written.
+            Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and body_mask[j]:
+        body_com_pose_w[i, j] = data[i, j]
+        body_link_pose_w[i, j] = get_com_pose_in_link_frame_func(body_com_pose_w[i, j], body_com_pos_b[i, j])
+
+
+@wp.kernel
+def set_body_com_velocity_to_sim_mask(
+    data: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
+    body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+):
+    """Write body COM velocity data, and zero the body accelerations, for the selected environments and bodies.
+
+    Args:
+        data: Input array of body COM spatial velocities. Shape is (num_envs, num_bodies).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        body_mask: Input array of body mask. Shape is (num_bodies,).
+        body_com_velocity_w: Output array where body COM velocities are written. Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations are zeroed. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and body_mask[j]:
+        body_com_velocity_w[i, j] = data[i, j]
+        body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
+@wp.kernel
+def set_body_link_velocity_to_sim_mask(
+    data: wp.array2d(dtype=wp.spatial_vectorf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    body_link_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
+    body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
+    body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+):
+    """Write body link velocity data, the COM velocities derived from it, and zero the body accelerations, for the
+    selected environments and bodies.
+
+    Args:
+        data: Input array of body link spatial velocities. Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
+        body_link_pose_w: Input array of body link poses in world frame. Shape is (num_envs, num_bodies).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        body_mask: Input array of body mask. Shape is (num_bodies,).
+        body_link_velocity_w: Output array where body link velocities are written. Shape is (num_envs, num_bodies).
+        body_com_velocity_w: Output array where body COM velocities (derived from link) are written.
+            Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations are zeroed. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and body_mask[j]:
+        body_link_velocity_w[i, j] = data[i, j]
+        body_com_velocity_w[i, j] = get_link_velocity_in_com_frame_func(
+            body_link_velocity_w[i, j], body_link_pose_w[i, j], body_com_pos_b[i, j]
+        )
+        body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
 _SET_BODY_LINK_POSE_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_link_pose_to_sim, ("env_ids", "body_ids"))
 _SET_BODY_COM_POSE_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_com_pose_to_sim, ("env_ids", "body_ids"))
 _SET_BODY_COM_VELOCITY_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_com_velocity_to_sim, ("env_ids", "body_ids"))
@@ -990,113 +1074,6 @@ def set_body_link_velocity_to_sim_kernel(
 ) -> wp.Kernel:
     """Select the body-link velocity writer for the selector dtypes."""
     return _SET_BODY_LINK_VELOCITY_TO_SIM_DISPATCHER.select(env_ids, body_ids)
-
-
-@wp.kernel
-def set_body_com_pose_to_sim_mask(
-    data: wp.array2d(dtype=wp.transformf),
-    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    env_mask: wp.array(dtype=wp.bool),
-    body_mask: wp.array(dtype=wp.bool),
-    body_com_pose_w: wp.array2d(dtype=wp.transformf),
-    body_link_pose_w: wp.array2d(dtype=wp.transformf),
-):
-    """Write masked body COM pose data to simulation buffers.
-
-    Launched over the full ``(num_envs, num_bodies)`` grid with an in-kernel mask test, so the
-    write needs no host-side index compaction. Link poses are derived from the written COM poses
-    for the selected cells.
-
-    Args:
-        data: Input array of body COM poses. Shape is (num_envs, num_bodies).
-        body_com_pos_b: Input array of body COM positions in body frame.
-            Shape is (num_envs, num_bodies).
-        env_mask: Boolean environment selection. Shape is (num_envs,).
-        body_mask: Boolean body selection. Shape is (num_bodies,).
-        body_com_pose_w: Output array where body COM poses are written.
-            Shape is (num_envs, num_bodies).
-        body_link_pose_w: Output array where body link poses (derived from COM) are written.
-            Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and body_mask[j]:
-        body_com_pose_w[i, j] = data[i, j]
-        # Get the link pose from com pose
-        body_link_pose_w[i, j] = get_com_pose_in_link_frame_func(body_com_pose_w[i, j], body_com_pos_b[i, j])
-
-
-@wp.kernel
-def set_body_com_velocity_to_sim_mask(
-    data: wp.array2d(dtype=wp.spatial_vectorf),
-    env_mask: wp.array(dtype=wp.bool),
-    body_mask: wp.array(dtype=wp.bool),
-    body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
-    body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-):
-    """Write masked body COM velocity data to simulation buffers.
-
-    Launched over the full ``(num_envs, num_bodies)`` grid with an in-kernel mask test, so the
-    write needs no host-side index compaction. Accelerations of the selected cells are zeroed.
-
-    Args:
-        data: Input array of body COM spatial velocities. Shape is (num_envs, num_bodies).
-        env_mask: Boolean environment selection. Shape is (num_envs,).
-        body_mask: Boolean body selection. Shape is (num_bodies,).
-        body_com_velocity_w: Output array where body COM velocities are written.
-            Shape is (num_envs, num_bodies).
-        body_acc_w: Output array where body accelerations are zeroed.
-            Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and body_mask[j]:
-        body_com_velocity_w[i, j] = data[i, j]
-        # Make the acceleration zero to prevent reporting old values
-        body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-
-
-@wp.kernel
-def set_body_link_velocity_to_sim_mask(
-    data: wp.array2d(dtype=wp.spatial_vectorf),
-    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    body_link_pose_w: wp.array2d(dtype=wp.transformf),
-    env_mask: wp.array(dtype=wp.bool),
-    body_mask: wp.array(dtype=wp.bool),
-    body_link_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
-    body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
-    body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-):
-    """Write masked body link velocity data to simulation buffers.
-
-    Launched over the full ``(num_envs, num_bodies)`` grid with an in-kernel mask test, so the
-    write needs no host-side index compaction. COM velocities are derived from the written link
-    velocities and accelerations are zeroed for the selected cells.
-
-    Args:
-        data: Input array of body link spatial velocities. Shape is (num_envs, num_bodies).
-        body_com_pos_b: Input array of body COM positions in body frame.
-            Shape is (num_envs, num_bodies).
-        body_link_pose_w: Input array of body link poses in world frame.
-            Shape is (num_envs, num_bodies).
-        env_mask: Boolean environment selection. Shape is (num_envs,).
-        body_mask: Boolean body selection. Shape is (num_bodies,).
-        body_link_velocity_w: Output array where body link velocities are written.
-            Shape is (num_envs, num_bodies).
-        body_com_velocity_w: Output array where body COM velocities (derived from link) are written.
-            Shape is (num_envs, num_bodies).
-        body_acc_w: Output array where body accelerations are zeroed.
-            Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and body_mask[j]:
-        body_link_velocity_w[i, j] = data[i, j]
-        # Get the link velocity in the com frame
-        body_com_velocity_w[i, j] = get_link_velocity_in_com_frame_func(
-            body_link_velocity_w[i, j],
-            body_link_pose_w[i, j],
-            body_com_pos_b[i, j],
-        )
-        # Make the acceleration zero to prevent reporting old values
-        body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 """
@@ -1141,25 +1118,37 @@ def write_2d_data_to_buffer_with_indices_kernel(
 
 
 @wp.kernel
-def write_2d_data_to_buffer_with_mask(
+def _write_2d_data_to_buffer_with_mask(
     in_data: wp.array2d(dtype=Any),
     env_mask: wp.array(dtype=wp.bool),
     joint_mask: wp.array(dtype=wp.bool),
     out_data: wp.array2d(dtype=Any),
 ):
-    """Copy the masked cells of a 2D per-environment buffer of any element type.
-
-    The arguments must be Warp arrays: a generic kernel cannot infer the element type of a torch tensor.
+    """Write 2D data to a buffer where both masks are true.
 
     Args:
-        in_data: Input array. Shape is (num_instances, num_items).
+        in_data: Input array. Shape is (num_instances, num_joints).
         env_mask: Input array of environment mask. Shape is (num_instances,).
-        joint_mask: Input array of item mask, e.g. joints, bodies, or fixed tendons. Shape is (num_items,).
-        out_data: Output array where the selected cells are written. Shape is (num_instances, num_items).
+        joint_mask: Input array of joint/body/tendon mask. Shape is (num_joints,).
+        out_data: Output array where data is written. Shape is (num_instances, num_joints).
     """
     i, j = wp.tid()
     if env_mask[i] and joint_mask[j]:
         out_data[i, j] = in_data[i, j]
+
+
+@functools.cache
+def write_2d_data_to_buffer_with_mask_kernel(dtype: type) -> wp.Kernel:
+    """Select the masked 2-D buffer writer for the buffer's ``dtype``.
+
+    Launching the generic kernel directly resolves its types on every launch (about twice the host cost), and
+    cannot take torch input.
+    """
+    array_type = wp.array2d(dtype=dtype)
+    return wp.overload(_write_2d_data_to_buffer_with_mask, {"in_data": array_type, "out_data": array_type})
+
+
+write_2d_data_to_buffer_with_mask = write_2d_data_to_buffer_with_mask_kernel(wp.float32)
 
 
 @wp.func

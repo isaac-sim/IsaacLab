@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 import logging
-import re
 import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,6 +14,7 @@ import warp as wp
 
 from pxr import UsdPhysics
 
+from isaaclab import cloner
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
@@ -126,16 +125,6 @@ class FrameTransformer(BaseFrameTransformer):
         return self._target_frame_body_names
 
     """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        # resolve indices and mask
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        # reset the timers and counters
-        super().reset(None, env_mask)
-
-    """
     Implementation.
     """
 
@@ -244,57 +233,26 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
-        # Convert each tracked prim path to PhysX glob form for ``create_rigid_body_view``.
-        # Plan-mode dest expressions use ``env_.*`` (regex), legacy mode produces concrete
-        # ``env_0`` paths; chain both substitutions so each mode normalises to ``env_*``.
-        body_names_regex = [
-            path_expr_to_glob(tracked_prim_path).replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
-        ]
+        body_names_regex = [path_expr_to_glob(path) for path in tracked_prim_paths]
 
         # obtain global simulation view
         self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
+        self._check_env_count(self._frame_physx_view.count, " or ".join(body_names_regex), len(tracked_body_names))
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
         # by frame name correctly
         all_prim_paths = self._frame_physx_view.prim_paths
 
-        if "env_" in all_prim_paths[0]:
-
-            def extract_env_num_and_prim_path(item: str) -> tuple[int, str]:
-                """Separates the environment number and prim_path from the item.
-
-                Args:
-                    item: The item to extract the environment number from. Assumes item is of the form
-                        `/World/envs/env_1/blah` or `/World/envs/env_11/blah`.
-                Returns:
-                    The environment number and the prim_path.
-                """
-                match = re.search(r"env_(\d+)(.*)", item)
-                return (int(match.group(1)), match.group(2))
-
-            # Find the indices that would reorganize output to be per environment.
-            # We want `env_1/blah` to come before `env_11/blah` and env_1/Robot/base
-            # to come before env_1/Robot/foot so we need to use custom key function
-            self._per_env_indices = [
-                index
-                for index, _ in sorted(
-                    list(enumerate(all_prim_paths)), key=lambda x: extract_env_num_and_prim_path(x[1])
-                )
-            ]
-
-            # Only need 0th env as the names and their ordering are the same across environments
-            sorted_prim_paths = [
-                all_prim_paths[index] for index in self._per_env_indices if "env_0" in all_prim_paths[index]
-            ]
-
-        else:
-            # If no environment is present, then the order of the body names is the same as the order of the
-            # prim paths sorted alphabetically
-            self._per_env_indices = [index for index, _ in sorted(enumerate(all_prim_paths), key=lambda x: x[1])]
-            sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices]
+        plan = self._sim.get_clone_plan()
+        order = []
+        for index, prim_path in enumerate(all_prim_paths):
+            match = cloner.path.match(prim_path, plan.env_template) if plan is not None else None
+            order.append((int(match.instance), match.suffix, index) if match else (-1, prim_path, index))
+        self._per_env_indices = [index for _, _, index in sorted(order)]
+        sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices[: len(tracked_body_names)]]
 
         # -- target frames: use relative prim path for unique identification
         self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
@@ -421,6 +379,7 @@ class FrameTransformer(BaseFrameTransformer):
         # the getter lazily allocates its output buffer and refreshes the same memory in place
         # on every call, so the cached view (and the recorded launch that consumes it) stays
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        self._backend_manager.update_kinematics()
         transforms = self._frame_physx_view.get_transforms()
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)
@@ -587,28 +546,8 @@ class FrameTransformer(BaseFrameTransformer):
 
         return positions, orientations, lengths
 
-    @staticmethod
-    def _get_relative_body_path(prim_path: str) -> str:
-        """Extract a normalized body path from a prim path.
-
-        Removes the environment instance segment `/envs/env_<id>/` to normalize paths
-        across multiple environments, while preserving the `/envs/` prefix to
-        distinguish environment-scoped paths from non-environment paths.
-
-        Examples:
-        - '/World/envs/env_0/Robot/torso' -> '/World/envs/Robot/torso'
-        - '/World/envs/env_123/Robot/left_hand' -> '/World/envs/Robot/left_hand'
-        - '/World/Robot' -> '/World/Robot'
-        - '/World/Robot_2/left_hand' -> '/World/Robot_2/left_hand'
-
-        Args:
-            prim_path: The full prim path.
-
-        Returns:
-            The prim path with `/envs/env_<id>/` removed, preserving `/envs/`.
-        """
-        # the input may be a concrete path or an expression, so the environment segment can be a
-        # concrete id or a wildcard standing for one; a wildcard written as a character class holds
-        # a '/' that is not a separator and would otherwise be split by the one-segment alternative
-        pattern = re.compile(r"/envs/env_(?:\[\^/\][*+]|\.\*|[^/]+)/")
-        return pattern.sub("/envs/", prim_path)
+    def _get_relative_body_path(self, prim_path: str) -> str:
+        """Use the same body key for declared expressions and concrete native copies."""
+        plan = self._sim.get_clone_plan()
+        match = cloner.path.match(prim_path, plan.env_template) if plan is not None else None
+        return plan.env_template.format("[^/]+") + match.suffix if match is not None else prim_path

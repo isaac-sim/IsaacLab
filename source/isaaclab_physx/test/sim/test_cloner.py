@@ -17,6 +17,8 @@ import warp as wp
 from isaaclab_physx.cloner import PhysxReplicateContext, physx_replicate
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+from pxr import Sdf
+
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
     disabled_fabric_change_notifies,
@@ -136,7 +138,7 @@ def test_physx_replicate_context_consumes_plan(sim, world_prototypes):
     [
         (3, "/World/envs/env_0", [2]),
         (1, "/World/envs/env_0", []),
-        (3, "/World/template/Robot", [3]),
+        (3, "/Library/Robot", [3]),
     ],
 )
 def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
@@ -146,15 +148,14 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
     from the replication targets when it also maps to other environments.  A source at
     ``env_0`` mapping to ``[0, 1, 2]`` only replicates to ``[1, 2]`` (2 worlds).
     With ``num_envs == 1`` the ``num_envs > 1`` guard skips registration entirely.
-    Non-env sources (e.g. ``/World/template/Robot``) are never excluded because the
+    Non-env sources (e.g. ``/Library/Robot``) are never excluded because the
     self-id is not a digit.
     """
     from unittest.mock import patch
 
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")
-    sim_utils.create_prim("/World/template", "Xform")
-    sim_utils.create_prim("/World/template/Robot", "Xform")
+    sim_utils.create_prim("/Library/Robot", "Xform")
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
@@ -171,6 +172,10 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
     assert replicate_calls == expected_worlds, (
         f"Expected replicate world counts {expected_worlds}, got {replicate_calls}"
     )
+
+    if expected_worlds:
+        attach = mock_rep.register_replicator.call_args.args[1]
+        assert any(Sdf.Path(src).HasPrefix(path) for path in attach(0))
 
 
 def test_physx_replicate_isolated_source_loaded_without_replication(sim):
@@ -255,10 +260,8 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
     ]
     assert replicate_calls == expected, f"Expected {expected}, got {replicate_calls}."
 
-    # attach_fn always returns ["/World/template", "/World/envs"] so the replicator
-    # owns all env prims.  Self-only sources get their physics body from the
-    # rep.replicate() call itself.
-    assert "/World/template" in attach_excluded
+    # Sources and destinations are owned by native replication, not the initial stage import.
+    assert all(source in attach_excluded for source, _ in expected)
     assert "/World/envs" in attach_excluded
 
 
