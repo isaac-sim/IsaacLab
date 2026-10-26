@@ -115,10 +115,18 @@ import logging
 import gymnasium as gym
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV, IsaacTeleopCfg
+from isaaclab_teleop import (
+    CLOUDXR_AVP_ENV,
+    CLOUDXR_JS_ENV,
+    CLOUDXR_STANDALONE_ENV,
+    IsaacTeleopCfg,
+    se3_gamepad_teleop_cfg,
+    se3_keyboard_teleop_cfg,
+    se3_spacemouse_teleop_cfg,
+)
 from isaaclab_teleop.device_selection import create_teleop_device, select_teleop_cfg
 
-from isaaclab.devices import DeviceCfg, Se3GamepadCfg, Se3KeyboardCfg, Se3SpaceMouseCfg
+from isaaclab.devices import DeviceCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
@@ -174,14 +182,20 @@ def main() -> None:  # noqa: C901
         env_cfg,
         args_cli.teleop_device,
         {
-            "keyboard": Se3KeyboardCfg(
-                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+            "keyboard": se3_keyboard_teleop_cfg(
+                pos_sensitivity=0.05 * args_cli.sensitivity,
+                rot_sensitivity=0.05 * args_cli.sensitivity,
+                sim_device=args_cli.device,
             ),
-            "spacemouse": Se3SpaceMouseCfg(
-                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity
+            "spacemouse": se3_spacemouse_teleop_cfg(
+                pos_sensitivity=0.05 * args_cli.sensitivity,
+                rot_sensitivity=0.05 * args_cli.sensitivity,
+                sim_device=args_cli.device,
             ),
-            "gamepad": Se3GamepadCfg(
-                pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
+            "gamepad": se3_gamepad_teleop_cfg(
+                pos_sensitivity=0.1 * args_cli.sensitivity,
+                rot_sensitivity=0.1 * args_cli.sensitivity,
+                sim_device=args_cli.device,
             ),
         },
         args_cli.device,

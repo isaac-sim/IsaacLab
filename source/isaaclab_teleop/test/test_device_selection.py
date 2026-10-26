@@ -49,6 +49,10 @@ def _action(cfg, payload):
     return pipeline, pipeline.execute_pipeline({source.name: {input_name: group}})
 
 
+class _CustomKeyboardCfg(Se3KeyboardCfg):
+    pass
+
+
 @pytest.mark.parametrize(
     ("device", "cfg_type", "builder_name", "default_action", "custom_action"),
     [
@@ -125,8 +129,12 @@ def test_device_pipelines(device, cfg_type, builder_name, default_action, custom
     )
     if device == "Gamepad":
         settings["dead_zone"] = 0.05
-    cfg = select_teleop_cfg(_env_cfg(), "device", {"device": cfg_type(**settings)}, "cuda:0")
-    assert cfg.sim_device == "cuda:0"
+    legacy_type = _CustomKeyboardCfg if cfg_type is Se3KeyboardCfg else cfg_type
+    legacy_cfg = legacy_type(**settings, teleoperation_active_default=False)
+    assert legacy_cfg.class_type is None
+    with pytest.warns(FutureWarning, match=builder_name):
+        cfg = select_teleop_cfg(_env_cfg(), "device", {"device": legacy_cfg}, "cuda:0")
+    assert cfg.sim_device == "cuda:0" and cfg.teleoperation_active_default is False
     _, result = _action(cfg, payload)
     assert result["action"][0].dtype == np.float32
     np.testing.assert_allclose(result["action"][0], custom_action, atol=1e-6)
@@ -147,14 +155,15 @@ def test_environment_device_precedence(monkeypatch, capture_available, requested
         pytest.importorskip("isaacteleop")
     monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: object() if capture_available else None)
     defaults = {"keyboard": Se3KeyboardCfg(pos_sensitivity=0.2), "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.3)}
-    # Explicit names override the declared pipeline; an unnamed native request still uses the env's keyboard.
+    # Explicit names override the declared pipeline; an unnamed request still uses the env's keyboard.
     env = _env_cfg(IsaacTeleopCfg() if requested_device is not None or not capture_available else None, **env_devices)
     if not capture_available:
         # keyboard, gamepad and SpaceMouse need Isaac Capture; there is no fallback to the native devices
         with pytest.raises(ImportError, match="teleop extra"):
             select_teleop_cfg(env, requested_device, defaults, "cpu")
         return
-    cfg = select_teleop_cfg(env, requested_device, defaults, "cpu")
+    with pytest.warns(FutureWarning, match="is deprecated"):
+        cfg = select_teleop_cfg(env, requested_device, defaults, "cpu")
     from isaacteleop.schema import KeyboardOutput, Point, SpaceMouseOutput
 
     payload = (
@@ -170,7 +179,11 @@ def test_declared_pipeline_and_unsupported_native_devices(monkeypatch):
     monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: object())
     env = _env_cfg(isaac_teleop=IsaacTeleopCfg(), handtracking=DeviceCfg())
     assert select_teleop_cfg(env, None, {}, "cpu") is env.isaac_teleop
+    assert select_teleop_cfg(env, "keyboard", {"keyboard": env.isaac_teleop}, "cpu") is env.isaac_teleop
     assert select_teleop_cfg(env, "handtracking", {}, "cpu") is env.teleop_devices.devices["handtracking"]
+    monkeypatch.setattr(device_selection.importlib.util, "find_spec", lambda _: None)
+    with pytest.raises(ImportError, match="teleop extra"):
+        select_teleop_cfg(env, None, {}, "cpu")
     with pytest.raises(ValueError, match="joystick"):
         select_teleop_cfg(env, "joystick", {}, "cpu")
 
@@ -225,7 +238,18 @@ def test_window_dependencies_and_device_creation_have_one_owner():
     """Keep global window discovery and repeated device-selection branches out of the session/scripts."""
     root = Path(__file__).resolve().parents[3]
     package = root / "source/isaaclab_teleop/isaaclab_teleop"
-    assert not any((package / name).exists() for name in ("keyboard", "gamepad", "spacemouse", "_plugins.py"))
+    assert not any(
+        (package / name).exists() for name in ("keyboard", "gamepad", "spacemouse", "_plugins.py", "script_input.py")
+    )
+    import isaaclab.devices as devices
+
+    assert not (root / "source/isaaclab/isaaclab/devices/spacemouse/utils.py").exists()
+    for device, class_name in (("keyboard", "Keyboard"), ("gamepad", "Gamepad"), ("spacemouse", "SpaceMouse")):
+        for dimension in (2, 3):
+            name = f"Se{dimension}{class_name}"
+            assert not (root / f"source/isaaclab/isaaclab/devices/{device}/se{dimension}_{device}.py").exists()
+            assert not hasattr(devices, name), f"{name} must not keep a runtime implementation or adapter."
+            assert getattr(devices, f"{name}Cfg")().class_type is None
     pipelines = ast.parse((package / "device_pipelines.py").read_text())
     assert not any(
         isinstance(node, ast.ImportFrom) and (node.module or "").startswith("isaaclab.devices")

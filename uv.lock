@@ -1494,19 +1494,6 @@ wheels = [
 ]
 
 [[package]]
-name = "hidapi"
-version = "0.15.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/74/f6/caad9ed701fbb9223eb9e0b41a5514390769b4cb3084a2704ab69e9df0fe/hidapi-0.15.0.tar.gz", hash = "sha256:ecbc265cbe8b7b88755f421e0ba25f084091ec550c2b90ff9e8ddd4fcd540311", size = 184995, upload-time = "2025-12-09T09:48:54.129Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/bc/0eb92f4f238adc8edc3decb859662cf87e302b0a6ecdabe0e4d0560eb5fd/hidapi-0.15.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:cfdbc74d5c4b5fdeef58a246d80f7dbf4ca33fe741c889505a4a350dd2eb54fb", size = 1082139, upload-time = "2025-12-09T09:45:32.799Z" },
-    { url = "https://files.pythonhosted.org/packages/03/04/856827cfecaa89091ed470f697e3f9cfb172fc852960e6b902e765d7d650/hidapi-0.15.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:4b7b6207c1c7df3524e9d4019c7196547327636e9924010b9b0bf0c40029e329", size = 1620074, upload-time = "2025-12-09T09:45:28.573Z" },
-    { url = "https://files.pythonhosted.org/packages/84/08/28ce99698e14bb6bdf9d0dcf7ab45ab86d8bade894885aa15bb3fa43bcc1/hidapi-0.15.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:f9356fffebf723ccfbf0f9370d3725de37b3e2f1f6bffc40c3466f854542861c", size = 713596, upload-time = "2025-12-09T09:45:34.564Z" },
-    { url = "https://files.pythonhosted.org/packages/af/ef/e2fa4d795235eb09951f806bbfdbd766d1be805df448d67918e828b7cb31/hidapi-0.15.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:35eb5797d86306bd67aee80ad8973ab0a0b4e6d54018d3efb328767d0e8c9373", size = 717599, upload-time = "2025-12-09T09:45:37.825Z" },
-    { url = "https://files.pythonhosted.org/packages/7f/35/f9e2d3ead60b573140546b041dd41c78a48c0e6b573d61a03130adccd32e/hidapi-0.15.0-cp312-cp312-win_amd64.whl", hash = "sha256:9abc71a62bf8a8f1d70a6fd3613f86feb37ddb67e05ed934e734df79e27bf4f6", size = 67073, upload-time = "2025-12-09T09:45:39.261Z" },
-]
-
-[[package]]
 name = "hoptorch"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1845,7 +1832,6 @@ dependencies = [
     { name = "gymnasium" },
     { name = "h5py" },
     { name = "hf-xet" },
-    { name = "hidapi" },
     { name = "hydra-core" },
     { name = "imgui-bundle" },
     { name = "isaaclab" },
@@ -2059,7 +2045,6 @@ requires-dist = [
     { name = "gymnasium", specifier = ">=1.2.0" },
     { name = "h5py", specifier = ">=3.15.0" },
     { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'x86_64'", specifier = ">=1.4.1,<2.0.0" },
-    { name = "hidapi", specifier = ">=0.14.0" },
     { name = "hydra-core" },
     { name = "imgui-bundle", specifier = ">=1.92.5" },
     { name = "ipywidgets", marker = "extra == 'mimic'", specifier = ">=8.1.5" },

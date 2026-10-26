@@ -104,12 +104,11 @@ the environment by quitting the script with Ctrl+C.
    --teleop_device keyboard
 
 
-The script will print a helper message with key bindings. For keyboard,
-the key bindings are:
+The Capture keyboard pipeline uses these bindings:
 
 .. code:: text
 
-   Keyboard Controller for SE(3): Se3Keyboard
+   Keyboard control for SE(3)
       Reset all commands: R
       Toggle gripper (open/close): K
       Move arm along x-axis: W/S
@@ -134,12 +133,11 @@ To use a SpaceMouse, simply change ``--teleop_device`` accordingly:
    --sensitivity 4 \
    --teleop_device spacemouse
 
-The script will print a helper message with key bindings. For SpaceMouse,
-the key bindings are:
+The Capture SpaceMouse pipeline uses these bindings:
 
 .. code:: text
 
-   SpaceMouse Controller for SE(3): Se3SpaceMouse
+   SpaceMouse control for SE(3)
       Reset all commands: Right click
       Toggle gripper (open/close): Click the left button on the SpaceMouse
       Move arm along x/y-axis: Tilt the SpaceMouse
@@ -151,10 +149,7 @@ the key bindings are:
 .. tip::
 
    If the SpaceMouse is not detected, you most likely need additional user permissions. Isaac Capture
-   reads the SpaceMouse from its HID node (``/dev/hidraw*``). The
-   :class:`~isaaclab.devices.Se3SpaceMouse` device reads it through the ``hidapi`` wheel's ``libusb``
-   backend instead, which needs read and write access to the USB node under ``/dev/bus/usb``; without
-   it the device is enumerated without a product name. The rule below grants both.
+   reads the SpaceMouse from its HID node (``/dev/hidraw*``), which needs read and write access.
 
    Grant the permission by installing a udev rule for the 3Dconnexion vendor id:
 
@@ -162,7 +157,6 @@ the key bindings are:
 
       sudo groupadd -f plugdev && sudo usermod -aG plugdev "$USER"
       sudo tee /etc/udev/rules.d/99-spacemouse.rules <<'EOF'
-      SUBSYSTEM=="usb", ATTR{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
       KERNEL=="hidraw*", ATTRS{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
       EOF
       sudo udevadm control --reload-rules && sudo udevadm trigger

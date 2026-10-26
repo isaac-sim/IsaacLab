@@ -761,8 +761,8 @@ Keyboard, SpaceMouse, and Gamepad Environments
    :class:`~isaaclab_teleop.IsaacTeleopDevice` pipeline instead of an XR headset -- see
    :func:`~isaaclab_teleop.se3_keyboard_teleop_cfg`, :func:`~isaaclab_teleop.se3_spacemouse_teleop_cfg`,
    and :func:`~isaaclab_teleop.se3_gamepad_teleop_cfg`. These environments do not require an XR
-   headset. An environment's ``teleop_devices`` entries (:class:`~isaaclab.devices.Se3KeyboardCfg`,
-   ...) run through the equivalent pipeline too. They need Isaac Lab's ``teleop`` extra, which
+   headset. Deprecated ``teleop_devices`` entries (:class:`~isaaclab.devices.Se3KeyboardCfg`,
+   ...) are translated once into the equivalent Capture configuration before launch. They need Isaac Lab's ``teleop`` extra, which
    installs Isaac Capture on Linux.
 
 **Keyboard input and window focus.** The keyboard runs inside the Isaac Lab process and reads the
@@ -777,6 +777,19 @@ The scripts resolve the requested device once before scene startup through
 ``create_teleop_device`` after the environment initializes. Keyboard, gamepad and SpaceMouse always run
 through Isaac Capture; devices without a Capture pipeline, such as OpenXR hand tracking, keep their native
 implementation. A Capture initialization error is reported without selecting a different device.
+
+**Configuration migration.** The old keyboard, gamepad and SpaceMouse implementation classes have
+been removed. Compatibility is limited to translating their configuration records; there are no old
+input handlers, constructor adapters or automatic fallbacks. Prefer the Capture builders for new configs.
+For example, replace ``Se3KeyboardCfg(pos_sensitivity=0.2)`` with
+``se3_keyboard_teleop_cfg(pos_sensitivity=0.2)``. Code that constructed ``Se3Keyboard(cfg)`` directly
+should instead pass the Capture config to :func:`~isaaclab_teleop.create_isaac_teleop_device`, enter
+the returned context manager, and call ``request_start()`` for a standalone session. Supply
+``use_kit_xr_bridge=False`` and ``cloudxr_env_file=CLOUDXR_STANDALONE_ENV`` for headset-free input.
+The factory requires the live ``visualizers=sim.visualizers`` sequence for window keyboard input.
+Replay and annotation hotkeys use :func:`~isaaclab.visualizers.add_key_callbacks` directly and do not
+start a Capture session.
+
 For direct use of :func:`~isaaclab_teleop.create_isaac_teleop_device` or
 :class:`~isaaclab_teleop.IsaacTeleopDevice`, pass ``visualizers=sim.visualizers`` to supply
 window input explicitly. The session keeps this live sequence so later windows can join;

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib.util
+import warnings
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -51,7 +52,7 @@ def _require_isaaccapture() -> None:
 def select_teleop_cfg(
     env_cfg: Any,
     device_name: str | None,
-    default_device_cfgs: Mapping[str, DeviceCfg],
+    default_device_cfgs: Mapping[str, IsaacTeleopCfg | DeviceCfg],
     sim_device: str,
 ) -> IsaacTeleopCfg | DeviceCfg:
     """Resolve a device once before scene startup.
@@ -77,12 +78,22 @@ def select_teleop_cfg(
         device_cfg = default_device_cfgs.get(device_name.lower())
     if device_cfg is None:
         raise ValueError(f"Unknown teleop device: {device_name!r}")
-    entry = _PIPELINES.get(type(device_cfg))
+    if isinstance(device_cfg, IsaacTeleopCfg):
+        _require_isaaccapture()
+        return device_cfg
+    entry = next((entry for cfg_type, entry in _PIPELINES.items() if isinstance(device_cfg, cfg_type)), None)
     if entry is None:
         return device_cfg
     _require_isaaccapture()
     builder, fields = entry
-    return builder(**{field: getattr(device_cfg, field) for field in fields}, sim_device=sim_device)
+    warnings.warn(
+        f"{type(device_cfg).__name__} is deprecated. Use isaaclab_teleop.{builder.__name__}(...) instead.",
+        FutureWarning,
+        stacklevel=2,
+    )
+    cfg = builder(**{field: getattr(device_cfg, field) for field in fields}, sim_device=sim_device)
+    cfg.teleoperation_active_default = device_cfg.teleoperation_active_default
+    return cfg
 
 
 def create_teleop_device(

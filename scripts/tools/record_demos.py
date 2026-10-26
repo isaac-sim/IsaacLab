@@ -172,10 +172,17 @@ import time
 import gymnasium as gym
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV, IsaacTeleopCfg
+from isaaclab_teleop import (
+    CLOUDXR_AVP_ENV,
+    CLOUDXR_JS_ENV,
+    CLOUDXR_STANDALONE_ENV,
+    IsaacTeleopCfg,
+    se3_keyboard_teleop_cfg,
+    se3_spacemouse_teleop_cfg,
+)
 from isaaclab_teleop.device_selection import create_teleop_device, select_teleop_cfg
 
-from isaaclab.devices import DeviceCfg, Se3KeyboardCfg, Se3SpaceMouseCfg
+from isaaclab.devices import DeviceCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
@@ -297,8 +304,10 @@ def create_environment_config(
         env_cfg,
         args_cli.teleop_device,
         {
-            "keyboard": Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
-            "spacemouse": Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5),
+            "keyboard": se3_keyboard_teleop_cfg(pos_sensitivity=0.2, rot_sensitivity=0.5, sim_device=args_cli.device),
+            "spacemouse": se3_spacemouse_teleop_cfg(
+                pos_sensitivity=0.2, rot_sensitivity=0.5, sim_device=args_cli.device
+            ),
         },
         args_cli.device,
     )

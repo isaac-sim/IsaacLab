@@ -7,21 +7,19 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from ...utils import configclass
 from ..device_base import DeviceCfg
-
-if TYPE_CHECKING:
-    from .se3_gamepad import Se3Gamepad
 
 
 @configclass
 class Se3GamepadCfg(DeviceCfg):
-    """Configuration for SE3 gamepad devices."""
+    """Deprecated configuration translated to Isaac Capture before device creation.
+
+    Use :func:`isaaclab_teleop.se3_gamepad_teleop_cfg` for new configurations.
+    This record preserves existing environment declarations and has no device implementation.
+    """
 
     gripper_term: bool = True
     dead_zone: float = 0.01
     pos_sensitivity: float = 1.0
     rot_sensitivity: float = 1.6
-    class_type: type[Se3Gamepad] | str = "{DIR}.se3_gamepad:Se3Gamepad"
