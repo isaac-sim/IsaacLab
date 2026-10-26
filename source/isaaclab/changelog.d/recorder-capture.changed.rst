@@ -10,6 +10,11 @@
   snapshot with tensor leaves. To update live recording, use ``add_to_episodes`` and
   ``set_success_to_episodes``; do not mutate the snapshot. Set ``buffer_initial_capacity``
   to control the initial allocation per field.
+* **Breaking:** Removed ``EpisodeData.add()`` and ``pre_export()``. Collection now belongs to
+  ``RecorderManager.add_to_episodes()``; assign nested tensors with leading sample dimensions
+  to ``EpisodeData.data`` when constructing an episode directly. Playback and HDF5 loading remain supported.
+* **Breaking:** Removed the unused ``RecorderTerm.close(file_path)`` hook. Dataset handlers own
+  file finalization; applications must explicitly close any additional resources they own.
 
 * Documented independent capture, retention and export choices, with task-selected schemas and
   consumer-owned processing. Core recorder storage remains independent of task and learning packages.

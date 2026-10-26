@@ -249,7 +249,6 @@ def test_batched_episode_indices_and_ownership(monkeypatch):
     # per-world container appends, nor device-to-host scalar reads. Export-none also stays batched.
     with monkeypatch.context() as patch:
         patch.setattr(EpisodeData, "__init__", forbidden)
-        patch.setattr(EpisodeData, "add", forbidden)
         patch.setattr(torch.Tensor, "item", forbidden)
         patch.setattr(torch, "empty", forbidden)
         manager.add_to_episodes("obs/state", torch.zeros(3, 5, dtype=torch.bool))
@@ -307,6 +306,11 @@ def test_recorder_storage_boundary():
     import isaaclab.managers.recorder_manager as module
 
     source = ast.parse(inspect.getsource(module))
+    # Batched buffers own collection; snapshots and capture terms have no second writer lifecycle.
+    assert not hasattr(EpisodeData, "add")
+    assert not hasattr(EpisodeData, "pre_export")
+    assert "__init__" not in vars(module.RecorderTerm)
+    assert not hasattr(module.RecorderTerm, "close")
     # Observation evaluation belongs to explicit terms, never generic capture dispatch.
     assert not hasattr(module.RecorderTerm, "requires_post_step_observations")
     assert not hasattr(module.RecorderManager, "requires_post_step_observations")
