@@ -349,7 +349,11 @@ def create_environment_config(
 
 
 def setup_teleop_device(
-    env_cfg: ManagerBasedRLEnvCfg, callbacks: dict[str, Callable], use_isaac_teleop: bool = False
+    env_cfg: ManagerBasedRLEnvCfg,
+    callbacks: dict[str, Callable],
+    use_isaac_teleop: bool = False,
+    *,
+    env_prim_path: str | None = None,
 ) -> object:
     """Set up the teleoperation device based on configuration.
 
@@ -358,6 +362,7 @@ def setup_teleop_device(
 
     Args:
         env_cfg: Environment configuration containing the selected teleop devices.
+        env_prim_path: Concrete environment root for task-relative teleop frames.
         callbacks: Dictionary mapping callback keys to functions that will be
                    attached to the teleop device
         use_isaac_teleop: Whether to use Isaac Capture stack instead of native stack
@@ -374,6 +379,7 @@ def setup_teleop_device(
 
             teleop_interface = create_isaac_teleop_device(
                 env_cfg.isaac_teleop,
+                env_prim_path=env_prim_path,
                 sim_device=args_cli.device,
                 callbacks=callbacks,
                 cloudxr_env_file=args_cli.cloudxr_env,
@@ -580,7 +586,9 @@ def run_simulation_loop(  # noqa: C901
         "RESET": reset_recording_instance,
     }
 
-    teleop_interface = setup_teleop_device(env.cfg, teleoperation_callbacks, use_isaac_teleop)
+    teleop_interface = setup_teleop_device(
+        env.cfg, teleoperation_callbacks, use_isaac_teleop, env_prim_path=env.scene.env_prim_paths[0]
+    )
 
     haptic_driver = None
     if use_isaac_teleop:

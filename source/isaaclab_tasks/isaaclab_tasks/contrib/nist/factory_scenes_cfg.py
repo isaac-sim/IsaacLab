@@ -12,12 +12,10 @@ Each scene class inherits from :class:`FactorySceneBase` and specifies the
 
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass, replace
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist import factory_assets_cfg as assets
 from isaaclab_tasks.utils import PresetCfg, preset
-
-_FRANKA_PANDA_PHYSX_CFG = replace(assets.FRANKA_PANDA_PHYSX_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
 
 @configclass
@@ -29,10 +27,10 @@ class FactorySceneBase(InteractiveSceneCfg):
     table = assets.TABLE_CFG
     nistboard = assets.NISTBOARD_CFG
     robot: ArticulationCfg = preset(  # type: ignore[assignment]
-        default=_FRANKA_PANDA_PHYSX_CFG,
-        isaacsim_physx=_FRANKA_PANDA_PHYSX_CFG,
-        physx=_FRANKA_PANDA_PHYSX_CFG,
-        newton_mjwarp=replace(assets.FRANKA_PANDA_NEWTON_CFG, prim_path="{ENV_REGEX_NS}/Robot"),
+        default=assets.FRANKA_PANDA_PHYSX_CFG,
+        isaacsim_physx=assets.FRANKA_PANDA_PHYSX_CFG,
+        physx=assets.FRANKA_PANDA_PHYSX_CFG,
+        newton_mjwarp=assets.FRANKA_PANDA_NEWTON_CFG,
     )
     dome_light = assets.DOMELIGHT_CFG
 
