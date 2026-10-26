@@ -45,6 +45,9 @@ class NewtonCouplerManager(NewtonVBDManager):
 
     # Nested implicit-MPM entries reuse the MPM manager's solver discovery.
     _implicit_mpm_solvers = NewtonMPMManager._implicit_mpm_solvers
+    _runtime_mpm_target = NewtonMPMManager._runtime_mpm_target
+    set_voxel_size = NewtonMPMManager.set_voxel_size
+    set_particle_radius = NewtonMPMManager.set_particle_radius
 
     @dataclass
     class _ResolvedEntry:

@@ -388,6 +388,60 @@ follows:
   and convex meshes are passed to the solver as triangle meshes.
 
 
+Runtime grid spacing and particle radius
+----------------------------------------
+
+After initialization, change full-MPM resolution through the simulation's
+backend manager, between physics steps:
+
+.. code-block:: python
+
+   manager = env.sim.backend_manager
+   manager.set_voxel_size(0.012, entry_name="media")
+   manager.set_particle_radius(0.003, entry_name="media")
+
+Omit ``entry_name`` for standalone MPM or a coupled solver with exactly one MPM
+entry. Voxel resizing rebuilds a sparse or dense grid around the current
+particles and discards grid warm starts. Fixed grids cannot be resized. Finer
+grids may require a larger ``max_active_cell_count``. The manager invalidates
+its CUDA graph and captures it again on the next physics step when enabled.
+Particle positions, velocities, masses, and material history are preserved.
+
+Uniform radius changes preserve particle count and masses. MPM's reference
+volume is ``8 * radius**3``, so changing radius changes reference density at
+fixed mass. This is a support-size change, not particle splitting, merging, or
+resampling. Coupled radius changes require the MPM entry to own all model
+particles so parent and local model radii remain consistent.
+
+Franka Pour also provides an optional terminal-success curriculum. It is
+disabled by default. Configure the initial grid before creating the environment,
+then supply the desired transitions:
+
+.. code-block:: python
+
+   from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
+       FrankaPourResetDatasetEnvCfg,
+       PourMPMResolutionStageCfg,
+   )
+
+   cfg = FrankaPourResetDatasetEnvCfg()
+   media = next(entry for entry in cfg.sim.physics.solver_cfg.entries if entry.name == "media")
+   media.solver_cfg.voxel_size = 0.030
+   cfg.mpm_resolution_min_episodes = 128
+   cfg.mpm_resolution_stages = (
+       PourMPMResolutionStageCfg(success_rate=0.70, voxel_size=0.020),
+       PourMPMResolutionStageCfg(success_rate=0.85, voxel_size=0.015),
+   )
+
+A stage may also set ``particle_radius``. A transition applies globally when a
+completed-episode cohort meets its success threshold, including environments
+whose episodes are still running. Each distributed rank uses its own cohort.
+``curriculum_freeze=True`` freezes the reset sampler and these transitions.
+The policy observation/action layout and rewards are unchanged. Thresholds and
+resolution choices need task-specific validation; the control API does not
+establish a training speedup or policy-quality improvement.
+
+
 Limitations
 -----------
 
