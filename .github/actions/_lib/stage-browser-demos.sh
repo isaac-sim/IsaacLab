@@ -6,10 +6,10 @@
 
 set -euo pipefail
 
-# Append reviewed snapshots to the permanent interactive-demos release; retain earlier assets.
-readonly archive_commit="897b81dd82115d319fbfc56c02f33f936f22ab72"
+# Pin the current runtime archive from the permanent interactive-demos release.
+readonly archive_commit="78fdecef00e746354ff49c4e2f1c57da38f30052"
 readonly archive_url="https://github.com/isaac-sim/IsaacLab/releases/download/interactive-demos/isaaclab-browser-demos-${archive_commit}.tar.gz"
-readonly archive_sha256="08f27711b72fa8b1fffd8fb7f433fbd34775e2e526f0bc94da7f487458b5100a"
+readonly archive_sha256="4374985b2689a90012e34b30856a73e8b5a4af83f158ed5bff83ff52e087b400"
 
 archive=$(mktemp)
 trap 'rm -f "$archive"' EXIT
@@ -21,40 +21,26 @@ printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum --check
 rm -rf docs/_build/demos
 mkdir -p docs/_build/demos
 tar --extract --gzip --file "$archive" --directory docs/_build/demos --no-same-owner \
-  --strip-components=2 "IsaacLab-${archive_commit}/site/"
+  --strip-components=1 site/
 
-# Resolve links per version so local artifacts and nested release branches use the same files.
+# Retain earlier gallery entry points and resolve older documentation links per version.
 uv run --no-sync python - <<'PY'
 import os
-import shutil
 from pathlib import Path
 
 build = Path("docs/_build")
 demos = build / "demos"
 
-# These builds in the pinned snapshot are superseded or absent from the current catalog.
-# Review this list with the catalog when updating the archive; shared legacy modules remain in use.
-for retired in (
-    "v1/browser_demos/mpm",
-    "v6/browser_demos/ant",
-    "v6/browser_demos/cable_bending",
-):
-    shutil.rmtree(demos / retired)
-
-# MicroDuck's current manifest still references these versions' policy, meshes, and textures.
-for version in (2, 4):
-    for name in ("manifest.json", "simulation.mjs", "simulation.wasm.gz"):
-        (demos / f"v{version}" / "browser_demos/microduck" / name).unlink()
-
-# Older entry points use the current gallery rather than loading retired physics builds.
-redirect = """<!doctype html>
+for directory in [demos, *(demos / f"v{version}" for version in range(1, 7))]:
+    directory.mkdir(parents=True, exist_ok=True)
+    target = Path(os.path.relpath(demos / "interactive", directory)).as_posix() + "/"
+    redirect = f"""<!doctype html>
 <meta charset="utf-8">
 <title>Isaac Lab interactive demos</title>
-<script>location.replace('../interactive/' + location.search + location.hash);</script>
-<p><a href="../interactive/">Open demo gallery</a></p>
+<script>location.replace('{target}' + location.search + location.hash);</script>
+<p><a href="{target}">Open demo gallery</a></p>
 """
-for version in range(1, 7):
-    (demos / f"v{version}" / "index.html").write_text(redirect)
+    (directory / "index.html").write_text(redirect)
 
 pages = list(build.glob("**/source/isaaclab/interactive_demos.html"))
 pages.extend(build.glob("**/source/setup/interactive_demos.html"))

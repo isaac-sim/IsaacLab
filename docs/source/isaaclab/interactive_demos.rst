@@ -133,5 +133,6 @@ These compact scenes illustrate physics and control. Scene preparation and
 adapted policy playback can differ from the native tasks; use the full
 :ref:`environments <environment-browser>` for training and measured comparisons.
 
-Earlier published snapshots and their exporter sources are available in the
+The gallery runtime is published in the official
 `interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
+Earlier snapshots and their exporter sources are also retained there.
