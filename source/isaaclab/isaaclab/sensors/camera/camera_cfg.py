@@ -210,12 +210,14 @@ class CameraCfg(SensorBaseCfg):
     tensor_processors: list[TensorProcessorCfg] = []
     """Processors that compute camera outputs from render outputs. Defaults to an empty list.
 
-    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class constructed with
-    :attr:`CameraData.output` and called with it once per published capture; returned outputs are added to it.
-    Camera resets pass only the reset environment ids to ``reset``. The renderer produces the processors'
-    ``inputs`` instead of their ``outputs``. Camera construction calls an
-    optional ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method before the
-    scene is cloned or exported; it returns the configuration to use, or None to remove the processor.
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. Processors run in order
+    once per published capture, each with a dictionary of the render outputs and the outputs of earlier
+    processors; returned outputs are added to :attr:`CameraData.output`. Each processor is constructed with
+    that dictionary at the first published capture. The renderer produces every input that no earlier processor
+    produces, so a processor may filter an output in place by listing its name as an input and an output.
+    Camera resets pass only the reset environment ids to ``reset``. Camera construction calls an optional
+    ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method before the scene is
+    cloned or exported; it returns the configuration to use, or None to remove the processor.
     """
 
     isp_cfg: Any | CameraISPMode | None = None
@@ -271,7 +273,10 @@ class CameraCfg(SensorBaseCfg):
 
 
 def _render_data_types(cfg: CameraCfg) -> list[str]:
-    """Return the data types and processor inputs that processors do not produce."""
-    produced = {name for processor_cfg in cfg.tensor_processors for name in processor_cfg.outputs}
-    inputs = [name for processor_cfg in cfg.tensor_processors for name in processor_cfg.inputs]
-    return [name for name in dict.fromkeys([*cfg.data_types, *inputs]) if name not in produced]
+    """Return the data types that processors do not produce, and the inputs that no earlier processor produces."""
+    produced = set()
+    inputs = []
+    for processor_cfg in cfg.tensor_processors:
+        inputs += [name for name in processor_cfg.inputs if name not in produced]
+        produced.update(processor_cfg.outputs)
+    return list(dict.fromkeys([*(name for name in cfg.data_types if name not in produced), *inputs]))

@@ -304,8 +304,12 @@ def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fa
 class _CpuCamera(Camera):
     """Exercise capture timing with CPU buffers and an in-memory pose source."""
 
-    def __init__(self, renderer, name, update_period=0.0):
-        self.cfg = SimpleNamespace(update_period=update_period, update_latest_camera_pose=True)
+    def __init__(self, renderer, name, update_period=0.0, processors=()):
+        self.cfg = SimpleNamespace(
+            update_period=update_period,
+            update_latest_camera_pose=True,
+            tensor_processors=[SimpleNamespace(func=Mock(return_value=processor)) for processor in processors],
+        )
         self._sim = renderer._sim
         self._device = "cpu"
         self._num_envs = 2
@@ -317,6 +321,7 @@ class _CpuCamera(Camera):
         self._tensor_processors = []
         self._data = CameraData.allocate([], 1, 1, 2, "cpu", {})
         self._data.create_buffers(2, "cpu")
+        self._render_outputs = {}
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
@@ -596,8 +601,9 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     A masked reset retires processor history only for the masked environments.
     """
     _, renderer, batches = camera_batch_context
+    processor = Mock(return_value={})
     fast = _CpuCamera(renderer, "fast")
-    slow = _CpuCamera(renderer, "slow", update_period=1.0)
+    slow = _CpuCamera(renderer, "slow", update_period=1.0, processors=[processor])
     scene = _camera_scene([fast, slow])
 
     InteractiveScene.update(scene, 0.1)
@@ -610,8 +616,6 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     ]
 
     slow.pose = 3.0
-    processor = Mock(return_value={})
-    slow._tensor_processors = [processor]
     slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
     renderer.reset.assert_called_once_with(slow._render_data, None)
     np.testing.assert_array_equal(processor.reset.call_args.args[0], [1])
@@ -632,16 +636,16 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
 def test_camera_processors_skip_retained_captures(camera_batch_context, lazy):
     """Processors run once per published capture, not again on a capture the renderer retained."""
     _, renderer, _ = camera_batch_context
-    cameras = [_CpuCamera(renderer, "new"), _CpuCamera(renderer, "retained")]
+    processors = [Mock(return_value={}), Mock(return_value={})]
+    cameras = [
+        _CpuCamera(renderer, name, processors=[processor]) for name, processor in zip(("new", "retained"), processors)
+    ]
     cameras[1]._render_data.published = False
-    processors = [Mock(return_value={}) for _ in cameras]
-    for camera, processor in zip(cameras, processors):
-        camera._tensor_processors = [processor]
 
     InteractiveScene.update(_camera_scene(cameras, lazy=lazy), 0.01)
     for camera in cameras:
         assert camera.data.info["pose"] == 0.0  # lazy scenes capture on read
-    processors[0].assert_called_once_with(cameras[0].data.output)
+    processors[0].assert_called_once()
     processors[1].assert_not_called()
 
 

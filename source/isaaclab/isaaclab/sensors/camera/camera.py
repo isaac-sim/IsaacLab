@@ -314,8 +314,11 @@ class Camera(SensorBase):
         self._renderer: BaseRenderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
         with force_log_level(logging.INFO):
             logger.info("Using renderer: %s", type(self._renderer).__name__)
-        # Render data and processors — assigned in _initialize_impl.
+        # Render data — assigned in _initialize_impl.
         self._render_data = None
+        # Renderer-owned buffers, which processors read before outputs are published — assigned in _create_buffers.
+        self._render_outputs: dict[str, ProxyArray] = {}
+        # Processors are constructed in order at the first published capture.
         self._tensor_processors: list[TensorProcessor] = []
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
@@ -804,13 +807,21 @@ class Camera(SensorBase):
                 camera._apply_tensor_processors()
 
     def _apply_tensor_processors(self) -> None:
-        """Publish the processor outputs computed from a newly published capture.
+        """Process a newly published capture and publish the processor outputs.
 
-        Asynchronous renderers may retain an already-processed capture, so stateful processors are
-        called only when the renderer reports a new one.
+        Each processor reads the render outputs and the outputs of earlier processors. Asynchronous
+        renderers may retain an already-processed capture, so stateful processors are called only when
+        the renderer reports a new one.
         """
-        for processor in self._tensor_processors:
-            self._data.output.update(processor(self._data.output))
+        if not self.cfg.tensor_processors:
+            return
+        buffers = dict(self._render_outputs)
+        for index, processor_cfg in enumerate(self.cfg.tensor_processors):
+            # Construction needs the outputs of earlier processors, which exist after their first call.
+            if index == len(self._tensor_processors):
+                self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
+            buffers.update(self._tensor_processors[index](buffers))
+        self._data.output.update(buffers)
 
     """
     Private Helpers
@@ -881,8 +892,9 @@ class Camera(SensorBase):
         self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
-        self._renderer.set_outputs(self._render_data, self._data.output)
-        self._tensor_processors = [cfg.func(cfg, self._data.output) for cfg in self.cfg.tensor_processors]
+        # A processor may publish an output under the name of a render output that it reads.
+        self._render_outputs = dict(self._data.output)
+        self._renderer.set_outputs(self._render_data, self._render_outputs)
         self._data.info.update(dict.fromkeys(name for cfg in self.cfg.tensor_processors for name in cfg.outputs))
 
     def _read_authored_opencv_intrinsics(
@@ -1099,6 +1111,7 @@ class Camera(SensorBase):
         """Invalidates the scene elements."""
         for processor in self._tensor_processors:
             processor.close()
+        self._tensor_processors = []
         if self._render_data is not None:
             self._renderer.cleanup(self._render_data)
         self._render_data = None

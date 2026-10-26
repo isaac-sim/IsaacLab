@@ -309,6 +309,8 @@ Post-render image signal processing
 The shipped processor is PPISP (Physically Plausible Image Signal Processing), which converts the
 scene-linear ``rgb_hdr`` output through responsivity, exposure, vignetting, color correction, and a
 camera response function into ``rgb`` and ``rgba``. The camera requests ``rgb_hdr`` from the renderer.
+Processors run in list order on each new capture. Each reads the renderer's outputs and the outputs of
+earlier processors, so a later processor can refine PPISP's ``rgb`` or filter an output in place.
 
 :class:`~isaaclab_ppisp.PpispProcessorCfg` accepts :class:`~isaaclab_ppisp.PpispCfg` for explicit
 coefficients or coefficients imported from a USD camera, or :class:`~sensors.CameraISPMode` to
