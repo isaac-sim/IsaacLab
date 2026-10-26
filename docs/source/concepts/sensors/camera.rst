@@ -152,7 +152,8 @@ Output types
 ------------
 
 The active renderer validates ``data_types`` and allocates the channel count and data type declared
-by its :class:`~isaaclab.renderers.RenderBufferSpec`.
+by its :class:`~isaaclab.renderers.RenderBufferSpec`. Outputs produced by
+:ref:`camera processors <camera-post-render-processing>` are allocated by those processors instead.
 
 .. list-table:: Common output contracts
    :header-rows: 1
@@ -302,47 +303,71 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
-Post-render image signal processing
------------------------------------
+.. _camera-post-render-processing:
 
-:attr:`~sensors.CameraCfg.isp_cfg` optionally applies an image signal processing (ISP) pass to the
-renderer's scene-linear HDR output. The shipped implementation is PPISP (Physically Plausible Image
-Signal Processing), which applies responsivity, exposure, vignetting, color correction, and a camera
-response function before writing ``rgb`` or ``rgba``.
+Post-render processing
+----------------------
 
-The field accepts:
+:attr:`~sensors.CameraCfg.tensor_processors` computes camera outputs from render outputs after each
+capture. Each entry is a :class:`~isaaclab.utils.tensor_processors.TensorProcessorCfg` whose
+``inputs`` and ``outputs`` name the buffers that the processor reads and produces. Processors run in
+list order and read render outputs or outputs of earlier processors. The camera requests their inputs
+from the renderer without publishing them. :attr:`~sensors.CameraCfg.data_types` selects the
+published outputs, and a processor output replaces a render output with the same name.
 
-* ``None`` to disable post-render ISP.
-* :class:`~isaaclab_ppisp.PpispCfg` for explicit coefficients or coefficients imported from a USD
-  camera.
-* :class:`~sensors.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
+The shipped processor is PPISP (Physically Plausible Image Signal Processing), which converts
+``rgb_hdr`` to ``rgb`` or ``rgba`` through responsivity, exposure, vignetting, color correction, and a
+camera response function. :class:`~isaaclab_ppisp.PpispProcessorCfg` accepts explicit coefficients,
+coefficients imported from a USD camera, or a :class:`~sensors.CameraISPMode` that discovers
+``ppisp:*`` attributes on a camera prim:
 
 .. code-block:: python
 
-   from isaaclab.sensors.camera import CameraCfg, CameraISPMode
+   from isaaclab.sensors.camera import CameraISPMode
    from isaaclab.utils import replace
-   from isaaclab_ppisp import PpispCfg
+   from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
-   explicit_isp = replace(front_camera, data_types=["rgb"], isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+   explicit_isp = replace(
+       front_camera,
+       data_types=["rgb"],
+       tensor_processors=[PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))],
+   )
 
-   discovered_isp = replace(front_camera, data_types=["rgb"], isp_cfg=CameraISPMode.AUTO_CAMERA)
+   discovered_isp = replace(
+       front_camera,
+       data_types=["rgb"],
+       tensor_processors=[PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)],
+   )
 
 ``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
-camera anywhere on the stage. Discovery happens once during camera construction.
+camera anywhere on the stage. Discovery happens once during camera construction; when it finds no
+PPISP attributes, the camera removes the processor and publishes the renderer's color output.
 
-PPISP is composed by Isaac RTX, OVRTX, and Newton Warp. It requires ``rgb`` or ``rgba`` output. A
-static configuration is shared by all cloned views in one camera batch; controller weights may
-predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
+Set ``outputs=["rgba"]`` for RGBA output, or list ``"rgb"`` and ``"rgba"`` to receive RGB as a view
+of the RGBA buffer. Add ``rgb_hdr`` to ``data_types`` to publish the HDR input as well. A static
+configuration is shared by all cloned views in one camera batch; controller weights may predict
+per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
 configuration and discovered USD attributes are fixed for the camera lifetime.
 
 .. important::
 
-   With Isaac RTX and OVRTX, enabling ``isp_cfg`` makes PPISP the ISP authority. The renderer
-   disables RTX auto-exposure, authors neutral ``exposure:*`` values, and applies the
-   ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
-   camera prim so RTX does not process the image a second time. Do not combine ``isp_cfg`` with
-   separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
-   renderer leaves authored camera exposure unchanged.
+   With Isaac RTX and OVRTX, attaching PPISP makes it the ISP authority. Before the scene is cloned
+   or exported, :meth:`~isaaclab_ppisp.PpispProcessor.prepare_camera` disables RTX auto-exposure,
+   authors neutral ``exposure:*`` values, and applies the ``OmniRtxCameraAutoExposureAPI_1`` and
+   ``OmniRtxCameraExposureAPI_1`` schemas on every matched camera prim, so RTX does not process the
+   image a second time. These settings also affect the renderer's own color outputs and other users
+   of the camera prims. Cameras without PPISP leave authored exposure unchanged, including cameras
+   that request ``rgb_hdr`` directly.
+
+Custom processors subclass :class:`~isaaclab.utils.tensor_processors.TensorProcessor`. The camera
+constructs each processor as ``func(cfg, inputs)`` when the first capture arrives, calls it with the
+same named buffers after every capture, and forwards camera resets and teardown to ``reset`` and
+``close``. A processor class may define a ``prepare_camera`` class method to author camera prim
+settings during camera construction, as PPISP does.
+
+:attr:`~sensors.CameraCfg.isp_cfg` is deprecated. It accepts the same values as
+:attr:`~isaaclab_ppisp.PpispProcessorCfg.isp_cfg` and forwards them, with a ``FutureWarning``, to a
+PPISP processor that produces the requested ``rgb`` and ``rgba`` outputs.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
 ``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).

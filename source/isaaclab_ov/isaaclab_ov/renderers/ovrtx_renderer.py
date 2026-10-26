@@ -105,7 +105,6 @@ from isaaclab_ov.stage import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab_ppisp import PpispPipeline
     from ovrtx import AttributeBinding, FrameOutput, Operation, PendingFetch, RenderVarOutput
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
@@ -270,13 +269,6 @@ class OVRTXCameraRenderData:
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
-        # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # Camera construction has already resolved the ISP configuration.
-        self.ppisp_pipeline: PpispPipeline | None = None
-        if spec.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispPipeline
-
-            self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
     def cleanup(self) -> None:
         """Release this camera's native resources and buffers. Safe to call repeatedly.
@@ -294,7 +286,6 @@ class OVRTXCameraRenderData:
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
             self.renderer_info.clear()
-            self.ppisp_pipeline = None
 
 
 class OVRTXRenderer(BaseRenderer):
@@ -631,23 +622,6 @@ class OVRTXRenderer(BaseRenderer):
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
-        # When PPISP is composed but the user did not request the raw HDR AOV,
-        # allocate an internal HDR scratch buffer under "rgb_hdr" so both the
-        # HdrColor extractor and PPISP dispatch can use the same buffer map.
-        if render_data.ppisp_pipeline is not None and str(RenderBufferKind.RGB_HDR) not in render_data.warp_buffers:
-            ref_proxy = next(iter(output_data.values()))
-            render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)] = wp.zeros(
-                (render_data.num_envs, render_data.height, render_data.width, 3),
-                dtype=wp.float32,
-                device=ref_proxy.device,
-            )
-        if render_data.ppisp_pipeline is not None:
-            if str(RenderBufferKind.RGBA) not in render_data.warp_buffers:
-                raise ValueError(
-                    "OVRTX renderer ISP requires 'rgba' (or 'rgb', which aliases into rgba) as the"
-                    " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
-                    " Camera.cfg.data_types when isp_cfg is set."
-                )
 
     def prepare_capture(self, render_data: OVRTXCameraRenderData, camera_data: CameraData, frame: ProxyArray) -> None:
         """Snapshot delayed-image metadata without changing live camera state."""
@@ -831,7 +805,7 @@ class OVRTXRenderer(BaseRenderer):
         if ldr_color is not None:
             buffer_key = None
 
-            if render_data.ppisp_pipeline is None and "rgba" in output_buffers:
+            if "rgba" in output_buffers:
                 buffer_key = "rgba"
             else:
                 # The output buffers must contain only one simple shading data type at most after resolution of the data
@@ -868,9 +842,9 @@ class OVRTXRenderer(BaseRenderer):
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
-                # OVRTX can fall back from deviceIds to automatic assignment; PPISP needs the output device.
+                # OVRTX can fall back from deviceIds to automatic assignment; HDR consumers need the output device.
                 output_device = str(output_buffers["rgb_hdr"].device)
-                if render_data.ppisp_pipeline is not None and str(tiled_hdr_data.device) != output_device:
+                if str(tiled_hdr_data.device) != output_device:
                     tiled_hdr_data = wp.clone(tiled_hdr_data, device=output_device)
                 if tiled_hdr_data.dtype not in (wp.float16, wp.float32):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
@@ -929,13 +903,6 @@ class OVRTXRenderer(BaseRenderer):
                 products[data.render_product_path].frames[0],
                 data.warp_buffers,
             )
-
-            # Post-render PPISP uses each camera's own HDR source and RGBA destination.
-            if data.ppisp_pipeline is not None:
-                data.ppisp_pipeline.apply(
-                    data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                    data.warp_buffers[str(RenderBufferKind.RGBA)],
-                )
 
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""

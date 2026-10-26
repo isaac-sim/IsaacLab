@@ -3,13 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-render PPISP pipeline composed into renderer backends.
+"""Post-render PPISP kernel dispatch.
 
-:class:`PpispPipeline` runs *after* a renderer fills its HDR scene-linear AOV,
-converting HDR → LDR via a single Warp kernel. Renderer backends instantiate
-this class when their cfg/spec carries a :class:`PpispCfg` and dispatch
-:meth:`apply` once per render tick. The HDR scratch buffer is owned by the
-renderer backend, not by this class.
+:class:`PpispPipeline` converts scene-linear HDR to LDR RGBA with a single Warp kernel.
+:class:`~isaaclab_ppisp.PpispProcessor` composes it for cameras and owns the output buffer;
+the caller owns the HDR input.
 """
 
 from __future__ import annotations
@@ -29,29 +27,22 @@ from .kernels import (
 class PpispPipeline:
     """Post-render PPISP kernel applier.
 
-    Constructed by renderer backends when ``spec.cfg.isp_cfg`` is set. Owns the
-    normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel once per
-    render tick via :meth:`apply`.
+    Owns the normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel
+    once per capture via :meth:`apply`.
 
     One pipeline instance applies to the whole Camera sensor batch. The PPISP
     Warp kernel takes scalar coefficients, so every cloned view in a tiled
     batch shares the same ISP configuration — there is no per-view ISP today.
     Per-view support would require packing the cfg into GPU arrays and indexing
     by ``camera_id`` inside the kernel.
-
-    Today only :class:`PpispCfg` is accepted; future ISP implementations can
-    either subclass or be selected by cfg type without changes to the backend
-    renderers.
     """
 
     def __init__(self, cfg: PpispCfg):
         """Initialize the PPISP pipeline.
 
         Normalises ``cfg`` on construction (validates input keys, fills
-        defaults).
-        :class:`~isaaclab.sensors.camera.Camera` already normalises ``isp_cfg``
-        before passing the :class:`~isaaclab.renderers.CameraRenderSpec` to
-        the backend, so renderer backends pass a concrete, resolved config here.
+        defaults). Resolve USD camera attributes before construction, for example
+        with :meth:`~isaaclab_ppisp.PpispProcessor.prepare_camera`.
 
         Args:
             cfg: The PPISP configuration.

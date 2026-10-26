@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -20,13 +21,16 @@ from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
+from ...utils import replace
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from ...utils.tensor_processors import TensorProcessor
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
+from .camera_cfg import _render_data_types
 from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
@@ -256,14 +260,33 @@ class Camera(SensorBase):
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
-        # Complete camera authoring before cloning or importing the scene into a native backend.
         if self.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+            from isaaclab_ppisp import PpispProcessorCfg
 
+            warnings.warn(
+                "CameraCfg.isp_cfg is deprecated and will be removed in a future release. Add"
+                " isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...) to CameraCfg.tensor_processors instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            outputs = [name for name in ("rgb", "rgba") if name in self.cfg.data_types]
+            if not outputs:
+                raise ValueError("CameraCfg.isp_cfg requires 'rgb' or 'rgba' in CameraCfg.data_types.")
+            ppisp_cfg = PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg, outputs=outputs)
+            self.cfg.tensor_processors = [ppisp_cfg, *self.cfg.tensor_processors]
+            self.cfg.isp_cfg = None
+        # Processors author camera settings before the scene is cloned or imported into a native backend.
+        if self.cfg.tensor_processors:
             camera_paths = [str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
-            self.cfg.isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, camera_paths[0])
-            if self.cfg.isp_cfg is not None and self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
-                apply_rtx_exposure_overrides(self.stage, camera_paths)
+            processor_cfgs = []
+            for processor_cfg in self.cfg.tensor_processors:
+                prepare_camera = getattr(processor_cfg.func, "prepare_camera", None)
+                if prepare_camera is not None:
+                    processor_cfg = prepare_camera(processor_cfg, self.stage, camera_paths, self.cfg.renderer_cfg)
+                if processor_cfg is not None:
+                    processor_cfgs.append(processor_cfg)
+            self.cfg.tensor_processors = processor_cfgs
+        self._render_data_types = _render_data_types(self.cfg.data_types, self.cfg.tensor_processors)
 
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
         # when the run is otherwise headless. This must happen before plan dispatch, which is why
@@ -271,10 +294,8 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         sim_ctx.require_visual_shapes()
 
-        # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
-        # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
-        # HDR-routing flag flipped on the RTX-bearing backends.
-        require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
+        # HDR output, requested directly or by a processor, requires the HDR-routing flag on RTX backends.
+        require_hdr_output = "rgb_hdr" in self._render_data_types
 
         # Rendering policy is read before the first reset, so configure it during camera construction.
         if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
@@ -305,6 +326,10 @@ class Camera(SensorBase):
             logger.info("Using renderer: %s", type(self._renderer).__name__)
         # Render data — assigned in _initialize_impl.
         self._render_data = None
+        # Render outputs, including unpublished processor inputs — assigned in _create_buffers.
+        self._render_outputs: dict[str, ProxyArray] = {}
+        # Processors are constructed when their inputs arrive with the first capture.
+        self._tensor_processors: list[TensorProcessor] = []
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
 
@@ -323,6 +348,8 @@ class Camera(SensorBase):
         if getattr(self, "_view", None) is not None:
             self._view.close()
             self._view = None
+        for processor in getattr(self, "_tensor_processors", ()):
+            processor.close()
         # cleanup render resources, allowing construction to have failed before renderer creation
         if getattr(self, "_renderer", None) is not None:
             self._renderer.cleanup(getattr(self, "_render_data", None))
@@ -657,6 +684,8 @@ class Camera(SensorBase):
         if isinstance(env_ids, slice):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
+        for processor in self._tensor_processors:
+            processor.reset(env_ids)
         # reset the timestamps
         reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(env_mask=reset_mask)
@@ -695,8 +724,12 @@ class Camera(SensorBase):
 
         # Runtime paths and instance counts are available after physics initialization.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        # Renderers produce the processor inputs instead of the outputs that processors publish.
+        render_cfg = self.cfg
+        if self.cfg.tensor_processors:
+            render_cfg = replace(self.cfg, data_types=self._render_data_types, tensor_processors=[])
         render_spec = CameraRenderSpec(
-            cfg=self.cfg,
+            cfg=render_cfg,
             device=str(self._device),
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
@@ -758,6 +791,7 @@ class Camera(SensorBase):
         self._sim.render_context.render_into_camera(
             self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
         )
+        self._apply_tensor_processors()
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -777,6 +811,27 @@ class Camera(SensorBase):
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
             sim.get_physics_step_count(),
         )
+        for camera in ready:
+            camera._apply_tensor_processors()
+
+    def _apply_tensor_processors(self) -> None:
+        """Process the latest render outputs and publish the requested processor outputs."""
+        if not self.cfg.tensor_processors:
+            return
+        buffers = dict(self._render_outputs)
+        for index, processor_cfg in enumerate(self.cfg.tensor_processors):
+            inputs = {name: buffers[name] for name in processor_cfg.inputs}
+            # Construction needs the outputs of earlier processors, which exist after their first call.
+            if index == len(self._tensor_processors):
+                processor = processor_cfg.func(processor_cfg, inputs)
+                if not isinstance(processor, TensorProcessor):
+                    raise TypeError(
+                        f"Camera tensor processor {processor_cfg.func!r} must be a TensorProcessor class."
+                        f" Received an instance of {type(processor).__name__}."
+                    )
+                self._tensor_processors.append(processor)
+            buffers.update(self._tensor_processors[index](inputs))
+        self._data.output.update({name: buffers[name] for name in self.cfg.data_types})
 
     """
     Private Helpers
@@ -815,7 +870,7 @@ class Camera(SensorBase):
         known: list[str] = []
         unknown: list[str] = []
         unsupported: list[str] = []
-        for name in self.cfg.data_types:
+        for name in self._render_data_types:
             try:
                 if RenderBufferKind(name) in specs:
                     known.append(name)
@@ -847,7 +902,15 @@ class Camera(SensorBase):
         self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
-        self._renderer.set_outputs(self._render_data, self._data.output)
+        self._render_outputs = self._data.output
+        self._renderer.set_outputs(self._render_data, self._render_outputs)
+        if self.cfg.tensor_processors:
+            # Publish only the requested names; processor outputs join after the first capture.
+            produced = {name for processor_cfg in self.cfg.tensor_processors for name in processor_cfg.outputs}
+            self._data._output = {
+                name: self._render_outputs[name] for name in self.cfg.data_types if name not in produced
+            }
+            self._data.info = dict.fromkeys(self.cfg.data_types)
 
     def _read_authored_opencv_intrinsics(
         self, prim: Usd.Prim, width: int, height: int, env_id: int
@@ -1061,6 +1124,10 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
+        # Processors bind the current render outputs; the next initialization constructs new ones.
+        for processor in self._tensor_processors:
+            processor.close()
+        self._tensor_processors.clear()
         if self._render_data is not None:
             self._renderer.cleanup(self._render_data)
         self._render_data = None

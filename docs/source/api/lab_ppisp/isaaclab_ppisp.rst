@@ -14,9 +14,19 @@ The following classes are part of the public :mod:`isaaclab_ppisp` API.
    :nosignatures:
 
    PpispCfg
+   PpispProcessor
+   PpispProcessorCfg
    PpispPipeline
 
 .. autoclass:: PpispCfg
+   :show-inheritance:
+
+.. autoclass:: PpispProcessor
+   :members: prepare_camera
+   :show-inheritance:
+
+.. autoclass:: PpispProcessorCfg
+   :members:
    :show-inheritance:
 
 .. autoclass:: PpispPipeline

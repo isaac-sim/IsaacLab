@@ -12,9 +12,15 @@ https://arxiv.org/abs/2601.18336.
 from __future__ import annotations
 
 from dataclasses import field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import configclass
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.camera import CameraISPMode
+
+    from .processor import PpispProcessor
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""
@@ -125,6 +131,39 @@ class PpispCfg:
     attribute. When present, the native controller predicts ``exposureOffset``
     and the four color latents from the HDR image each frame. Static PPISP
     inputs still provide responsivity, vignetting, and CRF.
+    """
+
+
+@configclass
+class PpispProcessorCfg(TensorProcessorCfg):
+    """Configuration for :class:`~isaaclab_ppisp.PpispProcessor`.
+
+    Add it to :attr:`~isaaclab.sensors.camera.CameraCfg.tensor_processors` to produce the camera's color
+    output from its scene-linear HDR output:
+
+    .. code-block:: python
+
+        camera_cfg = replace(camera_cfg, data_types=["rgb"], tensor_processors=[PpispProcessorCfg()])
+    """
+
+    func: type[PpispProcessor] | str = "{DIR}.processor:PpispProcessor"
+    """The PPISP processor class."""
+
+    inputs: list[str] = ["rgb_hdr"]
+    """Name of the scene-linear HDR input. Defaults to the camera's ``rgb_hdr`` output."""
+
+    outputs: list[str] = ["rgb"]
+    """Names of the 8-bit color outputs: ``"rgb"``, ``"rgba"`` with opaque alpha, or both.
+
+    Defaults to ``["rgb"]``.
+    """
+
+    isp_cfg: PpispCfg | CameraISPMode = PpispCfg()
+    """PPISP coefficients, or a mode that discovers them from ``ppisp:*`` camera attributes.
+
+    Camera construction resolves discovery and :attr:`PpispCfg.camera_prim_path` once for the whole camera
+    batch, so author the attributes of existing camera prims (``spawn=None``) before constructing the camera.
+    Defaults to the coefficients in :data:`PPISP_DEFAULT_INPUTS`.
     """
 
 
@@ -322,9 +361,10 @@ def has_ppisp_camera_attrs(camera_prim: Any | None) -> bool:
 
 
 def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None = None) -> PpispCfg | None:
-    """Resolve a Camera sensor batch's ``isp_cfg`` to a normalised cfg or ``None``.
+    """Resolve a Camera sensor batch's PPISP setting to a normalised cfg or ``None``.
 
-    Handles all three legal forms of :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg`:
+    Handles all three legal forms of :attr:`PpispProcessorCfg.isp_cfg` and the deprecated
+    :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg`:
 
     * ``None`` → returns ``None``.
     * :class:`~isaaclab.sensors.camera.CameraISPMode` sentinel — checks the
@@ -336,11 +376,12 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
       fills defaults, and merges camera-authored USD values when
       ``camera_prim_path`` is set).
 
-    Camera construction calls this before cloning or importing the scene. The returned cfg applies
-    to the whole Camera sensor batch; callers pass the first matched camera prim path for discovery.
+    :meth:`PpispProcessor.prepare_camera` calls this before the scene is cloned or imported. The
+    returned cfg applies to the whole Camera sensor batch; callers pass the first matched camera prim
+    path for discovery.
 
     Args:
-        isp_cfg: The Camera sensor's :attr:`isp_cfg` value (``None``, ``CameraISPMode``, or :class:`PpispCfg`).
+        isp_cfg: The PPISP setting (``None``, ``CameraISPMode``, or :class:`PpispCfg`).
         stage: USD stage used for sentinel discovery and camera-path resolution.
         camera_prim_path: Optional absolute path of the first matched camera
             prim in the Camera sensor batch. When omitted, discovery uses the

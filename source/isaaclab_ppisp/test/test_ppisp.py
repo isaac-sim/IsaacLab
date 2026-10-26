@@ -10,6 +10,8 @@ from __future__ import annotations
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispProcessor,
+    PpispProcessorCfg,
     apply_rtx_exposure_overrides,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
@@ -304,3 +306,34 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     assert "ExistingAPI" in applied
     authored_schemas = stage.GetRootLayer().GetPrimAtPath(prim.GetPath()).GetInfo("apiSchemas")
     assert authored_schemas.deletedItems == ["RetiredAPI"]
+
+
+@pytest.mark.parametrize("renderer_type", ["isaac_rtx", "ovrtx", "newton_warp"])
+def test_ppisp_processor_prepares_discovered_cameras_for_rtx_hdr(renderer_type):
+    """Camera preparation resolves discovery and neutralizes exposure only when RTX renders PPISP input."""
+    from isaaclab.renderers import RendererCfg
+    from isaaclab.sensors.camera import CameraISPMode
+
+    stage = Usd.Stage.CreateInMemory()
+    camera_paths = ["/World/env_0/Camera", "/World/env_1/Camera", "/World/Plain"]
+    for path in camera_paths:
+        camera = _author_camera(stage, path)
+        camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(800.0)
+    for path in camera_paths[:2]:
+        _author_ppisp_attr(stage.GetPrimAtPath(path), "exposureOffset", 1.5)
+    cfg = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)
+    renderer_cfg = RendererCfg(renderer_type=renderer_type)
+
+    prepared = PpispProcessor.prepare_camera(cfg, stage, camera_paths[:2], renderer_cfg)
+
+    assert prepared.isp_cfg.inputs["exposureOffset"] == pytest.approx(1.5)
+    assert cfg.isp_cfg is CameraISPMode.AUTO_CAMERA
+    neutral_iso = 0.0 if renderer_type in ("isaac_rtx", "ovrtx") else 800.0
+    assert [stage.GetPrimAtPath(path).GetAttribute("exposure:iso").Get() for path in camera_paths] == [
+        neutral_iso,
+        neutral_iso,
+        800.0,
+    ]
+    # Without PPISP attributes, the camera keeps its renderer color and exposure.
+    assert PpispProcessor.prepare_camera(cfg, stage, camera_paths[2:], renderer_cfg) is None
+    assert stage.GetPrimAtPath(camera_paths[2]).GetAttribute("exposure:iso").Get() == 800.0

@@ -27,8 +27,6 @@ from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
 if TYPE_CHECKING:
-    from isaaclab_ppisp import PpispPipeline
-
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -168,24 +166,6 @@ class RenderData:
         # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
         # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
         self._distortion = spawn.distortion if spawn is not None else None
-        # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # Camera construction has already resolved the ISP configuration.
-        self.ppisp_pipeline: PpispPipeline | None = None
-        if spec.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispPipeline
-
-            self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
-        self._hdr_scratch_wp: wp.array | None = None
-        """Internal HDR scratch buffer allocated when PPISP is composed but the
-        user did not request ``"rgb_hdr"`` in ``data_types``. Also exposed to
-        the Newton sensor through :attr:`CameraOutputs.hdr_color_image` as a
-        vec3f reinterpretation of this same backing storage."""
-        self._ppisp_hdr_source: wp.array | None = None
-        """PPISP HDR source bound once in :meth:`set_outputs` from the caller's
-        ``rgb_hdr`` output or :attr:`_hdr_scratch_wp`."""
-        self._ppisp_rgba_dest: wp.array | None = None
-        """PPISP LDR destination bound once in :meth:`set_outputs` from the
-        caller's ``rgba`` output."""
 
     def _view(self, proxy: ProxyArray, dtype: type, shape: tuple[int, ...]) -> wp.array:
         """Alias the caller's output buffer as a ``(world_count, 1, H, W)`` warp array of ``dtype``.
@@ -244,24 +224,6 @@ class RenderData:
         # requested segmentation outputs are remapped from this single buffer in :meth:`_convert_segmentation`.
         if self._seg_dests:
             self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.newton_sensor.model.device)
-        # When PPISP is composed but the user did not request the raw HDR AOV,
-        # allocate an internal HDR scratch buffer and route a vec3f-shaped view
-        # of it as the Newton sensor's ``hdr_color_image`` so the renderer
-        # fills it directly.
-        if self.ppisp_pipeline is not None and self.outputs.hdr_color_image is None:
-            ref_proxy = next(iter(output_data.values()))
-            self._hdr_scratch_wp = wp.zeros(
-                (self.newton_sensor.model.world_count, self.height, self.width, 3),
-                dtype=wp.float32,
-                device=ref_proxy.device,
-            )
-            self.outputs.hdr_color_image = wp.array(
-                ptr=self._hdr_scratch_wp.ptr,
-                dtype=wp.vec3f,
-                shape=shape,
-                device=self._hdr_scratch_wp.device,
-                copy=False,
-            )
         # Newton clears HDR to black regardless of clear_color. A hit mask preserves dark geometry.
         if (
             self.outputs.hdr_color_image is not None
@@ -269,17 +231,6 @@ class RenderData:
             and self.outputs.shape_index_image is None
         ):
             self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.newton_sensor.model.device)
-        # Bind the two warp arrays the per-frame PPISP dispatch needs.
-        if self.ppisp_pipeline is not None:
-            if str(RenderBufferKind.RGBA) not in output_data:
-                raise ValueError(
-                    "Newton renderer ISP requires 'rgba' (or 'rgb', which aliases into rgba) as the"
-                    " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
-                    " Camera.cfg.data_types when isp_cfg is set."
-                )
-            hdr_proxy = output_data.get(str(RenderBufferKind.RGB_HDR))
-            self._ppisp_hdr_source = hdr_proxy.warp if hdr_proxy is not None else self._hdr_scratch_wp
-            self._ppisp_rgba_dest = output_data[str(RenderBufferKind.RGBA)].warp
 
     def get_output(self, output_name: str) -> wp.array:
         if output_name in self._depth_dests:
@@ -597,14 +548,6 @@ class NewtonWarpRenderer(BaseRenderer):
             # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
             use_cuda_graph=self.cfg.use_cuda_graph and backend.model.tri_count == 0,
         )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # tensors were bound once in ``set_outputs``.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data._ppisp_hdr_source,
-                render_data._ppisp_rgba_dest,
-            )
 
     def _launch_render(self, render_data: RenderData) -> None:
         """Launch the tiled-camera render kernels for sensor graph capture."""

@@ -8,6 +8,7 @@ import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
     PpispPipeline,
+    PpispProcessorCfg,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -37,6 +38,8 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_OFF_TRUNK2_W,
     PPISP_CONTROLLER_PARAM_COUNT,
 )
+
+from isaaclab.utils.warp import ProxyArray
 
 wp.init()
 
@@ -131,6 +134,42 @@ def test_ppisp_warp_exposure_increases_ldr_output():
     assert (baseline_np[..., 3] == 255).all()
     assert (exposed_np[..., 3] == 255).all()
     assert exposed_np[..., :3].astype(float).mean() > baseline_np[..., :3].astype(float).mean()
+
+
+def test_ppisp_processor_returns_rgb_view_of_persistent_rgba():
+    """Processor outputs reuse one RGBA buffer, and RGB views its color channels."""
+    import numpy as np
+
+    hdr = ProxyArray(wp.from_numpy(np.linspace(0.0, 1.0, 2 * 3 * 4 * 3, dtype=np.float32).reshape(2, 3, 4, 3)))
+    inputs = {"exposureOffset": 1.0, "colorLatentRed": (0.1, -0.2)}
+    cfg = PpispProcessorCfg(inputs=["hdr"], outputs=["rgb", "rgba"], isp_cfg=PpispCfg(inputs=inputs))
+    processor = cfg.func(cfg, {"hdr": hdr})
+
+    outputs = processor({"hdr": hdr})
+
+    expected = _rgba((2, 3, 4, 4))
+    apply_ppisp_to_rgba(hdr.warp, expected, normalize_ppisp_cfg(PpispCfg(inputs=inputs)))
+    np.testing.assert_array_equal(outputs["rgba"].warp.numpy(), expected.numpy())
+    np.testing.assert_array_equal(outputs["rgb"].warp.numpy(), expected.numpy()[..., :3])
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
+    assert processor({"hdr": hdr})["rgba"] is outputs["rgba"]
+
+
+@pytest.mark.parametrize(
+    ("inputs", "outputs", "hdr_shape", "match"),
+    [
+        (["hdr", "depth"], ["rgb"], (1, 2, 2, 3), "exactly one HDR input"),
+        (["hdr"], ["albedo"], (1, 2, 2, 3), "'rgb', 'rgba', or both"),
+        (["hdr"], ["rgb"], (1, 2, 2, 4), r"shape \(N, H, W, 3\)"),
+    ],
+)
+def test_ppisp_processor_rejects_unsupported_routing(inputs, outputs, hdr_shape, match):
+    """Construction rejects routing that PPISP cannot produce instead of failing inside a kernel."""
+    cfg = PpispProcessorCfg(inputs=inputs, outputs=outputs)
+    data = {name: ProxyArray(_hdr(0.5, hdr_shape)) for name in inputs}
+
+    with pytest.raises(ValueError, match=match):
+        cfg.func(cfg, data)
 
 
 def test_ppisp_warp_responsivity_lifts_dim_input():
