@@ -44,7 +44,7 @@ def test_published_wheel_docs_cover_one_off_and_managed_uv_workflows(source_chec
     )[0]
     windows_docs = published_docs.split("Windows (x86_64)", maxsplit=1)[1].split("Linux (aarch64)", maxsplit=1)[0]
 
-    assert "uvx --index https://pypi.nvidia.com" in published_docs
+    assert "uvx --python 3.12 --index https://pypi.nvidia.com" in published_docs
     assert '--from "isaaclab==3.0.0"' in published_docs
     assert "--torch-backend cu130" in published_docs
     assert "uv init --python 3.12 my_isaaclab_project" in project_docs

@@ -119,6 +119,7 @@ Guidelines for modifications:
 * Jean Tampon
 * Jeonghwan Kim
 * Jessica Martinez
+* JF Lafleche
 * Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang

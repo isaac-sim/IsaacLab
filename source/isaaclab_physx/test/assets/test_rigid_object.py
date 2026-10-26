@@ -600,8 +600,8 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
             gravity = torch.zeros(num_cubes, 1, 6, device=device)
             if gravity_enabled:
                 gravity[:, :, 2] = -9.81
-            # Check the body accelerations are correct
-            torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
+            # Check the body accelerations, which are finite differences of float32 velocities.
+            torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity, atol=1e-4, rtol=0)
 
 
 @pytest.mark.parametrize("num_cubes", [2])
