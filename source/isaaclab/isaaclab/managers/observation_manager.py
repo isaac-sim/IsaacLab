@@ -537,18 +537,6 @@ class ObservationManager(ManagerBase):
         # The destination is supplied by the manager, not by the term configuration.
         term_cfg.params.pop("out", None)
 
-    def _prepare_term_output(self, group_name: str, term_name: str, term_cfg: ObservationTermCfg) -> tuple[int, ...]:
-        """Probe output dimensions and cache destination specifications for explicitly supported terms."""
-        out_param = inspect.signature(term_cfg.func).parameters.get("out")
-        writes_output = out_param is not None and out_param.kind is inspect.Parameter.KEYWORD_ONLY
-        if writes_output and out_param.default is not None:
-            raise ValueError(f"Observation term '{group_name}/{term_name}' must declare keyword-only 'out=None'.")
-        sample = term_cfg.func(self._env, **term_cfg.params)
-        shape = tuple(sample.shape)
-        if writes_output:
-            self._term_output_specs[group_name, term_name] = (shape, sample.dtype, sample.device)
-        return shape
-
     def _prepare_terms(self):
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
@@ -576,11 +564,7 @@ class ObservationManager(ManagerBase):
                 " observation manager."
             )
 
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            group_cfg_items = self.cfg.items()
-        else:
-            group_cfg_items = self.cfg.__dict__.items()
+        group_cfg_items = self.cfg.items() if isinstance(self.cfg, dict) else vars(self.cfg).items()
         # iterate over all the groups
         for group_name, group_cfg in group_cfg_items:
             # check for non config
@@ -617,25 +601,17 @@ class ObservationManager(ManagerBase):
                 and group_cfg.concatenate_dim == -1
             )
 
-            # check if config is dict already
-            if isinstance(group_cfg, dict):
-                term_cfg_items = group_cfg.items()
-            else:
-                term_cfg_items = group_cfg.__dict__.items()
             # iterate over all the terms in each group
-            for term_name, term_cfg in term_cfg_items:
+            for term_name, term_cfg in vars(group_cfg).items():
                 # skip non-obs settings
-                if term_name in [
+                if term_cfg is None or term_name in (
                     "enable_corruption",
                     "concatenate_terms",
                     "history_length",
                     "flatten_history_dim",
                     "history_order",
                     "concatenate_dim",
-                ]:
-                    continue
-                # check for non config
-                if term_cfg is None:
+                ):
                     continue
                 if not isinstance(term_cfg, ObservationTermCfg):
                     raise TypeError(
@@ -656,8 +632,19 @@ class ObservationManager(ManagerBase):
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
-                # call function the first time to fill up dimensions
-                obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
+                out_param = inspect.signature(term_cfg.func).parameters.get("out")
+                writes_output = out_param is not None and out_param.kind is inspect.Parameter.KEYWORD_ONLY
+                if writes_output and out_param.default is not None:
+                    raise ValueError(
+                        f"Observation term '{group_name}/{term_name}' must declare keyword-only 'out=None'."
+                    )
+                output_spec = term_cfg.func.output_spec if isinstance(term_cfg.func, ManagerTermBase) else None
+                if output_spec is None:
+                    sample = term_cfg.func(self._env, **term_cfg.params)
+                    output_spec = (tuple(sample.shape), sample.dtype, sample.device)
+                obs_dims = output_spec[0]
+                if writes_output:
+                    self._term_output_specs[group_name, term_name] = output_spec
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
@@ -765,7 +752,6 @@ class ObservationManager(ManagerBase):
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
-                    # call reset (in-case above call to get obs dims changed the state)
                     term_cfg.func.reset()
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
