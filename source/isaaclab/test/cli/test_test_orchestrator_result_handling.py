@@ -612,7 +612,6 @@ def test_hang_dump_plugin_is_inert_without_signal_support(monkeypatch) -> None:
     hang_dump.pytest_configure(config=None)  # must not raise
 
 
-@pytest.mark.windows_ci
 @pytest.mark.skipif(
     sys.platform != "win32", reason="covers the pipe polling and taskkill that replace POSIX on Windows"
 )

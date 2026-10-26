@@ -153,6 +153,11 @@ jobs:
           TEST_RESULT_FILE: windows-ci-report.xml
         run: uv run --frozen --no-sync python -m pytest tools
 
+      # tools/test_settings.py keeps the orchestrator's own tests out of its runs, so its Windows case runs here.
+      - name: Run orchestrator Windows timeout test
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/cli/test_test_orchestrator_result_handling.py::test_windows_timeout_keeps_output_and_kills_the_process_tree --junitxml=tests/windows-ci-orchestrator-report.xml
+
       # The orchestrator skips install_ci/, so the Cartpole state/camera probes run here.
       - name: Run Cartpole smoke tests
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
