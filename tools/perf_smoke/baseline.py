@@ -346,8 +346,10 @@ def read_evidence(
     )
 
 
-def resolve_candidate_artifact(client: GitHubClient, run_id: int, report_attempt: int) -> tuple[dict, dict, int]:
-    """Locate the measured attempt's artifact, including summary-only reruns."""
+def resolve_candidate(
+    client: GitHubClient, run_id: int, report_attempt: int, comparison_dir: Path | None = None
+) -> Evidence:
+    """Read the measured attempt shared by the paired report and rolling-history gate."""
     artifacts = client.artifacts(run_id)
     for attempt in range(report_attempt, 0, -1):
         run = client.run_attempt(run_id, attempt)
@@ -356,7 +358,9 @@ def resolve_candidate_artifact(client: GitHubClient, run_id: int, report_attempt
         if len(matches) > 1:
             raise EvidenceError("ambiguous", f"More than one GitHub artifact has the exact name {name}")
         if matches:
-            return run, matches[0], attempt
+            result = read_evidence(client, run, matches[0], attempt, comparison_dir=comparison_dir)
+            result.identity["report_attempt"] = report_attempt
+            return result
         started = parse_timestamp(run.get("run_started_at"))
         jobs = [job for job in client.jobs(run_id, attempt) if job.get("name") == "performance-smoke-benchmarks"]
         for job in jobs:
@@ -373,13 +377,3 @@ def resolve_candidate_artifact(client: GitHubClient, run_id: int, report_attempt
                 )
         # Jobs carried over from an earlier attempt can have new IDs but retain their old start times.
     raise EvidenceError("missing_candidate", "No producing benchmark artifact is available for this workflow run")
-
-
-def resolve_candidate(
-    client: GitHubClient, run_id: int, report_attempt: int, comparison_dir: Path | None = None
-) -> Evidence:
-    """Read the measured attempt shared by the paired report and rolling-history gate."""
-    run, artifact, attempt = resolve_candidate_artifact(client, run_id, report_attempt)
-    result = read_evidence(client, run, artifact, attempt, comparison_dir=comparison_dir)
-    result.identity["report_attempt"] = report_attempt
-    return result
