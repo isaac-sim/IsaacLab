@@ -3,6 +3,26 @@ Changelog
 
 .. towncrier release notes start
 
+4.2.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed coupled solver body and shape selectors to expand ``{ENV_REGEX_NS}`` from the simulation's
+  clone template while preserving the original configuration for reuse.
+
+
+4.2.2 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept tactile queries explicitly invalidated after initialization and reset so reads
+  reflect the current scene state without waiting for another physics step.
+
+
 4.2.1 (2026-10-23)
 ~~~~~~~~~~~~~~~~~~
 

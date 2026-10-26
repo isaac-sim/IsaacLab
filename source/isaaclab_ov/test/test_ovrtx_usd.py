@@ -389,7 +389,7 @@ def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{i}" for i in range(num_envs)),
         source_paths=tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
     )
 
@@ -405,7 +405,7 @@ def test_export_stage_without_clone_destinations(num_envs):
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{i}" for i in range(num_envs)),
         source_paths=("/World/envs/env_0",) if num_envs == 1 else ("/World/Shared",),
         env_paths=env_paths,
     )
@@ -426,7 +426,7 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{i}" for i in range(num_envs)),
         source_paths=("/World/envs/env_0",),
     )
 
@@ -446,7 +446,7 @@ def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{i}" for i in range(num_envs)),
         source_paths=("/World/envs/env_0",),
         keep_env_roots=False,
     )
@@ -474,7 +474,11 @@ def test_export_stage_keeps_file_references_without_exporting_unrouted_copies(tm
     stage.GetRootLayer().Save()
 
     exported = export_stage_to_string(
-        stage, 2, source_paths=("/World/envs/env_0",), keep_env_roots=False, preserve_references=True
+        stage,
+        tuple(f"/World/envs/env_{i}" for i in range(2)),
+        source_paths=("/World/envs/env_0",),
+        keep_env_roots=False,
+        preserve_references=True,
     )
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(exported)
@@ -488,7 +492,11 @@ def test_export_stage_keeps_file_references_without_exporting_unrouted_copies(tm
     dirty_layer = Sdf.Layer.CreateAnonymous(".usda")
     assert dirty_layer.ImportFromString(
         export_stage_to_string(
-            stage, 2, source_paths=("/World/envs/env_0",), keep_env_roots=False, preserve_references=True
+            stage,
+            tuple(f"/World/envs/env_{i}" for i in range(2)),
+            source_paths=("/World/envs/env_0",),
+            keep_env_roots=False,
+            preserve_references=True,
         )
     )
     dirty_result = Usd.Stage.Open(dirty_layer)
@@ -504,7 +512,7 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{i}" for i in range(num_envs)),
         source_paths=("/World/envs/env_0/Object_env0_only", "/World/envs/env_3/Object_env3_only"),
     )
 
@@ -531,7 +539,11 @@ def test_export_stage_preserves_authored_scene(settings_path):
         stage.SetMetadata("renderSettingsPrimPath", settings_path)
     before = stage.ExportToString()
     layer = Sdf.Layer.CreateAnonymous()
-    layer.ImportFromString(export_stage_to_string(stage, num_envs, source_paths=("/World/envs/env_0",)))
+    layer.ImportFromString(
+        export_stage_to_string(
+            stage, tuple(f"/World/envs/env_{i}" for i in range(num_envs)), source_paths=("/World/envs/env_0",)
+        )
+    )
     exported = Usd.Stage.Open(layer)
     assert exported.HasAuthoredMetadata("renderSettingsPrimPath")
     settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
