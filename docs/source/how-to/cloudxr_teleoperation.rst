@@ -16,9 +16,9 @@ upstream setup instructions.
 
 .. note::
 
-   Isaac Lab currently pins the 1.4 ``isaacteleop`` distribution and import package. Upstream
-   renamed both to ``isaaccapture`` in 1.6, so the ``isaacteleop`` commands and imports in this
-   guide are intentional. See the `Isaac Capture migration guide
+   Isaac Lab installs ``isaaccapture~=1.7.44a1`` through the ``teleop`` extra. This release retains
+   the ``isaacteleop`` compatibility import used in this guide; new integrations should use
+   ``isaaccapture``. See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
 
 
@@ -135,9 +135,10 @@ imitation learning. It uses the ``teleop`` extra, which carries `Isaac Capture
 itself for the Kit XR runtime that renders the stereo view. One flag covers the whole
 workflow.
 
-XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gates
-``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
-extra resolves but installs nothing usable. It is also not supported on DGX Spark.
+XR teleoperation is supported on **Linux x86_64 only** and is not supported on DGX Spark.
+The ``teleop`` extra installs ``isaaccapture`` on Linux x86_64 and aarch64, while the direct
+``dex-retargeting`` dependency is restricted to x86_64. Installing Isaac Capture on aarch64 does not
+imply support for the CloudXR streaming workflow described here. Windows is not supported.
 
 ``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
 to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next section
