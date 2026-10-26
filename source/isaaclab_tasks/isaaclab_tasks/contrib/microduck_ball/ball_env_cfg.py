@@ -13,6 +13,8 @@
 The stages share observations and actions, so the checkpoint of one stage can initialize the next.
 """
 
+import math
+
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
@@ -73,7 +75,7 @@ MICRODUCK_BALL_CFG = MICRODUCK_CFG.replace(
     ),
     # crouched: knees bent, hip and ankle chosen so that the soles are flat and the center of mass is over them
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.12),
+        pos=(0.0, 0.0, 2 * BALL_RADIUS + STANDING_HEIGHT + 0.003),
         joint_pos={
             ".*hip_yaw": 0.0,
             "left_hip_roll": -0.0873,
@@ -237,15 +239,24 @@ class EventsCfg:
         mode="startup",
         params={"asset_cfg": _BALL_CFG, "mass_distribution_params": (1.0, 1.0), "operation": "scale"},
     )
-    reset_duck_on_ball = EventTerm(
-        func=mdp.reset_duck_on_ball,
+    reset_ball = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={"pose_range": {}, "velocity_range": {}, "asset_cfg": _BALL_CFG},
+    )
+    reset_robot_base = EventTerm(
+        func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "standing_height": STANDING_HEIGHT + 0.003,
-            "xy_offset": 0.01,
-            "tilt": 0.05,
-            "robot_cfg": SceneEntityCfg("robot"),
-            "ball_cfg": _BALL_CFG,
+            "pose_range": {
+                "x": (-0.01, 0.01),
+                "y": (-0.01, 0.01),
+                "roll": (-0.05, 0.05),
+                "pitch": (-0.05, 0.05),
+                "yaw": (-math.pi, math.pi),
+            },
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("robot"),
         },
     )
     reset_robot_joints = EventTerm(

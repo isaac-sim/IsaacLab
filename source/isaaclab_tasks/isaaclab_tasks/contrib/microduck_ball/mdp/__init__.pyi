@@ -7,8 +7,6 @@ __all__ = [
     # commands
     "BallVelocityCommand",
     "BallVelocityCommandCfg",
-    # events
-    "reset_duck_on_ball",
     # observations
     "ball_ang_vel_w",
     "ball_pos_b",
@@ -33,8 +31,8 @@ __all__ = [
     "base_too_low",
 ]
 
-from .commands import BallVelocityCommand, BallVelocityCommandCfg
-from .events import reset_duck_on_ball
+from .commands import BallVelocityCommand
+from .commands_cfg import BallVelocityCommandCfg
 from .observations import ball_ang_vel_w, ball_pos_b, ball_vel_b, gait_clock
 from .rewards import (
     ball_slip_l2,

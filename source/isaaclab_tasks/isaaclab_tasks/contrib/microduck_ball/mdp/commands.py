@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs.mdp.commands import UniformVelocityCommand
-from isaaclab.envs.mdp.commands.commands_cfg import UniformVelocityCommandCfg
-from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+    from .commands_cfg import BallVelocityCommandCfg
 
 
 class BallVelocityCommand(UniformVelocityCommand):
@@ -41,6 +41,7 @@ class BallVelocityCommand(UniformVelocityCommand):
         """Reference heading in the world frame [rad], shape (num_envs,)."""
         self.gait_phase = torch.rand(self.num_envs, device=self.device)
         """Phase of the stepping clock in [0, 1), shape (num_envs,)."""
+        self._foot_phase_offset = torch.tensor([0.0, 0.5], device=self.device)
 
     @property
     def command(self) -> torch.Tensor:
@@ -66,8 +67,7 @@ class BallVelocityCommand(UniformVelocityCommand):
     @property
     def foot_phase(self) -> torch.Tensor:
         """Phase of each foot's cycle in [0, 1), the second foot half a cycle behind, shape (num_envs, 2)."""
-        offset = torch.tensor([0.0, 0.5], device=self.device)
-        return torch.remainder(self.gait_phase.unsqueeze(-1) + offset, 1.0)
+        return torch.remainder(self.gait_phase.unsqueeze(-1) + self._foot_phase_offset, 1.0)
 
     @property
     def gait_clock(self) -> torch.Tensor:
@@ -100,23 +100,6 @@ class BallVelocityCommand(UniformVelocityCommand):
             + self.cfg.turn_frequency * self.vel_command_b[:, 2].abs()
         )
         self.gait_phase = torch.remainder(self.gait_phase + frequency * self._env.step_dt * self.is_moving, 1.0)
-
-
-@configclass
-class BallVelocityCommandCfg(UniformVelocityCommandCfg):
-    """Configuration for the ball velocity command term."""
-
-    class_type: type[BallVelocityCommand] = BallVelocityCommand
-    moving_speed: float = 0.03
-    """Commanded speed [m/s] above which the robot is expected to step."""
-    moving_yaw_rate: float = 0.1
-    """Commanded yaw rate [rad/s] above which the robot is expected to step."""
-    base_frequency: float = 1.5
-    """Frequency of the stepping clock while moving [Hz]."""
-    speed_frequency: float = 8.0
-    """Extra clock frequency per commanded speed [Hz / (m/s)]."""
-    turn_frequency: float = 2.0
-    """Extra clock frequency per commanded yaw rate [Hz / (rad/s)]."""
 
 
 def _rotate(vector: torch.Tensor, angle: torch.Tensor) -> torch.Tensor:
