@@ -3,10 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MDP terms specific to the velocity-tracking locomotion environments.
-
-Keep generic manager terms in :mod:`isaaclab.envs.mdp`, inherited through the core fallback export.
-"""
+"""MDP terms specific to the velocity-tracking locomotion environments."""
 
 from isaaclab.utils.module import lazy_export
 
