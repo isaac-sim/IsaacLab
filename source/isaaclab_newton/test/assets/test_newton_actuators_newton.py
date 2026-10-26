@@ -438,7 +438,7 @@ def _warm_delayed_island(run: _Run) -> list:
         articulation.write_data_to_sim()
         run.sim.step()
         articulation.update(DT)
-    adapter = run.sim.backend_manager._adapter
+    adapter = run.sim.backend_manager.backend.actuators
     assert adapter is not None
     own_actuators = []
     for group_name in articulation.actuators._native_group_names:
@@ -461,7 +461,7 @@ def _assert_delay_state_cleared_for_env_0_only(run: _Run, stateful_pairs: list) 
     # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
     # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
     # stride.
-    adapter = run.sim.backend_manager._adapter
+    adapter = run.sim.backend_manager.backend.actuators
     for act, state in stateful_pairs:
         pushes_after = state.delay_state.num_pushes.numpy()
         indices_np = act.indices.numpy()
@@ -564,6 +564,7 @@ def _make_target_mode_builder(
     sim._backend_registry = []
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: sim)
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    sim.backend_manager = SimpleNamespace(builder=builder)
     inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     parent = -1
     joint_ids = []
@@ -993,7 +994,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
     }
     legs = groups["legs"][0]
-    assert newton_run.sim.backend_manager._adapter is not None
+    assert newton_run.sim.backend_manager.backend.actuators is not None
 
     def gains(name: str) -> torch.Tensor:
         """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
