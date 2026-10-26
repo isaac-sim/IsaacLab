@@ -11,10 +11,10 @@ shared device interfaces and configurable retargeting pipelines.
 
 .. note::
 
-   **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab installs
-   ``isaaccapture~=1.7.44a1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
-   compatibility import used in this documentation; new integrations should use ``isaaccapture``.
-   See the `Isaac Capture migration guide
+   **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab currently pins
+   the 1.4 release, whose Python distribution and import package are still named ``isaacteleop``.
+   Upstream renamed both to ``isaaccapture`` in 1.6, so the ``isaacteleop`` commands and imports in
+   this documentation are intentional. See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
 
 Isaac Capture replaces the previous native XR teleop stack (``isaaclab.devices.openxr``) in Isaac

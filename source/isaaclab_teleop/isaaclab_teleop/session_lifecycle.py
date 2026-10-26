@@ -601,6 +601,7 @@ class TeleopSessionLifecycle:
         self._pipeline = self._build_combined_pipeline(user_pipeline)
         self._pressed_keys.clear()
         self._pipeline_keyboards = None
+        self._attach_keyboards()
 
         # Build the optional haptic sink. It reuses the button-controller
         # tracker so no additional ControllersSource (and thus no duplicate
@@ -636,9 +637,6 @@ class TeleopSessionLifecycle:
             print("Opening Retargeting UI...")
             self._retargeting_ui_ctx = MultiRetargeterTuningUIImGui(retargeters, title="Hand Retargeting Tuning")
             self._retargeting_ui = self._retargeting_ui_ctx.__enter__()
-
-        # A failed start never reaches the device's context-manager cleanup.
-        self._attach_keyboards()
 
     def stop(self, exc_type=None, exc_val=None, exc_tb=None) -> None:
         """Shut down the session and clean up resources.
