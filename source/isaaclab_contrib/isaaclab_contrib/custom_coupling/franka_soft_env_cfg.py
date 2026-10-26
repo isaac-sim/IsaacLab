@@ -21,8 +21,6 @@ class PhysicsCfg(CorePhysicsCfg):
 
     newton_mjwarp_vbd = replace(
         CorePhysicsCfg().newton_mjwarp_vbd_proxy,
-        # Required: ``NewtonCfg.__post_init__`` rejects a preset class_type and re-derives it.
-        class_type=None,
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
                 njmax=40, nconmax=20, ls_iterations=20, integrator="implicitfast", ccd_iterations=100
