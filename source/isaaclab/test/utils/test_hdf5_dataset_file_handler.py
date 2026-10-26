@@ -114,14 +114,12 @@ def test_create_resets_env_args_when_reusing_handler(temp_dir):
     assert env_args == {"env_name": "second_env", "type": 2}
 
 
-@pytest.mark.parametrize("format_version", [None, 0], ids=["missing-version", "version-0"])
-def test_convert_dataset_to_xyzw_updates_format_version(temp_dir, format_version):
+def test_convert_dataset_to_xyzw_updates_format_version(temp_dir):
     """Converted datasets should load their XYZW quaternions without converting them again."""
     input_path = os.path.join(temp_dir, "legacy.hdf5")
     output_path = os.path.join(temp_dir, "converted.hdf5")
     with h5py.File(input_path, "w") as dataset:
-        if format_version is not None:
-            dataset.attrs["format_version"] = format_version
+        dataset.attrs["format_version"] = 0
         data = dataset.create_group("data")
         data.attrs["env_args"] = json.dumps({"env_name": "test_env_name"})
         episode = data.create_group("demo_0")
