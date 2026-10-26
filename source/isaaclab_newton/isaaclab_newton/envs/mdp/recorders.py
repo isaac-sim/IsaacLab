@@ -43,8 +43,6 @@ class NeRDRecorder(RecorderTerm):
     retain; this term owns neither a dataset writer nor an episode/replay buffer.
     """
 
-    requires_post_step_observations = False
-
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
         from isaaclab_newton.physics.nerd import JointDynamics

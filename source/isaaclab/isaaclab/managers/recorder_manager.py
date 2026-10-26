@@ -76,14 +76,8 @@ class RecorderTerm(ManagerTermBase):
     * Post-reset recording: This callback is invoked at the end of `env.reset()`.
     * Pre-step recording: This callback is invoked at the beginning of `env.step()`, after the step action is processed
           and before the action is applied by the action manager.
-    * Post-step recording: This callback is invoked at the end of `env.step()` when all the managers are processed.
-    """
-
-    requires_post_step_observations: bool = True
-    """Whether the RL environment must compute observations before this term's post-step callback.
-
-    Terms that only read physical tensors should set this to False. The default preserves the
-    observation access of existing terms; disabling it avoids extra noise draws and computation.
+    * Post-step recording: This callback captures the completed physical transition. In RL environments,
+          it runs after rewards and terminations, before automatic reset and the policy observation update.
     """
 
     def __init__(self, cfg: RecorderTermCfg, env: ManagerBasedEnv):
@@ -137,7 +131,16 @@ class RecorderTerm(ManagerTermBase):
         return None, None
 
     def record_post_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
-        """Record data at the end of env.step() when all the managers are processed.
+        """Record the completed physical transition.
+
+        In RL environments, this runs after rewards and terminations, before automatic reset.
+        The environment does not compute observations for recorders: `env.obs_buf` still holds
+        the preceding policy input. Terms needing observations of the completed transition must
+        explicitly call `env.observation_manager.compute_group(name, update_history=False)`.
+        For current measurements, configure that group without history or delay. Noise and
+        modifiers still run, so a noisy group can affect subsequent policy noise draws.
+
+        In non-RL manager-based environments, the normal observation update precedes this callback.
 
         Returns:
             A tuple of key and value to be recorded.
@@ -245,11 +248,6 @@ class RecorderManager(ManagerBase):
     def active_terms(self) -> list[str]:
         """Name of active recorder terms."""
         return self._term_names
-
-    @property
-    def requires_post_step_observations(self) -> bool:
-        """Whether any active recorder term requires post-step observations."""
-        return any(term.requires_post_step_observations for term in self._terms.values())
 
     @property
     def exported_successful_episode_count(self) -> int:

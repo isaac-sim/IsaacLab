@@ -227,8 +227,6 @@ class TransitionRecorder(RecorderTerm):
     transition was retained. Online consumers additionally check adjacent state/step continuity.
     """
 
-    requires_post_step_observations = False
-
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
         self.motion = env.command_manager.get_term("motion")
