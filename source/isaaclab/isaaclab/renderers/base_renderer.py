@@ -208,7 +208,7 @@ class BaseRenderer(ABC):
             self.render(data)
 
     @abstractmethod
-    def read_output(self, render_data: Any, camera_data: CameraData) -> None:
+    def read_output(self, render_data: Any, camera_data: CameraData) -> bool:
         """Read rendered outputs from the renderer into the camera data container.
 
         Asynchronous renderers may return the previous capture with its matching metadata in
@@ -218,6 +218,10 @@ class BaseRenderer(ABC):
             render_data: The render data object from :meth:`create_render_data`.
             camera_data: The :class:`~isaaclab.sensors.camera.camera_data.CameraData`
                 instance to populate.
+
+        Returns:
+            Whether this call published a capture. False means the outputs still hold a capture
+            that was already published, so the camera does not process it again.
         """
         pass
 

@@ -652,7 +652,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 replacement = 0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 replace_inf_depth_wp(buf_wp, replacement, device=device)
 
-    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
+    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> bool:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
 
         This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
@@ -665,6 +665,7 @@ class IsaacRtxRenderer(BaseRenderer):
         assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
         for output_name in camera_data.info:
             camera_data.info[output_name] = render_data.renderer_info.get(output_name)
+        return True
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators, destroy the owned tiled render product, and drop held refs.

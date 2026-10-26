@@ -211,8 +211,9 @@ class CameraCfg(SensorBaseCfg):
     """Processors that compute camera outputs from render outputs. Defaults to an empty list.
 
     Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class constructed with
-    :attr:`CameraData.output` and called with it after every capture; returned outputs are added to it. The
-    renderer produces the processors' ``inputs`` instead of their ``outputs``. Camera construction calls an
+    :attr:`CameraData.output` and called with it once per published capture; returned outputs are added to it.
+    Camera resets pass only the reset environment ids to ``reset``. The renderer produces the processors'
+    ``inputs`` instead of their ``outputs``. Camera construction calls an
     optional ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method before the
     scene is cloned or exported; it returns the configuration to use, or None to remove the processor.
     """

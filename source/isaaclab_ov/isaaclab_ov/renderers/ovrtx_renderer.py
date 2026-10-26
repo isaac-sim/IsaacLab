@@ -640,16 +640,20 @@ class OVRTXRenderer(BaseRenderer):
         self,
         render_data: OVRTXCameraRenderData,
         camera_data: CameraData | None = None,
-    ) -> None:
-        """Publish this product's pixels, and copy matching metadata when a sensor requests it."""
+    ) -> bool:
+        """Publish this product's pixels, and copy matching metadata when a sensor requests it.
+
+        Returns False when asynchronous rendering has no new capture to publish, including the
+        priming image that the first capture after initialization or reset already published.
+        """
         if self.cfg.async_rendering and not self._use_ovstage and render_data.ready is None:
-            return
+            return False
         capture = {}
         if render_data.ready is not None:
             operation, capture = render_data.ready
             if capture is None:
                 render_data.ready = None
-                return
+                return False
             self._process_render_products((render_data,), operation.wait().fetch())
             if render_data.ready is render_data.pending:
                 # Retain the native operation, but do not publish this priming image twice.
@@ -660,6 +664,7 @@ class OVRTXRenderer(BaseRenderer):
             for output_name in camera_data.info:
                 info = render_data.renderer_info.get(output_name)
                 camera_data.info[output_name] = {**(info or {}), "capture": capture} if capture else info
+        return True
 
     @contextlib.contextmanager
     def _map_render_var_to_dlpack(self, render_var: RenderVarOutput) -> Iterator[wp.array]:

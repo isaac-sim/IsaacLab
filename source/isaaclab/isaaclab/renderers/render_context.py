@@ -338,15 +338,20 @@ class RenderContext:
         render_data: Any,
         camera_data: CameraData,
         physics_step_count: int,
-    ) -> None:
-        """Sync scene state and capture one camera through :meth:`render_into_cameras`."""
-        self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)
+    ) -> bool:
+        """Sync scene state and capture one camera through :meth:`render_into_cameras`.
+
+        Returns:
+            Whether the renderer published a capture, as returned by
+            :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
+        """
+        return self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)[0]
 
     def render_into_cameras(
         self,
         requests: Sequence[tuple[BaseRenderer, Any, CameraData]],
         physics_step_count: int,
-    ) -> None:
+    ) -> list[bool]:
         """Render prepared cameras in batches grouped by renderer instance.
 
         Camera poses must be updated before this call. Requests are used only for this
@@ -356,20 +361,26 @@ class RenderContext:
             requests: Tuples of renderer, renderer-specific render data, and output camera data.
                 An empty sequence performs no work.
             physics_step_count: Current physics step for shared scene synchronization.
+
+        Returns:
+            Whether each request published a capture, in request order.
         """
         if not requests:
-            return
+            return []
 
         self.update_scene_state(physics_step_count)
 
-        groups: dict[int, tuple[BaseRenderer, list[tuple[Any, CameraData]]]] = {}
-        for renderer, render_data, camera_data in requests:
-            groups.setdefault(id(renderer), (renderer, []))[1].append((render_data, camera_data))
+        groups: dict[int, tuple[BaseRenderer, list[int]]] = {}
+        for index, (renderer, _, _) in enumerate(requests):
+            groups.setdefault(id(renderer), (renderer, []))[1].append(index)
 
-        for renderer, cameras in groups.values():
-            renderer.render_batch([render_data for render_data, _ in cameras])
-            for render_data, camera_data in cameras:
-                renderer.read_output(render_data, camera_data)
+        published = [False] * len(requests)
+        for renderer, indices in groups.values():
+            renderer.render_batch([requests[index][1] for index in indices])
+            for index in indices:
+                _, render_data, camera_data = requests[index]
+                published[index] = renderer.read_output(render_data, camera_data)
+        return published
 
     def reset_stage_prepare_flag(self) -> None:
         """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""

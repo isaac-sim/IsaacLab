@@ -641,12 +641,11 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         else:
             for index in indices:
                 renderer.render(cameras[index])
-        for index in indices:
-            renderer.read_output(cameras[index], camera_data[index])
+        return [renderer.read_output(cameras[index], camera_data[index]) for index in indices]
 
-    capture(1, (0, 1))
-    capture(2, (0, 1))
-    capture(3, (0,))
+    assert capture(1, (0, 1)) == [True, True]
+    assert capture(2, (0, 1)) == [False, False]
+    assert capture(3, (0,)) == [True]
     assert consume.call_count == 3  # Priming images are not extracted again on the next capture.
     for index, expected in enumerate((2, 1)):
         data = camera_data[index]
@@ -655,16 +654,16 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
             np.testing.assert_array_equal(data.info["rgb"]["capture"][name].warp.numpy(), expected)
     np.testing.assert_array_equal(camera_data[0].pos_w.warp.numpy(), 3)
     saved_capture = camera_data[0].info["rgb"]["capture"]
-    renderer.read_output(cameras[0], camera_data[0])
+    assert not renderer.read_output(cameras[0], camera_data[0])
     assert camera_data[0].info["rgb"]["capture"] is saved_capture
     assert renderer.drain_pending_renders() == []
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 1)
 
     renderer.reset(cameras[0])
-    capture(4, (0,))
+    assert capture(4, (0,)) == [True]
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(saved_capture["pos_w"].warp.numpy(), 2)
-    capture(5, (0, 1))
+    assert capture(5, (0, 1)) == [False, True]
     assert consume.call_count == 5
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 2)

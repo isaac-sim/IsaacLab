@@ -671,8 +671,11 @@ class Camera(SensorBase):
         if isinstance(env_ids, slice):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
-        for processor in self._tensor_processors:
-            processor.reset(env_ids)
+        if self._tensor_processors:
+            # Processors may keep per-environment history, so a mask selects their rows instead of all.
+            processor_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+            for processor in self._tensor_processors:
+                processor.reset(processor_ids)
         # reset the timestamps
         reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(env_mask=reset_mask)
@@ -773,10 +776,10 @@ class Camera(SensorBase):
             return
         self._prepare_camera(env_mask)
 
-        self._sim.render_context.render_into_camera(
+        if self._sim.render_context.render_into_camera(
             self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
-        )
-        self._apply_tensor_processors()
+        ):
+            self._apply_tensor_processors()
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -792,15 +795,20 @@ class Camera(SensorBase):
             return
 
         sim = ready[0]._sim
-        sim.render_context.render_into_cameras(
+        published = sim.render_context.render_into_cameras(
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
             sim.get_physics_step_count(),
         )
-        for camera in ready:
-            camera._apply_tensor_processors()
+        for camera, new_capture in zip(ready, published, strict=True):
+            if new_capture:
+                camera._apply_tensor_processors()
 
     def _apply_tensor_processors(self) -> None:
-        """Publish the processor outputs computed from the latest render outputs."""
+        """Publish the processor outputs computed from a newly published capture.
+
+        Asynchronous renderers may retain an already-processed capture, so stateful processors are
+        called only when the renderer reports a new one.
+        """
         for processor in self._tensor_processors:
             self._data.output.update(processor(self._data.output))
 
