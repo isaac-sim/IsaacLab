@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import XPBDSolverCfg
+from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 from newton import CollisionPipeline, Mesh, Model, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
@@ -31,28 +31,32 @@ from isaaclab_contrib.coupling import (
 @pytest.fixture
 def isolated_newton_manager() -> NewtonCouplerManager:
     """Return a coupler manager with every slot touched by coupler construction set explicitly."""
-    manager = NewtonCouplerManager()
+    manager = NewtonCouplerManager(NewtonCfg())
     clean_values = {
         "_sim": SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/Lab/Cells/Cell{}")),
-        "backend": SimpleNamespace(model=None, state_0=None, state_1=None, control=None),
-        "_solver": None,
+        "backend": SimpleNamespace(
+            model=None,
+            state_0=None,
+            state_1=None,
+            control=None,
+            solver=None,
+            contacts=None,
+            collision_pipeline=None,
+            contact_sensors={},
+            solver_dt=1.0 / 60.0,
+            num_substeps=1,
+        ),
         "_use_single_state": None,
-        "_contacts": None,
-        "_collision_pipeline": None,
         "_collision_cfg": None,
         "_needs_collision_pipeline": False,
         "_supports_contact_sensors": True,
         "_supports_rigid_body_force_input": False,
-        "_report_contacts": False,
-        "_solver_dt": 1.0 / 60.0,
-        "_num_substeps": 1,
-        "_collision_decimation": 0,
         "_state_force_callbacks": [],
     }
     for name, value in clean_values.items():
         setattr(manager, name, value)
     manager._update_joint_state = True
-    manager._cfg = None
+    manager._cfg = SimpleNamespace(collision_decimation=0)
     return manager
 
 
@@ -124,7 +128,7 @@ def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager
     manager.backend.model = model
     manager._build_solver(model, solver_cfg)
 
-    assert manager._solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
+    assert manager.backend.solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
 
 
 @pytest.mark.parametrize(
@@ -172,7 +176,7 @@ def test_real_coupler_constructs_resets_and_steps(
             manager._build_solver(model, solver_cfg)
         return
     manager._build_solver(model, solver_cfg)
-    solver = manager._solver
+    solver = manager.backend.solver
 
     assert isinstance(solver, expected_solver_type)
     if algorithm == "admm_capacity":
@@ -192,8 +196,8 @@ def test_real_coupler_constructs_resets_and_steps(
         assert nested_solver.model is solver.view(name)
 
     manager._initialize_contacts()
-    collision_pipeline = manager._collision_pipeline
-    contacts = manager._contacts
+    collision_pipeline = manager.backend.collision_pipeline
+    contacts = manager.backend.contacts
     assert isinstance(collision_pipeline, CollisionPipeline)
     assert contacts is not None
     assert set(solver._entry_contact_buffers) == {"source", "destination"}

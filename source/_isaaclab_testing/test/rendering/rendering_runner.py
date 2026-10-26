@@ -115,7 +115,7 @@ def run_rendering_case(
                 particle_state[..., :3] = torch.tensor(state["particle_pos"], device=runtime.sim.device)
                 particle_state[..., 3:] = 0.0
                 media.write_particle_state_to_sim_index(particle_state)
-            runtime.sim.backend_manager.get_model().particle_max_velocity = 10.0
+            runtime.sim.backend_manager.backend.model.particle_max_velocity = 10.0
             # The MPM reset snapshots the paddle transform after the joint writes.
             runtime.sim.forward()
             world_mask = wp.array([True] * runtime.scene.num_envs + [False], dtype=wp.bool, device=runtime.sim.device)
