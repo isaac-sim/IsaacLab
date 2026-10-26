@@ -450,10 +450,9 @@ class Articulation(BaseArticulation):
 
         # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
         # outside the articulation view, so the manager owns how a buffered target reaches the solver.
-        # The buffer is written every step rather than behind a host-side flag, so a target
-        # commanded inside a captured CUDA graph reaches the solver on every replay.
-        if self._fixed_tendon_control is not None:
+        if self._fixed_tendon_target_dirty:
             self._fixed_tendon_control.write_data_to_sim(self._backend_manager.get_control())
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -3026,6 +3025,7 @@ class Articulation(BaseArticulation):
         self._fixed_tendon_control.set_position_target_index(
             target=target, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
         )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_index(
         self,
@@ -3077,6 +3077,7 @@ class Articulation(BaseArticulation):
         self._fixed_tendon_control.set_position_target_mask(
             target=target, fixed_tendon_mask=fixed_tendon_mask, env_mask=env_mask
         )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_mask(
         self,
