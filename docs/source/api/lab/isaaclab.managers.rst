@@ -231,6 +231,28 @@ Curriculum Manager
 Recorder Manager
 ----------------
 
+Recorder terms select which tensors to capture at the existing pre/post step and reset callbacks.
+For an online consumer, a term can keep its latest batch in preallocated tensors and return
+``(None, None)`` from its callbacks. The training root obtains that term with
+``env.recorder_manager.get_term(name)`` and copies the batch into its own replay storage.
+The term owns the lifetime of its published tensors; consumers must copy them before the next capture.
+
+In an RL environment, post-step callbacks run after reward and termination computation and before
+automatic reset. A term reading physical tensors directly should set
+``requires_post_step_observations = False``. This avoids an extra observation computation and its
+noise draws. Existing terms default to ``True``. Callback dispatch is independent of this setting.
+
+Returning a field path and a batched tensor (or nested dictionary of tensors) retains samples in
+the manager. Each field has a time-major allocation and independent per-world insertion indices,
+so reset and per-step fields can have different sample rates. ``buffer_initial_capacity`` controls
+the first allocation per field: choose it with the payload size and expected episode length in mind,
+especially for images. Storage grows without dropping samples and is reused across resets.
+
+``get_episode(env_id)`` returns an owned snapshot whose leaves are tensors with a leading sample
+dimension. Reading a snapshot can synchronize device indices and copy data. Changes to that snapshot
+do not change live recording; use ``add_to_episodes`` and ``set_success_to_episodes`` for live writes.
+File export materializes these snapshots; the hot capture path does not construct per-world episodes.
+
 .. autoclass:: RecorderManager
     :members:
     :inherited-members:
