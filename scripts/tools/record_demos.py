@@ -613,19 +613,18 @@ def run_simulation_loop(  # noqa: C901
                             subtasks = obv[0].get("subtask_terms")
                         elif subtasks:
                             show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
+
+                    # Paused render-only frames do not advance a demonstration.
+                    success_step_count, success_reset_needed = process_success_condition(
+                        env, success_term, success_step_count
+                    )
+                    if success_reset_needed:
+                        should_reset_recording_instance = True
                 else:
                     env.sim.render()
                     # not stepping: zero haptics so a paused grip stops buzzing
                     if haptic_driver is not None:
                         haptic_driver.stop()
-
-                # Check for success condition
-                success_step_count_new, success_reset_needed = process_success_condition(
-                    env, success_term, success_step_count
-                )
-                success_step_count = success_step_count_new
-                if success_reset_needed:
-                    should_reset_recording_instance = True
 
                 # Update demo count if it has changed
                 if env.recorder_manager.exported_successful_episode_count > current_recorded_demo_count:

@@ -192,6 +192,24 @@ def test_visualizer_feeds_the_keyboard_and_the_control_keys(visualizer):
     assert visualizer.camera_keys == [False, True]
 
 
+def test_failed_session_start_leaves_window_input_unchanged(visualizer):
+    """A startup error must not leave listeners attached or camera keys disabled."""
+    cfg = _keyboard_cfg()
+
+    def fail_tuning_setup():
+        raise RuntimeError("Tuning setup failed")
+
+    cfg.retargeters_to_tune = fail_tuning_setup
+    lifecycle = TeleopSessionLifecycle(cfg, use_kit_xr_bridge=False, visualizers=[visualizer])
+    try:
+        with pytest.raises(RuntimeError, match="Tuning setup failed"):
+            _start(lifecycle)
+        assert visualizer.listener_count == 0
+        assert not visualizer.camera_keys or visualizer.camera_keys[-1]
+    finally:
+        lifecycle.stop()
+
+
 KEY_R, KEY_B = 19, 48
 
 
