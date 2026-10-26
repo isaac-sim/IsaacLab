@@ -40,7 +40,7 @@ from isaaclab.visualizers.visualizer_cfg import (
     VisualizerCfg,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.kitless]
 
 
 def test_web_visualizer_cfgs_do_not_open_browser_by_default():

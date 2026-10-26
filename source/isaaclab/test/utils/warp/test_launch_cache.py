@@ -3,8 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import pytest
+
 import isaaclab.utils.warp.launch_cache as launch_cache
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
+
+pytestmark = pytest.mark.kitless
 
 
 def test_warp_launch_cache(monkeypatch):

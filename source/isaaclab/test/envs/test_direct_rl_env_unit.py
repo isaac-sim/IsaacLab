@@ -20,7 +20,7 @@ from isaaclab.utils.noise import (
     NoiseModelWithAdditiveBiasCfg,
 )
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 @pytest.mark.parametrize(

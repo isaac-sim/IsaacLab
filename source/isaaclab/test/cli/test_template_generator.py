@@ -15,6 +15,8 @@ from unittest import mock
 import pytest
 import tomllib
 
+pytestmark = pytest.mark.kitless
+
 _TEMPLATE_DIR = Path(__file__).parents[4] / "tools" / "template"
 _SPEC = importlib.util.spec_from_file_location("isaaclab_template_cli", _TEMPLATE_DIR / "cli.py")
 assert _SPEC is not None

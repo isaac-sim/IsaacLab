@@ -46,6 +46,8 @@ from isaaclab_contrib.coupling import (
     coupler,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 @dataclass
 class _FakeArray:

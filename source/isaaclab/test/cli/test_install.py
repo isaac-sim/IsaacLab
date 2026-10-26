@@ -19,7 +19,7 @@ from isaaclab.cli.utils import (
     run_python_command,
 )
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="exercises the POSIX source-build launcher")

@@ -15,7 +15,7 @@ import pytest
 
 from isaaclab.cli.prebundles import repoint_prebundle_packages
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def _cp(returncode: int = 0, stdout: str = "") -> mock.MagicMock:

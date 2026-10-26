@@ -8,7 +8,7 @@ import torch
 
 import isaaclab.utils.noise as noise
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 # Each operation runs once; the noise parameters start on the other device so the first call migrates them
 # to the data device and the second call reuses the migrated parameters.

@@ -28,6 +28,8 @@ from isaaclab_tasks.contrib.franka_pour.mdp.observations import particle_fractio
 from isaaclab_tasks.contrib.franka_pour.mdp.terminations import excessive_spill, particle_out_of_bounds
 from isaaclab_tasks.contrib.franka_pour.pour_env import FrankaPourEnv
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_spilled_particles_land_on_ground_without_escaping_workspace(device):

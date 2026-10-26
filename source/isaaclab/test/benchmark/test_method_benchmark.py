@@ -12,7 +12,7 @@ import pytest
 
 from isaaclab.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
-pytestmark = pytest.mark.benchmark
+pytestmark = [pytest.mark.benchmark, pytest.mark.kitless]
 
 
 @pytest.mark.parametrize(

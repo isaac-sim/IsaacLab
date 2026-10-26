@@ -5,6 +5,7 @@
 
 """Tests for shared contact-force visualization."""
 
+import pytest
 import torch
 
 import isaaclab.utils.math as math_utils
@@ -12,6 +13,8 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG
 from isaaclab.sensors.contact_sensor import contact_force_marker
 from isaaclab.utils import clone
+
+pytestmark = pytest.mark.kitless
 
 
 class _FakeVisualizationMarkers:

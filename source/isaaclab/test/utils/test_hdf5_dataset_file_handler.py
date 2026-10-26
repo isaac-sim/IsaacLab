@@ -15,7 +15,7 @@ import torch
 from isaaclab.test.utils import test_devices
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def create_test_episode(device):

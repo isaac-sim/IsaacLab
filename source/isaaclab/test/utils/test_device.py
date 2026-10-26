@@ -8,7 +8,11 @@
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from isaaclab.utils.device import set_cuda_device
+
+pytestmark = pytest.mark.kitless
 
 
 def test_set_cuda_device_sets_torch_before_warp(monkeypatch):

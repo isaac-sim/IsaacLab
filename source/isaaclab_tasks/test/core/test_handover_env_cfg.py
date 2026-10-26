@@ -7,6 +7,8 @@ import pytest
 
 from isaaclab_tasks.core.handover.handover_env_cfg import LeftHandCfg, RightHandCfg
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("hand_cfg", [RightHandCfg(), LeftHandCfg()], ids=["right", "left"])
 def test_newton_shadow_hand_actuators_only_target_available_joints(hand_cfg):

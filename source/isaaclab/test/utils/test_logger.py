@@ -16,7 +16,7 @@ import pytest
 import isaaclab.utils.logger as logger_module
 from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter, configure_logging
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 # Fixtures

@@ -22,6 +22,8 @@ from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, resolve_an
 
 from pxr import Gf, Sdf, Usd, Vt
 
+pytestmark = pytest.mark.kitless
+
 _PPISP_FLOAT2_ATTRS = {
     "vignettingCenterR",
     "vignettingCenterG",

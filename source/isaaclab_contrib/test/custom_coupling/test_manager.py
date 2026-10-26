@@ -18,6 +18,8 @@ import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager as manager_mo
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import NewtonCoupledMJWarpVBDManager
 from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
+pytestmark = pytest.mark.kitless
+
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     """The coupled manager imports joint properties consumed by its MuJoCo solver."""

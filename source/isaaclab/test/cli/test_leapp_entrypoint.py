@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_deploy_module_does_not_import_pxr_before_app_launch():

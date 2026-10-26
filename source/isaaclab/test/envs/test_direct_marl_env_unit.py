@@ -22,7 +22,7 @@ from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
 from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModelWithAdditiveBias, NoiseModelWithAdditiveBiasCfg
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 class _StubMARLEnv(DirectMARLEnv):

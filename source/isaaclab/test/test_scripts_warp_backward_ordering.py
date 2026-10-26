@@ -27,7 +27,7 @@ _ENTRY_SCRIPTS = [
 _SETTING = "wp.config.enable_backward = False"
 
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 @pytest.mark.parametrize("script", _ENTRY_SCRIPTS)

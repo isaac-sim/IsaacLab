@@ -33,6 +33,8 @@ from isaaclab_rl.entrypoints.common import (
     wrap_sensor_capture,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 class _FakeEnv(gym.Env):
     """Minimal Gymnasium env exposing an IsaacLab-style scene sensor mapping."""

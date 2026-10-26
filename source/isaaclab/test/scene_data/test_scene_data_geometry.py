@@ -21,6 +21,8 @@ import warp as wp
 from isaaclab.scene_data.scene_data_backend import SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 
+pytestmark = pytest.mark.kitless
+
 
 def test_geometry_transport_does_not_cross_backend_ownership():
     """Renderers consume SDP; physics does not own Fabric destinations or shadow remapping."""

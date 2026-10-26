@@ -17,6 +17,8 @@ from isaaclab.sim.spawners.meshes.meshes_cfg import MeshRectangleCfg
 from isaaclab.sim.utils.prims import bind_visual_material
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture
 def stage():

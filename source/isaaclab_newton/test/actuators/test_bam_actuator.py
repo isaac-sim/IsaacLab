@@ -31,7 +31,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
 
-pytestmark = [pytest.mark.unit, pytest.mark.filterwarnings("error::DeprecationWarning")]
+pytestmark = [pytest.mark.unit, pytest.mark.filterwarnings("error::DeprecationWarning"), pytest.mark.kitless]
 
 BAM_DATA_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Tests/BAM"
 """Hosted BAM fixtures: the two-servo USD and the upstream XL330/m6 recordings."""

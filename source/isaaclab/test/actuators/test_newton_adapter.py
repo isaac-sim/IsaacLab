@@ -30,6 +30,8 @@ from isaaclab.sim.schemas.schemas_actuators import (
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.test.utils.actuator_equivalence import make_dummy_lstm_checkpoint, make_dummy_mlp_checkpoint
 
+pytestmark = pytest.mark.kitless
+
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
 

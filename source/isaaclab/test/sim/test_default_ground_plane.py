@@ -13,6 +13,8 @@ from pxr import Usd, UsdGeom, UsdShade
 from isaaclab.sim.spawners.from_files import from_files_cfg
 from isaaclab.utils.assets import retrieve_file_path
 
+pytestmark = pytest.mark.kitless
+
 USD_PATH = from_files_cfg._DEFAULT_GROUND_PLANE_USD
 NVIDIA_GREEN = (118, 185, 0)
 OFF_WHITE = (221, 218, 210)

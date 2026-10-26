@@ -13,6 +13,8 @@ import pytest
 
 from isaaclab.app import logging_utils
 
+pytestmark = pytest.mark.kitless
+
 
 @contextlib.contextmanager
 def _isolated_root(monkeypatch: pytest.MonkeyPatch):

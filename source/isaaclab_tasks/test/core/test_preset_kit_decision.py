@@ -32,6 +32,8 @@ from isaaclab_tasks.utils.hydra import (
 )
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
+pytestmark = pytest.mark.kitless
+
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
 

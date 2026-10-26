@@ -21,7 +21,7 @@ from isaaclab_physx.benchmark.assets import runtime as physx_runtime
 
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
-pytestmark = pytest.mark.benchmark
+pytestmark = [pytest.mark.benchmark, pytest.mark.kitless]
 
 
 def _hide_app_launcher(monkeypatch) -> None:

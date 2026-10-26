@@ -35,6 +35,8 @@ from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env_cfg import _
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
+pytestmark = pytest.mark.kitless
+
 _TASK = "Isaac-RenderBenchmark-Franka-Cabinet"
 
 

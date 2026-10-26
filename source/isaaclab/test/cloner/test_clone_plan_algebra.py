@@ -24,6 +24,8 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
 from isaaclab.sim import CuboidCfg
 
+pytestmark = pytest.mark.kitless
+
 ##
 # Path primitives.
 ##

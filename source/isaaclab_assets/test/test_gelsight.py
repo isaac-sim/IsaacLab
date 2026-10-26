@@ -13,6 +13,8 @@ from isaaclab.utils.assets import retrieve_file_path
 
 from isaaclab_assets.sensors import GELSIGHT_MINI_CFG
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("file_name", [GELSIGHT_MINI_CFG.background_path, GELSIGHT_MINI_CFG.calib_path])
 def test_gelsight_mini_render_data_is_available(file_name, tmp_path):

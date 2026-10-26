@@ -10,7 +10,7 @@ import pytest
 
 from scripts.tools import process_meshes_to_obj
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_blender_command_preserves_paths_with_spaces(monkeypatch):

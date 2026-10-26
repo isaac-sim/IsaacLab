@@ -20,6 +20,8 @@ from isaaclab.renderers.segmentation_colors import (
     unpack_rgba,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 @wp.kernel
 def _colorize_ids_kernel(ids: wp.array(dtype=wp.uint32), out: wp.array(dtype=wp.uint32)):

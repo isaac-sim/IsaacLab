@@ -11,7 +11,7 @@ import warp as wp
 from isaaclab.utils.array import index_fill_
 from isaaclab.utils.dict import convert_dict_to_backend
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_convert_numpy_array_to_warp_backend():

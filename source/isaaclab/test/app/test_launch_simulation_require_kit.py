@@ -31,6 +31,8 @@ from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture
 def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):

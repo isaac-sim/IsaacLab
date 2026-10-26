@@ -17,7 +17,7 @@ from pink.exceptions import FrameNotFound
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 from isaaclab.utils import clone
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
 @pytest.mark.parametrize("load_fails", [False, True])

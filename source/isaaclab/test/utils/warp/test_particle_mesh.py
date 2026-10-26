@@ -14,7 +14,7 @@ import warp as wp
 from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ParticleMeshCounter, make_box_region_mesh, make_frustum_region_mesh
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 @pytest.fixture(params=test_devices())

@@ -13,7 +13,7 @@ import torch
 from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def grilled_chicken(env):

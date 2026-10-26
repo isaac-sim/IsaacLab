@@ -24,6 +24,8 @@ from pxr import Sdf, Usd, UsdGeom, UsdLux
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture(autouse=True)
 def reset_kit_timeline_control_state():

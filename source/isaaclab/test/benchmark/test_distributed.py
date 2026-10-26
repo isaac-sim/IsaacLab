@@ -13,6 +13,8 @@ import pytest
 
 from isaaclab.benchmark.distributed import DistributedContext, add_distributed_arg, validate_distributed_args
 
+pytestmark = pytest.mark.kitless
+
 
 def test_context_is_single_rank_without_the_distributed_flag(monkeypatch: pytest.MonkeyPatch):
     """A single-process benchmark stays rank 0 even inside an unrelated distributed environment."""

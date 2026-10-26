@@ -27,7 +27,7 @@ from isaaclab.envs.mdp.actions.task_space_actions import (
 )
 from isaaclab.utils import math as math_utils
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 class _Stub:

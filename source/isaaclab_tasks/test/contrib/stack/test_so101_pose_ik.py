@@ -26,6 +26,8 @@ from isaaclab_tasks.contrib.stack.config.so101.pose_ik_controller import (
     SO101PoseIKControllerCfg,
 )
 
+pytestmark = pytest.mark.kitless
+
 # The SO-101 arm IK acts over 5 joints; the geometric Jacobian is (N, 6, 5).
 _NUM_JOINTS = 5
 _ID_QUAT = [0.0, 0.0, 0.0, 1.0]  # xyzw identity

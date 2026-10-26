@@ -34,7 +34,7 @@ pytest.importorskip("isaaclab_newton")
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.kitless]
 
 
 def _renderer(cfg, *, sim):

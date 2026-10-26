@@ -29,6 +29,8 @@ sys.path.insert(0, str(TEMPLATE_TOOL_DIR))
 import generator  # noqa: E402
 from generator import generate, get_algorithms_per_rl_library  # noqa: E402
 
+pytestmark = pytest.mark.kitless
+
 _SINGLE_AGENT_RL_LIBRARIES = [
     {"name": "rl_games", "algorithms": ["ppo"]},
     {"name": "rsl_rl", "algorithms": ["distillation", "ppo"]},

@@ -6,7 +6,10 @@
 """Tests for Isaac RTX renderer configuration."""
 
 import isaaclab_physx.renderers as renderers
+import pytest
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
+
+pytestmark = pytest.mark.kitless
 
 
 def test_global_settings_cfg_is_publicly_exported():

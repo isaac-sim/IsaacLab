@@ -32,6 +32,8 @@ from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
 from isaaclab_tasks.core.lift.mdp.utils import collect_collision_meshes
 from isaaclab_tasks.utils.hydra import resolve_presets
 
+pytestmark = pytest.mark.kitless
+
 
 class _MarkerSpy:
     def __init__(self, _cfg=None):

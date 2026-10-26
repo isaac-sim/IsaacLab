@@ -18,7 +18,7 @@ import pytest
 import torch
 import warp as wp
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 from isaaclab.envs.mdp.observations import (
     CameraImageBase,

@@ -19,6 +19,8 @@ from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env_cfg import
     get_mpm_solver_cfg,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 def test_sparse_mpm_capacities_scale_to_large_batches():
     """The tuned hierarchy must reserve bounded capacities for CUDA graph capture."""

@@ -11,6 +11,8 @@ ovphysx = pytest.importorskip("ovphysx", reason="ovphysx wheel not installed")
 
 from pxr import Plug, Usd
 
+pytestmark = pytest.mark.kitless
+
 
 def test_tendon_fragments_use_codeless_schema_names_and_types():
     from isaaclab_ov.physics.ovphysx_compat import physx_schema_paths

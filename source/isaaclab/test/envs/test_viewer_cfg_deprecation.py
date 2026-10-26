@@ -19,6 +19,8 @@ from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab.envs.common import ViewerCfg, _apply_deprecated_viewer_cfg
 from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 def test_viewer_cfg_default_no_warning():
     """ViewerCfg() with all defaults must not emit a DeprecationWarning."""

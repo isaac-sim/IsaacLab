@@ -23,6 +23,8 @@ from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video
 from isaaclab.utils import validate
 from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
+pytestmark = pytest.mark.kitless
+
 _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
 

@@ -19,7 +19,7 @@ import pytest
 import tomllib
 from packaging.requirements import Requirement
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def _generate_wheel_pyproject(source_checkout_root: Path, tmp_path: Path) -> dict:

@@ -24,7 +24,7 @@ import pytest
 import trimesh
 import warp as wp
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 from isaaclab.sensors.ray_caster.kernels import (
     apply_z_drift_kernel,

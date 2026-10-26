@@ -19,6 +19,8 @@ from isaaclab_tasks.contrib.place.config.agibot.place_upright_mug_rmp_rel_env_cf
     RmpFlowAgibotPlaceUprightMugEnvCfg,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize(
     ("env_cfg_cls", "expected_objects"),

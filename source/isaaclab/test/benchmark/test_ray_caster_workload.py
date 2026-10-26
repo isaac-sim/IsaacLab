@@ -5,8 +5,12 @@
 
 """Tests for shared ray-caster workload geometry."""
 
+import pytest
+
 from isaaclab.benchmark.sensor_suites import rough_terrain_size
 from isaaclab.cloner import grid_transforms
+
+pytestmark = pytest.mark.kitless
 
 
 def test_default_rough_terrain_covers_every_environment_ray_grid() -> None:

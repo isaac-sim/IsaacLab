@@ -46,6 +46,8 @@ from standalone_script_cases import (
     visualizer_is_available,
 )
 
+pytestmark = pytest.mark.kitless
+
 SPECS = discover_specs()
 SCOPE = os.environ.get("ISAACLAB_STANDALONE_SCRIPT_SCOPE", "all")
 SELECTED_SPECS = select_script_scope(SPECS, SCOPE)

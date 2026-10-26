@@ -18,7 +18,7 @@ from isaaclab.cloner import make_clone_plan
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils import replace
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
 def _add_api_schemas(prim, schemas: list[str]) -> None:

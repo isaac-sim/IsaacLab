@@ -18,6 +18,8 @@ import torch
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints, cube_keypoints_from_quat
 
+pytestmark = pytest.mark.kitless
+
 # Elementwise torch helpers with no device-specific branch, so CPU suffices.
 _DEVICES = ["cpu"]
 

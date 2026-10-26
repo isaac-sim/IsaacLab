@@ -17,7 +17,7 @@ import isaaclab.cli as cli
 import isaaclab.cli.commands.format as formatter
 import isaaclab.cli.commands.misc as misc
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_format_checks_the_requested_files(tmp_path, monkeypatch):

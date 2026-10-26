@@ -11,6 +11,8 @@ import isaaclab_contrib.custom_coupling.tasks  # noqa: F401
 
 from isaaclab_tasks.utils import resolve_task_config
 
+pytestmark = pytest.mark.kitless
+
 MANUAL_MANAGER = "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
 PROXY_MANAGER = "isaaclab_contrib.coupling.coupler:NewtonCouplerManager"
 

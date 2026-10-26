@@ -13,6 +13,8 @@ from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.hydra import collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
+pytestmark = pytest.mark.kitless
+
 
 def _get(cfg, path):
     for name in path:

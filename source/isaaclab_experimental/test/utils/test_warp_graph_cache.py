@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import unittest
 
+import pytest
 import warp as wp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+
+pytestmark = pytest.mark.kitless
 
 
 @wp.kernel

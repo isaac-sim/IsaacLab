@@ -11,7 +11,7 @@ import torch
 
 from isaaclab.utils.math import quat_from_matrix
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def _load_forge_utils_module():

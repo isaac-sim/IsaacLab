@@ -13,7 +13,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 _NUM_ENVS = 2
 _EPISODE_STEPS = 3

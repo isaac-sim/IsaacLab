@@ -21,6 +21,8 @@ from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFo
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 from isaaclab.test.utils import test_devices
 
+pytestmark = pytest.mark.kitless
+
 
 class _Backend(SimpleNamespace, SceneDataBackend):
     transforms = None

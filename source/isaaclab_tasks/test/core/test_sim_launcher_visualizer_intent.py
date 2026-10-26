@@ -26,6 +26,8 @@ from isaaclab_tasks.utils import resolve_presets, resolve_task_config, setup_pre
 from isaaclab_tasks.utils.hydra import register_task
 from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("selection", ["kit", "newton_gl", "newton_rtx", "rerun", "viser", "none", "kit,newton_gl"])
 def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch):

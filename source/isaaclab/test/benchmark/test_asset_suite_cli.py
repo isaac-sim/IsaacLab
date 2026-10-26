@@ -12,6 +12,8 @@ import pytest
 
 import isaaclab.benchmark.asset_suites.cli as cli
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize(
     ("script_variant", "component", "variant_argv", "expected_variant"),

@@ -7,10 +7,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 import torch
 
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.utils.warp import ProxyArray
+
+pytestmark = pytest.mark.kitless
 
 
 class _TestAsset(AssetBase):

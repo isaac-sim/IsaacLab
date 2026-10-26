@@ -7,10 +7,13 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+pytestmark = pytest.mark.kitless
 
 _TASK = "Isaac-Pendulum-MARL-Direct"
 

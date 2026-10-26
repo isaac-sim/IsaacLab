@@ -24,7 +24,7 @@ from isaaclab.envs.utils.spaces import (
     spec_to_gym_space,
 )
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_spec_to_gym_space():

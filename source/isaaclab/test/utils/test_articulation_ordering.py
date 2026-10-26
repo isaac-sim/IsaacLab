@@ -8,6 +8,8 @@ import importlib
 import pytest
 import torch
 
+pytestmark = pytest.mark.kitless
+
 
 def _make_trace(
     joint_names: tuple[str, ...],

@@ -16,6 +16,8 @@ from isaaclab.benchmark import dispatch
 from isaaclab.benchmark.entrypoints import multigpu
 from isaaclab.cli.multigpu import build_launch_command, parse_launcher_args
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture(autouse=True)
 def two_visible_gpus(monkeypatch: pytest.MonkeyPatch):

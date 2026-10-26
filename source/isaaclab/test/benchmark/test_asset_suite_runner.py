@@ -14,7 +14,7 @@ import pytest
 from isaaclab.benchmark.asset_suites import AssetBenchmarkRequest, AssetBenchmarkTargets, run_asset_benchmark
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
-pytestmark = pytest.mark.benchmark
+pytestmark = [pytest.mark.benchmark, pytest.mark.kitless]
 
 
 class _FakeRunner:

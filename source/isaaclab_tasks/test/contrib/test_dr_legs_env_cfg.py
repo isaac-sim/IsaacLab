@@ -16,6 +16,8 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.dr_legs.dr_legs_env import DrLegsRLEnv
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize(
     ("overrides", "expected_effort_limit", "expected_tilt_range", "expected_armature_randomization"),

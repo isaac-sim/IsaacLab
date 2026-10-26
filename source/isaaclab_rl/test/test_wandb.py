@@ -13,7 +13,7 @@ import pytest
 
 import isaaclab_rl.utils.wandb as wandb_utils
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def _stub_wandb_run(monkeypatch: pytest.MonkeyPatch, file_names: list[str]):

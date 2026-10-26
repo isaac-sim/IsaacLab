@@ -20,7 +20,10 @@ import pytest
 
 from isaaclab.cli import multigpu
 
-pytestmark = pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only")
+pytestmark = [
+    pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only"),
+    pytest.mark.kitless,
+]
 
 # Model the torchrun process and one worker in a separate child process.
 _PARENT_WITH_CHILD = (

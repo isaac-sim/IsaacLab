@@ -3,9 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg
 
 from isaaclab_tasks.core.velocity.config.g1.rough_env_cfg import G1RoughEnvCfg
+
+pytestmark = pytest.mark.kitless
 
 
 def test_g1_rough_newton_has_sufficient_constraint_capacity():

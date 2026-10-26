@@ -29,6 +29,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 def test_shared_events_import_without_backend_packages() -> None:
     """Importing shared terms must not require an unused physics backend."""

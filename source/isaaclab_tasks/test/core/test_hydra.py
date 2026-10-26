@@ -23,6 +23,8 @@ from isaaclab_tasks.utils.hydra import (
     resolve_presets,
 )
 
+pytestmark = pytest.mark.kitless
+
 # =============================================================================
 # Leaf config classes (reused across all test sections)
 # =============================================================================

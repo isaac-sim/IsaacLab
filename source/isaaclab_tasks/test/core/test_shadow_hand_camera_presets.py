@@ -41,6 +41,8 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_e
 )
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 
+pytestmark = pytest.mark.kitless
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

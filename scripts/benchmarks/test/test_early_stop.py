@@ -24,6 +24,8 @@ from isaaclab.benchmark.entrypoints.early_stop import (
 )
 from isaaclab.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
 
+pytestmark = pytest.mark.kitless
+
 DEFAULT_SUCCESS_TAG = SUCCESS_RATE_LOG_TAGS[0]
 
 

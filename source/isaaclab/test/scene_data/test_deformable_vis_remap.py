@@ -13,7 +13,7 @@ import warp as wp
 
 from isaaclab.scene_data.deformable_vis_remap import build_volume_vis_barycentric_remap
 
-pytestmark = pytest.mark.usefixtures("wp_init")
+pytestmark = [pytest.mark.usefixtures("wp_init"), pytest.mark.kitless]
 
 
 @pytest.fixture

@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 import torch
 
+pytestmark = pytest.mark.kitless
+
 
 def _load_soft_dtw_module():
     module_path = Path(__file__).parents[2] / "isaaclab_tasks" / "contrib" / "automate" / "soft_dtw_cuda.py"

@@ -15,6 +15,8 @@ import pytest
 
 from isaaclab.benchmark import SCHEMA_VERSION
 
+pytestmark = pytest.mark.kitless
+
 ROOT = Path(__file__).resolve().parents[3]
 
 _TASK = "Isaac-Cartpole-Direct"

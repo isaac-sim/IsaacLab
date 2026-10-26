@@ -27,6 +27,8 @@ from isaaclab_contrib.coupling import (
     NewtonCouplerManager,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture
 def isolated_newton_manager() -> NewtonCouplerManager:

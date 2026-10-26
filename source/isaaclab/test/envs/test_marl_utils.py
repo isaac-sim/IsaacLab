@@ -6,9 +6,12 @@
 from types import SimpleNamespace
 
 import gymnasium as gym
+import pytest
 import torch
 
 from isaaclab.envs.utils.marl import multi_agent_to_single_agent
+
+pytestmark = pytest.mark.kitless
 
 
 class _FakeMultiAgentEnv:

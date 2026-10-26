@@ -24,6 +24,8 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 from isaaclab_assets import FRANKA_PANDA_CFG
 
+pytestmark = pytest.mark.kitless
+
 _TASK = "Isaac-Reach-Franka"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"

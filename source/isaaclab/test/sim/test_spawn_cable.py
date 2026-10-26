@@ -11,7 +11,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 _INVALID_CABLE_MATERIAL_VALUES = [

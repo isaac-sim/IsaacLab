@@ -10,7 +10,7 @@ from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
 from isaaclab.utils import instantiate
 from isaaclab.utils.types import ArticulationActions
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
 @pytest.mark.parametrize("test_point", range(20))

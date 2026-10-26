@@ -21,7 +21,7 @@ from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_sensor_lifecycle_has_single_owners():

@@ -36,6 +36,8 @@ from isaaclab.app import add_launcher_args
 
 from isaaclab_rl.entrypoints import multigpu as train_multigpu
 
+pytestmark = pytest.mark.kitless
+
 
 def _build_command(argv: list[str]) -> list[str]:
     """Build the distributed launcher command the same way ``main`` does."""

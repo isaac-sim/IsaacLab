@@ -13,6 +13,8 @@ import pytest
 
 from isaaclab.sim.utils.extensions import disable_extension, enable_extension, get_extension_path
 
+pytestmark = pytest.mark.kitless
+
 
 def _install_kit_app_module(monkeypatch, extension_manager):
     """Install a minimal ``omni.kit.app`` module hierarchy."""

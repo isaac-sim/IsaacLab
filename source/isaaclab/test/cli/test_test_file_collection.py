@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 from test_test_orchestrator_result_handling import _load_orchestrator_module
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture
 def collection_tree(tmp_path, monkeypatch):

@@ -14,7 +14,7 @@ from pinocchio.robot_wrapper import RobotWrapper
 from isaaclab.controllers.pink_ik.null_space_posture_task import NullSpacePostureTask
 from isaaclab.controllers.pink_ik.pink_task_cfg import NullSpacePostureTaskCfg
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
 class TestNullSpacePostureTaskSimplifiedRobot:

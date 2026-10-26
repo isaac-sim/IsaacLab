@@ -14,7 +14,7 @@ import warp as wp
 
 # Skip entire module if no CUDA device available
 wp.init()
-pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
+pytestmark = [pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required"), pytest.mark.kitless]
 
 import isaaclab_experimental.envs.mdp.events as warp_evt
 from parity_helpers import (

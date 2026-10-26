@@ -14,6 +14,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
+pytestmark = pytest.mark.kitless
+
 
 def test_parse_env_cfg_rejects_bare_string_overrides():
     """A bare string is itself a ``Sequence[str]`` of characters; catch it explicitly."""

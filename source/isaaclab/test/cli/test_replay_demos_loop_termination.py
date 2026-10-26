@@ -22,7 +22,7 @@ import torch
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 # This test lives at source/isaaclab/test/cli/test_replay_demos_loop_termination.py.
 _REPLAY_DEMOS_PATH = Path(__file__).resolve().parents[4] / "scripts" / "tools" / "replay_demos.py"

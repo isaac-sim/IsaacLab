@@ -13,7 +13,7 @@ import warp as wp
 
 from isaaclab.test.utils import test_devices
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 wp.config.quiet = True
 wp.init()

@@ -12,6 +12,8 @@ import torch
 
 from isaaclab_tasks.contrib.franka_pour.reset_sampler import ResetDatasetSampler, ResetDatasetSamplerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 def _ring_values(sampler: ResetDatasetSampler, row: int) -> list[bool]:
     """Read one sampler ring in oldest-to-newest order."""

@@ -33,6 +33,8 @@ from isaaclab.actuators.newton import read_group_parameter, write_group_paramete
 from isaaclab.utils import clone
 from isaaclab.utils.warp import ProxyArray
 
+pytestmark = pytest.mark.kitless
+
 
 def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
     """Create a valid implicit actuator config for collection tests."""

@@ -33,6 +33,8 @@ from isaaclab_rl.entrypoints.common import (
 
 from isaaclab_tasks.utils import setup_preset_cli
 
+pytestmark = pytest.mark.kitless
+
 _KIT_LAUNCHER = "isaaclab_physx.app:KitLauncher"
 
 

@@ -16,6 +16,8 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import UsdReplicateContext, make_clone_plan, usd_replicate
 from isaaclab.sim import SpawnerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 def test_usd_replicate_preserves_ancestors_and_relationships():
     """Noncontiguous copies define missing ancestors and rebase only targets inside the copied subtree."""

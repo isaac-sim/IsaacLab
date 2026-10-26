@@ -23,6 +23,8 @@ from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
+pytestmark = pytest.mark.kitless
+
 
 def _install_omni_stubs(monkeypatch):
     sim = SimpleNamespace(stage=object(), device="cpu", get_scene_data_provider=MagicMock())

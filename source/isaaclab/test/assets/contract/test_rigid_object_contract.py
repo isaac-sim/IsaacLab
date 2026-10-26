@@ -26,7 +26,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from .rigid_object_factory import get_rigid_object, get_rigid_object_collection
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 # Distinct instance and body counts make swapped axes visible.
 _NUM_INSTANCES, _NUM_BODIES = 2, 3

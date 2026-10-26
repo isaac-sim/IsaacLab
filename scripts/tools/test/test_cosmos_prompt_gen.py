@@ -13,6 +13,8 @@ import pytest
 
 from scripts.tools.cosmos.cosmos_prompt_gen import generate_prompt, main
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.fixture(scope="class")
 def temp_templates_file():

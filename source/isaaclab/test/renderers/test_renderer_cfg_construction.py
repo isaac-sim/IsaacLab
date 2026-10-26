@@ -10,7 +10,7 @@ import pytest
 from isaaclab.renderers import RenderBufferKind
 from isaaclab.utils.string import ResolvableString
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.kitless]
 
 
 @pytest.mark.parametrize(

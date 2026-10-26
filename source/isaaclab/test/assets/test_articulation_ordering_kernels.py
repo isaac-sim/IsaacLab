@@ -28,6 +28,8 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_joint_vel_user_to_backend_with_mask,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 def test_reorder_2d_backend_to_user_gathers_user_axis() -> None:
     """Reorder a 2-D backend buffer into public user order."""
