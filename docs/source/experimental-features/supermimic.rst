@@ -31,10 +31,16 @@ The remaining task modules have separate responsibilities:
 * ``motion`` loads and resamples the reference corpus and constructs future goals.
 * ``kinematics`` supplies the matching differentiable link geometry and joint order.
 
-``isaaclab_rl.supermimic`` owns the learner configuration, networks, normalizers, replay ring and
+``isaaclab_rl.supermimic`` owns the learner configuration, network composition, replay ring and
 optimization. The native ``train_supermimic`` and ``play_supermimic`` entrypoint backends construct
 the environment once and own stepping, checkpoint I/O, logging and evaluation. No external
 SuperMimic package or launcher is required. The task does not import the learner, W&B or PhysicsNeMo.
+
+Both world-model choices use PhysicsNeMo Robotics' ``RunningNormalizer`` for world-model, policy and
+critic statistics. Its updates use persistent device buffers without reading the count back to the
+CPU. The G1 representation, reward and actor/critic update schedule remain native task/algorithm code.
+Imagined rollouts call the network directly and retain action gradients through frozen world-model
+weights; they do not use an inference session or detach state into a deployment cache.
 
 Transition capture and storage
 ------------------------------
@@ -57,7 +63,11 @@ Prepare the robot and motions
 -----------------------------
 
 Use a CUDA-capable Isaac Lab installation with the Newton backend and its standalone MJCF importer.
-Start with the 40-motion retargeted LAFAN1 corpus. The preparation command downloads the robot
+Install the compatible PhysicsNeMo Robotics ``feat/resident-dynamics-ownership`` (dependency commit ``e597e95``) dependency
+alongside PhysicsNeMo ``2.1.1`` for the learner's shared normalization. Its released distribution is
+still pending; the PR requires that separately supplied source revision. Task discovery and the
+physical task remain independent of this learner dependency. Start with the 40-motion retargeted
+LAFAN1 corpus. The preparation command downloads the robot
 description and motions at a pinned dataset revision and records file hashes. The conversion
 command is Isaac Lab's existing MJCF-to-USD tool:
 
@@ -138,15 +148,17 @@ with the MLP configuration. NeRD is used inside the learner; the physical teache
 MuJoCo Warp. This option does not deploy a learned collision or constraint solver into Newton.
 
 This experimental option requires a compatible PhysicsNeMo Robotics installation exposing
-``physicsnemo_robotics.models.parallel_nerd.ParallelNeRD``. It is imported only when selected;
-the default MLP workflow has no PhysicsNeMo dependency. The integration was validated with
-PhysicsNeMo Robotics ``0.1.0.dev0`` at revision ``a81160ef`` and PhysicsNeMo ``2.1.1`` in the
-development environment. A clean, released package combination is not established here;
+``physicsnemo_robotics.models.parallel_nerd.ParallelNeRD``. The NeRD network is imported only when selected;
+both architectures use the shared PhysicsNeMo normalizer. The integration uses PhysicsNeMo Robotics
+``0.1.0.dev0`` from the dependency branch above and PhysicsNeMo ``2.1.1`` in the development environment.
+A clean, released package combination is not established here;
 the experimental dependency must be supplied separately.
 
 The offline NeRD workflow below uses that same network implementation with temporal attention.
 Its generalized-coordinate state and fixed offline normalization differ from SuperMimic's
-task-specific state and online statistics. Those representations are intentionally distinct.
+task-specific state and online statistics. Both normalization implementations belong to PhysicsNeMo;
+the application chooses the convention its algorithm needs. Existing SuperMimic normalization buffer
+names and checkpoint state remain compatible.
 
 Logging and preemption
 ~~~~~~~~~~~~~~~~~~~~~~
