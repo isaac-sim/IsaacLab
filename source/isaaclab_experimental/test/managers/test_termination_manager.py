@@ -11,9 +11,9 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental.managers import TerminationManager
-from isaaclab_experimental.utils import CapturedStage
 
 from isaaclab.managers import TerminationTermCfg
+from isaaclab.utils.warp.capture import CapturedStage
 
 
 def copy_flags(env, out: wp.array):

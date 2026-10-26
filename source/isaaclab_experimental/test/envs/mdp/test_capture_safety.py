@@ -6,7 +6,7 @@
 """CUDA-graph capture safety for warp MDP terms.
 
 The Warp environments record every capturable manager stage into a CUDA graph by default
-(:class:`~isaaclab_experimental.utils.CapturedStage`), so a warp MDP term that is not capture-safe
+(:class:`~isaaclab.utils.warp.capture.CapturedStage`), so a warp MDP term that is not capture-safe
 is not an edge case — it is the normal execution path. A captured graph records launch topology and
 pointer values and replays them, so a term must launch a fixed dim, touch only buffers that
 were allocated before capture and never move, and do all of its work in kernels: host-side
@@ -47,7 +47,6 @@ import isaaclab_tasks_experimental.core as tasks_experimental_core
 import isaaclab_tasks_experimental.core.locomotion.mdp.rewards as warp_loco_rew
 import isaaclab_tasks_experimental.core.velocity.mdp.rewards as warp_velocity_rew
 import isaaclab_tasks_experimental.core.velocity.mdp.terminations as warp_velocity_term
-from isaaclab_experimental.utils.warp import is_warp_capturable
 from parity_helpers import (
     DEVICE,
     NUM_BODIES,
@@ -71,6 +70,7 @@ from parity_helpers import (
 import isaaclab.envs.mdp.rewards as stable_rew
 import isaaclab.envs.mdp.terminations as stable_term
 from isaaclab.managers.manager_term_cfg import RewardTermCfg, TerminationTermCfg
+from isaaclab.utils.warp.capture import is_warp_capturable
 
 import isaaclab_tasks.core.velocity.mdp.rewards as stable_velocity_rew
 import isaaclab_tasks.core.velocity.mdp.terminations as stable_velocity_term

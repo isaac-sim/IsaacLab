@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
-from isaaclab_experimental.utils.warp_capture import captured
 
 from isaaclab.utils.seed import WarpRng
+from isaaclab.utils.warp.capture import captured
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg

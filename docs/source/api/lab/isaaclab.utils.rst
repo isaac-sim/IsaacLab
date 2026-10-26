@@ -278,6 +278,13 @@ Warp operations
    sample_particles_in_mesh
    sample_particles_in_cavity
 
+Warp CUDA graph capture
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. automodule:: isaaclab.utils.warp.capture
+   :members:
+   :show-inheritance:
+
 Warp Fabric kernels
 ^^^^^^^^^^^^^^^^^^^
 

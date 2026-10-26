@@ -58,12 +58,11 @@ from prettytable import PrettyTable
 from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import instantiate, to_dict
+from isaaclab.utils.warp.capture import captured, eager, is_warp_capturable
 
 from isaaclab_experimental.utils import noise, tensor_processors
 from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
-from isaaclab_experimental.utils.warp import is_warp_capturable
-from isaaclab_experimental.utils.warp_capture import captured, eager
 
 from .manager_base import ManagerBase, ManagerTermBase, _config_key, split_resets, split_terms
 

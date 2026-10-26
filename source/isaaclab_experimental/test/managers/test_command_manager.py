@@ -13,13 +13,13 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs.mdp.commands import UniformVelocityCommand
 from isaaclab_experimental.managers import CommandManager
-from isaaclab_experimental.utils import CapturedStage
 from isaaclab_experimental.utils.warp import resolve_1d_mask
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.managers import CurriculumTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.seed import WarpRng
+from isaaclab.utils.warp.capture import CapturedStage
 
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")

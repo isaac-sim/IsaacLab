@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
-from isaaclab_experimental.utils.warp_capture import captured
 
 from isaaclab.utils.seed import WarpRng
+from isaaclab.utils.warp.capture import captured
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg

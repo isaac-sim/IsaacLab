@@ -38,7 +38,7 @@ _EXTERNAL_MDP = textwrap.dedent('''
     import warp as wp
 
     from isaaclab_experimental.managers import ManagerTermBase
-    from isaaclab_experimental.utils.warp import WarpCapturable
+    from isaaclab.utils.warp.capture import WarpCapturable
 
 
     @wp.kernel

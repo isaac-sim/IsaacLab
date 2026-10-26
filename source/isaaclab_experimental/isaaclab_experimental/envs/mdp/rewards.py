@@ -25,9 +25,9 @@ from isaaclab_newton.kernels.state_kernels import (
 )
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp.capture import WarpCapturable
 
 from isaaclab_experimental.managers import ManagerTermBase
-from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

@@ -33,9 +33,9 @@ from isaaclab.utils import instantiate, validate
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp.capture import CapturedStage, captured, reset_captured_stages
 
 from isaaclab_experimental.utils.warp import count_masked
-from isaaclab_experimental.utils.warp_capture import CapturedStage, captured, reset_captured_stages
 
 # from isaacsim.core.simulation_manager import SimulationManager
 # from isaacsim.core.version import get_version
@@ -82,7 +82,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
     Tasks record their GPU work as CUDA graphs by decorating :meth:`_apply_action`, :meth:`_get_dones`,
     :meth:`_get_rewards`, :meth:`_get_observations` and :meth:`_reset_idx` with
-    :func:`~isaaclab_experimental.utils.captured`.
+    :func:`~isaaclab.utils.warp.capture.captured`.
 
     Note:
         For vectorized environments, it is recommended to **only** call the :meth:`reset`

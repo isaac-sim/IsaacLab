@@ -24,10 +24,9 @@ import isaaclab_tasks_experimental  # noqa: F401
 import pytest
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
-from isaaclab_experimental.utils import CapturedStage
-from isaaclab_experimental.utils.warp import WarpCapturable
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.warp.capture import CapturedStage, WarpCapturable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config

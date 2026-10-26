@@ -16,9 +16,9 @@ from collections import Counter
 
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
-from isaaclab_experimental.utils import CapturedStage
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.warp.capture import CapturedStage
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config

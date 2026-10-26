@@ -11,12 +11,12 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental.managers import ObservationManager
-from isaaclab_experimental.utils import CapturedStage
 from isaaclab_experimental.utils.noise import ConstantNoiseCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.managers import CurriculumTermCfg, ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.warp.capture import CapturedStage
 
 
 def constant_obs(env, out: wp.array, out_dim: int):

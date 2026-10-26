@@ -649,7 +649,7 @@ class WarpFrontend:
 
         A class term is one when it subclasses the warp :class:`~isaaclab_experimental.managers.ManagerTermBase`
         (warp action and command terms included). A function term is one when it declares its capture
-        behavior with :class:`~isaaclab_experimental.utils.warp.WarpCapturable`.
+        behavior with :class:`~isaaclab.utils.warp.capture.WarpCapturable`.
         """
         from isaaclab.utils import string_to_callable
 

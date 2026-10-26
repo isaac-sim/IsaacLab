@@ -413,7 +413,7 @@ experimental packages:
 
    from isaaclab.managers import SceneEntityCfg
    from isaaclab_experimental.managers import ManagerTermBase
-   from isaaclab_experimental.utils.warp import WarpCapturable
+   from isaaclab.utils.warp.capture import WarpCapturable
 
 Term configurations keep the stable config classes (for example
 :class:`~isaaclab.managers.RewardTermCfg` and the command configurations in :mod:`isaaclab.envs.mdp`);
@@ -546,7 +546,7 @@ caching it, so a term never holds another environment's buffer.
 Capture Safety
 """"""""""""""
 
-Each manager method decorated with :func:`~isaaclab_experimental.utils.captured` is a stage (for example
+Each manager method decorated with :func:`~isaaclab.utils.warp.capture.captured` is a stage (for example
 ``RewardManager.compute``, or the ``_reset`` that ``CommandManager.reset`` calls with the reset mask): its
 first call records it into CUDA graphs and later calls replay them. That first call is the recording
 itself; there is no eager warm-up. A stage records again when it receives a different array or scalar
@@ -581,7 +581,7 @@ part of it:
   is not supported while stages are recorded.
 - **Mark host-dependent terms** — a term that relies on host-side work, such as a sensor whose
   refresh is decided on the host, is decorated with ``@WarpCapturable(False, reason=...)``. Its stage
-  calls it through :func:`~isaaclab_experimental.utils.eager`, between recorded graphs, on every call,
+  calls it through :func:`~isaaclab.utils.warp.capture.eager`, between recorded graphs, on every call,
   and it raises if it is ever called while a stage records. When only some configurations need the host,
   pass a predicate over the term's parameters, e.g.
   ``@WarpCapturable(lambda params: params.get("sensor_cfg") is None, reason=...)``. On a class term the
@@ -589,7 +589,7 @@ part of it:
   command term's class annotation covers both its ``compute`` and its ``reset``. ``height_scan``,
   ``base_height_l2`` with a height scanner and the rigid-body randomization events are examples.
 
-Setting :attr:`CapturedStage.enabled <isaaclab_experimental.utils.CapturedStage.enabled>` to ``False``
+Setting :attr:`CapturedStage.enabled <isaaclab.utils.warp.capture.CapturedStage.enabled>` to ``False``
 after the environment is built runs every stage eagerly, and ``ISAACLAB_SYNC_DEBUG=1`` makes a hidden
 device-to-host synchronization inside an eager stage raise. Comparing an eager and a captured
 rollout of the same seeded task is the end-to-end check.
@@ -608,7 +608,7 @@ built-in warp term has the same name.
 
    import warp as wp
 
-   from isaaclab_experimental.utils.warp import WarpCapturable
+   from isaaclab.utils.warp.capture import WarpCapturable
 
 
    @wp.kernel

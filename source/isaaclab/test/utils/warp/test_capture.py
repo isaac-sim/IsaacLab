@@ -10,13 +10,8 @@ from __future__ import annotations
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.utils.warp_capture import (
-    SYNC_DEBUG_ENV_VAR,
-    CapturedStage,
-    captured,
-    eager,
-    reset_captured_stages,
-)
+
+from isaaclab.utils.warp.capture import SYNC_DEBUG_ENV_VAR, CapturedStage, captured, eager, reset_captured_stages
 
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")

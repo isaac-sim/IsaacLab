@@ -29,6 +29,7 @@ from isaaclab_newton.kernels.state_kernels import (
 )
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp.capture import WarpCapturable
 
 from isaaclab_experimental.envs.utils.io_descriptors import (
     generic_io_descriptor_warp,
@@ -38,7 +39,6 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_joint_vel_offsets,
     record_shape,
 )
-from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

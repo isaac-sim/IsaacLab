@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
-from isaaclab_experimental.utils.warp_capture import captured
 
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.utils.seed import WarpRng
 from isaaclab.utils.string import resolve_matching_names_values
+from isaaclab.utils.warp.capture import captured
 
 
 @wp.func
