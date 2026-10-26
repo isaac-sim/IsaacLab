@@ -181,8 +181,7 @@ jobs:
   install-tests-windows:
     name: Installation Tests (Windows)
     needs: [changes]
-    # TEMP (revert before review): no signal for the Windows CI Warp cache change.
-    if: false
+    if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu-windows]
     timeout-minutes: 90
     defaults:
