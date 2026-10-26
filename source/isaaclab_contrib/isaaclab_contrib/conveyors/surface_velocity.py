@@ -11,6 +11,8 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+
 _ENV_REGEX_NS = "{ENV_REGEX_NS}"
 
 
@@ -76,7 +78,7 @@ class SurfaceVelocitySpec:
 def resolve_surface_velocity_paths(
     num_envs: int,
     surface_specs: Sequence[SurfaceVelocitySpec],
-    env_path_format: str = "/World/envs/env_{}",
+    env_path_format: str = DEFAULT_ENV_TEMPLATE,
 ) -> tuple[str, ...]:
     """Resolve conveyor templates to exact environment-major prim paths.
 

@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+
 from .surface_velocity import SurfaceVelocitySpec, resolve_surface_velocity_paths
 
 if TYPE_CHECKING:
@@ -59,7 +61,7 @@ class SurfaceVelocity:
         *,
         stage: Usd.Stage,
         manager: PhysxManager,
-        env_path_format: str = "/World/envs/env_{}",
+        env_path_format: str = DEFAULT_ENV_TEMPLATE,
         startup_duration_s: float = 1.0,
     ) -> None:
         """Cache native attributes after scene parsing; schema imports stay lazy."""
