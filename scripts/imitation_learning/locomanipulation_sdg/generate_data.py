@@ -306,16 +306,6 @@ def sync_simulation_state(env: LocomanipulationSDGEnv):
     env.scene.update(dt=env.physics_dt)
 
 
-def _set_sensor_camera_view():
-    """Set the Sim GUI viewport to display the robot_pov_cam sensor view."""
-    import omni.kit.viewport.utility
-
-    viewport = omni.kit.viewport.utility.get_active_viewport()
-    if viewport is not None:
-        cam_prim_path = "/World/envs/env_0/Robot/torso_link/d435_link/camera"
-        viewport.set_active_camera(cam_prim_path)
-
-
 def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data: EpisodeData) -> torch.Tensor:
     """Project the recorded robot pose and joint state into the current environment.
 
@@ -919,7 +909,11 @@ def replay(
     env.recorder_manager.record_post_reset(env_ids=[0])
 
     if sensor_camera_view:
-        _set_sensor_camera_view()
+        import omni.kit.viewport.utility
+
+        viewport = omni.kit.viewport.utility.get_active_viewport()
+        if viewport is not None:
+            viewport.set_active_camera(str(env.scene["robot_pov_cam"]._view.prims[0].GetPath()))
 
     # Initialize state machine
     output_data = LocomanipulationSDGOutputData()

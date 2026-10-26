@@ -3,6 +3,29 @@ Changelog
 
 .. towncrier release notes start
 
+0.10.6 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed XR camera-feed visibility and task-declared target and anchor paths for custom clone
+  namespaces. ``create_isaac_teleop_device`` now accepts ``env_prim_path`` to expand
+  ``{ENV_REGEX_NS}`` without changing the supplied configuration.
+
+
+0.10.5 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Bound teleop target frames and XR anchor references once during setup instead of rediscovering the
+  Fabric stage and prim every update. Live pose updates and explicit target-matrix overrides were preserved.
+* Rejected nonexistent teleop target-frame paths before starting the session instead of silently emitting
+  poses in the world frame. Ensure ``target_frame_prim_path`` exists before entering the device context.
+
+
 0.10.4 (2026-10-20)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -17,6 +17,7 @@ import warp as wp
 from pxr import Usd
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.fabric_xform_selection import FabricXformSelection
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
@@ -160,15 +161,13 @@ class FabricFrameView(BaseFrameView):
     accept :class:`wp.array`.
     """
 
-    _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
-    _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
-
     def __init__(
         self,
         prim_path: str,
         device: str = "cpu",
         validate_xform_ops: bool = True,
         stage: Usd.Stage | None = None,
+        scene_data_backend: SceneDataBackend | None = None,
         **kwargs,
     ):
         """Initialize the view.
@@ -180,6 +179,7 @@ class FabricFrameView(BaseFrameView):
                 acceleration is supported on every CUDA index.
             validate_xform_ops: Whether to validate prim xform-ops.
             stage: USD stage; defaults to the current sim context's stage.
+            scene_data_backend: Native scene publication owner for views attached to a running simulation.
             **kwargs: Additional keyword arguments (ignored). Matches the signature of
                 :class:`~isaaclab.sim.views.UsdFrameView` so that the top-level
                 :class:`~isaaclab.sim.views.FrameView` factory can forward backend-agnostic
@@ -187,6 +187,7 @@ class FabricFrameView(BaseFrameView):
         """
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
+        self._scene_data_backend = scene_data_backend
 
         settings = get_settings_manager()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
@@ -197,7 +198,7 @@ class FabricFrameView(BaseFrameView):
         self._fabric_initialized = False
 
         # Prim tagging, the persistent selections, and the view->fabric slot mapping all live in the
-        # shared helper, authored once in ``_initialize_fabric``.
+        # shared selection, initialized once in ``_update_fabric``.
         self._fabric_sel: FabricXformSelection | None = None
 
         # Sentinel passed to compose/decompose kernels for unused slots.
@@ -289,14 +290,13 @@ class FabricFrameView(BaseFrameView):
         return _FabricLocalSpaceWriter(self)
 
     # ------------------------------------------------------------------
-    # Getter hooks -- read directly from Fabric (no lazy sync)
+    # Getter hooks -- read current Fabric transforms
     # ------------------------------------------------------------------
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
             return self._usd_view._get_world_poses_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -336,8 +336,7 @@ class FabricFrameView(BaseFrameView):
         if not self._use_fabric:
             return self._usd_view._get_local_poses_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -373,8 +372,7 @@ class FabricFrameView(BaseFrameView):
         if not self._use_fabric:
             return self._usd_view._get_world_scales_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         return self._decompose_scales(self._fabric_sel.world_ifa(), indices)
 
@@ -382,8 +380,7 @@ class FabricFrameView(BaseFrameView):
         if not self._use_fabric:
             return self._usd_view._get_local_scales_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         return self._decompose_scales(self._fabric_sel.local_ifa(), indices)
 
@@ -431,7 +428,7 @@ class FabricFrameView(BaseFrameView):
             writer.set_scales(scales, indices)
 
     # ------------------------------------------------------------------
-    # Internal -- helpers shared by writers + initialization
+    # Internal -- writer helpers
     # ------------------------------------------------------------------
 
     def _to_float32_2d_or_empty(self, data):
@@ -495,13 +492,20 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
     # Internal -- Fabric initialization
     # ------------------------------------------------------------------
-    def _initialize_fabric(self) -> None:
-        """One-time Fabric setup: tagged selections (see :class:`FabricXformSelection`) plus buffers."""
+    def _update_fabric(self) -> None:
+        """Publish current native poses and initialize this view's selections once."""
+        if self._scene_data_backend is not None:
+            self._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
+        if self._fabric_initialized:
+            return
         self._fabric_sel = FabricXformSelection(
             list(self.prim_paths),
             self._device,
             owner=type(self).__name__,
         )
+        if self._scene_data_backend is not None and self._fabric_sel.fabric_hierarchy is not None:
+            # New mounts need their world matrices derived from the published native parent poses.
+            self._fabric_sel.fabric_hierarchy.update_world_xforms()
 
         # Pre-allocated reusable output buffers (world + local + scales).
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
@@ -554,8 +558,7 @@ class _FabricWriterMixin:
 
     def _enter_impl(self) -> None:
         view: FabricFrameView = self._view  # type: ignore[assignment]
-        if not view._fabric_initialized:
-            view._initialize_fabric()
+        view._update_fabric()
         self._wrote_anything = False
         h = view._fabric_sel.fabric_hierarchy
         self._was_tracking_local = h is not None and h.tracking_local_xform_changes

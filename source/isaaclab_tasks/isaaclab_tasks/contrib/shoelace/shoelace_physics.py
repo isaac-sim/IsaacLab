@@ -85,7 +85,7 @@ def configure_shoelace_builder(
 
     for side, free_end_at_start in (("Left", True), ("Right", False)):
         suffix = f"/ShoelaceScene/Shoelace{side}/geometry/mesh"
-        curve = stage.GetPrimAtPath(f"/World/envs/env_0{suffix}")
+        curve = stage.GetPrimAtPath(cfg.scene.clone_cfg.clone_template.format(0) + suffix)
         material, _ = UsdShade.MaterialBindingAPI(curve).ComputeBoundMaterial(materialPurpose="physics")
         friction = UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get()
         # Numeric suffixes recover curve order; lexical sorting would put segment 10 before segment 2.
