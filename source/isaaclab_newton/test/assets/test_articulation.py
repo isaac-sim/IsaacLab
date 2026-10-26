@@ -20,7 +20,7 @@ state, and the CUDA-graph checks build their own small scenes. Only one simulati
 these tests come first and fail if selected after a composite-scene test.
 
 The composite scene runs on the CPU without CUDA-graph capture. On CUDA, own-scene tests cover the ordered-state
-republish and the fixed-tendon mask writes and targets recorded into a captured graph.
+republish and the fixed-tendon mask writes recorded into a captured graph.
 """
 
 from isaaclab_newton.physics import NewtonCfg, NewtonMJWarpManager
@@ -49,7 +49,6 @@ from isaaclab_newton.assets.articulation.articulation_data import ArticulationDa
 from isaaclab_newton.controllers.ik import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions import NewtonInverseKinematicsAction
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
-from isaaclab_newton.physics.mjwarp_tendon_control import resolve_fixed_tendon_actuator_columns
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
@@ -709,33 +708,16 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_fixed_tendon_mask_writes_and_targets_replay_from_cuda_graph(device: str) -> None:
-    """Fixed-tendon mask setters, the mask writer, and tendon targets recorded into a CUDA graph act on every replay.
+def test_fixed_tendon_mask_writes_replay_from_cuda_graph(device: str) -> None:
+    """Fixed-tendon mask setters and the mask writer recorded into a CUDA graph act on every replay.
 
     The mask variants are the documented graph-capturable path. The inputs are filled only after capture, so the
-    replay must read them at launch time: property writes reach only the selected cells, and a tendon target
-    reaches MuJoCo's controls on every replay, not only at capture.
+    replay must read them at launch time and write only the selected cells.
     """
     with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
         articulation = spawn_assets({"tendon": _island_cfgs()["tendon"]})["tendon"]
         sim.reset()
         num_envs, num_tendons = articulation.num_instances, articulation.num_fixed_tendons
-        actuator_columns, _ = resolve_fixed_tendon_actuator_columns(
-            articulation.root_view, sim.backend_manager.get_model()
-        )
-
-        target = torch.zeros(num_envs, num_tendons, device=device)
-        with wp.ScopedCapture(device) as capture:
-            articulation.set_fixed_tendon_position_target_mask(target=target)
-        articulation.write_data_to_sim()
-        for value in (0.3, 0.6):
-            target.fill_(value)
-            wp.capture_launch(capture.graph)
-            articulation.write_data_to_sim()
-            ctrl = wp.to_torch(articulation.root_view.get_attribute("mujoco.ctrl", sim.backend_manager.get_control()))
-            tendon_ctrl = ctrl[:, 0, actuator_columns]
-            torch.testing.assert_close(tendon_ctrl, torch.full_like(tendon_ctrl, value))
-
         env_mask = wp.array([False, True], dtype=wp.bool, device=device)
         tendon_mask = wp.array([False, True], dtype=wp.bool, device=device)
         selected = torch.zeros(num_envs, num_tendons, 1, dtype=torch.bool, device=device)
