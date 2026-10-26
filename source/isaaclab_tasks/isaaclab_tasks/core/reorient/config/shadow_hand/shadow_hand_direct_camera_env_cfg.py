@@ -77,7 +77,6 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     data_types: list[str] = []
     spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        spawn_path="/World/envs/env_0/Camera",
         focal_length=24.0,
         focus_distance=400.0,
         horizontal_aperture=20.955,

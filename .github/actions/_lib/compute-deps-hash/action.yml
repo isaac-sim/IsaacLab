@@ -116,9 +116,23 @@ runs:
         esac
         base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${base_image_digest}"
 
+        # Skip first-party ``version =`` lines so nightly version bumps do not rebuild the images.
         mapfile -t manifest_files < <(git ls-files | grep -E "${deps_manifest_pattern}" || true)
-        file_hash=$(git ls-files -s "${deps_files[@]}" "${manifest_files[@]}" 2>/dev/null \
-          | sha256sum | cut -c1-16)
+        file_hash=$(
+          {
+            git ls-files -s "${deps_files[@]}" 2>/dev/null
+            for manifest in "${manifest_files[@]}"; do
+              echo "== ${manifest}"
+              awk '
+                /^\[/ { table = $0 }
+                held != "" { if ($0 !~ /^source = \{ (editable|virtual) =/) print held; held = "" }
+                table == "[[package]]" && /^version = "/ { held = $0; next }
+                table ~ /^\[(project|package)\]$/ && /^version = "/ { next }
+                { print }
+              ' "${manifest}"
+            done
+          } | sha256sum | cut -c1-16
+        )
         deps_hash=$(printf '%s %s %s' "${file_hash}" "${base_image_uniq_id}" "${TARGET_PLATFORM}" \
           | sha256sum | cut -c1-16)
 
