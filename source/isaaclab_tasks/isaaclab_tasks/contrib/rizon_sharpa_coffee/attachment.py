@@ -46,17 +46,17 @@ class MountedSpoonAttachment:
         palm_pattern = re.compile(robot.cfg.prim_path + "/" + re.escape(PALM_BODY_NAME))
         spoon_pattern = re.compile(spoon.cfg.prim_path)
         palm_ids, spoon_ids = [], []
+        body_world = self._model.body_world.numpy()
         for env_index in range(robot.num_instances):
-            environment = f"/env_{env_index}/"
             palms = [
                 index
                 for index, label in enumerate(self._model.body_label)
-                if environment in label and palm_pattern.fullmatch(label)
+                if body_world[index] == env_index and palm_pattern.fullmatch(label)
             ]
             spoons = [
                 index
                 for index, label in enumerate(self._model.body_label)
-                if environment in label and spoon_pattern.fullmatch(label)
+                if body_world[index] == env_index and spoon_pattern.fullmatch(label)
             ]
             if len(palms) != 1 or len(spoons) != 1:
                 raise ValueError(f"Expected one native palm and spoon in env_{env_index}; got {palms}, {spoons}.")
