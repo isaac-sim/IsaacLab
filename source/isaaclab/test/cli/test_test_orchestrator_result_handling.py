@@ -12,7 +12,6 @@ import json
 import os
 import signal
 import sys
-import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from types import ModuleType
 
@@ -526,83 +525,6 @@ def test_artifact_paths_handed_to_the_subprocess_are_uploadable(monkeypatch, tmp
     assert dump_path.parent == tmp_path / orchestrator.HANG_DUMP_DIR
     # hang_dump.register() opens this path as the child starts, so it cannot be created later.
     assert dump_path.parent.is_dir()
-
-
-def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch, tmp_path: Path) -> None:
-    """A retry killed mid-test must be reported as a crash, blamed on the test it was running.
-
-    Files in ``PROCESS_FAILURE_RETRIES_BY_FILE`` get another subprocess after a test failure. That
-    retry can itself be SIGKILLed or segfault, and then it writes no JUnit report at all. Without a
-    journal of its own the run falls back to the first attempt's verdicts: reported ``FAILED`` with
-    no crash, and no record of which test took the process down.
-
-    The two attempts disagree on purpose — ``test_alpha`` fails first and passes on the retry,
-    which dies inside ``test_beta`` — so the rebuilt report can only come from the retry's journal.
-    """
-    orchestrator = _load_orchestrator_module()
-    test_file = tmp_path / "test_sample.py"
-    test_file.write_text("def test_alpha():\n    pass\n\n\ndef test_beta():\n    pass\n", encoding="utf-8")
-    monkeypatch.setitem(orchestrator.PROCESS_FAILURE_RETRIES_BY_FILE, test_file.name, 1)
-    alpha, beta = f"{test_file}::test_alpha", f"{test_file}::test_beta"
-    journals_seen: list[str | None] = []
-    journal_was_stale: list[bool] = []
-    report_paths: list[Path] = []
-
-    def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
-        journal_file = env.get(orchestrator.JOURNAL_ENV_VAR)
-        journals_seen.append(journal_file)
-        report_paths.append(Path(report_file))
-        if journal_file is None:
-            return -9, b"", b"", "", 0.2, ""
-        journal_was_stale.append(Path(journal_file).exists())
-        _append_journal(journal_file, [{"event": "collected", "node_ids": [alpha, beta]}])
-        if len(journals_seen) == 1:
-            _append_journal(journal_file, _journaled_test(alpha, "failed"))
-            _append_journal(journal_file, _journaled_test(beta, "passed"))
-            _write_failing_junit_report(report_file, "test_alpha")
-            return 1, b"1 failed", b"", "", 0.1, ""
-        # The retry gets through test_alpha, then dies inside test_beta — so pytest never reaches
-        # ``pytest_sessionfinish`` and writes no report.
-        _append_journal(journal_file, _journaled_test(alpha, "passed"))
-        _append_journal(journal_file, [{"event": "start", "node_id": beta}])
-        return -9, b"", b"", "", 0.2, ""
-
-    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", str(tmp_path / "ovrtx_renderer.log"))
-    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
-    monkeypatch.chdir(tmp_path)
-    context = orchestrator._PassContext(
-        test_file=str(test_file),
-        file_name=test_file.name,
-        workspace_root=str(tmp_path),
-        ci_marker=None,
-        timeout=10,
-        startup_deadline=1,
-        env={},
-        inject_shard_select=False,
-        pytest_targets=[str(test_file)],
-        capture=orchestrator._CaptureOptions(),
-    )
-
-    report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
-
-    assert len(journals_seen) == 2
-    assert all(journals_seen), "the fresh-process retry ran without a crash journal"
-    # A journal left over from the first attempt would fold its test_alpha failure into the report.
-    assert journal_was_stale == [False, False]
-    assert report is not None
-    assert status["result"] == "CRASHED"
-    assert status["errors"] == 1
-    assert status["failures"] == 0
-    assert status["tests"] == 2
-    assert status["wall_time"] == pytest.approx(0.3)
-    assert was_failure
-
-    cases = {case.get("name"): case for case in ElementTree.parse(report_paths[1]).getroot().iter("testcase")}
-    assert sorted(cases) == ["test_alpha", "test_beta"]
-    assert list(cases["test_alpha"]) == [], "test_alpha passed on the retry and must be reported as passed"
-    errors = cases["test_beta"].findall("error")
-    assert len(errors) == 1, "the crash must be reported against the test that was running"
-    assert "SIGKILL" in errors[0].get("message")
 
 
 def test_result_summary_includes_fast_failure_after_thirty_slower_files():

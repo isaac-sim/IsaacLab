@@ -314,6 +314,27 @@ def test_pose_and_velocity_writer_aliases_forward_to_canonical_writers(monkeypat
             torch.testing.assert_close(getattr(obj.data, getter).torch, values, atol=1e-5, rtol=1e-5)
 
 
+@pytest.mark.parametrize("quantity", ["link_pose", "com_pose", "com_velocity", "link_velocity"])
+def test_collection_mask_writers_select_bodies_by_ids(monkeypatch, backend, device, quantity):
+    """Collection mask writers given ``body_ids`` write only those bodies of the masked environments."""
+    if backend == "ovphysx":
+        pytest.skip("OVPhysX collection mask writers take no body_ids.")
+    obj, _, _, num_bodies = _create("collection", backend, monkeypatch, device)
+    obj.data.update(dt=0.01)
+    trailing = (7,) if quantity.endswith("pose") else (6,)
+    kwarg = "body_poses" if quantity.endswith("pose") else "body_velocities"
+    getter = f"body_{quantity.replace('velocity', 'vel')}_w"
+    method = getattr(obj, f"write_body_{quantity}_to_sim_mask")
+    full = _payload((_NUM_INSTANCES, num_bodies), trailing, device=device)
+    method(**{kwarg: full})
+    update = _payload((_NUM_INSTANCES, num_bodies), trailing, offset=100.0, device=device)
+    env_mask = wp.array(np.arange(_NUM_INSTANCES) == _NUM_INSTANCES - 1, dtype=wp.bool, device=str(device))
+    method(**{kwarg: update}, env_mask=env_mask, body_ids=[num_bodies - 1])
+    expected = full.clone()
+    expected[-1, -1] = update[-1, -1]
+    torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
+
+
 # backend-stored quantity -> (written quantity, per-element shape)
 _PARTIAL_WRITES = {"pose": ("link_pose", (7,)), "velocity": ("com_velocity", (6,)), "mass": ("masses", ())}
 
