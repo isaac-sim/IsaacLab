@@ -298,6 +298,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
 
             teleop_interface = create_isaac_teleop_device(
                 env_cfg.isaac_teleop,
+                env_prim_path=env.scene.env_prim_paths[0],
                 sim_device=args_cli.device,
                 callbacks=teleoperation_callbacks,
                 cloudxr_env_file=args_cli.cloudxr_env,
