@@ -24,7 +24,9 @@ from isaaclab_newton.kernels.state_kernels import (
     rotate_vec_to_body_frame,
 )
 
-from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg
+
+from isaaclab_experimental.managers import ManagerTermBase
 from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:

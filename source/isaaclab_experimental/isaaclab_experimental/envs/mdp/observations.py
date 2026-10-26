@@ -28,6 +28,8 @@ from isaaclab_newton.kernels.state_kernels import (
     rotate_vec_to_body_frame,
 )
 
+from isaaclab.managers import SceneEntityCfg
+
 from isaaclab_experimental.envs.utils.io_descriptors import (
     generic_io_descriptor_warp,
     record_dtype,
@@ -36,7 +38,6 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_joint_vel_offsets,
     record_shape,
 )
-from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:

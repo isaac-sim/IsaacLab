@@ -23,7 +23,8 @@ Ranges are read from the call arguments, so a changed term configuration takes e
 
 Notes:
 - These terms assume the Newton/Warp backend (Warp arrays are available for joint state and defaults).
-- For best performance, pass :class:`isaaclab_experimental.managers.SceneEntityCfg` so `joint_ids_wp` is cached.
+- Joint and body selections are read from the Warp arrays that :meth:`~isaaclab.managers.SceneEntityCfg.resolve_warp`
+  fills when the Warp managers resolve the term parameters.
 """
 
 from __future__ import annotations
@@ -35,9 +36,10 @@ import warp as wp
 
 from isaaclab.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
 from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.seed import WarpRng
 
-from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase
 from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
@@ -505,9 +507,9 @@ def reset_joints_by_offset(
     # Assume cfg params are already resolved by the manager stack (Warp-first workflow).
     if asset_cfg.joint_ids_wp is None:
         raise ValueError(
-            f"reset_joints_by_offset requires an experimental SceneEntityCfg with resolved joint_ids_wp, "
+            f"reset_joints_by_offset requires a SceneEntityCfg with resolved joint_ids_wp, "
             f"but got None for asset '{asset_cfg.name}'. "
-            "Use isaaclab_experimental.managers.SceneEntityCfg and ensure joint_names are set."
+            "Pass it in the term parameters so the Warp manager resolves it."
         )
 
     wp.launch(
@@ -591,9 +593,9 @@ def reset_joints_by_scale(
 
     if asset_cfg.joint_ids_wp is None:
         raise ValueError(
-            f"reset_joints_by_scale requires an experimental SceneEntityCfg with resolved joint_ids_wp, "
+            f"reset_joints_by_scale requires a SceneEntityCfg with resolved joint_ids_wp, "
             f"but got None for asset '{asset_cfg.name}'. "
-            "Use isaaclab_experimental.managers.SceneEntityCfg and ensure joint_names are set."
+            "Pass it in the term parameters so the Warp manager resolves it."
         )
 
     wp.launch(

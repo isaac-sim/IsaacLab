@@ -21,7 +21,7 @@ wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
 import isaaclab_experimental.envs.mdp.events as warp_evt
-from isaaclab_experimental.managers import EventManager, EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.managers import EventManager, EventTermCfg, ManagerTermBase
 from isaaclab_experimental.utils import CapturedStage
 from parity_helpers import (
     DEVICE,
@@ -36,6 +36,8 @@ from parity_helpers import (
     assert_close,
     copy_np_to_wp,
 )
+
+from isaaclab.managers import SceneEntityCfg
 
 # ============================================================================
 # Fixtures

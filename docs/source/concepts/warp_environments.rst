@@ -406,11 +406,13 @@ Writing Warp MDP Terms
 Imports
 """""""
 
-Warp terms import the warp managers' helpers from the experimental packages:
+Warp terms import the scene entity configuration from the stable managers and the warp managers' helpers from the
+experimental packages:
 
 .. code-block:: python
 
-   from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+   from isaaclab.managers import SceneEntityCfg
+   from isaaclab_experimental.managers import ManagerTermBase
    from isaaclab_experimental.utils.warp import WarpCapturable
 
 Term configurations keep the stable config classes (for example

@@ -11,6 +11,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from ..utils import configclass
 
@@ -123,6 +124,32 @@ class SceneEntityCfg:
 
     """
 
+    joint_ids_wp: wp.array | None = None
+    """The indices of the selected joints as a Warp ``int32`` array. Defaults to None.
+
+    Filled by :meth:`resolve_warp` for articulations. Warp kernels gather a subset of joints with it: entry ``k`` is
+    the joint read into output column ``k``.
+    """
+
+    joint_mask_wp: wp.array | None = None
+    """The selected joints as a Warp ``bool`` mask over all joints of the articulation. Defaults to None.
+
+    Filled by :meth:`resolve_warp` for articulations. Warp kernels use it to reduce over or write the selected joints.
+    """
+
+    body_ids_wp: wp.array | None = None
+    """The indices of the selected bodies as a Warp ``int32`` array. Defaults to None.
+
+    Filled by :meth:`resolve_warp` when the entity has bodies or bodies are selected. Warp kernels gather a subset of
+    bodies with it.
+    """
+
+    body_mask_wp: wp.array | None = None
+    """The selected bodies as a Warp ``bool`` mask over all bodies of the entity. Defaults to None.
+
+    Filled by :meth:`resolve_warp` when the entity has bodies. Warp kernels use it to write the selected bodies.
+    """
+
     def resolve(self, scene: InteractiveScene):
         """Resolves the scene entity and converts the joint and body names to indices.
 
@@ -171,6 +198,34 @@ class SceneEntityCfg:
             indices = getattr(self, name)
             if not isinstance(indices, (slice, torch.Tensor)):
                 setattr(self, name, torch.tensor(indices, dtype=torch.long, device=device))
+
+    def resolve_warp(self, scene: InteractiveScene):
+        """Resolve the joint and body selections into Warp arrays on the scene's device.
+
+        Fills :attr:`joint_ids_wp` and :attr:`joint_mask_wp` for articulations, and :attr:`body_ids_wp` and
+        :attr:`body_mask_wp` from the host selections of :meth:`resolve`, so it must follow :meth:`resolve` and
+        precede :meth:`finalize`. Managers that run Warp terms call it before constructing class-based terms.
+
+        Args:
+            scene: The interactive scene instance.
+        """
+        entity = scene[self.name]
+        num_joints = getattr(entity, "num_joints", None)
+        if num_joints is not None:
+            joint_ids = range(num_joints)[self.joint_ids] if isinstance(self.joint_ids, slice) else self.joint_ids
+            self.joint_ids_wp = wp.array(list(joint_ids), dtype=wp.int32, device=scene.device)
+            self.joint_mask_wp = wp.array(
+                [j in joint_ids for j in range(num_joints)], dtype=wp.bool, device=scene.device
+            )
+        num_bodies = getattr(entity, "num_bodies", None)
+        body_ids = self.body_ids
+        if isinstance(body_ids, slice):
+            if num_bodies is None:
+                return
+            body_ids = range(num_bodies)[body_ids]
+        self.body_ids_wp = wp.array(list(body_ids), dtype=wp.int32, device=scene.device)
+        if num_bodies is not None:
+            self.body_mask_wp = wp.array([b in body_ids for b in range(num_bodies)], dtype=wp.bool, device=scene.device)
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex

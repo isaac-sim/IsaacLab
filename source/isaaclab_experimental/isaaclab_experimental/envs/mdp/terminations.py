@@ -19,7 +19,9 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg
+
+from isaaclab_experimental.managers import ManagerTermBase
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

@@ -47,6 +47,8 @@ Managers call :meth:`SceneEntityCfg.resolve` while preparing terms, which fills 
 can read these lists in ``__init__``. Once every term is constructed, managers call
 :meth:`SceneEntityCfg.finalize`, which replaces each list with a ``torch.long`` tensor on the simulation
 device. Terms share this tensor, so do not modify it in place. Slices stay slices. Finalization is one-way.
+Managers that run Warp terms also call :meth:`SceneEntityCfg.resolve_warp` after resolving, which fills
+``joint_ids_wp``, ``joint_mask_wp``, ``body_ids_wp`` and ``body_mask_wp`` with Warp arrays on the device.
 
 .. code-block:: python
 

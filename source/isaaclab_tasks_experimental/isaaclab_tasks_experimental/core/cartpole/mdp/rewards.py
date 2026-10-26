@@ -8,8 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.managers import ManagerTermBase
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
+
+from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     import torch

@@ -15,8 +15,9 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_experimental.envs.utils.io_descriptors import generic_io_descriptor_warp
-from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
+
+from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

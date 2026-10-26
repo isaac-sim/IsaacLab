@@ -9,7 +9,7 @@
 stable task definition:
 
 * Manager-based tasks: adapt the stable cfg in place (Newton physics check,
-  :class:`SceneEntityCfg` promotion, MDP twin swap) and construct
+  MDP twin swap) and construct
   :class:`ManagerBasedRLEnvWarp`. All warp MDP twins (functions *and* classes)
   must exist for the chosen task — a missing twin is a hard failure, not a
   silent drop.
@@ -44,7 +44,6 @@ import gymnasium as gym
 import torch
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
-from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _StableSceneEntityCfg
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 
@@ -89,7 +88,7 @@ class WarpFrontend:
     WARP_ROOT_PREFIXES: ClassVar[tuple[str, ...]] = tuple(MIRROR_ROOTS.values())
 
     # Top-level cfg groups whose managers run warp-first. Only terms under these
-    # are adapted (SceneEntityCfg promotion + MDP twin swap). The event manager
+    # are adapted (MDP twin swap). The event manager
     # is warp-first too — it invokes term funcs with a Warp env-mask, so a stable
     # event func (which expects torch ``env_ids``) breaks at runtime; its funcs
     # must be swapped to warp twins. Command terms are classes whose
@@ -174,17 +173,13 @@ class WarpFrontend:
         """Mutate a stable manager-based ``cfg`` in place for the warp managers.
 
         Idempotent: re-running on an already-adapted cfg is a no-op (the steps
-        below skip warp-origin symbols and already-promoted entities).
+        below skip warp-origin symbols).
 
-        Three steps, each independently testable:
+        Steps, each independently testable:
 
         1. :meth:`_require_newton_physics` — hard check that ``cfg.sim.physics``
            is :class:`~isaaclab_newton.physics.NewtonCfg`.
-        2. :meth:`_promote_scene_entity_cfgs` — replace stable
-           :class:`~isaaclab.managers.SceneEntityCfg` instances under each
-           term's ``params`` with the warp variant (which adds warp-cached
-           ``joint_mask_wp``, ``joint_ids_wp``, ``body_ids_wp`` fields).
-        3. :meth:`_swap_mdp` — for every MDP term found anywhere in the cfg tree
+        2. :meth:`_swap_mdp` — for every MDP term found anywhere in the cfg tree
            (discovered by :meth:`_walk_terms` via :class:`ManagerTermBaseCfg`
            subclassing, not by hard-coded attribute names), replace any stable
            ``func`` *or* ``class_type`` with its same-named warp twin. A missing
@@ -193,7 +188,6 @@ class WarpFrontend:
         """
         label = type(cfg).__name__
         cls._require_newton_physics(cfg, label)
-        cls._promote_scene_entity_cfgs(cfg)
         cls._swap_mdp(cfg, label)
         cls._swap_noise_cfgs(cfg, label)
 
@@ -239,39 +233,6 @@ class WarpFrontend:
             f" got {type(physics).__name__!r}. Select Newton while composing the task configuration"
             " before constructing the environment."
         )
-
-    @classmethod
-    def _promote_scene_entity_cfgs(cls, cfg: Any) -> None:
-        """Replace stable :class:`SceneEntityCfg` instances with the warp variant.
-
-        Iterates every term cfg in the tree (via :meth:`_walk_terms`) and
-        rebuilds any stable :class:`SceneEntityCfg` value under ``term.params``
-        through :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable`.
-        The warp variant subclasses the stable one, so type checks elsewhere
-        stay valid; the new fields (``joint_mask_wp`` / ``joint_ids_wp`` /
-        ``body_ids_wp``) are filled at :meth:`resolve` time by the warp scene.
-        """
-        from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as _WarpSceneEntityCfg
-
-        promoted: list[str] = []
-        for path, term in cls._walk_terms(cfg):
-            if not path or path[0] not in cls.WARP_MANAGED_GROUPS:
-                continue  # term runs on a stable manager; keep the stable entity
-            params = getattr(term, "params", None)
-            if not isinstance(params, dict):
-                continue
-            for key, value in list(params.items()):
-                # Skip non-entities and already-promoted values (idempotence).
-                if isinstance(value, _WarpSceneEntityCfg) or not isinstance(value, _StableSceneEntityCfg):
-                    continue
-                params[key] = _WarpSceneEntityCfg.from_stable(value)
-                promoted.append(f"{'.'.join(path)}.params[{key!r}] ({value.name!r})")
-        if promoted:
-            logger.info(
-                "frontend.warp: promoted %d SceneEntityCfg instance(s) to warp variant:\n  %s",
-                len(promoted),
-                "\n  ".join(promoted),
-            )
 
     @classmethod
     def _swap_mdp(cls, cfg: Any, label: str) -> None:
@@ -743,7 +704,7 @@ class WarpFrontend:
         if isinstance(node, Mapping):
             # A manager group can be a dict of {name: term} instead of a
             # configclass; the warp managers accept both, so descend into dict
-            # values too or those terms would never be promoted/swapped.
+            # values too or those terms would never be swapped.
             for key, value in node.items():
                 if value is not None:
                     yield from WarpFrontend._walk_terms(value, path + (str(key),))
