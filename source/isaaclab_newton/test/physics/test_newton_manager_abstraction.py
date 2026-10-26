@@ -20,13 +20,13 @@ Covers:
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
@@ -67,7 +67,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 # ---------------------------------------------------------------------------
 # Lightweight (no sim) parametrisation
@@ -938,35 +938,35 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution():
     assert manager._graph_capture_pending is False
 
 
-def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
-    """CUDA graph capture should use the simulation device instead of Warp's default device."""
-
-    captured_devices = []
-    captured_graph = object()
-
-    class FakeScopedCapture:
-        def __init__(self, stream=None, capture_mode=None):
-            captured_devices.append(stream.device)
-            self.graph = captured_graph
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            return False
-
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_cuda_graph_capture_coexists_with_legacy_stream(device):
+    """Capture on the simulation device must tolerate unrelated legacy-stream rendering work."""
     manager = NewtonXPBDManager()
-    manager._device = "cuda:1"
-    monkeypatch.setattr(newton_manager_module, "has_kit", lambda: False)
-    stream = SimpleNamespace(device="cuda:1")
-    monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
-    monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())
-    monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
+    manager._device = device
+    counter = wp.zeros(1, dtype=wp.int32, device=device)
+    legacy_stream = torch.cuda.default_stream(device)
+    with torch.cuda.stream(legacy_stream):
+        legacy_work = torch.zeros(1, device=device)
+        legacy_work.add_(0)  # Initialize the operation before capture.
+    wp.synchronize_device(device)
 
-    graph = manager._capture_graph(lambda: None)
+    def capture_target():
+        wp.launch(_count_physics_steps, 1, inputs=[counter])
+        # Standalone RTX can submit work to this stream while Newton captures another stream.
+        with torch.cuda.stream(legacy_stream):
+            legacy_work.add_(1)
+        wp.launch(_count_physics_steps, 1, inputs=[counter])
 
-    assert captured_devices == ["cuda:1"]
-    assert graph is captured_graph
+    # Capture must select the simulation device, regardless of Warp's current device.
+    with wp.ScopedDevice("cpu"):
+        graph = manager._capture_graph(capture_target)
+    wp.synchronize_device(device)
+    assert counter.numpy()[0] == 0
+    assert legacy_work.item() == 1
+    for expected_steps in (2, 4):
+        wp.capture_launch(graph)
+        assert counter.numpy()[0] == expected_steps
+        assert legacy_work.item() == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1548,11 +1548,11 @@ def _count_physics_steps(counter: wp.array(dtype=wp.int32)):
 
 
 @pytest.mark.parametrize(
-    ("solver_cfg", "rtx_capture"),
-    [(MJWarpSolverCfg(use_mujoco_contacts=True), True), (KaminoPADMMSolverCfg(), False)],
-    ids=["mjwarp_rtx", "kamino_standard"],
+    "solver_cfg",
+    [MJWarpSolverCfg(use_mujoco_contacts=True), KaminoPADMMSolverCfg()],
+    ids=["mjwarp", "kamino"],
 )
-def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cfg, rtx_capture):
+def test_graph_capture_preserves_first_step_and_recapture(solver_cfg):
     """Capturing and recapturing preserve staged forces and execute callbacks once per step."""
     sim_cfg = SimulationCfg(
         dt=0.005,
@@ -1565,9 +1565,6 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         builder.add_body(mass=1.0)
         builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         sim.reset()
-        if rtx_capture:
-            monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
-            monkeypatch.setattr(sim, "_has_offscreen_render", True)
         sim.backend_manager.activate_newton_actuator_path()
         counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
         sim.backend_manager.register_post_step_callback(lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]))
@@ -1610,7 +1607,7 @@ def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps
         np.testing.assert_allclose(sim.backend_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
 
 
-def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):
+def test_stateful_actuator_graph_matches_eager_across_decimation_changes():
     """PID and delay history survive repeated replay, recapture, and odd/even loop lengths."""
     trajectories = []
     for use_graph in (False, True):
@@ -1631,8 +1628,6 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             builder.add_actuator(DrivePID, index=0, kp=1.0, kd=0.0, ki=0.5, delay_steps=2)
             builder.end_world()
             sim.reset()
-            monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
-            monkeypatch.setattr(sim, "_has_offscreen_render", True)
             sim.backend_manager.activate_newton_actuator_path()
             samples = []
             for decimation in (1, 2, 3):
