@@ -129,9 +129,8 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         # Keep advection inside the native collider query band at coarse timesteps.
         material_dt = self.cfg.sim.dt / self.cfg.sim.physics.solver_cfg.entries[1].substeps
         builder.particle_max_velocity = min(4.0, 0.5 * self.cfg.voxel_size / material_dt)
-        prefix = f"/World/envs/env_{env_id}/"
         for index, label in enumerate(builder.shape_label):
-            if not str(label).startswith(prefix):
+            if builder.shape_world[index] != env_id:
                 continue
             if "/Robot/" in str(label):
                 builder.shape_flags[index] &= ~int(newton.ShapeFlags.COLLIDE_PARTICLES)

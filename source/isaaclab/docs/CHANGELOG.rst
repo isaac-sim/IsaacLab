@@ -3,6 +3,67 @@ Changelog
 
 .. towncrier release notes start
 
+41.1.0 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.visualizers.BaseVisualizer.key_event_source` and
+  :class:`~isaaclab.visualizers.KeyEventSource`, keyboard input from a focused visualizer window.
+  :meth:`~isaaclab.visualizers.KeyEventSource.add_key_listener` returns a
+  :class:`~isaaclab.visualizers.KeyboardSubscription` that receives each key press and release as a
+  W3C ``KeyboardEvent.code`` string, and a focus loss when the window stops delivering keys.
+  Visualizers without a local window that can report keys return ``None``, the default.
+* Added :meth:`~isaaclab.visualizers.BaseVisualizer.set_camera_keys_enabled`, which turns a
+  visualizer's keyboard camera movement off while a keyboard consumer uses those keys.
+
+Changed
+^^^^^^^
+
+* Simplified keyboard sources to listener registration and event forwarding; native window hooks
+  were initialized and closed by visualizers instead of changing with listener counts.
+* Centralized the optional keyboard source and teardown in the base visualizer and removed
+  redundant subscription state.
+
+Fixed
+^^^^^
+
+* Fixed Kit marker environment ownership for scenes with custom clone namespaces.
+* Fixed scene camera discovery and visualizer camera selection to use declared clone paths.
+
+
+41.0.3 (2026-10-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept cleared sensor outputs valid after reset and refreshed them on the first update,
+  without delaying the first measurement by the sensor update period. Derived-query
+  sensors explicitly invalidate their cached poses, ray hits, or images.
+* Kept sensor environment rows owned by the shared scheduler and rejected incomplete
+  native bindings before indexed updates or resets.
+
+
+41.0.2 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Triangulated USD polygon faces before Warp ray-caster mesh creation, preventing
+  quad faces from producing artificial interior intersections or missing surfaces.
+* Rejected mismatched ray-start and direction shapes before native ray queries.
+* Fixed a startup regression of about 4 s on the first articulation spawn by importing the TorchScript
+  actuator-network converter only when a checkpoint is converted.
+* Fixed multi-mesh ray-cast target tracking when several meshes shared one rigid body
+  by binding each mesh to its exact body in the shared scene-data provider.
+* Rejected ray-caster mounts missing from some environments during initialization,
+  before indexed resets or updates could address the wrong sensor rows.
+* Initialized only missing Fabric frame matrices from USD, preserving live physics transforms when a new view was bound.
+
+
 41.0.1 (2026-10-22)
 ~~~~~~~~~~~~~~~~~~~
 

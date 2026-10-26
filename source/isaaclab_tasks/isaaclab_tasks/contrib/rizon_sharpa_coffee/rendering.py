@@ -488,7 +488,7 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
         kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
         kitchen_cfg.func(kitchen_path, kitchen_cfg)
         for prim in stage.Traverse():
-            if prim.GetPath().HasPrefix("/World/envs") and prim.GetName() == "StudioFloor":
+            if prim.GetName() == "StudioFloor":
                 UsdGeom.Imageable(prim).MakeInvisible()
     return root
 
