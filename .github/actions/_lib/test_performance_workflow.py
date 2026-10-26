@@ -16,23 +16,24 @@ from pathlib import Path
 
 import yaml
 
-WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
+_WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
 
 
-def labeled(login):
+def _labeled(login: str) -> dict[str, str | dict[str, str]]:
     return {"event": "labeled", "actor": {"login": login}}
 
 
-def test_performance_workflow(tmp_path):
-    workflow = yaml.safe_load(WORKFLOW.read_text())
+def test_ci_activation_and_runner_selection() -> None:
+    workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
     assert "synchronize" in workflow.get("on", workflow.get(True, {}))["pull_request"]["types"]
     jobs = workflow["jobs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")
-    removed_label = [labeled("maintainer"), {"event": "unlabeled"}]
-    paginated = [[{"event": "commented"}], [labeled("isaaclab-bot[bot]")]]
+    removed_label = [_labeled("maintainer"), {"event": "unlabeled"}]
+    paginated = [[{"event": "commented"}], [{"event": "labeled", "actor": None}, _labeled("isaaclab-bot[bot]")]]
+    ignored = [[_labeled("github-actions[bot]"), {"event": "commented", "actor": {"login": "human"}}]]
     cases = [
         ("push", "push", "", "", [], True, True, False),
-        ("actions bot", "pull_request", "synchronize", "", [[labeled("github-actions[bot]")]], False, False, True),
+        ("actions bot", "pull_request", "synchronize", "", ignored, False, False, True),
         ("removed human label", "pull_request", "synchronize", "", [removed_label], False, True, True),
         ("paginated bot label", "pull_request", "synchronize", "", paginated, False, True, True),
         ("API error", "pull_request", "synchronize", "", [], True, False, True),
@@ -73,7 +74,7 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
     assert.deepEqual(
       [evaluate(input.runner), evaluate(input.curobo), evaluate(input.stop.if), evaluate(input.cancel)],
       [activated ? ['self-hosted', 'gpu'] : ['ubuntu-latest'],
-       activated && eventName !== 'push', !activated, expectedCancel],
+       activated, !activated, expectedCancel],
       name);
   }
 })();
@@ -83,14 +84,17 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
     stopped = subprocess.run(["bash", "-e", "-c", data["stop"]["run"]], capture_output=True, text=True)
     assert stopped.returncode != 0, "Unactivated PR explanation step exited successfully"
 
+
+def test_benchmark_cancellation(tmp_path: Path) -> None:
+    workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
     command = next(
         step["run"]
         for step in workflow["jobs"]["performance-smoke"]["steps"]
         if step.get("name") == "Run runtime benchmarks"
     )
     step_script = tmp_path / "workflow-step.sh"
-    step_script.write_text(command)
-    (tmp_path / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n")
+    step_script.write_text(command, encoding="utf-8")
+    (tmp_path / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n", encoding="utf-8")
     executables = tmp_path / "bin"
     executables.mkdir()
     docker = executables / "docker"
@@ -106,22 +110,23 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
             workspace = Path(os.environ["GITHUB_WORKSPACE"])
             marker = workspace / "running-container"
-            if sys.argv[1] == "run":
+            if sys.argv[1] == "run" and "--name" in sys.argv:
                 name = sys.argv[sys.argv.index("--name") + 1]
-                marker.write_text(name)
+                marker.write_text(name, encoding="utf-8")
                 print(json.dumps({"pid": os.getpid()}), flush=True)
                 while marker.exists():
                     time.sleep(0.01)
             elif sys.argv[1] == "rm" and marker.exists():
-                assert sys.argv[-1] == marker.read_text()
+                assert sys.argv[-1] == marker.read_text(encoding="utf-8")
                 marker.unlink()
             """
-        )
+        ),
+        encoding="utf-8",
     )
     docker.chmod(0o755)
     # Exercise Bash cancellation and Docker cleanup; the timeout wrapper is replaced by exec.
     timeout = executables / "timeout"
-    timeout.write_text('#!/bin/bash\nshift\nexec "$@"\n')
+    timeout.write_text('#!/bin/bash\nshift\nexec "$@"\n', encoding="utf-8")
     timeout.chmod(0o755)
     environment = {
         **os.environ,

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
+# Unactivated updates fail on a CPU runner because skipped required jobs count as successful.
 # Any label starts a run because GitHub cannot filter label names at trigger time.
 # Ordinary label events queue to avoid cancelling builds with reported required checks.
 #
