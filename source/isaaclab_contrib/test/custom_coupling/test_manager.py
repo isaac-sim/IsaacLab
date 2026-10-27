@@ -5,12 +5,11 @@
 
 """Unit tests for the custom coupling manager."""
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager, VBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
 from newton import ModelBuilder
 
@@ -113,27 +112,12 @@ def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBD
         solver_cfg.build(MagicMock(), NOT_GUARANTEED)
 
 
-def test_add_contact_sensor_rejects_coupled_solver() -> None:
-    solver_cfg = CoupledMJWarpVBDSolverCfg()
-    manager = NewtonManager(NewtonCfg())
-    manager.backend = backend = SimpleNamespace(solver_cfg=solver_cfg, contact_sensors={})
-
-    with pytest.raises(NotImplementedError, match="contact sensors are not yet supported"):
-        manager.add_contact_sensor(body_names_expr="body")
-    assert backend.contact_sensors == {}
-
-
-def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_solver_builds_each_sub_solver(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     solver = _create(monkeypatch, solver_cfg)
 
-    # Each sub-solver is built by its own configuration.
     assert solver.rigid_solver is solver_cfg.rigid_solver_cfg.build.return_value
     assert solver.soft_solver is solver_cfg.soft_solver_cfg.build.return_value
-    assert solver_cfg.single_state is False
-    assert solver_cfg.uses_collision_pipeline(solver) is True
-    assert solver_cfg.contact_sensors is False
-    assert solver_cfg.applies_body_forces() is True
 
 
 @pytest.mark.parametrize("mode", ["one_way", "two_way"])
@@ -161,6 +145,6 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
     rigid_solver.step.assert_called_once_with(state_in, state_out, control, None, 0.01)
     soft_solver.step.assert_called_once_with(state_in, state_out, control, contacts, 0.01)
     if mode == "two_way":
-        reactions.assert_called_once_with(state_in, state_out, 0.01)
+        reactions.assert_called_once_with(state_in, state_out, contacts, 0.01)
     else:
         reactions.assert_not_called()

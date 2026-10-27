@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Franka soft lifting environment using the custom coupling manager."""
+"""Franka soft lifting environment using the custom coupled solver."""
 
 from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 

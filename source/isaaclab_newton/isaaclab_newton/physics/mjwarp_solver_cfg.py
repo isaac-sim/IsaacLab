@@ -12,6 +12,7 @@ import warnings
 from typing import TYPE_CHECKING, ClassVar
 
 from isaaclab.utils import configclass
+from isaaclab.utils.string import string_to_callable
 
 from .newton_manager_cfg import NewtonSolverCfg, solver_kwargs
 
@@ -72,9 +73,8 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     disable_sensors: bool = False
     """Whether to disable MuJoCo Warp's internal sensor computation.
 
-    This must be ``True`` when :attr:`NewtonCfg.deterministic_mode` requests a
-    determinism guarantee. Isaac Lab sensors use Newton state directly and do
-    not depend on MuJoCo Warp's internal sensor data.
+    A determinism guarantee (:attr:`NewtonCfg.deterministic_mode`) disables it automatically. Isaac Lab sensors use
+    Newton state directly and do not depend on MuJoCo Warp's internal sensor data.
     """
 
     default_actuator_gear: float | None = None
@@ -169,8 +169,8 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None = None) -> SolverMuJoCo:
         """Construct MuJoCo Warp; a determinism guarantee disables its sensor stage, which cannot honor it."""
         import warp as wp
-        from newton.solvers import SolverMuJoCo
 
+        solver_cls = string_to_callable(self.solver_class)
         deterministic = mode != wp.DeterministicMode.NOT_GUARANTEED
         blocked = set(model.get_requested_state_attributes()) & _SENSORS_BY_STATE_ATTRIBUTE.keys()
         if deterministic and blocked:
@@ -182,12 +182,22 @@ class MJWarpSolverCfg(NewtonSolverCfg):
                 " values would never be refreshed. Remove the sensors, or drop the determinism request"
                 f" (deterministic_mode={mode.name})."
             )
-        kwargs = solver_kwargs(SolverMuJoCo, self, mode)
+        kwargs = solver_kwargs(solver_cls, self, mode)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
         if deterministic:
             kwargs["disable_sensors"] = True
-        return SolverMuJoCo(model, **kwargs)
+        return solver_cls(model, **kwargs)
+
+    def applied_deterministic_mode(self, mode: wp.DeterministicMode) -> wp.DeterministicMode:
+        """MuJoCo on the CPU is reproducible on its own and Warp's mode does not reach it, so none applies."""
+        import warp as wp
+
+        if not self.use_mujoco_cpu:
+            return mode
+        if mode != wp.DeterministicMode.NOT_GUARANTEED:
+            logger.info("MuJoCo CPU backend is already reproducible; Newton's deterministic mode is not applied.")
+        return wp.DeterministicMode.NOT_GUARANTEED
 
     def supports_capture(self, solver: SolverMuJoCo) -> bool:
         return not self.use_mujoco_cpu

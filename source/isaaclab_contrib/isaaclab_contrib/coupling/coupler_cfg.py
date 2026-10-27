@@ -213,9 +213,9 @@ class CouplerCfg(NewtonSolverCfg):
         reset(self, solver, state, world_mask)
 
     def check_step(self, solver: SolverBase, captured: bool, debug: bool) -> None:
-        """Raise asynchronous failures of every entry's solver."""
+        """Raise asynchronous failures, and log diagnostics, of every entry's solver."""
         for entry in self.entries:
-            entry.solver_cfg.check_step(solver.solver(entry.name), captured, False)
+            entry.solver_cfg.check_step(solver.solver(entry.name), captured, debug)
 
 
 @configclass

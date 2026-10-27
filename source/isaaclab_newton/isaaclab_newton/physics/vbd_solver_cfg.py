@@ -93,7 +93,7 @@ class VBDSolverCfg(NewtonSolverCfg):
         solver_cls = string_to_callable(self.solver_class)
         kwargs = solver_kwargs(solver_cls, self, mode)
         if self.rigid_compliant_alm is None:
-            del kwargs["rigid_compliant_alm"]
+            kwargs.pop("rigid_compliant_alm", None)
         return solver_cls(model, **kwargs)
 
     def applies_body_forces(self) -> bool:

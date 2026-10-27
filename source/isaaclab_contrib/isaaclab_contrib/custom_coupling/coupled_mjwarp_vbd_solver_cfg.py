@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the custom MJWarp and VBD coupling manager."""
+"""Configuration for the custom MJWarp and VBD coupled solver."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
-    """Configuration for the custom MJWarp and VBD coupling manager."""
+    """Configuration for the custom MJWarp and VBD coupled solver."""
 
     contact_sensors: ClassVar[bool] = False
 
@@ -53,9 +53,9 @@ class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
         if self.coupling_mode not in ("one_way", "two_way"):
             raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
         if not self.rigid_solver_cfg.use_mujoco_contacts:
-            raise ValueError("The custom coupling manager requires MJWarp internal contacts.")
+            raise ValueError("The custom coupled solver requires MJWarp internal contacts.")
         if not self.soft_solver_cfg.integrate_with_external_rigid_solver:
-            raise ValueError("The custom coupling manager requires VBD external rigid-body integration.")
+            raise ValueError("The custom coupled solver requires VBD external rigid-body integration.")
         return CoupledMJWarpVBDSolver(
             model,
             self.rigid_solver_cfg.build(model, mode, env_template),
@@ -66,8 +66,7 @@ class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     def prepare_contacts(
         self, solver: CoupledMJWarpVBDSolver, contacts: Contacts, pipeline: CollisionPipeline | None
     ) -> None:
-        """Bind the contacts and pipeline used inside each coupled substep."""
-        solver.contacts = contacts
+        """Bind the collision pipeline used inside each coupled substep."""
         solver.collision_pipeline = pipeline
 
     def pre_step(self, solver: CoupledMJWarpVBDSolver, state: State) -> None:

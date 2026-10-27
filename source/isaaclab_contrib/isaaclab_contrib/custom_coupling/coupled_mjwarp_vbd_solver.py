@@ -27,8 +27,6 @@ class CoupledMJWarpVBDSolver(SolverBase):
         self.rigid_solver = rigid_solver
         self.soft_solver = soft_solver
         self.coupling_mode = coupling_mode
-        self.contacts: Contacts | None = None
-        """Contacts the coupled substep collides into; bound by the manager once allocated."""
         self.collision_pipeline: CollisionPipeline | None = None
 
     def rebuild_bvh(self, state: State) -> None:
@@ -54,34 +52,31 @@ class CoupledMJWarpVBDSolver(SolverBase):
             state_in: Current read/write state.
             state_out: Next state.
             control: Joint-level control inputs.
-            contacts: Unused; the coupled substep collides into the bound contacts itself.
+            contacts: Contacts the coupled substep collides into with the bound collision pipeline.
             dt: Substep timestep [s].
         """
         # 1. Clear output forces.
         state_out.clear_forces()
         # 2. Detect deformable-rigid contacts before advancing rigid bodies.
-        self.collision_pipeline.collide(state_in, self.contacts)
+        self.collision_pipeline.collide(state_in, contacts)
         # 3. In two-way mode, inject contact reactions before MJWarp consumes body_f. The inactive state buffer
         # supplies reference poses for friction velocity estimation.
         if self.coupling_mode == "two_way" and state_in.body_f is not None:
-            self._apply_reactions(state_in, state_out, dt)
+            self._apply_reactions(state_in, state_out, contacts, dt)
         # 4. Advance rigid bodies.
         self.rigid_solver.step(state_in, state_out, control, None, dt)
         # 5. Advance particles using the updated rigid poses and the contacts detected above.
-        self.soft_solver.step(state_in, state_out, control, self.contacts, dt)
+        self.soft_solver.step(state_in, state_out, control, contacts, dt)
 
-    def _apply_reactions(self, state: State, state_prev: State, dt: float) -> None:
+    def _apply_reactions(self, state: State, state_prev: State, contacts: Contacts, dt: float) -> None:
         """Inject normal and friction reaction forces into body_f.
 
         Args:
             state: Current particle and body state.
             state_prev: Inactive state buffer providing reference poses for friction velocity estimation.
+            contacts: Contacts detected for this substep.
             dt: Substep timestep [s].
         """
-        contacts = self.contacts
-        if contacts is None:
-            return
-
         contact_capacity = int(contacts.soft_contact_particle.shape[0])
         if contact_capacity == 0:
             return

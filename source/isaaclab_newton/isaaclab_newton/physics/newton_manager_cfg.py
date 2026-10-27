@@ -113,6 +113,10 @@ class NewtonSolverCfg:
     def init_state(self, solver: SolverBase, state: State) -> None:
         """Initialize solver-owned buffers of a double-buffered solver's output state."""
 
+    def applied_deterministic_mode(self, mode: wp.DeterministicMode) -> wp.DeterministicMode:
+        """The Warp determinism mode the solver and collision pipeline run with for a requested ``mode``."""
+        return mode
+
     # ----- Capabilities -----
 
     def applies_body_forces(self) -> bool:
@@ -305,11 +309,10 @@ class NewtonCfg(PhysicsCfg):
        overhead therefore grow with contact capacity. Enable this mode only
        when its reproducibility guarantee is required.
 
-    MJWarp on the GPU with
-    :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to
-    ``True``, XPBD, and Featherstone support this setting. Newton raises an
-    error during solver initialization for unsupported solvers rather than
-    silently running them without the requested guarantee.
+    MJWarp on the GPU (built with its sensor stage disabled), XPBD, and
+    Featherstone support this setting. Newton raises an error during solver
+    initialization for unsupported solvers rather than silently running them
+    without the requested guarantee.
     """
 
     solver_cfg: NewtonSolverCfg | None = None
@@ -397,6 +400,8 @@ class NewtonCfg(PhysicsCfg):
     """
 
     def __post_init__(self):
+        if self.class_type is None:
+            raise ValueError("NewtonCfg.class_type must select a NewtonManager class; omit it for the default.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
             raise ValueError(
                 "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "

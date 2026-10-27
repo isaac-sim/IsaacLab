@@ -12,6 +12,7 @@ from dataclasses import field
 from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.utils import configclass, to_dict
+from isaaclab.utils.string import string_to_callable
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -405,8 +406,6 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
 
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None = None) -> SolverKamino:
         """Construct Kamino, capping contacts per world; the FK solver requires one articulation per environment."""
-        from newton.solvers import SolverKamino
-
         cfg = self.resolve(model)
         if cfg.max_contacts_per_world is not None:
             model.rigid_contact_max = int(cfg.max_contacts_per_world) * model.world_count
@@ -422,7 +421,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
                 f" has {model.articulation_count} articulations across {model.world_count} environments."
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
-        return SolverKamino(model, cfg.to_solver_config())
+        return string_to_callable(cfg.solver_class)(model, cfg.to_solver_config())
 
     def init_state(self, solver: SolverKamino, state: State) -> None:
         """Initialize the output state's persistent Kamino buffers; FK initializes the input state."""

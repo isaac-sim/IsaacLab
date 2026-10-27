@@ -9,3 +9,5 @@
   the outer collision pipeline. A :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` without proxies now steps its
   entries independently. ``{ENV_REGEX_NS}`` selectors expand against the environment template the manager passes to
   the coupler.
+* Changed :class:`~isaaclab_contrib.coupling.CouplerCfg` to forward :attr:`~isaaclab_newton.physics.NewtonCfg.debug_mode`
+  diagnostics to each entry's solver.

@@ -23,6 +23,7 @@ import logging
 from functools import partial as P
 from types import SimpleNamespace
 
+import isaaclab_newton.physics.mjwarp_solver_cfg as mjwarp_solver_cfg_module
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
@@ -148,26 +149,15 @@ def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
         manager.initialize_solver()
 
 
-@pytest.mark.parametrize("solver_cfg_cls", [FeatherstoneSolverCfg, MJWarpSolverCfg, XPBDSolverCfg])
-def test_deterministic_mode_accepts_supported_solver_cfg_subclasses(solver_cfg_cls) -> None:
-    """Custom subclasses of supported solver configs should retain deterministic support."""
-
-    class CustomSolverCfg(solver_cfg_cls):
-        pass
-
-    assert CustomSolverCfg().deterministic is True
-
-
-def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+@pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
+def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(collision_cfg) -> None:
     """Deterministic sorting buffers should grow with the solver contact buffer."""
     pipeline_calls: list[dict] = []
 
     class FakeCollisionPipeline:
         def __init__(self, _model, **kwargs):
             pipeline_calls.append(kwargs)
-            self._rigid_contact_max = kwargs.get("rigid_contact_max", 1)
+            self._rigid_contact_max = kwargs.get("rigid_contact_max") or 1
 
         def contacts(self):
             return SimpleNamespace(rigid_contact_max=self._rigid_contact_max)
@@ -188,16 +178,15 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
         collision_pipeline=None,
     )
     manager = NewtonManager(NewtonCfg())
-    manager._cfg, manager._device = NewtonCfg(), "cpu"
+    manager._cfg, manager._device = NewtonCfg(collision_cfg=collision_cfg), "cpu"
     manager.backend = backend
     manager._deterministic_mode = wp.DeterministicMode.GPU_TO_GPU
 
     manager._initialize_contacts()
 
-    assert pipeline_calls == [
-        {"broad_phase": "explicit", "deterministic": True},
-        {"broad_phase": "explicit", "deterministic": True, "rigid_contact_max": 2},
-    ]
+    assert len(pipeline_calls) == 2
+    assert pipeline_calls[1] == {**pipeline_calls[0], "rigid_contact_max": 2}
+    assert pipeline_calls[0]["deterministic"] is True
     assert backend.contacts.rigid_contact_max == 2
     assert prepared == [backend.contacts]
 
@@ -1082,13 +1071,7 @@ def test_step_combines_pending_model_changes(monkeypatch, caplog):
 
 
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
-    """Combining ``use_mujoco_contacts=True`` with a ``collision_cfg`` is rejected.
-
-    The check lives in the MJWarp spec's ``validate`` because it
-    needs both the solver cfg subtype and the parent :class:`NewtonCfg`, so it
-    fires when the solver is constructed on ``sim.reset()`` rather than at cfg
-    construction time.
-    """
+    """A ``collision_cfg`` is rejected on ``sim.reset()`` when the solver does not use Newton's collision pipeline."""
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device="cuda:0",
@@ -1463,7 +1446,7 @@ def test_explicit_mode_on_mujoco_cpu_is_reported_not_enforced(mode, caplog) -> N
     """MuJoCo-C is reproducible on its own, so an explicit mode is reported rather than enforced."""
     cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True), deterministic_mode=mode)
 
-    with caplog.at_level(logging.INFO, logger=newton_manager_module.__name__):
+    with caplog.at_level(logging.INFO, logger=mjwarp_solver_cfg_module.__name__):
         assert resolve_deterministic_mode(cfg) == wp.DeterministicMode.NOT_GUARANTEED
 
     assert any("already reproducible" in r.getMessage() for r in caplog.records)

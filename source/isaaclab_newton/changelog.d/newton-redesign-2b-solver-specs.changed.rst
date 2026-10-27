@@ -15,4 +15,6 @@
   ``*_solver_cfg``; import from ``isaaclab_newton.physics``.
 * Changed VBD to register its Newton custom builder attributes, like the other solvers.
 * Changed the check that rejects :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg` with MuJoCo contacts to
-  apply to any solver that reports its own contacts.
+  apply to any solver that does not use Newton's collision pipeline, e.g. Kamino's own collision detector and MPM.
+* Changed :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to reject ``None``; omit it to use
+  :class:`~isaaclab_newton.physics.NewtonManager`.
