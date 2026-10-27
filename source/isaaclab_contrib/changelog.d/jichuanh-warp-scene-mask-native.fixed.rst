@@ -1,2 +1,2 @@
-* Fixed :class:`~isaaclab_contrib.assets.Multirotor` resets with only ``env_mask`` resetting the thrusters of every
-  environment.
+* Fixed :meth:`~isaaclab_contrib.assets.Multirotor.reset` rejecting the ``env_mask`` argument of the articulation
+  reset. A masked reset now resets the thrusters and thrust targets of the masked environments only.
