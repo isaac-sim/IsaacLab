@@ -155,6 +155,39 @@ def test_teleop_rejects_unknown_workflow():
     run_python.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("module_name", "cli_name"),
+    [
+        ("isaaclab_teleop.entrypoints.teleop_se3_agent", "run_teleop_se3_agent_cli"),
+        ("isaaclab_teleop.entrypoints.record_demos", "run_record_demos_cli"),
+        ("isaaclab_teleop.entrypoints.teleop_replay_agent", "run_teleop_replay_agent_cli"),
+    ],
+)
+def test_teleop_entrypoints_load_out_of_tree_tasks_before_parsing(monkeypatch, module_name, cli_name):
+    """Tasks registered through ``isaaclab.tasks`` are imported before the task is resolved."""
+    module = importlib.import_module(module_name)
+    calls = []
+    task_entry_point = mock.Mock()
+    task_entry_point.load.side_effect = lambda: calls.append("load tasks")
+
+    class Parsed(Exception):
+        pass
+
+    def parse_args(argv):
+        calls.append("parse")
+        raise Parsed
+
+    monkeypatch.setattr(module, "_parse_args", parse_args)
+    with (
+        mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[task_entry_point]) as entry_points,
+        pytest.raises(Parsed),
+    ):
+        getattr(module, cli_name)(["--task", "Out-Of-Tree-Task"])
+
+    entry_points.assert_called_once_with(group="isaaclab.tasks")
+    assert calls == ["load tasks", "parse"]
+
+
 @pytest.mark.parametrize("task", ["Reach", "Lift"])
 def test_mimic_teleop_holds_the_gripper_while_capture_starts_or_pauses(source_checkout_root, monkeypatch, task):
     """Capture's flat command reaches the action queue; missing/paused input stops motion without opening a grip."""
