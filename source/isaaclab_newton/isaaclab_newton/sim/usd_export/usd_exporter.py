@@ -145,10 +145,12 @@ class UsdExporter(BaseUsdExporter):
         }
         layer = stage.GetRootLayer()
         layer.customLayerData = {**layer.customLayerData, SETTINGS_KEY: json.dumps(settings)}
-        if physics_cfg.num_substeps > 1 or physics_cfg.collision_decimation or physics_cfg.collision_cfg is not None:
+        # MuJoCo's and Kamino's own contacts are found every solver step; Newton's pipeline once per physics step.
+        pipeline = not getattr(solver_cfg, "use_mujoco_contacts", getattr(solver_cfg, "use_collision_detector", False))
+        if physics_cfg.num_substeps > 1 and pipeline:
             logger.warning(
-                "USD cannot state Newton's substeps or collision pipeline settings; an import steps once per"
-                " time step with default collision settings."
+                "The file states the solver step rate; an import running Newton's collision pipeline collides every"
+                " solver step, while Isaac Lab collides once per physics step."
             )
         return edits
 
@@ -451,9 +453,13 @@ class UsdExporter(BaseUsdExporter):
         return edits
 
     def _scene_edits(self, solver_cfg) -> list[UsdEdit]:
-        """Edits stating the step rate and the solver options that Newton's importer reads from the physics scene."""
+        """Edits stating the solver step rate and the solver options Newton's importer reads from the physics scene.
+
+        Isaac Lab steps the solver ``num_substeps`` times per physics step; USD states one rate, so the file states
+        the solver's, which Newton's import returns as ``physics_dt``.
+        """
         path = self.scene.physics_scene_path
-        rate = 1.0 / self.scene.sim.get_physics_dt()
+        rate = self.scene.sim.cfg.physics.num_substeps / self.scene.sim.get_physics_dt()
         if not math.isclose(rate, round(rate), rel_tol=1e-9):
             raise ValueError(f"Step size 1/{rate} s is not a whole number of steps per second, as USD states it.")
         edits = [UsdEdit(path, _SCENE["time_steps_per_second"].name, round(rate), "int", "NewtonSceneAPI")]
