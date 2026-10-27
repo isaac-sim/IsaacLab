@@ -151,8 +151,9 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
     assert live["joint_target_ke", hinge] == pytest.approx(83.0)
     assert live["joint_armature", hinge] == pytest.approx(0.023)
     assert set(live) == set(loaded), (sorted(set(live) - set(loaded))[:8], sorted(set(loaded) - set(live))[:8])
-    # USD cannot state a target mode; an import infers position mode from the gains, and the export warns.
-    if live["joint_target_mode", hinge] == int(newton.JointTargetMode.POSITION_VELOCITY):
+    assert live["joint_target_mode", hinge] == int(newton.JointTargetMode.POSITION_VELOCITY)
+    if solver != "mujoco":
+        # USD cannot state a target mode; without MuJoCo's velocity actuator the import infers position mode.
         assert "target mode" in caplog.text
         del live["joint_target_mode", hinge]
     for (name, label), value in live.items():

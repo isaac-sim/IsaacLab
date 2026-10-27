@@ -10,12 +10,13 @@ from __future__ import annotations
 import json
 import logging
 import math
+from collections import Counter
 
 import newton
 import numpy as np
 from newton.usd import PrimType, SchemaResolverNewton
 
-from pxr import Usd, UsdPhysics, UsdShade
+from pxr import Sdf, Tf, Usd, UsdPhysics, UsdShade
 
 from isaaclab.sim.usd_export.base_usd_exporter import (
     USD_PHYSICS_JOINT_ATTRIBUTES,
@@ -270,7 +271,7 @@ class UsdExporter(BaseUsdExporter):
                             )
         if unsupported:
             logger.warning(f"Joints other than revolute, prismatic and rotational D6 are not exported: {unsupported}.")
-        self._warn_target_modes(dofs, values["joint_target_ke"], values["joint_target_kd"], modes)
+        self._target_mode_actuators(stage, model, dofs, values["joint_target_ke"], values["joint_target_kd"], modes)
         return edits, drives
 
     @staticmethod
@@ -500,23 +501,57 @@ class UsdExporter(BaseUsdExporter):
             raise ValueError(f"'{solver_cfg.class_type}' is not a Newton physics manager.")
         return manager
 
-    @staticmethod
-    def _warn_target_modes(dofs: dict[int, str], target_ke, target_kd, modes):
-        """Warn about joints whose target mode Newton's USD import, which infers it from the gains, does not reproduce.
+    def _target_mode_actuators(
+        self, stage: Usd.Stage, model: newton.Model, dofs: dict[int, str], target_ke, target_kd, modes
+    ):
+        """Make Newton's USD import reproduce each joint's target mode, and warn where it cannot.
 
-        USD has no target-mode attribute; Isaac Lab actuates a joint with both gains in position-velocity mode.
+        Workaround until USD states a target mode: Newton's import infers the mode from the drive gains, so a joint
+        with both gains runs in position mode, while Isaac Lab runs it in position-velocity mode. A MuJoCo velocity
+        actuator targeting a single-axis joint makes the import use position-velocity mode (gain: the damping).
         """
-        differ = {
-            path
-            for dof, path in dofs.items()
-            if modes[dof] != int(newton.JointTargetMode.NONE)
-            and int(newton.JointTargetMode.from_gains(float(target_ke[dof]), float(target_kd[dof]), has_drive=True))
-            != modes[dof]
-        }
+        position_velocity = int(newton.JointTargetMode.POSITION_VELOCITY)
+        mujoco = self._manager(self.scene.sim.cfg.physics.solver_cfg)._registers_builder_attributes_from_solver(
+            newton.solvers.SolverMuJoCo
+        )
+        converted = self._converted_velocity_dofs(model) if mujoco else set()
+        axes = Counter(dofs.values())
+        root = self.scene.env_prim_paths[self.env_id]
+        differ = set()
+        for dof, path in dofs.items():
+            inferred = newton.JointTargetMode.from_gains(float(target_ke[dof]), float(target_kd[dof]), has_drive=True)
+            if modes[dof] == int(newton.JointTargetMode.NONE) or modes[dof] == int(inferred) or dof in converted:
+                continue
+            if not (mujoco and modes[dof] == position_velocity and axes[path] == 1):
+                differ.add(path)
+                continue
+            damping = float(target_kd[dof])
+            name = Tf.MakeValidIdentifier(path.removeprefix(root + "/"))
+            actuator = stage.DefinePrim(f"{root}/VelocityActuators/{name}", "MjcActuator")
+            actuator.CreateRelationship("mjc:target").SetTargets([path])
+            actuator.CreateAttribute("mjc:biasType", Sdf.ValueTypeNames.Token).Set("affine")
+            actuator.CreateAttribute("mjc:gainPrm", Sdf.ValueTypeNames.DoubleArray).Set([damping] + [0.0] * 9)
+            actuator.CreateAttribute("mjc:biasPrm", Sdf.ValueTypeNames.DoubleArray).Set(
+                [0.0, 0.0, -damping] + [0.0] * 7
+            )
         if differ:
             logger.warning(
                 f"USD cannot state the target mode of these joints; an import infers another: {sorted(differ)}."
             )
+
+    @staticmethod
+    def _converted_velocity_dofs(model: newton.Model) -> set[int]:
+        """DOFs driven by a MuJoCo velocity actuator that Newton's import converted to a joint target."""
+        mujoco = getattr(model, "mujoco", None)
+        if mujoco is None or not hasattr(mujoco, "ctrl_type"):
+            return set()
+        solver = newton.solvers.SolverMuJoCo
+        rows = zip(mujoco.ctrl_source.numpy(), mujoco.ctrl_type.numpy(), mujoco.actuator_trnid.numpy())
+        return {
+            int(target[0])
+            for source, kind, target in rows
+            if source == int(solver.CtrlSource.JOINT_TARGET) and kind == int(solver.CtrlType.VELOCITY)
+        }
 
     @staticmethod
     def _arrays(model, names) -> dict[str, np.ndarray]:
