@@ -249,33 +249,10 @@ runs:
       shell: bash
       env:
         HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
-        MATCHED_KEY: ${{ steps.warp-cache-restore.outputs.cache-matched-key }}
-        COLLECTION: ${{ steps.warp-cache-key.outputs.collection }}
-        CACHE_MODE: ${{ inputs.warp-cache }}
-      run: |
-        set -euo pipefail
-        mkdir -p "$HOST_DIR"
-        if [ ! -w "$HOST_DIR" ]; then
-          echo "::error::Warp cache directory is not writable: $HOST_DIR"
-          exit 1
-        fi
-
-        # cache-matched-key is authoritative. Inferring a hit from directory size
-        # is not: an empty directory still measures as ~1 MB.
-        if [ -z "$MATCHED_KEY" ]; then
-          echo "::warning::Warp cache miss - no entry in collection ${COLLECTION}"
-          echo "WARP_CACHE_HIT=miss" >> "$GITHUB_ENV"
-        else
-          echo "Warp cache hit: ${MATCHED_KEY}"
-          echo "WARP_CACHE_HIT=${MATCHED_KEY}" >> "$GITHUB_ENV"
-        fi
-        echo "WARP_CACHE_BYTES_BEFORE=$(du -sb "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
-
-        python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache restored"
-        if [ "$CACHE_MODE" = "save" ]; then
-          fingerprint="$(python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" --fingerprint)"
-          echo "WARP_CACHE_FINGERPRINT_BEFORE=$fingerprint" >> "$GITHUB_ENV"
-        fi
+        WARP_MATCHED_KEY: ${{ steps.warp-cache-restore.outputs.cache-matched-key }}
+      run: >-
+        python3 .github/actions/run-package-tests/ci_caches.py restored
+        ${{ inputs.warp-cache == 'save' && '--publishes' || '' }} "warp=$HOST_DIR"
 
     # The cache action owns keys, restore, reporting and writeback; this file
     # only decides when each phase runs.
@@ -402,61 +379,16 @@ runs:
       shell: bash
       env:
         HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
-        CACHE_MODE: ${{ inputs.warp-cache }}
-      run: |
-        set -euo pipefail
-
-        if [ ! -d "$HOST_DIR" ]; then
-          echo "Warp cache directory is missing; nothing to report"
-          echo "empty=true" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-        before="${WARP_CACHE_BYTES_BEFORE:-0}"
-        after="$(du -sb "$HOST_DIR" | cut -f1)"
-        grew=$(( after - before ))
-        before_mb=$(( before / 1000000 ))
-        after_mb=$(( after / 1000000 ))
-        grew_mb=$(( grew / 1000000 ))
-
-        if [ "${WARP_CACHE_HIT:-miss}" = "miss" ]; then
-          verdict="cold run, nothing restored"
-        elif [ "$grew" -le 0 ]; then
-          verdict="no net growth"
-        else
-          verdict="compiled $(( grew * 100 / (before > 0 ? before : 1) ))% beyond the restored cache"
-        fi
-
-        echo "Warp cache: restored ${before_mb} MB, ended at ${after_mb} MB (+${grew_mb} MB) - ${verdict}"
-        echo "🔵 Warp cache: ${before_mb} -> ${after_mb} MB (+${grew_mb}) - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
-        python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache final"
-
-        # Publishing an empty tree would replace a good snapshot with nothing.
-        if [ -z "$(find "$HOST_DIR" -type f -print -quit)" ]; then
-          echo "::warning::Warp cache contains no files; skipping publish"
-          echo "empty=true" >> "$GITHUB_OUTPUT"
-          echo "changed=false" >> "$GITHUB_OUTPUT"
-        else
-          echo "empty=false" >> "$GITHUB_OUTPUT"
-          if [ "$CACHE_MODE" = "save" ] && [ "${WARP_CACHE_HIT:-miss}" != "miss" ]; then
-            fingerprint="$(python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" --fingerprint)"
-            if [ "$fingerprint" = "${WARP_CACHE_FINGERPRINT_BEFORE:-}" ]; then
-              echo "Warp cache contents are unchanged; skipping duplicate snapshot"
-              echo "changed=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "changed=true" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-        fi
+      run: >-
+        python3 .github/actions/run-package-tests/ci_caches.py growth
+        ${{ inputs.warp-cache == 'save' && '--publishes' || '' }} "warp=$HOST_DIR"
 
     # Not success(): the product is compiled kernels, and those stay valid when a
     # test assertion fails. Gating on success() let one failing env silently
     # discard the whole cache. Cancellation still skips, so a tree Warp was
     # mid-write on is never published.
     - name: Save Warp kernel cache
-      if: '!cancelled() && inputs.warp-cache == ''save'' && steps.warp-cache-growth.outputs.empty != ''true'' && steps.warp-cache-growth.outputs.changed == ''true'''
+      if: '!cancelled() && inputs.warp-cache == ''save'' && steps.warp-cache-growth.outputs.warp-changed == ''true'''
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
