@@ -5,8 +5,8 @@
 
 """Open and play one ``.viser`` animation next to the simulation, from the Recording section.
 
-The animation is drawn as a tinted ghost over the live robots. It plays and pauses with the Playback section's pause
-button, and its timeline can be dragged when no live checkpoint ghost is loaded.
+The animation is drawn as a tinted ghost over the live robots. It has its own clock, controlled from a transport bar
+along the bottom of the window: play and pause, a timeline that can always be dragged, loop, and speed.
 """
 
 from __future__ import annotations
@@ -52,15 +52,6 @@ class NewtonAnimationPanel:
         """Whether an animation is loaded."""
         return self.player.active
 
-    @property
-    def can_scrub(self) -> bool:
-        """Whether the timeline can be dragged: only when no live checkpoint ghost is loaded.
-
-        A live ghost is simulated in real time, so it cannot follow a dragged timeline.
-        """
-        panel = getattr(self._owner, "_policy_ghost_panel", None)
-        return panel is None or not any(slot.active for slot in panel.layout.slots[1:])
-
     def open(self, path: str) -> None:
         """Load ``path``, replacing the current animation once it is decoded."""
         self.player.load(path)
@@ -79,13 +70,13 @@ class NewtonAnimationPanel:
         if viewer is None:
             return
         player = self.player
-        player.playing = not viewer._paused_training
         player.hide_static = not self._owner.simulation_hidden
         player.update()
 
     def _on_loaded(self, recording) -> None:
         """Set up the view for a newly loaded recording; a ghost session already holds the reference."""
         self.player.slot_visible.clear()
+        self.player.time, self.player.playing = 0.0, True
         if recording.slots:
             self.player.show_markers = False  # One set of arrows per slot would clutter the overlay.
             self._owner.set_simulation_hidden(True)  # The live robots would only get in the way.
@@ -138,15 +129,10 @@ class NewtonAnimationPanel:
         if imgui.small_button("Close##animation"):
             self.close()
             return
-        self._draw_timeline(imgui)
-        _, self.player.loop = imgui.checkbox("Loop##animation", player.loop)
-        imgui.same_line()
         hidden = self._owner.simulation_hidden
         changed, hidden = imgui.checkbox("Hide live simulation", hidden)
         if imgui.is_item_hovered():
-            imgui.set_tooltip(
-                "Show only the animation. The simulation keeps running; pause it from Playback to stop it too"
-            )
+            imgui.set_tooltip("Show only the animation. The simulation keeps running; pause it from Playback")
         if changed:
             self._owner.set_simulation_hidden(hidden)
             self.invalidate()
@@ -180,32 +166,60 @@ class NewtonAnimationPanel:
                 imgui.pop_id()
             imgui.tree_pop()
 
-    def _draw_timeline(self, imgui: Any) -> None:
-        player, scrubbable = self.player, self.can_scrub
-        duration = player.recording.duration
-        if not scrubbable:
-            imgui.begin_disabled()
-        changed, value = imgui.slider_float(
-            "Time##animation", player.time, 0.0, max(duration, 1e-3), f"%.2f / {duration:.2f} s"
+    def draw_bar(self, imgui: Any, display_size: Any, scale: float, left: float) -> None:
+        """Draw the transport bar along the bottom of the window, to the right of the side panel.
+
+        Args:
+            imgui: The ``imgui`` module.
+            display_size: Window size [px].
+            scale: Interface scale factor.
+            left: Right edge of the side panel [px].
+        """
+        player = self.player
+        if not player.active:
+            return
+        margin = 10 * scale
+        x = left + margin
+        width = max(display_size[0] - x - margin, 200 * scale)
+        imgui.set_next_window_pos(imgui.ImVec2(x, display_size[1] - margin), imgui.Cond_.always, imgui.ImVec2(0.0, 1.0))
+        imgui.set_next_window_size(imgui.ImVec2(width, 0.0), imgui.Cond_.always)
+        imgui.set_next_window_bg_alpha(0.7)
+        flags = (
+            imgui.WindowFlags_.no_decoration.value
+            | imgui.WindowFlags_.no_saved_settings.value
+            | imgui.WindowFlags_.no_focus_on_appearing.value
+            | imgui.WindowFlags_.no_nav.value
+            | imgui.WindowFlags_.no_move.value
         )
-        if not scrubbable:
-            imgui.end_disabled()
-        if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
-            imgui.set_tooltip(
-                "Drag to jump to a time. This pauses playback; Resume in Playback continues it"
-                if scrubbable
-                else "The timeline can be dragged only when just an animation is loaded. Live checkpoint ghosts are"
-                " simulated in real time and cannot be scrubbed. Remove them to scrub."
+        if imgui.begin("Animation Timeline", flags=flags):
+            if imgui.button("Pause##timeline" if player.playing else "Play##timeline", imgui.ImVec2(56 * scale, 0)):
+                player.playing = not player.playing
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Pause or resume the animation. The simulation has its own Pause in Playback")
+            imgui.same_line()
+            duration = player.recording.duration
+            imgui.set_next_item_width(max(width - 300 * scale, 80 * scale))
+            changed, value = imgui.slider_float(
+                "##timeline", player.time, 0.0, max(duration, 1e-3), f"%.2f / {duration:.2f} s"
             )
-        if changed and scrubbable:
-            player.seek(value)
-            self._owner._viewer._paused_training = True
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Drag to jump to a time. This pauses the animation")
+            if changed:
+                player.seek(value)
+                player.playing = False
+            imgui.same_line()
+            _, player.loop = imgui.checkbox("Loop##timeline", player.loop)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Start over when the animation ends")
+            imgui.same_line()
+            imgui.set_next_item_width(70 * scale)
+            _, player.speed = imgui.drag_float("##speed", player.speed, 0.01, 0.1, 4.0, "%.2fx")
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Playback speed relative to the recording. Drag to change")
+        imgui.end()
 
     def _draw_options(self, imgui: Any) -> None:
         player = self.player
-        _, player.speed = imgui.slider_float("Speed##animation", player.speed, 0.1, 4.0, "%.2fx")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Playback speed relative to the recording")
         _, player.show_markers = imgui.checkbox("Show markers##animation", player.show_markers)
         if imgui.is_item_hovered():
             imgui.set_tooltip("Show the recorded visualization markers, such as velocity arrows")

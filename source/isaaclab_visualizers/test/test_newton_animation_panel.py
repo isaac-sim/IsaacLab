@@ -99,26 +99,17 @@ def test_opening_another_animation_replaces_the_current_one_and_keeps_the_settin
     assert {key.rsplit("/", 1)[0] for key in viewer.objects} == {"/replay"}
 
 
-def test_playback_follows_the_pause_button_and_static_shapes_follow_the_live_scene(panel):
+def test_the_animation_plays_on_its_own_clock_and_static_shapes_follow_the_live_scene(panel):
     panel, viewer = panel
     player = _open(panel, _recording(static=True))
+    assert player.playing  # A new animation starts playing.
     panel.update()
-    assert player.playing and player.hide_static
+    assert player.hide_static
     assert viewer.instances["/replay/instances_0"][1]  # Static shapes are hidden over the live scene.
-    viewer._paused_training = True
+    viewer._paused_training = True  # Pausing the simulation does not pause the animation.
     panel._owner.simulation_hidden = True
     panel.update()
-    assert not player.playing and not player.hide_static
-
-
-def test_the_timeline_can_be_dragged_only_without_live_checkpoint_ghosts(panel):
-    panel, _ = panel
-    assert panel.can_scrub  # No Policy Ghosts at all.
-    slots = [SimpleNamespace(active=True), SimpleNamespace(active=False)]
-    panel._owner._policy_ghost_panel = SimpleNamespace(layout=SimpleNamespace(slots=slots))
-    assert panel.can_scrub  # Only the reference is loaded.
-    slots[1].active = True
-    assert not panel.can_scrub
+    assert player.playing and not player.hide_static
 
 
 def _ghost_session(tmp_path):

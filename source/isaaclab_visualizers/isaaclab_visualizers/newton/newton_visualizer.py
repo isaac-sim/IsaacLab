@@ -188,6 +188,8 @@ class NewtonViewerGL(ViewerGL):
     _policy_ghost_panel = None
     _policy_ghost_restart = None
     _recording_panel = None
+    _panel_right = 0.0
+    """Right edge of the left panel [px], which the animation transport bar stays clear of."""
     image_matches_camera = False
     """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
     _overlay_capture = None
@@ -326,6 +328,7 @@ class NewtonViewerGL(ViewerGL):
             if not imgui.begin(f"Newton Visualizer v{nt.__version__}"):
                 imgui.end()
                 return
+            viewer._panel_right = imgui.get_window_pos().x + imgui.get_window_width()
 
             imgui.separator()
 
@@ -417,6 +420,15 @@ class NewtonViewerGL(ViewerGL):
             imgui.end()
 
         gui._render_left_panel = _render_left_panel
+        render_stats = gui._render_stats_overlay
+
+        def _render_overlays(_g=gui):
+            render_stats()
+            owner, panel = self._owner, self._recording_panel
+            if owner is not None and panel is not None and not owner.rtx_rendering:
+                panel.animation.draw_bar(_g.ui.imgui, _g.ui.io.display_size, _g.ui.dpi_scale, self._panel_right)
+
+        gui._render_stats_overlay = _render_overlays
 
     def _has_environment_controls(self) -> bool:
         """Return whether more than one environment can be shown, so the Environments section is useful."""
@@ -668,7 +680,7 @@ class NewtonViewerGL(ViewerGL):
             self._paused_training = not self._paused_training
         hover_tooltip(
             imgui,
-            "Stop or resume stepping the simulation and playing an animation. The window keeps updating",
+            "Stop or resume stepping the simulation. The window keeps updating",
         )
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
