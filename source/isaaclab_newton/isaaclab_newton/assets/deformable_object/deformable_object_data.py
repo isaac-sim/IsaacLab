@@ -91,7 +91,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            state = self._backend_manager.get_state_0()
+            state = self._backend_manager.backend.state_0
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
@@ -106,7 +106,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            state = self._backend_manager.get_state_0()
+            state = self._backend_manager.backend.state_0
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
