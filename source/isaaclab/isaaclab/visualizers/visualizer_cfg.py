@@ -20,11 +20,28 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
-VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 """Built-in visualizer identifiers accepted by legacy recording sources."""
 
-VISUALIZER_ALIASES = {"newton": "newton_gl"}
-"""Deprecated ``--visualizer`` names and their replacements."""
+VISUALIZER_ALIASES = {"newton_gl": "newton"}
+"""Alternative ``--visualizer`` names and the identifiers they select."""
+
+
+def reject_removed_visualizer(name: str) -> None:
+    """Raise a :class:`ValueError` that points a removed visualizer name at its replacement.
+
+    Args:
+        name: Visualizer identifier supplied by the user.
+
+    Raises:
+        ValueError: If *name* is ``newton_rtx``, which the ``newton`` visualizer replaced.
+    """
+    if name == "newton_rtx":
+        raise ValueError(
+            "The 'newton_rtx' visualizer was removed. Use the 'newton' visualizer, which supports RTX rendering:"
+            " switch the Renderer to RTX in its window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start"
+            " in RTX."
+        )
 
 
 def with_free_view(
@@ -319,8 +336,8 @@ class VisualizerCfg:
         if self.view is not None:
             backends = self.backend if isinstance(self.backend, list) else [self.backend]
             for backend in backends:
-                if backend.visualizer_type not in ("newton_gl", "newton_rtx"):
-                    raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
+                if backend.visualizer_type != "newton":
+                    raise ValueError("VisualizerCfg.view requires the Newton visualizer.")
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 

@@ -122,7 +122,7 @@ class BaseVisualizer(ABC):
                 env_ids = sorted(random.sample(pool, num_tiles))
         for camera in cameras:
             if isinstance(camera, PerspectiveCameraCfg):
-                if self.cfg.backend.visualizer_type not in ("newton_gl", "newton_rtx"):
+                if self.cfg.backend.visualizer_type != "newton":
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
             else:
@@ -132,7 +132,7 @@ class BaseVisualizer(ABC):
                     depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
                 )  # fmt: skip
                 view = sim.get_or_create_backend(view_cfg, camera=camera)
-            if self.cfg.backend.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
+            if self.cfg.backend.visualizer_type in ("newton", "kit"):
                 view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
             self._image_views.append(view)
         self.current_image_view = next((view for view in self._image_views if view.camera is not None), None)

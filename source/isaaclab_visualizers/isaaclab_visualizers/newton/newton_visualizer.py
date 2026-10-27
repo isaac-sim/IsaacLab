@@ -47,7 +47,6 @@ from pyglet.math import Vec3 as PygletVec3
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
@@ -900,6 +899,20 @@ class NewtonVisualizerBase(BaseVisualizer):
             hidden=hidden, backface_culling=backface_culling, color=color,
             roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
         )  # fmt: skip
+        for renderer in self._rtx_renderers:
+            # The OVRTX viewer camera draws its own scene, so the mesh is published there as well.
+            renderer.log_mesh(
+                f"Viewer_{id(self)}/{name.lstrip('/')}", points, indices, normals, uvs, texture, hidden,
+                backface_culling, color, roughness, metallic, dynamic, opacity,
+            )  # fmt: skip
+
+    @property
+    def _rtx_renderers(self) -> tuple:
+        """OVRTX renderers of the viewer camera; empty when the scene has none."""
+        index = getattr(self, "rtx_view_index", None)
+        if index is None or self._sim is None:
+            return ()
+        return (self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg),)
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
@@ -1624,6 +1637,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
             renderer_cfg = self._image_views[self.rtx_view_index].camera.cfg.renderer_cfg
             sim.get_or_create_backend(renderer_cfg).marker_groups = sim.vis_marker_registry.get_groups().values()
+        if self.cfg.backend.initial_renderer == "rtx":
+            if self.rtx_view_index is None:
+                raise RuntimeError(
+                    "NewtonGLBackendCfg.initial_renderer='rtx' needs the OVRTX viewer camera, which is declared at"
+                    " launch; it is missing from this scene (see NewtonGLBackendCfg.rtx_camera)."
+                )
+            self.set_rtx_rendering(True)
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
@@ -2168,78 +2188,3 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.renderer.sky_upper = tuple(upper_color)
         self._viewer.renderer.sky_lower = tuple(lower_color)
         self._viewer.renderer._light_color = tuple(self.cfg.backend.light_color)
-
-
-class NewtonRTXVisualizer(NewtonVisualizerBase):
-    """Display simulation-owned RTX images in a Newton GL window.
-
-    Scene cameras and the perspective product share the configured OVRTX renderer. Window resizing
-    only scales presentation; sensor and perspective output storage keeps its initial resolution.
-    """
-
-    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
-        """Bind existing scene cameras to the window; cameras retain renderer ownership."""
-        if self._is_initialized:
-            return
-        if FactoryBase._get_backend(sim=sim) == "physx":
-            raise RuntimeError(
-                "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
-            )
-        if any(isinstance(camera, PerspectiveCameraCfg) for camera in cameras) or (
-            self.cfg.view is not None and isinstance(self.cfg.view.source, PerspectiveCameraCfg)
-        ):
-            raise ValueError(
-                "RTX perspective cameras must be declared before scene construction. Pass the environment config "
-                "to launch_simulation, or use instantiate(camera_cfg) within ReplicateSession and select it with "
-                "SceneCameraCfg."
-            )
-        super().initialize(sim, cameras=cameras)
-        self._viewer.renderer.set_title("Isaac Lab RTX")
-        self._viewer.picking_enabled = False
-        self._select_camera(0)
-        self._renderers = tuple(dict.fromkeys(
-            sim.get_or_create_backend(view.camera.cfg.renderer_cfg) for view in self._image_views
-            if view.camera.cfg.renderer_cfg.renderer_type == "ovrtx"
-        ))  # fmt: skip
-        if self.cfg.enable_markers:
-            for renderer in self._renderers:
-                renderer.marker_groups = sim.vis_marker_registry.get_groups().values()
-        self._marker_revision = -1
-        self._is_initialized = True
-
-    def log_mesh(self, name: str, *args, **kwargs) -> None:
-        """Publish geometry to the shared scene, including cameras captured without a window."""
-        if not self._is_initialized:
-            raise RuntimeError("The visualizer must be initialized before logging a mesh.")
-        for renderer in self._renderers:
-            renderer.log_mesh(f"Viewer_{id(self)}/{name.lstrip('/')}", *args, **kwargs)
-        for view in self._image_views:
-            view.camera.update(0.0)
-            view.invalidate()
-
-    def _render_frame(self) -> None:
-        """Update navigation and scene overlays, then display the selected camera's GPU image."""
-        self._viewer.begin_frame(self._sim_time)
-        try:
-            if not self._viewer.is_paused():
-                self._navigate_scene_camera()
-                if self.cfg.enable_markers and self._marker_revision != self._sim.vis_marker_registry.revision:
-                    for view in self._image_views:
-                        view.camera.update(0.0)
-                        view.invalidate()
-                    self._marker_revision = self._sim.vis_marker_registry.revision
-            self._log_streaming_image()
-            self._last_render_step = self._sim.get_physics_step_count()
-        finally:
-            self._viewer.end_frame()
-
-    def close(self) -> None:
-        """Close the window; scene cameras retain their render products and shared renderer."""
-        if self._is_closed:
-            return
-        try:
-            if self._viewer is not None:
-                self._viewer.close()
-        finally:
-            self._viewer = None
-            super().close()
