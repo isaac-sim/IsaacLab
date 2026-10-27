@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
@@ -87,9 +86,11 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 
     class_type: type["RemotizedPDActuator"] | str = "{DIR}.actuator_pd:RemotizedPDActuator"
 
-    joint_parameter_lookup: list[list[float]] = MISSING
+    joint_parameter_lookup: list[list[float]] | None = None
     """Joint parameter lookup table. Shape is (num_lookup_points, 3).
 
     This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),
     and the output torque (N*m). The table is used to interpolate the output torque based on the joint angle.
+    Required by the Isaac Lab model and when adding a native lookup-table clamp. With
+    :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, None keeps an existing USD actuator's table.
     """

@@ -727,9 +727,13 @@ config is authored onto that prim:
   not model are removed with a warning, a type that authors another clamp swaps it, and
   ``max_delay=0`` removes a delay. A component the prim does not provide, such as a swapped-in clamp,
   takes the joint's USD drive limit for a joint the config sets no ``actuator_effort_limit`` for.
+* A remotized PD config can leave ``joint_parameter_lookup=None`` to keep the asset's lookup table.
+  Neural configs can leave ``network_file=None`` to keep the asset's checkpoint and its preprocessing
+  metadata. To replace an MLP checkpoint, supply ``network_file`` together with ``input_order``,
+  ``input_idx``, ``pos_scale``, ``vel_scale`` and ``torque_scale``; metadata changes require a checkpoint.
 * A component the config adds needs its required values, such as a DC motor's ``saturation_effort``,
-  from the config. Otherwise authoring raises before it changes that joint's actuators. Newton
-  validates the values of the components the asset's prim keeps.
+  lookup tables, or neural checkpoints, from the config. Otherwise authoring raises before it changes
+  that joint's actuators. Newton validates the values of the components the asset's prim keeps.
 
 .. code-block:: python
 

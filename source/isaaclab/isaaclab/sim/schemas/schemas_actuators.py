@@ -446,7 +446,10 @@ def _new_prim_effort_limit(cfg: ActuatorBaseCfg, joint_prim: Usd.Prim, new_prim:
 
 
 def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_names: list[str]) -> dict[str, Any]:
-    """Export a neural actuator's checkpoint with its config metadata and return its path for every joint."""
+    """Return a configured neural checkpoint for every joint, or no overrides when the checkpoint is unset."""
+    validate(cfg)
+    if cfg.network_file is None:
+        return {}
     meta: dict[str, Any] = {}
     if isinstance(cfg, ActuatorNetMLPCfg):
         meta["model_type"] = "mlp"
@@ -515,12 +518,17 @@ _POSITION_BASED = tuple(
         _POSITION_BASED_API,
         attr,
         Sdf.ValueTypeNames.FloatArray,
-        lambda cfg, names, column=column: dict.fromkeys(names, [float(r[column]) for r in cfg.joint_parameter_lookup]),
+        lambda cfg, names, column=column: (
+            {}
+            if cfg.joint_parameter_lookup is None
+            else dict.fromkeys(names, [float(r[column]) for r in cfg.joint_parameter_lookup])
+        ),
+        required=True,
     )
     for attr, column in (("newton:lookupPositions", 0), ("newton:lookupEfforts", 2))
 )
 _NEURAL_MODEL = _ActuatorField(
-    "network_file", _NEURAL_API, "newton:modelPath", Sdf.ValueTypeNames.Asset, _exported_model_path
+    "network_file", _NEURAL_API, "newton:modelPath", Sdf.ValueTypeNames.Asset, _exported_model_path, required=True
 )
 
 # BAM attributes are float-typed even when integral: an int-typed attribute would truncate a float override.

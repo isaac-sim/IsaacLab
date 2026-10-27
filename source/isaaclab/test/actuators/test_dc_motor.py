@@ -6,7 +6,7 @@
 import pytest
 import torch
 
-from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
+from isaaclab.actuators import ActuatorNetLSTMCfg, ActuatorNetMLPCfg, DCMotorCfg, RemotizedPDActuatorCfg
 from isaaclab.utils import instantiate
 from isaaclab.utils.types import ArticulationActions
 
@@ -208,3 +208,30 @@ def test_lstm_actuator_clips_with_torque_speed_curve(tmp_path):
     # Positive torque falls to zero at the velocity limit; braking torque remains available.
     torch.testing.assert_close(action.joint_efforts, torch.tensor([[80.0, 60.0], [0.0, 80.0]]))
     assert "_joint_vel" not in vars(actuator)
+
+
+@pytest.mark.parametrize(
+    ("cfg", "match"),
+    [
+        (
+            RemotizedPDActuatorCfg(joint_names_expr=["joint"], stiffness=0.0, damping=0.0, joint_parameter_lookup=None),
+            "joint_parameter_lookup",
+        ),
+        (
+            ActuatorNetMLPCfg(
+                joint_names_expr=["joint"], saturation_effort=1.0, actuator_velocity_limit=10.0, network_file=None
+            ),
+            "network_file",
+        ),
+        (
+            ActuatorNetLSTMCfg(
+                joint_names_expr=["joint"], saturation_effort=1.0, actuator_velocity_limit=10.0, network_file=None
+            ),
+            "network_file",
+        ),
+    ],
+)
+def test_lab_models_require_parameters_supplied_by_usd_on_native_path(cfg, match):
+    """The Lab execution path cannot inherit lookup tables or checkpoints from USD actuators."""
+    with pytest.raises(ValueError, match=match):
+        instantiate(cfg, joint_names=["joint"], joint_ids=slice(None), num_envs=1, device="cpu")

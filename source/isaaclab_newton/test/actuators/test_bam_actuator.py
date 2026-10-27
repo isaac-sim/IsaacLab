@@ -272,6 +272,7 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, ca
         assert resolved["friction_scale"] == pytest.approx(2.0)
         assert resolved["vin"] == pytest.approx(VIN)
         assert resolved["max_current"] == 0.0
+        assert resolved["max_effort"] == pytest.approx(0.963401595)
         # The unset friction model and backlash template keep the asset's m6 and backlash flags.
         assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
         assert resolved["has_backlash"] == 1

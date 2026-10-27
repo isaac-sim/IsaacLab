@@ -10,3 +10,7 @@
   fields to default to None, which keeps the USD BAM actuator's value, and stopped resetting its runtime
   scales, sag gain, and delay seed. Set a value explicitly to restore the previous result.
 * Changed delayed PD actuator authoring to stop writing the non-schema ``newton:maxDelay`` attribute.
+* Changed remotized PD lookup tables and neural checkpoints to accept None on the native path,
+  keeping an existing USD actuator's table or checkpoint. New components and Isaac Lab execution
+  still require them. MLP input settings can be omitted with the checkpoint; replacement checkpoints
+  still require the complete input settings.

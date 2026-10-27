@@ -29,6 +29,8 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import (
     ActuatorBaseCfg,
+    ActuatorNetLSTMCfg,
+    ActuatorNetMLPCfg,
     DCMotor,
     DCMotorCfg,
     DelayedPDActuatorCfg,
@@ -45,6 +47,7 @@ from isaaclab.sim.schemas.schemas_actuators import (
 )
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.test.utils.actuator_equivalence import make_dummy_lstm_checkpoint, make_dummy_mlp_checkpoint
+from isaaclab.utils import validate
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
@@ -146,7 +149,8 @@ def _parsed_actuator(stage: Usd.Stage, joint_name: str) -> ActuatorParsed:
     parsed = [
         entry
         for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot"))
-        if (entry := parse_actuator_prim(prim)) and entry.target_path == f"/World/Robot/{joint_name}"
+        if (entry := parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=True))
+        and entry.target_path == f"/World/Robot/{joint_name}"
     ]
     assert len(parsed) == 1, parsed
     return parsed[0]
@@ -310,6 +314,29 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
     pd_b = asset.GetPrimAtPath("/World/Robot/pd_b_pd_b_actuator")
     pd_b.RemoveAppliedSchema("NewtonMaxEffortClampingAPI")
     pd_b.RemoveProperty("newton:maxEffort")
+    # Callback-backed fields keep the asset's lookup table and trusted local checkpoints too.
+    UsdPhysics.RevoluteJoint.Define(asset, "/World/Robot/remote_keep")
+    layer = asset.GetRootLayer()
+    Sdf.CopySpec(layer, "/World/Robot/remote_b_remote_b_actuator", layer, "/World/Robot/remote_keep_actuator")
+    asset.GetPrimAtPath("/World/Robot/remote_keep_actuator").GetRelationship("newton:targets").SetTargets(
+        ["/World/Robot/remote_keep"]
+    )
+    checkpoints = {}
+    for kind, make_checkpoint in (("mlp", make_dummy_mlp_checkpoint), ("lstm", make_dummy_lstm_checkpoint)):
+        checkpoint = tmp_path / f"{kind}.pt2"
+        original = make_checkpoint()
+        try:
+            Path(resave_checkpoint_with_metadata(original, {"model_type": kind})).replace(checkpoint)
+        finally:
+            Path(original).unlink()
+        checkpoints[kind] = str(checkpoint)
+        joint = UsdPhysics.RevoluteJoint.Define(asset, f"/World/Robot/{kind}")
+        prim = asset.DefinePrim(f"/World/Robot/{kind}_actuator", "NewtonActuator")
+        prim.AddAppliedSchema("NewtonNeuralControlAPI")
+        prim.AddAppliedSchema("NewtonDCMotorClampingAPI")
+        prim.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
+        prim.CreateAttribute("newton:modelPath", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(str(checkpoint)))
+        prim.CreateAttribute("newton:saturationEffort", Sdf.ValueTypeNames.Float).Set(20.0)
     stage = _make_asset_stage(tmp_path, asset)
     # A component the asset lacks takes its joint's drive limit; a kept clamp keeps the asset's limit.
     for index, joint_name in enumerate(_JOINT_NAMES):
@@ -328,7 +355,12 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
         "remote_a": DCMotorCfg(joint_names_expr=["remote_a"], stiffness=None, damping=None, saturation_effort=5.0),
         # A zero delay removes the asset's delay.
         "remote_b": DelayedPDActuatorCfg(joint_names_expr=["remote_b"], stiffness=None, damping=None, max_delay=0),
+        "remote_keep": RemotizedPDActuatorCfg(joint_names_expr=["remote_keep"], stiffness=99.0, damping=None),
+        "mlp": ActuatorNetMLPCfg(joint_names_expr=["mlp"], actuator_effort_limit=0.5),
+        "lstm": ActuatorNetLSTMCfg(joint_names_expr=["lstm"], actuator_effort_limit=0.75),
     }
+    for cfg in cfgs.values():
+        validate(cfg)
 
     with caplog.at_level(logging.WARNING):
         author_actuator_prims(stage, "/World/Robot", cfgs)
@@ -347,6 +379,21 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
         "dc_b": ({"kp": 1.0, "kd": 4.5}, {ClampingDCMotor: dc_b_curve}),
         "remote_a": ({"kp": 55.0, "kd": 5.5}, {ClampingDCMotor: {"saturation_effort": 5.0, "max_motor_effort": 84.0}}),
         "remote_b": ({"kp": 55.0, "kd": 5.5}, {ClampingMaxEffort: {"max_effort": 85.0}}),
+        "remote_keep": (
+            {"kp": 99.0, "kd": 5.5},
+            {
+                ClampingPositionBased: {"lookup_positions": [-1.0, 1.0], "lookup_efforts": [11.0, 21.0]},
+                Delay: {"delay_steps": 1},
+            },
+        ),
+        "mlp": (
+            {"model_path": checkpoints["mlp"]},
+            {ClampingDCMotor: {"saturation_effort": 20.0, "max_motor_effort": 0.5}},
+        ),
+        "lstm": (
+            {"model_path": checkpoints["lstm"]},
+            {ClampingDCMotor: {"saturation_effort": 20.0, "max_motor_effort": 0.75}},
+        ),
     }
     for joint_name, (drive, components) in expected.items():
         actuator = _parsed_actuator(stage, joint_name)
@@ -418,8 +465,36 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
             {"group": DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, damping=1.0)},
             "saturation_effort.*dc_a",
         ),
+        (
+            lambda tmp_path: _make_robot_stage(),
+            {"group": RemotizedPDActuatorCfg(joint_names_expr=["pd_a"], stiffness=1.0, damping=0.0)},
+            "joint_parameter_lookup.*pd_a",
+        ),
+        (
+            lambda tmp_path: _make_robot_stage(),
+            {"group": ActuatorNetMLPCfg(joint_names_expr=["pd_a"])},
+            "network_file.*pd_a",
+        ),
+        (
+            _make_asset_stage,
+            {"group": ActuatorNetMLPCfg(joint_names_expr=["pd_a"], network_file="unused.pt")},
+            "network_file.*input_order",
+        ),
+        (
+            _make_asset_stage,
+            {"group": ActuatorNetMLPCfg(joint_names_expr=["pd_a"], pos_scale=2.0)},
+            "network_file.*metadata",
+        ),
     ],
-    ids=["unsupported_cfgs", "unmatched_effort_limit", "new_prim_without_saturation"],
+    ids=[
+        "unsupported_cfgs",
+        "unmatched_effort_limit",
+        "new_prim_without_saturation",
+        "new_prim_without_lookup",
+        "new_prim_without_checkpoint",
+        "incomplete_mlp_metadata",
+        "metadata_without_checkpoint",
+    ],
 )
 def test_rejected_config_raises_before_editing_the_joint(tmp_path, make_stage, groups, match):
     """A config Newton cannot author, or one that leaves a required value unset, raises before it edits the joint."""
