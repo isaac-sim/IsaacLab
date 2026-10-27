@@ -384,8 +384,8 @@ follows:
   Newton's collision pipeline.
 * It treats rigid geometry as colliders. It is not a rigid-body or
   articulation dynamics solver, and it does not accept external rigid-body
-  forces. Kinematic bodies are given zero mass before the model is finalized,
-  and convex meshes are passed to the solver as triangle meshes.
+  forces. Newton gives kinematic colliders zero effective mass while retaining
+  their physical model mass. Convex meshes are passed as triangle meshes.
 
 
 Runtime grid spacing and particle radius

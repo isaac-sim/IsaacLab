@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from newton import (
-    BodyFlags,
     Contacts,
     Control,
     GeoType,
@@ -227,14 +226,14 @@ class NewtonMPMManager(NewtonManager):
         if solver.model is not parent:
             parent.particle_radius.fill_(radius)
             parent.particle_max_radius = radius
-            self._solver.notify_model_changed(ModelFlags.MODEL_PROPERTIES)
+            self.backend.solver.notify_model_changed(ModelFlags.MODEL_PROPERTIES)
         self._invalidate_graph()
 
     def _runtime_mpm_target(self, entry_name: str | None) -> tuple[SolverImplicitMPM, State, MPMSolverCfg]:
         """Resolve a direct or named coupled MPM solver and its current local state."""
         if self.backend is None or self._sim is None:
             raise RuntimeError("Newton physics must be initialized before changing MPM settings.")
-        root = self._solver
+        root = self.backend.solver
         if isinstance(root, SolverImplicitMPM):
             if entry_name is not None:
                 raise ValueError("entry_name is only valid for coupled solvers.")
@@ -274,22 +273,11 @@ class NewtonMPMManager(NewtonManager):
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Normalize rigid colliders before MPM solver construction.
+        """Convert convex colliders to the triangle-mesh type consumed by MPM.
 
-        Newton's implicit MPM solver treats positive-mass body colliders as
-        finite-mass colliders. Isaac Lab kinematic assets can import with a
-        computed mass, so clear mass and inertia for kinematic bodies to match
-        Newton's direct-builder MPM examples. The solver consumes mesh vertices
-        and indices but only accepts the triangle-mesh geometry type, so classify
-        convex meshes as meshes without changing their geometry.
+        Newton applies zero effective collider mass to kinematic bodies without
+        modifying their physical model mass, which other coupled solvers need.
         """
-        kinematic_flag = int(BodyFlags.KINEMATIC)
-        for body_id, flags in enumerate(builder.body_flags):
-            if int(flags) & kinematic_flag:
-                builder.body_mass[body_id] = 0.0
-                builder.body_inv_mass[body_id] = 0.0
-                builder.body_inertia[body_id] = wp.mat33()
-                builder.body_inv_inertia[body_id] = wp.mat33()
         for shape_id, shape_type in enumerate(builder.shape_type):
             if shape_type == GeoType.CONVEX_MESH:
                 builder.shape_type[shape_id] = GeoType.MESH
