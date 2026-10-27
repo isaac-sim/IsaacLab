@@ -82,8 +82,8 @@ SHAPE_DEFAULTS = {
 """:class:`NewtonShapeCfg` field -> model shape array and the collider attribute that states it.
 
 Workaround until Newton's USD schema has scene-level shape defaults: Isaac Lab applies these defaults
-when it builds the model, so an exported collider using one states it explicitly. Friction is set by a
-physics material only and is not written.
+when it builds the model, so an exported collider using one states it explicitly. Friction can only be
+stated by a physics material, so a collider without one that uses Isaac Lab's friction is not exported.
 """
 
 
@@ -275,8 +275,6 @@ class UsdExporter(BaseUsdExporter):
             for name in SHAPE_DEFAULTS
             if getattr(upstream, name) is None or not self._close(getattr(defaults, name), getattr(upstream, name))
         }
-        if "mu" in lab_defaults:
-            raise NotImplementedError("A Newton default friction other than Newton's needs a physics material.")
         flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
         edits, materials = [], {}
         for shape in self._selected(model.shape_world):
@@ -286,8 +284,12 @@ class UsdExporter(BaseUsdExporter):
                 continue
             for name, value in lab_defaults.items():
                 array, attribute = SHAPE_DEFAULTS[name]
-                if not changed[array][shape] and self._close(getattr(builder, array)[shape], value):
+                if changed[array][shape] or not self._close(getattr(builder, array)[shape], value):
+                    continue
+                if attribute is not None:
                     edits.append(self._value_edit(prim, attribute, float(value)))
+                elif not UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")[0]:
+                    raise NotImplementedError(f"Collider '{prim.GetPath()}' needs a physics material for its friction.")
             edits += [
                 UsdEdit(str(prim.GetPath()), attribute, float(values[name][shape]))
                 for name, attribute in SHAPE_ATTRIBUTES.items()
