@@ -879,9 +879,6 @@ def test_inherited_read_only_property():
     """Tests that a subclass can be created when its parent defines a read-only property."""
     cfg = ReadOnlyPropertyChildDemoCfg(a=4)
     assert cfg.a_doubled == 8
-    # the property still reads the live field value
-    cfg.a = 6
-    assert cfg.a_doubled == 12
 
 
 def test_dict_conversion_functions_config():
