@@ -136,7 +136,8 @@ class PhysxUsdExporter(BaseUsdExporter):
             if prim.HasAPI(UsdPhysics.RigidBodyAPI) and str(prim.GetPath()) not in exported
         ]
         if missing:
-            logger.warning(f"Physics bodies outside the scene's assets keep their USD values: {missing}.")
+            # Isaac Lab configures only its assets, so these bodies hold what their USD states.
+            logger.info(f"Physics bodies outside the scene's assets are exported as authored: {missing}.")
         return readings
 
     def _read_articulation(self, stage: Usd.Stage, articulation) -> Readings:
