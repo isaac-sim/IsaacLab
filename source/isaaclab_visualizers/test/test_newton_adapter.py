@@ -950,12 +950,15 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             back_frame = back.frame.torch.clone()
             assert visualizer.current_image_view.camera is None
             assert isinstance(visualizer._image_views[0].cfg.source, PerspectiveCameraCfg)
+            # A depth-only sensor is listed too, showing its own channel.
             assert [view.camera.cfg.prim_path for view in visualizer._image_views[1:]] == [
+                depth.cfg.prim_path,
                 color.cfg.prim_path,
                 back.cfg.prim_path,
             ]
+            assert visualizer._image_views[1].cfg.channels == ("depth",)
 
-            visualizer._select_camera(1)
+            visualizer._select_camera(2)
             torch.testing.assert_close(color.frame.torch, color_frame)
             image = visualizer.render_tiled_rgb_array()
             np.testing.assert_array_equal(image, color.data.output["rgb"].torch[0].cpu().numpy())
@@ -1006,7 +1009,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
                 color_frame = color.frame.torch.clone()
                 back.update(cfg.sim.dt)
                 viewer.paused = True
-                visualizer._select_camera(2)
+                visualizer._select_camera(3)
                 torch.testing.assert_close(back.frame.torch, back_frame)
                 viewer.camera.get_view_matrix = Mock(return_value=after)
                 visualizer.step(0.0)
@@ -1463,3 +1466,13 @@ def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
     visualizer.set_rtx_rendering(False)
 
     assert visualizer.current_image_view is tracking and visualizer._rtx_pose_view is None
+
+
+def test_sensor_labels_name_the_outputs_of_the_sensor():
+    label = NewtonGLVisualizer._sensor_label
+    assert label("/World/envs/env_[^/]+/Camera", ["rgb", "depth"]) == "Camera (RGB + depth sensor)"
+    assert label("/World/envs/env_[^/]+/Camera", ["rgba"]) == "Camera (RGB sensor)"
+    assert label("/World/Camera/", ["semantic_segmentation"]) == "Camera (semantic seg sensor)"
+    assert label("/World/Camera", ["distance_to_image_plane", "normals"]) == "Camera (depth + normals sensor)"
+    assert label("/World/Camera", ["motion_vectors"]) == "Camera (sensor)"
+    assert label("/World/Camera") == "Camera (sensor)"

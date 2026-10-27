@@ -47,6 +47,7 @@ from pyglet.math import Vec3 as PygletVec3
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
@@ -983,7 +984,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         follower = self._followers.get(self._pose_source_view())
         if follower is not None:
             self._draw_tracking_camera_controls(imgui, follower)
-        elif self.current_image_view in self._sensor_tiles:
+        elif self.current_image_view.camera is not None and not self.rtx_rendering:
             self._draw_sensor_controls(imgui, self.current_image_view)
         self._draw_camera_info(imgui)
 
@@ -1166,11 +1167,14 @@ class NewtonVisualizerBase(BaseVisualizer):
         return 1 if self._is_task_view(view) else 0
 
     def _draw_sensor_controls(self, imgui, view) -> None:
-        """Choose which environment's sensor image is shown, or tile several environments."""
+        """Choose which channel of a sensor is shown, and which environment, or tile several environments."""
         camera = view.camera
-        tiles = self._sensor_tiles[view]
-        tiled = tuple(view.cfg.envs) == tiles
         imgui.separator_text("Camera Sensor")
+        self._draw_sensor_channels(imgui, view)
+        tiles = self._sensor_tiles.get(view)
+        if tiles is None:  # A single-instance sensor has no environment to choose.
+            return
+        tiled = tuple(view.cfg.envs) == tiles
         if tiled:
             imgui.begin_disabled()
         env = view.cfg.envs[0] if view.cfg.envs else 0
@@ -1186,6 +1190,50 @@ class NewtonVisualizerBase(BaseVisualizer):
         if changed:
             view.cfg.envs = tiles if tiled else (env,)
             self._invalidate_sensor_view(view)
+
+    _CHANNEL_LABELS = {"rgb": "RGB", "depth": "Depth", "normals": "Normals", "segmentation": "Segmentation"}
+
+    def _draw_sensor_channels(self, imgui, view) -> None:
+        """Choose which output of the sensor is shown, with a color scale range for depth."""
+        available = display_channels(view.camera.cfg.data_types)
+        if not available:
+            return
+        keys = frozenset(view.camera.cfg.data_types)
+        options = []
+        for channel in available:
+            key = sensor_key_for_gt_type(channel, keys)
+            # A color image that is not the plain render, such as albedo, is named by its output.
+            options.append(
+                (key if channel == "rgb" and key not in ("rgb", "rgba") else self._CHANNEL_LABELS[channel], (channel,))
+            )
+        if len(available) > 1:
+            options.append(("All", available))
+        current = tuple(view.cfg.channels)
+        index = next((i for i, (_, channels) in enumerate(options) if channels == current), -1)
+        if index < 0:
+            options.append(("Custom", current))
+            index = len(options) - 1
+        changed, chosen = imgui.combo("Channel", index, [label for label, _ in options])
+        hover_tooltip(imgui, "Which output of the sensor is shown: its color image, depth, normals, or segmentation")
+        if changed:
+            self.set_sensor_channels(view, options[chosen][1])
+        if "depth" in view.cfg.channels:
+            near, far = view.cfg.depth_range
+            changed, (new_near, new_far) = imgui.input_float2("Depth Range (m)", [near, far])
+            hover_tooltip(imgui, "Distances mapped to the ends of the depth color scale")
+            if changed and 0.0 <= new_near < new_far:
+                view.cfg.depth_range = (float(new_near), float(new_far))
+                self._invalidate_sensor_view(view)
+
+    def set_sensor_channels(self, view, channels: tuple[str, ...]) -> None:
+        """Show ``channels`` of a sensor view, which the sensor must provide.
+
+        Args:
+            view: Image view of a scene camera.
+            channels: Display channels, such as ``("depth",)``, shown side by side.
+        """
+        view.cfg.channels = tuple(channels)
+        self._invalidate_sensor_view(view)
 
     def _invalidate_sensor_view(self, view) -> None:
         view.invalidate()
@@ -1293,7 +1341,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         labels = []
         for view in views:
             if view.camera is not None:
-                labels.append(self._sensor_label(view.cfg.source))
+                labels.append(self._sensor_label(view.cfg.source, view.camera.cfg.data_types))
             elif self._is_task_view(view):
                 labels.append(
                     "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
@@ -1302,10 +1350,33 @@ class NewtonVisualizerBase(BaseVisualizer):
                 labels.append("Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}")
         return labels
 
+    _OUTPUT_NAMES = {
+        "rgb": "RGB",
+        "rgba": "RGB",
+        "depth": "depth",
+        "distance_to_image_plane": "depth",
+        "distance_to_camera": "distance",
+        "normals": "normals",
+        "semantic_segmentation": "semantic seg",
+        "instance_segmentation": "instance seg",
+        "instance_id_segmentation_fast": "instance seg",
+        "albedo": "albedo",
+        "simple_shading_constant_diffuse": "shaded",
+        "simple_shading_diffuse_mdl": "shaded",
+        "simple_shading_full_mdl": "shaded",
+    }
+    """Short names of the outputs a scene camera lists in the Camera Source dropdown."""
+
     @staticmethod
-    def _sensor_label(prim_path: str) -> str:
-        """Name a scene camera by its own prim name, without the per-environment path pattern."""
-        return f"{prim_path.rstrip('/').rsplit('/', 1)[-1]} (sensor)"
+    def _sensor_label(prim_path: str, data_types=()) -> str:
+        """Name a scene camera by its own prim name, without the per-environment path pattern.
+
+        The outputs follow in parentheses, such as ``Camera (depth sensor)`` or ``Camera (RGB + depth sensor)``.
+        """
+        names = NewtonVisualizerBase._OUTPUT_NAMES
+        outputs = list(dict.fromkeys(names[key] for key in data_types if key in names))
+        kind = " + ".join(outputs[:3]) + " " if outputs else ""
+        return f"{prim_path.rstrip('/').rsplit('/', 1)[-1]} ({kind}sensor)"
 
     @staticmethod
     def _is_task_view(view) -> bool:

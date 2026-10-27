@@ -757,10 +757,11 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         assert seen == [cfg]
         assert ctx._visualizers == [visualizer]
 
-        # Automatic choices skip unsupported channels; explicit references fail before viewer initialization.
+        # Automatic choices show a sensor's own channel when it lacks the requested one; explicit references fail
+        # before viewer initialization.
         for path, channel, expected, error in (
             (None, "rgb", [camera], None),
-            (None, "depth", [], None),
+            (None, "depth", [camera], None),
             ("/Missing/Camera", "rgb", None, (ValueError, "No scene Camera matches")),
             ("{ENV_REGEX_NS}/Camera", "depth", None, (KeyError, "No sensor output")),
             (None, "optical_flow", None, (ValueError, "optical_flow")),

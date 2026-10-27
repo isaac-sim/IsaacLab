@@ -21,6 +21,7 @@ import warp as wp
 
 from ..utils import validate
 from ..utils.backend_utils import FactoryBase
+from ..utils.images import resolve_display_channels
 from .image_view import ImageView
 from .visualizer_cfg import (
     ImageViewCfg,
@@ -120,15 +121,24 @@ class BaseVisualizer(ABC):
                 pool = self._env_ids if self._env_ids is not None else range(num_envs)
                 num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
                 env_ids = sorted(random.sample(pool, num_tiles))
+        task_views_only = bool(self.cfg.cameras) and all(
+            isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view for camera in self.cfg.cameras
+        )
+        automatic_sources = (
+            self.cfg.cameras is None or task_views_only
+        ) and self.cfg.streaming_sensor_prim_path is None
         for camera in cameras:
             if isinstance(camera, PerspectiveCameraCfg):
                 if self.cfg.backend.visualizer_type != "newton":
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
             else:
+                channels = tuple(self.cfg.streaming_gt_types)
+                if automatic_sources:  # Explicitly named sensors must provide what was requested.
+                    channels = resolve_display_channels(channels, camera.cfg.data_types)
                 view_cfg = ImageViewCfg(
                     source=camera.cfg.prim_path, envs=(0,) if camera.num_instances == 1 else tuple(map(int, env_ids)),
-                    channels=tuple(self.cfg.streaming_gt_types),
+                    channels=channels,
                     depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
                 )  # fmt: skip
                 view = sim.get_or_create_backend(view_cfg, camera=camera)

@@ -31,7 +31,7 @@ from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
 from ..utils.device import reserve_cuda_graph_memory
-from ..utils.images import sensor_key_for_gt_type
+from ..utils.images import resolve_display_channels, sensor_key_for_gt_type
 from ..utils.string import clear_resolve_matching_names_cache, string_to_callable
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
@@ -458,12 +458,8 @@ class SimulationContext:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
                         for camera in sensors.values():
-                            available = frozenset(camera.cfg.data_types)
-                            has_requested_channels = all(
-                                sensor_key_for_gt_type(gt, available, required=False) is not None
-                                for gt in visualizer.cfg.streaming_gt_types
-                            )
-                            if has_requested_channels:
+                            # A sensor without the requested channels still shows its own, such as depth only.
+                            if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
                 for index, source in enumerate(cameras):
                     if not isinstance(source, SceneCameraCfg):
