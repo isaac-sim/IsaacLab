@@ -154,10 +154,11 @@ work but can expose stale data. ``save_to_mjcf``, ``use_mujoco_cpu``, and
 
 ``update_data_interval`` counts solver substeps, with
 ``decimation * num_substeps`` solver steps per control step. ``0`` disables
-periodic imports. State writes through Isaac Lab's asset APIs still synchronize
-flagged worlds at the next ``forward()`` or physics-step boundary, including
-environment resets. Raw Newton state writes must also flag the manager's reset
-masks through ``NewtonManager.invalidate_fk()``.
+periodic imports. With MuJoCo Warp, state writes through Isaac Lab's asset APIs
+still synchronize flagged worlds at the next ``forward()`` or physics-step
+boundary, including environment resets. The native MuJoCo CPU backend only
+synchronizes template world 0 when that world is flagged. Raw Newton state writes
+must also flag the manager's reset masks through ``NewtonManager.invalidate_fk()``.
 
 The diagnose-first order is: validate the model and fixed reproduction; choose
 timestep and substeps; size capacities; validate convergence; tune contact
