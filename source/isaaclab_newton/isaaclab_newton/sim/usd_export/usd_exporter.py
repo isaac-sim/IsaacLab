@@ -468,6 +468,13 @@ class UsdExporter(BaseUsdExporter):
             value = getattr(solver_cfg, name)
             if value is not None:
                 edits.append(UsdEdit(path, attribute, value, types[type(value)]))
+        if self._manager(solver_cfg)._registers_builder_attributes_from_solver(newton.solvers.SolverKamino):
+            # Of Kamino's settings Newton reads from USD, only the constraint stabilization alpha is written: the
+            # PADMM ones change the result only together with settings USD cannot state (rho_0, warm start method).
+            builder = newton.ModelBuilder()
+            newton.solvers.SolverKamino.register_custom_attributes(builder)
+            attribute = builder.custom_attributes["kamino:constraints_alpha"].usd_attribute_name
+            edits.append(UsdEdit(path, attribute, float(solver_cfg.to_solver_config().constraints.alpha)))
         return edits
 
     @classmethod
