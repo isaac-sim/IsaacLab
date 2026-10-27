@@ -98,7 +98,7 @@ def _assert_pose_equal(actual, expected):
     "solver,device,num_envs,env_id",
     [("xpbd", "cpu", 1, 0), ("xpbd", "cpu", 2, 1), ("mujoco", "cuda:0", 1, 0)],
 )
-def test_loading_the_export_reproduces_the_initialized_model(tmp_path, solver, device, num_envs, env_id):
+def test_loading_the_export_reproduces_the_initialized_model(tmp_path, caplog, solver, device, num_envs, env_id):
     """Every exported quantity of the loaded model equals the live model's, including config overrides."""
     from isaaclab_newton.physics import MJWarpSolverCfg, XPBDSolverCfg
     from isaaclab_newton.sim.usd_export import UsdExporter
@@ -124,6 +124,10 @@ def test_loading_the_export_reproduces_the_initialized_model(tmp_path, solver, d
     assert live["joint_target_ke", hinge] == pytest.approx(83.0)
     assert live["joint_armature", hinge] == pytest.approx(0.023)
     assert set(live) == set(loaded), (sorted(set(live) - set(loaded))[:8], sorted(set(loaded) - set(live))[:8])
+    # USD cannot state a target mode; an import infers position mode from the gains, and the export warns.
+    if live["joint_target_mode", hinge] == int(newton.JointTargetMode.POSITION_VELOCITY):
+        assert "target mode" in caplog.text
+        del live["joint_target_mode", hinge]
     for (name, label), value in live.items():
         if name in ("body_q", "joint_X_p", "joint_X_c"):
             _assert_pose_equal(loaded[name, label], value)

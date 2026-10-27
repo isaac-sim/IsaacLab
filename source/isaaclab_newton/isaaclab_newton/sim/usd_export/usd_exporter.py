@@ -122,7 +122,7 @@ class UsdExporter(BaseUsdExporter):
         builder = self.scene.sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=physics_cfg))
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
-        joint_edits, force_position_velocity, drives = self._joint_edits(stage, model, builder)
+        joint_edits, drives = self._joint_edits(stage, model, builder)
         edits = [
             *joint_edits,
             *self._mjc_actuator_edits(stage, drives),
@@ -133,12 +133,16 @@ class UsdExporter(BaseUsdExporter):
         ]
         settings = {
             "dt": self.scene.sim.get_physics_dt(),
-            "force_position_velocity_actuation": force_position_velocity,
             "solver_type": f"{type(solver_cfg).__module__}:{type(solver_cfg).__name__}",
             "solver": solver_cfg.to_dict(),
         }
         layer = stage.GetRootLayer()
         layer.customLayerData = {**layer.customLayerData, SETTINGS_KEY: json.dumps(settings)}
+        if physics_cfg.num_substeps > 1 or physics_cfg.collision_decimation or physics_cfg.collision_cfg is not None:
+            logger.warning(
+                "USD cannot state Newton's substeps or collision pipeline settings; an import steps once per"
+                " time step with default collision settings."
+            )
         return edits
 
     @classmethod
@@ -215,7 +219,7 @@ class UsdExporter(BaseUsdExporter):
         values = self._arrays(model, DOF_ATTRIBUTES)
         changed = self._changed(values, builder)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
-        edits, dofs, unsupported, drives = [], [], [], {}
+        edits, dofs, unsupported, drives = [], {}, [], {}
         for joint in self._selected(model.joint_world):
             prim = stage.GetPrimAtPath(model.joint_label[joint])
             # Free joints of floating bodies have no USD prim; their pose is exported by the body.
@@ -227,7 +231,7 @@ class UsdExporter(BaseUsdExporter):
                     unsupported.append(model.joint_label[joint])
                 continue
             path = str(prim.GetPath())
-            dofs += [dof for dof, _ in axes]
+            dofs.update({dof: path for dof, _ in axes})
             # Newton's importer actuates exactly the axes with a USD drive.
             actuated = {dof: modes[dof] != int(newton.JointTargetMode.NONE) for dof, _ in axes}
             for dof, axis in axes:
@@ -257,10 +261,8 @@ class UsdExporter(BaseUsdExporter):
                         )
         if unsupported:
             logger.warning(f"Joints other than revolute, prismatic and rotational D6 are not exported: {unsupported}.")
-        force_position_velocity = self._actuation_flag(
-            values["joint_target_ke"][dofs], values["joint_target_kd"][dofs], modes[dofs]
-        )
-        return edits, force_position_velocity, drives
+        self._warn_target_modes(dofs, values["joint_target_ke"], values["joint_target_kd"], modes)
+        return edits, drives
 
     @staticmethod
     def _dof_axes(model: newton.Model, joint: int) -> tuple[list[tuple[int, str]] | None, dict]:
@@ -455,16 +457,22 @@ class UsdExporter(BaseUsdExporter):
         return manager
 
     @staticmethod
-    def _actuation_flag(target_ke, target_kd, modes) -> bool:
-        """Return the ``force_position_velocity_actuation`` import option that reproduces all engine modes."""
-        for force in (False, True):
-            inferred = [
-                int(newton.JointTargetMode.from_gains(float(ke), float(kd), force, has_drive=mode != 0))
-                for ke, kd, mode in zip(target_ke, target_kd, modes)
-            ]
-            if inferred == modes.tolist():
-                return force
-        raise NotImplementedError("Newton's USD import cannot mix position and position-velocity joint actuation.")
+    def _warn_target_modes(dofs: dict[int, str], target_ke, target_kd, modes):
+        """Warn about joints whose target mode Newton's USD import, which infers it from the gains, does not reproduce.
+
+        USD has no target-mode attribute; Isaac Lab actuates a joint with both gains in position-velocity mode.
+        """
+        differ = {
+            path
+            for dof, path in dofs.items()
+            if modes[dof] != int(newton.JointTargetMode.NONE)
+            and int(newton.JointTargetMode.from_gains(float(target_ke[dof]), float(target_kd[dof]), has_drive=True))
+            != modes[dof]
+        }
+        if differ:
+            logger.warning(
+                f"USD cannot state the target mode of these joints; an import infers another: {sorted(differ)}."
+            )
 
     @staticmethod
     def _arrays(model, names) -> dict[str, np.ndarray]:
