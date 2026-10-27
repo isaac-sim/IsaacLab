@@ -224,6 +224,9 @@ def test_partial_reset_resamples_drift_of_selected_envs_only(sim):
     sensor.reset()
 
     # A masked reset draws from the process-wide Warp RNG state, which an environment initializes.
+    WarpRng.state = None
+    with pytest.raises(RuntimeError, match="WarpRng.initialize"):
+        sensor.reset(env_mask=wp.array([False, True, False], dtype=wp.bool, device=sensor.device))
     WarpRng.initialize(scene.num_envs, sensor.device)
 
     drift = sensor.drift.torch.clone()
