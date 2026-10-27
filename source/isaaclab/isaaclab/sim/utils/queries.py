@@ -449,7 +449,12 @@ def resolve_matching_prims_from_source(
             instance_seg = len(ns_segments) - 1
         else:
             instance_seg = next((i for i, seg in enumerate(segments) if not seg.isidentifier()), None)
-        first = find_first_matching_prim(path_expr)
+        if instance_seg is None:
+            # a concrete path names its prim; do not scan the stage for it
+            first = get_current_stage().GetPrimAtPath(path_expr)
+            first = first if first.IsValid() else None
+        else:
+            first = find_first_matching_prim(path_expr)
         if first is None:
             results = []
         elif instance_seg is None:
@@ -462,7 +467,8 @@ def resolve_matching_prims_from_source(
             trailing = segments[instance_seg + 1 :]
             walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
             results = []
-            for prim in find_matching_prims(walk_root):
+            # walk the one instance only, not the whole stage
+            for prim in _iter_matching_prims_in_subtree(walk_root, first.GetStage().GetPrimAtPath(instance_root)):
                 path = prim.GetPath().pathString
                 if path == instance_root or path.startswith(instance_root + "/"):
                     results.append((prim, instance_expr + path[len(instance_root) :]))

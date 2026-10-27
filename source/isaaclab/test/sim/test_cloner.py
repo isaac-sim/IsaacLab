@@ -288,3 +288,27 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
         env_template.format("[^/]+") + "/Robot/foo/bar",
         env_template.format("[^/]+") + "/Robot/other/bar",
     ]
+
+
+def test_resolve_matching_prims_from_source_walks_one_instance(sim):
+    """Without a clone plan, discovery traverses the source instance only, not every instance of the stage."""
+    stage = sim_utils.get_current_stage()
+    for i in range(3):
+        stage.DefinePrim(f"/World/envs/env_{i}/Robot/foot", "Xform")
+    stage.DefinePrim("/World/ground/plane", "Xform")
+
+    visited = []
+    prim_range = Usd.PrimRange
+
+    def recording_prim_range(*args):
+        for prim in prim_range(*args):
+            visited.append(prim.GetPath().pathString)
+            yield prim
+
+    with patch.object(Usd, "PrimRange", recording_prim_range):
+        matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/.*")
+        ground = queries.resolve_matching_prims_from_source("/World/ground")
+
+    assert [path_expr for _, path_expr in matches] == [r"/World/envs/env_[^/]+/Robot/foot"]
+    assert [prim.GetPath().pathString for prim, _ in ground] == ["/World/ground"]
+    assert not [path for path in visited if path.startswith(("/World/envs/env_1", "/World/envs/env_2"))]
