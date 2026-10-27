@@ -8,44 +8,17 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from newton import ModelBuilder
-
     from isaaclab_newton.physics import NewtonManager
 
-    from .newton_manager import NewtonBackend
-
 logger = logging.getLogger(__name__)
-
-
-@configclass
-class NewtonBuilderCfg:
-    """Share mutable construction data, populated before model allocation and retained across hard resets."""
-
-    class_type: Callable[[NewtonBuilderCfg], ModelBuilder] | str = "{DIR}.newton_manager:create_newton_builder"
-    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
-    """Selected physics settings; non-Newton physics requires a render-only Newton representation."""
-
-
-@configclass
-class NewtonBackendCfg(BackendCfg):
-    """Allocate model and state from the matching builder; closing them leaves the builder intact."""
-
-    class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
-    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
-    """Selected physics settings, also identifying the shared construction builder."""
-    device: str = MISSING
-    """Device on which to allocate the model and native buffers."""
 
 
 @configclass

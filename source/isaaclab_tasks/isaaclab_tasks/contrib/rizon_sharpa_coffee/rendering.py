@@ -180,7 +180,7 @@ class CoffeeRendering:
         if not math.isfinite(diffusion_rate) or diffusion_rate < 0:
             raise ValueError("diffusion_rate must be finite and nonnegative.")
         self._backend_manager = env.sim.backend_manager
-        self._model = self._backend_manager.get_model()
+        self._model = self._backend_manager.backend.model
         self._env = env
         self._visualizers = [
             visualizer
@@ -287,7 +287,7 @@ class CoffeeRendering:
         dt = 0.0 if self._appearance_time is None else max(now - self._appearance_time, 0.0)
         self._appearance_time = now
         self._surface_cache = None
-        state = self._backend_manager.get_state_0()
+        state = self._backend_manager.backend.state_0
         if self._water is not None:
             wp.copy(self._liquid_points, wp.indexedarray(state.particle_q, self._liquid_ids))
             # The coupled MPM view owns the converted particles' actual radii.
