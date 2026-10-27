@@ -10,7 +10,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from isaaclab_visualizers.newton.newton_animation_panel import GHOST_COLOR, NewtonAnimationPanel
-from isaaclab_visualizers.newton.newton_replay import NewtonReplayPlayer, ReplayShape, ViserRecording
+from isaaclab_visualizers.newton.newton_replay import (
+    NewtonReplayPlayer,
+    RecordedSlot,
+    ReplayShape,
+    ViserRecording,
+    _attach_slots,
+    write_slot_sidecar,
+)
 
 pytestmark = [pytest.mark.unit]
 
@@ -24,6 +31,7 @@ class _Viewer:
         self.objects = {}
         self._paused_training = False
         self.instances = {}
+        self.instance_scales = {}
 
     def log_mesh(self, name, *args, **kwargs):
         self.objects[name] = kwargs
@@ -31,6 +39,7 @@ class _Viewer:
     def log_instances(self, name, mesh, xforms, scales, colors, materials, hidden=False, opacities=None):
         self.objects[name] = {}
         self.instances[name] = (colors.numpy().copy(), hidden)
+        self.instance_scales[name] = scales.numpy().copy()
 
 
 def _recording(path="clip.viser", static=False):
@@ -56,6 +65,7 @@ def panel(monkeypatch):
     monkeypatch.setattr(NewtonReplayPlayer, "load", lambda self, path: None)  # The tests hand over decoded recordings.
     viewer = _Viewer()
     owner = SimpleNamespace(_viewer=viewer, simulation_hidden=False, rtx_rendering=False)
+    owner.set_simulation_hidden = lambda hidden: setattr(owner, "simulation_hidden", hidden)
     return NewtonAnimationPanel(owner, lambda: "scene"), viewer
 
 
@@ -109,3 +119,38 @@ def test_the_timeline_can_be_dragged_only_without_live_checkpoint_ghosts(panel):
     assert panel.can_scrub  # Only the reference is loaded.
     slots[1].active = True
     assert not panel.can_scrub
+
+
+def _ghost_session(tmp_path):
+    """A recording of two slots of one environment each: the reference and a ghost."""
+    recording = _recording(str(tmp_path / "ghosts.viser"))
+    recording.shapes[0].worlds = np.array([0, 1], np.int32)
+    recording.slots = [RecordedSlot(0, "model_100.pt", None), RecordedSlot(1, "model_50.pt", (1.0, 0.0, 0.0))]
+    recording.slice_size = 1
+    return recording
+
+
+def test_a_ghost_session_tints_only_the_ghost_slots_and_hides_slots_on_request(panel, tmp_path):
+    panel, viewer = panel
+    recording = _ghost_session(tmp_path)
+    player = _open(panel, recording)
+    colors, _ = viewer.instances["/replay/instances_0"]
+    np.testing.assert_allclose(colors[0], [0.2] * 3, atol=1e-6)  # The reference keeps its colors.
+    np.testing.assert_allclose(colors[1], [1.0, 0.0, 0.0], atol=1e-6)
+    assert panel._owner.simulation_hidden  # The recording already holds the reference.
+    player.slot_visible[1] = False
+    panel.update()
+    scales = viewer.instance_scales["/replay/instances_0"]
+    assert scales[0].tolist() == [1.0] * 3 and scales[1].tolist() == [0.0] * 3
+
+
+def test_the_slot_description_is_read_back_next_to_the_recording(tmp_path):
+    recording = _ghost_session(tmp_path)
+    recording.slots, recording.slice_size, recording.shapes[0].worlds = [], 0, None
+    write_slot_sidecar(
+        recording.path, 1, [RecordedSlot(0, "a.pt", None), RecordedSlot(1, "b.pt", (1.0, 0.0, 0.0))],
+        {"shape": [0, 1]},
+    )  # fmt: skip
+    _attach_slots(recording)
+    assert [slot.label for slot in recording.slots] == ["a.pt", "b.pt"] and recording.slice_size == 1
+    assert recording.shapes[0].worlds.tolist() == [0, 1]

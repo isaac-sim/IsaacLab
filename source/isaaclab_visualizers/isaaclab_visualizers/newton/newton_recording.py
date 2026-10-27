@@ -23,6 +23,7 @@ import numpy as np
 from isaaclab.paths import ISAACLAB_ROOT
 
 from .newton_animation_panel import NewtonAnimationPanel
+from .newton_replay import RecordedSlot, write_slot_sidecar
 from .newton_visualization_markers import render_newton_visualization_markers
 
 if TYPE_CHECKING:
@@ -353,7 +354,11 @@ class NewtonRecordingPanel:
             viewer = ViewerViser(port=_free_port(), label="Isaac Lab", verbose=False, record_to_viser=str(path))
             viewer.set_model(owner.backend.model)
             viewer.set_visible_worlds(owner._env_ids)
-            viewer.set_world_offsets((0.0, 0.0, 0.0))
+            offsets = getattr(owner._viewer, "world_offsets", None)
+            if owner._policy_ghost_panel is not None and offsets is not None:
+                viewer.world_offsets = offsets  # Ghost slots sit on the reference, as in the window.
+            else:
+                viewer.set_world_offsets((0.0, 0.0, 0.0))
             viewer.marker_groups = owner._viewer.marker_groups  # The same markers the window draws.
         except Exception as exc:
             logger.exception("[NewtonRecording] Could not start the .viser recording.")
@@ -368,11 +373,31 @@ class NewtonRecordingPanel:
         if viewer is None:
             return
         try:
+            slots = self._describe_slots(viewer)
             viewer.close()
+            if slots is not None:
+                write_slot_sidecar(self.scene_path, *slots)
             self._message = f"Saved {self._scene_frames} frames to {self.scene_path}"
         except Exception as exc:
             logger.exception("[NewtonRecording] Could not finish the .viser recording.")
             self._message = f"Scene recording failed: {exc}"
+
+    def _describe_slots(self, viewer: Any):
+        """Return what a replay needs to tint each Policy Ghost slot of a recorded ghost session, or None."""
+        panel = self._owner._policy_ghost_panel
+        if panel is None:
+            return None
+        layout = panel.layout
+        slots = [
+            RecordedSlot(slot.index, slot.label, None if slot.index == 0 else tuple(slot.color or (1.0, 1.0, 1.0)))
+            for slot in layout.slots
+            if slot.active
+        ]
+        worlds = {}
+        for batch in viewer._shape_instances.values():
+            ids = batch.worlds.numpy() if hasattr(batch.worlds, "numpy") else batch.worlds
+            worlds[batch.name] = [int(world) for world in ids]
+        return layout.slice_size, slots, worlds
 
     # ------------------------------------------------------------------
     # Checkpoint

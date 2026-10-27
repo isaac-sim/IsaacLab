@@ -43,6 +43,7 @@ class NewtonAnimationPanel:
         self.player.color, self.player.tint, self.player.opacity = GHOST_COLOR, 1.0, DEFAULT_OPACITY
         self.folder = ""
         """Folder the Open window lists; empty follows ``folder_getter``."""
+        self._announced = None
         self._window_open = False
         self._files: list[Path] = []
 
@@ -81,6 +82,12 @@ class NewtonAnimationPanel:
         player.playing = not viewer._paused_training
         player.hide_static = not self._owner.simulation_hidden
         player.update()
+        if player.recording is not self._announced:
+            self._announced = player.recording
+            if player.recording is not None and player.recording.slots:
+                # A ghost session already holds the reference, so the live robots would only get in the way.
+                player.slot_visible.clear()
+                self._owner.set_simulation_hidden(True)
 
     def draw_window(self, imgui: Any) -> None:
         """Draw the file browser listing the ``.viser`` animations below a folder, while it is open."""
@@ -142,9 +149,34 @@ class NewtonAnimationPanel:
         if changed:
             self._owner.set_simulation_hidden(hidden)
             self.invalidate()
+        if player.recording.slots:
+            self._draw_slots(imgui)
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         if imgui.tree_node("Options##animation"):
             self._draw_options(imgui)
+            imgui.tree_pop()
+
+    def _draw_slots(self, imgui: Any) -> None:
+        """Draw one row per Policy Ghost slot of a recorded ghost session, with a checkbox to show or hide it."""
+        imgui.set_next_item_open(True, imgui.Cond_.appearing)
+        if imgui.tree_node("Slots##animation"):
+            for slot in self.player.recording.slots:
+                imgui.push_id(slot.index)
+                color = slot.color if slot.color is not None else (0.8, 0.8, 0.8)
+                imgui.color_button(
+                    "##swatch", imgui.ImVec4(*color, 1.0), imgui.ColorEditFlags_.no_tooltip, imgui.ImVec2(14, 14)
+                )
+                imgui.same_line()
+                shown = self.player.slot_visible.get(slot.index, True)
+                changed, shown = imgui.checkbox("##show", shown)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("Show or hide this slot")
+                if changed:
+                    self.player.slot_visible[slot.index] = shown
+                imgui.same_line()
+                role = "Reference" if slot.index == 0 else f"Ghost {slot.index}"
+                imgui.text(f"{role}: {slot.label}")
+                imgui.pop_id()
             imgui.tree_pop()
 
     def _draw_timeline(self, imgui: Any) -> None:
@@ -175,7 +207,9 @@ class NewtonAnimationPanel:
             imgui.set_tooltip("Playback speed relative to the recording")
         _, player.opacity = imgui.slider_float("Opacity##animation", player.opacity, 0.1, 1.0)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("Make the animation translucent")
+            imgui.set_tooltip(
+                "Make the animation translucent. For a recorded ghost session this applies to the ghost slots"
+            )
         _, player.tint = imgui.slider_float("Tint##animation", player.tint, 0.0, 1.0)
         if imgui.is_item_hovered():
             imgui.set_tooltip("1.0 replaces the animation's colors and textures with the ghost color; 0.0 keeps them")

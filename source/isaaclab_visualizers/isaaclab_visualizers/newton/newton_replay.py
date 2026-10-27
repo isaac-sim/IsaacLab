@@ -13,6 +13,7 @@ model.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import threading
 import time
@@ -63,11 +64,28 @@ class ReplayShape:
     """Newton transforms (position, then xyzw quaternion) per frame, shape (T, N, 7)."""
     frame_scales: np.ndarray | None = field(default=None, repr=False)
     """Instance scales per frame, shape (T, N, 3), or None when they never change."""
+    slot_hidden: np.ndarray | None = field(default=None, repr=False)
+    """Whether the slot of each instance is hidden, set while publishing a slotted recording."""
+    worlds: np.ndarray | None = field(default=None, repr=False)
+    """World index of each instance, shape (N,), or None when the recording has no slot information. Instances of
+    terrain and other shared shapes have ``-1``."""
 
     @property
     def static(self) -> bool:
         """Whether no instance ever moves, as for terrain and ground planes."""
         return self.frame_scales is None and bool(np.all(self.xforms == self.xforms[:1]))
+
+
+@dataclass
+class RecordedSlot:
+    """One Policy Ghost slot of a recorded session: a slice of environments driven by one checkpoint."""
+
+    index: int
+    """Slot index. Slot 0 is the reference."""
+    label: str
+    """Short name of the slot's checkpoint."""
+    color: tuple[float, float, float] | None
+    """Tint color of the slot's robots, or None for the reference."""
 
 
 @dataclass
@@ -78,6 +96,10 @@ class ViserRecording:
     times: np.ndarray
     """Time of each frame [s]. Frame 0 is the recorded initial state."""
     shapes: list[ReplayShape]
+    slots: list[RecordedSlot] = field(default_factory=list)
+    """Policy Ghost slots of the session, empty for a recording without them."""
+    slice_size: int = 0
+    """Number of environments per slot."""
 
     @property
     def duration(self) -> float:
@@ -241,7 +263,65 @@ def load_viser_recording(path: str) -> ViserRecording:
         shapes.append(
             ReplayShape(name=name, positions=positions, wxyzs=wxyzs, xforms=xforms, frame_scales=frame_scales, **data)
         )
-    return ViserRecording(path=str(path), times=times, shapes=shapes)
+    recording = ViserRecording(path=str(path), times=times, shapes=shapes)
+    _attach_slots(recording)
+    return recording
+
+
+def sidecar_path(path: str | Path) -> Path:
+    """Return the JSON file that describes the Policy Ghost slots of the recording at ``path``."""
+    return Path(path).with_suffix(".json")
+
+
+def write_slot_sidecar(
+    path: str | Path,
+    slice_size: int,
+    slots: list[RecordedSlot],
+    shape_worlds: dict[str, list[int]],
+) -> None:
+    """Write the slot description that lets a replay tint, label, and hide each slot of a ghost session.
+
+    Args:
+        path: The ``.viser`` file the description belongs to.
+        slice_size: Number of environments per slot.
+        slots: The session's slots.
+        shape_worlds: World index of every instance, by the name of its shape batch.
+    """
+    document = {
+        "version": 1,
+        "slice_size": slice_size,
+        "slots": [{"index": slot.index, "label": slot.label, "color": slot.color} for slot in slots],
+        "shapes": shape_worlds,
+    }
+    sidecar_path(path).write_text(json.dumps(document))
+
+
+def _attach_slots(recording: ViserRecording) -> None:
+    """Add the slot description next to the file to ``recording``, when there is one that matches."""
+    file = sidecar_path(recording.path)
+    if not file.is_file():
+        return
+    try:
+        document = json.loads(file.read_text())
+        slots = [
+            RecordedSlot(item["index"], item["label"], None if item["color"] is None else tuple(item["color"]))
+            for item in document["slots"]
+        ]
+        worlds = document["shapes"]
+        slice_size = int(document["slice_size"])
+    except (OSError, ValueError, KeyError, TypeError):
+        logger.warning("[NewtonReplay] Ignoring the unreadable slot description %s.", file)
+        return
+    matched = 0
+    for shape in recording.shapes:
+        values = worlds.get(shape.name)
+        if values is not None and len(values) == len(shape.xforms[0]):
+            shape.worlds = np.asarray(values, np.int32)
+            matched += 1
+    if matched:
+        recording.slots, recording.slice_size = slots, slice_size
+    else:
+        logger.warning("[NewtonReplay] The slot description %s does not match %s.", file, recording.path)
 
 
 def list_recordings(folder: str) -> list[Path]:
@@ -279,6 +359,8 @@ class NewtonReplayPlayer:
         self.tint = 0.0
         """How strongly :attr:`color` replaces the recording's colors and textures, in ``[0, 1]``."""
         self.visible = True
+        self.slot_visible: dict[int, bool] = {}
+        """Whether each slot of a Policy Ghost recording is shown; a missing slot is shown."""
         self.hide_static = False
         """Skip shapes that never move, which the live scene already draws."""
         self.offset = np.zeros(3, np.float32)
@@ -367,7 +449,10 @@ class NewtonReplayPlayer:
                 self.time = 0.0 if self.loop else recording.duration
                 self.playing = self.loop
         frame = recording.frame_at(self.time)
-        state = (frame, self.opacity, self.hide_static, tuple(self.offset), self.visible, self.color, self.tint)
+        state = (
+            frame, self.opacity, self.hide_static, tuple(self.offset), self.visible, self.color, self.tint,
+            tuple(sorted(self.slot_visible.items())),
+        )  # fmt: skip
         if state != self._drawn:
             self._publish(viewer, recording, frame)
             self._drawn = state
@@ -393,31 +478,52 @@ class NewtonReplayPlayer:
             xforms = shape.xforms[frame].copy()
             xforms[:, :3] += self.offset
             count = len(xforms)
-            tinted = self.color is not None and self.tint > 0.0
-            textured = shape.texture is not None and not (tinted and self.tint >= 0.99)
+            scales = shape.scales if shape.frame_scales is None else shape.frame_scales[frame]
+            tint_color, tint_amount, opacities = self._appearance(recording, shape, count)
+            if tint_color is not None and shape.slot_hidden is not None:
+                scales = scales * (~shape.slot_hidden)[:, None]
             # Material layout: roughness, metallic, checker, texture enable.
-            material = (
-                0.5 if shape.roughness is None else shape.roughness,
-                shape.metallic or 0.0,
-                0.0,
-                float(textured),
-            )
-            colors = np.ones((count, 3), np.float32) if textured else shape.colors
-            if tinted:
-                colors = colors + (np.asarray(self.color, np.float32) - colors) * self.tint
+            textured = np.full(count, shape.texture is not None) & (tint_amount < 0.99)
+            materials = np.zeros((count, 4), np.float32)
+            materials[:, 0] = 0.5 if shape.roughness is None else shape.roughness
+            materials[:, 1] = shape.metallic or 0.0
+            materials[:, 3] = textured
+            colors = np.where(textured[:, None], 1.0, shape.colors).astype(np.float32)
+            if tint_color is not None:
+                colors = colors + (tint_color - colors) * tint_amount[:, None]
             viewer.log_instances(
                 f"{self.prefix}/instances_{index}",
                 f"{self.prefix}/mesh_{index}",
                 wp.array(xforms, dtype=wp.transform, device=viewer.device),
-                wp.array(
-                    shape.scales if shape.frame_scales is None else shape.frame_scales[frame],
-                    dtype=wp.vec3,
-                    device=viewer.device,
-                ),
+                wp.array(scales, dtype=wp.vec3, device=viewer.device),
                 wp.array(colors, dtype=wp.vec3, device=viewer.device),
-                wp.array(np.tile(np.asarray(material, np.float32), (count, 1)), dtype=wp.vec4, device=viewer.device),
+                wp.array(materials, dtype=wp.vec4, device=viewer.device),
                 hidden=not self.visible or (self.hide_static and shape.static),
                 opacities=None
-                if self.opacity >= 1.0
-                else wp.full(count, self.opacity, dtype=wp.float32, device=viewer.device),
+                if np.all(opacities >= 1.0)
+                else wp.array(opacities, dtype=wp.float32, device=viewer.device),
             )
+
+    def _appearance(self, recording: ViserRecording, shape: ReplayShape, count: int):
+        """Return the tint color, tint strength, and opacity of each instance of ``shape``.
+
+        A recording of a Policy Ghost session tints and fades the ghost slots and leaves the reference slot and
+        shared shapes alone; any other recording takes the player's single tint color.
+        """
+        if recording.slots and shape.worlds is not None and recording.slice_size:
+            slots = np.where(shape.worlds >= 0, shape.worlds // recording.slice_size, 0)
+            top = max(slot.index for slot in recording.slots)
+            slots = np.clip(slots, 0, top)
+            color, amount, opacity = np.zeros((count, 3), np.float32), np.zeros(count, np.float32), np.ones(count)
+            for slot in recording.slots:
+                if slot.color is not None:
+                    mask = slots == slot.index
+                    color[mask], amount[mask], opacity[mask] = slot.color, self.tint, self.opacity
+            shown = np.array([self.slot_visible.get(i, True) for i in range(top + 1)])
+            shape.slot_hidden = ~shown[slots] & (shape.worlds >= 0)  # Shared shapes always show.
+            return color, amount, opacity.astype(np.float32)
+        shape.slot_hidden = None
+        if self.color is None or self.tint <= 0.0:
+            return None, np.zeros(count, np.float32), np.full(count, self.opacity, np.float32)
+        color = np.broadcast_to(np.asarray(self.color, np.float32), (count, 3))
+        return color, np.full(count, self.tint, np.float32), np.full(count, self.opacity, np.float32)

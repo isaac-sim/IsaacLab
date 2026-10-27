@@ -17,7 +17,7 @@
   (after Visible Envs), and added tooltips to the section headers.
 * Renamed Newton's "Selection API" panel to "Articulation Inspector" in the Newton GL HUD.
 * Renamed "Model Overlays" to "Visual Overlays" and expanded it by default, moved "Controls" to the bottom of the
-  Newton GL HUD as "Keyboard & Mouse", and removed the OVRTX viewer camera from the Camera Source list, since the
+  Newton GL HUD as "Control Bindings", and removed the OVRTX viewer camera from the Camera Source list, since the
   Renderer toggle selects it. A relative recording output folder now lands in the repository when running from a
   source checkout.
 * Added tooltips to each visualization marker group, from a short description of the core markers, and to each live

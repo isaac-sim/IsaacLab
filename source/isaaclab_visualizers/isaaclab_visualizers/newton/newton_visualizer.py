@@ -293,7 +293,7 @@ class NewtonViewerGL(ViewerGL):
         5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
         6. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
         7. **Articulation Inspector** (closed) — Newton's articulation selection panel.
-        8. **Keyboard & Mouse** (closed) — camera and window shortcuts.
+        8. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -389,10 +389,10 @@ class NewtonViewerGL(ViewerGL):
             ):
                 _g._render_selection_panel()
 
-            # --- Keyboard & Mouse -------------------------------------------
+            # --- Control Bindings -------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
-            controls_open = imgui.collapsing_header("Keyboard & Mouse###Controls")
-            hover_tooltip(imgui, "Camera, keyboard, and mouse shortcuts")
+            controls_open = imgui.collapsing_header("Control Bindings###Controls")
+            hover_tooltip(imgui, "What each camera, keyboard, and mouse control does")
             if controls_open:
                 imgui.separator()
                 _g._render_camera_info()
