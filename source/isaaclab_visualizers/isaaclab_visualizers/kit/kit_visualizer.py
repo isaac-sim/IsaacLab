@@ -191,7 +191,7 @@ class KitVisualizer(BaseVisualizer):
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
-        self._update_follow_camera()
+        self._update_asset_follow_camera()
         self._app_pumped_this_step = self._pump_kit_app_update()
         if self._camera_image_provider is not None:
             image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
@@ -309,7 +309,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self._runtime_headless:
-            self._update_follow_camera()
+            self._update_asset_follow_camera()
         w, h = self.cfg.window.size
 
         # Create the render product and annotator before the app update so the first
@@ -991,12 +991,19 @@ class KitVisualizer(BaseVisualizer):
         state is not available before :meth:`~isaaclab.sim.SimulationContext.reset`.
         """
         self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
-        views = [camera for camera in self._start_cameras if isinstance(camera, PerspectiveCameraCfg)]
+        # declaration order, not the order the simulation lists the views in, which puts task views after the free one
+        declared = self.cfg.cameras if self.cfg.cameras is not None else self._start_cameras
+        views = [camera for camera in declared if isinstance(camera, PerspectiveCameraCfg)]
         self._declared_task_view = next((view for view in views if view.is_task_view), None)
         if views and views[0].is_task_view:
             first = views[0]
             self.cfg.eye, self.cfg.lookat, self.cfg.focal_length = first.eye, first.lookat, first.focal_length
             self.follow(first.track_path, env_index=first.env_index or 0)
+
+    def _update_asset_follow_camera(self) -> None:
+        """Re-apply the pose every step while an asset is followed; a fixed environment view is left movable."""
+        if self._follower is not None and self._follower.cfg.track_path:
+            self._update_follow_camera()
 
     def _update_follow_camera(self) -> None:
         """Move the viewport camera to the followed environment or asset, once both are ready."""

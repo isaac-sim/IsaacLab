@@ -105,7 +105,14 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
             continue
         cfg.window.size = tuple(viewer.resolution)
         if tied:
-            if cfg.cameras is None:
+            if cfg.cameras is not None:
+                warnings.warn(
+                    "env_cfg.viewer tracks an environment or an asset, but the visualizer already declares "
+                    "cameras, so the viewer's tracking and offsets are not applied. Declare a "
+                    "PerspectiveCameraCfg with env_index or track_path in VisualizerCfg.cameras instead.",
+                    stacklevel=2,
+                )
+            else:
                 view = PerspectiveCameraCfg(
                     env_index=viewer.env_index,
                     track_path=track_path,

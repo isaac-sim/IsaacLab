@@ -171,3 +171,22 @@ def test_the_followable_assets_and_bodies_are_listed():
     assert follower.body_names("robot") == ["base", "LF_FOOT"]
     assert follower.body_names("cube") == []
     assert follower.body_names("missing") == []
+
+
+def test_clearing_the_asset_keeps_the_view_tied_to_its_environment():
+    cfg = PerspectiveCameraCfg(track_path="robot")
+    follower = CameraFollower(cfg, _NamedScene())
+    assert cfg.is_task_view
+    follower.set_track_path(None)
+    assert cfg.track_path is None and cfg.is_task_view
+
+
+def test_two_updates_a_millisecond_apart_are_not_mistaken_for_an_environment_reset():
+    cfg = PerspectiveCameraCfg(
+        env_index=0, track_path="robot", follow_heading=True, heading_smoothing_time_constant=1.0
+    )
+    follower = CameraFollower(cfg, _NamedScene())
+    follower.pose(0.0)
+    follower._yaw = 0.0
+    follower._last_position = [0.0, 0.0, 0.5]
+    assert follower._filtered_yaw([0.0, 0.0, 0.0099995, 0.99995], [0.0, 0.0, 0.5], 0.001) < 0.02

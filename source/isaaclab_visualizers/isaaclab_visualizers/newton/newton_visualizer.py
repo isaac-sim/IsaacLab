@@ -778,7 +778,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         cfg.follow_heading = defaults["follow_heading"]
         cfg.heading_smoothing_time_constant = defaults["heading_smoothing_time_constant"]
         follower.set_env(defaults["env"])
-        return self._set_tracking_path(follower, defaults["track_path"]) or True
+        # the pose, optics and heading settings are restored even when the asset cannot be, which is reported
+        self._set_tracking_path(follower, defaults["track_path"])
+        return True
 
     def _apply_view_pose(self, view) -> bool:
         """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.

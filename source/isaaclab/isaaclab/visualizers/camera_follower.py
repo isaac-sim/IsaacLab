@@ -19,8 +19,10 @@ if TYPE_CHECKING:
 _RESET_JUMP = 1.0
 """Distance [m] an asset moves between two updates only when its environment resets."""
 
-_RESET_YAW_RATE = 10.0
-"""Yaw rate [rad/s] no robot turns at, so a heading that changes faster means its environment reset."""
+_RESET_YAW_JUMP = 1.5
+"""Heading change [rad] between two updates that a robot only makes when its environment resets.
+
+A fixed angle, unlike a rate, does not misfire when two updates are a few milliseconds apart."""
 
 
 class CameraFollower:
@@ -65,6 +67,9 @@ class CameraFollower:
             if body_name and asset.is_initialized and len(asset.find_bodies(body_name)[0]) != 1:
                 raise ValueError(f"track_path must match exactly one body: {track_path!r}.")
         self.cfg.track_path = track_path or None
+        if self.cfg.track_path is None and self.cfg.env_index is None:
+            # keep the view tied to its environment, so it stays a task view without an asset
+            self.cfg.env_index = self._env
         self._asset, self._body_name, self._body_index = asset, body_name, None
         self._yaw = self._last_position = self._time = None
 
@@ -142,9 +147,9 @@ class CameraFollower:
         yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
         last, self._last_position = self._last_position, position
         reset = self._yaw is None or last is None or math.dist(position, last) > _RESET_JUMP
-        if not reset and dt > 0.0:
+        if not reset:
             # an environment can reset in place with a new heading
-            reset = abs(math.remainder(yaw - self._yaw, math.tau)) / dt > _RESET_YAW_RATE
+            reset = abs(math.remainder(yaw - self._yaw, math.tau)) > _RESET_YAW_JUMP
         tau = self.cfg.heading_smoothing_time_constant
         if tau > 0.0 and not reset:
             yaw = self._yaw + -math.expm1(-dt / tau) * math.remainder(yaw - self._yaw, math.tau)

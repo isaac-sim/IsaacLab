@@ -67,7 +67,7 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     provider = sim.get_scene_data_provider.return_value
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
-    monkeypatch.setattr(visualizer, "_update_follow_camera", tracking)
+    monkeypatch.setattr(visualizer, "_update_asset_follow_camera", tracking)
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
     settings = MagicMock()
     settings.get.return_value = None
@@ -410,3 +410,28 @@ def test_follow_unfollow_and_the_environment_selection(monkeypatch):
     visualizer.unfollow()
     visualizer.set_view_offsets((4.0, 4.0, 4.0), (0.0, 0.0, 0.0))
     assert not visualizer.following and poses[-1] == ((4.0, 4.0, 4.0), (0.0, 0.0, 0.0))
+
+
+def test_the_declared_order_decides_the_start_view_not_the_order_the_simulation_lists_them(monkeypatch):
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    task = PerspectiveCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0))
+    visualizer, poses = _following_visualizer(monkeypatch, [PerspectiveCameraCfg(), task])
+    visualizer.cfg.cameras = [task, PerspectiveCameraCfg()]  # the simulation puts task views after the free view
+    visualizer._setup_initial_camera_view()
+    assert visualizer.following and visualizer.follow_env_index == 1
+
+
+def test_only_a_followed_asset_is_reapplied_every_step(monkeypatch):
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    visualizer, poses = _following_visualizer(monkeypatch, [PerspectiveCameraCfg()])
+    visualizer._setup_initial_camera_view()
+    visualizer.follow(None)  # an environment view, which the user can orbit
+    poses.clear()
+    visualizer._update_asset_follow_camera()
+    assert poses == []
+    visualizer.follow("robot")
+    poses.clear()
+    visualizer._update_asset_follow_camera()
+    assert len(poses) == 1
