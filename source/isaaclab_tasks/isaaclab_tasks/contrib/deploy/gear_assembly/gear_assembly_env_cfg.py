@@ -43,9 +43,6 @@ ASSETS_DIR = os.path.join(CONFIG_DIR, "assets")
 class GearAssemblySceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
-    # Disable scene replication to allow USD-level randomization
-    replicate_physics = False
-
     # world
     ground = AssetBaseCfg(
         prim_path="/World/ground",
@@ -322,7 +319,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.episode_length_s = 6.66
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.5, 3.5, 3.5))
         # simulation settings
         self.decimation = 4
         self.sim.render_interval = self.decimation

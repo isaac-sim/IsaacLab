@@ -61,5 +61,5 @@ Keep this skill synchronized with `docs/source/concepts/physics_backends.rst`, `
 - [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
 - [Renderers, including asynchronous rendering](../../../docs/source/concepts/renderers.rst)
 - [Schema cfgs](../../../docs/source/concepts/schema_cfgs.rst)
-- [Installation](../../../docs/source/setup/installation/index.rst)
+- [Installation](../../../docs/source/isaaclab/installation.rst)
 - [Task examples](../../../source/isaaclab_tasks/isaaclab_tasks)

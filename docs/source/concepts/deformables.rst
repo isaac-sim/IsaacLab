@@ -11,8 +11,7 @@ Deformables
 A deformable is an asset whose shape changes during simulation. Unlike a rigid body, it has no
 rigid root frame: its state is the position and velocity of every node of its simulation mesh.
 
-Isaac Lab models three kinds of deformable, distinguished by the dimensionality of the simulated
-geometry:
+Isaac Lab supports three kinds of deformable:
 
 .. list-table::
     :header-rows: 1
@@ -67,20 +66,19 @@ Backend support
     * - Volume
       - Yes
       - Yes, VBD solver only
-      - Experimental, CUDA devices only
+      - Yes, CUDA devices only
     * - Surface
       - Yes
       - Yes, VBD solver only
-      - Experimental, CUDA devices only
+      - Yes, CUDA devices only
     * - Cable
       - No
       - Yes, VBD solver only
       - No
 
-On Newton, deformables of every kind are simulated by the VBD solver, so a scene containing them
-must select a physics cfg whose solver is VBD. For the solver parameters, for running a rigid robot
-and a deformable in one scene, and for the tuning workflow, see
-:doc:`/source/how-to/solver_tuning_vbd` and :doc:`/source/concepts/coupled_solvers`.
+Newton deformables require the VBD solver. See :doc:`/source/how-to/solver_tuning_vbd`
+for configuration and tuning, and :doc:`/source/concepts/coupled_solvers` for scenes
+that combine a rigid robot with deformables.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
 :doc:`/source/concepts/physics-backends/ovphysx`.
@@ -500,7 +498,7 @@ Cable limitations
     Topologies the runtime object rejects still simulate: the physics model is built from the whole
     USD stage, so every curve carrying ``PhysicsCurvesDeformableSimAPI`` is imported whether or not
     a :class:`~isaaclab.assets.CableObject` wraps it. Drive them through
-    :class:`~isaaclab_newton.physics.NewtonManager` ``get_model()`` / ``get_state_0()`` and your own
+    the :class:`~isaaclab_newton.physics.NewtonBackend` ``model`` / ``state_0`` and your own
     ``newton.selection.ArticulationView``. There is no Isaac Lab asset wrapper for those cases.
 
 
@@ -616,12 +614,22 @@ Run an example first to confirm that the spawner, solver, and visualizer all wor
     # A larger cable pile, stopping after a fixed number of steps.
     uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500
 
+Try :ref:`VBD cable bending <interactive-demo-cable-bending>` for a compact browser lesson with one
+clamped VBD rod, live bending stiffness and a downward tip load. It illustrates
+transient response; use the native example for cable piles and measured comparisons.
+
+For learned manipulation, try the :ref:`soft-body <interactive-demo-franka-soft>` and
+:ref:`cloth <interactive-demo-franka-cloth>` browser policies. Tune their material,
+move the target, or switch to keyboard end-effector control in Manual mode.
+
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.
 
 
-Related
--------
+.. _related:
+
+Where to go next
+----------------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
 * :doc:`/source/how-to/solver_tuning_vbd` covers the VBD solver parameters, the Newton
