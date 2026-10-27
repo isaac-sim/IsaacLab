@@ -122,16 +122,15 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         ]
         if not ranges:
             raise RuntimeError(f"No particle ranges match {asset_name}.")
-        return wp.array(np.concatenate(ranges), dtype=int, device=self.sim.backend_manager.get_model().device)
+        return wp.array(np.concatenate(ranges), dtype=int, device=self.sim.backend_manager.backend.model.device)
 
     def _configure_colliders(self, builder, env_id: int, _position, _quaternion) -> None:
         """Expand the thin spoon shell separately from the container colliders."""
         # Keep advection inside the native collider query band at coarse timesteps.
         material_dt = self.cfg.sim.dt / self.cfg.sim.physics.solver_cfg.entries[1].substeps
         builder.particle_max_velocity = min(4.0, 0.5 * self.cfg.voxel_size / material_dt)
-        prefix = f"/World/envs/env_{env_id}/"
         for index, label in enumerate(builder.shape_label):
-            if not str(label).startswith(prefix):
+            if builder.shape_world[index] != env_id:
                 continue
             if "/Robot/" in str(label):
                 builder.shape_flags[index] &= ~int(newton.ShapeFlags.COLLIDE_PARTICLES)
