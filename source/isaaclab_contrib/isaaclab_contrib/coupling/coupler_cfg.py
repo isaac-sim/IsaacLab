@@ -14,17 +14,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING, field
-from typing import TYPE_CHECKING, ClassVar, Literal
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    import warp as wp
-    from newton import CollisionPipeline, Model, ModelBuilder, State
-    from newton.solvers import SolverBase
-    from newton.solvers.experimental.coupled import ModelView, SolverCoupled
+    from newton import CollisionPipeline
+    from newton.solvers.experimental.coupled import ModelView
 
 
 @configclass
@@ -155,7 +153,7 @@ class CouplerCfg(NewtonSolverCfg):
     concrete subclass to configure the coupling interfaces.
     """
 
-    contact_sensors: ClassVar[bool] = False
+    class_type: type | str = "{DIR}.coupler:CouplerSolver"
 
     entries: list[CouplerEntryCfg] = field(default_factory=list)
     """Ordered named sub-solver entries and their ownership selectors."""
@@ -165,57 +163,6 @@ class CouplerCfg(NewtonSolverCfg):
 
     Restricting outer contacts to one entry lets another entry, e.g. a cable, run its own post-transfer pipeline.
     """
-
-    def solver_classes(self) -> tuple[type[SolverBase], ...]:
-        return tuple(solver_cls for entry in self.entries for solver_cls in entry.solver_cfg.solver_classes())
-
-    def prepare_builder(self, builder: ModelBuilder) -> None:
-        """Prepare the shared builder once per distinct entry solver configuration type."""
-        for entry_cfg in {type(entry.solver_cfg): entry.solver_cfg for entry in self.entries}.values():
-            entry_cfg.prepare_builder(builder)
-
-    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None = None) -> SolverBase:
-        """Resolve entry ownership, build each entry through its own configuration, and couple the entries."""
-        from .coupler import build
-
-        return build(self, model, mode, env_template)
-
-    def construct_solver(
-        self,
-        model: Model,
-        entries: list[SolverCoupled.Entry],
-        proxies: list[CouplerProxyMappingCfg],
-        mode: wp.DeterministicMode,
-    ) -> SolverBase:
-        """Construct Newton's coupled solver from the built entries; tasks with a custom coupled solver override it."""
-        from .coupler import construct_coupled
-
-        return construct_coupled(model, entries, proxies, self, mode)
-
-    def supports_capture(self, solver: SolverBase) -> bool:
-        return all(entry.solver_cfg.supports_capture(solver.solver(entry.name)) for entry in self.entries)
-
-    def uses_collision_pipeline(self, solver: SolverBase) -> bool:
-        from .coupler import uses_collision_pipeline
-
-        return uses_collision_pipeline(self, solver)
-
-    def create_collision_pipeline(self, model: Model, solver: SolverBase, **kwargs) -> CollisionPipeline:
-        """Collide the whole model, or only :attr:`outer_contact_entry`'s shape pairs."""
-        if self.outer_contact_entry is not None:
-            # Shape IDs remain global: the full model's body bindings collide the shared state.
-            kwargs["shape_pairs_filtered"] = solver.view(self.outer_contact_entry).shape_contact_pairs
-        return super().create_collision_pipeline(model, solver, **kwargs)
-
-    def reset(self, solver: SolverBase, state: State, world_mask: wp.array) -> None:
-        from .coupler import reset
-
-        reset(self, solver, state, world_mask)
-
-    def check_step(self, solver: SolverBase, captured: bool, debug: bool) -> None:
-        """Raise asynchronous failures, and log diagnostics, of every entry's solver."""
-        for entry in self.entries:
-            entry.solver_cfg.check_step(solver.solver(entry.name), captured, debug)
 
 
 @configclass

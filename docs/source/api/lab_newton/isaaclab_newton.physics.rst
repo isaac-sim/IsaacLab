@@ -17,6 +17,13 @@
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
     NewtonShapeCfg
+    NewtonSolver
+    MJWarpSolver
+    VBDSolver
+    XPBDSolver
+    FeatherstoneSolver
+    KaminoSolver
+    MPMSolver
     NewtonSolverCfg
     MJWarpSolverCfg
     VBDSolverCfg
@@ -52,6 +59,30 @@ Physics Manager
 
 .. autoclass:: NewtonCloneRecord
   :members:
+
+Solvers
+-------
+
+.. autoclass:: NewtonSolver
+  :members:
+
+.. autoclass:: MJWarpSolver
+  :show-inheritance:
+
+.. autoclass:: VBDSolver
+  :show-inheritance:
+
+.. autoclass:: XPBDSolver
+  :show-inheritance:
+
+.. autoclass:: FeatherstoneSolver
+  :show-inheritance:
+
+.. autoclass:: KaminoSolver
+  :show-inheritance:
+
+.. autoclass:: MPMSolver
+  :show-inheritance:
 
 Actuator Solver Access
 ----------------------

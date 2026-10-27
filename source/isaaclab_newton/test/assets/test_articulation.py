@@ -1672,7 +1672,7 @@ def test_hand_with_tendons_targets_only_given_envs_and_properties_reach_solver(s
     articulation.write_fixed_tendon_properties_to_sim_mask()
     scene.step("tendon")
 
-    solver_model = scene.sim.backend_manager.backend.solver.mjw_model
+    solver_model = scene.sim.backend_manager.backend.solver.native.mjw_model
     np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
     np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)

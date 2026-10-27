@@ -371,7 +371,7 @@ class RigidObject(BaseRigidObject):
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -421,7 +421,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -476,7 +476,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -529,7 +529,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:

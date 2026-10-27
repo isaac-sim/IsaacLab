@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
@@ -29,9 +27,7 @@ class XPBDSolverCfg(NewtonSolverCfg):
 
     """
 
-    solver_class: str = "newton.solvers:SolverXPBD"
-
-    deterministic: ClassVar[bool] = True
+    class_type: type | str = "{DIR}.xpbd_solver:XPBDSolver"
 
     solver_type: str = "xpbd"
     """Solver type. Can be "xpbd"."""

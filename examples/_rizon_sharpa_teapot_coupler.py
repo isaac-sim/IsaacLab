@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from isaaclab_contrib.coupling import CouplerSolver
 from newton import BodyFlags, GeoType, StateFlags
 from newton.solvers.experimental.coupled import SolverCoupled
 from scipy.spatial import ConvexHull
@@ -147,3 +148,16 @@ def repair_teapot_hulls(builder: ModelBuilder) -> None:
             # Copying geometry rebuilds mesh caches while preserving authored
             # mass properties; the exact shell and handle vertices are untouched.
             builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
+
+
+class TeapotSolver(CouplerSolver):
+    """Couple the dynamic grasped pot to its exact MPM collision shell."""
+
+    @classmethod
+    def prepare_builder(cls, cfg, builder: ModelBuilder) -> None:
+        # MPM preparation converts convex parts to triangle meshes; repair their generated support geometry first.
+        repair_teapot_hulls(builder)
+        super().prepare_builder(cfg, builder)
+
+    def construct_native(self, model, entries, proxies, mode):
+        return TeapotColliderSyncSolver(model=model, entries=entries)

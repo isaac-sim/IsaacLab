@@ -10,14 +10,14 @@ from types import SimpleNamespace
 import newton
 import pytest
 import warp as wp
-from isaaclab_newton.physics import MPMSolverCfg, reset_mpm_solver_state
+from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, reset_mpm_solver_state
 from isaaclab_newton.physics import mpm_solver as mpm_manager_module
 from newton.solvers import SolverImplicitMPM
 
 
 def _bind_backend(solver, backend):
-    """Return ``backend`` with ``solver`` attached."""
-    backend.solver = solver
+    """Return ``backend`` with Isaac Lab's solver around Newton's ``solver`` attached."""
+    backend.solver = SimpleNamespace(native=solver)
     return backend
 
 
@@ -47,7 +47,7 @@ def cpu_mpm_solver_and_state():
         warmstart_mode="none",
         transfer_scheme="pic",
     )
-    solver = solver_cfg.build(model, wp.DeterministicMode.NOT_GUARANTEED)
+    solver = MPMSolver(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED).native
     return solver, model.state()
 
 

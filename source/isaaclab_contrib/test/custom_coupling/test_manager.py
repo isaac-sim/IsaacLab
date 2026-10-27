@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the custom coupling manager."""
+"""Unit tests for the custom coupled solver."""
 
 from unittest.mock import MagicMock
 
@@ -23,8 +23,8 @@ NOT_GUARANTEED = wp.DeterministicMode.NOT_GUARANTEED
 
 def _stub_subsolvers(monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
     """Make the MJWarp and VBD sub-solver configurations build mocks."""
-    monkeypatch.setattr(solver_cfg.rigid_solver_cfg, "build", MagicMock())
-    monkeypatch.setattr(solver_cfg.soft_solver_cfg, "build", MagicMock())
+    monkeypatch.setattr(solver_cfg.rigid_solver_cfg, "class_type", MagicMock())
+    monkeypatch.setattr(solver_cfg.soft_solver_cfg, "class_type", MagicMock())
 
 
 def _create(
@@ -33,7 +33,7 @@ def _create(
     """Construct the coupled solver over mocked sub-solvers."""
     solver_cfg = CoupledMJWarpVBDSolverCfg() if solver_cfg is None else solver_cfg
     _stub_subsolvers(monkeypatch, solver_cfg)
-    return solver_cfg.build(MagicMock(), NOT_GUARANTEED)
+    return CoupledMJWarpVBDSolver(solver_cfg, MagicMock(), NOT_GUARANTEED)
 
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
@@ -64,15 +64,15 @@ def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
 
 
 def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The manager's reset reaches both sub-solvers."""
+    """The coupled solver's reset reaches both sub-solvers."""
     solver = _create(monkeypatch)
-    rigid_solver = solver.rigid_solver
+    rigid_solver = solver.native.rigid_solver
     rigid_solver.use_mujoco_cpu = False
-    soft_solver = solver.soft_solver
+    soft_solver = solver.native.soft_solver
     state = object()
     world_mask = object()
 
-    CoupledMJWarpVBDSolverCfg().reset(solver, state, world_mask)
+    solver.reset(state, world_mask)
 
     rigid_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
     soft_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
@@ -81,9 +81,9 @@ def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> N
 def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep CPU warm-start state when no world needs reset."""
     solver = _create(monkeypatch)
-    rigid_solver = solver.rigid_solver
+    rigid_solver = solver.native.rigid_solver
     rigid_solver.use_mujoco_cpu = True
-    soft_solver = solver.soft_solver
+    soft_solver = solver.native.soft_solver
     world_mask = MagicMock()
     world_mask.numpy.return_value.any.return_value = False
 
@@ -109,15 +109,15 @@ def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None
 )
 def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBDSolverCfg, match: str) -> None:
     with pytest.raises(ValueError, match=match):
-        solver_cfg.build(MagicMock(), NOT_GUARANTEED)
+        CoupledMJWarpVBDSolver(solver_cfg, MagicMock(), NOT_GUARANTEED)
 
 
 def test_build_solver_builds_each_sub_solver(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     solver = _create(monkeypatch, solver_cfg)
 
-    assert solver.rigid_solver is solver_cfg.rigid_solver_cfg.build.return_value
-    assert solver.soft_solver is solver_cfg.soft_solver_cfg.build.return_value
+    assert solver.native.rigid_solver is solver_cfg.rigid_solver_cfg.class_type.return_value.native
+    assert solver.native.soft_solver is solver_cfg.soft_solver_cfg.class_type.return_value.native
 
 
 @pytest.mark.parametrize("mode", ["one_way", "two_way"])
@@ -131,10 +131,11 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
     collision_pipeline = MagicMock()
     reactions = MagicMock()
     solver = _create(monkeypatch, CoupledMJWarpVBDSolverCfg(coupling_mode=mode))
-    rigid_solver = solver.rigid_solver
-    soft_solver = solver.soft_solver
-    CoupledMJWarpVBDSolverCfg().prepare_contacts(solver, contacts, collision_pipeline)
-    monkeypatch.setattr(solver, "_apply_reactions", reactions)
+    native = solver.native
+    rigid_solver = native.rigid_solver
+    soft_solver = native.soft_solver
+    solver.prepare_contacts(contacts, collision_pipeline)
+    monkeypatch.setattr(native, "_apply_reactions", reactions)
 
     solver.step(state_in, state_out, control, contacts, 0.01)
 

@@ -707,7 +707,7 @@ class Articulation(BaseArticulation):
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -756,7 +756,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -811,7 +811,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -863,7 +863,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+            solver.native.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -3579,9 +3579,10 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            # Only the solver's specification knows whether the solver transmits to tendons.
+            # Only the solver knows whether it transmits to tendons.
             backend = self._backend_manager.backend
-            self._fixed_tendon_control = backend.solver_cfg.fixed_tendon_control(self, backend.model)
+            solver_cfg = backend.cfg.solver_cfg
+            self._fixed_tendon_control = solver_cfg.class_type.fixed_tendon_control(solver_cfg, self, backend.model)
 
     """
     Internal helpers -- Debugging.

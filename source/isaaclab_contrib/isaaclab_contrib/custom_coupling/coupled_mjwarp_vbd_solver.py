@@ -7,14 +7,66 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import warp as wp
-from newton import CollisionPipeline, Contacts, Control, Model, State
+from isaaclab_newton.physics import NewtonSolver
+from newton import CollisionPipeline, Contacts, Control, Model, ModelBuilder, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
+
+from isaaclab.utils import instantiate
 
 from .kernels import _kernel_body_particle_reaction
 
+if TYPE_CHECKING:
+    from .coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
-class CoupledMJWarpVBDSolver(SolverBase):
+
+class CoupledMJWarpVBDSolver(NewtonSolver):
+    """Couple MJWarp rigid bodies with VBD deformables, each built from its own configuration."""
+
+    cfg: CoupledMJWarpVBDSolverCfg
+    native: SolverCoupledMJWarpVBD
+    contact_sensors = False
+
+    @classmethod
+    def solver_classes(cls, cfg: CoupledMJWarpVBDSolverCfg) -> tuple[type[SolverBase], ...]:
+        return tuple(
+            solver_cls
+            for sub_cfg in (cfg.rigid_solver_cfg, cfg.soft_solver_cfg)
+            for solver_cls in sub_cfg.class_type.solver_classes(sub_cfg)
+        )
+
+    @classmethod
+    def prepare_builder(cls, cfg: CoupledMJWarpVBDSolverCfg, builder: ModelBuilder) -> None:
+        """Prepare the completed builder for both sub-solvers, e.g. color it for VBD."""
+        for sub_cfg in (cfg.rigid_solver_cfg, cfg.soft_solver_cfg):
+            sub_cfg.class_type.prepare_builder(sub_cfg, builder)
+
+    def build_native(
+        self, model: Model, mode: wp.DeterministicMode, env_template: str | None
+    ) -> SolverCoupledMJWarpVBD:
+        """Construct both sub-solvers through their own configurations."""
+        cfg = self.cfg
+        if cfg.coupling_mode not in ("one_way", "two_way"):
+            raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
+        if not cfg.rigid_solver_cfg.use_mujoco_contacts:
+            raise ValueError("The custom coupled solver requires MJWarp internal contacts.")
+        if not cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
+            raise ValueError("The custom coupled solver requires VBD external rigid-body integration.")
+        rigid = instantiate(cfg.rigid_solver_cfg, model, mode, env_template=env_template)
+        soft = instantiate(cfg.soft_solver_cfg, model, mode, env_template=env_template)
+        return SolverCoupledMJWarpVBD(model, rigid.native, soft.native, cfg.coupling_mode)
+
+    def prepare_contacts(self, contacts: Contacts, pipeline: CollisionPipeline | None) -> None:
+        """Bind the collision pipeline used inside each coupled substep."""
+        self.native.collision_pipeline = pipeline
+
+    def pre_step(self, state: State) -> None:
+        self.native.rebuild_bvh(state)
+
+
+class SolverCoupledMJWarpVBD(SolverBase):
     """Newton solver coupling MJWarp rigid bodies with VBD deformables.
 
     MJWarp advances rigid bodies with its internal contacts, and VBD advances deformables using Newton's

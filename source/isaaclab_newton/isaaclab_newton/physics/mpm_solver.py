@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Implicit MPM solver construction and reset helpers."""
+"""Implicit MPM solver implementation and reset helpers."""
 
 from __future__ import annotations
 
@@ -12,12 +12,14 @@ import warnings
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton import BodyFlags, GeoType, ModelBuilder, State, StateFlags
+from newton import BodyFlags, Contacts, Control, GeoType, Model, ModelBuilder, State, StateFlags
 from newton.solvers import SolverBase, SolverImplicitMPM
+from warp.fem import TemporaryStore
 
 from isaaclab.sim import SimulationContext
 
 from .mpm_solver_cfg import MPMSolverCfg
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -198,23 +200,75 @@ def mpm_solver_config(cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
     return _make_solver_config(cfg, scene_prim)
 
 
-def prepare_builder(builder: ModelBuilder) -> None:
-    """Normalize rigid colliders before solver construction.
+class MPMSolver(NewtonSolver):
+    """Newton's implicit MPM solver, which steps particle materials in place on one state."""
 
-    Newton's implicit MPM treats positive-mass body colliders as finite-mass colliders, so kinematic bodies lose
-    their mass and inertia, matching Newton's MPM examples. The solver accepts only the triangle-mesh geometry type,
-    so convex meshes are classified as meshes without changing their geometry.
-    """
-    kinematic_flag = int(BodyFlags.KINEMATIC)
-    for body_id, flags in enumerate(builder.body_flags):
-        if int(flags) & kinematic_flag:
-            builder.body_mass[body_id] = 0.0
-            builder.body_inv_mass[body_id] = 0.0
-            builder.body_inertia[body_id] = wp.mat33()
-            builder.body_inv_inertia[body_id] = wp.mat33()
-    for shape_id, shape_type in enumerate(builder.shape_type):
-        if shape_type == GeoType.CONVEX_MESH:
-            builder.shape_type[shape_id] = GeoType.MESH
+    cfg: MPMSolverCfg
+    native: SolverImplicitMPM
+    solver_class = SolverImplicitMPM
+    single_state = True
+
+    @classmethod
+    def prepare_builder(cls, cfg: MPMSolverCfg, builder: ModelBuilder) -> None:
+        """Normalize rigid colliders before solver construction.
+
+        Newton's implicit MPM treats positive-mass body colliders as finite-mass colliders, so kinematic bodies lose
+        their mass and inertia, matching Newton's MPM examples. The solver accepts only the triangle-mesh geometry
+        type, so convex meshes are classified as meshes without changing their geometry.
+        """
+        kinematic_flag = int(BodyFlags.KINEMATIC)
+        for body_id, flags in enumerate(builder.body_flags):
+            if int(flags) & kinematic_flag:
+                builder.body_mass[body_id] = 0.0
+                builder.body_inv_mass[body_id] = 0.0
+                builder.body_inertia[body_id] = wp.mat33()
+                builder.body_inv_inertia[body_id] = wp.mat33()
+        for shape_id, shape_type in enumerate(builder.shape_type):
+            if shape_type == GeoType.CONVEX_MESH:
+                builder.shape_type[shape_id] = GeoType.MESH
+
+    @classmethod
+    def coupling_error(cls, cfg: MPMSolverCfg, in_place: bool) -> str | None:
+        """MPM entries step in place, and the per-substep collider projection runs outside Newton's coupled step."""
+        if cfg.project_outside_colliders:
+            return (
+                "enables MPMSolverCfg.project_outside_colliders, whose per-substep projection cannot yet run inside a"
+                " coupled-solver entry"
+            )
+        if not in_place:
+            return "uses MPMSolverCfg and must set in_place=True"
+        return None
+
+    def build_native(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverImplicitMPM:
+        """Construct implicit MPM from the configuration authored on the active physics scene."""
+        return self.solver_class(model, mpm_solver_config(self.cfg), temporary_store=TemporaryStore())
+
+    def applies_body_forces(self) -> bool:
+        return False
+
+    def supports_capture(self) -> bool:
+        return mpm_supports_graph_capture(self.native)
+
+    def uses_collision_pipeline(self) -> bool:
+        return False
+
+    def step(self, state_in: State, state_out: State, control: Control, contacts: Contacts | None, dt: float) -> None:
+        """Run one implicit MPM substep, optionally projecting particles out of collider interiors."""
+        self.native.step(state_in, state_out, control, contacts, dt)
+        if self.cfg.project_outside_colliders:
+            self.native.project_outside(state_out, state_out, dt)
+
+    def reset(self, state: State, world_mask: wp.array) -> None:
+        """Keep implicit-MPM history across automatic asset resets.
+
+        Shared-grid MPM cannot reset history for a subset of worlds. Tasks with independent MPM worlds that need an
+        exact history reset call :func:`reset_mpm_solver_state` after authoring their state.
+        """
+
+    def check_step(self, captured: bool, debug: bool) -> None:
+        """Raise asynchronous sparse-grid rebuild failures after a graph replay."""
+        if captured:
+            self.native.check_sparse_grid_rebuild_status()
 
 
 def reset_mpm_solver_state(
@@ -240,7 +294,7 @@ def reset_mpm_solver_state(
         RuntimeError: If the MPM solver or a usable state is not initialized.
         ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
     """
-    solver = backend.solver
+    solver = backend.solver.native if backend.solver is not None else None
     if not implicit_mpm_solvers(solver):
         raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
     model = backend.model

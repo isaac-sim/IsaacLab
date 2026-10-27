@@ -81,7 +81,7 @@ def inject_terrain_heightfields(
 
 def register_builder_attributes(builder: ModelBuilder, cfg: NewtonSolverCfg | None) -> None:
     """Register the custom attributes the configured solver reads on a builder that receives imported assets."""
-    for solver_cls in dict.fromkeys(cfg.solver_classes() if cfg is not None else ()):
+    for solver_cls in dict.fromkeys(cfg.class_type.solver_classes(cfg) if cfg is not None else ()):
         solver_cls.register_custom_attributes(builder)
 
 
@@ -92,7 +92,9 @@ def usd_schema_resolvers(cfg: NewtonSolverCfg | None) -> list[SchemaResolver]:
     articulation-ordering builders keep their fixed pair because solver attributes do not affect their outputs.
     """
     resolvers: list[SchemaResolver] = [SchemaResolverNewton(), SchemaResolverPhysx()]
-    if cfg is not None and any(issubclass(solver_cls, SolverMuJoCo) for solver_cls in cfg.solver_classes()):
+    if cfg is not None and any(
+        issubclass(solver_cls, SolverMuJoCo) for solver_cls in cfg.class_type.solver_classes(cfg)
+    ):
         resolvers.append(SchemaResolverMjc())
     return resolvers
 

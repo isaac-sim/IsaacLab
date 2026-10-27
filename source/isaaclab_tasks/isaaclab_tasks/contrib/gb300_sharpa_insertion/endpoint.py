@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import warp as wp
+from isaaclab_newton.physics import VBDSolver
 from newton import BodyFlags, Contacts, Control, Model, State, StateFlags
 from newton.solvers import SolverVBD
 
@@ -96,6 +97,12 @@ class EndpointVBD(SolverVBD):
             inputs=[self._prescribed_bodies, self._prescribed_velocities, state_in.body_qd, state_out.body_qd],
             device=self.device,
         )
+
+
+class EndpointVBDSolver(VBDSolver):
+    """VBD solver that builds :class:`EndpointVBD`."""
+
+    solver_class = EndpointVBD
 
 
 @wp.kernel

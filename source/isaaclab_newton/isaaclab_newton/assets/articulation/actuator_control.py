@@ -327,7 +327,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         Raises:
             ValueError: If the active solver is not MJWarp or runs CPU MuJoCo (``use_mujoco_cpu=True``).
         """
-        solver = self._articulation._backend_manager.backend.solver
+        solver = self._articulation._backend_manager.backend.solver.native
         if not MjWarpActuatorBridge.is_available(solver):
             raise ValueError(
                 "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."

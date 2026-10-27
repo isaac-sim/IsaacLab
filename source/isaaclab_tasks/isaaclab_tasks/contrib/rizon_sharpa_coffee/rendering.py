@@ -19,7 +19,7 @@ from newton.geometry import ParticleSurface
 
 import isaaclab.sim as sim_utils
 
-from .physics import CoffeeMPMSolver
+from .physics import SolverCoffeeMPM
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -180,11 +180,11 @@ class CoffeeRendering:
             )
         solvers = [
             solver
-            for solver in implicit_mpm_solvers(self._backend_manager.backend.solver)
-            if isinstance(solver, CoffeeMPMSolver)
+            for solver in implicit_mpm_solvers(self._backend_manager.backend.solver.native)
+            if isinstance(solver, SolverCoffeeMPM)
         ]
         if len(solvers) != 1 or solvers[0].grains is None:
-            raise ValueError("CoffeeRendering requires one CoffeeMPMSolver with grains_per_particle > 0.")
+            raise ValueError("CoffeeRendering requires one SolverCoffeeMPM with grains_per_particle > 0.")
         if not self._visualizers:
             raise ValueError("CoffeeRendering requires a coffee GL, RTX or Kit visualizer.")
         self._solver = solvers[0]

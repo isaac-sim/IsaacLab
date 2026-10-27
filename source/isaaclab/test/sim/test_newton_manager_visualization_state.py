@@ -136,7 +136,6 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         model=SimpleNamespace(body_count=1, world_count=1),
         state_0=state,
         solver=None,
-        solver_cfg=SimpleNamespace(reset=Mock(), eval_fk=eval_fk),
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
@@ -145,7 +144,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     monkeypatch.setattr(owner, "_scene_data_backend", backend)
     # Fabric may bind between native allocation and solver initialization.
     assert backend.transforms.transforms is state.body_q
-    newton_backend.solver = object()
+    newton_backend.solver = SimpleNamespace(reset=Mock(), eval_fk=eval_fk)
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()

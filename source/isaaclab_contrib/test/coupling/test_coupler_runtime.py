@@ -118,7 +118,7 @@ def test_proxy_destination_can_receive_only_proxy_bodies():
 
     backend = _bind_coupler(builder, solver_cfg).backend
 
-    assert backend.solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
+    assert backend.solver.native._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
 
 
 @pytest.mark.parametrize(
@@ -165,7 +165,7 @@ def test_real_coupler_constructs_resets_and_steps(
     manager = _bind_coupler(builder, solver_cfg)
     backend = manager.backend
     model = backend.model
-    solver = backend.solver
+    solver = backend.solver.native
 
     assert isinstance(solver, expected_solver_type)
     if algorithm == "admm_capacity":
