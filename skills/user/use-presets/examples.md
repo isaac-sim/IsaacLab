@@ -32,9 +32,9 @@ an explicit Newton or other backend default when adding more variants.
 ```python
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_tasks.utils import PresetCfg
 
@@ -70,7 +70,7 @@ Use domain presets for environment-specific variants such as camera output type.
 
 ```python
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab_tasks.utils import PresetCfg
 
 

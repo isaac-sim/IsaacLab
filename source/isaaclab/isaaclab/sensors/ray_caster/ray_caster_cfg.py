@@ -10,11 +10,9 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-from isaaclab.sim.spawners.sensors.sensors_cfg import SensorFrameCfg
-from isaaclab.utils.configclass import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import RAY_CASTER_MARKER_CFG
+from ...utils import configclass, replace
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg
 
@@ -24,7 +22,7 @@ if TYPE_CHECKING:
 
 @configclass
 class RayCasterCfg(SensorBaseCfg):
-    """Configuration for the ray-cast sensor."""
+    """Configuration for a ray caster tracking an existing body or frame."""
 
     @configclass
     class OffsetCfg:
@@ -36,21 +34,6 @@ class RayCasterCfg(SensorBaseCfg):
         """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
     class_type: type[RayCaster] | str = "{DIR}.ray_caster:RayCaster"
-
-    spawn: SensorFrameCfg | None = SensorFrameCfg()
-    """Spawn configuration for the sensor Xform prim.
-
-    A plain USD Xform is created at :attr:`prim_path` before initialization, matching the
-    pattern used by :class:`~isaaclab.sensors.camera.camera_cfg.CameraCfg` (which spawns a
-    Camera prim). The :attr:`prim_path` can be either:
-
-    - A **new** child path under a parent link (e.g. ``{ENV_REGEX_NS}/Robot/base``).
-    - A **physics body** path (e.g. ``{ENV_REGEX_NS}/Robot/base``). In this case, the sensor
-      will automatically create a child Xform at ``{prim_path}``.
-
-    If ``None``, the prim at :attr:`prim_path` must already exist on the USD stage and must
-    **not** be a physics body.
-    """
 
     mesh_prim_paths: list[str] = MISSING
     """The list of mesh primitive paths to ray cast against.
@@ -92,6 +75,12 @@ class RayCasterCfg(SensorBaseCfg):
     rays outside the carrier's geometry in that case.
     """
 
+    use_cuda_graph: bool = True
+    """Capture Newton BVH queries independently of the physics solver's graph setting.
+
+    CPU queries and the static Warp-mesh implementations run eagerly.
+    """
+
     drift_range: tuple[float, float] = (0.0, 0.0)
     """The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).
 
@@ -105,7 +94,7 @@ class RayCasterCfg(SensorBaseCfg):
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
+    visualizer_cfg: VisualizationMarkersCfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster")
     """The configuration object for the visualization markers. Defaults to RAY_CASTER_MARKER_CFG.
 
     .. note::

@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import (
-    KaminoSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -23,8 +22,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
@@ -49,11 +48,10 @@ class PhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=1,
+        num_substeps=2,
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
 
 
 ##
@@ -235,7 +233,6 @@ class SpotEventCfg(PresetCfg):
     isaacsim_physx = physx
     default = isaacsim_physx
     newton_mjwarp = SpotNewtonEventCfg()
-    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -386,7 +383,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.contact_forces.update_period = self.sim.dt
 
         # switch robot to Spot-d
-        self.scene.robot = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(SPOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # terrain
         self.scene.terrain = TerrainImporterCfg(
@@ -411,4 +408,4 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # no height scan
         self.scene.height_scanner = None
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(10.5, 10.5, 0.3))

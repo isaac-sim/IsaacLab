@@ -3,219 +3,109 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow Shadow Hand handover environment."""
+
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim import RigidBodyMaterialBaseCfg, SimulationCfg
+from isaaclab.utils import configclass, replace
+from isaaclab.utils import math as math_utils
 
-from isaaclab_tasks.core.handover.handover_common import (
-    ACTUATED_JOINT_NAMES,
-    FINGERTIP_BODY_NAMES,
-    GOAL_MARKER_CFG,
-    OBJECT_RADIUS,
+from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.shadow_hand import (
+    FINGERTIP_NAMES,
+    JOINT_NAMES,
+    SHADOW_HAND_FRICTION_REPLACEMENTS,
+    SHADOW_HAND_NEWTON_CFG,
+    SHADOW_HAND_PHYSX_CFG,
+    TENDON_NAMES,
+    TENDON_POSITION_LIMITS,
 )
-from isaaclab_tasks.utils import PresetCfg, preset
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG, SHADOW_HAND_NEWTON_CFG
-
-
-@configclass
-class EventCfg:
-    """Configuration for randomization (PhysX path).
-
-    Note: this config is currently not wired into ``HandoverEnvCfg.events`` -
-    it is kept as a reference for future event-randomization work. The event
-    terms here use PhysX-only APIs (rigid-body materials, fixed tendons), so
-    they would need a Newton variant before being enabled in the env.
-    """
-
-    # -- robot
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="reset",
-        min_step_count_between_reset=720,
-        params={
-            "asset_cfg": SceneEntityCfg("right_hand"),
-            "static_friction_range": (0.7, 1.3),
-            "dynamic_friction_range": (1.0, 1.0),
-            "restitution_range": (1.0, 1.0),
-            "num_buckets": 250,
-        },
-    )
-    robot_joint_stiffness_and_damping = EventTerm(
-        func=mdp.randomize_actuator_gains,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("right_hand", joint_names=".*"),
-            "stiffness_distribution_params": (0.75, 1.5),
-            "damping_distribution_params": (0.3, 3.0),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
-    )
-    robot_joint_pos_limits = EventTerm(
-        func=mdp.randomize_joint_parameters,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("right_hand", joint_names=".*"),
-            "lower_limit_distribution_params": (0.00, 0.01),
-            "upper_limit_distribution_params": (0.00, 0.01),
-            "operation": "add",
-            "distribution": "gaussian",
-        },
-    )
-    robot_tendon_properties = EventTerm(
-        func=mdp.randomize_fixed_tendon_parameters,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("right_hand", fixed_tendon_names=".*"),
-            "stiffness_distribution_params": (0.75, 1.5),
-            "damping_distribution_params": (0.3, 3.0),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
-    )
-
-    # -- object
-    object_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("object"),
-            "static_friction_range": (0.7, 1.3),
-            "dynamic_friction_range": (1.0, 1.0),
-            "restitution_range": (1.0, 1.0),
-            "num_buckets": 250,
-        },
-    )
-    object_scale_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("object"),
-            "mass_distribution_params": (0.5, 1.5),
-            "operation": "scale",
-            "distribution": "uniform",
-        },
-    )
-
-    # -- scene
-    reset_gravity = EventTerm(
-        func=mdp.randomize_physics_scene_gravity,
-        mode="interval",
-        is_global_time=True,
-        interval_range_s=(36.0, 36.0),  # time_s = num_steps * (decimation * dt)
-        params={
-            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.4]),
-            "operation": "add",
-            "distribution": "gaussian",
-        },
-    )
+from .handover_common import GOAL_MARKER_CFG, HOLD_POSITION_OFFSET, OBJECT_RADIUS, VISUALIZER_CFG
 
 
-def _shadow_hand_cfg(
+def _hand_cfg(
+    base: ArticulationCfg,
     prim_path: str,
     init_pos: tuple[float, float, float],
     init_rot: tuple[float, float, float, float],
-) -> PresetCfg:
-    """Per-hand Shadow Hand preset (PhysX, Newton MJWarp, and OVPhysX variants).
+) -> ArticulationCfg:
+    """Place one engine's Shadow Hand at this task's pose for one hand.
 
-    All variants are placed at *prim_path* with the same init pose; per-hand
-    differences (right vs left) come from the caller's *prim_path* / *init_pos* /
-    *init_rot* — the gain tuning is identical on both hands.
+    The hand's actuator gains are taken as the asset configuration supplies them. Raising the gains
+    of every actuator also drives the tendon-coupled joints, which take no position command, and
+    costs the tendon most of its travel.
 
-    The Newton variant reuses the shared actuator defined on ``SHADOW_HAND_NEWTON_CFG``,
-    raising its gains to ``20.0`` / ``2.0`` -- the catch needs more joint authority than
-    reorientation. The scalar replaces the per-joint gain mapping, so it applies to the whole
-    actuator group.
+    Args:
+        base: The hand on the engine's asset variant.
+        prim_path: Scene path the hand spawns at.
+        init_pos: Spawn position [m].
+        init_rot: Spawn orientation as an ``(x, y, z, w)`` quaternion.
+
+    Returns:
+        That configuration at ``prim_path`` with the given pose.
     """
-    physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
-        init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
-    )
-    # Newton's importer bakes the asset's root orientation into the root joint (see the note on
-    # SHADOW_HAND_NEWTON_CFG.init_state), so the task rotation must compose with it rather than
-    # replace it — replacing leaves both palms rotated 90 degrees.
-    newton_rot = tuple(
+    # The asset's own spawn rotation is shared by both engines, so the per-hand rotation composes with
+    # it rather than replacing it; replacing leaves both palms turned 90 degrees. See the init_state
+    # of SHADOW_HAND_PHYSX_CFG for why the asset carries that rotation.
+    hand_rot = tuple(
         math_utils.quat_mul(
             torch.tensor(init_rot, dtype=torch.float64),
-            torch.tensor(SHADOW_HAND_NEWTON_CFG.init_state.rot, dtype=torch.float64),
+            torch.tensor(base.init_state.rot, dtype=torch.float64),
         ).tolist()
     )
-    newton_mjwarp_cfg = SHADOW_HAND_NEWTON_CFG.replace(
-        prim_path=prim_path,
-        init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
-        actuators={
-            **SHADOW_HAND_NEWTON_CFG.actuators,
-            "fingers": SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
-        },
-    )
-    ovphysx_cfg = SHADOW_HAND_CFG.replace(
-        prim_path=prim_path,
-        # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
-        spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
-        init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
-    )
-    return preset(
-        default=newton_mjwarp_cfg,
-        physx=physx_cfg,
-        isaacsim_physx=physx_cfg,
-        newton_mjwarp=newton_mjwarp_cfg,
-        ovphysx=ovphysx_cfg,
-    )
+    return replace(base, prim_path=prim_path, init_state=replace(base.init_state, pos=init_pos, rot=hand_rot))
 
 
-# Per-hand presets shared by the Direct environment and the manager scene.
-RIGHT_HAND_CFG = _shadow_hand_cfg(
-    prim_path="/World/envs/env_.*/RightRobot",
-    init_pos=(0.0, 0.0, 0.5),
-    init_rot=(0.0, 0.0, 0.0, 1.0),
-)
-LEFT_HAND_CFG = _shadow_hand_cfg(
-    prim_path="/World/envs/env_.*/LeftRobot",
-    init_pos=(0.0, -1.0, 0.5),
-    init_rot=(0.0, 0.0, 1.0, 0.0),
-)
+# per-hand poses, composed with the asset's own rotation
+_RIGHT_POSE = ("{ENV_REGEX_NS}/RightRobot", (0.0, 0.0, 0.5), (0.0, 0.0, 0.0, 1.0))
+_LEFT_POSE = ("{ENV_REGEX_NS}/LeftRobot", (0.0, -1.0, 0.5), (0.0, 0.0, 1.0, 0.0))
 
 
 @configclass
-class ObjectCfg(PresetCfg):
-    """Hand-over object preset.
+class RightHandCfg(PresetCfg):
+    """The right hand on every engine; only the asset's physics variant differs."""
 
-    Both backends spawn the same procedural sphere as a free rigid body:
-    Newton's :class:`~isaaclab_newton.assets.RigidObject` resolves the
-    asset via the ``UsdPhysics.RigidBodyAPI`` that
-    :class:`~isaaclab.sim.RigidBodyPropertiesCfg` applies. The Newton
-    variant drops PhysX-only knobs (per-shape solver iterations, sleep
-    thresholds, max depenetration velocity, custom physics material).
-    """
+    newton_mjwarp = _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_RIGHT_POSE)
+    isaacsim_physx = _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_RIGHT_POSE)
+    physx = isaacsim_physx
+    ovphysx = isaacsim_physx
+    default = newton_mjwarp
 
-    physx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.SphereCfg(
-            radius=OBJECT_RADIUS,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
+
+@configclass
+class LeftHandCfg(PresetCfg):
+    """The left hand on every engine; only the asset's physics variant differs."""
+
+    newton_mjwarp = _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_LEFT_POSE)
+    isaacsim_physx = _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_LEFT_POSE)
+    physx = isaacsim_physx
+    ovphysx = isaacsim_physx
+    default = newton_mjwarp
+
+
+BALL_CFG = RigidObjectCfg(
+    prim_path="{ENV_REGEX_NS}/object",
+    spawn=sim_utils.SphereCfg(
+        radius=OBJECT_RADIUS,
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.7),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+            PhysxRigidBodyCfg(
                 disable_gravity=False,
                 enable_gyroscopic_forces=True,
                 solver_position_iteration_count=8,
@@ -224,39 +114,22 @@ class ObjectCfg(PresetCfg):
                 stabilization_threshold=0.0025,
                 max_depenetration_velocity=1000.0,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(density=500.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    newton_mjwarp = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.SphereCfg(
-            radius=OBJECT_RADIUS,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(density=500.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    ovphysx = physx
-    isaacsim_physx = physx
-    default = newton_mjwarp
+        ],
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mass_props=sim_utils.MassCfg(density=500.0),
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
+)
+"""Hand-over ball, thrown from one Shadow hand to the other."""
 
 
 @configclass
 class PhysicsCfg(PresetCfg):
     """Physics-backend preset (PhysX vs Newton/MJWarp).
 
-    Newton settings mirror the single-agent ShadowHand Newton port: elliptic
-    cone, ``impratio=10`` (favors normal contacts over friction), 100 solver
-    iterations, 2 substeps. Empirically converges on the single-agent ShadowHand
-    tasks; tuning may be needed for handover-specific contact dynamics.
+    Newton mirrors the single-agent Shadow Hand Newton port: an elliptic friction
+    cone with ``impratio=10``, which weights normal contacts over friction, 100
+    solver iterations and 2 substeps.
     """
 
     isaacsim_physx = PhysxCfg(
@@ -280,13 +153,31 @@ class PhysicsCfg(PresetCfg):
         num_substeps=4,
         debug_mode=False,
     )
-    ovphysx = OvPhysxCfg()
+    ovphysx = OvPhysxCfg(
+        legacy_joint_friction_replacements=SHADOW_HAND_FRICTION_REPLACEMENTS,
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 
 @configclass
+class HandoverSceneCfg(InteractiveSceneCfg):
+    """Two Shadow Hands and the object passed between them."""
+
+    ground = AssetBaseCfg(prim_path="/World/ground", collision_group=-1, spawn=sim_utils.GroundPlaneCfg())
+    right_robot: RightHandCfg = RightHandCfg()
+    left_robot: LeftHandCfg = LeftHandCfg()
+    object: RigidObjectCfg = BALL_CFG
+    goal_object: VisualizationMarkersCfg = GOAL_MARKER_CFG
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
 class HandoverEnvCfg(DirectMARLEnvCfg):
+    """Configuration for the direct-workflow two-hand handover environment."""
+
     # env
     decimation = 2
     episode_length_s = 7.5
@@ -295,26 +186,22 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     observation_spaces = {"right_hand": 157, "left_hand": 157}
     state_space = 290
 
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
+    # simulation, mirrored by the manager-based configuration
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
+        visualizer_cfgs=VISUALIZER_CFG,
     )
 
-    # robot
-    right_robot_cfg: PresetCfg = RIGHT_HAND_CFG
-    left_robot_cfg: PresetCfg = LEFT_HAND_CFG
-    actuated_joint_names = ACTUATED_JOINT_NAMES
-    fingertip_body_names = FINGERTIP_BODY_NAMES
+    actuated_joint_names = JOINT_NAMES
+    actuated_tendon_names = TENDON_NAMES
+    actuated_tendon_position_limits = TENDON_POSITION_LIMITS
+    fingertip_body_names = FINGERTIP_NAMES
 
-    # in-hand object
-    object_cfg: ObjectCfg = ObjectCfg()
-    # goal object
-    goal_object_cfg: VisualizationMarkersCfg = GOAL_MARKER_CFG
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
+    scene: HandoverSceneCfg = HandoverSceneCfg(num_envs=2048, env_spacing=1.5)
 
     # reset
     reset_position_noise = 0.01  # range of position at reset
@@ -327,5 +214,14 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     # success criteria
     success_distance_threshold: float = 0.1
     """Object-to-goal distance below which the handover is considered successful [m]."""
+    success_steps_required: int = 20
+    """Cumulative steps inside the success distance required to switch goals; must be positive."""
+    hold_position_offset: tuple[float, float, float] = HOLD_POSITION_OFFSET
+    """Object hold position in each hand's local root frame [m]: the goal at the receiving hand and the start at the
+    holding hand. Resolved once at initialization."""
+    randomize_start_hand: bool = True
+    """Start each episode with the object in a random hand, the first goal at the other; else always right to left."""
     # reward-related scales
     dist_reward_scale = 20.0
+    action_rate_penalty_scale: float = 0.0
+    """Per-hand penalty on the squared change of its actions between policy steps; 0 disables it."""

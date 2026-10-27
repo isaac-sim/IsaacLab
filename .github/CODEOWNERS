@@ -41,9 +41,7 @@
 /source/isaaclab_newton/ @AntoineRichard @StafaH @hujc7 @kellyguo11
 /source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 
-/source/isaaclab_ov/ @huidongc @rilei-nvidia @pbarejko @kellyguo11
-
-/source/isaaclab_ovphysx/ @AntoineRichard @marcodiiga @kellyguo11
+/source/isaaclab_ov/ @huidongc @rilei-nvidia @pbarejko @AntoineRichard @marcodiiga
 
 /source/isaaclab_physx/ @AntoineRichard @ooctipus @kellyguo11
 /source/isaaclab_ppisp/ @moennen @pbarejko @kellyguo11
@@ -81,3 +79,5 @@
 /source/isaaclab_rl/isaaclab_rl/entrypoints/backends/*rlinf.py @mingxueg-nv @kellyguo11
 /docs/source/experimental-features/rlinf_vla_posttraining.rst @mingxueg-nv @kellyguo11
 /docs/source/api/lab_contrib/isaaclab_contrib.rl.rst @mingxueg-nv @kellyguo11
+
+/source/_isaaclab_testing/ @isaac-sim/isaac-lab-core-team

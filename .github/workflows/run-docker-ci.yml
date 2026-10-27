@@ -1,0 +1,107 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Run Docker CI Command
+run-name: Run Docker CI for PR #${{ github.event.issue.number }}
+
+on:
+  # GitHub always runs ``issue_comment`` workflows from the repository default
+  # branch, so this file has to land there for the ``run-ci`` command to work.
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: run-docker-ci-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  request-docker-ci:
+    name: Request Docker CI
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == 'run-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Authorize the request
+        id: authorize
+        env:
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          read -r pr_author pr_state head_sha < <(
+            gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '[.user.login, .state, .head.sha] | @tsv'
+          )
+          if [ "$pr_state" != "open" ]; then
+            echo "::error::PR #$PR_NUMBER is not open."
+            exit 1
+          fi
+          if [ "${COMMENT_AUTHOR,,}" != "${pr_author,,}" ]; then
+            commenter_permission="$(
+              gh api "repos/$REPOSITORY/collaborators/$COMMENT_AUTHOR/permission" \
+                --jq '.permission' 2>/dev/null || printf 'none'
+            )"
+            case "$commenter_permission" in
+              admin|write) ;;
+              *)
+                echo "::error::Only PR author @$pr_author or a user with write access can request Docker CI."
+                exit 1
+                ;;
+            esac
+          fi
+
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Create isaaclab-bot token
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: Trigger Docker CI
+        env:
+          EXPECTED_HEAD_SHA: ${{ steps.authorize.outputs.head_sha }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          LABEL: ci:run-docker
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # GitHub resolves the head when it processes the label, so labeling a
+          # PR whose head has already moved on builds a revision nobody asked
+          # for. Skip the request instead of spending GPU minutes on it.
+          head_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          if [ "$head_sha" != "$EXPECTED_HEAD_SHA" ]; then
+            echo "::error::PR #$PR_NUMBER moved from ${EXPECTED_HEAD_SHA:0:7} to ${head_sha:0:7} while this request was processed. Comment 'run-ci' again to test the current head."
+            exit 1
+          fi
+
+          endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
+          gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
+          gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
+          gh api --method DELETE "$endpoint/$LABEL" --silent
+
+          # A push can still land between the check above and GitHub processing
+          # the label; nothing can make those two steps atomic. Re-read the head
+          # so the mismatch is reported rather than silently testing a revision
+          # the requester never saw.
+          built_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          if [ "$built_sha" != "$EXPECTED_HEAD_SHA" ]; then
+            echo "::error::PR #$PR_NUMBER moved to ${built_sha:0:7} as the label was applied, so Docker CI is testing that revision and not the requested ${EXPECTED_HEAD_SHA:0:7}. Comment 'run-ci' again to test the current head."
+            exit 1
+          fi
+
+          echo "Requested Docker CI for PR #$PR_NUMBER at ${EXPECTED_HEAD_SHA:0:7}." >> "$GITHUB_STEP_SUMMARY"

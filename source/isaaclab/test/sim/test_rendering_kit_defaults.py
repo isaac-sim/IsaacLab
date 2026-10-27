@@ -10,8 +10,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 _APPS_DIR = Path(__file__).resolve().parents[4] / "apps"
 
 # Kit loaded when cameras are enabled.
@@ -78,14 +76,6 @@ def _kit_value(content: str, key: str) -> str | None:
     return match.group(1).split("#", 1)[0].strip()
 
 
-@pytest.mark.parametrize("kit_name", _RENDERING_KIT)
-def test_rendering_kits_define_high_fidelity_defaults(kit_name):
-    """Rendering kits carry the high-fidelity RTX defaults."""
-    content = _read_kit(kit_name)
-    missing = [key for key in _HIGH_FIDELITY_DEFAULTS if not _kit_defines(content, key)]
-    assert not missing, f"{kit_name} is missing high-fidelity RTX defaults: {missing}"
-
-
 def test_base_kit_omits_high_fidelity_defaults():
     """Base kit (cameras disabled) omits the high-fidelity RTX defaults."""
     content = _read_kit(_BASE_KIT)
@@ -97,6 +87,8 @@ def test_rendering_kits_agree_on_rtx_defaults():
     """Both rendering kits define identical values for every shared RTX default."""
     primary, secondary = _RENDERING_KIT
     primary_content, secondary_content = _read_kit(primary), _read_kit(secondary)
+    missing = [key for key in _HIGH_FIDELITY_DEFAULTS if _kit_value(primary_content, key) is None]
+    assert not missing, f"{primary} is missing high-fidelity RTX defaults: {missing}"
     mismatches = {}
     for key in _SHARED_RTX_DEFAULTS:
         primary_value = _kit_value(primary_content, key)

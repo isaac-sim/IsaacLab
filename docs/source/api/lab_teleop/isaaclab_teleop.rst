@@ -30,6 +30,12 @@ isaaclab_teleop
     create_isaac_teleop_device
     create_haptic_feedback_driver
     remove_camera_configs
+    se2_gamepad_teleop_cfg
+    se2_keyboard_teleop_cfg
+    se2_spacemouse_teleop_cfg
+    se3_gamepad_teleop_cfg
+    se3_keyboard_teleop_cfg
+    se3_spacemouse_teleop_cfg
 
 Configuration
 -------------
@@ -64,6 +70,27 @@ Device
 
 .. autofunction:: create_isaac_teleop_device
 
+Keyboard
+--------
+
+.. autofunction:: se2_keyboard_teleop_cfg
+
+.. autofunction:: se3_keyboard_teleop_cfg
+
+Gamepad
+-------
+
+.. autofunction:: se2_gamepad_teleop_cfg
+
+.. autofunction:: se3_gamepad_teleop_cfg
+
+SpaceMouse
+----------
+
+.. autofunction:: se2_spacemouse_teleop_cfg
+
+.. autofunction:: se3_spacemouse_teleop_cfg
+
 Haptic Feedback
 ---------------
 
@@ -93,3 +120,30 @@ XR Anchor
     :members:
 
 .. autofunction:: remove_camera_configs
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_teleop` API.
+
+.. currentmodule:: isaaclab_teleop
+
+.. autosummary::
+   :nosignatures:
+
+   ControlEvents
+   SupportsControlEvents
+   SystemCheckItem
+   SystemCheckResult
+
+.. autoclass:: ControlEvents
+   :show-inheritance:
+
+.. autoclass:: SupportsControlEvents
+   :show-inheritance:
+
+.. autoclass:: SystemCheckItem
+   :show-inheritance:
+
+.. autoclass:: SystemCheckResult
+   :show-inheritance:

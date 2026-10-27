@@ -1,6 +1,138 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.3.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused core Warp mathematics in observation, reward, and termination terms instead of importing solver-owned equations.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``ObservationTermCfg.modifiers`` in favor of ``ObservationTermCfg.tensor_processors``.
+  Retained the legacy field with a targeted warning and forwarding during manager initialization.
+  Setting both fields now raises ``ValueError`` to prevent silently overriding either pipeline.
+* Deprecated ``isaaclab_experimental.utils.modifiers``, ``ModifierBase``, and ``ModifierCfg`` in favor of
+  ``isaaclab_experimental.utils.tensor_processors``, ``TensorProcessor``, and ``TensorProcessorCfg``.
+  Preserved legacy imports and serialized callable paths with an import-time deprecation warning.
+
+
+0.2.7 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Warp observation manager initialization failing on the group-level ``history_order`` setting.
+
+
+0.2.6 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``[INFO]`` messages printed by the Warp environments and the manager call switch to
+  ``logger.info``.
+
+
+0.2.5 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
+0.2.4 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the Warp implementation of ``base_height_l2``, restoring Warp frontend support for
+  Unitree Go2 tasks with the base-height reward enabled.
+
+
+0.2.3 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation for environment and circular-buffer resets.
+* Changed ``seed()`` of the Warp environments to no longer seed Replicator; the Replicator event terms seed it
+  with ``env.cfg.seed``.
+* Changed ``render()`` with ``render_mode="rgb_array"`` in the Warp environments to warn and return ``None``,
+  matching the core environments. Use ``VideoRecorderCfg`` on ``env_cfg.video_recorders`` to capture frames.
+
+
+0.2.2 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the Warp-specific IO descriptor APIs. They remain available for
+  compatibility and will be removed in Isaac Lab 3.2. LEAPP is the recommended
+  alternative for supported RSL-RL/PyTorch deployments but does not currently
+  replace Warp-first descriptor export.
+
+
+0.2.1 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Warp-frontend ``ActionTerm``, ``CommandTerm`` and ``DirectRLEnvWarp`` debug
+  visualization toggles to register their callbacks through the simulation context's visualization
+  marker registry instead of the deprecated Kit ``IApp.get_post_update_event_stream`` API, matching
+  their non-experimental counterparts.
+
+Fixed
+^^^^^
+
+* Fixed debug visualization failing in kitless mode. Enabling it raised
+  ``ModuleNotFoundError: No module named 'omni.kit'`` because ``omni.kit.app`` was imported inside
+  the toggle. The registry path has no Kit dependency.
+
+* Fixed ``CommandTerm.set_debug_vis`` raising ``AttributeError`` whenever a command term
+  implemented debug visualization. It guarded on ``SimulationContext.has_omniverse_visualizer()``,
+  which does not exist, so the call failed before any callback was registered.
+
+
+0.2.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Warp MDP twins for :class:`~isaaclab.envs.mdp.is_terminated_term` and
+  :func:`~isaaclab.envs.mdp.pose_command_success`, so ``Isaac-Reach-Franka`` and
+  ``Isaac-Reach-UR10`` run under ``--frontend warp``.
+* Added :meth:`~isaaclab_experimental.envs.frontend.WarpFrontend.check_compatibility`, which
+  reports why an environment configuration cannot run on the Warp frontend instead of raising,
+  so several configurations can be surveyed in one pass.
+* Added :attr:`~isaaclab_experimental.managers.TerminationManager.term_dones_wp`, exposing the
+  per-term done buffer to reward terms that aggregate a subset of termination terms.
+
+Fixed
+^^^^^
+
+* Fixed the Warp :func:`~isaaclab_experimental.envs.mdp.pose_command_success` twin disagreeing
+  with the stable term's orientation error for non-unit quaternions, by computing the angle as
+  ``2*atan2(|xyz|, |w|)`` instead of ``2*acos(|w|)``. Both arguments scale with the quaternion,
+  so the angle is now norm-invariant and environments near the configured
+  ``orientation_success_threshold`` are classified the same way as on the stable path.
+
+
 0.1.5 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 

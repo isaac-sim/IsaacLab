@@ -15,39 +15,40 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse the command-line arguments first."""
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the ray-cast camera sensor.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to generate.")
 parser.add_argument("--save", action="store_true", default=False, help="Save the obtained data to disk.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING
 
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
-from isaaclab.utils import convert_dict_to_backend
+from isaaclab.sensors.camera.utils import save_images_to_file
+from isaaclab.sensors.ray_caster import RayCasterCameraCfg, patterns
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import project_points, unproject_depth
 
+if TYPE_CHECKING:
+    from isaaclab.sensors.ray_caster import RayCasterCamera
 
-def define_sensor() -> RayCasterCamera:
+
+def define_sensor() -> "RayCasterCamera":
     """Defines the ray-cast camera sensor to add to the scene."""
     # Camera base frames
     # In contras to the USD camera, we associate the sensor to the prims at these locations.
@@ -57,7 +58,7 @@ def define_sensor() -> RayCasterCamera:
 
     # Setup camera sensor
     camera_cfg = RayCasterCameraCfg(
-        prim_path="/World/Origin_.*/CameraSensor",
+        prim_path="/World/Origin_[^/]+/CameraSensor",
         mesh_prim_paths=["/World/ground"],
         update_period=0.1,
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
@@ -71,7 +72,7 @@ def define_sensor() -> RayCasterCamera:
         ),
     )
     # Create camera
-    camera = RayCasterCamera(cfg=camera_cfg)
+    camera = instantiate(camera_cfg)
 
     return camera
 
@@ -97,14 +98,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # extract entities for simplified notation
     camera: RayCasterCamera = scene_entities["camera"]
 
-    # Create the Replicator writer only when saving. The ray-cast camera itself
-    # is Warp-based and does not require Replicator or RTX rendering extensions.
-    rep_writer: Any | None = None
-    if args_cli.save:
-        import omni.replicator.core as rep
-
-        output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
-        rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
+    # Create the output directory
+    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
+    os.makedirs(output_dir, exist_ok=True)
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
@@ -117,7 +113,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # camera.set_world_poses(position, orientation, indices=[0], convention="ros")
 
     # Simulate physics
-    while simulation_app.is_running():
+    while sim.is_running():
         # Step simulation
         sim.step()
         # Update camera data
@@ -130,58 +126,47 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 
         # Extract camera data
         if args_cli.save:
-            # Extract camera data
+            # Save the depth image of the first camera, normalized to [0, 1], as a PNG file
             camera_index = 0
-            # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
-            single_cam_data = convert_dict_to_backend(
-                {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
-            )
-            # Pack data back into replicator format to save them using its writer
-            rep_output = {"annotators": {}}
-            for key, data in single_cam_data.items():
-                info = camera.data.info.get(key)
-                if info is not None:
-                    rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
-                else:
-                    rep_output["annotators"][key] = {"render_product": {"data": data}}
-            # Save images
-            rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
-            assert rep_writer is not None
-            rep_writer.write(rep_output)
+            depth = camera.data.output["distance_to_image_plane"].torch[camera_index : camera_index + 1]
+            depth = torch.nan_to_num(depth, posinf=0.0)
+            file_path = os.path.join(output_dir, f"depth_{camera.frame[camera_index]:03d}.png")
+            save_images_to_file(depth / depth.max().clamp(min=1e-6), file_path)
 
             # Pointcloud in world frame
             points_3d_cam = unproject_depth(
-                camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices
+                camera.data.output["distance_to_image_plane"].torch, camera.data.intrinsic_matrices.torch
             )
 
             # Check methods are valid
             im_height, im_width = camera.image_shape
             # -- project points to (u, v, d)
-            reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices)
+            reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices.torch)
             reproj_depths = reproj_points[..., -1].view(-1, im_width, im_height).transpose_(1, 2)
-            sim_depths = camera.data.output["distance_to_image_plane"].squeeze(-1)
+            sim_depths = camera.data.output["distance_to_image_plane"].torch.squeeze(-1)
             torch.testing.assert_close(reproj_depths, sim_depths)
 
 
 def main():
     """Main function."""
-    # Load kit helper
+    # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg()
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([2.5, 2.5, 3.5], [0.0, 0.0, 0.0])
-    # Design scene
-    scene_entities = design_scene()
-    # Play simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run simulator
-    run_simulator(sim=sim, scene_entities=scene_entities)
+    # Launch the simulator runtime that the configuration needs
+    with launch_simulation(sim_cfg, args_cli):
+        # Initialize the simulation context
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([2.5, 2.5, 3.5], [0.0, 0.0, 0.0])
+        # Design scene
+        scene_entities = design_scene()
+        # Play simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run simulator
+        run_simulator(sim=sim, scene_entities=scene_entities)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

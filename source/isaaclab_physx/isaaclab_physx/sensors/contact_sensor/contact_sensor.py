@@ -21,10 +21,9 @@ import omni.physics.tensors as physx
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVisualizer
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .contact_sensor_data import ContactSensorData
 from .kernels import (
@@ -32,6 +31,7 @@ from .kernels import (
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
+    update_filtered_force_history_kernel,
     update_net_forces_kernel,
 )
 
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 class ContactSensor(BaseContactSensor):
     """A PhysX contact reporting sensor.
 
-    The contact sensor reports the normal contact forces on a rigid body in the world frame.
+    The contact sensor reports normal, friction, and total contact forces on a rigid body in the world frame.
     It relies on the `PhysX ContactReporter`_ API to be activated on the rigid bodies.
 
     To enable the contact reporter on a rigid body, please make sure to enable the
@@ -55,7 +55,7 @@ class ContactSensor(BaseContactSensor):
     The sensor can be configured to report the contact forces on a set of bodies with a given
     filter pattern using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is useful
     when you want to report the contact forces between the sensor bodies and a specific set of
-    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
+    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.normal_force_matrix_w`.
     Please check the documentation on `RigidContact`_ for more details.
 
     The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
@@ -89,7 +89,7 @@ class ContactSensor(BaseContactSensor):
         super().__init__(cfg)
 
         # Enable contact processing
-        get_settings_manager().set_bool("/physics/disableContactProcessing", False)
+        get_settings_manager().set("/physics/disableContactProcessing", False)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
@@ -107,10 +107,13 @@ class ContactSensor(BaseContactSensor):
         self._env_mask: wp.array | None = None
         # Warp views over the PhysX output buffers, built lazily on the first fetch since the
         # buffers are allocated once and refreshed in place (see :meth:`_fetch_physx_buffers`)
-        self._net_forces_flat: wp.array | None = None
-        self._force_matrix_flat: wp.array | None = None
+        self._net_normal_forces_flat: wp.array | None = None
+        self._net_friction_forces_flat: wp.array | None = None
+        self._normal_force_matrix_flat: wp.array | None = None
+        self._friction_force_matrix_flat: wp.array | None = None
         self._poses_flat: wp.array | None = None
         self._contact_points_flat: wp.array | None = None
+        # Isaac Sim 6.1 compatibility buffers for detailed filtered friction.
         self._friction_forces_flat: wp.array | None = None
         self._friction_counts: wp.array | None = None
         self._friction_start_indices: wp.array | None = None
@@ -118,6 +121,7 @@ class ContactSensor(BaseContactSensor):
         # would otherwise overwrite (it shares those buffers with get_contact_data)
         self._contact_counts: wp.array | None = None
         self._contact_start_indices: wp.array | None = None
+        self._supports_total_contact_forces = False
 
         # check if max_contact_data_count_per_prim is set
         if self.cfg.max_contact_data_count_per_prim is None:
@@ -187,6 +191,31 @@ class ContactSensor(BaseContactSensor):
     Operations
     """
 
+    def update(self, dt: float, force_recompute: bool = False) -> None:
+        """Advances the sensor timestamp and refreshes the PhysX contact buffers.
+
+        PhysX zeroes the net contact force of a body only on the physics step where its contact
+        is lost. A sensor that is refreshed lazily (on data access) would skip that step and keep
+        reporting the last in-contact force until the next touchdown, so the PhysX getters are
+        called on every physics step. The warp kernels that turn those buffers into sensor data
+        remain lazy and only run when :attr:`data` is accessed. The body poses have no such
+        transient and are only read on data access.
+
+        Args:
+            dt: Time elapsed since the previous sensor update [s].
+            force_recompute: Whether to recompute the sensor buffers regardless of their
+                configured update period. Defaults to False.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so the sensor must be updated outside the capture.
+        """
+        super().update(dt, force_recompute=force_recompute)
+        # Skip the fetch if the base class already refreshed the buffers on this step, which it
+        # does when the sensor carries a history buffer.
+        if self._is_initialized and self._data_dirty:
+            self._fetch_physx_buffers(include_pose=False)
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         # resolve env_ids to warp array
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
@@ -200,27 +229,36 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self._num_filter_shapes,
                 env_mask,
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
+                self._data._normal_force_matrix_w_history,
             ],
             outputs=[
                 self._data._current_air_time,
                 self._data._last_air_time,
                 self._data._current_contact_time,
                 self._data._last_contact_time,
-                self._data._friction_forces_w,
+                self._data._friction_force_matrix_w,
+                self._data._friction_force_matrix_w_history,
                 self._data._contact_pos_w,
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
+                self._data._net_friction_forces_w,
+                self._data._net_friction_forces_w_history,
             ],
             device=self._device,
         )
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
         by comparing the current contact time with the given time period. If the contact time is less
-        than the given time period, then the bodies are considered to be in contact.
+        than the given time period, then the bodies are considered to be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
@@ -235,7 +273,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contact was established.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have established contact within the last
@@ -251,21 +290,25 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[float(dt + tol), self._data._current_contact_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
         return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_air(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds
         by comparing the current air time with the given time period. If the air time is less
-        than the given time period, then the bodies are considered to not be in contact.
+        than the given time period, then the bodies are considered to not be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,
@@ -280,7 +323,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contract is broken.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have broken contact within the last :attr:`dt` seconds.
@@ -296,10 +340,13 @@ class ContactSensor(BaseContactSensor):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
 
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[float(dt + tol), self._data._current_air_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
@@ -312,10 +359,12 @@ class ContactSensor(BaseContactSensor):
     def _initialize_impl(self):
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         # Split the configured prim path into a parent expression and a leaf-name regex.
-        parent_expr, leaf_pattern = self.cfg.prim_path.rsplit("/", 1)
+        # split on separators only: a trailing ``[^/]`` class holds a ``/`` that is not one
+        *parent_segments, leaf_pattern = split_path_expr(self.cfg.prim_path)
+        parent_expr = "/".join(parent_segments)
         name_pattern = re.compile(leaf_pattern)
 
         def has_contact_report(prim) -> bool:
@@ -339,11 +388,13 @@ class ContactSensor(BaseContactSensor):
         # parent-level name alternation cannot address them.
         # note: with a list of patterns, the views order bodies pattern-major:
         #   view_id = body_id * num_envs + env_id
-        body_path_globs = [expr.replace(".*", "*") for _, expr in body_matches]
-        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+        body_path_globs = [path_expr_to_glob(expr) for _, expr in body_matches]
+        filter_prim_paths_glob = [path_expr_to_glob(expr) for expr in self.cfg.filter_prim_paths_expr]
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
+        self._num_sensors = len(body_names)
+        self._check_env_count(self.body_physx_view.count, " or ".join(body_path_globs), self._num_sensors)
         # with a list of sensor patterns, the contact view expects one filter list per pattern;
         # keep the no-filter case as a flat empty list, matching the API default
         filter_patterns = [filter_prim_paths_glob] * len(body_path_globs) if filter_prim_paths_glob else []
@@ -352,20 +403,11 @@ class ContactSensor(BaseContactSensor):
             filter_patterns=filter_patterns,
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
-        # resolve the true count of bodies
-        self._num_sensors = self.body_physx_view.count // self._num_envs
-        # check that contact reporter succeeded
-        if self._num_sensors != len(body_names):
-            raise RuntimeError(
-                "Failed to initialize contact reporter for specified bodies."
-                f"\n\tInput prim path    : {self.cfg.prim_path}"
-                f"\n\tResolved prim paths: {body_path_globs}"
-                f"\n\tView body count    : {self.body_physx_view.count} ({self._num_envs} envs,"
-                f" {self._num_sensors} per env), expected {len(body_names)} per env"
-            )
-
+        self._supports_total_contact_forces = hasattr(self.contact_view, "get_net_friction_contact_forces")
         # check if filter paths are valid
-        if self.cfg.track_contact_points or self.cfg.track_friction_forces:
+        if self.cfg.track_contact_points or (
+            self.cfg.track_friction_forces and not self._supports_total_contact_forces
+        ):
             if not self.cfg.filter_prim_paths_expr:
                 raise ValueError(
                     "The 'filter_prim_paths_expr' is empty. Please specify a valid filter pattern to track"
@@ -399,6 +441,7 @@ class ContactSensor(BaseContactSensor):
             track_air_time=self.cfg.track_air_time,
             track_contact_points=self.cfg.track_contact_points,
             track_friction_forces=self.cfg.track_friction_forces,
+            supports_total_contact_forces=self._supports_total_contact_forces,
             device=self._device,
         )
 
@@ -419,13 +462,8 @@ class ContactSensor(BaseContactSensor):
                 cannot be graph-captured, so replays of such a graph would consume stale
                 contact data.
         """
+        self._raise_if_graph_capturing()
         device = wp.get_device(self._device)
-        if device.is_capturing:
-            raise RuntimeError(
-                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
-                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
-                " graph would consume stale contact data."
-            )
 
         # Convert env_mask to warp array
         env_mask = self._resolve_indices_and_mask(None, env_mask)
@@ -453,6 +491,19 @@ class ContactSensor(BaseContactSensor):
             self._compute_graph = capture.graph
         wp.capture_launch(self._compute_graph)
 
+    def _raise_if_graph_capturing(self) -> None:
+        """Rejects a PhysX tensor read while an outer CUDA graph capture is active.
+
+        Raises:
+            RuntimeError: If the sensor's device is capturing a CUDA graph.
+        """
+        if wp.get_device(self._device).is_capturing:
+            raise RuntimeError(
+                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
+                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
+                " graph would consume stale contact data."
+            )
+
     @staticmethod
     def _checked_view(buffer: wp.array, view: wp.array | None, dtype) -> wp.array:
         """Returns the cached typed view over ``buffer``, verifying pointer stability.
@@ -471,34 +522,65 @@ class ContactSensor(BaseContactSensor):
             )
         return view
 
-    def _fetch_physx_buffers(self) -> None:
+    def _fetch_physx_buffers(self, include_pose: bool = True) -> None:
         """Refreshes the contact data from PhysX and lazily builds the warp views over it.
 
         The PhysX tensor getters allocate their output buffers once and refresh them in place on
         every call, so the views (and the CUDA graph that consumes them) stay valid across
-        updates (a pointer change raises via :meth:`_checked_view`). Since ``get_friction_data``
-        refreshes the same count and start-index buffers as ``get_contact_data``, the
-        contact-point counts are staged into sensor-owned copies before the friction read
-        overwrites them.
+        updates (a pointer change raises via :meth:`_checked_view`). Isaac Sim 6.1 only exposes
+        detailed filtered friction; there, ``get_friction_data`` refreshes the same count and
+        start-index buffers as ``get_contact_data``, so the contact-point counts are staged into
+        sensor-owned copies before the friction read overwrites them.
+
+        Args:
+            include_pose: Whether to also read the body poses when ``track_pose`` is enabled.
+                The per-step refresh in :meth:`update` skips them since only the contact
+                buffers carry the contact-loss transient. Defaults to True.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so replays of such a graph would consume stale
+                contact data.
         """
+        self._raise_if_graph_capturing()
+
         # PhysX returns (B*N, 3) float32 -> viewed as (B*N,) vec3f, body-major (one view
-        # pattern per body)
-        net_forces = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt)
-        self._net_forces_flat = self._checked_view(net_forces, self._net_forces_flat, wp.vec3f)
+        # pattern per body). Isaac Sim 6.2 exposes separate aggregate normal and friction buffers.
+        if self._supports_total_contact_forces:
+            normal_forces = self.contact_view.get_net_normal_contact_forces(dt=self._sim_physics_dt)
+            friction_forces = self.contact_view.get_net_friction_contact_forces(dt=self._sim_physics_dt)
+            self._net_friction_forces_flat = self._checked_view(
+                friction_forces, self._net_friction_forces_flat, wp.vec3f
+            )
+        else:
+            normal_forces = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt)
+        self._net_normal_forces_flat = self._checked_view(normal_forces, self._net_normal_forces_flat, wp.vec3f)
 
         # PhysX returns (B*N, M, 3) float32 -> viewed as (B*N, M) vec3f
         if self.cfg.filter_prim_paths_expr:
-            force_matrix = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt)
-            self._force_matrix_flat = self._checked_view(force_matrix, self._force_matrix_flat, wp.vec3f)
+            if self._supports_total_contact_forces:
+                normal_matrix = self.contact_view.get_normal_contact_force_matrix(dt=self._sim_physics_dt)
+                friction_matrix = self.contact_view.get_friction_contact_force_matrix(dt=self._sim_physics_dt)
+                self._friction_force_matrix_flat = self._checked_view(
+                    friction_matrix, self._friction_force_matrix_flat, wp.vec3f
+                )
+            else:
+                normal_matrix = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt)
+            self._normal_force_matrix_flat = self._checked_view(normal_matrix, self._normal_force_matrix_flat, wp.vec3f)
 
         # PhysX returns (B*N, 7) float32 -> viewed as (B*N,) transformf, body-major
-        if self.cfg.track_pose:
+        if self.cfg.track_pose and include_pose:
+            self._backend_manager.update_kinematics()
             poses = self.body_physx_view.get_transforms()
             self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
 
         # points: (total_contacts, 3) float32 -> viewed as (total_contacts,) vec3f
         if self.cfg.track_contact_points:
-            _, points, _, _, counts, start_indices = self.contact_view.get_contact_data(dt=self._sim_physics_dt)
+            if self._supports_total_contact_forces:
+                contact_data = self.contact_view.get_normal_contact_data(dt=self._sim_physics_dt)
+            else:
+                contact_data = self.contact_view.get_contact_data(dt=self._sim_physics_dt)
+            _, points, _, _, counts, start_indices = contact_data
             if self._contact_points_flat is None:
                 self._contact_points_flat = self._checked_view(points, None, wp.vec3f)
                 self._contact_counts = wp.clone(counts)
@@ -508,8 +590,8 @@ class ContactSensor(BaseContactSensor):
                 wp.copy(self._contact_counts, counts)
                 wp.copy(self._contact_start_indices, start_indices)
 
-        # frictions: (total_contacts, 3) float32 -> viewed as (total_contacts,) vec3f
-        if self.cfg.track_friction_forces:
+        # Isaac Sim 6.1 reports filtered friction only through the detailed-contact buffers.
+        if self.cfg.track_friction_forces and not self._supports_total_contact_forces:
             frictions, _, counts, start_indices = self.contact_view.get_friction_data(dt=self._sim_physics_dt)
             if self._friction_forces_flat is None:
                 self._friction_forces_flat = self._checked_view(frictions, None, wp.vec3f)
@@ -528,25 +610,34 @@ class ContactSensor(BaseContactSensor):
             update_net_forces_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
-                self._net_forces_flat,
-                self._force_matrix_flat,
+                self._net_normal_forces_flat,
+                self._net_friction_forces_flat,
+                self._normal_force_matrix_flat,
+                self._friction_force_matrix_flat,
                 self._env_mask,
                 self._num_envs,
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
-                self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
             ],
             outputs=[
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
-                self._data._force_matrix_w_history,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
+                self._data._normal_force_matrix_w_history,
                 self._data._current_air_time,
                 self._data._current_contact_time,
                 self._data._last_air_time,
                 self._data._last_contact_time,
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
+                self._data._net_friction_forces_w,
+                self._data._net_friction_forces_w_history,
+                self._data._friction_force_matrix_w if self._supports_total_contact_forces else None,
+                self._data._friction_force_matrix_w_history if self._supports_total_contact_forces else None,
             ],
             device=self._device,
         )
@@ -580,7 +671,7 @@ class ContactSensor(BaseContactSensor):
             )
 
         # -- Friction forces --
-        if self.cfg.track_friction_forces:
+        if self.cfg.track_friction_forces and not self._supports_total_contact_forces:
             wp.launch(
                 unpack_contact_buffer_data,
                 dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
@@ -593,7 +684,19 @@ class ContactSensor(BaseContactSensor):
                     False,
                     0.0,
                 ],
-                outputs=[self._data._friction_forces_w],
+                outputs=[self._data._friction_force_matrix_w],
+                device=self.device,
+            )
+            wp.launch(
+                update_filtered_force_history_kernel,
+                dim=(self._num_envs, self._num_sensors),
+                inputs=[
+                    self._history_length,
+                    self._num_filter_shapes,
+                    self._env_mask,
+                    self._data._friction_force_matrix_w,
+                    self._data._friction_force_matrix_w_history,
+                ],
                 device=self.device,
             )
 
@@ -604,19 +707,31 @@ class ContactSensor(BaseContactSensor):
             # create markers if necessary for the first time
             if not hasattr(self, "contact_visualizer"):
                 self.contact_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+                self.normal_force_visualizer = ContactForceVisualizer(
+                    self.cfg.normal_force_visualizer_cfg,
+                    self.cfg.force_visualization_scale,
+                )
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
+            self.normal_force_visualizer.set_visibility(True)
+            if self._is_initialized and not self._supports_total_contact_forces:
+                logger.warning(
+                    "Isaac Sim PhysX 6.1 contact sensor visualization cannot display net friction forces because"
+                    " the backend only reports friction for configured filter objects."
+                )
         else:
             if hasattr(self, "contact_visualizer"):
                 self.contact_visualizer.set_visibility(False)
+                self.normal_force_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
         # note: this invalidity happens because of isaac sim view callbacks
         if self.body_physx_view is None:
             return
+        self._update_outdated_buffers()
         # Convert warp data to torch at the boundary for visualization
-        net_forces_torch = self._data.net_forces_w.torch  # (N, B, 3)
+        net_forces_torch = self._data.net_normal_forces_w.torch  # (N, B, 3)
         net_contact_force_w = torch.linalg.norm(net_forces_torch, dim=-1)
         # marker indices: 0 = contact, 1 = no contact
         marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
@@ -629,6 +744,12 @@ class ContactSensor(BaseContactSensor):
             frame_origins = pose_torch.view(self._num_sensors, -1, 7).transpose(0, 1)[:, :, :3]
         # visualize
         self.contact_visualizer.visualize(frame_origins.reshape(-1, 3), marker_indices=marker_indices.reshape(-1))
+        assert self.cfg.force_threshold is not None
+        self.normal_force_visualizer.visualize(
+            frame_origins,
+            net_forces_torch,
+            self.cfg.force_threshold,
+        )
 
     """
     Internal simulation callbacks.
@@ -644,10 +765,15 @@ class ContactSensor(BaseContactSensor):
         # drop the captured graph and the cached warp views since they reference buffers owned
         # by the invalidated views
         self._compute_graph = None
-        self._net_forces_flat = None
-        self._force_matrix_flat = None
+        self._net_normal_forces_flat = None
+        self._net_friction_forces_flat = None
+        self._normal_force_matrix_flat = None
+        self._friction_force_matrix_flat = None
         self._poses_flat = None
         self._contact_points_flat = None
         self._friction_forces_flat = None
         self._friction_counts = None
         self._friction_start_indices = None
+        self._contact_counts = None
+        self._contact_start_indices = None
+        self._supports_total_contact_forces = False

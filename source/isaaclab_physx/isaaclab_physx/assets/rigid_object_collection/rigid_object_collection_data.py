@@ -13,13 +13,15 @@ import torch
 import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.buffers import reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 
 from isaaclab_physx.assets import kernels as shared_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
+from isaaclab_physx.physics import PhysxManager
+
+from ..kernels import vec13f
 
 if TYPE_CHECKING:
     import omni.physics.tensors as physx
@@ -62,15 +64,27 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     __backend_name__: str = "physx"
     """The name of the backend for the rigid object collection data."""
 
-    def __init__(self, root_view: physx.RigidBodyView, num_bodies: int, device: str):
+    def __init__(
+        self,
+        root_view: physx.RigidBodyView,
+        num_bodies: int,
+        device: str,
+        *,
+        backend_manager: PhysxManager | None = None,
+    ):
         """Initializes the rigid object data.
 
         Args:
             root_view: The root rigid body collection view.
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
+            backend_manager: The PhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view, num_bodies, device)
+        if backend_manager is None:
+            backend_manager = PhysxManager._deprecated_active("RigidObjectCollectionData()")
+        self._backend_manager = backend_manager
         self.num_bodies = num_bodies
         # Set the root rigid body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
@@ -83,7 +97,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._is_primed = False
 
         # Obtain global physics sim view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
@@ -429,9 +443,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.GRAVITY_VEC_W, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.GRAVITY_VEC_W],
                 outputs=[self._projected_gravity_b.data],
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
@@ -452,7 +466,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.body_heading_w,
+                warp_math.heading[2],
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.FORWARD_VEC_B, self.body_link_quat_w],
                 outputs=[self._heading_w.data],
@@ -474,9 +488,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_lin_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_link_lin_vel_w],
                 outputs=[self._body_link_lin_vel_b.data],
             )
             self._body_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -496,9 +510,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_ang_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_link_ang_vel_w],
                 outputs=[self._body_link_ang_vel_b.data],
             )
             self._body_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -518,9 +532,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_lin_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_com_lin_vel_w],
                 outputs=[self._body_com_lin_vel_b.data],
             )
             self._body_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -540,9 +554,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_ang_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_com_ang_vel_w],
                 outputs=[self._body_com_ang_vel_b.data],
             )
             self._body_com_ang_vel_b.timestamp = self._sim_timestamp
@@ -713,66 +727,44 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     def _create_buffers(self) -> None:
         super()._create_buffers()
+        body_shape = (self.num_instances, self.num_bodies)
+        device = self.device
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._body_link_pose_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
-        self._body_link_vel_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf
-        )
+        self._body_link_pose_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
+        self._body_link_vel_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
+        self._body_com_pose_b = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
         # -- com frame w.r.t. world frame
-        self._body_com_pose_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
-        self._body_com_vel_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
-        self._body_com_acc_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
+        self._body_com_vel_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- combined state (these are cached as they concatenate)
-        self._body_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
-        )
-        self._body_link_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
-        )
-        self._body_com_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
-        )
+        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
 
         # -- Default state
-        self._default_body_pose = wp.zeros(
-            (self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device
-        )
-        self._default_body_vel = wp.zeros(
-            (self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device
-        )
+        self._default_body_pose = wp.zeros(body_shape, dtype=wp.transformf, device=device)
+        self._default_body_vel = wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
         self._default_body_state = None
 
         # -- Derived properties
-        self._projected_gravity_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._heading_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.float32)
-        self._body_link_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_link_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_com_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_com_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._heading_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.float32, device=device))
+        self._body_link_lin_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._body_link_ang_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._body_com_lin_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._body_com_ang_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
 
         # -- Body properties (stored in instance order: num_instances, num_bodies[, data_dim])
         # Masses: view returns (B*I, 1) in view order. _reshape_view_to_data gives (I, B) in instance order.
-        self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses()).reshape(
-            (self.num_instances, self.num_bodies)
-        )
+        self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses()).reshape(body_shape)
         # Inertias: view returns (B*I, 9) in view order. Need (I, B, 9) in instance order.
         # _reshape_view_to_data only handles single-element dtypes, so we use _reshape_view_to_data_3d.
         self._body_inertia = self._reshape_view_to_data_3d(self._root_view.get_inertias(), 9)
 
-        # Initialize ProxyArray wrappers
-        self._pin_proxy_arrays()
-
-    def _pin_proxy_arrays(self) -> None:
-        """Create pinned ProxyArray wrappers for all data buffers.
-
-        This is called once from :meth:`_create_buffers` during initialization.
-        PhysX tensor API buffers have stable GPU pointers across simulation steps,
-        so no rebinding is needed (unlike Newton).
-        """
-        # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
+        # Initialize ProxyArray wrappers (lazily created on first property access).
         # Defaults
         self._default_body_pose_ta: ProxyArray | None = None
         self._default_body_vel_ta: ProxyArray | None = None
@@ -925,20 +917,13 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._default_body_state is None:
-            self._default_body_state = wp.zeros(
-                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._default_body_state = wp.zeros((self.num_instances, self.num_bodies), dtype=vec13f, device=self.device)
         self._read_launch_cache.launch(
             "default_body_state",
             shared_kernels.concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
-            inputs=[
-                self._default_body_pose,
-                self._default_body_vel,
-            ],
-            outputs=[
-                self._default_body_state,
-            ],
+            inputs=[self._default_body_pose, self._default_body_vel],
+            outputs=[self._default_body_state],
         )
         if self._default_body_state_ta is None:
             self._default_body_state_ta = ProxyArray(self._default_body_state)

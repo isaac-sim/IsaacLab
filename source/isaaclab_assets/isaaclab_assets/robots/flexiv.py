@@ -14,6 +14,9 @@ The following configurations are available:
 Reference: https://www.flexiv.com/product/rizon
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -26,15 +29,13 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 FLEXIV_RIZON4S_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Flexiv/Rizon4s/rizon4s.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=16, solver_velocity_iteration_count=1
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -53,8 +54,8 @@ FLEXIV_RIZON4S_CFG = ArticulationCfg(
     actuators={
         "shoulder": ImplicitActuatorCfg(
             joint_names_expr=["joint[1-2]"],
-            effort_limit_sim=123.0,
-            velocity_limit_sim=2.094,
+            joint_effort_limit=123.0,
+            joint_velocity_limit=2.094,
             stiffness=6000.0,
             damping=108.5,
             friction=0.0,
@@ -62,8 +63,8 @@ FLEXIV_RIZON4S_CFG = ArticulationCfg(
         ),
         "elbow": ImplicitActuatorCfg(
             joint_names_expr=["joint[3-4]"],
-            effort_limit_sim=64.0,
-            velocity_limit_sim=2.443,
+            joint_effort_limit=64.0,
+            joint_velocity_limit=2.443,
             stiffness=4200.0,
             damping=90.7,
             friction=0.0,
@@ -71,8 +72,8 @@ FLEXIV_RIZON4S_CFG = ArticulationCfg(
         ),
         "wrist": ImplicitActuatorCfg(
             joint_names_expr=["joint[5-7]"],
-            effort_limit_sim=39.0,
-            velocity_limit_sim=4.887,
+            joint_effort_limit=39.0,
+            joint_velocity_limit=4.887,
             stiffness=1500.0,
             damping=54.2,
             friction=0.0,
@@ -86,15 +87,13 @@ FLEXIV_RIZON4S_CFG = ArticulationCfg(
 FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Flexiv/Rizon4s/rizon4s_with_grav.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=16, solver_velocity_iteration_count=1
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -116,8 +115,8 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
     actuators={
         "shoulder": ImplicitActuatorCfg(
             joint_names_expr=["joint[1-2]"],
-            effort_limit_sim=123.0,
-            velocity_limit_sim=2.094,
+            joint_effort_limit=123.0,
+            joint_velocity_limit=2.094,
             stiffness=1320.0,
             damping=72.0,
             friction=0.0,
@@ -125,8 +124,8 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         ),
         "elbow": ImplicitActuatorCfg(
             joint_names_expr=["joint[3-4]"],
-            effort_limit_sim=64.0,
-            velocity_limit_sim=2.443,
+            joint_effort_limit=64.0,
+            joint_velocity_limit=2.443,
             stiffness=600.0,
             damping=35.0,
             friction=0.0,
@@ -134,8 +133,8 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         ),
         "wrist": ImplicitActuatorCfg(
             joint_names_expr=["joint[5-7]"],
-            effort_limit_sim=39.0,
-            velocity_limit_sim=4.887,
+            joint_effort_limit=39.0,
+            joint_velocity_limit=4.887,
             stiffness=216.0,
             damping=29.0,
             friction=0.0,
@@ -143,8 +142,8 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         ),
         "gripper_drive": ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit_sim=200.0,
-            velocity_limit_sim=0.6,
+            joint_effort_limit=200.0,
+            joint_velocity_limit=0.6,
             stiffness=2e3,
             damping=1e1,
             friction=0.0,
@@ -152,8 +151,8 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
         ),
         "gripper_passive": ImplicitActuatorCfg(
             joint_names_expr=[".*_knuckle_joint"],
-            effort_limit_sim=1.0,
-            velocity_limit_sim=1.0,
+            joint_effort_limit=1.0,
+            joint_velocity_limit=1.0,
             stiffness=0.0,
             damping=0.0,
             friction=0.0,

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, to_dict
 
 
 @configclass
@@ -190,7 +190,7 @@ class NewtonCollisionPipelineCfg:
         """
         from newton.geometry import HydroelasticSDF
 
-        cfg_dict = self.to_dict()
+        cfg_dict = to_dict(self)
         hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)

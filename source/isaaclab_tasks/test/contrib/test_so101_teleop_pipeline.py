@@ -3,86 +3,48 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sim-free tests for the SO-101 XR teleop pipeline wiring.
+"""Run the SO-101 Capture graph with encoded controller snapshots and verify its 8D action contract."""
 
-These tests build the IsaacTeleop pipeline standalone (no ``gym.make``, USD, GPU, or XR
-device) and verify the flattened action width and element order, plus the external-input
-contract the Lab-side device wiring depends on.
-
-The retargeter math itself (trigger -> closedness, clutch rebasing, orientation calibration) is
-unit tested in Isaac Teleop (``test_so101_retargeters.py``); this file guards only the Lab-side
-wiring:
-
-- The pose retargeter emits a fixed 7-element output; the flattened action passes the full pose
-  through and concatenates the gripper channel into the 8D action
-  ``[pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w, gripper]``.
-- Each entry in ``output_order`` must resolve to a declared element name; an undeclared
-  name resolves silently to a constant 0.0 instead of raising.
-- The clutch declares only the controller input (no ``robot_ee_pos`` / ``robot_base_pos``): the
-  base-frame rebase is handled upstream by ``target_frame_prim_path`` and the engage home is the
-  clutch's static reset-origin config, so no live end-effector or base feed is wired.
-"""
-
+import numpy as np
 import pytest
 
 pytest.importorskip("isaacteleop")
 
-from isaacteleop.retargeters import SO101ClutchRetargeter
-from isaacteleop.retargeters.SO101.gripper_retargeter import GRIPPER_ELEMENT_LABEL
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+from isaacteleop.retargeting_engine.interface import ComputeContext, ExecutionEvents, ExecutionState, TensorGroup
+from isaacteleop.schema import ControllerInputState, ControllerPose, ControllerSnapshot, Point, Pose, Quaternion
 
 from isaaclab_tasks.contrib.stack.config.so101.stack_ik_abs_env_cfg import _build_so101_stack_pipeline
 
 
-def test_so101_pipeline_action_is_8d():
-    """The SO-101 pipeline flattens to an 8D action ``[pos_xyz, quat_xyzw, gripper]``."""
-    combiner = _build_so101_stack_pipeline()
+def test_so101_pipeline_tracks_engage_relative_pose_and_gripper():
+    """Pose/closedness occupy the declared slots, and clutching holds the pose across release and re-engage."""
+    pipeline = _build_so101_stack_pipeline()
+    assert pipeline.output_types()["action"].types[0].shape == (8,)
+    inputs = {
+        leaf.name: {name: TensorGroup(group_type) for name, group_type in leaf.input_spec().items()}
+        for leaf in pipeline.get_leaf_nodes()
+    }
+    inputs["world_T_anchor"]["value"][0] = np.eye(4, dtype=np.float32)
+    inputs["controllers"]["deviceio_controller_left"][0] = None
 
-    action_type = combiner.output_types()["action"].types[0]
-    assert action_type.shape == (8,), f"expected an 8D action, got shape {action_type.shape}"
+    def step(position, orientation, squeeze=1.0, trigger=1.0, reset=False):
+        inputs["controllers"]["deviceio_controller_right"][0] = ControllerSnapshot(
+            grip_pose=ControllerPose(Pose(Point(*position), Quaternion(*orientation)), True),
+            inputs=ControllerInputState(False, False, False, False, 0.0, 0.0, squeeze, trigger),
+        )
+        context = ComputeContext(execution_events=ExecutionEvents(reset=reset, execution_state=ExecutionState.RUNNING))
+        action = pipeline.execute_pipeline(inputs, context)["action"][0]
+        assert action.shape == (8,) and action.dtype == np.float32
+        return action.copy()
 
-
-def test_so101_pipeline_output_order():
-    """The action elements resolve to the declared labels in order (not silent 0.0 fillers)."""
-    combiner = _build_so101_stack_pipeline()
-
-    # Walk the OutputCombiner -> subgraph -> TensorReorderer to read the resolved output order.
-    # NOTE: this depends on isaacteleop internals; the width==8 test is the public-API guard.
-    try:
-        reorderer = combiner.output_mapping["action"].module._target_module
-        output_order = reorderer._output_order
-    except AttributeError:
-        pytest.skip("relies on isaacteleop internals; public accessor unavailable")
-
-    expected_order = [
-        "pos_x",
-        "pos_y",
-        "pos_z",
-        "quat_x",
-        "quat_y",
-        "quat_z",
-        "quat_w",
-        GRIPPER_ELEMENT_LABEL,
-    ]
-    assert output_order == expected_order, (
-        f"unexpected output order {output_order}; the pose/gripper elements must resolve to the"
-        f" declared pos/quat/{GRIPPER_ELEMENT_LABEL!r} labels so they do not become silent 0.0"
-        " fillers"
-    )
-
-
-def test_clutch_consumes_controller_only():
-    """The clutch declares only the controller; no ``robot_ee_pos`` / ``robot_base_pos`` inputs.
-
-    The world->base rebase happens upstream in the device via ``target_frame_prim_path`` (set to
-    the robot base), and the engage home is the clutch's static ``home_base_T_ee`` reset-origin, so
-    the clutch needs no live end-effector or base feed. This guards that the builder does not wire
-    inputs the device no longer provides.
-    """
-    clutch = SO101ClutchRetargeter(name="ee_pose")
-    assert list(clutch.input_spec()) == [ControllersSource.RIGHT]
-    assert not hasattr(SO101ClutchRetargeter, "ROBOT_EE_POS_INPUT")
-    assert not hasattr(SO101ClutchRetargeter, "ROBOT_BASE_POS_INPUT")
-    # The builder still flattens to the 8D action contract.
-    combiner = _build_so101_stack_pipeline()
-    assert combiner.output_types()["action"].types[0].shape == (8,)
+    home = [0.01918, -0.18852, 0.18887, 0.0, 0.0, 0.0, 1.0, 1.0]
+    # The first squeeze emits the configured home even with a rotated controller.
+    np.testing.assert_allclose(step((0.2, 0.3, 0.4), (0.0, 0.0, 2**-0.5, 2**-0.5)), home, atol=1e-6)
+    # Relative to the initial Z quarter-turn, this controller quaternion gives [1, 2, 3, 4] / sqrt(30).
+    moved = [0.11918, 0.01148, 0.48887, *np.array([1, 2, 3, 4]) / np.sqrt(30), 1.0]
+    np.testing.assert_allclose(step((0.3, 0.5, 0.7), np.array([3, 1, 7, 1]) / np.sqrt(60)), moved, atol=1e-6)
+    # Release at another pose, then re-engage there: the commanded arm pose stays held.
+    held = [*moved[:7], 0.0]
+    np.testing.assert_allclose(step((0.8, 0.9, 1.0), (0.0, 0.0, 0.0, 1.0), squeeze=0.0, trigger=0.0), held, atol=1e-6)
+    np.testing.assert_allclose(step((0.8, 0.9, 1.0), (0.0, 0.0, 0.0, 1.0), trigger=0.0), held, atol=1e-6)
+    np.testing.assert_allclose(step((0.8, 0.9, 1.0), (0.0, 0.0, 0.0, 1.0), reset=True), home, atol=1e-6)

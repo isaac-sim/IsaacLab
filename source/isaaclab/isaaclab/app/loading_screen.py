@@ -7,12 +7,17 @@
 
 from __future__ import annotations
 
+import builtins
 import os
+import random
+import re
 import shutil
 import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
+from functools import wraps
 from typing import IO, Any
 
 from rich.cells import cell_len, chop_cells, set_cell_size
@@ -27,7 +32,7 @@ _ACTIVITY_WIDTH = 24
 _REFRESH_PER_SECOND = 10
 _SUMMARY_WIDTH = 50
 _STANDARD_WIDTH = 80
-_WIDE_WIDTH = 120
+_WIDE_WIDTH = 130
 _COLUMN_GAP = 6
 # Reported steps per stage that fill the stage's slice of the bar, and the share
 # of that slice they may fill. Sub-steps are not known in advance, so a stage
@@ -39,24 +44,64 @@ _BOX = ("╭", "╮", "╰", "╯", "─", "│")
 _ASCII_BOX = ("+", "+", "+", "+", "-", "|")
 _WRAP_CONSOLE = Console(color_system=None, force_terminal=False, width=120)
 
-LOGO = r"""Welcome to Isaac Lab!
+LOGO = (
+    "\x1b[0m                        \n"
+    "\x1b[0m                        \n"
+    "\x1b[0m          \x1b[38;2;118;185;0m\\\x1b[0m   \x1b[38;2;118;185;0m/\x1b[0m         \n"
+    "\x1b[0m        \x1b[38;2;232;228;214m.-------.\x1b[0m       \n"
+    "\x1b[0m        \x1b[38;2;232;228;214m|\x1b[0m \x1b[38;2;77;217;232mo\x1b[0m   \x1b[38;2;77;217;232mo\x1b[0m \x1b[38;2;232;228;214m|\x1b[0m       \n"  # noqa: E501
+    "\x1b[0m        \x1b[38;2;232;228;214m|\x1b[0m   \x1b[38;2;232;228;214m_\x1b[0m   \x1b[38;2;232;228;214m|\x1b[0m       \n"  # noqa: E501
+    "\x1b[0m        \x1b[38;2;232;228;214m'-------'\x1b[0m       \n"
+    "\x1b[0m                        \n"
+    "\x1b[0m\x1b[38;2;150;154;160mWelcome\x1b[0m \x1b[38;2;150;154;160mto\x1b[0m \x1b[38;2;150;154;160mIsaac\x1b[0m \x1b[38;2;150;154;160mLab\x1b[0m \x1b[38;2;150;154;160m3!\x1b[0m \n"  # noqa: E501
+    "\x1b[0m                        \n"
+    "\x1b[0m                        \n"
+    "\x1b[0m                        \n"
+)
+"""Static Isaac Lab 3 greeting used on standard-width displays."""
+LOGO_WIDE = (
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[0m \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╗\x1b[0m  \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╗\x1b[0m  \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m      \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╗\x1b[0m \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m  \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔════╝\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔════╝\x1b[0m   \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m  \x1b[38;2;52;84;0m╚════\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m        \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m   \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╔╝\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║╚════\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m        \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;52;84;0m╚═══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m  \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m  \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║╚\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m  \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m  \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;52;84;0m╚═╝╚══════╝╚═╝\x1b[0m  \x1b[38;2;52;84;0m╚═╝╚═╝\x1b[0m  \x1b[38;2;52;84;0m╚═╝\x1b[0m \x1b[38;2;52;84;0m╚═════╝\x1b[0m   \x1b[38;2;52;84;0m╚══════╝╚═╝\x1b[0m  \x1b[38;2;52;84;0m╚═╝╚═════╝\x1b[0m   \x1b[38;2;52;84;0m╚═════╝\x1b[0m  \n"  # noqa: E501
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m                                                                          \n"
+)
+"""Static Isaac Lab 3 greeting used when a 130-column display is available."""
+LOGO_NVIDIA = (
+    "\x1b[0m         \x1b[0m\x1b[38;2;118;185;0m▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\x1b[0m\n"
+    "\x1b[0m      \x1b[0m\x1b[38;2;118;185;0m▄▄▄▛▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m             \x1b[0m\n"
+    "\x1b[0m  \x1b[0m\x1b[38;2;118;185;0m▗▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▄▄▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m        \x1b[0m\n"  # noqa: E501
+    "\x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▚▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▙▖\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m      \x1b[0m\n"  # noqa: E501
+    "\x1b[0m\x1b[38;2;118;185;0m▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▖▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙\x1b[0m  \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▙▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▘▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\n"  # noqa: E501
+    "\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▀▚▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▘\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▝▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\n"  # noqa: E501
+    "\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m     \x1b[0m\x1b[38;2;118;185;0m▛▀▀▗▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m    \x1b[0m\n"  # noqa: E501
+    "\x1b[0m      \x1b[0m\x1b[38;2;118;185;0m▀▀▀▙▄▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m          \x1b[0m\n"
+    "\x1b[0m         \x1b[0m\x1b[38;2;118;185;0m▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\x1b[0m\n"
+)
+"""NVIDIA greeting used on standard-width displays."""
 
-       \   /
-     .-------.
-     | o   o |
-     |   _   |
-     '-------'"""
-"""Greeting drawn beside the run summary. Kept short enough to fit alongside it."""
+LOGO_NVIDIA_WIDE = (
+    "\x1b[0m              \x1b[0m                        \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m         \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m               \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m    \x1b[0m\x1b[38;2;118;185;0m▄▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▙▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m          \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m     \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▀▄▄▟▛▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;52;84;0m╚════\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▐\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▀\x1b[0m \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙▖▗\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m      \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m      \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╔╝\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m    \x1b[0m\x1b[38;2;118;185;0m▛▘▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m      \x1b[38;2;52;84;0m╚═══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m  \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▙▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▘\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▗▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m    \x1b[0m\x1b[38;2;118;185;0m▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▛▀▀▀▚▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;52;84;0m╚═╝╚══════╝╚═════╝\x1b[0m \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m         \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m               \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m                        \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+)
+"""NVIDIA greeting used when a 130-column display is available."""
 
-LOGO_WIDE = r"""Welcome to Isaac Lab!
-
-██╗███████╗ █████╗  █████╗  ██████╗   ██╗      █████╗ ██████╗
-██║██╔════╝██╔══██╗██╔══██╗██╔════╝   ██║     ██╔══██╗██╔══██╗
-██║███████╗███████║███████║██║        ██║     ███████║██████╔╝
-██║╚════██║██╔══██║██╔══██║██║        ██║     ██╔══██║██╔══██╗
-██║███████║██║  ██║██║  ██║╚██████╗   ███████╗██║  ██║██████╔╝
-╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝   ╚══════╝╚═╝  ╚═╝╚═════╝"""
-"""Wide greeting used when a 120-column display is available."""
+_LOGO_PAIRS = ((LOGO, LOGO_WIDE), (LOGO_NVIDIA, LOGO_NVIDIA_WIDE))
+"""Static logo pairs, ordered standard width then wide."""
 
 _active_screen: LoadingScreen | None = None
 
@@ -142,9 +187,13 @@ def _format_header(
     return summary, display_width
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+"""Colour escapes, which occupy no columns and must not be measured as if they did."""
+
+
 def _block_width(block: str) -> int:
     """Return the width of the widest line in a multiline text block."""
-    return max((cell_len(line) for line in block.splitlines()), default=0)
+    return max((cell_len(_ANSI.sub("", line)) for line in block.splitlines()), default=0)
 
 
 def _join_columns(left: str, right: str, gap: int = _COLUMN_GAP) -> str:
@@ -223,15 +272,20 @@ def _format_elapsed(elapsed: float) -> str:
 class LoadingScreen:
     """Staged progress display that owns the console while a run starts up.
 
-    While the screen is open, everything the startup path writes to standard
-    output and error -- including native libraries writing straight to the
-    underlying file descriptors -- is spooled to a temporary file instead of the
-    console, so it cannot break the progress bar. Alongside the bar the screen
+    While the screen is open, the startup path writes to standard output and
+    error are spooled to a temporary file instead of the console, so they cannot
+    break the progress bar. POSIX also captures native writes to the underlying
+    file descriptors; Windows and macOS preserve their console descriptors and
+    capture Python-level output. Alongside the bar the screen
     shows the step currently running, as reported by :func:`report_activity`,
     and a clock that keeps ticking through long silent steps. The spool is
     replayed when startup fails and dropped when it succeeds. Closing the screen
     hands the console back, so whatever runs next (typically an RL library's
     training log) prints undisturbed.
+
+    While active, the context replaces :func:`builtins.input` process-wide.
+    An interactive prompt restores normal output and replays captured context
+    before waiting for input. Later stages and summaries use plain console output.
 
     The screen degrades to plain stage lines, with no redirection, when it is
     disabled -- for a non-interactive console or a verbose run -- so nothing is
@@ -273,7 +327,7 @@ class LoadingScreen:
                 the run summary. Defaults to True.
         """
         self._num_stages = num_stages
-        self._logos = (LOGO, LOGO_WIDE) if logo else ()
+        self._logos = random.choice(_LOGO_PAIRS) if logo else ()
         self._enabled = _console_is_interactive() if enabled is None else enabled
         self._console: IO[str] = sys.stdout
         self._ascii_only = not _supports_box_drawing(self._console)
@@ -283,6 +337,9 @@ class LoadingScreen:
         self._render_lock = threading.RLock()
         self._spool: IO[str] | None = None
         self._saved_fds: tuple[int, int] | None = None
+        self._saved_streams: tuple[IO[str], IO[str]] | None = None
+        self._original_input: Callable[..., str] | None = None
+        self._input_wrapper: Callable[..., str] | None = None
         self._started = 0.0
         self._index = 0
         self._stage = ""
@@ -294,7 +351,7 @@ class LoadingScreen:
         self._summary_fields: dict[str, str] = {}
 
     def __enter__(self) -> LoadingScreen:
-        """Take over the console and start spooling startup output."""
+        """Take over the console and replace :func:`builtins.input` until a prompt or shutdown."""
         global _active_screen
         self._started = time.monotonic()
         if self._enabled:
@@ -315,6 +372,18 @@ class LoadingScreen:
                     redirect_stderr=False,
                 )
                 self._live.start(refresh=True)
+                original_input = builtins.input
+
+                @wraps(original_input)
+                def input_with_console(*args: Any, **kwargs: Any) -> str:
+                    # Interactive questions need both the captured context and
+                    # their prompt visible before they wait for an answer.
+                    self._shut_down(replay=True)
+                    return original_input(*args, **kwargs)
+
+                self._original_input = original_input
+                self._input_wrapper = input_with_console
+                builtins.input = input_with_console
         _active_screen = self
         return self
 
@@ -389,6 +458,10 @@ class LoadingScreen:
         global _active_screen
         if _active_screen is self:
             _active_screen = None
+        if self._original_input is not None and builtins.input is self._input_wrapper:
+            builtins.input = self._original_input
+            self._original_input = None
+            self._input_wrapper = None
         live: Live | None
         final_header = ""
         with self._render_lock:
@@ -406,13 +479,15 @@ class LoadingScreen:
                 )
             self._live = None
             self._rich_console = None
+            self._enabled = False
         try:
             if live is not None:
                 live.stop()
             if final_header:
                 self._write(f"\n{final_header}\n\n")
         finally:
-            if self._saved_fds is not None:
+            close_console = self._saved_fds is not None
+            if self._saved_fds is not None or self._saved_streams is not None:
                 hidden = self._restore()
                 try:
                     if replay:
@@ -425,7 +500,8 @@ class LoadingScreen:
                             f"({lines} lines of startup output hidden; use --info to show)\n\n"
                         )
                 finally:
-                    self._console.close()
+                    if close_console:
+                        self._console.close()
                     self._console = sys.stdout
 
     def _stage_progress(self) -> float:
@@ -459,7 +535,7 @@ class LoadingScreen:
                 ascii_only=self._ascii_only,
             )
             if header:
-                renderables.extend((Text(""), Text(header, no_wrap=True, overflow="crop")))
+                renderables.extend((Text(""), Text.from_ansi(header, no_wrap=True, overflow="crop")))
         if self._show_progress:
             if renderables:
                 renderables.append(Text(""))
@@ -482,7 +558,10 @@ class LoadingScreen:
         self._console.flush()
 
     def _redirect(self) -> None:
-        """Point the standard output and error file descriptors at a spool file."""
+        """Redirect output to a spool without disrupting the live console."""
+        if sys.platform in {"darwin", "win32"}:
+            self._redirect_streams()
+            return
         try:
             console_fd = os.dup(sys.stdout.fileno())
         except (AttributeError, OSError, ValueError):
@@ -498,16 +577,31 @@ class LoadingScreen:
         os.dup2(self._spool.fileno(), 1)
         os.dup2(self._spool.fileno(), 2)
 
+    def _redirect_streams(self) -> None:
+        """Spool Python output without replacing platform-specific console descriptors."""
+        self._spool = tempfile.TemporaryFile(mode="w+", errors="replace")  # noqa: SIM115
+        self._saved_streams = (sys.stdout, sys.stderr)
+        sys.stdout = self._spool
+        sys.stderr = self._spool
+
     def _restore(self) -> str:
-        """Restore the standard file descriptors and return the spooled output."""
-        sys.stdout.flush()
-        sys.stderr.flush()
-        saved_out, saved_err = self._saved_fds
-        os.dup2(saved_out, 1)
-        os.dup2(saved_err, 2)
-        os.close(saved_out)
-        os.close(saved_err)
-        self._saved_fds = None
+        """Restore redirected output and return the spooled text."""
+        if self._saved_fds is not None:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            saved_out, saved_err = self._saved_fds
+            os.dup2(saved_out, 1)
+            os.dup2(saved_err, 2)
+            os.close(saved_out)
+            os.close(saved_err)
+            self._saved_fds = None
+        elif self._saved_streams is not None:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            sys.stdout, sys.stderr = self._saved_streams
+            self._saved_streams = None
+        else:
+            raise RuntimeError("Loading screen output was not redirected.")
         self._spool.seek(0)
         spooled = self._spool.read()
         self._spool.close()

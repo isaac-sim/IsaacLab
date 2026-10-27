@@ -19,8 +19,8 @@ import logging
 import numpy as np
 import torch
 
-import isaaclab.sim as sim_utils
-
+from .. import sim as sim_utils
+from ..utils import to_dict
 from .visualization_markers_cfg import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
@@ -109,9 +109,10 @@ class VisualizationMarkers:
 
         self.cfg = cfg
         self.prim_path = cfg.prim_path
-        self._count = len(cfg.markers)
+        self._count: int | None = None
         self._is_visible = True
-        self._has_visualized = False
+        sim = sim_utils.SimulationContext.instance()
+        self._device = torch.device(sim.device if sim is not None else "cpu")
         self._backends: list[object] = []
         self._ensure_backends_initialized()
 
@@ -122,7 +123,7 @@ class VisualizationMarkers:
         msg += f"\n\tNumber of prototypes: {self.num_prototypes}"
         msg += "\n\tMarkers Prototypes:"
         for index, (name, marker) in enumerate(self.cfg.markers.items()):
-            msg += f"\n\t\t[Index: {index}]: {name}: {marker.to_dict()}"
+            msg += f"\n\t\t[Index: {index}]: {name}: {to_dict(marker)}"
         return msg
 
     @property
@@ -133,7 +134,7 @@ class VisualizationMarkers:
     @property
     def count(self) -> int:
         """The total number of marker instances."""
-        return self._count
+        return self.num_prototypes if self._count is None else self._count
 
     def set_visibility(self, visible: bool):
         """Set marker visibility for all initialized backends."""
@@ -154,13 +155,15 @@ class VisualizationMarkers:
         orientations: np.ndarray | torch.Tensor | None = None,
         scales: np.ndarray | torch.Tensor | None = None,
         marker_indices: list[int] | np.ndarray | torch.Tensor | None = None,
+        environment_ids: list[int] | np.ndarray | torch.Tensor | None = None,
     ):
         """Update markers in all initialized visualizer backends.
 
         .. note::
-            If the markers are hidden, the function returns without updating
-            backend marker state. This avoids unnecessary work while debug
-            visualization is disabled.
+            If the markers are hidden or no visualizer backend is active (e.g. when
+            running headless), the function returns without validating inputs or
+            updating marker state. This avoids unnecessary work while nothing
+            displays the markers.
 
         Whenever updating the markers, the input arrays must have the same
         number of elements in the first dimension. Backends generally require
@@ -176,6 +179,9 @@ class VisualizationMarkers:
         For instance, if there are two marker prototypes and you pass marker
         indices ``[0, 1, 0, 1]``, the first and third markers use the first
         prototype and the second and fourth markers use the second prototype.
+
+        Inputs are normalized to tensors on the simulation's configured device. Standalone Kit
+        markers without a simulation context use CPU tensors.
 
         .. caution::
             This function updates all markers instanced from the prototypes. If
@@ -195,55 +201,53 @@ class VisualizationMarkers:
                 that the total number of markers is the same as the previous
                 call. If the number of markers is different, the function will
                 update the number of markers.
+            environment_ids: Environment index for each marker instance. Shape
+                is (M). Scene-partition-aware backends assign each instance to
+                the corresponding ``env_<index>`` partition. Defaults to None,
+                which means left unchanged when the marker count is unchanged.
 
         Raises:
             ValueError: When input arrays do not follow the expected shapes.
             ValueError: When the function is called with all None arguments.
         """
         self._ensure_backends_initialized()
-        # If markers are hidden, do not spend time normalizing or dispatching
-        # marker state to the active backends.
-        if not self.is_visible():
+        # If no backend consumes markers (e.g. headless) or markers are hidden, do not spend
+        # time normalizing or dispatching marker state.
+        if not self._backends or not self.is_visible():
             return
 
         norm_translations = self._to_tensor(translations, expected_width=3, name="translations")
         norm_orientations = self._to_tensor(orientations, expected_width=4, name="orientations")
         norm_scales = self._to_tensor(scales, expected_width=3, name="scales")
-        norm_marker_indices = self._to_index_tensor(marker_indices)
-        target_device = self._resolve_target_device(
-            norm_translations, norm_orientations, norm_scales, norm_marker_indices
-        )
-        if norm_translations is not None:
-            norm_translations = norm_translations.to(device=target_device)
-        if norm_orientations is not None:
-            norm_orientations = norm_orientations.to(device=target_device)
-        if norm_scales is not None:
-            norm_scales = norm_scales.to(device=target_device)
-        if norm_marker_indices is not None:
-            norm_marker_indices = norm_marker_indices.to(device=target_device)
+        norm_marker_indices = self._to_index_tensor(marker_indices, name="marker_indices")
+        norm_environment_ids = self._to_index_tensor(environment_ids, name="environment_ids")
+        marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+        marker_counts = {value.shape[0] for value in marker_values if value is not None}
+        if len(marker_counts) > 1:
+            raise ValueError(f"Expected all marker inputs to have the same length. Received: {sorted(marker_counts)}.")
+        num_markers = next(iter(marker_counts), 0)
 
-        num_markers = 0
-        for value in (norm_translations, norm_orientations, norm_scales, norm_marker_indices):
-            if value is not None:
-                num_markers = value.shape[0]
-
-        if (
-            norm_marker_indices is None
-            and num_markers != 0
-            and (not self._has_visualized or num_markers != self._count)
-        ):
-            norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=target_device)
+        if norm_marker_indices is None and num_markers != 0 and num_markers != self._count:
+            norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=self._device)
         elif norm_marker_indices is None and num_markers == 0:
-            if all(value is None for value in (norm_translations, norm_orientations, norm_scales)):
-                raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
-            num_markers = self._count
+            if all(value is None for value in marker_values):
+                if norm_environment_ids is None:
+                    raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
+            num_markers = self.count
+
+        if norm_environment_ids is not None and norm_environment_ids.shape[0] != num_markers:
+            raise ValueError(
+                "Expected `environment_ids` to contain one index per marker. "
+                f"Received {norm_environment_ids.shape[0]} indices for {num_markers} markers."
+            )
 
         for backend in self._backends:
-            backend.visualize(norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+            backend.visualize(
+                norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
+            )
 
         if num_markers != 0:
             self._count = num_markers
-            self._has_visualized = True
 
     def __del__(self):
         for backend in getattr(self, "_backends", []):
@@ -256,30 +260,36 @@ class VisualizationMarkers:
             self._ensure_kit_backend()
             return
 
-        # Markers need the Kit (USD) backend to appear in any rendered frame: continuous rendering
-        # (``is_rendering``), headless offscreen video capture (``has_offscreen_render``), or a
-        # Kit-pumping visualizer. Offscreen is excluded from ``is_rendering`` (see
-        # :attr:`~isaaclab.sim.SimulationContext.is_rendering`), so it is checked explicitly here.
+        # Markers need the Kit (USD) backend to appear in any rendered frame: a native GUI window,
+        # RTX sensor rendering, XR, headless offscreen video capture (``has_offscreen_render``), or
+        # a Kit-pumping visualizer. Note that this deliberately does NOT use ``sim.is_rendering``,
+        # which is also true for non-Kit visualizers (e.g. ``newton_gl``) that never pump Kit's
+        # ``app.update()``. Standing up the Kit backend for such a visualizer leaves its raw USD
+        # marker writes undigested by Fabric, which desyncs the point-instancer prototype table
+        # (``FabricManager::initializePointInstancer mismatched prototypes``) and can crash the next
+        # PhysX GPU step.
         needs_kit_backend = (
-            sim.is_rendering
+            sim.has_gui
+            or bool(sim.get_setting("/isaaclab/render/rtx_sensors"))
+            or bool(sim.get_setting("/isaaclab/xr/enabled"))
             or getattr(sim, "has_offscreen_render", False)
             or any(
                 viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
             )
         )
         if needs_kit_backend:
-            self._ensure_kit_backend()
+            self._ensure_kit_backend(sim)
         if any(
             viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
         ):
             self._ensure_newton_backend()
 
-    def _ensure_kit_backend(self) -> None:
+    def _ensure_kit_backend(self, sim: sim_utils.SimulationContext | None = None) -> None:
         """Create the Kit marker backend if it is not already active."""
         from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 
         if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
-            self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
+            self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible, sim=sim))
 
     def _ensure_newton_backend(self) -> None:
         """Create the Newton-family marker backend if it is not already active."""
@@ -288,41 +298,23 @@ class VisualizationMarkers:
         if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
             self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))
 
-    def _resolve_target_device(self, *values: torch.Tensor | None) -> torch.device:
-        for value in values:
-            if value is not None:
-                return value.device
-        for backend in self._backends:
-            if hasattr(backend, "infer_device"):
-                return backend.infer_device()
-        return torch.device("cpu")
-
-    @staticmethod
     def _to_tensor(
+        self,
         value: np.ndarray | torch.Tensor | None,
         expected_width: int,
         name: str,
     ) -> torch.Tensor | None:
         if value is None:
             return None
-        if isinstance(value, np.ndarray):
-            tensor = torch.from_numpy(value)
-        else:
-            tensor = value.detach()
+        tensor = torch.as_tensor(value, dtype=torch.float32, device=self._device).detach()
         if tensor.ndim != 2 or tensor.shape[1] != expected_width:
             raise ValueError(f"Expected `{name}` to have shape (M, {expected_width}). Received: {tuple(tensor.shape)}.")
-        return tensor.to(dtype=torch.float32)
+        return tensor
 
-    @staticmethod
-    def _to_index_tensor(value: list[int] | np.ndarray | torch.Tensor | None) -> torch.Tensor | None:
+    def _to_index_tensor(self, value: list[int] | np.ndarray | torch.Tensor | None, name: str) -> torch.Tensor | None:
         if value is None:
             return None
-        if isinstance(value, list):
-            tensor = torch.tensor(value)
-        elif isinstance(value, np.ndarray):
-            tensor = torch.from_numpy(value)
-        else:
-            tensor = value.detach()
+        tensor = torch.as_tensor(value, dtype=torch.int32, device=self._device).detach()
         if tensor.ndim != 1:
-            raise ValueError(f"Expected `marker_indices` to have shape (M,). Received: {tuple(tensor.shape)}.")
-        return tensor.to(dtype=torch.int32)
+            raise ValueError(f"Expected `{name}` to have shape (M,). Received: {tuple(tensor.shape)}.")
+        return tensor

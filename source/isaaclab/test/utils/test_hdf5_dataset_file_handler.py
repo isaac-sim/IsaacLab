@@ -2,14 +2,17 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import json
 import os
 import shutil
 import tempfile
 import uuid
 
+import h5py
 import pytest
 import torch
 
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 pytestmark = pytest.mark.unit
@@ -44,7 +47,7 @@ def temp_dir():
     shutil.rmtree(temp_dir)
 
 
-def test_create_dataset_file(temp_dir):
+def test_create_dataset_file(temp_dir, monkeypatch):
     """Test creating a new dataset file."""
     # create a dataset file given a file name with extension
     dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
@@ -64,8 +67,79 @@ def test_create_dataset_file(temp_dir):
     # check if the dataset is created
     assert os.path.exists(dataset_file_path + ".hdf5")
 
+    # create a dataset file given a bare file name in the current working directory
+    monkeypatch.chdir(temp_dir)
+    dataset_file_name = f"{uuid.uuid4()}.hdf5"
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(dataset_file_name, "test_env_name")
+    dataset_file_handler.close()
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+    # check if the dataset is created
+    assert os.path.exists(os.path.join(temp_dir, dataset_file_name))
+
+
+def test_add_env_args_preserves_existing_args_after_reopen(temp_dir):
+    """Test extending environment arguments after reopening a dataset."""
+    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(dataset_file_path, "test_env_name")
+    dataset_file_handler.close()
+
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.open(dataset_file_path, mode="r+")
+    dataset_file_handler.add_env_args({"custom_arg": "custom_value"})
+    dataset_file_handler.close()
+
+    with h5py.File(dataset_file_path, "r") as dataset_file:
+        env_args = json.loads(dataset_file["data"].attrs["env_args"])
+
+    assert env_args == {"env_name": "test_env_name", "type": 2, "custom_arg": "custom_value"}
+
+
+def test_create_resets_env_args_when_reusing_handler(temp_dir):
+    """Test environment arguments do not leak between datasets."""
+    first_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    second_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(first_dataset_path, "first_env")
+    dataset_file_handler.add_env_args({"custom_arg": "custom_value"})
+    dataset_file_handler.close()
+
+    dataset_file_handler.create(second_dataset_path, "second_env")
+    dataset_file_handler.close()
+
+    with h5py.File(second_dataset_path, "r") as dataset_file:
+        env_args = json.loads(dataset_file["data"].attrs["env_args"])
+
+    assert env_args == {"env_name": "second_env", "type": 2}
+
+
+def test_convert_dataset_to_xyzw_updates_format_version(temp_dir):
+    """Converted datasets should load their XYZW quaternions without converting them again."""
+    input_path = os.path.join(temp_dir, "legacy.hdf5")
+    output_path = os.path.join(temp_dir, "converted.hdf5")
+    with h5py.File(input_path, "w") as dataset:
+        dataset.attrs["format_version"] = 0
+        data = dataset.create_group("data")
+        data.attrs["env_args"] = json.dumps({"env_name": "test_env_name"})
+        episode = data.create_group("demo_0")
+        episode.create_dataset("root_pose", data=[[1.0, 2.0, 3.0, 1.0, 0.0, 0.0, 0.0]])
+
+    HDF5DatasetFileHandler.convert_dataset_to_xyzw(input_path, output_path)
+
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.open(output_path)
+    try:
+        assert dataset_file_handler.get_format_version() == 1
+        loaded_episode = dataset_file_handler.load_episode("demo_0", device="cpu")
+        torch.testing.assert_close(
+            loaded_episode.data["root_pose"], torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float64)
+        )
+    finally:
+        dataset_file_handler.close()
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_write_and_load_episode(temp_dir, device):
     """Test writing and loading an episode to and from the dataset file."""
     dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")

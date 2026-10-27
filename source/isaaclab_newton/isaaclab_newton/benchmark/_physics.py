@@ -5,7 +5,7 @@
 
 """Exact Newton solver selection for micro-benchmark entrypoints."""
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 
 
 def create_microbenchmark_physics_cfg(physics_variant: str) -> NewtonCfg:
@@ -22,7 +22,7 @@ def create_microbenchmark_physics_cfg(physics_variant: str) -> NewtonCfg:
     """
     solver_types = {
         "newton_mjwarp": MJWarpSolverCfg,
-        "newton_kamino": KaminoSolverCfg,
+        "newton_kamino": KaminoPADMMSolverCfg,
     }
     try:
         solver_type = solver_types[physics_variant]

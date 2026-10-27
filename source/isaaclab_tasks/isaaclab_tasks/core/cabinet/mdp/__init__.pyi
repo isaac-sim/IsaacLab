@@ -17,8 +17,8 @@ __all__ = [
     "rel_ee_drawer_distance",
 ]
 
-from isaaclab_tasks.core.cabinet.mdp.observations import ee_pos, ee_quat, fingertips_pos, rel_ee_drawer_distance
-from isaaclab_tasks.core.cabinet.mdp.rewards import (
+from .observations import ee_pos, ee_quat, fingertips_pos, rel_ee_drawer_distance
+from .rewards import (
     align_ee_handle,
     align_grasp_around_handle,
     approach_ee_handle,
@@ -27,4 +27,5 @@ from isaaclab_tasks.core.cabinet.mdp.rewards import (
     multi_stage_open_drawer,
     open_drawer_bonus,
 )
+
 from isaaclab.envs.mdp import *

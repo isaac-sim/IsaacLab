@@ -3,269 +3,304 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cross-backend LEAPP export integration tests.
-
-All initialized checkpoints are created in one Kit subprocess first. Each
-backend/task export then runs in its own subprocess against those checkpoints.
-"""
+"""LEAPP checkpoint, policy, compilation, and replay checks without a physics scene."""
 
 from __future__ import annotations
 
-import subprocess
-import sys
-import tempfile
-from collections.abc import Sequence
-from dataclasses import dataclass
+import ast
+import contextlib
 from pathlib import Path
+from types import SimpleNamespace
 
+import gymnasium as gym
+import numpy as np
 import pytest
-from leapp_initialized_checkpoints import discover_backend_tasks, resolved_path_file, task_checkpoint_dir
+import torch
+import yaml
+from leapp_initialized_checkpoints import (
+    _CheckpointEnv,
+    _create_rl_games_checkpoint,
+    _create_rsl_rl_checkpoint,
+    _create_sb3_checkpoint,
+    _create_skrl_checkpoint,
+)
+from leapp_tensor_env import TensorManagerEnv
+from leapp_test_tasks import MANAGER_TASK
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_LEAPP_ROOT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp"
-_CHECKPOINT_SCRIPT = Path(__file__).resolve().parent / "leapp_initialized_checkpoints.py"
-_SUBPROCESS_TIMEOUT = 600
-_CHECKPOINT_BATCH_TIMEOUT = 1200
-_OUTPUT_TAIL_CHARS = 5000
+from isaaclab.envs import DirectRLEnv
+from isaaclab.managers import ActionManager, ObservationManager
+
+from isaaclab_tasks.utils import load_cfg_from_registry
+
+_UR10_TASK = "Isaac-Reach-UR10"
+_DIRECT_TASK = "Isaac-Leapp-Direct-Tensor"
+_CREATORS = {
+    "rsl_rl": _create_rsl_rl_checkpoint,
+    "rl_games": _create_rl_games_checkpoint,
+    "skrl": _create_skrl_checkpoint,
+    "sb3": _create_sb3_checkpoint,
+}
 
 
-@dataclass(frozen=True)
-class ExportFlowBackend:
-    """Configuration for one RL-library LEAPP export flow."""
+class _TensorEnv:
+    """Provide framework observations and LEAPP I/O edges without a simulation context."""
 
-    rl_library: str
-    export_script: Path
-    tasks: tuple[str, ...]
+    def __init__(self, cfg, *, task: str, checkpoint_task: str, backend: str, render_mode=None):
+        self.cfg = cfg
+        self._task = task
+        self.render_mode = render_mode
+        self.spec = SimpleNamespace(id=task)
+        self._source = _CheckpointEnv(checkpoint_task, backend)
+        self._recording = False
+        self.action_manager = SimpleNamespace(total_action_dim=self._source.num_actions)
+        self.single_action_space = self._source.action_space
+        self.action_space = gym.vector.utils.batch_space(self.single_action_space, 1)
+        source_spaces = {
+            name: gym.spaces.Box(-np.inf, np.inf, tuple(value.shape[1:]), dtype=np.float32)
+            for name, value in self._source.get_observations().items()
+        }
+        if backend == "sb3":
+            source_spaces["policy"] = self._source.observation_space
+        self.single_observation_space = gym.spaces.Dict(source_spaces)
+        self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, 1)
+        self.obs_buf = self._observations()
 
     @property
-    def agent_cfg_entry_points(self) -> tuple[str, ...]:
-        """Gym registry keys that identify tasks supported by this backend."""
-        return (f"{self.rl_library}_cfg_entry_point",)
+    def device(self) -> str:
+        return "cpu"
+
+    @property
+    def num_envs(self) -> int:
+        return 1
+
+    @property
+    def max_episode_length(self) -> int:
+        return 100
+
+    def seed(self, seed: int = -1) -> int:
+        return seed
+
+    def _observations(self) -> dict:
+        if isinstance(self._source.observation_space, gym.spaces.Dict):
+            policy = {
+                name: torch.full((1, *space.shape), 0.25, dtype=torch.float32)
+                for name, space in self._source.observation_space.spaces.items()
+            }
+            return {"policy": policy, "critic": torch.zeros(1, 2)}
+        return self._source.get_observations().to_dict()
+
+    def _annotate_observations(self, observations: dict) -> dict:
+        from leapp import annotate
+
+        flat = {
+            f"{group}_{term}" if isinstance(value, dict) else group: tensor
+            for group, value in observations.items()
+            for term, tensor in (value.items() if isinstance(value, dict) else [(None, value)])
+        }
+        values = annotate.input_tensors(self._task, flat)
+        annotated = dict(zip(flat, (values,) if len(flat) == 1 else values))
+        return {
+            group: {term: annotated[f"{group}_{term}"] for term in value}
+            if isinstance(value, dict)
+            else annotated[group]
+            for group, value in observations.items()
+        }
+
+    def reset(self, *, seed=None, options=None):
+        self.obs_buf = self._observations()
+        if self._recording:
+            self.obs_buf = self._annotate_observations(self.obs_buf)
+        return self.obs_buf, {}
+
+    def step(self, actions):
+        if self._recording:
+            from leapp import annotate
+
+            annotate.output_tensors(self._task, {"actions": actions}, export_with="onnx-dynamo")
+            self.obs_buf = self._annotate_observations(self._observations())
+        return (
+            self.obs_buf,
+            torch.zeros(1),
+            torch.zeros(1, dtype=torch.bool),
+            torch.zeros(1, dtype=torch.bool),
+            {},
+        )
+
+    def close(self):
+        """The tensor fixture owns no simulator resources."""
+        pass
 
 
-# Representative RSL-RL tasks chosen for export-path diversity, not coverage
-# breadth. Prefer one example of each distinct observation / command / action
-# pattern over near-duplicates of the same pattern.
-#
-# Default physics pin is Newton MJWarp. Tasks listed in ``_TASKS_WITHOUT_PRESET``
-# declare no ``newton_mjwarp`` selector and run with the task's built-in default.
-_EXPORT_BACKENDS = (
-    ExportFlowBackend(
-        rl_library="rsl_rl",
-        export_script=_LEAPP_ROOT / "rsl_rl" / "export.py",
-        tasks=(
-            # joint-effort locomotion, no commands
-            "Isaac-Cartpole",
-            "Isaac-Humanoid",
-            # pose command + joint-position arm
-            "Isaac-Reach-Franka",
-            "Isaac-Reach-UR10",
-            # OperationalSpaceController is not exportable: the action term and the
-            # controller build their buffers with partial-slice assignment, which
-            # either emits a raw __setitem__ node that torch.export rejects or drops
-            # tracing into a plain buffer. Expect failure until both are functional.
-            # "Isaac-Reach-Franka-OSC",
-            # binary gripper + cabinet articulation
-            "Isaac-Open-Drawer-Franka",
-            # classic lift: object_position_in_robot_root_frame + quat math
-            "IsaacContrib-Lift-Cube-Franka",
-            # history buffers + Object-cloud / contact observations
-            "Isaac-Lift-KukaAllegro",
-            # manager-based locomotion with contact-rich body observations
-            "Isaac-Ant",
-            # EMAJointPositionToLimitsAction is not exportable: it blends the new
-            # target with ``_prev_applied_actions``, a plain buffer carried across
-            # steps that the tracer inlines as a constant, freezing the recurrence
-            # at its trace-time value. Expect failure until it is LEAPP state.
-            # "Isaac-Reorient-Cube-Allegro",
-            # velocity command + projected_gravity; rough adds height_scan
-            "Isaac-Velocity-Flat-AnymalD",
-            "Isaac-Velocity-Rough-AnymalD",
-        ),
-    ),
-    ExportFlowBackend(
-        rl_library="rl_games",
-        export_script=_LEAPP_ROOT / "rl_games" / "export.py",
-        tasks=("Isaac-Cartpole",),
-    ),
-    ExportFlowBackend(
-        rl_library="skrl",
-        export_script=_LEAPP_ROOT / "skrl" / "export.py",
-        tasks=("Isaac-Cartpole",),
-    ),
-    ExportFlowBackend(
-        rl_library="sb3",
-        export_script=_LEAPP_ROOT / "sb3" / "export.py",
-        tasks=("Isaac-Cartpole",),
-    ),
+class _DirectTensorEnv(_TensorEnv, DirectRLEnv):
+    pass
+
+
+@pytest.mark.parametrize(
+    ("backend", "task", "checkpoint_task", "direct"),
+    [
+        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, id="rsl-rl-cnn"),
+        pytest.param("rl_games", MANAGER_TASK, MANAGER_TASK, False, id="rl-games-lstm"),
+        pytest.param("skrl", MANAGER_TASK, MANAGER_TASK, False, id="skrl"),
+        pytest.param("sb3", MANAGER_TASK, MANAGER_TASK, False, id="sb3-dict-normalization"),
+        pytest.param("rsl_rl", _DIRECT_TASK, MANAGER_TASK, True, id="direct-rsl-rl"),
+        pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, id="ur10-rsl-rl"),
+    ],
 )
+def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct: bool, tmp_path: Path, monkeypatch):
+    """Load a native checkpoint, export the real backend policy, and replay changed observations."""
+    from leapp import InferenceManager
 
-# Untyped ``presets=`` form: tasks vary in where they declare the preset, and only
-# some declare it on a ``PhysicsCfg`` (which is what ``physics=`` requires).
-_SIM_PRESET = "newton_mjwarp"
+    from isaaclab_rl.entrypoints.backends import export_rl_games, export_rsl_rl, export_sb3, export_skrl
 
-# These tasks reject any preset token; export uses their authored default backend.
-_TASKS_WITHOUT_PRESET = frozenset({"IsaacContrib-Lift-Cube-Franka"})
-
-
-def _ensure_text(output: str | bytes | None) -> str:
-    """Return subprocess output as text."""
-    if output is None:
-        return ""
-    if isinstance(output, bytes):
-        return output.decode("utf-8", errors="replace")
-    return output
-
-
-def _run_checked(
-    cmd: Sequence[str],
-    *,
-    label: str,
-    timeout: int = _SUBPROCESS_TIMEOUT,
-) -> subprocess.CompletedProcess[str]:
-    """Run a subprocess and fail the test on timeout or non-zero exit."""
-    try:
-        result = subprocess.run(
-            list(cmd),
-            cwd=_REPO_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
+    modules = {"rsl_rl": export_rsl_rl, "rl_games": export_rl_games, "skrl": export_skrl, "sb3": export_sb3}
+    module = modules[backend]
+    torch.set_num_threads(1)
+    torch.manual_seed(42)
+    np.random.seed(42)
+    agent_cfg = load_cfg_from_registry(checkpoint_task, f"{backend}_cfg_entry_point")
+    checkpoint = _CREATORS[backend](_CheckpointEnv(checkpoint_task, backend), agent_cfg, tmp_path)
+    env_cfg = load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point")
+    connected = backend == "rsl_rl" and task == MANAGER_TASK and not direct
+    env = (
+        _DirectTensorEnv(env_cfg, task=task, checkpoint_task=checkpoint_task, backend=backend)
+        if direct
+        else TensorManagerEnv(
+            env_cfg, task=task, backend=backend, width=_CheckpointEnv(checkpoint_task, backend).num_actions
         )
-    except subprocess.TimeoutExpired as exc:
-        stdout = _ensure_text(exc.stdout)
-        stderr = _ensure_text(exc.stderr)
-        pytest.fail(
-            f"{label} timed out after {timeout}s.\n"
-            f"--- stdout tail ---\n{stdout[-_OUTPUT_TAIL_CHARS:]}\n"
-            f"--- stderr tail ---\n{stderr[-_OUTPUT_TAIL_CHARS:]}"
-        )
-
-    if result.returncode != 0:
-        pytest.fail(
-            f"{label} exited with code {result.returncode}.\n"
-            f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
-            f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
-        )
-    return result
-
-
-def _tasks_for_backend(backend: ExportFlowBackend) -> tuple[str, ...]:
-    """Return manager-based tasks to export for *backend*.
-
-    Direct workflow tasks are excluded. They are covered separately by
-    ``test_rsl_rl_direct_export_flow.py``.
-    """
-    tasks = backend.tasks if backend.tasks else discover_backend_tasks(backend.agent_cfg_entry_points)
-    return tuple(task for task in tasks if "Direct" not in task)
-
-
-def _export_cases() -> list[object]:
-    """Build one pytest case per backend/task pair."""
-    cases: list[object] = []
-    for backend in _EXPORT_BACKENDS:
-        for task_name in _tasks_for_backend(backend):
-            cases.append(pytest.param(backend, task_name, id=f"{backend.rl_library}-{task_name}"))
-    return cases
-
-
-def _checkpoint_specs() -> list[tuple[str, str]]:
-    """Return every backend/task pair that needs an initialized checkpoint."""
-    specs: list[tuple[str, str]] = []
-    for backend in _EXPORT_BACKENDS:
-        for task_name in _tasks_for_backend(backend):
-            specs.append((backend.rl_library, task_name))
-    return specs
-
-
-def _preset_for_task(task_name: str) -> str | None:
-    """Return the Hydra preset token for *task_name*, or ``None`` if none apply."""
-    if task_name in _TASKS_WITHOUT_PRESET:
-        return None
-    return _SIM_PRESET
-
-
-def _read_checkpoint_path(checkpoint_root: Path, backend_id: str, task_name: str) -> Path:
-    """Load the recorded checkpoint path for one backend/task pair."""
-    task_dir = task_checkpoint_dir(checkpoint_root, backend_id, task_name)
-    path_file = resolved_path_file(task_dir)
-    assert path_file.is_file(), f"Missing checkpoint path file for {backend_id}/{task_name}: {path_file}"
-    checkpoint_path = Path(path_file.read_text(encoding="utf-8").strip())
-    assert checkpoint_path.is_file(), f"Checkpoint was not written: {checkpoint_path}"
-    return checkpoint_path
-
-
-def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Path, export_root: Path) -> None:
-    """Run the backend export.py CLI against *checkpoint_path*."""
-    command = [
-        sys.executable,
-        str(backend.export_script),
-        "--task",
-        task_name,
-        "--checkpoint",
-        str(checkpoint_path),
-        "--export_save_path",
-        str(export_root),
-        "--disable_graph_visualization",
-    ]
-    preset = _preset_for_task(task_name)
-    if preset is not None:
-        command.append(f"presets={preset}")
-    _run_checked(command, label=f"export.py for {backend.rl_library}/{task_name}")
-
-
-def _assert_leapp_artifacts(export_root: Path, task_name: str) -> None:
-    """Assert the expected LEAPP export artifacts exist."""
-    export_dir = export_root / task_name
-    assert (export_dir / f"{task_name}.onnx").is_file(), f"Missing .onnx export in {export_dir}"
-    assert (export_dir / f"{task_name}.yaml").is_file(), f"Missing .yaml export in {export_dir}"
-    assert (export_dir / "log.txt").is_file(), f"Missing log.txt in {export_dir}"
-
-
-@pytest.fixture(scope="module")
-def initialized_checkpoints(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Create every export-flow checkpoint in one Kit subprocess."""
-    checkpoint_root = tmp_path_factory.mktemp("isaaclab-leapp-checkpoints")
-    command = [
-        sys.executable,
-        str(_CHECKPOINT_SCRIPT),
-        "--checkpoint_root",
-        str(checkpoint_root),
-        "--preset",
-        _SIM_PRESET,
-    ]
-    for backend_id, task_name in _checkpoint_specs():
-        preset = _preset_for_task(task_name)
-        if preset is None:
-            # ``_`` clears the default ``--preset`` for this spec.
-            command.extend(("--spec", backend_id, task_name, "_"))
-        else:
-            command.extend(("--spec", backend_id, task_name))
-    _run_checked(
-        command,
-        label="batched initialized checkpoint creation",
-        timeout=_CHECKPOINT_BATCH_TIMEOUT,
     )
-    return checkpoint_root
+    if not direct:
+        assert isinstance(env.observation_manager, ObservationManager)
+        assert isinstance(env.action_manager, ActionManager)
+    if connected:
+        observed = env.observation_manager.compute()["policy"]
+        positions = observed[:, : env.action_manager.total_action_dim]
+        torch.testing.assert_close(positions, torch.full_like(positions, 0.7))
+        env.action_manager.process_action(torch.full((1, env.action_manager.total_action_dim), 0.4))
+        env.action_manager.apply_action()
+        torch.testing.assert_close(env.scene["robot"].targets[-1]["value"], torch.full_like(positions, 0.3))
+        env.action_manager.process_action(torch.full((1, env.action_manager.total_action_dim), 5.0))
+        env.action_manager.apply_action()
+        torch.testing.assert_close(env.scene["robot"].targets[-1]["value"], torch.full_like(positions, 0.5))
+        env.action_manager.reset()
+    monkeypatch.setattr(module.gym, "make", lambda *args, **kwargs: env)
+    real_capture = module.leapp_capture
+
+    @contextlib.contextmanager
+    def capture(*args, **kwargs):
+        with real_capture(*args, **kwargs) as steps:
+            env._recording = True
+            try:
+                yield steps
+            finally:
+                env._recording = False
+
+    monkeypatch.setattr(module, "leapp_capture", capture)
+    args, _ = module.parse_export_args(
+        [
+            "--task",
+            task,
+            "--checkpoint",
+            str(checkpoint),
+            "--device",
+            "cpu",
+            "--export_save_path",
+            str(tmp_path),
+            "--validation_steps",
+            "2",
+            "--disable_graph_visualization",
+        ]
+    )
+    assert getattr(module, f"export_{backend}_agent")(args, env_cfg, agent_cfg)
+
+    artifact_dir = tmp_path / task
+    pipeline = artifact_dir / f"{task}.yaml"
+    assert pipeline.is_file()
+    assert (artifact_dir / f"{task}.onnx").is_file()
+    description = yaml.safe_load(pipeline.read_text())
+    manager = InferenceManager(str(pipeline))
+    if not direct:
+        model = description["models"][task]
+        connections = {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item}
+        assert {"state:robot:joint_pos", "state:robot:joint_vel"} <= connections
+        action_output = next(item for item in model["outputs"] if item["name"] == "actions")
+        assert action_output["isaaclab_connection"] == "write:robot:set_joint_position_target_index"
+        if backend != "sb3":
+            assert f"{task}/h_policy_joint_vel_out" in description["pipeline"]["feedback_flow"]
+    if connected:
+        from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
+
+        model = description["models"][task]
+        assert {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item} == {
+            "state:camera:output.rgb",
+            "state:robot:joint_pos",
+            "state:robot:joint_vel",
+        }
+        assert [
+            (item["name"], item["isaaclab_connection"]) for item in model["outputs"] if "isaaclab_connection" in item
+        ] == [("actions", "write:robot:set_joint_position_target_index")]
+        action_output = next(item for item in model["outputs"] if item["name"] == "actions")
+        assert action_output["element_names"] == [[f"joint_{index}" for index in range(10)]]
+        deployment = object.__new__(LeappDeploymentEnv)
+        deployment.scene = env.scene
+        deployment._leapp_desc = description
+        deployment.inference = manager
+        deployment._input_mapping = {}
+        deployment._output_mapping = {}
+        deployment.command_manager = None
+        deployment._resolve_io()
+        manager.reset()
+        deployed_outputs = manager.run_policy(deployment._read_inputs())
+        deployment._write_outputs(deployed_outputs)
+        torch.testing.assert_close(env.scene["robot"].targets[-1]["value"], deployed_outputs[f"{task}/actions"])
+    inputs = {}
+    for node_name, names in description["pipeline"]["inputs"].items():
+        for desc in description["models"][node_name]["inputs"]:
+            if desc["name"] in names:
+                inputs[f"{node_name}/{desc['name']}"] = torch.full(
+                    desc["shape"], 0.25, dtype=getattr(torch, desc["dtype"])
+                )
+    assert inputs
+    manager.reset()
+    baseline = {key: value.clone() for key, value in manager.run_policy(inputs).items()}
+    action_keys = baseline.keys() - description["pipeline"]["feedback_flow"].keys()
+    assert action_keys
+    for name, value in inputs.items():
+        manager.reset()
+        changed = {**inputs, name: value + (127 if value.dtype == torch.uint8 else 0.5)}
+        replay = manager.run_policy(changed)
+        assert all(torch.isfinite(output).all() for output in replay.values())
+        assert any(not torch.allclose(replay[key], baseline[key], atol=1e-7) for key in action_keys), name
+    sequences = []
+    for _ in range(2):
+        manager.reset()
+        sequences.append([{key: value.clone() for key, value in manager.run_policy(inputs).items()} for _ in range(2)])
+    for first, second in zip(*sequences):
+        for name in first:
+            torch.testing.assert_close(first[name], second[name])
+    if backend == "rsl_rl" and not direct and task == MANAGER_TASK:
+        import onnx
+
+        assert any(node.op_type == "Conv" for node in onnx.load(artifact_dir / f"{task}.onnx").graph.node)
+    if backend == "rl_games":
+        assert len(description["pipeline"]["feedback_flow"]) >= 2
 
 
-def test_initialized_checkpoints(initialized_checkpoints: Path):
-    """Assert the shared Kit subprocess created every expected checkpoint.
-    This task is purely for generating mock checkpoints for the export flow.
-    """
-    missing = [
-        f"{backend_id}/{task_name}"
-        for backend_id, task_name in _checkpoint_specs()
-        if not resolved_path_file(task_checkpoint_dir(initialized_checkpoints, backend_id, task_name)).is_file()
-    ]
-    assert not missing, f"Missing initialized checkpoints for: {', '.join(missing)}"
-
-
-@pytest.mark.parametrize(("backend", "task_name"), _export_cases())
-def test_leapp_export_flow(backend: ExportFlowBackend, task_name: str, initialized_checkpoints: Path):
-    """Export one backend/task pair using the shared initialized checkpoint."""
-    checkpoint_path = _read_checkpoint_path(initialized_checkpoints, backend.rl_library, task_name)
-    with tempfile.TemporaryDirectory(prefix=f"isaaclab-leapp-export-{backend.rl_library}-") as tmp_dir:
-        export_root = Path(tmp_dir) / "export"
-        _run_export(backend, task_name, checkpoint_path, export_root)
-        _assert_leapp_artifacts(export_root, task_name)
+def test_fast_export_has_no_simulator_dependency():
+    """Keep the export flow independent of scene and solver setup."""
+    export_dir = Path(__file__).parent
+    for obsolete_file in ("test_leapp_export_simulation.py", "leapp_synthetic_env.py", "leapp_synthetic_env_cfg.py"):
+        assert not (export_dir / obsolete_file).exists()
+    forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_physx"}
+    forbidden_calls = {"launch_simulation", "SimulationContext"}
+    for filename in ("test_leapp_export_flow.py", "leapp_tensor_env.py"):
+        for node in ast.walk(ast.parse((export_dir / filename).read_text())):
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                assert not any(module == name or module.startswith(name + ".") for name in forbidden_modules)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                assert node.func.id not in forbidden_calls
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "setattr":
+                assert not any(
+                    isinstance(arg, ast.Constant) and arg.value in {"prepare_export_env", "BaseArticulation"}
+                    for arg in node.args
+                )

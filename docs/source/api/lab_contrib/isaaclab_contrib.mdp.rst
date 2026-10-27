@@ -31,3 +31,23 @@ Thrust Action Implementation
     :members:
     :inherited-members:
     :show-inheritance:
+
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_contrib.mdp` API.
+
+.. currentmodule:: isaaclab_contrib.mdp
+
+.. autosummary::
+   :nosignatures:
+
+   NavigationAction
+   NavigationActionCfg
+
+.. autoclass:: NavigationAction
+   :show-inheritance:
+
+.. autoclass:: NavigationActionCfg
+   :show-inheritance:

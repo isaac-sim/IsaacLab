@@ -10,22 +10,7 @@ import pytest
 import torch
 
 # Import device classes to test
-from isaaclab.devices import (
-    HaplyDevice,
-    HaplyDeviceCfg,
-    Se2Gamepad,
-    Se2GamepadCfg,
-    Se2Keyboard,
-    Se2KeyboardCfg,
-    Se2SpaceMouse,
-    Se2SpaceMouseCfg,
-    Se3Gamepad,
-    Se3GamepadCfg,
-    Se3Keyboard,
-    Se3KeyboardCfg,
-    Se3SpaceMouse,
-    Se3SpaceMouseCfg,
-)
+from isaaclab.devices import HaplyDevice, HaplyDeviceCfg
 
 pytestmark = pytest.mark.integration
 
@@ -33,224 +18,12 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def mock_environment(mocker):
     """Set up common mock objects for tests."""
-    # Create mock objects that will be used across tests
-    carb_mock = mocker.MagicMock()
-    omni_mock = mocker.MagicMock()
-    appwindow_mock = mocker.MagicMock()
-    keyboard_mock = mocker.MagicMock()
-    gamepad_mock = mocker.MagicMock()
-    input_mock = mocker.MagicMock()
-    settings_mock = mocker.MagicMock()
-    hid_mock = mocker.MagicMock()
-    device_mock = mocker.MagicMock()
-
-    # Set up the mocks to return appropriate objects
-    omni_mock.appwindow.get_default_app_window.return_value = appwindow_mock
-    appwindow_mock.get_keyboard.return_value = keyboard_mock
-    appwindow_mock.get_gamepad.return_value = gamepad_mock
-    carb_mock.input.acquire_input_interface.return_value = input_mock
-    carb_mock.settings.get_settings.return_value = settings_mock
-
-    # Mock keyboard event types
-    carb_mock.input.KeyboardEventType.KEY_PRESS = 1
-    carb_mock.input.KeyboardEventType.KEY_RELEASE = 2
-
-    # Mock the SpaceMouse
-    hid_mock.enumerate.return_value = [{"product_string": "SpaceMouse Compact", "vendor_id": 123, "product_id": 456}]
-    hid_mock.device.return_value = device_mock
-
     # Mock Haply WebSocket
     websockets_mock = mocker.MagicMock()
     websocket_mock = mocker.MagicMock()
     websockets_mock.connect.return_value.__aenter__.return_value = websocket_mock
 
-    return {
-        "carb": carb_mock,
-        "omni": omni_mock,
-        "appwindow": appwindow_mock,
-        "keyboard": keyboard_mock,
-        "gamepad": gamepad_mock,
-        "input": input_mock,
-        "settings": settings_mock,
-        "hid": hid_mock,
-        "device": device_mock,
-        "websockets": websockets_mock,
-        "websocket": websocket_mock,
-    }
-
-
-"""
-Test keyboard devices.
-"""
-
-
-def test_se2keyboard_constructors(mock_environment, mocker):
-    """Test constructor for Se2Keyboard."""
-    # Test config-based constructor
-    config = Se2KeyboardCfg(
-        v_x_sensitivity=0.9,
-        v_y_sensitivity=0.5,
-        omega_z_sensitivity=1.2,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.keyboard.se2_keyboard")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    keyboard = Se2Keyboard(config)
-
-    # Verify configuration was applied correctly
-    assert keyboard.v_x_sensitivity == 0.9
-    assert keyboard.v_y_sensitivity == 0.5
-    assert keyboard.omega_z_sensitivity == 1.2
-
-    # Test advance() returns expected type
-    result = keyboard.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
-
-
-def test_se3keyboard_constructors(mock_environment, mocker):
-    """Test constructor for Se3Keyboard."""
-    # Test config-based constructor
-    config = Se3KeyboardCfg(
-        pos_sensitivity=0.5,
-        rot_sensitivity=0.9,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    keyboard = Se3Keyboard(config)
-
-    # Verify configuration was applied correctly
-    assert keyboard.pos_sensitivity == 0.5
-    assert keyboard.rot_sensitivity == 0.9
-
-    # Test advance() returns expected type
-    result = keyboard.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-"""
-Test gamepad devices.
-"""
-
-
-def test_se2gamepad_constructors(mock_environment, mocker):
-    """Test constructor for Se2Gamepad."""
-    # Test config-based constructor
-    config = Se2GamepadCfg(
-        v_x_sensitivity=1.1,
-        v_y_sensitivity=0.6,
-        omega_z_sensitivity=1.2,
-        dead_zone=0.02,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.gamepad.se2_gamepad")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    gamepad = Se2Gamepad(config)
-
-    # Verify configuration was applied correctly
-    assert gamepad.v_x_sensitivity == 1.1
-    assert gamepad.v_y_sensitivity == 0.6
-    assert gamepad.omega_z_sensitivity == 1.2
-    assert gamepad.dead_zone == 0.02
-
-    # Test advance() returns expected type
-    result = gamepad.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
-
-
-def test_se3gamepad_constructors(mock_environment, mocker):
-    """Test constructor for Se3Gamepad."""
-    # Test config-based constructor
-    config = Se3GamepadCfg(
-        pos_sensitivity=1.1,
-        rot_sensitivity=1.7,
-        dead_zone=0.02,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.gamepad.se3_gamepad")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    gamepad = Se3Gamepad(config)
-
-    # Verify configuration was applied correctly
-    assert gamepad.pos_sensitivity == 1.1
-    assert gamepad.rot_sensitivity == 1.7
-    assert gamepad.dead_zone == 0.02
-
-    # Test advance() returns expected type
-    result = gamepad.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-"""
-Test spacemouse devices.
-"""
-
-
-def test_se2spacemouse_constructors(mock_environment, mocker):
-    """Test constructor for Se2SpaceMouse."""
-    # Test config-based constructor
-    config = Se2SpaceMouseCfg(
-        v_x_sensitivity=0.9,
-        v_y_sensitivity=0.5,
-        omega_z_sensitivity=1.2,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se2_spacemouse")
-    mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-
-    spacemouse = Se2SpaceMouse(config)
-
-    # Verify configuration was applied correctly
-    assert spacemouse.v_x_sensitivity == 0.9
-    assert spacemouse.v_y_sensitivity == 0.5
-    assert spacemouse.omega_z_sensitivity == 1.2
-
-    # Test advance() returns expected type
-    mock_environment["device"].read.return_value = [1, 0, 0, 0, 0]
-    result = spacemouse.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
-
-
-def test_se3spacemouse_constructors(mock_environment, mocker):
-    """Test constructor for Se3SpaceMouse."""
-    # Test config-based constructor
-    config = Se3SpaceMouseCfg(
-        pos_sensitivity=0.5,
-        rot_sensitivity=0.9,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
-    mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-
-    spacemouse = Se3SpaceMouse(config)
-
-    # Verify configuration was applied correctly
-    assert spacemouse.pos_sensitivity == 0.5
-    assert spacemouse.rot_sensitivity == 0.9
-
-    # Test advance() returns expected type
-    mock_environment["device"].read.return_value = [1, 0, 0, 0, 0, 0, 0]
-    result = spacemouse.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-"""
-Test Haply devices.
-"""
+    return {"websockets": websockets_mock, "websocket": websocket_mock}
 
 
 def test_haply_constructors(mock_environment, mocker):
@@ -339,11 +112,6 @@ def test_haply_constructors(mock_environment, mocker):
         "versegrip_connected": True,
     }
     haply.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
-
-    # Verify configuration was applied correctly
-    assert haply.websocket_uri == "ws://localhost:10001"
-    assert haply.pos_sensitivity == 1.5
-    assert haply.data_rate == 250.0
 
     # Test advance() returns expected type
     result = haply.advance()

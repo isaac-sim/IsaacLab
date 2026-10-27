@@ -19,7 +19,7 @@ NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(
     ISAACLAB_NUCLEUS_DIR, "Mimic", "franka_stack_datasets", "annotated_dataset_skillgen.hdf5"
 )
 
-_SUBPROCESS_TIMEOUT = 5000
+_SUBPROCESS_TIMEOUT = 1500
 
 
 @pytest.fixture
@@ -79,6 +79,8 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
         "1",
         "--generation_num_trials",
         "1",
+        "--max_num_failures",
+        "10",
         "--use_skillgen",
         "--task",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",

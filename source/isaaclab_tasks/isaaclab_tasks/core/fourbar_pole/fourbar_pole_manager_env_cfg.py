@@ -7,7 +7,11 @@ import copy
 import math
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    KaminoPADMMCfg,
+    KaminoPADMMSolverCfg,
+    NewtonCfg,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -19,11 +23,12 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.fourbar_pole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
 
 ##
 # Pre-defined configs
@@ -48,14 +53,11 @@ class FourbarPolePhysicsCfg(PresetCfg):
 
     default: NewtonCfg = MISSING
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
+        solver_cfg=KaminoPADMMSolverCfg(
             integrator="euler",
             use_fk_solver=True,
             sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_rho_0=0.1,
-            padmm_warmstart_mode="containers",
+            dynamics_solver_cfg=KaminoPADMMCfg(rho_0=0.1),
         ),
         num_substeps=1,
         debug_mode=False,
@@ -83,7 +85,7 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
     )
 
     # fourbar-pole
-    robot: ArticulationCfg = FOURBAR_POLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(FOURBAR_POLE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
     dome_light = AssetBaseCfg(
@@ -222,7 +224,7 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the fourbar-pole swing-up environment."""
 
     # Scene settings
-    scene: FourbarPoleSceneCfg = FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)
+    scene: FourbarPoleSceneCfg = FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -238,7 +240,7 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 5
         # Match Newton GL / --video camera to the task viewport when --viz newton creates the visualizer.
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(12.0, 0.0, 4.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(12.0, 0.0, 4.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

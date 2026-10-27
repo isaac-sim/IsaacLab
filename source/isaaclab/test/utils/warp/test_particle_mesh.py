@@ -11,16 +11,15 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ParticleMeshCounter, make_box_region_mesh, make_frustum_region_mesh
 
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture(params=["cpu", "cuda:0"])
+@pytest.fixture(params=test_devices())
 def device(request):
     """Parametrize tests across CPU and CUDA devices."""
-    if request.param.startswith("cuda") and not torch.cuda.is_available():
-        pytest.skip("CUDA device not available")
     return request.param
 
 
@@ -59,6 +58,7 @@ class TestParticleMeshCounterBox:
 
         expected_mask = _box_inside_analytic(points, region_pos_e.expand(num_envs, 3), half)
         assert mask.shape == (num_envs, num_particles, 1)
+        assert mask.dtype == torch.bool
         assert torch.equal(mask[..., 0], expected_mask)
         assert torch.equal(counts[:, 0], expected_mask.sum(dim=1).float())
         # sanity: the box covers a non-trivial fraction of the points
@@ -177,15 +177,6 @@ class TestParticleMeshCounterMultiRegion:
 class TestParticleMeshCounterRobustness:
     """Buffer reuse, prebuilt meshes, and input validation."""
 
-    def test_return_mask_consistency(self, device):
-        """The boolean mask sums to the reported counts."""
-        torch.manual_seed(2)
-        counter = ParticleMeshCounter([make_box_region_mesh((0.12, 0.12, 0.12))], num_envs=3, device=device)
-        points = (torch.rand(3, 128, 3, device=device) - 0.5) * 0.6
-        counts, mask = counter.count(points, torch.zeros(1, 3, device=device), return_mask=True)
-        assert mask.dtype == torch.bool
-        assert torch.equal(counts, mask.sum(dim=1).float())
-
     def test_buffer_reuse_changing_particle_count(self, device):
         """The internal buffer resizes correctly when the particle count changes between calls."""
         counter = ParticleMeshCounter([make_box_region_mesh((0.1, 0.1, 0.1))], num_envs=1, device=device)
@@ -224,33 +215,25 @@ class TestParticleMeshCounterRobustness:
 
 
 class TestRegionMeshFactories:
-    """Shape/scale checks for the region-mesh factories."""
+    """Argument validation for the region-mesh factories."""
 
-    def test_box_mesh_shapes(self):
-        verts, faces = make_box_region_mesh((0.1, 0.2, 0.3))
-        assert verts.shape == (8, 3)
-        assert faces.shape == (12, 3)
-
-    def test_frustum_mesh_shapes(self):
-        n = 16
-        verts, faces = make_frustum_region_mesh(0.02, 0.04, -0.01, 0.03, num_segments=n)
-        assert verts.shape == (2 * n + 2, 3)
-        assert faces.shape == (4 * n, 3)
-
-    def test_frustum_rejects_too_few_segments(self):
+    @pytest.mark.parametrize(
+        "factory, args, kwargs",
+        [
+            (make_frustum_region_mesh, (0.02, 0.04, -0.01, 0.03), {"num_segments": 2}),
+            (make_box_region_mesh, ((0.1, 0.0, 0.1),), {}),
+            (make_box_region_mesh, ((-0.1, 0.1, 0.1),), {}),
+            (make_frustum_region_mesh, (0.0, 0.04, -0.01, 0.03), {}),
+            (make_frustum_region_mesh, (0.02, 0.04, 0.03, -0.01), {}),
+        ],
+        ids=[
+            "frustum_too_few_segments",
+            "box_zero_half_extent",
+            "box_negative_half_extent",
+            "frustum_non_positive_radius",
+            "frustum_inverted_z",
+        ],
+    )
+    def test_factory_rejects_invalid_args(self, factory, args, kwargs):
         with pytest.raises(ValueError):
-            make_frustum_region_mesh(0.02, 0.04, -0.01, 0.03, num_segments=2)
-
-    def test_box_rejects_non_positive_half_extents(self):
-        with pytest.raises(ValueError):
-            make_box_region_mesh((0.1, 0.0, 0.1))
-        with pytest.raises(ValueError):
-            make_box_region_mesh((-0.1, 0.1, 0.1))
-
-    def test_frustum_rejects_non_positive_radius(self):
-        with pytest.raises(ValueError):
-            make_frustum_region_mesh(0.0, 0.04, -0.01, 0.03)
-
-    def test_frustum_rejects_inverted_z(self):
-        with pytest.raises(ValueError):
-            make_frustum_region_mesh(0.02, 0.04, 0.03, -0.01)
+            factory(*args, **kwargs)

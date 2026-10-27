@@ -1,22 +1,26 @@
+:orphan:
+
 .. _cloudxr-teleoperation:
 
-Setting up Isaac Teleop with CloudXR
+Setting up Isaac Capture with CloudXR
 =====================================
 
 .. currentmodule:: isaaclab
 
-`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ (https://github.com/NVIDIA/IsaacTeleop) is the unified framework for high-fidelity
-teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
-pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
+Use Isaac Capture's `NVIDIA CloudXR`_ integration to connect an XR device and
+teleoperate a robot in Isaac Lab. This guide covers streaming setup and your first
+session. See :ref:`isaac-teleop-feature` for devices and retargeting, or the
+`Isaac Capture Quick Start
+<https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html>`_ for
+upstream setup instructions.
 
-This guide walks you through setting up CloudXR, connecting an XR device, and running your first
-teleoperation session. For additional details see the `Isaac Teleop Quick Start
-<https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
+.. note::
 
-.. tip::
+   Isaac Lab installs ``isaaccapture~=1.7.44a1`` through the ``teleop`` extra. This release retains
+   the ``isaacteleop`` compatibility import used in this guide; new integrations should use
+   ``isaaccapture``. See the `Isaac Capture migration guide
+   <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
 
-   For architecture details, retargeting pipelines, control scheme recommendations, and how to
-   add new embodiments or devices, see the :ref:`isaac-teleop-feature` page.
 
 
 Prerequisites
@@ -38,7 +42,7 @@ Prerequisites
   * For driver requirements see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide.
   * Python 3.12 or newer
   * CUDA 12.8 (recommended)
-  * NVIDIA Driver 580.95.05 (recommended)
+  * NVIDIA Driver 595.58.03 (recommended)
 
 * **Wifi 6 capable router**
 
@@ -117,23 +121,24 @@ To use the check on its own -- for example to qualify a machine before setting u
 
 .. code-block:: bash
 
-   uv run --extra teleop python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+   uv run --extra teleop,isaacsim python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
 
 
 .. _install-isaac-teleop:
 
-Install Isaac Teleop
---------------------
+Install Isaac Capture
+---------------------
 
 Use this path to teleoperate robots from an XR headset and to record demonstrations for
-imitation learning. It uses the ``teleop`` extra, which carries `Isaac Teleop
-<https://github.com/NVIDIA/IsaacTeleop>`__ with its CloudXR streaming runtime, and Isaac Sim
+imitation learning. It uses the ``teleop`` extra, which carries `Isaac Capture
+<https://github.com/NVIDIA/IsaacCapture>`__ with its CloudXR streaming runtime, and Isaac Sim
 itself for the Kit XR runtime that renders the stereo view. One flag covers the whole
 workflow.
 
-XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gates
-``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
-extra resolves but installs nothing usable. It is also not supported on DGX Spark.
+XR teleoperation is supported on **Linux x86_64 only** and is not supported on DGX Spark.
+The ``teleop`` extra installs ``isaaccapture`` on Linux x86_64 and aarch64, while the direct
+``dex-retargeting`` dependency is restricted to x86_64. Installing Isaac Capture on aarch64 does not
+imply support for the CloudXR streaming workflow described here. Windows is not supported.
 
 ``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
 to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next section
@@ -187,8 +192,8 @@ Complete these steps first:
 #. ``isaacteleop`` ships as part of the ``teleop`` extra, so no separate pip install step is
    required — but note that it comes from the extra rather than from the ``isaaclab_teleop``
    package metadata, so installing ``isaaclab_teleop`` on its own does **not** pull it in.
-   For building from source or plugin development, see the `Isaac Teleop GitHub
-   <https://github.com/NVIDIA/IsaacTeleop>`_.
+   For building from source or plugin development, see the `Isaac Capture GitHub
+   <https://github.com/NVIDIA/IsaacCapture>`_.
 
 #. Configure the firewall to allow CloudXR traffic. The required ports depend on the
    client type.
@@ -238,16 +243,7 @@ terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
@@ -256,6 +252,11 @@ To verify that the headset and controller tracking poses are reaching Isaac Lab,
 ``--enable_debug_visualization`` to the command. The visualization draws red markers at tracked
 hand joints and RGB axes at tracked controller aim poses. See
 :ref:`isaac-teleop-tracking-debug-visualization` for details.
+
+For fixed-base G1 upper-body manipulation, select
+``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs`` instead. Both G1 tasks enable a head-locked
+robot-camera PiP panel by default in XR. See :ref:`isaac-teleop-xr-camera-feedback` for a fixed-base
+launch example, camera-recording differences, and scene-partition isolation behavior.
 
 .. note::
 
@@ -274,7 +275,7 @@ hand joints and RGB axes at tracked controller aim poses. See
 
    .. code-block:: bash
 
-      uv run --extra teleop isaaclab teleop run \
+      uv run --extra teleop,isaacsim isaaclab teleop run \
           --task <task> \
           --visualizer kit \
           --xr \
@@ -320,17 +321,7 @@ so pair it with a hand-tracking task such as
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit \
-             --xr \
-             --cloudxr_env avp
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
@@ -367,11 +358,26 @@ Isaac Lab is now ready to receive connections from a CloudXR client.
 
    **Running headless (no local UI).** The commands above use ``--visualizer kit`` to open the
    local Kit viewport, where you click **Start XR**. On a server or cloud instance without a
-   display, run headless instead: omit ``--visualizer`` (headless is the default) or pass
-   ``--visualizer none`` / ``--viz none``. In headless XR the AR session starts automatically --
+   display, run headless instead: omit ``--visualizer`` (headless is the default). In headless XR the AR session starts automatically --
    there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
    CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
    in the environment also forces headless.
+
+.. note::
+
+   **ERROR_STREAMSDK_PORT_UNAVAILABLE / port 49100 already in use.** The CloudXR runtime
+   binds TCP port 49100 for WebRTC signaling. If a previous CloudXR runtime instance is still
+   running, ``Server::create`` fails with this error. Identify the process holding the port,
+   confirm it is safe to stop, then terminate it -- try a graceful ``kill`` before escalating
+   to ``kill -9``:
+
+   .. code-block:: bash
+
+      ss -tlnp | grep 49100  # or: lsof -i :49100
+      kill $(lsof -ti tcp:49100)       # SIGTERM first
+      kill -9 $(lsof -ti tcp:49100)    # only if it is still running
+
+   Alternatively, set a different port with the ``NV_CXR_SERVER_PORT`` environment variable.
 
 
 .. _connect-xr-device:
@@ -379,7 +385,7 @@ Isaac Lab is now ready to receive connections from a CloudXR client.
 Connect an XR Device
 --------------------
 
-Isaac Teleop supports several XR headsets. You only need **one** of the devices below --
+Isaac Capture supports several XR headsets. You only need **one** of the devices below --
 choose the tab that matches your hardware.
 
 .. tab-set::
@@ -403,14 +409,14 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacTeleop/client/release-1.4.x>`_.
+         `<https://nvidia.github.io/IsaacCapture/client/release-1.7.x/>`_.
 
          .. note::
 
-            The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.4.0`` in the
-            ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
-            Teleop pin, update this link to the matching client release.
+            The web client URL is versioned. The ``release-1.7.x`` path corresponds to the
+            ``isaaccapture`` version pinned by Isaac Lab (``isaaccapture~=1.7.44a1`` in the ``teleop``
+            extra of the root ``pyproject.toml``). When Isaac Lab updates its teleoperation
+            dependency, update this link to the matching client release.
 
          .. tip::
 
@@ -467,16 +473,7 @@ choose the tab that matches your hardware.
 
                .. code-block:: bash
 
-                  uv run --extra teleop isaaclab teleop run \
-                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                      --visualizer kit --xr \
-                      --cloudxr_env avp
-
-            .. tab-item:: isaaclab.sh / isaaclab.bat
-
-               .. code-block:: bash
-
-                  ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                  uv run --extra teleop,isaacsim isaaclab teleop run \
                       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -596,14 +593,139 @@ Manus Gloves
 Manus gloves provide high-fidelity finger tracking via the Manus SDK. This is useful when optical
 hand tracking from the headset is occluded or when higher-precision finger data is needed. Because
 the gloves feed the hand-tracking pipeline, pair them with a hand-tracking task such as
-``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` rather than a controller-driven one.
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` rather than a controller-driven one. Manus
+tracking data flows through the same API as headset-based optical hand tracking in Isaac Capture,
+so the same retargeters and pipelines work with both input sources.
+
+.. note::
+
+   Manus glove support has been migrated into Isaac Capture as a native plugin. The previous
+   ``isaac-teleop-device-plugins`` repository and the ``libsurvive``-based Vive tracker integration
+   are no longer required.
+
+Prerequisites
+^^^^^^^^^^^^^
+
+* **Manus gloves with a Manus SDK license**, paired with the MANUS Core application so they are
+  connected and calibrated. See the `MANUS Getting Started guide for Linux
+  <https://docs.manus-meta.com/3.1.1/Plugins/SDK/Linux/>`_.
+
+* **The** ``manus_hand_plugin`` **plugin, built from Isaac Capture source**: glove tracking data is
+  streamed by a standalone C++ plugin that you run alongside the sim.
+
+  .. important::
+
+     ``manus_hand_plugin`` is **not** shipped with Isaac Lab, is **not** part of the
+     ``isaacteleop`` pip package, and is not in any release archive. It exists only after building
+     the `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ repository from source. If
+     ``install/plugins/manus/manus_hand_plugin`` does not exist in your Isaac Capture checkout, this
+     step has not been completed.
+
+  Clone the repository and check out the release branch matching the ``isaaccapture`` version Isaac
+  Lab is pinned to (``isaaccapture~=1.7.44a1`` in the ``teleop`` extra of the root
+  ``pyproject.toml``), so the plugin's wire format matches the ``isaaccapture`` package Isaac Lab
+  installs:
+
+  .. code-block:: bash
+
+     git clone https://github.com/NVIDIA/IsaacCapture.git
+     cd IsaacCapture
+     git checkout release/1.7.x
+
+  .. note::
+
+     When Isaac Lab updates its teleoperation dependency, check out the matching
+     ``release/<version>.x`` branch instead.
+
+  Grant the host access to the Manus dongle **once, on the host machine**. Run this outside any
+  container -- udev rules are processed by ``systemd-udevd``, which does not run inside Docker, so
+  installing rules from a container has no effect:
+
+  .. code-block:: bash
+
+     cd src/plugins/manus
+     ./install_udev_rules.sh
+     # then unplug and replug the Manus dongle
+
+  Then, inside the environment you build in (devcontainer, Isaac ROS container, or bare host),
+  install ``clang-format-14`` -- a missing ``clang-format-14`` is the most common cause of a
+  failed build, because the root ``CMakeLists.txt`` enforces the format check by default on
+  Linux and ``install_manus.sh`` does not install it for you:
+
+  .. code-block:: bash
+
+     sudo apt-get update
+     sudo apt-get install -y clang-format-14
+
+  Then download the Manus SDK and build and install the plugin:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacCapture/src/plugins/manus
+     ./install_manus.sh
+
+  The script installs the remaining required system packages, downloads the Manus SDK, and builds
+  and installs the plugin and its diagnostic CLI tool. The plugin is installed to
+  ``<IsaacCapture>/install/plugins/manus/manus_hand_plugin``. Every later command in this section
+  runs from the Isaac Capture checkout root; substitute your own path for ``/path/to/IsaacCapture``.
+
+  Verify the build and that the gloves are tracking with the diagnostic CLI tool, which opens a
+  **MANUS Data Visualizer** window showing the hand skeleton. Only one process can hold the Manus
+  SDK connection at a time, so stop the CLI tool before starting the plugin:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacCapture
+     ./install/bin/manus_hand_tracker_printer
+
+  See the `Manus plugin documentation`_ for manual installation without ``install_manus.sh``, the
+  full data-path reference (skeleton injection, flex-sensor tensors, haptics), and
+  troubleshooting.
+
+* **A Meta Quest 3 or Pico 4 Ultra controller per hand**, required for wrist positioning. Each
+  MANUS glove has a Universal Mount on the back of the wrist strap; clip the controller into it
+  so the controller's grip pose drives wrist placement while the glove tracks the fingers. See
+  `Wrist Positioning -- Controllers vs Optical Hand Tracking`_ in the Manus plugin documentation
+  for how the plugin selects between controller and optical wrist tracking.
+
+  .. list-table::
+     :widths: 50 50
+
+     * - .. figure:: ../_static/setup/manus_controller_mount_left.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the left MANUS glove's Universal Mount
+
+            Left glove
+       - .. figure:: ../_static/setup/manus_controller_mount_right.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the right MANUS glove's Universal Mount
+
+            Right glove
+
+Run the simulation
+^^^^^^^^^^^^^^^^^^
+
+Launch a teleoperation session paired with a hand-tracking task, as shown in
+:ref:`run-isaac-lab-with-the-cloudxr-runtime`:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra teleop,isaacsim isaaclab teleop run \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
 
 .. important::
 
    Manus gloves and other external push-device peripherals require
    ``NV_CXR_ENABLE_PUSH_DEVICES=1``. The shipped ``.env`` profiles set this to ``0``
-   (optimised for headset optical hand tracking). To use Manus gloves, create a custom
-   ``.env`` file with the value set to ``1`` and pass it via ``--cloudxr_env``:
+   (optimised for headset optical hand tracking). Create a custom ``.env`` file with the value set
+   to ``1`` and pass it via ``--cloudxr_env`` instead of the plain command above:
 
    .. tab-set::
 
@@ -612,53 +734,124 @@ the gloves feed the hand-tracking pipeline, pair them with a hand-tracking task 
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(uv run --extra teleop python -c \
+            cp $(uv run --extra teleop,isaacsim python -c \
                 "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
-            uv run --extra teleop isaaclab teleop run \
-                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                --visualizer kit --xr \
-                --cloudxr_env ~/manus.env
-
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code-block:: bash
-
-            # Copy a shipped profile and enable push devices
-            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
-            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
-
-            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+            uv run --extra teleop,isaacsim isaaclab teleop run \
                 --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
 
    See :ref:`isaac-teleop-cloudxr-profiles` for full details on customising profiles.
 
-.. note::
+Wait for **"Waiting for connection"** in the viewport status bar (or, running headless, for the
+CloudXR runtime to finish starting) before launching the plugin -- see
+:ref:`run-isaac-lab-with-the-cloudxr-runtime`.
 
-   Manus glove support has been migrated into Isaac Teleop as a native plugin. The previous
-   ``isaac-teleop-device-plugins`` repository and the ``libsurvive``-based Vive tracker integration
-   are no longer required.
+Start the plugin
+^^^^^^^^^^^^^^^^
 
-Requirements:
+Isaac Lab does not spawn the plugin for you. Once the sim is up and CloudXR is waiting for a
+connection, in a **separate terminal**, source the environment file the runtime writes on startup
+(this points the OpenXR loader at CloudXR) and start the plugin:
 
-* Manus gloves with a Manus SDK license
+.. code-block:: bash
 
-The Manus plugin is included in the ``isaacteleop`` package and activated automatically when
-configured in the environment's retargeting pipeline. Manus tracking data flows through the same
-API as headset-based optical hand tracking in Isaac Teleop, so the same retargeters and pipelines
-work with both input sources.
+   cd /path/to/IsaacCapture
+   source ~/.cloudxr/run/cloudxr.env
+   ./install/plugins/manus/manus_hand_plugin
 
-For plugin configuration details, see the `Manus plugin documentation
-<https://nvidia.github.io/IsaacTeleop/main/device/manus.html>`_.
+By default the plugin enables human hand injection, flex-sensor push, and haptic read. Restrict
+datasets with ``--datasets=`` (comma-separated) -- see the `Manus plugin documentation`_ for
+details on each data path:
 
-The recommended workflow:
+.. code-block:: bash
 
-#. Start Isaac Lab and click **Start XR**.
+   ./install/plugins/manus/manus_hand_plugin --datasets=human,sensors,haptic
+   ./install/plugins/manus/manus_hand_plugin --datasets=human          # skeleton only
+
+Start teleoperation
+^^^^^^^^^^^^^^^^^^^
+
 #. Put on the Manus gloves and headset.
-#. Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.
+#. Connect the headset to Isaac Lab: for Meta Quest 3 / Pico 4 Ultra, follow the
+   :ref:`connection steps above <connect-quest-pico>`; for Apple Vision Pro, follow
+   :ref:`the Apple Vision Pro steps <use-apple-vision-pro>`. No additional pairing step is
+   required for the gloves once the headset is connected -- Manus tracking data replaces the
+   headset's own hand tracking on the same OpenXR path.
+#. Send the start command from the headset (Meta Quest 3 / Pico 4 Ultra: the CloudXR.js
+   **Connect** button; Apple Vision Pro: the **Play** button in the Isaac XR Teleop Sample
+   Client).
+
+Move your hands and the simulated follower will mirror the glove-tracked finger joints in real
+time.
+
+.. _haptikos-quest-handtracking:
+
+Haptikos Exoskeletons with Quest
+--------------------------------
+
+The `Haptikos plugin <https://github.com/NVIDIA/IsaacCapture/tree/release/1.7.x/src/plugins/haptikos>`_
+combines controller wrist poses with exoskeleton finger tracking from the Haptikos Core App and
+pushes hand joints into the OpenXR runtime. Isaac Lab receives them through Isaac Capture's
+standard hand-tracking input, so no Haptikos-specific Isaac Lab device is needed. The plugin
+supports Linux and has been tested with Meta Quest headsets; other headsets with controllers may
+also work.
+
+Build the plugin
+^^^^^^^^^^^^^^^^
+
+The Haptikos plugin is built from Isaac Capture source; it is not included in Isaac Lab's
+``teleop`` extra. Check out the release branch matching Isaac Lab's ``isaaccapture`` pin (currently
+``1.7.x``), obtain the `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_,
+and copy its ``HaptikosCpp_API_Shared`` directory into ``src/plugins/haptikos``. The C++ API is
+required to build the tracking plugin, even if you do not use haptic feedback. Follow the
+`plugin's setup instructions <https://github.com/NVIDIA/IsaacCapture/tree/release/1.7.x/src/plugins/haptikos>`_
+for Haptikos account and licensing requirements.
+
+.. code-block:: bash
+
+   git clone https://github.com/NVIDIA/IsaacCapture.git
+   cd IsaacCapture
+   git checkout release/1.7.x
+   # Copy HaptikosCpp_API_Shared to src/plugins/haptikos before building.
+   cmake -S . -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
+   cmake --build build --target haptikos_hands_plugin --parallel 4
+
+Run Isaac Lab and the plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Attach a controller to each exoskeleton using the included mount. Calibrate the exoskeleton
+forward direction against the headset, then keep the Haptikos Core App, exoskeletons, and
+controllers active. Use the hand-tracking task below.
+
+Haptikos uses an external OpenXR push device. The shipped CloudXR profiles disable push devices,
+so enable them in a custom profile before launching Isaac Lab:
+
+.. code-block:: bash
+
+   cp $(uv run --extra teleop,isaacsim python -c \
+       "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/haptikos.env
+   sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/haptikos.env
+
+   uv run --extra teleop,isaacsim isaaclab teleop run \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+       --visualizer kit --xr --cloudxr_env ~/haptikos.env
+
+Once CloudXR is waiting for a connection, open a separate terminal and start the plugin with
+the runtime environment created by Isaac Lab:
+
+.. code-block:: bash
+
+   cd /path/to/IsaacCapture
+   source ~/.cloudxr/run/cloudxr.env
+   ./build/src/plugins/haptikos/haptikos_hands_plugin
+
+Connect the Quest using :ref:`the Quest/Pico connection steps <connect-quest-pico>`, then start
+teleoperation from the headset.
+
+See :ref:`isaac-teleop-cloudxr-profiles` for more on custom profiles.
 
 
 Run with Docker
@@ -743,17 +936,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop record \
-           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-           --num_demos 5 \
-           --dataset_file ./datasets/dataset.hdf5 \
-           --xr --visualizer kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \
@@ -761,8 +944,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
-``--viz none`` and the XR teleop session will run automatically.
+For a fully headless experience, omit ``--visualizer kit`` and the XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 
@@ -778,3 +960,5 @@ For a fully headless experience, replace ``--visualizer kit`` with ``--visualize
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`CloudXR Network Setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html
 .. _`CloudXR.js`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
+.. _`Manus plugin documentation`: https://nvidia.github.io/IsaacCapture/main/device/manus.html
+.. _`Wrist Positioning -- Controllers vs Optical Hand Tracking`: https://nvidia.github.io/IsaacCapture/main/device/manus.html#wrist-positioning-controllers-vs-optical-hand-tracking

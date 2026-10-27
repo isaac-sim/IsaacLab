@@ -7,9 +7,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import torch
 import warp as wp
 
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.math import velocity_at_offset
 
 if TYPE_CHECKING:
     import torch
@@ -47,18 +49,15 @@ def get_link_vel_from_root_com_vel_func(
     the angular velocity contribution from the COM offset relative to the link frame.
 
     Args:
-        com_vel: COM spatial velocity (angular, linear).
+        com_vel: COM spatial velocity (linear, angular).
         link_pose: Link pose in world frame.
         body_com_pos_b: COM position in body (link) frame.
 
     Returns:
-        Link spatial velocity (angular, linear).
+        Link spatial velocity (linear, angular).
     """
-    projected_vel = wp.cross(
-        wp.spatial_bottom(com_vel),
-        wp.quat_rotate(wp.transform_get_rotation(link_pose), -body_com_pos_b),
-    )
-    return wp.spatial_vector(wp.spatial_top(com_vel) + projected_vel, wp.spatial_bottom(com_vel))
+    offset = wp.quat_rotate(wp.transform_get_rotation(link_pose), -body_com_pos_b)
+    return wp.spatial_vector(velocity_at_offset(com_vel, offset), wp.spatial_bottom(com_vel))
 
 
 @wp.func
@@ -97,26 +96,6 @@ def concat_pose_and_vel_to_state_func(
     return vec13f(
         pose[0], pose[1], pose[2], pose[3], pose[4], pose[5], pose[6], vel[0], vel[1], vel[2], vel[3], vel[4], vel[5]
     )
-
-
-@wp.func
-def compute_heading_w_func(
-    forward_vec: wp.vec3f,
-    quat: wp.quatf,
-):
-    """Compute heading angle (yaw) in world frame from a forward vector and orientation.
-
-    Rotates the forward vector by the quaternion and computes atan2(y, x).
-
-    Args:
-        forward_vec: Forward direction vector in body frame.
-        quat: Orientation quaternion.
-
-    Returns:
-        Heading angle in radians.
-    """
-    forward_w = wp.quat_rotate(quat, forward_vec)
-    return wp.atan2(forward_w[1], forward_w[0])
 
 
 @wp.func
@@ -184,21 +163,15 @@ def get_link_velocity_in_com_frame_func(
     the cross-product contribution of the COM offset rotated into the world frame.
 
     Args:
-        link_velocity_w: Link spatial velocity in world frame (angular, linear).
+        link_velocity_w: Link spatial velocity in world frame (linear, angular).
         link_pose_w: Link pose in world frame.
         body_com_pos_b: COM position in body (link) frame.
 
     Returns:
-        COM spatial velocity in world frame (angular, linear).
+        COM spatial velocity in world frame (linear, angular).
     """
-    return wp.spatial_vector(
-        wp.spatial_top(link_velocity_w)
-        + wp.cross(
-            wp.spatial_bottom(link_velocity_w),
-            wp.quat_rotate(wp.transform_get_rotation(link_pose_w), body_com_pos_b),
-        ),
-        wp.spatial_bottom(link_velocity_w),
-    )
+    offset = wp.quat_rotate(wp.transform_get_rotation(link_pose_w), body_com_pos_b)
+    return wp.spatial_vector(velocity_at_offset(link_velocity_w, offset), wp.spatial_bottom(link_velocity_w))
 
 
 @wp.func
@@ -396,67 +369,6 @@ Derived property kernels.
 
 
 @wp.kernel
-def quat_apply_inverse_1D_kernel(
-    gravity: wp.array(dtype=wp.vec3f),
-    quat: wp.array(dtype=wp.quatf),
-    projected_gravity: wp.array(dtype=wp.vec3f),
-):
-    """Apply inverse quaternion rotation to gravity vectors (1D).
-
-    This kernel rotates gravity vectors into the local frame of each environment
-    using the inverse of the provided quaternion.
-
-    Args:
-        gravity: Input array of gravity vectors in world frame. Shape is (num_envs,).
-        quat: Input array of quaternions representing orientations. Shape is (num_envs,).
-        projected_gravity: Output array where projected gravity vectors are written.
-            Shape is (num_envs,).
-    """
-    i = wp.tid()
-    projected_gravity[i] = wp.quat_rotate_inv(quat[i], gravity[i])
-
-
-@wp.kernel
-def root_heading_w(
-    forward_vec: wp.array(dtype=wp.vec3f),
-    quat: wp.array(dtype=wp.quatf),
-    heading_w: wp.array(dtype=wp.float32),
-):
-    """Compute root heading angle in the world frame.
-
-    This kernel computes the heading angle (yaw) by rotating the forward vector
-    by the root quaternion and computing atan2 of the resulting x and y components.
-
-    Args:
-        forward_vec: Input array of forward direction vectors. Shape is (num_envs,).
-        quat: Input array of root quaternions. Shape is (num_envs,).
-        heading_w: Output array where heading angles (radians) are written. Shape is (num_envs,).
-    """
-    i = wp.tid()
-    heading_w[i] = compute_heading_w_func(forward_vec[i], quat[i])
-
-
-@wp.kernel
-def quat_apply_inverse_2D_kernel(
-    vec: wp.array2d(dtype=wp.vec3f),
-    quat: wp.array2d(dtype=wp.quatf),
-    result: wp.array2d(dtype=wp.vec3f),
-):
-    """Apply inverse quaternion rotation to vectors (2D).
-
-    This kernel rotates vectors into the local frame of each body in each environment
-    using the inverse of the provided quaternion.
-
-    Args:
-        vec: Input array of vectors in world frame. Shape is (num_envs, num_bodies).
-        quat: Input array of quaternions representing orientations. Shape is (num_envs, num_bodies).
-        result: Output array where rotated vectors are written. Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    result[i, j] = wp.quat_rotate_inv(quat[i, j], vec[i, j])
-
-
-@wp.kernel
 def projected_gravity_b_kernel(
     gravity_w: wp.array(dtype=wp.vec3f),
     quat: wp.array(dtype=wp.quatf),
@@ -494,27 +406,6 @@ def projected_gravity_b_2D_kernel(
     """
     i, j = wp.tid()
     projected_gravity_b[i, j] = wp.quat_rotate_inv(quat[i, j], wp.normalize(gravity_w[i]))
-
-
-@wp.kernel
-def body_heading_w(
-    forward_vec: wp.array2d(dtype=wp.vec3f),
-    quat: wp.array2d(dtype=wp.quatf),
-    heading_w: wp.array2d(dtype=wp.float32),
-):
-    """Compute body heading angles in the world frame for all bodies.
-
-    This kernel computes heading angles (yaw) by rotating forward vectors
-    by body quaternions and computing atan2 of the resulting x and y components.
-
-    Args:
-        forward_vec: Input array of forward direction vectors. Shape is (num_envs, num_bodies).
-        quat: Input array of body quaternions. Shape is (num_envs, num_bodies).
-        heading_w: Output array where heading angles (radians) are written.
-            Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    heading_w[i, j] = compute_heading_w_func(forward_vec[i, j], quat[i, j])
 
 
 """
@@ -1347,142 +1238,6 @@ def write_body_com_position_to_buffer_mask(
 
 
 @wp.kernel
-def split_transform_to_pos_1d(
-    transform: wp.array(dtype=wp.transformf),
-    pos: wp.array(dtype=wp.vec3f),
-):
-    """Split a 1D transform array into a position array.
-
-    This kernel splits a 1D transform array into a position array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, 7).
-        pos: Output array where positions are written. Shape is (num_envs, 3).
-    """
-    i = wp.tid()
-    pos[i] = wp.transform_get_translation(transform[i])
-
-
-@wp.kernel
-def split_transform_to_quat_1d(
-    transform: wp.array(dtype=wp.transformf),
-    quat: wp.array(dtype=wp.quatf),
-):
-    """Split a 1D transform array into a quaternion array.
-
-    This kernel splits a 1D transform array into a quaternion array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, 7).
-        quat: Output array where quaternions are written. Shape is (num_envs, 4).
-    """
-    i = wp.tid()
-    quat[i] = wp.transform_get_rotation(transform[i])
-
-
-@wp.kernel
-def split_transform_to_pos_2d(
-    transform: wp.array2d(dtype=wp.transformf),
-    pos: wp.array2d(dtype=wp.vec3f),
-):
-    """Split a 2D transform array into a position array.
-
-    This kernel splits a 2D transform array into a position array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, num_bodies, 7).
-        pos: Output array where positions are written. Shape is (num_envs, num_bodies, 3).
-    """
-    i, j = wp.tid()
-    pos[i, j] = wp.transform_get_translation(transform[i, j])
-
-
-@wp.kernel
-def split_transform_to_quat_2d(
-    transform: wp.array2d(dtype=wp.transformf),
-    quat: wp.array2d(dtype=wp.quatf),
-):
-    """Split a 2D transform array into a quaternion array.
-
-    This kernel splits a 2D transform array into a quaternion array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, num_bodies, 7).
-        quat: Output array where quaternions are written. Shape is (num_envs, num_bodies, 4).
-    """
-    i, j = wp.tid()
-    quat[i, j] = wp.transform_get_rotation(transform[i, j])
-
-
-@wp.kernel
-def split_spatial_vector_to_top_1d(
-    spatial_vector: wp.array(dtype=wp.spatial_vectorf),
-    top_part: wp.array(dtype=wp.vec3f),
-):
-    """Split a 1D spatial vector array into a top part array.
-
-    This kernel splits a 1D spatial vector array into a top part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, 6).
-        top_part: Output array where top parts are written. Shape is (num_envs, 3).
-    """
-    i = wp.tid()
-    top_part[i] = wp.spatial_top(spatial_vector[i])
-
-
-@wp.kernel
-def split_spatial_vector_to_bottom_1d(
-    spatial_vector: wp.array(dtype=wp.spatial_vectorf),
-    bottom_part: wp.array(dtype=wp.vec3f),
-):
-    """Split a 1D spatial vector array into a bottom part array.
-
-    This kernel splits a 1D spatial vector array into a bottom part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, 6).
-        bottom_part: Output array where bottom parts are written. Shape is (num_envs, 3).
-    """
-    i = wp.tid()
-    bottom_part[i] = wp.spatial_bottom(spatial_vector[i])
-
-
-@wp.kernel
-def split_spatial_vector_to_top_2d(
-    spatial_vector: wp.array2d(dtype=wp.spatial_vectorf),
-    top_part: wp.array2d(dtype=wp.vec3f),
-):
-    """Split a 2D spatial vector array into a top part array.
-
-    This kernel splits a 2D spatial vector array into a top part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, num_bodies, 6).
-        top_part: Output array where top parts are written. Shape is (num_envs, num_bodies, 3).
-    """
-    i, j = wp.tid()
-    top_part[i, j] = wp.spatial_top(spatial_vector[i, j])
-
-
-@wp.kernel
-def split_spatial_vector_to_bottom_2d(
-    spatial_vector: wp.array2d(dtype=wp.spatial_vectorf),
-    bottom_part: wp.array2d(dtype=wp.vec3f),
-):
-    """Split a 2D spatial vector array into a bottom part array.
-
-    This kernel splits a 2D spatial vector array into a bottom part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, num_bodies, 6).
-        bottom_part: Output array where bottom parts are written. Shape is (num_envs, num_bodies, 3).
-    """
-    i, j = wp.tid()
-    bottom_part[i, j] = wp.spatial_bottom(spatial_vector[i, j])
-
-
-@wp.kernel
 def make_dummy_body_com_pose_b(
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
@@ -1556,3 +1311,23 @@ def update_wrench_array_with_force_and_torque(
             torques[env_index, body_index],
             body_rot_w,
         )
+
+
+def com_positions(coms: float | torch.Tensor | wp.array) -> float | torch.Tensor | wp.array:
+    """Return center of mass positions, dropping the orientation when poses are given.
+
+    Newton models a body's center of mass as a position, while the asset API also accepts poses
+    (position and quaternion (x, y, z, w)) like the other backends. The orientation is ignored.
+
+    Args:
+        coms: Center of mass positions [m] with a trailing dimension of 3 (or dtype ``wp.vec3f``), or poses with a
+            trailing dimension of 7 (or dtype ``wp.transformf``).
+
+    Returns:
+        The center of mass positions [m]; inputs that are already positions are returned unchanged.
+    """
+    if isinstance(coms, wp.array) and coms.dtype == wp.transformf:
+        coms = wp.to_torch(coms)
+    if isinstance(coms, torch.Tensor) and coms.shape[-1] == 7:
+        return coms[..., :3].contiguous()
+    return coms

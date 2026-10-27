@@ -3,25 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Franka cabinet-opening environments (direct and manager-based workflows)."""
+
 import gymnasium as gym
 
-from isaaclab_tasks.core.cabinet.config.franka import agents
-
-##
-# Register Gym environments -- manager-based workflow.
-##
-
-gym.register(
-    id="Isaac-Open-Drawer-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCabinetEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CabinetPPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
-    },
-    disable_env_checker=True,
-)
+from . import agents
 
 ##
 # Register Gym environments -- direct workflow.
@@ -35,6 +21,24 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.cabinet_direct_env_cfg:FrankaCabinetDirectEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCabinetPPORunnerCfg",
+        "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
+    },
+)
+
+##
+# Register Gym environments -- manager-based workflow.
+##
+
+gym.register(
+    id="Isaac-Open-Drawer-Franka",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCabinetEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CabinetPPORunnerCfg",
+        "default_agent": "rsl_rl",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
     },
 )

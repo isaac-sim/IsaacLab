@@ -25,7 +25,7 @@ Usage example::
         --num_envs 16 \\
         presets=newton_mjwarp
 
-Use ``isaaclab benchmark startup-multigpu`` to profile rank 0 while every GPU launches
+Use ``isaaclab benchmark startup_multigpu`` to profile rank 0 while every GPU launches
 concurrently; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 """
 
@@ -39,10 +39,13 @@ if TYPE_CHECKING:
 import argparse
 import cProfile
 import importlib.util
+import logging
 import os
 import sys
 import time
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 _PHASE_ORDER = ("python_imports", "task_config", "app_launch", "env_creation", "first_step")
 _VALID_PHASES = set(_PHASE_ORDER)
@@ -116,31 +119,30 @@ def _load_whitelist(path: str | None) -> dict[str, list[str]]:
         with open(path) as whitelist_file:
             raw = yaml.safe_load(whitelist_file)
     except OSError as exc:
-        print(f"[ERROR] Cannot read whitelist config '{path}': {exc}")
+        logger.error(f"Cannot read whitelist config '{path}': {exc}")
         sys.exit(1)
     except yaml.YAMLError as exc:
-        print(f"[ERROR] Invalid YAML in whitelist config '{path}': {exc}")
+        logger.error(f"Invalid YAML in whitelist config '{path}': {exc}")
         sys.exit(1)
 
     if raw is None:
         return {}
     if not isinstance(raw, dict):
-        print(
-            f"[ERROR] Whitelist config must be a YAML mapping (got {type(raw).__name__})."
+        logger.error(
+            f"Whitelist config must be a YAML mapping (got {type(raw).__name__})."
             " Expected format: phase_name: [pattern, ...]"
         )
         sys.exit(1)
 
     unknown = set(raw) - _VALID_PHASES
     if unknown:
-        print(
-            f"[WARNING] Whitelist config contains unknown phase(s): {unknown}. "
-            f"Valid phases: {_VALID_PHASES}. Check for typos."
+        logger.warning(
+            f"Whitelist config contains unknown phase(s): {unknown}. Valid phases: {_VALID_PHASES}. Check for typos."
         )
     for phase_name, patterns in raw.items():
         if not isinstance(patterns, list) or not all(isinstance(pattern, str) for pattern in patterns):
-            print(
-                f"[ERROR] Whitelist phase '{phase_name}' must be a list of strings, "
+            logger.error(
+                f"Whitelist phase '{phase_name}' must be a list of strings, "
                 f"got {type(patterns).__name__}. Check YAML formatting (use '- pattern' syntax)."
             )
             sys.exit(1)
@@ -156,7 +158,6 @@ def _isaaclab_source_prefixes() -> list[str]:
         "isaaclab_mimic",
         "isaaclab_newton",
         "isaaclab_ov",
-        "isaaclab_ovphysx",
         "isaaclab_physx",
         "isaaclab_rl",
         "isaaclab_tasks",
@@ -287,7 +288,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             first_step_time_begin = time.perf_counter_ns()
             first_step_profile.enable()
             try:
-                env.step(actions)
+                with torch.inference_mode():
+                    env.step(actions)
             finally:
                 first_step_profile.disable()
 
@@ -328,7 +330,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                     ],
                 )
 
-            cfg = capture.run_config_from_presets(hydra_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
             seed = args.seed if args.seed is not None else 0
             run_id = capture.synth_run_id(None, cfg.physics_backend, args.task, seed, stamp)
@@ -356,7 +358,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         {"name": "seed", "data": args.seed},
                         {"name": "num_envs", "data": args.num_envs},
                         {"name": "top_n", "data": args.top_n},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                         {"name": "world_size", "data": distributed.world_size},
                     ]
                 },

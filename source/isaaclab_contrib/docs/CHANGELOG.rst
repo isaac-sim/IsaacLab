@@ -1,6 +1,239 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+4.2.4 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton coupler and custom MJWarp--VBD coupling managers to store their solver, collision pipeline and
+  contacts on the manager's :class:`~isaaclab_newton.physics.NewtonBackend`.
+
+
+4.2.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed coupled solver body and shape selectors to expand ``{ENV_REGEX_NS}`` from the simulation's
+  clone template while preserving the original configuration for reuse.
+
+
+4.2.2 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept tactile queries explicitly invalidated after initialization and reset so reads
+  reflect the current scene state without waiting for another physics step.
+
+
+4.2.1 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed tactile contact-mesh and rigid-body bindings to use clone-plan source paths and destination
+  expressions, including custom environment namespaces. Removed the separate contact-component lookup.
+* Required exactly one SDF mesh in the tactile contact-object source instead of silently
+  choosing the first mesh when several matched.
+* Refreshed articulation kinematics before tactile force-field reads so tactile points
+  followed root or joint writes before the next physics step.
+
+
+4.2.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** The Newton coupler managers are used as instances, like the Newton managers they extend; subclasses
+  override their runtime hooks as instance methods.
+
+
+4.1.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed and adaptive relaxation settings to
+  :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` for stabilizing
+  lagged and staggered two-way proxy feedback and expressing one-way coupling
+  with zero relaxation from an initial state.
+
+
+4.0.1 (2026-10-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale action chunks driving freshly reset environments when
+  ``hold_pose_on_midchunk_reset`` was enabled for absolute joint-position policies.
+
+
+4.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added GR00T N1.7 support through RLinf's native model and processor loader, with configurable
+  ``gr00t_mapping.language`` and ``action_mapping.keys`` for observation and action conversion.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated both GR00T setups to the documented RLinf revision with per-generation model packages
+  and action registries. Existing RLinf 0.2 installations must rerun the shared installation step.
+
+
+3.1.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed visuo-tactile sensor debug visualization to refresh outdated sensor buffers before drawing.
+
+
+3.1.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``CouplerAdmmCfg.contact_max_triangle_pairs`` and
+  ``contact_reduction_hashtable_size_factor`` to configure the internal ADMM collision
+  buffers independently of the outer Newton collision pipeline, preserving Newton's
+  defaults. Validation rejected triangle-pair capacities at or above ``2**20`` with
+  ``"latest"`` or ``"sticky"`` matching and explicit overrides unsupported by Newton.
+
+
+3.0.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Avoided scalar uploads and CUDA synchronization when resetting selected thrust-action commands.
+* Changed the RLinf Isaac Lab environment factory to start the simulation runtime through
+  :func:`~isaaclab.app.launch_simulation`, so kitless tasks no longer start Isaac Sim / Kit.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab_contrib.deformable`` after moving the implementation to Newton.
+  Import ``DeformableObject`` and ``DeformableObjectData`` from :mod:`isaaclab_newton.assets` instead,
+  or use the backend-independent :class:`isaaclab.assets.DeformableObject`.
+
+Fixed
+^^^^^
+
+* Prepared coupled Newton builders once per selected solver manager, avoiding unnecessary or repeated VBD coloring.
+
+
+2.0.3 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated deformable storage to the shared ``TimestampedBuffer`` container and removed redundant
+  zero initialization from fully overwritten read caches.
+
+Fixed
+^^^^^
+
+* Accepted environment slices in :meth:`~isaaclab_contrib.assets.Multirotor.reset` and sized thruster
+  parameter resampling from the selected slice, so partial slice resets no longer fail.
+* Applied Newton's deferred capture lifecycle to coupled solvers and kept fixed MPM entries with
+  an unbounded active-cell partition eager. Set the entry's ``max_active_cell_count`` to a positive
+  capacity to enable capture for fixed grids.
+
+
+2.0.2 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Published deformable geometry through SDP using clone-plan paths and native particle ranges,
+  preserving nonconsecutive environment IDs, custom paths, and position writes between renders.
+  Removed the internal Fabric-sync helper; rendering consumers now bind through SDP.
+
+
+2.0.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Registered every configured child solver's builder attributes for coupled Newton models.
+
+
+2.0.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved the standalone VBD solver from
+  ``isaaclab_contrib.deformable`` to :mod:`isaaclab_newton.physics`. Import
+  :class:`~isaaclab_newton.physics.NewtonVBDManager` and
+  :class:`~isaaclab_newton.physics.VBDSolverCfg` from their new location, and
+  move ``NewtonModelCfg`` and ``NewtonModelSolverCfg`` soft-contact settings to
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+* **Breaking:** Removed the
+  ``isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`` compatibility
+  alias. Import
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` instead.
+
+
+1.4.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled CUDA graph capture for coupled MPM entries that use
+  capacity-bounded sparse grids.
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed single-world coupled MPM reset handling.
+* Avoided per-step host synchronization in single-world coupled scenes without
+  MPM entries.
+* Surfaced asynchronous rebuild failures from nested MPM solvers after CUDA
+  graph replay.
+
+
+1.3.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Newton coupler configuration checks to support
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
+  :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`.
+
+
 1.3.0 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~
 

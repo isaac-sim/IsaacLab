@@ -6,15 +6,19 @@
 import abc
 import hashlib
 import json
+import logging
 import os
 import pathlib
 import random
 import tempfile
 from datetime import datetime
 
-from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from isaaclab.utils.assets import check_file_path
-from isaaclab.utils.io import dump_yaml
+from ...utils import to_dict, validate
+from ...utils.assets import check_file_path
+from ...utils.io import dump_yaml
+from .asset_converter_base_cfg import AssetConverterBaseCfg
+
+logger = logging.getLogger(__name__)
 
 
 class AssetConverterBase(abc.ABC):
@@ -25,11 +29,16 @@ class AssetConverterBase(abc.ABC):
     :meth:`_convert_asset` method to provide the actual conversion.
 
     The file conversion is lazy if the output directory (:obj:`AssetConverterBaseCfg.usd_dir`) is provided.
-    In the lazy conversion, the USD file is re-generated only if:
+    The most recent conversion in that directory is reused unless:
 
     * The asset file is modified.
     * The configuration parameters are modified.
-    * The USD file does not exist.
+    * The requested USD file name changes.
+    * The generated USD file does not exist.
+
+    The importer may generate a numbered file instead of the requested one. The cache records the generated path
+    so a later conversion cannot return an older file at the requested path. Old hash-only records are cache misses
+    because they do not identify the generated file.
 
     To override this behavior to force conversion, the flag :obj:`AssetConverterBaseCfg.force_usd_conversion`
     can be set to True.
@@ -41,9 +50,9 @@ class AssetConverterBase(abc.ABC):
     triggered conversions try to use the same directory for reading/writing the generated files.
 
     .. note::
-        Changes to the parameters :obj:`AssetConverterBaseCfg.asset_path`, :obj:`AssetConverterBaseCfg.usd_dir`, and
-        :obj:`AssetConverterBaseCfg.usd_file_name` are not considered as modifications in the configuration instance
-        that trigger the USD file re-generation.
+        The configuration hash excludes :obj:`AssetConverterBaseCfg.asset_path`,
+        :obj:`AssetConverterBaseCfg.usd_dir`, and :obj:`AssetConverterBaseCfg.usd_file_name`. The asset contents are
+        hashed, and the requested USD file name is checked separately.
 
     """
 
@@ -57,7 +66,7 @@ class AssetConverterBase(abc.ABC):
             ValueError: When provided asset file does not exist.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # check if the asset file exists
         if not check_file_path(cfg.asset_path):
             raise ValueError(f"The asset path does not exist: {cfg.asset_path}")
@@ -78,47 +87,51 @@ class AssetConverterBase(abc.ABC):
         else:
             usd_file_name = cfg.usd_file_name
         # add USD extension if not provided
-        if not (usd_file_name.endswith(".usd") or usd_file_name.endswith(".usda")):
-            self._usd_file_name = usd_file_name + ".usd"
-        else:
-            self._usd_file_name = usd_file_name
+        if not usd_file_name.endswith((".usd", ".usda")):
+            usd_file_name += ".usd"
+        self._usd_file_name = usd_file_name
 
-        # create the USD directory
         os.makedirs(self.usd_dir, exist_ok=True)
-        # check if usd files exist
-        self._usd_file_exists = os.path.isfile(self.usd_path)
-        # path to read/write asset hash file
-        self._dest_hash_path = os.path.join(self.usd_dir, ".asset_hash")
-        # create asset hash to check if the asset has changed
-        self._asset_hash = self._config_to_hash(cfg)
-        # read the saved hash
+        record_path = os.path.join(self.usd_dir, ".asset_hash")
+        asset_hash = self._config_to_hash(cfg)
+        requested = pathlib.PurePath(self._usd_file_name).as_posix()
         try:
-            with open(self._dest_hash_path) as f:
-                existing_asset_hash = f.readline()
-                self._is_same_asset = existing_asset_hash == self._asset_hash
-        except FileNotFoundError:
-            self._is_same_asset = False
+            with open(record_path, encoding="utf-8") as f:
+                record = json.load(f)
+        except (FileNotFoundError, ValueError):
+            record = {}
+        if not isinstance(record, dict):
+            record = {}
+        generated = record.get("generated")
 
-        # convert the asset to USD if the hash is different or USD file does not exist
-        if cfg.force_usd_conversion or not self._usd_file_exists or not self._is_same_asset:
-            # write the updated hash
-            with open(self._dest_hash_path, "w") as f:
-                f.write(self._asset_hash)
+        if (
+            not cfg.force_usd_conversion
+            and record.get("hash") == asset_hash
+            and record.get("requested") == requested
+            and isinstance(generated, str)
+            and not pathlib.PurePath(generated).is_absolute()
+            and ".." not in pathlib.PurePath(generated).parts
+            and os.path.isfile(os.path.join(self.usd_dir, generated))
+        ):
+            self._usd_file_name = generated
+        else:
             # convert the asset to USD
             self._convert_asset(cfg)
-            # the importers emit the physics payloads behind a "Physics" variant set but leave it
-            # unselected, which composes the asset with geometry only
-            self._select_physics_variant()
-            # dump the configuration to a file
-            dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
-            # add comment to top of the saved config file with information about the converter
-            current_date = datetime.now().strftime("%Y-%m-%d")
-            current_time = datetime.now().strftime("%H:%M:%S")
-            generation_comment = (
-                f"##\n# Generated by {self.__class__.__name__} on {current_date} at {current_time}.\n##\n"
-            )
-            with open(os.path.join(self.usd_dir, "config.yaml"), "a") as f:
-                f.write(generation_comment)
+            # importers put the physics payloads behind a "Physics" variant set and disagree on
+            # which variant to select, so settle it here
+            self._select_physics_variant(cfg.physics_variant)
+            # record the generated path only now: writing it earlier would let a conversion that raised
+            # still count as cached, so an identical retry would skip it and return the asset
+            generated = pathlib.PurePath(self._usd_file_name).as_posix()
+            record = {"hash": asset_hash, "requested": requested, "generated": generated}
+            with open(record_path, "w", encoding="utf-8") as f:
+                json.dump(record, f)
+            # dump the configuration next to the asset, stamped with the converter that produced it
+            config_path = os.path.join(self.usd_dir, "config.yaml")
+            dump_yaml(config_path, to_dict(cfg))
+            stamp = datetime.now().strftime("%Y-%m-%d at %H:%M:%S")
+            with open(config_path, "a") as f:
+                f.write(f"##\n# Generated by {self.__class__.__name__} on {stamp}.\n##\n")
 
     """
     Properties.
@@ -166,20 +179,25 @@ class AssetConverterBase(abc.ABC):
     Private helpers.
     """
 
-    def _select_physics_variant(self, variant: str = "physx"):
+    def _select_physics_variant(self, variant: str):
         """Author a selection for the ``"Physics"`` variant set on the converted asset.
 
-        The URDF and MJCF importers write the physics description into a ``"Physics"`` variant set
-        without selecting a variant, so opening the asset composes it without joints, articulation
-        roots, or mass properties. Selecting a variant here restores physics for every consumer. The
-        selection is authored on the asset, so a spawner that selects a different variant on the
-        referencing prim still wins.
+        Importers put the physics description behind a ``"Physics"`` variant set, and which variant
+        they select is not consistent: the Isaac Sim importer extensions leave the set unselected,
+        which composes the asset without joints, articulation roots, or mass properties, while the
+        standalone importer wheel selects one of its own. Authoring the configured variant here makes
+        the outcome the same either way. The selection is authored on the asset, so a spawner that
+        selects a different variant on the referencing prim still wins.
 
-        Does nothing when the asset has no such variant set or the importer already authored a
-        selection.
+        Does nothing when the asset has no such variant set.
 
         Args:
             variant: The variant to select.
+
+        Raises:
+            ValueError: When the asset offers a ``"Physics"`` variant set without the requested
+                variant. Substituting another one would silently hand back an asset configured for a
+                different backend than the caller asked for.
         """
         from pxr import Usd
 
@@ -188,7 +206,13 @@ class AssetConverterBase(abc.ABC):
         if not prim or "Physics" not in prim.GetVariantSets().GetNames():
             return
         variant_set = prim.GetVariantSets().GetVariantSet("Physics")
-        if variant_set.GetVariantSelection() or variant not in variant_set.GetVariantNames():
+        available = variant_set.GetVariantNames()
+        if variant not in available:
+            raise ValueError(
+                f"The converted asset has no '{variant}' physics variant. Set"
+                f" {type(self.cfg).__name__}.physics_variant to one of: {available}."
+            )
+        if variant == variant_set.GetVariantSelection():
             return
         variant_set.SetVariantSelection(variant)
         stage.GetRootLayer().Save()
@@ -208,7 +232,7 @@ class AssetConverterBase(abc.ABC):
         """
 
         # convert to dict and remove path related info
-        config_dic = cfg.to_dict()
+        config_dic = to_dict(cfg)
         _ = config_dic.pop("asset_path")
         _ = config_dic.pop("usd_dir")
         _ = config_dic.pop("usd_file_name")

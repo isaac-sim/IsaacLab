@@ -11,7 +11,7 @@
 
 The official migration guide is the authoritative source:
 
-- `docs/source/migration/migrating_to_isaaclab_3-0.rst`
+- `docs/source/isaaclab/migrating.rst`
 
 Use this skill to decide where to look and how to validate. Do not treat this file as a replacement for the migration guide.
 
@@ -25,7 +25,7 @@ Start with the official migration guide, then verify behavior against current so
 - Quaternion convention changes.
 - `ProxyArray` access for asset and sensor data.
 - Asset and physics view API renames.
-- RL workflow compatibility helpers.
+- RL workflow entry points and model and runner configurations.
 - **Viewport camera** — `ViewerCfg` and `ViewportCameraController` removed; use `sim.default_visualizer_cfg = VisualizerCfg(eye=..., lookat=...)` or `sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]` for asset tracking.
 - **Video recording** — `gym.wrappers.RecordVideo` replaced by `VideoRecorderCfg` on `env_cfg.video_recorders`; `recording_hooks` module removed, use `sim.add_render_callback()` instead.
 
@@ -35,4 +35,4 @@ Avoid carrying forward old project-specific migration notes as general guidance.
 
 ## Maintenance Rule
 
-If a repeated migration fix is not covered by the official guide, update `docs/source/migration/migrating_to_isaaclab_3-0.rst`. Keep this skill small so it does not become a second migration document that drifts from the codebase.
+If a repeated migration fix is not covered by the official guide, update `docs/source/isaaclab/migrating.rst`. Keep this skill small so it does not become a second migration document that drifts from the codebase.

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Reward terms for the lift environments."""
+
 from __future__ import annotations
 
 import warnings
@@ -12,11 +14,11 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils import math as math_utils
-from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
+from isaaclab.utils import index_fill_
+from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import ContactSensor, FrameTransformer
 
@@ -30,11 +32,10 @@ def object_ee_distance(
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Reward reaching the object using a tanh-kernel on end-effector distance with contact bonus.
+    """Reward reaching the object using a tanh kernel on the end-effector distance, scaled by contact.
 
-    The reward is close to 1 when the distance is small. The reward is scaled by contact:
-    - Full reward (1x) when good contact (thumb + finger)
-    - Reduced reward (0.1x) when no contact
+    The reward is close to 1 when the distance is small. It is paid in full while the thumb and at
+    least one finger touch the object, and scaled down to 0.1 otherwise.
 
     Args:
         env: The environment instance.
@@ -54,12 +55,6 @@ def object_ee_distance(
     return (1 - torch.tanh(distance / std)) * contact_bonus
 
 
-def _contact_force_mag(sensor: ContactSensor, num_envs: int) -> torch.Tensor:
-    """Extract per-environment contact force magnitude from a sensor's force_matrix_w."""
-    force = sensor.data.force_matrix_w.torch.view(num_envs, 3)
-    return torch.linalg.norm(force, dim=-1)
-
-
 def contacts(env: ManagerBasedRLEnv, threshold: float, thumb_name: str, finger_names: list[str]) -> torch.Tensor:
     """Reward for good contact: thumb + at least one finger above threshold.
 
@@ -72,14 +67,8 @@ def contacts(env: ManagerBasedRLEnv, threshold: float, thumb_name: str, finger_n
     Returns:
         Boolean tensor indicating good contact condition per environment.
     """
-    thumb_mag = _contact_force_mag(env.scene.sensors[thumb_name], env.num_envs)
-
-    any_finger_contact = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-    for finger_name in finger_names:
-        finger_mag = _contact_force_mag(env.scene.sensors[finger_name], env.num_envs)
-        any_finger_contact = any_finger_contact | (finger_mag > threshold)
-
-    return (thumb_mag > threshold) & any_finger_contact
+    in_contact = _contact_force_mag(env, [thumb_name, *finger_names]) > threshold
+    return in_contact[:, 0] & in_contact[:, 1:].any(dim=1)
 
 
 def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[str]) -> torch.Tensor:
@@ -96,11 +85,7 @@ def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[s
     Returns:
         Tensor of shape (num_envs,) with the count of sensors in contact per environment.
     """
-    count = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
-
-    for sensor_name in sensor_names:
-        mag = _contact_force_mag(env.scene.sensors[sensor_name], env.num_envs)
-        count += (mag > threshold).float()
+    count = (_contact_force_mag(env, sensor_names) > threshold).float().sum(dim=1)
     return count / len(sensor_names)
 
 
@@ -111,20 +96,14 @@ class success_reward(ManagerTermBase):
 
     Maintains a sticky ``succeeded`` boolean tensor per environment that flips to ``True`` once
     the success condition is met during an episode and resets to ``False`` on environment reset.
-
-    Args:
-        cfg: Configuration object specifying term parameters.
-        env: The manager-based RL environment.
     """
 
-    def __init__(self, cfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self.succeeded[env_ids] = False
+        index_fill_(self.succeeded, env_ids, False)
 
     def __call__(
         self,
@@ -228,8 +207,8 @@ def orientation_command_error_tanh(
     asset: RigidObject = env.scene[asset_cfg.name]
     obj: RigidObject = env.scene[align_asset_cfg.name]
     command = env.command_manager.get_command(command_name)
-    des_quat_w = math_utils.quat_mul(asset.data.root_link_quat_w.torch, command[:, 3:7])
-    quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
+    des_quat_w = quat_mul(asset.data.root_link_quat_w.torch, command[:, 3:7])
+    quat_distance = quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
     return (1 - torch.tanh(quat_distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
 
 
@@ -248,16 +227,14 @@ class _ProgressReward(ManagerTermBase):
     so it is re-seeded whenever the command resamples and never carries across goals.
     """
 
-    def __init__(self, cfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         # inf marks an environment whose bar has not been seeded yet against its current command
         self.best_error = torch.full((env.num_envs,), float("inf"), device=env.device)
         self._prev_command: torch.Tensor | None = None
 
     def reset(self, env_ids: Sequence[int] | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self.best_error[env_ids] = float("inf")
+        index_fill_(self.best_error, env_ids, float("inf"))
 
     def _progress(
         self, error: torch.Tensor, gate: torch.Tensor, min_improvement: float, command: torch.Tensor
@@ -278,12 +255,12 @@ class _ProgressReward(ManagerTermBase):
         if self._prev_command is None:
             self._prev_command = command.clone()
         else:
-            self.best_error[(self._prev_command != command).any(dim=1)] = float("inf")
+            self.best_error.masked_fill_((self._prev_command != command).any(dim=1), float("inf"))
             self._prev_command.copy_(command)
         unseeded = torch.isinf(self.best_error)
-        self.best_error[unseeded] = error[unseeded]
+        torch.where(unseeded, error, self.best_error, out=self.best_error)
         improved = gate & (error < self.best_error - min_improvement)
-        self.best_error[improved] = error[improved]
+        torch.where(improved, error, self.best_error, out=self.best_error)
         return improved.float()
 
 
@@ -363,8 +340,8 @@ class orientation_command_progress(_ProgressReward):
         asset: RigidObject = env.scene[asset_cfg.name]
         obj: RigidObject = env.scene[align_asset_cfg.name]
         command = env.command_manager.get_command(command_name)
-        des_quat_w = math_utils.quat_mul(asset.data.root_link_quat_w.torch, command[:, 3:7])
-        quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
+        des_quat_w = quat_mul(asset.data.root_link_quat_w.torch, command[:, 3:7])
+        quat_distance = quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
         gate = contacts(env, contact_threshold, thumb_name, finger_names)
         return self._progress(quat_distance, gate, min_improvement, command)
 
@@ -412,24 +389,12 @@ def deformable_com_ee_distance(
     return 1.0 - torch.tanh(distance / std)
 
 
-def _deformable_com_goal_metrics(
-    env: ManagerBasedRLEnv,
-    minimal_height: float,
-    command_name: str,
-    robot_cfg: SceneEntityCfg,
-    asset_cfg: SceneEntityCfg,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Compute deformable COM goal distance and lifted state."""
-    robot: Articulation = env.scene[robot_cfg.name]
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
-    des_pos_w, _ = combine_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3])
-    com_w = asset.data.root_pos_w.torch
-    return torch.linalg.norm(des_pos_w - com_w, dim=1), com_w[:, 2] > minimal_height
+class _GoalDistanceReward(ManagerTermBase):
+    """Base class for goal-distance rewards that also log the episode success rate.
 
-
-class DeformableComGoalDistance(ManagerTermBase):
-    """Reward deformable COM goal tracking and log episode success."""
+    Subclasses set ``_succeeded`` in ``__call__``; the flag is flushed to ``Metrics/success_rate``
+    in ``extras["log"]`` on reset.
+    """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
@@ -438,8 +403,12 @@ class DeformableComGoalDistance(ManagerTermBase):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         if env_ids is None:
             env_ids = slice(None)
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean().item()
-        self._succeeded[env_ids] = False
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean()
+        index_fill_(self._succeeded, env_ids, False)
+
+
+class DeformableComGoalDistance(_GoalDistanceReward):
+    """Reward deformable COM goal tracking and log episode success."""
 
     def __call__(
         self,
@@ -473,3 +442,113 @@ def gripper_close_action(env: ManagerBasedRLEnv, action_name: str = "gripper_act
     """Return one when the binary gripper action commands closing and zero otherwise."""
     gripper_action = env.action_manager.get_term(action_name).raw_actions
     return torch.any(gripper_action < 0.0, dim=1).float()
+
+
+def cable_lifting(
+    env: ManagerBasedRLEnv,
+    std: float,
+    minimal_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Reward the average cable height above minimal_height [m] with a tanh kernel (std [m])."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    mean_z = asset.data.segment_pose_w.torch[..., 2].mean(dim=1)
+    height = (mean_z - minimal_height).clamp(min=0.0)
+    return torch.tanh(height / std)
+
+
+def cable_ee_distance(
+    env: ManagerBasedRLEnv,
+    std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Reward end-effector proximity to the nearest cable segment with a tanh kernel (std [m])."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+    segment_pos_w = asset.data.segment_pose_w.torch[..., :3]
+    ee_pos_w = ee_frame.data.target_pos_w.torch[..., 0, :]
+    distance = torch.linalg.norm(segment_pos_w - ee_pos_w.unsqueeze(1), dim=2).min(dim=1).values
+    return 1.0 - torch.tanh(distance / std)
+
+
+class CableSegmentGoalDistance(_GoalDistanceReward):
+    """Reward cable segment goal tracking and log episode success."""
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        std: float,
+        command_name: str,
+        success_threshold: float,
+        segment_index: int,
+        robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+    ) -> torch.Tensor:
+        distance = _cable_segment_goal_metrics(env, command_name, segment_index, robot_cfg, asset_cfg)
+        self._succeeded |= distance < success_threshold
+        return 1.0 - torch.tanh(distance / std)
+
+
+def cable_segment_goal_reached(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    success_threshold: float,
+    segment_index: int,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Reward a cable segment for reaching the goal."""
+    distance = _cable_segment_goal_metrics(env, command_name, segment_index, robot_cfg, asset_cfg)
+    return (distance < success_threshold).float()
+
+
+def _contact_force_mag(env: ManagerBasedRLEnv, sensor_names: Sequence[str]) -> torch.Tensor:
+    """Per-environment contact force magnitudes [N] of single-body, single-filter contact sensors.
+
+    The forces are stacked so a single norm covers every sensor.
+
+    Args:
+        env: The environment instance.
+        sensor_names: Names of the contact sensors in the scene.
+
+    Returns:
+        Force magnitudes [N], shape ``(num_envs, len(sensor_names))``.
+    """
+    sensors: list[ContactSensor] = [env.scene.sensors[name] for name in sensor_names]
+    forces = torch.stack([sensor.data.normal_force_matrix_w.torch.view(env.num_envs, 3) for sensor in sensors], dim=1)
+    return torch.linalg.norm(forces, dim=-1)
+
+
+def _deformable_com_goal_metrics(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    command_name: str,
+    robot_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute deformable COM goal distance and lifted state."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    asset: DeformableObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    des_pos_w, _ = combine_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3])
+    com_w = asset.data.root_pos_w.torch
+    return torch.linalg.norm(des_pos_w - com_w, dim=1), com_w[:, 2] > minimal_height
+
+
+def _cable_segment_goal_metrics(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    segment_index: int,
+    robot_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Compute cable segment goal distance."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    asset: CableObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    desired_pos_w, _ = combine_frame_transforms(
+        robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3]
+    )
+    segment_pos_w = asset.data.segment_pose_w.torch[:, segment_index, :3]
+    return torch.linalg.norm(desired_pos_w - segment_pos_w, dim=1)

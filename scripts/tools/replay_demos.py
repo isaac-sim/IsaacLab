@@ -4,9 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Script to replay demonstrations with Isaac Lab environments."""
 
-"""Launch Isaac Sim Simulator first."""
-
-
 # Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
 # time spent building kernels on a cold kernel cache.
 import warp as wp
@@ -14,11 +11,13 @@ import warp as wp
 wp.config.enable_backward = False
 
 import argparse
+import sys
 
-from isaaclab.app import AppLauncher
-from isaaclab.utils.string import list_intersection, string_to_callable
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils.string import string_to_callable
 
-# add argparse arguments
+from isaaclab_tasks.utils import setup_preset_cli
+
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to replay episodes.")
 parser.add_argument("--task", type=str, default=None, help="Force to use the specified task.")
@@ -56,40 +55,32 @@ parser.add_argument(
 )
 
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli, remaining_args = parser.parse_known_args()
-# args_cli.headless = True
-
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+add_launcher_args(parser)
+args_cli, hydra_args = setup_preset_cli(parser)
+# the pause/resume keyboard is a Kit input device, so the Kit runtime is required
+args_cli.require_kit = True
 
 # Call an external callback if requested.
-remaining_args_env_registration = None
 if args_cli.external_callback:
-    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = external_callback_function()
-
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
-if unrecognized_args:
-    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
-
-"""Rest everything follows."""
+    remaining = string_to_callable(args_cli.external_callback, separator=".")()
+    if remaining is not None:
+        _, hydra_args = setup_preset_cli(parser, remaining)
+sys.argv = [sys.argv[0]] + hydra_args
 
 import contextlib
+import logging
 import os
 
 import gymnasium as gym
 import torch
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+from isaaclab.envs.utils._manual_success import _prepare_success_term
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
+
+logger = logging.getLogger(__name__)
 
 is_paused = False
 
@@ -157,7 +148,7 @@ def replay_episodes_loop(  # noqa: C901
     failed_demo_ids: list[int] = []
 
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while simulation_app.is_running() and not simulation_app.is_exiting():
+        while env.sim.is_running():
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
             first_loop = True
             has_next_action = True
@@ -283,38 +274,48 @@ def main():
             f"Got num_envs={num_envs}. Use --num_envs 1 or disable --reset_sim_buffer_each_episode."
         )
 
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    env_cfg, _ = resolve_task_config(env_name, "")
+    env_cfg.sim.device = args_cli.device
+    env_cfg.scene.num_envs = num_envs
 
     # extract success checking function to invoke in the main loop
-    success_term = None
-    if args_cli.validate_success_rate:
-        if hasattr(env_cfg.terminations, "success"):
-            success_term = env_cfg.terminations.success
-            env_cfg.terminations.success = None
-        else:
-            print(
-                "No success termination term was found in the environment."
-                " Will not be able to mark recorded demos as successful."
-            )
+    success_term = _prepare_success_term(env_cfg, disable_terminations=True)
+    if not args_cli.validate_success_rate:
+        success_term = None
+    elif success_term is None:
+        print(
+            "No success termination term was found in the environment."
+            " Will not be able to mark recorded demos as successful."
+        )
 
-    # Disable all recorders and terminations
+    # Replay applies recorded actions without automatic episode resets.
     env_cfg.recorders = {}
-    env_cfg.terminations = {}
+
+    with launch_simulation(env_cfg, args_cli):
+        replay_dataset(env_cfg, dataset_file_handler, episode_count, episode_indices_to_replay, success_term)
+
+
+def replay_dataset(
+    env_cfg,
+    dataset_file_handler: HDF5DatasetFileHandler,
+    episode_count: int,
+    episode_indices_to_replay: list[int],
+    success_term,
+):
+    """Create the environment and replay the selected episodes of the dataset."""
+    from isaaclab.visualizers import add_key_callbacks
+
+    num_envs = args_cli.num_envs
 
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
-
-    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
-    teleop_interface.add_callback("N", play_cb)
-    teleop_interface.add_callback("B", pause_cb)
-    print('Press "B" to pause and "N" to resume the replayed actions.')
 
     # Determine if state validation should be conducted
     state_validation_enabled = False
     if args_cli.validate_states and num_envs == 1:
         state_validation_enabled = True
     elif args_cli.validate_states and num_envs > 1:
-        print("Warning: State validation is only supported with a single environment. Skipping state validation.")
+        logger.warning("State validation is only supported with a single environment. Skipping state validation.")
 
     # Get idle action (idle actions are applied to envs without next action)
     if hasattr(env_cfg, "idle_action"):
@@ -324,7 +325,8 @@ def main():
 
     # reset before starting
     env.reset()
-    teleop_interface.reset()
+    add_key_callbacks(env.sim.visualizers, {"N": play_cb, "B": pause_cb})
+    print('Press "B" to pause and "N" to resume the replayed actions.')
 
     episode_names = list(dataset_file_handler.get_episode_names())
     replayed_episode_count, recorded_episode_count, failed_demo_ids = replay_episodes_loop(
@@ -357,7 +359,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

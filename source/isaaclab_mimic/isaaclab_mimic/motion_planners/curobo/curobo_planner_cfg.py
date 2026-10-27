@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import os
 import tempfile
 
@@ -12,8 +13,10 @@ from curobo.geom.sdf.world import CollisionCheckerType
 from curobo.geom.types import WorldConfig
 from curobo.util_file import get_robot_configs_path, get_world_configs_path, join_path, load_yaml
 
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
+
+logger = logging.getLogger(__name__)
 
 
 @configclass
@@ -462,5 +465,5 @@ class CuroboPlannerCfg:
             return cls.franka_stack_cube_config()
         else:
             # Default to Franka configuration
-            print(f"Warning: Unknown robot in task '{task_name}', using Franka configuration")
+            logger.warning(f"Unknown robot in task '{task_name}', using Franka configuration")
             return cls.franka_config()
