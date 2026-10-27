@@ -111,8 +111,9 @@ class SurfaceVelocity:
 
     def _bind_solver(self) -> None:
         """Resolve the newly finalized model and register its graph callbacks."""
-        model = self._manager.get_model()
-        contacts = self._manager.get_contacts()
+        backend = self._manager.backend
+        model = backend.model
+        contacts = backend.contacts
         observables = self._manager.get_solver_observables()
         if contacts is None or observables is None or observables.contact_f is None:
             raise RuntimeError("The conveyor requires solved per-contact force observables.")

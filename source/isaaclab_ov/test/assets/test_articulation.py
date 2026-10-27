@@ -558,7 +558,7 @@ def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
     stage_usda = _make_articulation_root_stage_usda()
-    articulation._backend_manager = OvPhysxManager()
+    articulation._backend_manager = OvPhysxManager(OvPhysxCfg())
     articulation._backend_manager._stage_usda = stage_usda
     articulation._process_tendons()
 
