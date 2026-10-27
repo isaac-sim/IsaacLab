@@ -48,7 +48,7 @@ def _recording(path="clip.viser", static=False):
     if not static:
         xforms[:, :, 0] = np.arange(3)[:, None]
     shape = ReplayShape(
-        name="shape",
+        name="/model/shapes/shape_0",
         vertices=np.zeros((3, 3), np.float32),
         indices=np.array([0, 1, 2], np.int32),
         positions=xforms[..., :3],
@@ -149,8 +149,34 @@ def test_the_slot_description_is_read_back_next_to_the_recording(tmp_path):
     recording.slots, recording.slice_size, recording.shapes[0].worlds = [], 0, None
     write_slot_sidecar(
         recording.path, 1, [RecordedSlot(0, "a.pt", None), RecordedSlot(1, "b.pt", (1.0, 0.0, 0.0))],
-        {"shape": [0, 1]},
+        {"/model/shapes/shape_0": [0, 1]},
     )  # fmt: skip
     _attach_slots(recording)
     assert [slot.label for slot in recording.slots] == ["a.pt", "b.pt"] and recording.slice_size == 1
+    assert recording.shapes[0].worlds.tolist() == [0, 1]
+
+
+def test_markers_of_a_ghost_session_start_hidden_and_can_be_shown(panel, tmp_path):
+    panel, viewer = panel
+    recording = _ghost_session(tmp_path)
+    arrows = _recording()
+    arrows.shapes[0].name = "/Visuals/Command/velocity_goal_1/arrow"
+    recording.shapes.append(arrows.shapes[0])
+    player = _open(panel, recording)
+    assert not player.show_markers
+    assert viewer.instances["/replay/instances_1"][1]  # Hidden, while the robots stay.
+    assert not viewer.instances["/replay/instances_0"][1]
+    player.show_markers = True
+    panel.update()
+    assert not viewer.instances["/replay/instances_1"][1]
+
+
+def test_markers_are_matched_to_slots_by_the_recorded_environments(tmp_path):
+    recording = _ghost_session(tmp_path)
+    recording.slots, recording.slice_size, recording.shapes[0].worlds = [], 0, None
+    recording.shapes[0].name = "/Visuals/Command/velocity_goal_1/arrow"
+    write_slot_sidecar(
+        recording.path, 1, [RecordedSlot(0, "a.pt", None), RecordedSlot(1, "b.pt", (1.0, 0.0, 0.0))], {}, [0, 1]
+    )
+    _attach_slots(recording)
     assert recording.shapes[0].worlds.tolist() == [0, 1]

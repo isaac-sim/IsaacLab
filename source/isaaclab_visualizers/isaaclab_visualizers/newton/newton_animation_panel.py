@@ -43,7 +43,7 @@ class NewtonAnimationPanel:
         self.player.color, self.player.tint, self.player.opacity = GHOST_COLOR, 1.0, DEFAULT_OPACITY
         self.folder = ""
         """Folder the Open window lists; empty follows ``folder_getter``."""
-        self._announced = None
+        self.player.on_loaded = self._on_loaded
         self._window_open = False
         self._files: list[Path] = []
 
@@ -82,12 +82,13 @@ class NewtonAnimationPanel:
         player.playing = not viewer._paused_training
         player.hide_static = not self._owner.simulation_hidden
         player.update()
-        if player.recording is not self._announced:
-            self._announced = player.recording
-            if player.recording is not None and player.recording.slots:
-                # A ghost session already holds the reference, so the live robots would only get in the way.
-                player.slot_visible.clear()
-                self._owner.set_simulation_hidden(True)
+
+    def _on_loaded(self, recording) -> None:
+        """Set up the view for a newly loaded recording; a ghost session already holds the reference."""
+        self.player.slot_visible.clear()
+        if recording.slots:
+            self.player.show_markers = False  # One set of arrows per slot would clutter the overlay.
+            self._owner.set_simulation_hidden(True)  # The live robots would only get in the way.
 
     def draw_window(self, imgui: Any) -> None:
         """Draw the file browser listing the ``.viser`` animations below a folder, while it is open."""
@@ -205,6 +206,9 @@ class NewtonAnimationPanel:
         _, player.speed = imgui.slider_float("Speed##animation", player.speed, 0.1, 4.0, "%.2fx")
         if imgui.is_item_hovered():
             imgui.set_tooltip("Playback speed relative to the recording")
+        _, player.show_markers = imgui.checkbox("Show markers##animation", player.show_markers)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Show the recorded visualization markers, such as velocity arrows")
         _, player.opacity = imgui.slider_float("Opacity##animation", player.opacity, 0.1, 1.0)
         if imgui.is_item_hovered():
             imgui.set_tooltip(

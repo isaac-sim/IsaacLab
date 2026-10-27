@@ -397,7 +397,8 @@ class NewtonRecordingPanel:
         for batch in viewer._shape_instances.values():
             ids = batch.worlds.numpy() if hasattr(batch.worlds, "numpy") else batch.worlds
             worlds[batch.name] = [int(world) for world in ids]
-        return layout.slice_size, slots, worlds
+        env_ids = list(self._owner._env_ids) if self._owner._env_ids is not None else None
+        return layout.slice_size, slots, worlds, env_ids
 
     # ------------------------------------------------------------------
     # Checkpoint

@@ -1718,7 +1718,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                     else:
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
-                        render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+                        # The live markers go with the live simulation while only an animation is shown.
+                        marker_envs = [] if self._simulation_hidden else self._env_ids
+                        render_newton_visualization_markers(viewer, marker_envs, num_envs=self.backend.model.num_envs)
             if self._recording is not None and self.current_image_view.camera is None:
                 self._recording.animation.update()
             for name, arguments in self._pending_mesh_submissions.items():

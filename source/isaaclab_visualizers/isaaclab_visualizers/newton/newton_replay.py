@@ -71,6 +71,11 @@ class ReplayShape:
     terrain and other shared shapes have ``-1``."""
 
     @property
+    def marker(self) -> bool:
+        """Whether the shape is a visualization marker, such as a velocity arrow, and not part of the model."""
+        return not self.name.startswith("/model/")
+
+    @property
     def static(self) -> bool:
         """Whether no instance ever moves, as for terrain and ground planes."""
         return self.frame_scales is None and bool(np.all(self.xforms == self.xforms[:1]))
@@ -278,6 +283,7 @@ def write_slot_sidecar(
     slice_size: int,
     slots: list[RecordedSlot],
     shape_worlds: dict[str, list[int]],
+    env_ids: list[int] | None = None,
 ) -> None:
     """Write the slot description that lets a replay tint, label, and hide each slot of a ghost session.
 
@@ -286,12 +292,14 @@ def write_slot_sidecar(
         slice_size: Number of environments per slot.
         slots: The session's slots.
         shape_worlds: World index of every instance, by the name of its shape batch.
+        env_ids: The environments that were recorded, in the order the visualization markers list them.
     """
     document = {
         "version": 1,
         "slice_size": slice_size,
         "slots": [{"index": slot.index, "label": slot.label, "color": slot.color} for slot in slots],
         "shapes": shape_worlds,
+        "env_ids": env_ids,
     }
     sidecar_path(path).write_text(json.dumps(document))
 
@@ -309,15 +317,20 @@ def _attach_slots(recording: ViserRecording) -> None:
         ]
         worlds = document["shapes"]
         slice_size = int(document["slice_size"])
+        env_ids = document.get("env_ids") or []
     except (OSError, ValueError, KeyError, TypeError):
         logger.warning("[NewtonReplay] Ignoring the unreadable slot description %s.", file)
         return
     matched = 0
     for shape in recording.shapes:
         values = worlds.get(shape.name)
-        if values is not None and len(values) == len(shape.xforms[0]):
+        count = len(shape.xforms[0])
+        if values is not None and len(values) == count:
             shape.worlds = np.asarray(values, np.int32)
             matched += 1
+        elif shape.marker and env_ids and count % len(env_ids) == 0:
+            # Markers are listed per environment, in the order of the recorded environments.
+            shape.worlds = np.repeat(np.asarray(env_ids, np.int32), count // len(env_ids))
     if matched:
         recording.slots, recording.slice_size = slots, slice_size
     else:
@@ -359,12 +372,16 @@ class NewtonReplayPlayer:
         self.tint = 0.0
         """How strongly :attr:`color` replaces the recording's colors and textures, in ``[0, 1]``."""
         self.visible = True
+        self.show_markers = True
+        """Whether visualization markers, such as velocity arrows, are drawn."""
         self.slot_visible: dict[int, bool] = {}
         """Whether each slot of a Policy Ghost recording is shown; a missing slot is shown."""
         self.hide_static = False
         """Skip shapes that never move, which the live scene already draws."""
         self.offset = np.zeros(3, np.float32)
         self.message = ""
+        self.on_loaded: Any = None
+        """Optional callable run with the recording just after it is installed and before its first frame is drawn."""
         self._thread: threading.Thread | None = None
         self._pending: ViserRecording | Exception | None = None
         self._registered: ViserRecording | None = None
@@ -438,6 +455,8 @@ class NewtonReplayPlayer:
                 self.message = (
                     f"Loaded {Path(pending.path).name} ({pending.duration:.1f} s, {pending.num_frames} frames)"
                 )
+                if self.on_loaded is not None:
+                    self.on_loaded(pending)
         recording = self.recording
         if recording is None:
             return
@@ -452,6 +471,7 @@ class NewtonReplayPlayer:
         state = (
             frame, self.opacity, self.hide_static, tuple(self.offset), self.visible, self.color, self.tint,
             tuple(sorted(self.slot_visible.items())),
+            self.show_markers,
         )  # fmt: skip
         if state != self._drawn:
             self._publish(viewer, recording, frame)
@@ -498,7 +518,9 @@ class NewtonReplayPlayer:
                 wp.array(scales, dtype=wp.vec3, device=viewer.device),
                 wp.array(colors, dtype=wp.vec3, device=viewer.device),
                 wp.array(materials, dtype=wp.vec4, device=viewer.device),
-                hidden=not self.visible or (self.hide_static and shape.static),
+                hidden=not self.visible
+                or (self.hide_static and shape.static)
+                or (shape.marker and not self.show_markers),
                 opacities=None
                 if np.all(opacities >= 1.0)
                 else wp.array(opacities, dtype=wp.float32, device=viewer.device),
@@ -516,7 +538,7 @@ class NewtonReplayPlayer:
             slots = np.clip(slots, 0, top)
             color, amount, opacity = np.zeros((count, 3), np.float32), np.zeros(count, np.float32), np.ones(count)
             for slot in recording.slots:
-                if slot.color is not None:
+                if slot.color is not None and not shape.marker:  # Markers keep their own colors.
                     mask = slots == slot.index
                     color[mask], amount[mask], opacity[mask] = slot.color, self.tint, self.opacity
             shown = np.array([self.slot_visible.get(i, True) for i in range(top + 1)])
