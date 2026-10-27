@@ -567,8 +567,8 @@ task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton G
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
 provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
-views. A perspective view can also be a *task view* that follows a robot or frames an environment; Newton GL, Viser
-and Kit support it.
+views. A perspective view can also be a *task view* that follows a robot or frames an environment; Newton GL and Kit
+support it.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
 sources, task views that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.

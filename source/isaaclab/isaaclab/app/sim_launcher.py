@@ -316,7 +316,8 @@ def validate_launch(  # noqa: C901
         if visualizer.view is not None:
             sources = [visualizer.view.source]
         else:
-            # task views follow the viewer camera, which an RTX scene camera cannot do, so RTX leaves them out
+            # Task views follow the viewer camera, which an RTX scene camera cannot do, so RTX leaves them out.
+            # RTX-only: remove this filter, and the one in SimulationContext, with the RTX visualizer.
             sources = [
                 camera
                 for camera in visualizer.cameras or []

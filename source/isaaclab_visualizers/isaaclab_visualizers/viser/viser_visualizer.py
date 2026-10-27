@@ -25,7 +25,6 @@ from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.camera_follower import CameraFollower
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -291,9 +290,6 @@ class ViserVisualizer(BaseVisualizer):
         self._warned_marker_render_failure = False
         self._paused_rendering = False
         self._paused_simulation = False
-        self._task_view: PerspectiveCameraCfg | None = None
-        self._task_follower: CameraFollower | None = None
-        self._following_task_view = False
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -328,7 +324,6 @@ class ViserVisualizer(BaseVisualizer):
             self._log_viewer_url("ViserVisualizer", viewer_url)
         self._viewer.set_model(self.backend.model)
         self._viewer.show_particles = self.cfg.backend.show_particles
-        self._bind_task_view(cameras)
         # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
@@ -368,10 +363,6 @@ class ViserVisualizer(BaseVisualizer):
             self.set_camera_view(*self._pending_camera_pose)
 
         self._sim_time += dt
-        if self._following_task_view and self._task_follower is not None:
-            pose = self._task_follower.pose(self._sim_time)
-            if pose is not None:
-                self.set_camera_view(*pose, focal_length=self._task_view.focal_length)
 
         # Skip all rendering when no browser clients are connected.
         if not self._viewer._server.get_clients():
@@ -464,8 +455,6 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer = None
         self._is_initialized = False
         self.backend = self._transform_mapping = None
-        self._task_view = self._task_follower = None
-        self._following_task_view = False
         super().close()
         self._pending_camera_pose = None
 
@@ -511,19 +500,6 @@ class ViserVisualizer(BaseVisualizer):
                     for i, v in enumerate(values):
                         self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
-    def _bind_task_view(self, cameras: list) -> None:
-        """Bind the first task view the config declares, so a bad environment or asset fails at initialization."""
-        self._task_view = next(
-            (camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view), None
-        )
-        self._following_task_view = False
-        self._task_follower = None
-        if self._task_view is None:
-            return
-        scene = self._sim.get_scene_data_provider().get_interactive_scene()
-        if scene is not None:
-            self._task_follower = CameraFollower(self._task_view, scene)
-
     def _setup_isaaclab_sidebar(self, server) -> None:
         """Configure the Viser sidebar as the Isaac Lab panel.
 
@@ -557,9 +533,6 @@ class ViserVisualizer(BaseVisualizer):
             def _(_):
                 self._reset_requested = True
 
-            if self._task_follower is not None:
-                self._add_task_view_controls(server)
-
             live_plots_folder = server.gui.add_folder("Live Plots", expand_by_default=False)
             viewer._live_plots_folder = live_plots_folder
 
@@ -586,48 +559,21 @@ class ViserVisualizer(BaseVisualizer):
                     def _(event, _attr=attr):
                         setattr(viewer, _attr, event.target.value)
 
-    def _add_task_view_controls(self, server) -> None:
-        """Add the task view toggle, off by default, and the environment it follows, 0 by default."""
-        follower = self._task_follower
-        folder = server.gui.add_folder("Camera View", expand_by_default=True)
-        with folder:
-            toggle = server.gui.add_checkbox("Follow task view", initial_value=self._following_task_view)
-            env_input = server.gui.add_number(
-                "Environment",
-                initial_value=follower.env,
-                min=0,
-                max=self._sim.get_scene_data_provider().num_envs - 1,
-                step=1,
-            )
-
-            @toggle.on_update
-            def _(event):
-                self._following_task_view = bool(event.target.value)
-
-            @env_input.on_update
-            def _(event):
-                with contextlib.suppress(ValueError):
-                    follower.set_env(int(event.target.value))
-
     def set_camera_view(
-        self,
-        eye: tuple[float, float, float] | list[float],
-        target: tuple[float, float, float] | list[float],
-        focal_length: float | None = None,
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
     ) -> None:
         """Set every connected client's camera eye/target.
 
         Args:
             eye: Camera eye position.
             target: Camera look-at target.
-            focal_length: Focal length [mm]; None uses the configured one.
         """
         self._pending_camera_pose = (tuple(float(v) for v in eye), tuple(float(v) for v in target))
         if self._viewer is None:
             return
         clients = self._viewer._server.get_clients()
         for client in clients.values():
-            client.camera.fov = math.radians(self._focal_length_to_vertical_fov_degrees(focal_length))
+            client.camera.fov = math.radians(self._focal_length_to_vertical_fov_degrees())
             client.camera.position, client.camera.look_at = self._pending_camera_pose
         if clients:
             self._pending_camera_pose = None
