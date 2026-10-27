@@ -395,7 +395,12 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     """Markers use the current native state; overlay failures still close the frame."""
     calls, marker_calls = [], []
     state = SimpleNamespace(body_q=None)
-    backend = SimpleNamespace(model=SimpleNamespace(num_envs=4, body_count=0), state_0=state, geometry_offsets={})
+    backend = SimpleNamespace(
+        model=SimpleNamespace(num_envs=4, world_count=4, body_count=0),
+        state_0=state,
+        geometry_offsets={},
+        contacts=None,
+    )
 
     class Viewer:
         show_contacts = False
@@ -438,8 +443,9 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer._sim = SimpleNamespace(
         get_scene_data_provider=lambda: provider,
         get_physics_step_count=lambda: 1,
-        backend_manager=SimpleNamespace(backend_name="newton", get_contacts=lambda: None),
+        backend_manager=SimpleNamespace(backend_name="newton", backend=backend),
     )
+    visualizer._backend_manager = visualizer._sim.backend_manager
     visualizer._transform_mapping = None
     visualizer._env_ids = [1, 3]
 

@@ -374,9 +374,9 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    def __init__(self):
-        super().__init__()
-        self._cfg: PhysxCfg | None = None
+    def __init__(self, cfg: PhysxCfg):
+        super().__init__(cfg)
+        self._cfg: PhysxCfg = cfg
         self._timeline: omni.timeline.ITimeline = omni.timeline.get_timeline_interface()
         self._event_bus: carb.eventdispatcher.IEventDispatcher = carb.eventdispatcher.get_eventdispatcher()
         self._scene_data_backend: PhysxSceneDataBackend | None = None

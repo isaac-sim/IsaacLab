@@ -54,7 +54,7 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self.backend.solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
         self._use_single_state = True
         self._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
         self._supports_rigid_body_force_input = True
@@ -77,7 +77,7 @@ class NewtonMJWarpManager(NewtonManager):
         Returns:
             The adapter, or None when no MuJoCo actuator transmits to any of its tendons.
         """
-        return MjWarpTendonControl.create(articulation, self.get_model())
+        return MjWarpTendonControl.create(articulation, self.backend.model)
 
     def _initialize_contacts(self) -> None:
         """Allocate contact buffers.
@@ -92,9 +92,9 @@ class NewtonMJWarpManager(NewtonManager):
         if self._needs_collision_pipeline:
             super()._initialize_contacts()
             return
-        if self._solver is not None:
-            self._contacts = Contacts(
-                rigid_contact_max=self._solver.get_max_contact_count(),
+        if self.backend.solver is not None:
+            self.backend.contacts = Contacts(
+                rigid_contact_max=self.backend.solver.get_max_contact_count(),
                 soft_contact_max=0,
                 device=self._device,
                 requested_attributes=self.backend.model.get_requested_contact_attributes(),
@@ -127,11 +127,11 @@ class NewtonMJWarpManager(NewtonManager):
         """
         if world_mask is None:
             return
-        if self._solver.use_mujoco_cpu and not world_mask.numpy().any():
+        if self.backend.solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
-        self._solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
+        self.backend.solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
 
     def _log_solver_debug(self) -> None:
         """Optionally log MuJoCo solver convergence at the end of step."""
@@ -139,7 +139,7 @@ class NewtonMJWarpManager(NewtonManager):
         if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
             data = self._get_solver_convergence_steps()
             logger.info(f"Solver convergence data: {data}")
-            if data["max"] == self._solver.mjw_model.opt.iterations:
+            if data["max"] == self.backend.solver.mjw_model.opt.iterations:
                 logger.warning(f"Solver didn't converge! max_iter={data['max']}")
 
     def _get_solver_convergence_steps(self) -> dict[str, float | int]:
@@ -148,7 +148,7 @@ class NewtonMJWarpManager(NewtonManager):
         Reads ``mjw_data.solver_niter`` (only available on
         :class:`SolverMuJoCo`) and summarizes per-environment iteration counts.
         """
-        niter = self._solver.mjw_data.solver_niter.numpy()
+        niter = self.backend.solver.mjw_data.solver_niter.numpy()
         return {
             "max": np.max(niter),
             "mean": np.mean(niter),

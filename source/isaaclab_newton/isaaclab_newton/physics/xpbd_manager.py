@@ -37,7 +37,7 @@ class NewtonXPBDManager(NewtonManager):
         XPBD always uses Newton's :class:`CollisionPipeline` and steps with
         separate input/output states, so the flags are fixed.
         """
-        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self.backend.solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
         self._use_single_state = False
         self._needs_collision_pipeline = True
         self._supports_rigid_body_force_input = True
