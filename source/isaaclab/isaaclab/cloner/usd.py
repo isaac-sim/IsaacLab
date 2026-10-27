@@ -140,3 +140,14 @@ class UsdReplicateContext(ReplicateContext):
                     if attr.name not in ops:
                         ops.insert(ops.index("!resetXformStack!") + 1 if "!resetXformStack!" in ops else 0, attr.name)
                     order.default = Vt.TokenArray(ops)
+            # Sources are authored into the first environment of their world prototype, so heterogeneous plans
+            # create the environment roots out of index order; stage queries and native views follow child order.
+            layer = self._sim.stage.GetRootLayer()
+            env_paths = [Sdf.Path(plan.env_template.format(env_id)) for env_id in env_ids]
+            parent = layer.GetPrimAtPath(env_paths[0].GetParentPath()) if env_paths else None
+            if parent is not None:
+                names = [path.name for path in env_paths]
+                env_names = set(names)
+                authored = [name for name in parent.nameChildren.keys() if name in env_names]
+                if authored != names:
+                    parent.nameChildrenOrder = names
