@@ -541,6 +541,45 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
         method(**{kwarg: wp.from_torch(extra_env.contiguous(), dtype=dtype)})
 
 
+_TENDON_MASK_SETTERS = [
+    *[writer for writer in _WRITERS if writer[2] in ("fixed_tendon", "spatial_tendon")],
+    ("set_fixed_tendon_position_target", "target", "fixed_tendon", 0, wp.float32, "data.fixed_tendon_offset"),
+]
+
+
+@pytest.mark.parametrize("backend", backends("physx"))
+@pytest.mark.parametrize(
+    "writer, kwarg, axis, trailing, dtype, getter", _TENDON_MASK_SETTERS, ids=[w[0] for w in _TENDON_MASK_SETTERS]
+)
+def test_tendon_mask_setters_write_only_what_short_masks_cover(
+    monkeypatch, backend, writer, kwarg, axis, trailing, dtype, getter
+):
+    """Masks shorter than their axes write only the entries they cover, like the Newton kernel writers.
+
+    Masks and data are views into full-size arrays, so a launch past the mask lengths would write defined values.
+    """
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    count = _AXIS_COUNTS[axis]
+    push = getattr(art, f"write_{axis}_properties_to_sim_index")
+    push()
+    expected = attrgetter(getter)(art).torch.clone()
+    values = _payload((N, count), trailing, dtype, "cpu", offset=100.0)
+    data = wp.from_torch(values.contiguous(), dtype=dtype)
+    covered = (slice(N - 1), slice(count - 1))
+    if writer == "set_fixed_tendon_position_target":
+        expected[covered] = art.data.fixed_tendon_rest_length.torch[covered] - values[covered]
+    else:
+        data = data[covered]
+        expected[covered] = values[covered]
+    masks = {
+        "env_mask": _mask(N, range(N), "cpu")[: N - 1],
+        f"{axis}_mask": _mask(count, range(count), "cpu")[: count - 1],
+    }
+    getattr(art, f"{writer}_mask")(**{kwarg: data}, **masks)
+    push()
+    _assert_reads_back(attrgetter(getter)(art), expected, writer)
+
+
 @pytest.mark.parametrize("backend", backends("physx"))
 def test_tendon_position_limit_mask_accepts_strided_torch_limits(monkeypatch, backend):
     """A torch view whose limit pairs are not adjacent in memory writes like contiguous data, as the index setter."""

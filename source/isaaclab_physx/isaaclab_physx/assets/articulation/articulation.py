@@ -2810,7 +2810,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(stiffness, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[stiffness, env_mask, fixed_tendon_mask],
             outputs=[self.data._fixed_tendon_stiffness],
             device=self.device,
@@ -2911,7 +2911,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(damping, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[damping, env_mask, fixed_tendon_mask],
             outputs=[self.data._fixed_tendon_damping],
             device=self.device,
@@ -3016,7 +3016,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(limit_stiffness, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[limit_stiffness, env_mask, fixed_tendon_mask],
             outputs=[self.data._fixed_tendon_limit_stiffness],
             device=self.device,
@@ -3098,7 +3098,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
         wp.launch(
             warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.vec2f),
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[limit, env_mask, fixed_tendon_mask],
             outputs=[self.data._fixed_tendon_pos_limits.view(wp.vec2f)],
             device=self.device,
@@ -3203,7 +3203,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(rest_length, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[rest_length, env_mask, fixed_tendon_mask],
             outputs=[self.data._fixed_tendon_rest_length],
             device=self.device,
@@ -3365,7 +3365,7 @@ class Articulation(BaseArticulation):
         )
         wp.launch(
             warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[offset, env_mask, fixed_tendon_mask],
             outputs=[self.data._fixed_tendon_offset],
             device=self.device,
@@ -3400,7 +3400,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(offset, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[offset, env_mask, fixed_tendon_mask],
             outputs=[self.data._fixed_tendon_offset],
             device=self.device,
@@ -3566,7 +3566,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(stiffness, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_spatial_tendons),
+            dim=(env_mask.shape[0], spatial_tendon_mask.shape[0]),
             inputs=[stiffness, env_mask, spatial_tendon_mask],
             outputs=[self.data._spatial_tendon_stiffness],
             device=self.device,
@@ -3667,7 +3667,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(damping, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_spatial_tendons),
+            dim=(env_mask.shape[0], spatial_tendon_mask.shape[0]),
             inputs=[damping, env_mask, spatial_tendon_mask],
             outputs=[self.data._spatial_tendon_damping],
             device=self.device,
@@ -3775,7 +3775,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(limit_stiffness, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_spatial_tendons),
+            dim=(env_mask.shape[0], spatial_tendon_mask.shape[0]),
             inputs=[limit_stiffness, env_mask, spatial_tendon_mask],
             outputs=[self.data._spatial_tendon_limit_stiffness],
             device=self.device,
@@ -3876,7 +3876,7 @@ class Articulation(BaseArticulation):
             articulation_kernels.float_data_to_buffer_with_mask
             if isinstance(offset, float)
             else warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
-            dim=(self.num_instances, self.num_spatial_tendons),
+            dim=(env_mask.shape[0], spatial_tendon_mask.shape[0]),
             inputs=[offset, env_mask, spatial_tendon_mask],
             outputs=[self.data._spatial_tendon_offset],
             device=self.device,
