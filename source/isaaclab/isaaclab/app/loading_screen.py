@@ -16,7 +16,8 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import wraps
 from typing import IO, Any
 
@@ -104,6 +105,26 @@ _LOGO_PAIRS = ((LOGO, LOGO_WIDE), (LOGO_NVIDIA, LOGO_NVIDIA_WIDE))
 """Static logo pairs, ordered standard width then wide."""
 
 _active_screen: LoadingScreen | None = None
+_activity_callback: Callable[[str | None], None] | None = None
+
+
+@contextmanager
+def activity_callback(callback: Callable[[str | None], None]) -> Iterator[None]:
+    """Temporarily receive loading reports on the thread reporting the activity.
+
+    A callback also runs when the console display is disabled. Nested scopes restore the
+    preceding callback on exit, including when loading fails.
+
+    Args:
+        callback: Consumer of activity names and completion notifications (None).
+    """
+    global _activity_callback
+    previous = _activity_callback
+    _activity_callback = callback
+    try:
+        yield
+    finally:
+        _activity_callback = previous
 
 
 def _display_width(terminal_width: int) -> int:
@@ -124,8 +145,8 @@ def report_activity(activity: str | None) -> None:
     inner step restores the enclosing one, so a long step keeps its label while
     its sub-steps come and go.
 
-    Reporting is a no-op when no screen is open, so call sites do not need to
-    know whether one is active.
+    Reporting is a no-op without a screen or activity callback, so call sites do not need to
+    know which displays are active.
 
     Args:
         activity: Short description of the work about to start, e.g.
@@ -134,6 +155,8 @@ def report_activity(activity: str | None) -> None:
     """
     if _active_screen is not None:
         _active_screen.set_activity(activity)
+    if _activity_callback is not None:
+        _activity_callback(activity)
 
 
 def _format_run_summary(title: str, fields: dict[str, str], *, width: int, ascii_only: bool = False) -> str:

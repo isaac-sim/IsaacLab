@@ -205,6 +205,7 @@ def add_common_train_args(
         include_distributed: Whether to include the ``--distributed`` argument.
         max_iterations_type: Converter and validator for ``--max_iterations``.
     """
+    parser.set_defaults(record_history=False)
     add_video_args(parser, action="training")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -1016,8 +1017,15 @@ Playback.
 """
 
 
-def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Namespace, env_cfg: Any) -> None:
-    """Step a policy until interrupted, or until the requested video clip is complete.
+def run_playback(
+    step: Callable[[], None],
+    *,
+    dt: float,
+    args_cli: argparse.Namespace,
+    env_cfg: Any,
+    is_running: Callable[[], bool] | None = None,
+) -> None:
+    """Step a policy until interrupted, the simulation closes, or the requested video clip completes.
 
     Args:
         step: Callable that infers one action and steps the environment. Runs under
@@ -1025,12 +1033,13 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
         dt: Environment step duration [s], used to pace real-time playback.
         args_cli: Parsed command-line arguments providing ``video``, ``video_length`` and ``real_time``.
         env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
+        is_running: Optional simulation lifecycle check. Playback ends when it returns False.
     """
     max_steps = video_playback_steps(args_cli, env_cfg)
     logger.info("Policy playback is running, press Ctrl+C to exit...")
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):
-        while max_steps is None or step_count < max_steps:
+        while (max_steps is None or step_count < max_steps) and (is_running is None or is_running()):
             start_time = time.time()
             with torch.inference_mode():
                 step()

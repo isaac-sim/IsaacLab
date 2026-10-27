@@ -18,6 +18,7 @@ import argparse
 import signal
 import sys
 import types
+from contextlib import nullcontext
 
 import isaaclab_physx.app as physx_app
 import pytest
@@ -41,7 +42,7 @@ def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
         def __init__(self, launcher_args):
             taken.append(True)
 
-    monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
+    monkeypatch.setitem(vars(physx_app), "KitLauncher", FakeKitLauncher)
     return taken
 
 
@@ -68,7 +69,7 @@ def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPa
     def reject_profile():
         raise RuntimeError("profile rejected")
 
-    monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
+    monkeypatch.setitem(vars(physx_app), "KitLauncher", FakeKitLauncher)
     monkeypatch.setattr(sim_launcher, "configure_storage_profile", reject_profile)
 
     with pytest.raises(RuntimeError, match="profile rejected"):
@@ -98,7 +99,7 @@ def test_kit_rejects_ovrtx_before_loading_runtime(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
-    monkeypatch.setattr(physx_app, "KitLauncher", lambda _: pytest.fail("Invalid runtime reached Kit launch"))
+    monkeypatch.setitem(vars(physx_app), "KitLauncher", lambda _: pytest.fail("Invalid runtime reached Kit launch"))
 
     for cfg, launcher_args in (
         (types.SimpleNamespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg()), {"require_kit": True}),
@@ -170,14 +171,16 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
 
 
-@pytest.mark.parametrize("interrupt", [False, True])
-def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, interrupt):
-    """A config-selected launcher closes on success or interruption with the correct exit status."""
+@pytest.fixture
+def config_named_launcher(monkeypatch: pytest.MonkeyPatch):
+    """Provide a config-selected process runtime and its startup/close events."""
     events = []
+    startup_args = []
 
     class FakeLauncher(SimulationLauncher):
         def __init__(self, launcher_args):
             events.append("start")
+            startup_args.append(dict(launcher_args))
 
         def close(self, exit_code=0):
             events.append(exit_code)
@@ -187,6 +190,13 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setitem(sys.modules, "fake_runtime", types.SimpleNamespace(FakeLauncher=FakeLauncher))
     cfg = argparse.Namespace(physics=sim_launcher.NewtonCfg(), renderer=CustomRendererCfg())
+    return cfg, events, startup_args
+
+
+@pytest.mark.parametrize("interrupt", [False, True])
+def test_config_named_launcher_starts_and_closes(config_named_launcher, interrupt):
+    """A config-selected launcher closes on success or interruption with the correct exit status."""
+    cfg, events, _ = config_named_launcher
 
     try:
         with launch_simulation(cfg):
@@ -199,6 +209,35 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
         assert not interrupt
 
     assert events == ["start", "user", 130 if interrupt else 0]
+
+
+@pytest.mark.parametrize(("newton_window", "exit_code"), [(True, 0), (False, 7)])
+def test_launcher_session_retains_started_runtime_until_last_program(
+    config_named_launcher, monkeypatch, newton_window, exit_code
+):
+    """Reuse runtimes with the final status; only a Newton window prepares future camera consumers."""
+    cfg, events, startup_args = config_named_launcher
+    monkeypatch.setattr(sim_launcher, "_KIT_LAUNCHER", "fake_runtime:FakeLauncher")
+    launcher_args = {}
+    if newton_window:
+        cfg.sim = SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu")
+        launcher_args["visualizer"] = ["newton_gl"]
+    expected_exit = pytest.raises(SystemExit, match="7") if exit_code else nullcontext()
+    with expected_exit, SimulationLauncher.session():
+        with launch_simulation(cfg, launcher_args):
+            events.append("first")
+        assert events == ["start", "first"]
+
+        with SimulationLauncher.session(), launch_simulation(cfg):
+            events.append("second")
+            if exit_code:
+                raise SystemExit(exit_code)
+        assert events == ["start", "first", "second"]
+
+    assert events == ["start", "first", "second", exit_code]
+    assert len(startup_args) == 1
+    assert startup_args[0].get("enable_cameras", False) == newton_window
+    assert not launcher_args.get("enable_cameras", False)
 
 
 @pytest.mark.parametrize("producer_count", [0, 1, 2])
@@ -250,9 +289,11 @@ def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualiz
         sim=SimulationCfg(device="cpu", physics=sim_launcher.NewtonCfg()),
         video_recorders=[VideoRecorderCfg(source=f"viz:{source}"), VideoRecorderCfg(source=f"viz:{source}")],
     )
-    args = {"visualizer": visualizers}
+    args = {"visualizer": visualizers, "record_history": False}
     with launch_simulation(cfg, args):
         assert len(cfg.sim.visualizer_cfgs) == 1
         assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)
+        if source == "newton_gl":
+            assert cfg.sim.visualizer_cfgs[0].backend.record_history is False
         assert args.get("enable_cameras", False) == (source == "kit")
     assert kit_branch_taken == [True] * (source == "kit")

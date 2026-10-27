@@ -12,8 +12,9 @@ import logging
 import math
 import os
 import sys
+import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,7 @@ from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
+from isaaclab.app.loading_screen import activity_callback
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
@@ -53,6 +55,8 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
+from ._isaaclab_loading import draw_isaaclab_logo, draw_loading_splash
+from ._isaaclab_theme import install_isaaclab_theme
 from .newton_key_event_source import NewtonKeyEventSource
 
 logger = logging.getLogger(__name__)
@@ -96,6 +100,7 @@ class NewtonViewerGL(ViewerGL):
     """Newton GL window with Isaac Lab controls and device-image presentation."""
 
     _contacts_available = True
+    _workspace_enabled = False
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
     camera_keys_suspended = False
     """Set while keyboard camera movement is disabled (see :meth:`NewtonVisualizerBase.set_camera_keys_enabled`)."""
@@ -104,6 +109,10 @@ class NewtonViewerGL(ViewerGL):
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        # Newton also checks its renderer during frame submission. Pyglet's event-loop exit
+        # flag is shared across windows, so a previously closed window must not stop this one.
+        window = self.renderer.window
+        self.renderer.has_exit = lambda: window.context is None
         self._paused_training = False
         self._reset_requested = False
         self._metadata = metadata or {}
@@ -121,17 +130,106 @@ class NewtonViewerGL(ViewerGL):
         self._fullscreen_image_active = False
         self._implot = self._implot_ctx = None
         if self.gui is not None:
-            from imgui_bundle import implot
+            self._workspace_enabled = (
+                hasattr(self.gui, "workspace_enabled")
+                and self.gui.workspace_enabled
+                and self._metadata.get("visualizer_type", "newton_gl") == "newton_gl"
+            )
+            if hasattr(self.gui, "workspace_enabled"):
+                # RTX image presentation retains its existing camera-oriented panel.
+                self.gui.workspace_enabled = self._workspace_enabled
+            if self._workspace_enabled:
+                self.set_reset_callback(self._request_reset)
+            else:
+                from imgui_bundle import implot
 
-            self._patch_viewer_panel()
+                self._patch_viewer_panel()
+                self._implot = implot
+                self._implot_ctx = implot.create_context()
+                implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
+                # The legacy viewer draws Isaac Lab plots in the sidebar.
+                self.gui._render_scalar_plots = lambda: None
             # Keep camera keys active while ImGui captures mouse input for its controls.
             self.gui.is_capturing = self.gui.should_ignore_keyboard_input
-            self._implot = implot
-            self._implot_ctx = implot.create_context()
-            implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
-            # Live plots are drawn in the sidebar, not Newton's floating window.
-            self.gui._render_scalar_plots = lambda: None
+            if self.gui.is_available:
+                install_isaaclab_theme(self.gui, workspace_enabled=self._workspace_enabled)
+                if hasattr(self.gui, "show_loading_splash"):
+                    self.gui._render_loading_splash = lambda: draw_loading_splash(
+                        self.gui, started=self._loading_started
+                    )
+                if self._workspace_enabled:
+                    self.register_ui_callback(self._render_branding, position="free")
+        self._loading_started: float | None = None
+        self.renderer.set_title("Isaac Lab")
         self.register_ui_callback(self._render_training_controls, position="side")
+        self._window_ui_callbacks = (
+            {position: tuple(callbacks) for position, callbacks in self.gui._ui_callbacks.items()}
+            if self.gui is not None
+            else {}
+        )
+
+    def set_model(self, model: newton.Model | None) -> None:
+        """Bind a scene and restore window controls cleared by Newton's model lifecycle."""
+        super().set_model(model)
+        if self.gui is not None:
+            for position, callbacks in self._window_ui_callbacks.items():
+                for callback in callbacks:
+                    if callback not in self.gui._ui_callbacks[position]:
+                        self.register_ui_callback(callback, position=position)
+
+    def _render_branding(self, imgui) -> None:
+        """Draw the CLI's robot mark beside the native Newton attribution in the header."""
+        viewport = imgui.get_main_viewport()
+        scale = self.gui.ui.dpi_scale
+        text = "Isaac Lab"
+        version_width = imgui.calc_text_size(f"Newton {newton.__version__}").x
+        size = 22 * scale
+        width = size + 8 * scale + imgui.calc_text_size(text).x
+        right = viewport.pos.x + viewport.size.x - version_width - 32 * scale
+        left = right - width
+        if left < viewport.pos.x + 450 * scale:
+            return
+        draw = imgui.get_foreground_draw_list(viewport)
+        draw_isaaclab_logo(imgui, draw, left, viewport.pos.y + 5 * scale, size)
+        green = imgui.color_convert_float4_to_u32(imgui.ImVec4(118 / 255, 185 / 255, 0, 1))
+        draw.add_text(
+            imgui.ImVec2(left + size + 8 * scale, viewport.pos.y + (34 * scale - imgui.get_font_size()) / 2),
+            green,
+            text,
+        )
+
+    def _clear_simulation(self) -> None:
+        """Release scene resources while retaining the window and its workspace layout."""
+        self.renderer.window.switch_to()
+        self.clear_all_layers()
+        self.marker_groups = ()
+        self._live_plots_callback = None
+        self._particle_color_buffer = None
+        self._particle_color_buffer_value = None
+        self._mpm_particle_flags_cache_key = None
+        self._mpm_particles_all_active = False
+        self._fullscreen_image_active = False
+        if self.gui is not None:
+            # Application panels capture the old simulation, so retain only window-owned
+            # callbacks. Newton preserves panel/stats/rendering callbacks across model changes.
+            for position, callbacks in self._window_ui_callbacks.items():
+                self.gui._ui_callbacks[position] = list(callbacks)
+
+    def _bind_simulation(self, window_cfg: WindowCfg, metadata: dict) -> None:
+        """Bind presentation settings for the next simulation without resizing its window."""
+        self.window_cfg = window_cfg
+        self._metadata = metadata
+        backend = metadata["physics_backend"]
+        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+        self._paused_training = self._reset_requested = self._close_requested = False
+        self._paused = self._step_requested = False
+        if self._workspace_enabled:
+            self.set_rendering_paused(False)
+        self.renderer.set_title("Isaac Lab")
+
+    def _request_reset(self) -> None:
+        """Defer the workspace's restart action to the environment reset boundary."""
+        self._reset_requested = True
 
     @property
     def camera_speed(self) -> float:
@@ -199,10 +297,15 @@ class NewtonViewerGL(ViewerGL):
                 imgui.ImVec2(io.display_size[0], panel_h),
             )
 
-            if not imgui.begin(f"Newton Viewer v{nt.__version__}"):
+            if not imgui.begin(f"Isaac Lab · Newton v{nt.__version__}"):
                 imgui.end()
                 return
 
+            origin = imgui.get_cursor_screen_pos()
+            draw_isaaclab_logo(imgui, imgui.get_window_draw_list(), origin.x, origin.y, 26 * s)
+            imgui.dummy(imgui.ImVec2(34 * s, 26 * s))
+            imgui.same_line()
+            imgui.text("Isaac Lab")
             imgui.separator()
 
             # Layers panel callback (ViewerGL built-in, only shown with >1 layer).
@@ -340,16 +443,24 @@ class NewtonViewerGL(ViewerGL):
 
     def _render_training_controls(self, imgui):
         """Render Isaac Lab training control widgets inside the Isaac Lab panel section."""
-        pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
-        if imgui.button(pause_label):
-            self._paused_training = not self._paused_training
+        if self._workspace_enabled:
+            imgui.text("Isaac Lab")
+            imgui.text(f"Physics: {self._backend_display}")
+            imgui.text_wrapped("Restart resets the episode. Inspector state and controls are read-only.")
+        else:
+            pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
+            if imgui.button(pause_label):
+                self._paused_training = not self._paused_training
 
-        rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
+        rendering_label = "Resume Rendering" if self.is_rendering_paused() else "Pause Rendering"
         if imgui.button(rendering_label):
-            self._paused = not self._paused
+            if self._workspace_enabled:
+                self.set_rendering_paused(not self.is_rendering_paused())
+            else:
+                self._paused = not self._paused
 
         if imgui.button("Reset Episode"):
-            self._reset_requested = True
+            self._request_reset()
 
         _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():
@@ -357,14 +468,32 @@ class NewtonViewerGL(ViewerGL):
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
+        if self._workspace_enabled:
+            workspace = self.gui.workspace
+            history = workspace.history if workspace is not None else None
+            return self._paused or (history is not None and history.replaying)
         return self._paused_training
+
+    def consume_step_request(self) -> bool:
+        """Consume one physics-frame request, advancing display history independently."""
+        if not self._workspace_enabled or not self._step_requested:
+            return False
+        self._step_requested = False
+        workspace = self.gui.workspace
+        history = workspace.history if workspace is not None else None
+        if history is not None and history.replaying:
+            history.advance(1 / history.playback_speed)
+            return False
+        return True
 
     def is_rendering_paused(self) -> bool:
         """Return whether rendering is paused by viewer controls.
 
-        Mirrors ``self._paused`` directly since the Newton viewer's Space key handler toggles it
-        in-place, outside the Isaac Lab "Pause Rendering" button.
+        Native workspace transport pauses simulation independently of rendering. Legacy viewers
+        use ``self._paused`` for both Space and the Isaac Lab rendering button.
         """
+        if self._workspace_enabled:
+            return super().is_rendering_paused()
         return self._paused
 
     def request_close(self) -> None:
@@ -511,17 +640,24 @@ class NewtonVisualizerBase(BaseVisualizer):
         )
         if not self._runtime_headless:
             # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
-            write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
+            write_desktop_entry("isaaclab-newton-gl-viewer", "Isaac Lab", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
+        metadata = {
+            "num_envs": sim.get_scene_data_provider().num_envs,
+            "physics_backend": self.physics_backend,
+            "visualizer_type": self.cfg.backend.visualizer_type,
+            "gravity": sim.cfg.gravity,
+        }
+        session = NewtonGLVisualizer._active_window_session
+        if session is not None and not self._runtime_headless and isinstance(self, NewtonGLVisualizer):
+            self._viewer = session.take()
         with wp.ScopedDevice(sim.device):
-            self._viewer = NewtonViewerGL(
-                width=self.cfg.window.size[0], height=self.cfg.window.size[1], headless=self._runtime_headless,
-                metadata={
-                    "num_envs": sim.get_scene_data_provider().num_envs,
-                    "physics_backend": self.physics_backend,
-                    "gravity": sim.cfg.gravity,
-                },
-                window_cfg=self.cfg.window,
-            )  # fmt: skip
+            if self._viewer is None:
+                self._viewer = NewtonViewerGL(
+                    width=self.cfg.window.size[0], height=self.cfg.window.size[1], headless=self._runtime_headless,
+                    metadata=metadata, window_cfg=self.cfg.window,
+                )  # fmt: skip
+            else:
+                self._viewer._bind_simulation(self.cfg.window, metadata)
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.camera_keys_suspended = not self._camera_keys_enabled
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
@@ -620,7 +756,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _navigate_scene_camera(self) -> None:
         camera, viewer = self.current_image_view.camera, self._viewer
-        if viewer.is_paused():
+        if viewer.is_rendering_paused():
             return
         if viewer.camera.fov != self._navigation_fov:
             height, width = camera.image_shape
@@ -714,6 +850,10 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Return whether the window requested a simulation pause."""
         return self._viewer is not None and self._viewer.is_training_paused()
 
+    def consume_step_request(self) -> bool:
+        """Consume one physics-frame request from the native workspace transport."""
+        return self._viewer is not None and self._viewer.consume_step_request()
+
     def is_rendering_paused(self) -> bool:
         """Return whether the window paused scene updates."""
         return self._viewer is not None and self._viewer.is_rendering_paused()
@@ -733,7 +873,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _log_streaming_image(self) -> None:
         """Present sensor pixels directly; paused rendering retains the last displayed image."""
         composite = self.current_image_view.frame.data
-        if composite is None or not self._viewer.is_paused():
+        if composite is None or not self._viewer.is_rendering_paused():
             composite = self.current_image_view.read(self._sim.get_physics_step_count())
         if composite is not None:
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
@@ -761,7 +901,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         frame = self.current_image_view.frame
         frame_id = (
             frame.timestamp
-            if self._viewer.is_paused() and frame.data is not None
+            if self._viewer.is_rendering_paused() and frame.data is not None
             else self._sim.get_physics_step_count()
         )
         return self.current_image_view.read_rgb(frame_id)
@@ -769,6 +909,140 @@ class NewtonVisualizerBase(BaseVisualizer):
 
 class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
+
+    class _WindowSession:
+        """Own native windows between successive, independently owned simulations."""
+
+        def __init__(self) -> None:
+            self.viewers: list[NewtonViewerGL] = []
+            self._loading_viewers: list[tuple[NewtonViewerGL, bool]] = []
+            self._last_loading_frame = -math.inf
+
+        @contextlib.contextmanager
+        def loading(self, text: str) -> Iterator[None]:
+            """Animate retained windows on their owning thread while the next program loads.
+
+            Startup activity reports repaint the splash on the owning thread. Rendering stops
+            when the next simulation claims a window; blocking work can delay an animation frame.
+            """
+            if self._loading_viewers:
+                yield
+                return
+            for viewer in self.viewers:
+                if viewer.gui is not None and hasattr(viewer.gui, "show_loading_splash") and viewer.is_running():
+                    self._loading_viewers.append((viewer, viewer.gui.show_ui))
+                    viewer._loading_started = time.monotonic()
+                    # Scene construction can replace model references between calls. Draw only
+                    # the splash until the new visualizer owns the window again.
+                    viewer.gui.show_ui = False
+                    viewer.show_loading_splash(text)
+            if not self._loading_viewers:
+                yield
+                return
+            try:
+                self._last_loading_frame = -math.inf
+                self._pump_loading()
+                owner_thread = threading.get_ident()
+
+                def refresh(_activity: str | None) -> None:
+                    if threading.get_ident() == owner_thread:
+                        self._pump_loading()
+
+                with activity_callback(refresh):
+                    yield
+            finally:
+                self._finish_loading()
+
+        def _pump_loading(self) -> None:
+            """Refresh at most fifteen times a second, without touching physics state."""
+            if not self._loading_viewers:
+                return
+            now = time.monotonic()
+            if now - self._last_loading_frame < 1 / 15:
+                return
+            self._last_loading_frame = now
+            if any(device.is_capturing for device in wp.get_devices()):
+                return
+            for viewer, _ in self._loading_viewers:
+                if not viewer.is_running():
+                    raise SystemExit(0)
+                viewer.renderer.window.switch_to()
+                viewer.begin_frame(0.0)
+                viewer.end_frame()
+                if not viewer.is_running():
+                    raise SystemExit(0)
+
+        def _finish_loading(self) -> None:
+            """Restore presentation when the next simulation claims the window or loading ends."""
+            for viewer, show_ui in self._loading_viewers:
+                viewer.hide_loading_splash()
+                viewer.gui.show_ui = show_ui
+                viewer._loading_started = None
+            self._loading_viewers.clear()
+
+        def take(self) -> NewtonViewerGL | None:
+            self._finish_loading()
+            while self.viewers:
+                viewer = self.viewers.pop(0)
+                if viewer.is_running():
+                    return viewer
+            return None
+
+        def retain(self, viewer: NewtonViewerGL) -> None:
+            self.viewers.append(viewer)
+            viewer._clear_simulation()
+
+        def close(self) -> None:
+            self._finish_loading()
+            while self.viewers:
+                viewer = self.viewers.pop()
+                if viewer.is_running():
+                    viewer.close()
+
+    _active_window_session: _WindowSession | None = None
+
+    @classmethod
+    @contextlib.contextmanager
+    def window_session(cls) -> Iterator[_WindowSession]:
+        """Keep interactive GL windows open across successive simulations in this scope.
+
+        Each simulation releases its scene, callbacks, and history on close. The next visualizer
+        reuses its native window and workspace layout. Unclaimed windows close when the scope exits,
+        including when the next program fails to load. Headless visualizers retain their normal lifetime.
+        """
+        if NewtonGLVisualizer._active_window_session is not None:
+            yield NewtonGLVisualizer._active_window_session
+            return
+        session = NewtonGLVisualizer._WindowSession()
+        NewtonGLVisualizer._active_window_session = session
+        try:
+            yield session
+        finally:
+            NewtonGLVisualizer._active_window_session = None
+            session.close()
+
+    class _WorkspaceExample:
+        """Own presentation references that Newton can temporarily replace during history playback.
+
+        The physics backend remains authoritative. In particular, replacing ``state_0`` while
+        rendering an old frame never changes the backend's solver state or its graph inputs.
+        """
+
+        def __init__(self, visualizer: NewtonGLVisualizer) -> None:
+            self.visualizer = visualizer
+            self.viewer = visualizer._viewer
+            self.state_0 = None
+            self.control = visualizer.backend.control
+            self.contacts = None
+            self.sim_time = visualizer._sim_time
+            self.frame_dt = 1.0 / visualizer.cfg.window.fps
+            self.solver = visualizer.backend.solver if visualizer.physics_backend == "newton" else None
+            # The native inspector exposes registered side callbacks when an example has GUI controls.
+            self.gui = self.viewer._render_training_controls
+
+        def render(self) -> None:
+            """Log the current display state without opening or closing another viewer frame."""
+            self.visualizer._log_scene_state(self.state_0, self.contacts)
 
     @property
     def visual_material_writer(self):
@@ -823,6 +1097,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().__init__(cfg)
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
+        self._workspace_example: NewtonGLVisualizer._WorkspaceExample | None = None
+        self._history_recording_initialized = False
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -857,6 +1133,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
+        if self._viewer.gui is not None:
+            for callback in (self._viewer._render_training_controls, self._draw_streaming_view_controls):
+                if callback not in self._viewer.gui._ui_callbacks["side"]:
+                    self._viewer.register_ui_callback(callback, position="side")
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -902,26 +1182,55 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
+        workspace_enabled = getattr(viewer, "_workspace_enabled", False)
+        if workspace_enabled:
+            # Paused single-steps advance physics while UI-only redraws pass dt=0.
+            self._sim_time = self._sim.get_physics_step_count() * self._sim.get_physics_dt()
+        rendering_paused = viewer.is_rendering_paused() if workspace_enabled else viewer.is_paused()
         viewer.begin_frame(self._sim_time)
         try:
+            workspace = None
+            if workspace_enabled:
+                if self._workspace_example is None:
+                    self._workspace_example = self._WorkspaceExample(self)
+                example = self._workspace_example
+                example.state_0 = (
+                    self._update_state()
+                    if self.current_image_view.camera is None and not rendering_paused
+                    else self.backend.state_0
+                )
+                example.contacts = self.backend.contacts if self.physics_backend == "newton" else None
+                example.sim_time = self._sim_time
+                if viewer.gui.workspace is None:
+                    from newton._src.viewer.gui.workspace import ViewerWorkspace
+
+                    viewer.gui.workspace = ViewerWorkspace(viewer.gui)
+                workspace = viewer.gui.workspace
+                if not self._history_recording_initialized:
+                    workspace.timeline_options["recording"] = self.cfg.backend.record_history is not False
+                    self._history_recording_initialized = True
+                if workspace.example is not example:
+                    # Newton's direct edits bypass Isaac Lab asset caches, reset semantics, and
+                    # captured solver graphs. Keep inspection available without exposing those writes.
+                    workspace.can_edit_state = lambda: False
+                    workspace.can_edit_control = lambda: False
+                viewer.gui._workspace_example = example
+                workspace.bind(example)
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
                 self._log_streaming_image()
-            elif not viewer.is_paused():
+            elif workspace_enabled and not rendering_paused:
+                if workspace.history is not None and workspace.history.replaying and not viewer.is_paused():
+                    workspace.before_step()
+                workspace.render_example()
+            elif not rendering_paused:
                 state = self._update_state()
-                if state.body_q is None or len(state.body_q):
-                    viewer.log_state(state)
-                    contacts = self.backend.contacts if self.physics_backend == "newton" else None
-                    if contacts is not None:
-                        viewer.log_contacts(contacts, state)
-                    else:
-                        self._log_scene_contact_sensor_arrows()
-                    if self.cfg.enable_markers:
-                        render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+                contacts = self.backend.contacts if self.physics_backend == "newton" else None
+                self._log_scene_state(state, contacts)
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
-            if not viewer.is_paused():
+            if not rendering_paused:
                 self._render_live_plots()
         finally:
             viewer.end_frame()
@@ -930,6 +1239,17 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
+
+    def _log_scene_state(self, state: newton.State, contacts: newton.Contacts | None) -> None:
+        """Log either live state or an isolated history snapshot inside the active GL frame."""
+        if state.body_q is None or len(state.body_q):
+            self._viewer.log_state(state)
+            if contacts is not None:
+                self._viewer.log_contacts(contacts, state)
+            else:
+                self._log_scene_contact_sensor_arrows()
+            if self.cfg.enable_markers:
+                render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=self.backend.model.num_envs)
 
     def _update_state(self):
         """Publish current scene state while the GL frame is active."""
@@ -942,9 +1262,30 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)
         return state
 
+    def _select_camera(self, index: int) -> None:
+        """Start a fresh display history when switching between scene and sensor views."""
+        self._detach_workspace()
+        super()._select_camera(index)
+
+    def _detach_workspace(self) -> None:
+        """Release history snapshots and borrowed scene references together."""
+        if self._workspace_example is not None:
+            self._viewer.gui.workspace.detach_example()
+            self._viewer.gui._workspace_example = None
+            self._workspace_example = None
+
+    def consume_reset_request(self) -> bool:
+        """Discard display history when the environment accepts a requested episode restart."""
+        requested = super().consume_reset_request()
+        if requested:
+            self._detach_workspace()
+            self._last_render_step = -1
+        return requested
+
     def reset(self, soft: bool = False) -> None:
         """Restore GL overlays and picking after the shared model binding changes."""
         super().reset(soft)
+        self._detach_workspace()
         if soft or not self._is_initialized or self._is_closed:
             return
         backend = self._sim.get_or_create_backend(self.newton_cfg)
@@ -953,7 +1294,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
-        self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:
             self._viewer.wind = None
@@ -973,6 +1313,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
+            self._detach_workspace()
+            if self._viewer is not None:
+                session = NewtonGLVisualizer._active_window_session
+                if session is not None and not self._runtime_headless and self._viewer.is_running():
+                    session.retain(self._viewer)
+                elif getattr(self._viewer, "_workspace_enabled", False):
+                    self._viewer.gui.close_console()
         finally:
             self._viewer = self.backend = self._transform_mapping = None
             super().close()

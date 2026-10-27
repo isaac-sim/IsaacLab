@@ -12,7 +12,7 @@ import subprocess
 import sys
 import textwrap
 from types import SimpleNamespace
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -347,7 +347,7 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
 
 def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     from newton._src.viewer.camera import Camera
-    from newton._src.viewer.viewer_gui import ViewerGui
+    from newton._src.viewer.viewer_gl import ViewerGui
     from newton.viewer import ViewerGL
     from pyglet.window import key
 
@@ -357,14 +357,23 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     viewer.camera = Camera(width=64, height=64, up_axis="Z")
     viewer._camera_speed = 1.0
     viewer._paused = False
-    viewer.renderer = SimpleNamespace(is_key_down=lambda symbol: symbol == key.W)
+    viewer.renderer = SimpleNamespace(
+        window=SimpleNamespace(context=object()), is_key_down=lambda symbol: symbol == key.W, set_title=Mock()
+    )
 
     gui = ViewerGui.__new__(ViewerGui)
     gui.ui = SimpleNamespace(
         is_available=True,
         is_capturing=lambda: True,
-        imgui=SimpleNamespace(get_current_context=lambda: object()),
-        io=SimpleNamespace(want_capture_mouse=True, want_capture_keyboard=False),
+        imgui=SimpleNamespace(
+            get_current_context=lambda: object(),
+            is_popup_open=lambda *_args: False,
+            PopupFlags_=SimpleNamespace(any_popup=0),
+            internal=SimpleNamespace(get_active_id=lambda: 0),
+        ),
+        io=SimpleNamespace(
+            want_capture_mouse=True, want_capture_keyboard=False, want_text_input=False, key_ctrl=False, key_super=False
+        ),
     )
     gui._viewer = viewer
     gui._ui_callbacks = {"side": []}
@@ -382,6 +391,7 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     assert not np.array_equal(moved, start)
 
     gui.ui.io.want_capture_keyboard = True
+    gui.ui.io.want_text_input = True
     viewer._update_camera(1.0)
     np.testing.assert_array_equal(viewer.camera.pos, moved)
 
@@ -571,6 +581,9 @@ class _Viewer:
     def is_paused(self):
         return self.paused
 
+    def is_rendering_paused(self):
+        return self.paused
+
     def is_running(self):
         return True
 
@@ -655,6 +668,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
         state_0=state,
         geometry_offsets={},
         contacts=None,
+        solver=None,
     )
     provider = scene_data_provider or _SceneDataProvider()
     provider.poses = state.body_q
@@ -663,6 +677,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._sim = SimpleNamespace(
         get_scene_data_provider=lambda: provider,
         get_physics_step_count=lambda: visualizer._sim_time,
+        get_physics_dt=lambda: 1.0,
         is_rendering=True,
         backend_manager=NewtonMJWarpManager(NewtonCfg()),
     )
@@ -739,10 +754,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
-    assert viewer.register_ui_callback.call_args_list == [
-        call(viewer._render_training_controls, position="side"),
-        call(visualizer._draw_streaming_view_controls, position="side"),
-    ]
+    viewer.register_ui_callback.assert_called_once_with(visualizer._draw_streaming_view_controls, position="side")
     viewer.set_visible_worlds.assert_called_once_with([1, 3])
     viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
     assert viewer.show_contacts is True
@@ -763,6 +775,104 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
 
     assert viewer.logged_state is state
     assert viewer.logged_contacts == (contacts, state)
+
+
+def test_newton_workspace_replay_preserves_physics_state_and_transport():
+    """Workspace playback changes the displayed frame while physics and reset ownership stay in Isaac Lab."""
+    pytest.importorskip("newton._src.viewer.gui.workspace")
+    import newton
+
+    builder = newton.ModelBuilder()
+    builder.add_body()
+    model = builder.finalize(device="cpu")
+    state = model.state()
+    viewer = object.__new__(NewtonViewerGL)
+    viewer._workspace_enabled = True
+    viewer._paused = viewer._rendering_paused = viewer._step_requested = viewer._reset_requested = False
+    viewer.model = model
+    viewer.show_contacts = False
+    viewer.renderer = SimpleNamespace()
+    viewer.gui = SimpleNamespace(
+        _viewer=viewer,
+        workspace=None,
+        console_capture=None,
+        stop_following_selection=lambda: None,
+        ui=SimpleNamespace(section_errors={}),
+    )
+    displayed = []
+    viewer.begin_frame = lambda _time: None
+    viewer.end_frame = lambda: None
+    viewer.is_running = lambda: True
+    viewer.log_state = lambda display: displayed.append(display.body_q.numpy().copy())
+    viewer.log_contacts = lambda *args: None
+    viewer.log_arrows = lambda *args: None
+    cfg = VisualizerCfg(enable_markers=False, backend=NewtonGLBackendCfg(record_history=False))
+    visualizer = _make_newton_visualizer(viewer, state=state, cfg=cfg)
+    visualizer.backend.model = model
+    visualizer.backend.control = model.control()
+    physics_steps = 1
+    visualizer._sim.get_physics_step_count = lambda: physics_steps
+    visualizer._sim.get_physics_dt = lambda: 0.1
+
+    state.body_q.assign(np.array([[1, 0, 0, 0, 0, 0, 1]], dtype=np.float32))
+    visualizer.step(0.1)
+    history = viewer.gui.workspace.history
+    assert not history.recording
+    assert not history.frames  # Opting out must avoid even the initial GPU-to-host snapshot.
+    history.set_recording(True)
+    visualizer.step(0.0)
+    physics_steps = 2
+    state.body_q.assign(np.array([[2, 0, 0, 0, 0, 0, 1]], dtype=np.float32))
+    visualizer.step(0.1)
+    live_array = state.body_q
+    history = viewer.gui.workspace.history
+    viewer._paused = True
+    history.select(0)
+
+    visualizer._render_frame()
+
+    assert displayed[-1][0, 0] == 1
+    assert visualizer.backend.state_0 is state
+    assert state.body_q is live_array
+    assert state.body_q.numpy()[0, 0] == 2
+    assert visualizer.is_training_paused()
+    assert not visualizer.is_rendering_paused()
+    assert not viewer.gui.workspace.apply_edit(state, "body_q", 0, [[9, 0, 0, 0, 0, 0, 1]])
+    assert state.body_q.numpy()[0, 0] == 2
+
+    viewer._step_requested = True
+    assert not visualizer.consume_step_request()  # Historical stepping advances playback only.
+    assert not history.replaying
+    viewer._step_requested = True
+    assert visualizer.consume_step_request()
+    assert not visualizer.consume_step_request()
+    visualizer._render_frame()
+    assert displayed[-1][0, 0] == 2
+
+    # A paused physics step redraws with dt=0; history still follows actual physics progress.
+    physics_steps = 3
+    state.body_q.assign(np.array([[3, 0, 0, 0, 0, 0, 1]], dtype=np.float32))
+    visualizer.step(0.0)
+    assert len(history.frames) == 3
+    assert history.frames[-1].time == pytest.approx(0.3)
+    assert history.frames[-1].state["body_q"][0, 0] == 3
+    visualizer.step(0.0)
+    assert len(history.frames) == 3
+
+    viewer._request_reset()
+    assert visualizer.is_reset_requested()
+    assert visualizer.consume_reset_request()
+    assert not visualizer.consume_reset_request()
+    assert viewer.gui.workspace.history is None
+    visualizer._render_frame()
+    assert len(viewer.gui.workspace.history.frames) == 1
+    viewer.gui.workspace.history.set_recording(False)
+    visualizer.reset(soft=True)
+    assert viewer.gui.workspace.history is None
+    assert visualizer.backend.state_0 is state
+    visualizer._render_frame()
+    assert not viewer.gui.workspace.history.recording
+    assert not viewer.gui.workspace.history.frames
 
 
 def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
@@ -1107,6 +1217,7 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(visualizer_cfgs=[cfg], dt=0.01)
     sim._has_gui = sim._xr_enabled = False
+    sim._is_stopped = sim._visualizers_started = sim._reset_requested = False
     sim.get_setting = lambda name: False
     sim._physics_step_count, sim._backend_registry = 0, []
     sim.backend_manager = Mock()
