@@ -473,7 +473,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask, body_mask = self._resolve_env_and_body_masks(env_mask, body_mask, body_ids)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
+            device=self.device,
+        )
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.transformf),
@@ -579,7 +587,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask, body_mask = self._resolve_env_and_body_masks(env_mask, body_mask, body_ids)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
+            device=self.device,
+        )
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.set_body_com_pose_to_sim_mask,
@@ -693,7 +709,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask, body_mask = self._resolve_env_and_body_masks(env_mask, body_mask, body_ids)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
+            device=self.device,
+        )
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
             shared_kernels.set_body_com_velocity_to_sim_mask,
@@ -809,7 +833,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask, body_mask = self._resolve_env_and_body_masks(env_mask, body_mask, body_ids)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
+            device=self.device,
+        )
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim_mask,
@@ -1272,33 +1304,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             Body indices.
         """
         return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self.device)
-
-    def _resolve_env_and_body_masks(
-        self,
-        env_mask: wp.array | None,
-        body_mask: wp.array | None,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None,
-    ) -> tuple[wp.array, wp.array]:
-        """Resolve the environment and body selections of a mask writer to masks.
-
-        Args:
-            env_mask: Environment mask. If None, then all environments are used.
-            body_mask: Body mask. If None, then ``body_ids`` or all bodies are used.
-            body_ids: Body indices, used when ``body_mask`` is None. If None, then all bodies are used.
-
-        Returns:
-            The environment mask and the body mask.
-        """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
-        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
-        body_mask = resolve_1d_mask(
-            ids=body_ids,
-            mask=body_mask,
-            all_mask=self._ALL_BODY_MASK,
-            scratch_mask=self._scratch_body_mask,
-            device=self.device,
-        )
-        return env_mask, body_mask
 
     """
     Internal simulation callbacks.
