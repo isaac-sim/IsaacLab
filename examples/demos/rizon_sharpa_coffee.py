@@ -143,8 +143,11 @@ def _parse_args():
         parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
         args.visualizer = ["newton"]
-    if any(name not in ("newton", "newton_gl", "newton_rtx", "kit", "none") for name in args.visualizer):
-        parser.error("This demo's grain/surface presentation supports newton, kit or none.")
+    if any(name not in ("newton", "newton_gl", "kit", "none") for name in args.visualizer):
+        parser.error(
+            "This demo's grain/surface presentation supports newton, kit or none"
+            " (newton_rtx was removed; newton renders with RTX)."
+        )
     if args.keep_open and args.headless:
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
