@@ -3,18 +3,13 @@ Visualization
 
 .. currentmodule:: isaaclab
 
-Isaac Lab provides 5 visualizers for real-time simulation inspection and debugging. Where
-renderers produce sensor data for training, visualizers give fast, lightweight feedback for
-human monitoring and recording. Visualizers can also stream that same sensor data through the
-streaming camera panel.
+Visualizers let you inspect, debug, and record a running simulation. Isaac Lab
+offers five options, from lightweight viewers to the Isaac Sim viewport. You can
+also view camera-sensor output in the streaming camera panel.
 
-This page covers:
-
-- `Quick Start`_: launch a visualizer with ``--viz``
-- `Visualizer Overview`_: each visualizer in its own section
-- `Shared Features`_: what's common across visualizers
-- `Usage`_: common CLI and config recipes
-- `Limitations`_: per-visualizer differences and troubleshooting
+Try :ref:`Franka cube stacking <interactive-demo-franka-stack>` for a compact simulation
+running directly in the browser. Orbit its camera, watch the scripted grasp, or control
+the end effector in Manual mode.
 
 .. raw:: html
 
@@ -150,6 +145,88 @@ alias.
 
 For combining visualizers, running headless, and other common use cases, see `Usage`_ below.
 
+Visualizer presets
+~~~~~~~~~~~~~~~~~~
+
+Task commands accept ``visualizer=newton_gl``, ``visualizer=kit``, or
+``visualizer=rerun,newton_gl``. ``--viz`` and ``--visualizer`` are aliases for the same
+selection. ``visualizer=none`` disables viewers. Selection happens during configuration
+composition, before choosing process runtimes or creating the scene.
+
+Registered tasks already supply the built-in backend choices. Declare only common settings for
+ordinary use; ``--viz`` selects the backend during task composition:
+
+.. code-block:: python
+
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=VisualizerCfg(eye=(8.0, 8.0, 3.0), max_visible_envs=16),
+   )
+
+Task scripts can customize alternatives with ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``.
+Keep view, window, and scene settings on ``VisualizerCfg``. Its ``backend`` selects the implementation;
+``MultiBackendVisualizerCfg()`` supplies the built-in choices without repeating those common settings.
+Compose standalone declarations during initial configuration, then call the core launcher directly:
+
+.. code-block:: python
+
+   from isaaclab.app import launch_simulation
+   from isaaclab.sim import SimulationCfg
+   from isaaclab.visualizers import VisualizerCfg, WindowCfg
+
+   from isaaclab_tasks.utils import resolve_presets
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=VisualizerCfg(
+           eye=(8.0, 8.0, 3.0),
+           max_visible_envs=16,
+           window=WindowCfg(size=(1280, 720)),
+           backend=MultiBackendVisualizerCfg(),
+       ),
+   )
+
+   sim_cfg = resolve_presets(sim_cfg, overrides={"visualizer_cfgs.backend": args_cli.visualizer or "default"})
+   with launch_simulation(sim_cfg, args_cli):
+       # Construct the simulation and scene here.
+       ...
+
+One ``VisualizerCfg`` supplies the common settings for every selected backend. Selecting
+``rerun,newton_gl`` creates both viewers; no outer list or repeated common settings is needed.
+Backend-specific options are available when needed, but ordinary configuration uses the unchanged
+``MultiBackendVisualizerCfg()`` declaration.
+
+Use a list of ``VisualizerCfg`` declarations for different views or window sizes. Backend selection
+applies to each declaration independently. For example, a task with these two views opens four
+windows with ``--viz=newton_gl,newton_rtx``: one GL and one RTX window per view.
+
+.. code-block:: python
+
+   visualizer_cfgs = [
+       VisualizerCfg(
+           eye=(4.0, -4.0, 3.0), window=WindowCfg(size=(640, 480)),
+       ),
+       VisualizerCfg(
+           eye=(8.0, 0.0, 2.0), window=WindowCfg(size=(800, 600)),
+       ),
+   ]
+
+Keep ``MultiBackendVisualizerCfg`` when declaring available alternatives. A list of concrete backend
+configs declares active viewers, so replacing the preset with a list changes the default behavior.
+
+Task entry points perform this selection through ``resolve_task_config``:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole visualizer=rerun,newton_gl
+
+``--viz rerun,newton_gl`` is equivalent. Task composition selects the backends inside
+``VisualizerCfg.backend`` before launch; launch creates each viewer with the shared settings.
+Viewer implementations are imported only when constructed.
+
+For ``--video`` without a selected capture-capable viewer, launch selects a headless Newton GL
+producer. ``visualizer=none`` disables windows; recording still runs its producer on demand.
+Use ``--video sensor:<name>`` to record a scene camera without a visualizer producer.
+
 
 Visualizer Overview
 -------------------
@@ -197,6 +274,9 @@ Visualizer Overview
       - Rigid-body dragging via right-click, see right (Newton solvers only)
       - Adjustable render update frequency
 
+      Simulation particles are visible by default. Set ``NewtonGLBackendCfg(show_particles=False)``
+      to hide them, for example when displaying only a reconstructed fluid surface or a cloth mesh.
+
       .. raw:: html
 
            </div>
@@ -209,39 +289,17 @@ Visualizer Overview
            </div>
          </div>
 
-      **Core configuration:**
+      Try :ref:`Domino cascade <interactive-demo-dominoes>` for a compact 24-slab version running
+      locally in the browser, with friction and a repeatable toppling pulse.
 
-      .. code-block:: python
-
-          from isaaclab.visualizers import WindowCfg
-          from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-          visualizer_cfg = NewtonGLVisualizerCfg(
-              eye=(8.0, 8.0, 3.0),
-              lookat=(0.0, 0.0, 0.0),
-              window=WindowCfg(size=(1920, 1080), fps=30.0),
-              show_joints=False,
-              show_contacts=False,
-              enable_live_plots=True,
-          )
-
-      For the full config reference, see the config classes below.
-
-      .. dropdown:: NewtonGLVisualizerCfg source
+      .. dropdown:: NewtonGLBackendCfg source
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
             :language: python
-            :pyobject: NewtonGLVisualizerCfg
+            :pyobject: NewtonGLBackendCfg
 
-      .. dropdown:: Newton GL model options
-         :icon: code
-
-         .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
-            :language: python
-            :pyobject: NewtonVisualizerCfg
-
-      .. dropdown:: VisualizerCfg source (shared base class)
+      .. dropdown:: VisualizerCfg source (shared settings)
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
@@ -280,31 +338,33 @@ Visualizer Overview
             │   URL  │  http://localhost:8080        │
             ╰───────────────────────────────────────╯
 
-      **Core configuration:**
+      Browser and recording options belong to the Viser backend. Select this alternative with
+      ``--viz viser``:
 
       .. code-block:: python
 
-          from isaaclab_visualizers.viser import ViserVisualizerCfg
+         from isaaclab_visualizers.viser import ViserBackendCfg
+         from isaaclab.visualizers import VisualizerCfg
+         from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
-          visualizer_cfg = ViserVisualizerCfg(
-              port=8080,
-              bind_address="0.0.0.0",       # use 0.0.0.0 for remote access
-              display_address="localhost",   # hostname shown in the printed URL
-              open_browser=False,
-              share=False,                   # request a public share URL
-              record_to_viser=None,          # set a path to save a .viser recording
-          )
+         visualizer_cfgs = VisualizerCfg(
+             max_visible_envs=16,
+             backend=MultiBackendVisualizerCfg(
+                 viser=ViserBackendCfg(
+                     port=8080, bind_address="0.0.0.0", display_address="localhost",
+                     open_browser=True, share=False, record_to_viser="rollout.viser",
+                 ),
+             ),
+         )
 
-      For the full config reference, see the config classes below.
-
-      .. dropdown:: ViserVisualizerCfg source
+      .. dropdown:: ViserBackendCfg source
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/viser/viser_visualizer_cfg.py
             :language: python
-            :pyobject: ViserVisualizerCfg
+            :pyobject: ViserBackendCfg
 
-      .. dropdown:: VisualizerCfg source (shared base class)
+      .. dropdown:: VisualizerCfg source (shared settings)
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
@@ -335,25 +395,12 @@ Visualizer Overview
          live plots and rigid-body dragging. Visualization markers, camera selection, scene-camera
          display, pause controls, and headless recording are supported.
 
-      **Core configuration:**
-
-      .. code-block:: python
-
-          from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
-          visualizer_cfg = NewtonRTXVisualizerCfg(
-              eye=(8.0, 8.0, 3.0),
-              lookat=(0.0, 0.0, 0.0),
-          )
-
-      For the full config reference, see the config classes below.
-
-      .. dropdown:: NewtonRTXVisualizerCfg source
+      .. dropdown:: NewtonRTXBackendCfg source
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
             :language: python
-            :pyobject: NewtonRTXVisualizerCfg
+            :pyobject: NewtonRTXBackendCfg
 
       .. dropdown:: Shared window options
          :icon: code
@@ -362,7 +409,7 @@ Visualizer Overview
             :language: python
             :pyobject: WindowCfg
 
-      .. dropdown:: VisualizerCfg source (shared base class)
+      .. dropdown:: VisualizerCfg source (shared settings)
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
@@ -414,31 +461,30 @@ Visualizer Overview
             │   URL  │  http://127.0.0.1:9090/?url=rerun%2Bhttp://127.0.0.1:9876/proxy       │
             ╰────────────────────────────────────────────────────────────────────────────────╯
 
-      **Core configuration:**
+      Keep history or record a replay through the Rerun backend; select it with ``--viz rerun``:
 
       .. code-block:: python
 
-          from isaaclab_visualizers.rerun import RerunVisualizerCfg
+         from isaaclab_visualizers.rerun import RerunBackendCfg
+         from isaaclab.visualizers import VisualizerCfg
+         from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
-          visualizer_cfg = RerunVisualizerCfg(
-              eye=(8.0, 8.0, 3.0),
-              lookat=(0.0, 0.0, 0.0),
-              keep_historical_data=False,   # enable for time scrubbing
-              keep_scalar_history=False,    # enable for scalar time-series
-              record_to_rrd=None,           # set a path to save a .rrd recording
-              open_browser=False,
-          )
+         visualizer_cfgs = VisualizerCfg(
+             backend=MultiBackendVisualizerCfg(
+                 rerun=RerunBackendCfg(
+                     open_browser=True, keep_historical_data=True, record_to_rrd="rollout.rrd",
+                 ),
+             ),
+         )
 
-      For the full config reference, see the config classes below.
-
-      .. dropdown:: RerunVisualizerCfg source
+      .. dropdown:: RerunBackendCfg source
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/rerun/rerun_visualizer_cfg.py
             :language: python
-            :pyobject: RerunVisualizerCfg
+            :pyobject: RerunBackendCfg
 
-      .. dropdown:: VisualizerCfg source (shared base class)
+      .. dropdown:: VisualizerCfg source (shared settings)
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
@@ -472,31 +518,14 @@ Visualizer Overview
          ``.gitignore``; delete it or launch from outside the repository if you would rather it
          not appear at all.
 
-      **Core configuration:**
-
-      .. code-block:: python
-
-          from isaaclab.visualizers import WindowCfg
-          from isaaclab_visualizers.kit import KitVisualizerCfg
-
-          visualizer_cfg = KitVisualizerCfg(
-              eye=(8.0, 8.0, 3.0),
-              lookat=(0.0, 0.0, 0.0),
-              window=WindowCfg(size=(1280, 720)),
-              enable_markers=True,
-              enable_live_plots=True,
-          )
-
-      For the full config reference, see the config classes below.
-
-      .. dropdown:: KitVisualizerCfg source
+      .. dropdown:: KitBackendCfg source
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/kit/kit_visualizer_cfg.py
             :language: python
-            :pyobject: KitVisualizerCfg
+            :pyobject: KitBackendCfg
 
-      .. dropdown:: VisualizerCfg source (shared base class)
+      .. dropdown:: VisualizerCfg source (shared settings)
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
@@ -677,6 +706,63 @@ Rerun cannot.
 
 See :doc:`/source/how-to/record_video` for the full guide and tutorial.
 
+Keyboard Input
+~~~~~~~~~~~~~~
+
+A visualizer with a local window reports the keys typed into it through
+:attr:`~isaaclab.visualizers.BaseVisualizer.key_event_source`, for example to drive a robot from
+the keyboard. Each key press and release arrives as a W3C ``KeyboardEvent.code`` string such as
+``"KeyW"``:
+
+- :class:`~isaaclab_visualizers.kit.KitVisualizer` reports physical key positions, independent of
+  the keyboard layout. Keys typed into Kit's own UI, such as a text field, are reported too.
+- :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` report layout-mapped keys: a code names
+  the key that types the same character on a US layout. Presses typed into the window's UI are
+  withheld. Presses and releases pair up reliably on a US layout; on other layouts, changing Shift
+  while holding a digit or punctuation key can leave it held until the window loses focus.
+
+The Viser and Rerun visualizers, and any visualizer running headless, have no keyboard source and
+return ``None``. A headless Viser server still takes input from connected browsers, but not through
+``key_event_source``.
+
+Each Newton window has its own source. Kit visualizers share the Kit application window, so each of
+them reports the same keys; a consumer that listens to every visualizer must accept a key from more
+than one source.
+
+The visualizer connects native keyboard and focus events when its window initializes and
+disconnects them before the window closes. A subscription only adds or removes a listener;
+it does not initialize window resources. The source owns no held-key state or camera policy.
+
+Close the subscription when you are done with it. A consumer that uses the camera's motion keys
+also turns off keyboard camera movement with
+:meth:`~isaaclab.visualizers.BaseVisualizer.set_camera_keys_enabled`; a Newton window then stops
+moving its camera with WASD/QE and the arrow keys, and Kit's viewport, whose camera keys only act
+while the right mouse button is held, is unaffected:
+
+.. code-block:: python
+
+   visualizer = sim.visualizers[0]
+   source = visualizer.key_event_source
+   if source is not None:
+       held = set()
+
+       def on_key(code: str, pressed: bool) -> None:
+           (held.add if pressed else held.discard)(code)
+
+       visualizer.set_camera_keys_enabled(False)
+       try:
+           with source.add_key_listener(on_key, held.clear):
+               ...  # use held while stepping the simulation
+       finally:
+           visualizer.set_camera_keys_enabled(True)
+
+Subscribe, unsubscribe and close on the thread that steps the visualizer; callbacks run there too,
+in event order. Events arrive as the window reports them: key repeat can arrive as further presses,
+and a release can arrive without its press, so a listener tracks the keys it holds.
+``on_focus_lost`` runs when the window stops delivering keys, because it lost focus, its UI took
+the keyboard, or the visualizer closed; treat every held key as released.
+
 
 .. _visualization-configuration:
 
@@ -716,15 +802,16 @@ step, running with ``--viz kit``:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
 
-    sim_cfg.visualizer_cfgs = [
-        KitVisualizerCfg(
-            origin_type="asset",
-            origin_track_path="robot",  # or "robot/panda_hand" to track a specific body
-            eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
-        )
-    ]
+    from isaaclab.visualizers import VisualizerCfg
+
+    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+    sim_cfg.visualizer_cfgs = VisualizerCfg(
+        eye=(4.0, 4.0, 2.0),
+        backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="asset", origin_track_path="robot")),
+    )
 
 **Sharing a live view with a remote teammate**
 
@@ -733,9 +820,15 @@ without screen-sharing, running with ``--viz viser``:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.viser import ViserVisualizerCfg
+    from isaaclab_visualizers.viser import ViserBackendCfg
 
-    sim_cfg.visualizer_cfgs = [ViserVisualizerCfg(share=True, open_browser=True)]
+    from isaaclab.visualizers import VisualizerCfg
+
+    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+    sim_cfg.visualizer_cfgs = VisualizerCfg(
+        backend=MultiBackendVisualizerCfg(viser=ViserBackendCfg(share=True, open_browser=True)),
+    )
 
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
@@ -744,28 +837,18 @@ Resolution Rules
 ~~~~~~~~~~~~~~~~
 
 ``--viz`` (comma-separated, e.g. ``--viz kit,newton_gl``) selects which visualizers run, and
-``SimulationCfg.visualizer_cfgs`` configures them. Exactly the listed types are launched: each uses
-the configured visualizer of its type, with its settings, or else that type's default config. If
-``--viz`` is omitted, no visualizer runs, even if ``visualizer_cfgs`` lists some.
+``SimulationCfg.visualizer_cfgs`` configures them. Each selected type uses its configured settings,
+or else that type's default config. Concrete visualizer configs run as given when no CLI selection
+is supplied. ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=[])``;
+settings alone do not open a viewer.
 
-Isaac Sim opens a window only when ``--viz`` selects ``kit``, and never with ``HEADLESS=1`` or
+Isaac Sim opens a window when CLI or config selects ``kit``, and never with ``HEADLESS=1`` or
 livestreaming. A visualizer a ``--video`` source adds for recording always runs headless.
 
-To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
-``SimulationCfg``; they take effect for the types ``--viz`` selects:
-
-.. code-block:: python
-
-    from isaaclab.sim import SimulationCfg
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-    sim_cfg = SimulationCfg(
-        visualizer_cfgs=[
-            KitVisualizerCfg(eye=(0.0, 0.0, 20.0)),
-            NewtonGLVisualizerCfg(eye=(5.0, 5.0, 5.0), show_joints=True),
-        ]
-    )
+Use one ``VisualizerCfg(backend=MultiBackendVisualizerCfg())`` for shared settings, selecting
+one or several backends through ``visualizer=...``. A list of ``VisualizerCfg`` declarations is
+only needed for independently configured views, such as a different camera angle for recording
+(see :ref:`how_to_record_video_angle`).
 
 .. _visualization-common-modes:
 
@@ -777,25 +860,22 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
      - ``visualizer_cfgs``
      - Effective behavior
    * - no ``--viz``
-     - ``[]``
+     - ``VisualizerCfg()`` (the default)
      - No visualizer launches; no window, no capture source.
    * - ``--viz kit,newton_gl``
-     - ``[]``
-     - Launch default Kit and Newton GL visualizers.
+     - ``VisualizerCfg(max_visible_envs=16)``
+     - Launch Kit and Newton GL, both showing at most 16 environments.
    * - ``--video`` without ``--viz``
-     - ``[]``
+     - ``VisualizerCfg()``
      - Launch Newton GL without a window, only as the ``--video`` recording source.
-   * - ``--viz kit,newton_gl``
-     - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - Launch default Kit and custom Newton GL; Rerun is not launched.
    * - no ``--viz``
-     - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - No visualizer launches; the configs only apply when ``--viz`` selects their types.
-   * - ``--viz newton_gl,rerun``
-     - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - Launch custom Newton GL and Rerun from config.
+     - ``VisualizerCfg(backend=MultiBackendVisualizerCfg())``
+     - No visualizer launches; backend alternatives remain inactive until selected.
+   * - ``visualizer=rerun,newton_gl``
+     - ``VisualizerCfg(max_visible_envs=16, backend=MultiBackendVisualizerCfg())``
+     - Launch Rerun and Newton GL, both showing at most 16 environments.
 
-For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
+For migration context, see :doc:`/source/isaaclab/migrating`.
 
 
 .. _visualization-partial-visualization:
@@ -840,7 +920,11 @@ reflections. Newton GL uses its procedural sky when no color override is supplie
 
     from isaaclab.visualizers import VisualizerCfg
 
-    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(background_color=(0.1, 0.2, 0.3))
+    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+        background_color=(0.1, 0.2, 0.3), backend=MultiBackendVisualizerCfg(),
+    )
 
 
 Performance
@@ -918,18 +1002,25 @@ Limitations
      - ✓
      - ✓
      - ✓
+   * - Keyboard input, ``key_event_source``
+     - ✓
+     - ✓
+     - ✗
+     - ✗
+     - ✓
 
 **Lighting differences across visualizers**
 
 Each backend lights the scene differently, so the same environment can look noticeably
 different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
 uses a fixed sky-gradient and single directional light color
-(:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
+(:attr:`~isaaclab_visualizers.newton.NewtonGLBackendCfg.sky_upper_color`,
 ``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX renders the
-authored scene through Newton's native RTX viewer, borrowing a simulation-owned OVStage.
-Body poses follow simulation updates; runtime material randomization is not yet propagated
-to the borrowed stage. Perspective resolution stays fixed when the window is resized; the
-window scales the image for presentation.
+authored scene through Isaac Lab's OVRTX renderer, shared with cameras using the same
+``OVRTXRendererCfg``. Newton GL displays the rendered GPU image and handles window controls;
+Newton's ``ViewerRTX`` is not constructed. Scene transforms, deformable geometry, and material
+updates follow the camera renderer's normal synchronization. Perspective resolution stays
+fixed when the window is resized; the window scales the image for presentation.
 Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
 and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
 scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.
@@ -967,11 +1058,8 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
 
 **Rerun: blank page until the first payload loads**
 
-The Rerun browser tab opens blank and stays that way for several seconds (up to ~10s,
-depending on scene size) before the scene and live plots appear. This is expected -- it's the
-time for the web viewer to connect to the local Rerun server and receive its first batch of
-logged data -- but the page gives no loading indicator in the meantime, so it can look stuck.
-No action is needed; wait for the first frame to arrive.
+Rerun may show a blank browser tab for up to about 10 seconds while it connects
+and receives scene data. Wait for the first frame; no action is needed.
 
 **Newton GL: CUDA/OpenGL interoperability warnings**
 
@@ -994,14 +1082,18 @@ process is running without a GPU-backed display context (for example, in a servi
 a remote desktop without GPU acceleration). Run from a GPU-backed interactive display session,
 or omit ``--viz newton_gl`` for headless execution.
 
-See Also
---------
+.. raw:: html
+
+   <span id="see-also"></span>
+
+Where to go next
+----------------
 
 - :doc:`/source/how-to/visualizer_streaming_camera_view`: stream a camera view step by step
 - :doc:`/source/how-to/record_video`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
-- :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows to visualizers
+- :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
-- :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference
+- :doc:`/source/isaaclab/migrating`: visualizer migration reference

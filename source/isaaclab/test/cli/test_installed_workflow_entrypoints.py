@@ -165,7 +165,7 @@ def test_example_catalog_lists_packaged_examples(capsys):
 def _visualizer(visualizer_type: str) -> mock.Mock:
     """Return a visualizer stand-in of the given type."""
     visualizer = mock.Mock()
-    visualizer.cfg.visualizer_type = visualizer_type
+    visualizer.cfg.backend.visualizer_type = visualizer_type
     return visualizer
 
 
@@ -190,6 +190,7 @@ def test_newton_gl_selector_omits_incompatible_programs():
     kit_visualizer.register_ui_callback.assert_not_called()
     assert "Zoo##demo:zoo" in labels
     assert "Cables##example:cables" in labels
+    assert "G1 Terrain##example:g1-terrain" in labels
     assert "Newton Dominoes##example:newton-dominoes" in labels
     assert "Newton Dominoes##demo:newton-dominoes" not in labels
     assert "H1 Locomotion##demo:h1-locomotion" in labels
@@ -331,6 +332,17 @@ def test_cli_loads_downstream_tasks_before_benchmark():
     entry_points.assert_called_once_with(group="isaaclab.tasks")
     task_entry_point.load.assert_called_once_with()
     benchmark.assert_called_once_with(["runtime", "--task", "Example"])
+
+
+def test_task_discovery_skips_broken_packages(caplog):
+    """A task package that fails to import is reported and does not stop discovery of the others."""
+    broken, working = mock.Mock(), mock.Mock()
+    broken.name, broken.dist.name, broken.load.side_effect = "broken_tasks", "broken-dist", ImportError("no module")
+    with mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[broken, working]):
+        cli.load_external_tasks()
+
+    working.load.assert_called_once_with()
+    assert "broken-dist" in caplog.text and "no module" in caplog.text
 
 
 def test_list_envs_cli_dispatches_without_preloading_tasks():

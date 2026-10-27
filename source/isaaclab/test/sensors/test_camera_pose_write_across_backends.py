@@ -13,7 +13,7 @@ The test raises a downward-looking camera over the ground plane, which scales th
 visible surface, and checks both observable consequences: the reported pose and the rendered depth.
 """
 
-from isaaclab.test.utils import launch_test_simulation
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 launch_test_simulation(enable_cameras=True)
 
@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -28,6 +29,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
@@ -124,3 +126,63 @@ def test_camera_pose_write_moves_pose_and_render(physics_cfg):
         f"Far depth ({depth_far_m:.2f} m) should be > {depth_ratio_threshold}x close depth"
         f" ({depth_close_m:.2f} m); got {ratio:.2f}x. The camera pose write is not reaching the renderer."
     )
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def test_physx_mounted_warp_camera_tracks_motion_and_state_writes(device):
+    """A Warp-rendered camera follows native PhysX transforms without requiring RTX rendering."""
+    sim_cfg = SimulationCfg(physics=PhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _SceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg.terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+        scene_cfg.cube.init_state.pos = (0.0, 0.0, CLOSE_M)
+        scene_cfg.camera = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Cube/Camera",
+            height=32,
+            width=32,
+            data_types=["distance_to_image_plane"],
+            renderer_cfg=NewtonWarpRendererCfg(),
+            update_latest_camera_pose=True,
+            offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.5), convention="opengl"),
+            spawn=sim_utils.PinholeCameraCfg(),
+        )
+        scene = InteractiveScene(scene_cfg)
+        camera = scene["camera"]
+        sim.set_setting("/physics/fabricUpdateTransformations", False)
+        sim.reset()
+        camera.reset()
+        cube = scene["cube"]
+        cube.write_root_velocity_to_sim_index(
+            root_velocity=torch.tensor([[0.0, 0.0, 1.0, 0.0, 0.0, 0.0]], device=device)
+        )
+        for step in range(1, 3):
+            sim.step(render=False)
+            camera.update(sim.get_physics_dt())
+            expected_z = CLOSE_M + 0.5 + step * sim.get_physics_dt()
+            data = camera.data
+            torch.testing.assert_close(
+                data.pos_w.torch, torch.tensor([[1.0, 0.0, expected_z]], device=device), atol=1e-4, rtol=0
+            )
+            assert data.output["distance_to_image_plane"].torch[0, 16, 16, 0].item() == pytest.approx(
+                expected_z, abs=1e-3
+            )
+
+        # Match reset-event ordering: clear sensor state, then teleport the body, then read without a step.
+        camera.reset()
+        pose = torch.tensor([[0.0, 0.0, FAR_M, 0.0, 0.0, 0.0, 1.0]], device=device)
+        cube.write_root_pose_to_sim_index(root_pose=pose)
+        data = camera.data
+        torch.testing.assert_close(data.pos_w.torch, torch.tensor([[1.0, 0.0, FAR_M + 0.5]], device=device))
+        assert data.output["distance_to_image_plane"].torch[0, 16, 16, 0].item() == pytest.approx(FAR_M + 0.5, abs=1e-3)
+
+        # Direct pose queries stay current even when measurement poses are configured to remain cached.
+        camera.cfg.update_latest_camera_pose = False
+        pose[:, 2] = 3.0
+        cube.write_root_pose_to_sim_index(root_pose=pose)
+        frame = camera.frame.torch.clone()
+        torch.testing.assert_close(camera.get_world_poses()[0], torch.tensor([[1.0, 0.0, 3.5]], device=device))
+        torch.testing.assert_close(camera.data.pos_w.torch, torch.tensor([[1.0, 0.0, FAR_M + 0.5]], device=device))
+        torch.testing.assert_close(camera.frame.torch, frame)
+        if device.startswith("cuda"):
+            assert not sim.get_setting("/physics/fabricUpdateTransformations")
