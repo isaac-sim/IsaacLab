@@ -54,6 +54,7 @@ from isaaclab.visualizers.policy_ghost import PolicyGhostController
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
+from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
@@ -189,11 +190,25 @@ class NewtonViewerGL(ViewerGL):
     _recording_panel = None
     image_matches_camera = False
     """Whether the fullscreen image is rendered from :attr:`camera`, so picking rays and window fill are valid."""
+    _overlay_capture = None
+    """Publisher that also receives the line and arrow overlays, while the OVRTX view draws them."""
     _view_controls = None
     _run_info: dict = {}
     _steps_per_second = 0.0
     _real_time_factor = 0.0
     _rate_sample = (0.0, 0)
+
+    def log_lines(self, name, starts, ends, colors, width=0.01, hidden=False):
+        """Draw line segments, and hand them to the overlay publisher when one is capturing."""
+        if self._overlay_capture is not None:
+            self._overlay_capture.record(name, starts, ends, colors, width, hidden, arrow=False)
+        super().log_lines(name, starts, ends, colors, width=width, hidden=hidden)
+
+    def log_arrows(self, name, starts, ends, colors, width=0.01, hidden=False):
+        """Draw arrows, and hand them to the overlay publisher when one is capturing."""
+        if self._overlay_capture is not None:
+            self._overlay_capture.record(name, starts, ends, colors, width, hidden, arrow=True)
+        super().log_arrows(name, starts, ends, colors, width=width, hidden=hidden)
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -449,11 +464,17 @@ class NewtonViewerGL(ViewerGL):
         self._draw_marker_controls(imgui)
         if self.model is not None:
             imgui.separator_text("Visual Overlays")
-            if self._fullscreen_image_active or self.image_matches_camera:
+            if self._fullscreen_image_active and not self.image_matches_camera:
                 imgui.text_disabled("OpenGL only")
                 hover_tooltip(
                     imgui, "Switch Camera View > Renderer to OpenGL to draw joints, contacts, and other overlays"
                 )
+            elif self.image_matches_camera:
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.tree_node("Overlay options"):
+                    self._draw_model_overlays(imgui, rtx=True)
+                    imgui.tree_pop()
+                imgui.text_disabled("Collision, visual, edges, and wireframes: OpenGL only")
             else:
                 imgui.set_next_item_open(True, imgui.Cond_.appearing)
                 if imgui.tree_node("Overlay options"):
@@ -487,8 +508,8 @@ class NewtonViewerGL(ViewerGL):
                     marker.set_visibility(False)
             hover_tooltip(imgui, "Hide every marker group")
 
-    def _draw_model_overlays(self, imgui) -> None:
-        """Draw Newton's per-overlay toggles."""
+    def _draw_model_overlays(self, imgui, rtx: bool = False) -> None:
+        """Draw Newton's per-overlay toggles; the OVRTX view draws only the line and arrow overlays."""
         renderer = self.renderer
 
         def tip(text: str) -> None:
@@ -518,6 +539,20 @@ class NewtonViewerGL(ViewerGL):
         _model = self.model
         _has_particles = _model.particle_count > 0
         _has_springs = _model.spring_count > 0
+        if rtx:
+            self.show_springs = _imgui_optional_checkbox(
+                imgui,
+                "Show Springs",
+                self.show_springs,
+                _has_springs,
+                "No spring constraints in this environment",
+                "Draw spring constraints",
+            )
+            _c, self.show_com = imgui.checkbox("Show Center of Mass", self.show_com)
+            tip("Draw each body's center of mass")
+            _c, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", self.show_inertia_boxes)
+            tip("Draw each body's inertia as a box")
+            return
         _has_cloth = _model.tri_count > 0
         self.show_particles = _imgui_optional_checkbox(
             imgui,
@@ -812,6 +847,8 @@ class NewtonViewerGL(ViewerGL):
 class NewtonVisualizerBase(BaseVisualizer):
     """Own Newton resource bindings, frame cadence, and camera selection for both renderers."""
 
+    _overlay_publisher: OverlayMeshPublisher | None = None
+
     def __init__(self, cfg):
         super().__init__(cfg)
         self._viewer = None
@@ -820,6 +857,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
+        self._overlay_publisher = None
         self._followers: dict[object, CameraFollower] = {}
         self._rtx_pose_view = None
         """Tracking Camera view that moves the OVRTX camera, or None when the free camera drives it."""
@@ -1640,6 +1678,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
             renderer_cfg = self._image_views[self.rtx_view_index].camera.cfg.renderer_cfg
             sim.get_or_create_backend(renderer_cfg).marker_groups = sim.vis_marker_registry.get_groups().values()
+        if self.rtx_view_index is not None:
+            self._overlay_publisher = OverlayMeshPublisher(f"Viewer_{id(self)}")
         if self.cfg.backend.initial_renderer == "rtx":
             if self.rtx_view_index is None:
                 raise RuntimeError(
@@ -1695,6 +1735,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._apply_view_pose(pose_view)
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
+                self._log_rtx_overlays()
                 self._log_streaming_image()
             elif not viewer.is_paused():
                 state = self._update_state()
@@ -1724,6 +1765,35 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
+
+    def _log_rtx_overlays(self) -> None:
+        """Draw the line and arrow overlays the HUD enables in the OVRTX view, as meshes in its scene."""
+        publisher, viewer = self._overlay_publisher, self._viewer
+        if publisher is None or not self.rtx_rendering:
+            return
+        renderers = self._rtx_renderers
+        if not any(
+            getattr(viewer, flag)
+            for flag in ("show_joints", "show_contacts", "show_springs", "show_com", "show_inertia_boxes")
+        ):
+            publisher.hide_all(renderers)
+            return
+        if viewer.is_paused():
+            return
+        state = self._update_state()
+        if state.body_q is not None and not len(state.body_q):
+            return
+        viewer._overlay_capture = publisher
+        try:
+            viewer.log_state(state)
+            contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
+            if contacts is not None:
+                viewer.log_contacts(contacts, state)
+            else:
+                self._log_scene_contact_sensor_arrows()
+        finally:
+            viewer._overlay_capture = None
+        publisher.publish(renderers)
 
     def _update_state(self):
         """Publish current scene state while the GL frame is active."""
@@ -1773,6 +1843,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._rtx_pose_view = current if self._is_task_view(current) else None
             self._select_camera(rtx_index, keep_pose=True)
         else:
+            if self._overlay_publisher is not None:
+                self._overlay_publisher.hide_all(self._rtx_renderers)
             back = self._rtx_pose_view
             self._rtx_pose_view = None
             self._select_camera(self._image_views.index(back) if back is not None else free[0], keep_pose=True)
