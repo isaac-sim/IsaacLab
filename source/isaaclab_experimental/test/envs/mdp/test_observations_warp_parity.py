@@ -14,8 +14,6 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.seed import WarpRng
-
 # Skip entire module if no CUDA device available
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
@@ -49,12 +47,6 @@ import isaaclab.envs.mdp.observations as stable_obs
 # ============================================================================
 # Fixtures
 # ============================================================================
-
-
-@pytest.fixture(autouse=True)
-def _clear_caches():
-    yield
-    WarpRng.state = None
 
 
 @pytest.fixture()
@@ -131,7 +123,6 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
-    WarpRng.state = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
     return env
 
 
@@ -170,7 +161,6 @@ def warp_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, cmd
     env.step_dt = 0.02
     env.max_episode_length = 500
     env.max_episode_length_s = 10.0
-    WarpRng.state = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
     return env
 
 

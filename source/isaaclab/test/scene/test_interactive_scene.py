@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -182,6 +183,41 @@ def test_relative_deformable_state():
     torch.testing.assert_close(written_state["position"], reset_nodal_position + env_origins[env_ids, None, :])
     torch.testing.assert_close(written_state["velocity"], reset_nodal_velocity)
     torch.testing.assert_close(written_state["env_ids"], env_ids)
+
+
+def test_masked_reset_reaches_every_entity():
+    """A masked reset passes the mask to every asset and sensor and the selected ids to surface grippers.
+
+    A reset by ids passes no mask, so entities that accept only ids keep working.
+    """
+    groups = (
+        "_articulations",
+        "_cable_objects",
+        "_deformable_objects",
+        "_rigid_objects",
+        "_surface_grippers",
+        "_rigid_object_collections",
+        "_sensors",
+    )
+    calls = {}
+
+    def entity(group):
+        return SimpleNamespace(reset=lambda env_ids=None, **kwargs: calls.update({group: (env_ids, kwargs)}))
+
+    scene = SimpleNamespace(**{group: {"entity": entity(group)} for group in groups})
+    env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
+
+    InteractiveScene.reset(scene, env_mask=env_mask)
+    assert calls.keys() == set(groups)
+    for group, (env_ids, kwargs) in calls.items():
+        if group == "_surface_grippers":
+            assert env_ids.tolist() == [0, 2] and kwargs == {}
+        else:
+            assert env_ids is None and kwargs.keys() == {"env_mask"} and kwargs["env_mask"] is env_mask
+
+    calls.clear()
+    InteractiveScene.reset(scene, env_ids=[1])
+    assert calls == dict.fromkeys(groups, ([1], {}))
 
 
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):

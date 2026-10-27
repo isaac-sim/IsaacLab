@@ -40,6 +40,19 @@ def select(env, env_mask: wp.array):
     wp.copy(env.selected, env_mask)
 
 
+@wp.kernel
+def _write_value(env_mask: wp.array(dtype=wp.bool), out: wp.array(dtype=wp.float32), value: wp.float32):
+    env_id = wp.tid()
+    if env_mask[env_id]:
+        out[env_id] = value
+
+
+def write_value(env, env_mask: wp.array, value: float):
+    """Event term that writes its configured value into the selected environments."""
+    CALLS["write_value"] += 1
+    wp.launch(_write_value, dim=env.num_envs, inputs=[env_mask, env.out, value], device=env.device)
+
+
 @WarpCapturable(False, reason="synchronizes with the host")
 class host_call_term(ManagerTermBase):
     """Class event term whose call cannot be recorded but whose reset can."""
@@ -136,3 +149,35 @@ def test_set_term_cfg_records_the_reset_events_again_only_when_the_trigger_chang
     assert CALLS["select"] == 1
     assert apply_reset(step=7, min_step_count_between_reset=10) == [False] * NUM_ENVS
     assert CALLS["select"] == 2
+
+
+def test_set_term_cfg_applies_new_params_to_the_recorded_reset_events(monkeypatch):
+    """A replaced term configuration must not replay the scalars recorded from the old one."""
+    monkeypatch.setattr(CapturedStage, "enabled", True)
+    env = SimpleNamespace(
+        num_envs=NUM_ENVS,
+        device=DEVICE,
+        sim=SimpleNamespace(is_playing=lambda: True),
+        out=wp.zeros(NUM_ENVS, dtype=wp.float32, device=DEVICE),
+    )
+    manager = EventManager(
+        {"write_value": EventTermCfg(func=write_value, mode="reset", params={"value": 1.0})},
+        env,
+    )
+    env_mask = wp.ones(NUM_ENVS, dtype=wp.bool, device=DEVICE)
+    step_count = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    CALLS.clear()
+
+    def apply_reset() -> list[float]:
+        manager.apply(mode="reset", env_mask_wp=env_mask, global_env_step_count=step_count)
+        return env.out.numpy().tolist()
+
+    assert apply_reset() == [1.0] * NUM_ENVS
+    assert apply_reset() == [1.0] * NUM_ENVS
+    assert CALLS["write_value"] == 1, "the second reset must replay the recorded reset events"
+
+    term_cfg = manager.get_term_cfg("write_value")
+    term_cfg.params["value"] = 2.0
+    manager.set_term_cfg("write_value", term_cfg)
+
+    assert apply_reset() == [2.0] * NUM_ENVS

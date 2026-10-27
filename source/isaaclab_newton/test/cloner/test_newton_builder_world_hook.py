@@ -15,7 +15,6 @@ import pytest
 import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg
-from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 
 from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
@@ -65,7 +64,7 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     body = source.add_body()
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
-    sim = SimpleNamespace(backend_manager=SimpleNamespace(_cl_protos={"/World/Source": source}))
+    sim = SimpleNamespace(backend_manager=SimpleNamespace(get_clone_source_builders=lambda: {"/World/Source": source}))
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     copied = copy_newton_clone_source("/World/Source")
@@ -117,9 +116,9 @@ def test_explicit_global_import_uses_global_world(
         create_builder=newton.ModelBuilder,
         _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
         _inject_terrain_heightfields=mock.Mock(return_value=[]),
-        _cl_inject_sites=mock.Mock(return_value=({}, {}, {})),
+        inject_sites=mock.Mock(return_value=({}, {}, {})),
+        record_clone=mock.Mock(),
     )
-    manager._scene_data_backend = NewtonSceneDataBackend(manager)
     sim = SimpleNamespace(
         backend_manager=manager,
         device="cpu",
