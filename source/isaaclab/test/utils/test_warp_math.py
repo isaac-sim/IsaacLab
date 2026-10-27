@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import warp as wp
 
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.warp.math import (
     acceleration_at_offset,
@@ -72,22 +73,58 @@ def test_spatial_transport_is_linear_first_and_in_the_input_frame():
     np.testing.assert_allclose(out.numpy(), [[1, 4, 3], [0, 8, 6], [2, -1, 3], [0, 0, 2], [2, -1, 3]], atol=2e-6)
 
 
-def test_heading_and_inverse_rotation_use_body_and_world_frames():
-    with wp.ScopedDevice("cpu"):
+@pytest.mark.parametrize("device", test_devices())
+def test_heading_and_inverse_rotation_preserve_strides_and_replay(device):
+    with wp.ScopedDevice(device):
         s = 2.0**-0.5
-        quat = wp.array([[0, 0, s, s], [0, 0, -s, s]], dtype=wp.quatf)
-        vector = wp.array([[1, 2, 3], [4, 5, 6]], dtype=wp.vec3f)
-        forward = wp.array([[1, 0, 0], [0, 1, 0]], dtype=wp.vec3f)
-        rotated = wp.empty(2, dtype=wp.vec3f)
-        heading = wp.empty(2, dtype=float)
-        for inverse, yaw, shape in [
-            (warp_math.quat_rotate_inv[1], warp_math.heading[1], (2,)),
-            (warp_math.quat_rotate_inv[2], warp_math.heading[2], (1, 2)),
-        ]:
-            wp.launch(inverse, shape, [quat.reshape(shape), vector.reshape(shape), rotated.reshape(shape)])
-            wp.launch(yaw, shape, [forward.reshape(shape), quat.reshape(shape), heading.reshape(shape)])
-            np.testing.assert_allclose(rotated.numpy(), [[2, -1, 3], [-5, 4, 6]], atol=1e-6)
-            np.testing.assert_allclose(heading.numpy(), [math.pi / 2, 0], atol=1e-6)
+        quaternions = np.array([[0, 0, s, s], [0, 0, -s, s], [0, 0, 0, 1], [0, 0, 1, 0]], dtype=np.float32)
+        vectors = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [-1, -2, -3]], dtype=np.float32)
+        forwards = np.array([[1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 1, 0]], dtype=np.float32)
+        for shape in ((4,), (2, 2)):
+            rank = len(shape)
+            # Independent strides and padding expose incorrect flattening or shared-stride assumptions.
+            arrays, stores, selections = [], [], []
+            for step, dtype, values in (
+                (2, wp.quatf, quaternions),
+                (3, wp.vec3f, vectors),
+                (4, wp.vec3f, forwards),
+                (5, wp.vec3f, None),
+                (6, wp.float32, None),
+            ):
+                store = wp.full((*shape[:-1], shape[-1] * step), dtype(99.0))
+                selection = (slice(None),) * (rank - 1) + (slice(None, None, step),)
+                array = store[selection]
+                if values is not None:
+                    array.assign(values.reshape(*shape, -1))
+                arrays.append(array)
+                stores.append(store)
+                selections.append(selection)
+            quat, vector, forward, rotated, heading = arrays
+            inverse, yaw = warp_math.quat_rotate_inv[rank], warp_math.heading[rank]
+            wp.launch(inverse, shape, [quat, vector, rotated])
+            wp.launch(yaw, shape, [forward, quat, heading])
+            np.testing.assert_allclose(
+                rotated.numpy().reshape(4, 3), [[2, -1, 3], [-5, 4, 6], [7, 8, 9], [1, 2, -3]], atol=1e-6
+            )
+            np.testing.assert_allclose(
+                heading.numpy().reshape(4), [math.pi / 2, 0, -math.pi / 2, -math.pi / 2], atol=1e-6
+            )
+            if wp.get_device(device).is_cuda:
+                with wp.ScopedCapture(device=device) as capture:
+                    wp.launch(inverse, shape, [quat, vector, rotated])
+                    wp.launch(yaw, shape, [forward, quat, heading])
+                quat.fill_(wp.quatf(0, 0, 0, 1))
+                vector.fill_(wp.vec3f(2, 3, 4))
+                forward.fill_(wp.vec3f(0, 1, 0))
+                rotated.fill_(wp.vec3f(99.0))
+                heading.fill_(99.0)
+                wp.capture_launch(capture.graph)
+                np.testing.assert_array_equal(rotated.numpy(), np.tile([2, 3, 4], (*shape, 1)))
+                np.testing.assert_allclose(heading.numpy(), math.pi / 2, atol=1e-6)
+            for store, selection in zip(stores, selections, strict=True):
+                padding = np.ones(store.shape, dtype=bool)
+                padding[selection] = False
+                np.testing.assert_array_equal(store.numpy()[padding], 99.0)
 
 
 def test_interval_scaling_preserves_midpoints_without_clamping():
@@ -113,39 +150,36 @@ def test_jacobian_shift_preserves_angular_rows_and_maps_omitted_root():
 
 
 def test_shared_math_ownership(source_checkout_root):
-    """Shared equations have one solver-independent owner; factories never run per step."""
+    """Core owns equations; Warp owns elementwise generation and operation-specific compilation."""
     import ast
 
     from isaaclab.utils.warp import math
 
     assert not any(name.endswith(("_kernel", "_kernels")) for name in vars(math)), "Name shared math by operation"
-    for operation in (math.quat_rotate_inv, math.heading):
-        assert all(kernel.module.name == math.__name__ for kernel in operation.values())
+    mapped = [*math.quat_rotate_inv.values(), *math.heading.values(), math.scale_intervals]
+    assert all(kernel.module is not wp.get_module(math.__name__) for kernel in mapped)
     source = source_checkout_root / "source"
     core = source / "isaaclab/isaaclab"
-    for name in ("math", "kernel_factory"):
-        owner = core / f"utils/warp/{name}.py"
-        assert owner.is_file()
-        for node in ast.walk(ast.parse(owner.read_text())):
-            if isinstance(node, ast.FunctionDef) and node.name.lstrip("_").startswith("make_"):
-                assert not node.name.endswith("_kernel"), node.name
-            modules = [a.name for a in node.names] if isinstance(node, ast.Import) else []
-            if isinstance(node, ast.ImportFrom):
-                modules.append(node.module or "")
-            assert not any(
-                m.startswith(
-                    (
-                        "isaaclab.assets",
-                        "isaaclab.sensors",
-                        "isaaclab_newton",
-                        "isaaclab_physx",
-                        "isaaclab_ov",
-                        "newton",
-                        "isaacsim",
-                    )
+    assert not (core / "utils/warp/kernel_factory.py").exists(), "Use Warp's elementwise generator"
+    owner = core / "utils/warp/math.py"
+    for node in ast.walk(ast.parse(owner.read_text())):
+        modules = [a.name for a in node.names] if isinstance(node, ast.Import) else []
+        if isinstance(node, ast.ImportFrom):
+            modules.append(node.module or "")
+        assert not any(
+            m.startswith(
+                (
+                    "isaaclab.assets",
+                    "isaaclab.sensors",
+                    "isaaclab_newton",
+                    "isaaclab_physx",
+                    "isaaclab_ov",
+                    "newton",
+                    "isaacsim",
                 )
-                for m in modules
-            ), owner
+            )
+            for m in modules
+        ), owner
     retired = {
         "compute_heading_w_func",
         "quat_apply_inverse_1D_kernel",
@@ -183,6 +217,6 @@ def test_shared_math_ownership(source_checkout_root):
                 if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
                     assert not any(
                         isinstance(call, ast.Call)
-                        and getattr(call.func, "id", getattr(call.func, "attr", "")) == "make_binary"
+                        and getattr(call.func, "id", getattr(call.func, "attr", "")).lstrip("_") == "make_binary"
                         for call in ast.walk(node)
                     ), file

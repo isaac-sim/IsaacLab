@@ -5,8 +5,6 @@
 
 import warp as wp
 
-from .kernel_factory import make_binary
-
 
 @wp.func
 def rotate_vec_to_body_frame(vec_w: wp.vec3f, pose_w: wp.transformf) -> wp.vec3f:
@@ -74,18 +72,8 @@ def yaw_quat(q: wp.quatf) -> wp.quatf:
 
 
 @wp.func
-def heading_from_quat(forward_vec: wp.vec3f, quat: wp.quatf):
-    """Compute heading angle (yaw) in world frame from a forward vector and orientation.
-
-    Rotates the forward vector by the quaternion and computes atan2(y, x).
-
-    Args:
-        forward_vec: Forward direction vector in body frame.
-        quat: Orientation quaternion.
-
-    Returns:
-        Heading angle in radians.
-    """
+def heading_from_quat(forward_vec: wp.vec3f, quat: wp.quatf) -> float:
+    """World-frame heading [rad] of a body-frame forward vector rotated by an ``xyzw`` quaternion."""
     forward_w = wp.quat_rotate(quat, forward_vec)
     return wp.atan2(forward_w[1], forward_w[0])
 
@@ -96,13 +84,6 @@ def scale_interval(bounds: wp.vec2f, factor: float) -> wp.vec2f:
     midpoint = (bounds[0] + bounds[1]) / 2.0
     width = bounds[1] - bounds[0]
     return wp.vec2f(midpoint - 0.5 * width * factor, midpoint + 0.5 * width * factor)
-
-
-@wp.kernel
-def scale_intervals(bounds: wp.array2d(dtype=wp.vec2f), factor: float, result: wp.array2d(dtype=wp.vec2f)):
-    """Scale each interval in a rank-2 array by one factor; preserve input component order."""
-    i, j = wp.tid()
-    result[i, j] = scale_interval(bounds[i, j], factor)
 
 
 @wp.kernel
@@ -136,10 +117,28 @@ def shift_jacobian_reference(
     dst[env, body, 5, dof] = angular[2]
 
 
-# Array launch entry points, indexed by rank. Device operations remain composable inside caller kernels.
+# Predeclare array launches without allocating storage or launching kernels. Zero-extent array
+# descriptors carry rank and dtype without specializing singleton broadcasting; scalar values stay runtime inputs.
 quat_rotate_inv = {
-    rank: make_binary(wp.quat_rotate_inv, wp.quatf, wp.vec3f, wp.vec3f, rank, module=__name__) for rank in (1, 2)
+    rank: wp.map(
+        wp.quat_rotate_inv,
+        wp.array(dtype=wp.quatf, ndim=rank),
+        wp.array(dtype=wp.vec3f, ndim=rank),
+        out=wp.array(dtype=wp.vec3f, ndim=rank),
+        return_kernel=True,
+    )
+    for rank in (1, 2)
 }
 heading = {
-    rank: make_binary(heading_from_quat, wp.vec3f, wp.quatf, wp.float32, rank, module=__name__) for rank in (1, 2)
+    rank: wp.map(
+        heading_from_quat,
+        wp.array(dtype=wp.vec3f, ndim=rank),
+        wp.array(dtype=wp.quatf, ndim=rank),
+        out=wp.array(dtype=wp.float32, ndim=rank),
+        return_kernel=True,
+    )
+    for rank in (1, 2)
 }
+scale_intervals = wp.map(
+    scale_interval, wp.array2d(dtype=wp.vec2f), 0.0, out=wp.array2d(dtype=wp.vec2f), return_kernel=True
+)

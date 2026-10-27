@@ -534,9 +534,11 @@ of retaining forwarding aliases without an external caller. Preserve quaternion 
 and spatial-vector ``(linear, angular)`` conventions explicitly; different frames or sentinel
 policies are not interchangeable.
 
-Generate required variants before launch or graph capture. ``make_binary`` generates rank-1
-and rank-2 kernels from one device operation while preserving array strides. Register variants
-in the semantic owner's module so importing another owner cannot invalidate earlier compilation.
+Use ``wp.map(..., return_kernel=True)`` for elementwise array launches instead of maintaining a
+custom mapping factory. Declare required variants in the semantic owner before launch or graph
+capture; Warp owns their generation and per-operation compilation modules. Supply zero-extent array
+descriptors and an explicit ``out`` descriptor to avoid allocating storage or specializing singleton
+broadcasting. The returned kernels preserve runtime array strides and use existing launch caches.
 Specialize structural choices; numerical values remain runtime inputs. Name factories
 ``make_<operation>`` and shared math entry points by their operation, without a ``_kernel`` suffix.
 Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a device operation and
