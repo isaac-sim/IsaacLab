@@ -483,7 +483,13 @@ class UsdExporter(BaseUsdExporter):
 
     @classmethod
     def _collider_contact_edits(cls, prim: Usd.Prim, values: dict[str, float]) -> list[UsdEdit]:
-        """Contact gains of a collider without a physics material, which Newton reads from the collider."""
+        """Contact gains of a collider without a physics material, which Newton reads from the collider.
+
+        Its other material values, such as friction, can only be stated by a physics material.
+        """
+        unstated = sorted(set(values) - set(SHAPE_CONTACT_ATTRIBUTES))
+        if unstated:
+            raise NotImplementedError(f"Collider '{prim.GetPath()}' needs a physics material for {unstated}.")
         edits = (
             cls._value_edit(prim, SHAPE_CONTACT_ATTRIBUTES[name], value)
             for name, value in values.items()
