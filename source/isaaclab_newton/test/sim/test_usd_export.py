@@ -42,45 +42,50 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
 
 
 def _capture(model, body_q, env_id):
-    """Exported quantities of one world, keyed by USD path."""
-    from isaaclab_newton.sim.usd_export.usd_exporter import DOF_ATTRIBUTES, MATERIAL_ATTRIBUTES, SHAPE_ATTRIBUTES
+    """Every float model array, and the joint target modes, of one world's bodies, shapes, joints and DOFs.
 
-    def selected(worlds):
-        return np.flatnonzero(np.isin(worlds.numpy(), (-1, env_id)))
-
+    Keyed by attribute name and entity label; a DOF is labelled ``<joint label>:<axis index>``. Root body
+    poses come from ``body_q``; other poses follow the joint state, which the export leaves out. The world's
+    gravity is keyed ``("gravity", "")``. Model values the export does not
+    carry show up as differences.
+    """
+    frequency = newton.Model.AttributeFrequency
+    labels = {
+        frequency.BODY: list(model.body_label),
+        frequency.SHAPE: list(model.shape_label),
+        frequency.JOINT: list(model.joint_label),
+        frequency.JOINT_DOF: [None] * model.joint_dof_count,
+    }
+    worlds = {
+        frequency.BODY: model.body_world.numpy(),
+        frequency.SHAPE: model.shape_world.numpy(),
+        frequency.JOINT: model.joint_world.numpy(),
+        frequency.JOINT_DOF: np.empty(model.joint_dof_count, dtype=int),
+    }
     starts, types = model.joint_qd_start.numpy(), model.joint_type.numpy()
+    # Free joints of floating bodies are generated, under generated names; their bodies carry the pose.
+    worlds[frequency.JOINT][types == int(newton.JointType.FREE)] = -2
+    for joint, label in enumerate(model.joint_label):
+        for axis, dof in enumerate(range(starts[joint], starts[joint + 1])):
+            labels[frequency.JOINT_DOF][dof] = f"{label}:{axis}"
+            worlds[frequency.JOINT_DOF][dof] = worlds[frequency.JOINT][joint]
     parents, children = model.joint_parent.numpy(), model.joint_child.numpy()
-    dof_arrays = {name: getattr(model, name).numpy() for name in (*DOF_ATTRIBUTES, "joint_target_mode")}
-    joints, anchors, roots = {}, {}, set()
-    for joint in selected(model.joint_world):
-        if parents[joint] == -1:
-            roots.add(model.body_label[children[joint]])
-            if types[joint] != int(newton.JointType.FREE):
-                anchors[model.joint_label[joint]] = model.joint_X_p.numpy()[joint]
-        if types[joint] != int(newton.JointType.FREE):
-            dofs = slice(starts[joint], starts[joint + 1])
-            joints[model.joint_label[joint]] = {name: values[dofs] for name, values in dof_arrays.items()}
-    body_arrays = {name: getattr(model, name).numpy() for name in ("body_mass", "body_com", "body_inertia")}
-    poses = body_q.numpy()
-    bodies = {}
-    for body in selected(model.body_world):
-        label = model.body_label[body]
-        bodies[label] = {name: values[body] for name, values in body_arrays.items()}
-        if label in roots:
-            bodies[label]["pose"] = poses[body]
-    shape_arrays = {name: getattr(model, name).numpy() for name in (*SHAPE_ATTRIBUTES, *MATERIAL_ATTRIBUTES)}
-    shapes = {
-        model.shape_label[shape]: {name: values[shape] for name, values in shape_arrays.items()}
-        for shape in selected(model.shape_world)
-    }
+    roots = {model.body_label[child] for parent, child in zip(parents, children) if parent == -1}
+    values = {}
+    for name, entity in model.attribute_frequency.items():
+        namespace, _, attribute = name.rpartition(":")
+        array = getattr(getattr(model, namespace) if namespace else model, attribute, None)
+        if entity not in labels or not isinstance(array, wp.array):
+            continue
+        array = body_q.numpy() if name == "body_q" else array.numpy()
+        if array.dtype.kind != "f" and name != "joint_target_mode":
+            continue
+        for index in np.flatnonzero(np.isin(worlds[entity], (-1, env_id))):
+            if name != "body_q" or labels[entity][index] in roots:
+                values[name, labels[entity][index]] = array[index]
     gravity = model.gravity.numpy()
-    return {
-        "joints": joints,
-        "anchors": anchors,
-        "bodies": bodies,
-        "shapes": shapes,
-        "gravity": gravity[env_id] if gravity.ndim == 2 else gravity,
-    }
+    values["gravity", ""] = gravity[env_id] if gravity.ndim == 2 else gravity
+    return values
 
 
 def _assert_pose_equal(actual, expected):
@@ -109,30 +114,15 @@ def test_loading_the_export_reproduces_the_initialized_model(tmp_path, solver, d
     assert type(loaded_solver) is solver_type
     assert dt == pytest.approx(1 / 120)
     # The actuator configuration differs from the USD drive, so the export must carry it.
-    hinge = live["joints"][f"/World/envs/env_{env_id}/Robot/Hinge"]
-    assert hinge["joint_target_ke"][0] == pytest.approx(83.0)
-    assert hinge["joint_armature"][0] == pytest.approx(0.023)
-    assert live["joints"].keys() == loaded["joints"].keys()
-    for label, values in live["joints"].items():
-        for name, value in values.items():
-            np.testing.assert_allclose(loaded["joints"][label][name], value, rtol=1e-4, err_msg=f"{label} {name}")
-    assert live["anchors"].keys() == loaded["anchors"].keys()
-    for label, anchor in live["anchors"].items():
-        _assert_pose_equal(loaded["anchors"][label], anchor)
-    assert live["bodies"].keys() == loaded["bodies"].keys()
-    for label, values in live["bodies"].items():
-        for name, value in values.items():
-            if name == "pose":
-                _assert_pose_equal(loaded["bodies"][label]["pose"], value)
-            else:
-                np.testing.assert_allclose(
-                    loaded["bodies"][label][name], value, rtol=1e-4, atol=1e-7, err_msg=f"{label} {name}"
-                )
-    assert live["shapes"].keys() == loaded["shapes"].keys()
-    for label, values in live["shapes"].items():
-        for name, value in values.items():
-            np.testing.assert_allclose(loaded["shapes"][label][name], value, rtol=1e-4, err_msg=f"{label} {name}")
-    np.testing.assert_allclose(loaded["gravity"], live["gravity"], rtol=1e-5)
+    hinge = f"/World/envs/env_{env_id}/Robot/Hinge:0"
+    assert live["joint_target_ke", hinge] == pytest.approx(83.0)
+    assert live["joint_armature", hinge] == pytest.approx(0.023)
+    assert set(live) == set(loaded), (sorted(set(live) - set(loaded))[:8], sorted(set(loaded) - set(live))[:8])
+    for (name, label), value in live.items():
+        if name in ("body_q", "joint_X_p", "joint_X_c"):
+            _assert_pose_equal(loaded[name, label], value)
+        else:
+            np.testing.assert_allclose(loaded[name, label], value, rtol=1e-4, atol=1e-7, err_msg=f"{label} {name}")
 
 
 def test_export_references_assets_and_keeps_one_environment(tmp_path):
