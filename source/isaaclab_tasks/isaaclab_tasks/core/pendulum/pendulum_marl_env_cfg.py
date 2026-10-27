@@ -18,7 +18,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -83,7 +83,7 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
         physics=PendulumPhysicsCfg(),
         visualizer_cfgs=VisualizerCfg(
             cameras=[
-                PerspectiveCameraCfg(
+                TrackingCameraCfg(
                     env_index=0,
                     eye=(8.0, 0.0, 2.3),
                     lookat=(0.0, 0.0, 2.3),

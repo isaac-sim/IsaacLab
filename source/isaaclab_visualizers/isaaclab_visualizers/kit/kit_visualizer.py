@@ -24,7 +24,7 @@ from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SE
 from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, TrackingCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 
@@ -83,10 +83,10 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step: bool = False
         self._controls_kit_timeline = False
         self._owns_kit_timeline = False
-        # Task view following state: the viewport camera follows an environment or an asset, or is free
+        # Tracking camera following state: the viewport camera follows an environment or an asset, or is free
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._start_cameras: list = []
-        self._declared_task_view: PerspectiveCameraCfg | None = None
+        self._declared_tracking_camera: PerspectiveCameraCfg | None = None
         self._follow_view: PerspectiveCameraCfg | None = None
         self._follower: CameraFollower | None = None
         self._follow_env = 0
@@ -469,7 +469,7 @@ class KitVisualizer(BaseVisualizer):
         """Make the viewport camera frame an environment, or follow an asset in it.
 
         :attr:`~KitVisualizerCfg.eye` and :attr:`~KitVisualizerCfg.lookat` become offsets from the environment
-        origin, or from the tracked asset when *track_path* is set. A task view declared in the configuration
+        origin, or from the tracked asset when *track_path* is set. A tracking camera declared in the configuration
         supplies the heading behaviour when it follows the same asset.
 
         Args:
@@ -482,9 +482,9 @@ class KitVisualizer(BaseVisualizer):
         if scene is None:
             logger.warning("[KitVisualizer] Cannot follow before the scene is registered.")
             return
-        template = self._declared_task_view
+        template = self._declared_tracking_camera
         same_asset = template is not None and template.track_path == track_path
-        self._follow_view = PerspectiveCameraCfg(
+        self._follow_view = TrackingCameraCfg(
             env_index=self._follow_env,
             track_path=track_path,
             eye=self.cfg.eye,
@@ -994,17 +994,17 @@ class KitVisualizer(BaseVisualizer):
         self._point_instancer_invisible_ids_backup.clear()
 
     def _setup_initial_camera_view(self) -> None:
-        """Start on the first declared view: a task view follows from the start, any other view is free.
+        """Start on the first declared view: a tracking camera follows from the start, any other view is free.
 
         Called once at the end of :meth:`initialize`. An asset is followed from the first step, because its
         state is not available before :meth:`~isaaclab.sim.SimulationContext.reset`.
         """
         self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
-        # declaration order, not the order the simulation lists the views in, which puts task views after the free one
+        # declaration order, not the simulation's, which lists tracking cameras after the free view
         declared = self.cfg.cameras if self.cfg.cameras is not None else self._start_cameras
         views = [camera for camera in declared if isinstance(camera, PerspectiveCameraCfg)]
-        self._declared_task_view = next((view for view in views if view.is_task_view), None)
-        if views and views[0].is_task_view:
+        self._declared_tracking_camera = next((view for view in views if isinstance(view, TrackingCameraCfg)), None)
+        if views and isinstance(views[0], TrackingCameraCfg):
             first = views[0]
             self.cfg.eye, self.cfg.lookat, self.cfg.focal_length = first.eye, first.lookat, first.focal_length
             self.follow(first.track_path, env_index=first.env_index or 0)

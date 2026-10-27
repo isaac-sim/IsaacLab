@@ -17,7 +17,7 @@ import pytest
 from isaaclab_visualizers.kit import KitBackendCfg
 
 from isaaclab.envs.common import ViewerCfg, _apply_deprecated_viewer_cfg
-from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerBackendCfg, VisualizerCfg
 
 
 def test_viewer_cfg_default_no_warning():
@@ -67,9 +67,9 @@ def test_deprecated_viewer_forwards_only_to_unconfigured_views(case, expected_pa
         elif expected_path is None:
             assert (view.eye, view.lookat) == (viewer.eye, viewer.lookat) and view.cameras is None
         else:
-            # a followed asset becomes a task view that comes first, so the viewport starts on it
+            # a followed asset becomes a tracking camera that comes first, so the viewport starts on it
             assert view.cameras[0].track_path == expected_path and view.cameras[0].eye == viewer.eye
-            assert not view.cameras[1].is_task_view
+            assert not isinstance(view.cameras[1], TrackingCameraCfg)
 
 
 def test_combined_visualizer_configs_translate_once_before_launch():

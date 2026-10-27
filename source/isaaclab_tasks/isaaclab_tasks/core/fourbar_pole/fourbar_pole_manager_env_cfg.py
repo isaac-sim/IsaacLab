@@ -24,7 +24,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -239,11 +239,11 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # Match Newton GL / --video camera to the task viewport when --viz newton creates the visualizer.
+        # Match Newton GL / --video camera to the tracking cameraport when --viz newton creates the visualizer.
         self.sim.visualizer_cfgs = VisualizerCfg(
             eye=(12.0, 0.0, 4.0),
             cameras=[
-                PerspectiveCameraCfg(
+                TrackingCameraCfg(
                     env_index=0,
                     eye=(4.5, 0.0, 1.8),
                     lookat=(0.0, 0.0, 1.8),

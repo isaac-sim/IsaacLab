@@ -567,11 +567,11 @@ task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton G
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
 provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
-views. A perspective view can also be a *task view* that follows a robot or frames an environment; Newton GL and Kit
+views. A perspective view can also be a *tracking camera* that follows a robot or frames an environment; Newton GL and Kit
 support it.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
-sources, task views that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
+sources, tracking cameras that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
 
 
 Visualization Markers
@@ -798,15 +798,15 @@ Watch training live in Kit while recording from a separate headless Newton GL an
 
 **Following a moving robot**
 
-Declare a *task view* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-task-views`:
+Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`:
 
 .. code-block:: python
 
-    from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     sim_cfg.visualizer_cfgs = VisualizerCfg(
         cameras=[
-            PerspectiveCameraCfg(
+            TrackingCameraCfg(
                 track_path="robot",  # or "robot/panda_hand" to track a specific body
                 eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
             ),

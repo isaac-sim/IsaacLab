@@ -13,13 +13,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
 VISUALIZER_CFG = VisualizerCfg(
     cameras=[
-        PerspectiveCameraCfg(
+        TrackingCameraCfg(
             eye=(3.5, -1.0, 2.8),
             lookat=(0.0, 0.0, 0.0),
             focal_length=26.0,

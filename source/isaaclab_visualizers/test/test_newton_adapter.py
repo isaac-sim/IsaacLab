@@ -942,7 +942,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             back_frame = back.frame.torch.clone()
             assert visualizer.current_image_view.camera is None
             assert isinstance(visualizer._image_views[0].cfg.source, PerspectiveCameraCfg)
-            # the task's own task view comes after the scene cameras
+            # the task's own tracking camera comes after the scene cameras
             assert [view.camera.cfg.prim_path for view in visualizer._image_views[1:] if view.camera is not None] == [
                 color.cfg.prim_path,
                 back.cfg.prim_path,

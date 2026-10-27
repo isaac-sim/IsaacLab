@@ -14,7 +14,7 @@ import torch
 
 if TYPE_CHECKING:
     from ..scene import InteractiveScene
-    from .visualizer_cfg import PerspectiveCameraCfg
+    from .visualizer_cfg import TrackingCameraCfg
 
 _RESET_JUMP = 1.0
 """Distance [m] an asset moves between two updates only when its environment resets."""
@@ -26,21 +26,21 @@ A fixed angle, unlike a rate, does not misfire when two updates are a few millis
 
 
 class CameraFollower:
-    """Turns a :class:`~isaaclab.visualizers.PerspectiveCameraCfg` tied to an environment into world poses.
+    """Turns a :class:`~isaaclab.visualizers.TrackingCameraCfg` tied to an environment into world poses.
 
-    A view that only has :attr:`~isaaclab.visualizers.PerspectiveCameraCfg.env_index` stays fixed relative to that
-    environment's origin. A view with :attr:`~isaaclab.visualizers.PerspectiveCameraCfg.track_path` follows the
+    A view that only has :attr:`~isaaclab.visualizers.TrackingCameraCfg.env_index` stays fixed relative to that
+    environment's origin. A view with :attr:`~isaaclab.visualizers.TrackingCameraCfg.track_path` follows the
     asset's position, and its yaw when ``follow_heading`` is set, with the heading filtered over time.
     """
 
-    def __init__(self, cfg: PerspectiveCameraCfg, scene: InteractiveScene) -> None:
+    def __init__(self, cfg: TrackingCameraCfg, scene: InteractiveScene) -> None:
         self.cfg = cfg
         self._scene = scene
         self._env = 0
         self._yaw: float | None = None
         self._last_position: list[float] | None = None
         self._time: float | None = None
-        self.set_env(cfg.env_index or 0)
+        self.set_env(cfg.env_index)
         self._asset = None
         self._body_index: int | None = None
         self._body_name = ""
@@ -67,9 +67,6 @@ class CameraFollower:
             if body_name and asset.is_initialized and len(asset.find_bodies(body_name)[0]) != 1:
                 raise ValueError(f"track_path must match exactly one body: {track_path!r}.")
         self.cfg.track_path = track_path or None
-        if self.cfg.track_path is None and self.cfg.env_index is None:
-            # keep the view tied to its environment, so it stays a task view without an asset
-            self.cfg.env_index = self._env
         self._asset, self._body_name, self._body_index = asset, body_name, None
         self._yaw = self._last_position = self._time = None
 

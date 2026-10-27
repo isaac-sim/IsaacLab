@@ -2689,8 +2689,8 @@ on the sim config instead.
 
 Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A shim class
 remains so existing imports do not break, but it raises a :class:`DeprecationWarning` at
-construction.  Camera tracking is now a task view: a :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with
-``env_index`` or ``track_path`` in the ``cameras`` of :class:`~isaaclab.visualizers.VisualizerCfg`.
+construction.  Camera tracking is now a :class:`~isaaclab.visualizers.TrackingCameraCfg` in the ``cameras`` of
+:class:`~isaaclab.visualizers.VisualizerCfg`.
 The ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields of
 :class:`~isaaclab_visualizers.kit.KitBackendCfg` are removed.
 
@@ -2705,7 +2705,7 @@ The ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields of
 
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
 
-For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), declare a task view
+For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), declare a tracking camera
 with ``track_path`` in :class:`~isaaclab.visualizers.VisualizerCfg` ``cameras``; a free view is added beside it:
 
 .. code-block:: python
@@ -2717,10 +2717,10 @@ with ``track_path`` in :class:`~isaaclab.visualizers.VisualizerCfg` ``cameras``;
    env_cfg.viewer.asset_name = "robot"
 
    # After (Isaac Lab 3.x)
-   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+   from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
-       cameras=[PerspectiveCameraCfg(track_path="robot", eye=(4.0, 4.0, 2.0))],
+       cameras=[TrackingCameraCfg(track_path="robot", eye=(4.0, 4.0, 2.0))],
    )  # visualizer=kit
 
 At runtime, :class:`~isaaclab_visualizers.kit.KitVisualizer` switches with ``follow()`` and ``unfollow()``, or the

@@ -27,7 +27,7 @@ from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereC
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -567,7 +567,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
             eye=(-2.25, 0.0, 0.75),
             lookat=(0.0, 0.0, 0.45),
             cameras=[
-                PerspectiveCameraCfg(
+                TrackingCameraCfg(
                     env_index=0,
                     eye=(-1.8, -1.8, 1.45),
                     lookat=(-0.3, 0.0, 0.45),

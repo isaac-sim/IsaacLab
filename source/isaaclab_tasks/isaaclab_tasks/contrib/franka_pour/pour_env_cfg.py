@@ -37,7 +37,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -532,7 +532,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
         # the viewport starts on the first view, framing environment 0; a free view follows it
         visualizer_cfgs=VisualizerCfg(
-            cameras=[PerspectiveCameraCfg(env_index=0, eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1))],
+            cameras=[TrackingCameraCfg(env_index=0, eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1))],
         )
     )
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()

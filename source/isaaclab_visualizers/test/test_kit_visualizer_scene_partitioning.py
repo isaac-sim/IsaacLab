@@ -377,10 +377,10 @@ def _following_visualizer(monkeypatch, cameras):
     return visualizer, poses
 
 
-def test_the_viewport_starts_free_unless_the_first_view_is_a_task_view(monkeypatch):
-    from isaaclab.visualizers import PerspectiveCameraCfg
+def test_the_viewport_starts_free_unless_the_first_view_is_a_tracking_camera(monkeypatch):
+    from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
 
-    task = PerspectiveCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0))
+    task = TrackingCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0))
     free, poses = _following_visualizer(monkeypatch, [PerspectiveCameraCfg(), task])
     free._setup_initial_camera_view()
     assert not free.following and poses == []
@@ -414,11 +414,11 @@ def test_follow_unfollow_and_the_environment_selection(monkeypatch):
 
 
 def test_the_declared_order_decides_the_start_view_not_the_order_the_simulation_lists_them(monkeypatch):
-    from isaaclab.visualizers import PerspectiveCameraCfg
+    from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
 
-    task = PerspectiveCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0))
+    task = TrackingCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0))
     visualizer, poses = _following_visualizer(monkeypatch, [PerspectiveCameraCfg(), task])
-    visualizer.cfg.cameras = [task, PerspectiveCameraCfg()]  # the simulation puts task views after the free view
+    visualizer.cfg.cameras = [task, PerspectiveCameraCfg()]  # the simulation puts tracking cameras after the free view
     visualizer._setup_initial_camera_view()
     assert visualizer.following and visualizer.follow_env_index == 1
 
@@ -438,10 +438,10 @@ def test_only_a_followed_asset_is_reapplied_every_step(monkeypatch):
     assert len(poses) == 1
 
 
-def test_following_applies_the_task_views_lens_to_the_viewport_camera(monkeypatch):
-    from isaaclab.visualizers import PerspectiveCameraCfg
+def test_following_applies_the_tracking_cameras_lens_to_the_viewport_camera(monkeypatch):
+    from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
 
-    task = PerspectiveCameraCfg(env_index=0, track_path="robot", focal_length=26.0)
+    task = TrackingCameraCfg(env_index=0, track_path="robot", focal_length=26.0)
     visualizer, _ = _following_visualizer(monkeypatch, [task, PerspectiveCameraCfg()])
     lenses = []
     monkeypatch.setattr(visualizer, "_set_viewport_focal_length", lenses.append)

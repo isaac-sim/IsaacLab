@@ -16,7 +16,7 @@ pytest.importorskip("newton")
 from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizerBase
 from pyglet.math import Vec3
 
-from isaaclab.visualizers import PerspectiveCameraCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
 from isaaclab.visualizers.camera_follower import CameraFollower
 
 
@@ -56,7 +56,11 @@ def _visualizer(views) -> NewtonVisualizerBase:
         get_physics_dt=lambda: 0.1,
     )
     viz._image_views = list(views)
-    viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if view.cfg.source.is_task_view}
+    viz._followers = {
+        view: CameraFollower(view.cfg.source, _Scene())
+        for view in views
+        if isinstance(view.cfg.source, TrackingCameraCfg)
+    }
     viz.current_image_view = viz._image_views[0]
     return viz
 
@@ -74,8 +78,8 @@ def _view(cfg: PerspectiveCameraCfg) -> _View:
     return _View(cfg)
 
 
-def test_a_task_view_points_the_viewer_without_changing_the_configured_pose():
-    task = _view(PerspectiveCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0), focal_length=24.0))
+def test_a_tracking_camera_points_the_viewer_without_changing_the_configured_pose():
+    task = _view(TrackingCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0), focal_length=24.0))
     viz = _visualizer([task])
     assert viz._apply_view_pose(task)
     camera = viz._viewer.camera
@@ -86,7 +90,7 @@ def test_a_task_view_points_the_viewer_without_changing_the_configured_pose():
 
 
 def test_capturing_another_view_hands_the_viewer_camera_back():
-    free, task = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0)))
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0)))
     viz = _visualizer([free, task])
     seen = {}
 
@@ -104,22 +108,22 @@ def test_capturing_another_view_hands_the_viewer_camera_back():
     assert viz.current_image_view is free and viz._last_render_step == -1
 
 
-def test_the_task_view_recording_picks_the_first_tied_view():
+def test_the_tracking_camera_recording_picks_the_first_tied_view():
     free = _view(PerspectiveCameraCfg())
-    first, second = _view(PerspectiveCameraCfg(track_path="robot")), _view(PerspectiveCameraCfg(env_index=1))
+    first, second = _view(TrackingCameraCfg(track_path="robot")), _view(TrackingCameraCfg(env_index=1))
     viz = _visualizer([free, first, second])
     viz._sim.get_physics_step_count = lambda: 3
     first.read_rgb, second.read_rgb = (lambda step: ("first", step)), (lambda step: ("second", step))
-    assert viz.render_task_view_rgb_array() == ("first", 3)
+    assert viz.render_tracking_rgb_array() == ("first", 3)
 
 
-def test_the_task_view_recording_reports_a_visualizer_without_one():
+def test_the_tracking_camera_recording_reports_a_visualizer_without_one():
     with pytest.raises(RuntimeError, match="tied to an environment or an asset"):
-        _visualizer([_view(PerspectiveCameraCfg())]).render_task_view_rgb_array()
+        _visualizer([_view(PerspectiveCameraCfg())]).render_tracking_rgb_array()
 
 
-def test_a_task_view_without_a_follower_has_no_pose_instead_of_failing():
-    task = _view(PerspectiveCameraCfg(env_index=1))
+def test_a_tracking_camera_without_a_follower_has_no_pose_instead_of_failing():
+    task = _view(TrackingCameraCfg(env_index=1))
     viz = _visualizer([task])
     viz._followers.clear()  # no interactive scene was registered when the viewer initialized
     assert not viz._apply_view_pose(task)
@@ -127,16 +131,16 @@ def test_a_task_view_without_a_follower_has_no_pose_instead_of_failing():
 
 def test_the_selector_names_the_tracking_camera_and_the_free_perspective():
     sensor = SimpleNamespace(camera=object(), cfg=SimpleNamespace(source="/World/envs/env_0/cam"))
-    viz = _visualizer([_view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=1))])
+    viz = _visualizer([_view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=1))])
     viz._image_views.append(sensor)
     assert viz._view_labels() == ["Perspective", "Tracking Camera", "/World/envs/env_0/cam"]
 
-    viz = _visualizer([_view(PerspectiveCameraCfg(env_index=0)), _view(PerspectiveCameraCfg(track_path="robot"))])
+    viz = _visualizer([_view(TrackingCameraCfg(env_index=0)), _view(TrackingCameraCfg(track_path="robot"))])
     assert viz._view_labels() == ["Tracking Camera 1", "Tracking Camera 2"]
 
 
 def test_resetting_the_tracking_camera_restores_what_the_task_declared():
-    task = _view(PerspectiveCameraCfg(env_index=0, eye=(1.0, 0.0, 0.0), track_path="robot", follow_heading=True))
+    task = _view(TrackingCameraCfg(env_index=0, eye=(1.0, 0.0, 0.0), track_path="robot", follow_heading=True))
     viz = _visualizer([task])
     cfg, follower = task.cfg.source, viz._followers[task]
     viz._tracking_defaults = {
@@ -154,7 +158,7 @@ def test_resetting_the_tracking_camera_restores_what_the_task_declared():
 
 
 def test_an_unknown_asset_is_reported_and_the_camera_keeps_following_its_target():
-    task = _view(PerspectiveCameraCfg(env_index=0, track_path="robot"))
+    task = _view(TrackingCameraCfg(env_index=0, track_path="robot"))
     viz = _visualizer([task])
     viz._tracking_error = ""
     follower = viz._followers[task]

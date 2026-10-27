@@ -259,10 +259,10 @@ def test_source_resolves_frame(source, make_env, caplog):
     assert not caplog.records
 
 
-def test_a_tracking_source_records_the_task_view_not_the_selected_one():
+def test_a_tracking_source_records_the_tracking_camera_not_the_selected_one():
     viz = _FakeViz("newton_gl")
     task_frame = np.full_like(_FRAME, 7)
-    viz.render_task_view_rgb_array = lambda: task_frame
+    viz.render_tracking_rgb_array = lambda: task_frame
     recorder = VideoRecorder(_cfg(source="viz:newton_gl:tracking"), _make_env(visualizers=[viz]))
     assert recorder._capture() is task_frame
     assert viz.render_calls == 0

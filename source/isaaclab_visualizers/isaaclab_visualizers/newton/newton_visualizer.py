@@ -50,7 +50,7 @@ from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, TrackingCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -520,7 +520,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
             view.render = partial(self._capture_view, view)
             source = view.cfg.source
-            if self._is_task_view(view) and scene is not None:
+            if self._is_tracking_view(view) and scene is not None:
                 # fail at initialization, not on a frame: a bad env_index or track_path raises here
                 self._followers[view] = follower = CameraFollower(source, scene)
                 self._tracking_defaults[view] = {
@@ -534,7 +534,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 }
                 if self._env_ids is not None and (source.env_index or 0) not in self._env_ids:
                     logger.warning(
-                        "[NewtonVisualizer] A task view frames environment %d, which is not among the visible "
+                        "[NewtonVisualizer] A tracking camera frames environment %d, which is not among the visible "
                         "environments %s, so it will show an empty scene.",
                         source.env_index or 0,
                         list(self._env_ids),
@@ -614,19 +614,19 @@ class NewtonVisualizerBase(BaseVisualizer):
         )  # fmt: skip
 
     @staticmethod
-    def _is_task_view(view) -> bool:
+    def _is_tracking_view(view) -> bool:
         """Whether *view* is a perspective view tied to an environment or an asset."""
-        return isinstance(view.cfg.source, PerspectiveCameraCfg) and view.cfg.source.is_task_view
+        return isinstance(view.cfg.source, TrackingCameraCfg)
 
     def _view_labels(self) -> list[str]:
-        """Name the views for the selector: a task view is the Tracking Camera, a free view the Perspective."""
-        free = [v for v in self._image_views if v.camera is None and not self._is_task_view(v)]
-        tracking = [v for v in self._image_views if self._is_task_view(v)]
+        """Name the views for the selector: "Tracking Camera" for a tracking camera, "Perspective" for a free view."""
+        free = [v for v in self._image_views if v.camera is None and not self._is_tracking_view(v)]
+        tracking = [v for v in self._image_views if self._is_tracking_view(v)]
         labels = []
         for view in self._image_views:
             if view.camera is not None:
                 labels.append(view.cfg.source)
-            elif self._is_task_view(view):
+            elif self._is_tracking_view(view):
                 labels.append(
                     "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
                 )
@@ -655,7 +655,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
-            if camera.is_task_view:
+            if isinstance(camera, TrackingCameraCfg):
                 self._apply_view_pose(self.current_image_view)
             else:
                 self.set_camera_view(camera.eye, camera.lookat)
@@ -943,13 +943,13 @@ class NewtonVisualizerBase(BaseVisualizer):
         )
         return self.current_image_view.read_rgb(frame_id)
 
-    def render_task_view_rgb_array(self) -> np.ndarray:
+    def render_tracking_rgb_array(self) -> np.ndarray:
         """Download the first perspective view that is tied to an environment or an asset, whatever the window shows."""
-        view = next((v for v in self._image_views if self._is_task_view(v)), None)
+        view = next((v for v in self._image_views if self._is_tracking_view(v)), None)
         if view is None:
             raise RuntimeError(
                 "No perspective view is tied to an environment or an asset. Declare "
-                "PerspectiveCameraCfg(env_index=..., track_path=...) in the visualizer's cameras."
+                "TrackingCameraCfg(env_index=..., track_path=...) in the visualizer's cameras."
             )
         return view.read_rgb(self._sim.get_physics_step_count())
 
@@ -1090,7 +1090,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
         view = self.current_image_view
-        if self._is_task_view(view):
+        if self._is_tracking_view(view):
             self._apply_view_pose(view)
         viewer.begin_frame(self._sim_time)
         try:

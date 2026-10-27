@@ -42,7 +42,14 @@ from ..utils.device import set_cuda_device
 from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
-from ..visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerBackendCfg, VisualizerCfg
+from ..visualizers import (
+    ImageViewCfg,
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
+    TrackingCameraCfg,
+    VisualizerBackendCfg,
+    VisualizerCfg,
+)
 from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, migrate_visualizer_cfgs
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
@@ -316,13 +323,9 @@ def validate_launch(  # noqa: C901
         if visualizer.view is not None:
             sources = [visualizer.view.source]
         else:
-            # Task views follow the viewer camera, which an RTX scene camera cannot do, so RTX leaves them out.
+            # Tracking cameras follow the viewer camera, which an RTX scene camera cannot do, so RTX leaves them out.
             # RTX-only: remove this filter, and the one in SimulationContext, with the RTX visualizer.
-            sources = [
-                camera
-                for camera in visualizer.cameras or []
-                if not (isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view)
-            ]
+            sources = [camera for camera in visualizer.cameras or [] if not (isinstance(camera, TrackingCameraCfg))]
             if not sources:
                 sources = [
                     PerspectiveCameraCfg(

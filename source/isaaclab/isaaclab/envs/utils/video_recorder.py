@@ -76,7 +76,7 @@ class VideoRecorder:
                         f"The {viz.cfg.backend.visualizer_type!r} visualizer cannot record a tracking view. Use "
                         "'viz:newton_gl:tracking'."
                     )
-                self._capture = viz.render_task_view_rgb_array
+                self._capture = viz.render_tracking_rgb_array
             else:
                 self._capture = viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array
 

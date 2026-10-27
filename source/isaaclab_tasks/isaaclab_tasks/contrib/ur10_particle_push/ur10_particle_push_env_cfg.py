@@ -34,7 +34,7 @@ from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -616,7 +616,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         render_interval=decimation,
         # the viewport starts on the first view, framing environment 0; a free view follows it
         visualizer_cfgs=VisualizerCfg(
-            cameras=[PerspectiveCameraCfg(env_index=0, eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
+            cameras=[TrackingCameraCfg(env_index=0, eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
         ),
     )
     actions: ActionsCfg = ActionsCfg()

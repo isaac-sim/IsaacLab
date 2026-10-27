@@ -13,7 +13,7 @@ import gymnasium as gym
 import torch
 
 from ..utils import configclass
-from ..visualizers import PerspectiveCameraCfg, VisualizerCfg
+from ..visualizers import PerspectiveCameraCfg, TrackingCameraCfg, VisualizerCfg
 
 ##
 # Deprecated: ViewerCfg
@@ -81,7 +81,7 @@ class ViewerCfg:
 def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     """Forward the deprecated viewport declaration to configured visualizers before scene creation.
 
-    A viewer tied to an environment or an asset becomes a task view,
+    A viewer tied to an environment or an asset becomes a tracking camera,
     :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or ``track_path``, followed by a free view,
     so the viewport starts on it. Other viewers set ``eye`` and ``lookat`` on the visualizer.
     """
@@ -113,7 +113,7 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
                     stacklevel=2,
                 )
             else:
-                view = PerspectiveCameraCfg(
+                view = TrackingCameraCfg(
                     env_index=viewer.env_index,
                     track_path=track_path,
                     eye=tuple(viewer.eye),
