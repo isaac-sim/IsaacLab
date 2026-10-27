@@ -401,26 +401,6 @@ def _float_data_to_buffer_with_indices_and_sim_ids(
     out_data[env_id, wp.int32(joint_ids[j])] = in_data
 
 
-@wp.kernel
-def float_data_to_buffer_with_mask(
-    in_data: wp.float32,
-    env_mask: wp.array(dtype=wp.bool),
-    item_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write a scalar float value to a 2D buffer where both the environment and the item mask are set.
-
-    Args:
-        in_data: Input scalar float value to broadcast.
-        env_mask: Input array of environment mask. Shape is (num_envs,).
-        item_mask: Input array of item mask. Shape is (num_items,).
-        out_data: Output array where the scalar value is written. Shape is (num_envs, num_items).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and item_mask[j]:
-        out_data[i, j] = in_data
-
-
 _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
     write_joint_limit_data_to_buffer, ("env_ids", "joint_ids")
 )
