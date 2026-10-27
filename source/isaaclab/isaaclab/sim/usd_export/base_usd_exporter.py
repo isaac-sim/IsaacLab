@@ -219,6 +219,13 @@ class BaseUsdExporter(ABC):
                 if source is not None and not stage.GetPrimAtPath(target):
                     Sdf.CreatePrimInLayer(layer, Sdf.Path(target).GetParentPath())
                     Sdf.CopySpec(layer, source, layer, target)
+            # The cloner offsets each environment in the engine only; place the environment prim there.
+            env = stage.GetPrimAtPath(self.scene.env_prim_paths[self.env_id])
+            origin = np.asarray(plan.positions[self.env_id], dtype=float)
+            if not self._close(UsdGeom.XformCache().GetLocalToWorldTransform(env).ExtractTranslation(), origin):
+                if not env.GetTypeName():
+                    env.SetTypeName("Xform")  # a typeless prim's transform is ignored
+                UsdEdit(str(env.GetPath()), _WORLD_POSE, Gf.Matrix4d().SetTranslate(Gf.Vec3d(*origin))).apply(stage)
         for index, env_path in enumerate(self.scene.env_prim_paths):
             if index != self.env_id:
                 stage.RemovePrim(env_path)
