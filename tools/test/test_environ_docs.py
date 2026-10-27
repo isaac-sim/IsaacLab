@@ -283,6 +283,25 @@ def test_collect_environment_doc_rows_from_mock_specs():
     assert "sb3" in rows[0].rl_libraries
 
 
+def test_cartpole_browser_viewers_follow_validated_runs_and_install_extras():
+    """Generated choices must reflect each resolved backend, including its optional runtime."""
+    row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole")])[0]
+    browser_row = json.loads(render_environment_browser_task_rows([row]).splitlines()[1].strip().removesuffix(","))
+    visualizer_runs = {run: choices for runs, choices in browser_row[12] for run in runs}
+
+    assert visualizer_runs["||"][""] == []
+    assert visualizer_runs["||"]["none"] == []
+    assert visualizer_runs["||"]["viser"] == ["viser"]
+    assert visualizer_runs["||"]["rerun"] == ["rerun"]
+    assert visualizer_runs["||"]["kit"] == ["isaacsim"]
+    assert visualizer_runs["||"]["newton_rtx"] == ["ovrtx"]
+    assert visualizer_runs["isaacsim_physx||"][""] == ["isaacsim"]
+    assert "newton_rtx" not in visualizer_runs["isaacsim_physx||"]
+    assert visualizer_runs["ovphysx||"]["newton_rtx"] == ["ov"]
+    assert "kit" not in visualizer_runs["ovphysx||"]
+    assert visualizer_runs["ovphysx||"]["rerun"] == ["ovphysx", "rerun"]
+
+
 def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility():
     """Checkpoint preset availability must be carried into generated browser rows."""
     row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole-Camera-Direct")])[0]
