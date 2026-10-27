@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Functions Isaac Lab builds and drives a Newton solver with."""
+"""How Isaac Lab builds and drives a Newton solver."""
 
 from __future__ import annotations
 
@@ -39,13 +39,13 @@ def solver_kwargs(solver_cls: type, cfg: Any, mode: wp.DeterministicMode) -> dic
     return kwargs
 
 
-class NewtonSolverFunctions:
-    """Functions Isaac Lab builds and drives a Newton solver with.
+class NewtonSolver:
+    """How Isaac Lab builds and drives a Newton solver.
 
-    The class holds no state: every function is a classmethod that takes the solver configuration and, once built,
-    Newton's solver. The generic functions below follow Newton's :class:`~newton.solvers.SolverBase` API; a subclass
-    overrides only where its solver differs. A solver configuration selects the subclass through
-    :attr:`~NewtonSolverCfg.class_type`.
+    The class is never instantiated and holds no state: every method is a classmethod that takes the solver
+    configuration and, once built, Newton's solver. The generic methods below follow Newton's
+    :class:`~newton.solvers.SolverBase` API; a subclass overrides only where its solver differs. A solver configuration
+    selects the subclass through :attr:`~NewtonSolverCfg.class_type`.
     """
 
     solver_class: ClassVar[type[SolverBase] | None] = None

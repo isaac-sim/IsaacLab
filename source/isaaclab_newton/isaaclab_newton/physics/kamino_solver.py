@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kamino solver functions."""
+"""Kamino solver implementation."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import warp as wp
 from newton import Model, State
 from newton.solvers import SolverKamino
 
-from .newton_solver import NewtonSolverFunctions
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from .kamino_solver_cfg import _KaminoSolverCfgBase
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class KaminoSolverFunctions(NewtonSolverFunctions):
+class KaminoSolver(NewtonSolver):
     """Newton's Kamino solver, which resets its internals through forward kinematics."""
 
     solver_class = SolverKamino

@@ -17,7 +17,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver import (
     CoupledMJWarpVBDSolver,
-    CoupledMJWarpVBDSolverFunctions,
+    SolverCoupledMJWarpVBD,
 )
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
@@ -32,11 +32,11 @@ def _stub_subsolvers(monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpV
 
 def _create(
     monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpVBDSolverCfg | None = None
-) -> CoupledMJWarpVBDSolver:
+) -> SolverCoupledMJWarpVBD:
     """Construct the coupled solver over mocked sub-solvers."""
     solver_cfg = CoupledMJWarpVBDSolverCfg() if solver_cfg is None else solver_cfg
     _stub_subsolvers(monkeypatch, solver_cfg)
-    return CoupledMJWarpVBDSolverFunctions.build(solver_cfg, MagicMock(), NOT_GUARANTEED)
+    return CoupledMJWarpVBDSolver.build(solver_cfg, MagicMock(), NOT_GUARANTEED)
 
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
@@ -112,7 +112,7 @@ def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None
 )
 def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBDSolverCfg, match: str) -> None:
     with pytest.raises(ValueError, match=match):
-        CoupledMJWarpVBDSolverFunctions.build(solver_cfg, MagicMock(), NOT_GUARANTEED)
+        CoupledMJWarpVBDSolver.build(solver_cfg, MagicMock(), NOT_GUARANTEED)
 
 
 def test_build_solver_builds_each_sub_solver(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,7 +137,7 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
     solver = _create(monkeypatch, solver_cfg)
     rigid_solver = solver.rigid_solver
     soft_solver = solver.soft_solver
-    CoupledMJWarpVBDSolverFunctions.prepare_contacts(solver_cfg, solver, contacts, collision_pipeline)
+    CoupledMJWarpVBDSolver.prepare_contacts(solver_cfg, solver, contacts, collision_pipeline)
     monkeypatch.setattr(solver, "_apply_reactions", reactions)
 
     solver.step(state_in, state_out, control, contacts, 0.01)

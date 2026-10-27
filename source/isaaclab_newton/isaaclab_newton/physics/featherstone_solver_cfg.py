@@ -28,7 +28,7 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
     See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
     """
 
-    class_type: type | str = "{DIR}.featherstone_solver:FeatherstoneSolverFunctions"
+    class_type: type | str = "{DIR}.featherstone_solver:FeatherstoneSolver"
 
     solver_type: str = "featherstone"
     """Solver type. Can be "featherstone"."""

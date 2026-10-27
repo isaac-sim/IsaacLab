@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import newton
 import pytest
 import warp as wp
-from isaaclab_newton.physics import MPMSolverCfg, MPMSolverFunctions, reset_mpm_solver_state
+from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, reset_mpm_solver_state
 from isaaclab_newton.physics import mpm_solver as mpm_manager_module
 from newton.solvers import SolverImplicitMPM
 
@@ -41,7 +41,7 @@ def cpu_mpm_solver_and_state():
         warmstart_mode="none",
         transfer_scheme="pic",
     )
-    solver = MPMSolverFunctions.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+    solver = MPMSolver.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
     return solver, model.state()
 
 

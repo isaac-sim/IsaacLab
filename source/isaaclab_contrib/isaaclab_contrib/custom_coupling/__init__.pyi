@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "CoupledMJWarpVBDSolverFunctions",
+    "CoupledMJWarpVBDSolver",
     "CoupledMJWarpVBDSolverCfg",
 ]
 
-from .coupled_mjwarp_vbd_solver import CoupledMJWarpVBDSolverFunctions
+from .coupled_mjwarp_vbd_solver import CoupledMJWarpVBDSolver
 from .coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg

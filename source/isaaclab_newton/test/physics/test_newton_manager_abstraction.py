@@ -38,17 +38,17 @@ from isaaclab_newton.physics import (
     KaminoDynamicsCfg,
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
+    MJWarpSolver,
     MJWarpSolverCfg,
-    MJWarpSolverFunctions,
+    MPMSolver,
     MPMSolverCfg,
-    MPMSolverFunctions,
     NewtonBuilderCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonManager,
     NewtonShapeCfg,
+    NewtonSolver,
     NewtonSolverCfg,
-    NewtonSolverFunctions,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
@@ -168,7 +168,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(coll
 
     prepared = []
 
-    class RecordingFunctions(NewtonSolverFunctions):
+    class RecordingSolver(NewtonSolver):
         @classmethod
         def create_collision_pipeline(cls, cfg, solver, **kwargs):
             return FakeCollisionPipeline(solver.model, **kwargs)
@@ -180,7 +180,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(coll
     solver = SimpleNamespace(model=SimpleNamespace(), get_max_contact_count=lambda: 2)
     backend = SimpleNamespace(model=solver.model, solver=solver, collision_pipeline=None)
     manager = NewtonManager(NewtonCfg())
-    solver_cfg = NewtonSolverCfg(class_type=RecordingFunctions)
+    solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
     manager._cfg, manager._device = NewtonCfg(collision_cfg=collision_cfg, solver_cfg=solver_cfg), "cpu"
     manager.backend = backend
     manager._deterministic_mode = wp.DeterministicMode.GPU_TO_GPU
@@ -492,7 +492,7 @@ def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
         label="dynamic_body",
     )
 
-    MPMSolverFunctions.prepare_builder(MPMSolverCfg(), builder)
+    MPMSolver.prepare_builder(MPMSolverCfg(), builder)
 
     assert builder.body_flags[kinematic_body] & int(newton.BodyFlags.KINEMATIC)
     assert builder.body_mass[kinematic_body] == 0.0
@@ -538,10 +538,10 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
         custom_attributes=_MPM_PARTICLE_ATTRIBUTES,
     )
 
-    MPMSolverFunctions.prepare_builder(MPMSolverCfg(), builder)
+    MPMSolver.prepare_builder(MPMSolverCfg(), builder)
     model = builder.finalize(device="cuda:0")
     solver_cfg = MPMSolverCfg(max_iterations=2, voxel_size=0.05)
-    solver = MPMSolverFunctions.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+    solver = MPMSolver.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
 
     assert builder.shape_type[shape] == newton.GeoType.MESH
     assert isinstance(solver, SolverImplicitMPM)
@@ -704,8 +704,8 @@ def test_mpm_status_check_runs_only_after_graph_capture():
     solver = object.__new__(SolverImplicitMPM)
     solver.check_sparse_grid_rebuild_status = lambda: calls.append("check")
 
-    MPMSolverFunctions.check_step(MPMSolverCfg(), solver, False, False)
-    MPMSolverFunctions.check_step(MPMSolverCfg(), solver, True, False)
+    MPMSolver.check_step(MPMSolverCfg(), solver, False, False)
+    MPMSolver.check_step(MPMSolverCfg(), solver, True, False)
 
     assert calls == ["check"]
 
@@ -818,7 +818,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     observed: list[tuple[list[bool], list[bool]]] = []
     solver_resets: list[list[bool]] = []
 
-    class RecordingFunctions(NewtonSolverFunctions):
+    class RecordingSolver(NewtonSolver):
         @classmethod
         def reset(cls, cfg, solver, state, worlds):
             solver_resets.append(worlds.numpy().tolist())
@@ -827,7 +827,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
         def eval_fk(cls, cfg, solver, state, worlds, articulations):
             observed.append((worlds.numpy().tolist(), articulations.numpy().tolist()))
 
-    owner = NewtonManager(NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=RecordingFunctions)))
+    owner = NewtonManager(NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=RecordingSolver)))
     owner._device = "cpu"
     owner.backend = _backend_with_masks(world_mask, fk_mask, object())
 
@@ -855,12 +855,12 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
         def reset(self, state, world_mask=None, flags=0):
             raise AssertionError("automatic resets must not clear implicit-MPM history")
 
-    class NoFKFunctions(MPMSolverFunctions):
+    class NoFKSolver(MPMSolver):
         @classmethod
         def eval_fk(cls, *args):
             pass
 
-    manager = NewtonManager(NewtonCfg(solver_cfg=MPMSolverCfg(class_type=NoFKFunctions)))
+    manager = NewtonManager(NewtonCfg(solver_cfg=MPMSolverCfg(class_type=NoFKSolver)))
     manager.backend = _backend_with_masks(world_mask, fk_mask, _RejectingSolver())
 
     manager.forward()
@@ -1018,13 +1018,13 @@ def test_reset_binds_solver_and_capabilities(
 
         sim.reset()
 
-        solver, functions = sim.backend_manager.backend.solver, solver_cfg.class_type
+        solver, solver_cls = sim.backend_manager.backend.solver, solver_cfg.class_type
         assert isinstance(solver, expected_solver_cls)
-        assert functions.single_state is expected_use_single_state
-        assert functions.uses_collision_pipeline(solver_cfg, solver) is expected_needs_collision_pipeline
-        assert functions.applies_body_forces(solver_cfg, solver) is (expected_solver_cls is not SolverImplicitMPM)
+        assert solver_cls.single_state is expected_use_single_state
+        assert solver_cls.uses_collision_pipeline(solver_cfg, solver) is expected_needs_collision_pipeline
+        assert solver_cls.applies_body_forces(solver_cfg, solver) is (expected_solver_cls is not SolverImplicitMPM)
         # only Featherstone ignores inertial property changes after construction, and warns about it
-        ignores_inertia = ModelFlags.BODY_INERTIAL_PROPERTIES in functions.ignored_model_changes
+        ignores_inertia = ModelFlags.BODY_INERTIAL_PROPERTIES in solver_cls.ignored_model_changes
         assert ignores_inertia is (expected_solver_cls is SolverFeatherstone)
 
         if expected_solver_cls not in (SolverKamino, SolverImplicitMPM):
@@ -1057,7 +1057,7 @@ def test_step_combines_pending_model_changes(monkeypatch, caplog):
 
         monkeypatch.setattr(solver, "notify_model_changed", record_notification)
         ignored = ModelFlags.BODY_INERTIAL_PROPERTIES
-        monkeypatch.setattr(MJWarpSolverFunctions, "ignored_model_changes", {ignored: "Test ignored model change"})
+        monkeypatch.setattr(MJWarpSolver, "ignored_model_changes", {ignored: "Test ignored model change"})
         flags = (ignored, ModelFlags.JOINT_DOF_PROPERTIES, ignored)
         for flag in flags:
             sim.backend_manager.add_model_change(flag)
@@ -1177,7 +1177,7 @@ class _State:
 def _recording_manager(events, *, single_state, num_substeps, device="cpu", captures=True):
     """Build a manager over a backend stand-in whose solver hooks and states record every operation of a step."""
 
-    class RecordingFunctions(NewtonSolverFunctions):
+    class RecordingSolver(NewtonSolver):
         @classmethod
         def supports_capture(cls, cfg, solver):
             return captures
@@ -1198,9 +1198,9 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
         def eval_fk(cls, cfg, solver, state, worlds, articulations):
             events.append("fk")
 
-    RecordingFunctions.single_state = single_state
+    RecordingSolver.single_state = single_state
     manager = NewtonManager(NewtonCfg())
-    solver_cfg = NewtonSolverCfg(class_type=RecordingFunctions)
+    solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
     manager._cfg, manager._device = NewtonCfg(num_substeps=num_substeps, solver_cfg=solver_cfg), device
     manager._sim = SimpleNamespace(is_playing=lambda: True, has_gui=False, has_offscreen_render=False)
     manager.backend = SimpleNamespace(
@@ -1466,7 +1466,7 @@ def recorded_mujoco_kwargs(monkeypatch) -> list[dict]:
     """Replace Newton's MuJoCo solver with one recording its constructor arguments."""
     constructed = []
     record = functools.wraps(SolverMuJoCo.__init__)(lambda self, model, **kwargs: constructed.append(kwargs))
-    monkeypatch.setattr(MJWarpSolverFunctions, "solver_class", type("RecordingSolver", (), {"__init__": record}))
+    monkeypatch.setattr(MJWarpSolver, "solver_class", type("RecordingSolver", (), {"__init__": record}))
     return constructed
 
 
@@ -1474,8 +1474,8 @@ def test_determinism_guarantee_disables_mjwarp_sensors(recorded_mujoco_kwargs) -
     """MuJoCo Warp's sensor stage cannot honor a guarantee, so the solver is built without it."""
     solver_cfg = MJWarpSolverCfg()
 
-    MJWarpSolverFunctions.build(solver_cfg, _model_stub(), wp.DeterministicMode.NOT_GUARANTEED)
-    MJWarpSolverFunctions.build(solver_cfg, _model_stub(), wp.DeterministicMode.RUN_TO_RUN)
+    MJWarpSolver.build(solver_cfg, _model_stub(), wp.DeterministicMode.NOT_GUARANTEED)
+    MJWarpSolver.build(solver_cfg, _model_stub(), wp.DeterministicMode.RUN_TO_RUN)
 
     assert [kwargs["disable_sensors"] for kwargs in recorded_mujoco_kwargs] == [False, True]
     assert solver_cfg.disable_sensors is False
@@ -1492,11 +1492,11 @@ def test_apply_deterministic_request_keeps_an_explicit_mode() -> None:
 def test_deterministic_mode_rejects_sensors_that_need_the_sensor_stage(attr, recorded_mujoco_kwargs) -> None:
     """Disabling MJWarp sensors starves IMU/PVA/joint-wrench, so the request is refused."""
     with pytest.raises(ValueError, match="does not support deterministic physics"):
-        MJWarpSolverFunctions.build(MJWarpSolverCfg(), _model_stub({attr}), wp.DeterministicMode.RUN_TO_RUN)
+        MJWarpSolver.build(MJWarpSolverCfg(), _model_stub({attr}), wp.DeterministicMode.RUN_TO_RUN)
     assert recorded_mujoco_kwargs == []
 
 
 def test_deterministic_mode_allows_those_sensors_without_a_guarantee(recorded_mujoco_kwargs) -> None:
     """The sensors are only incompatible with the guarantee, not with MJWarp itself."""
-    MJWarpSolverFunctions.build(MJWarpSolverCfg(), _model_stub({"body_qdd"}), wp.DeterministicMode.NOT_GUARANTEED)
+    MJWarpSolver.build(MJWarpSolverCfg(), _model_stub({"body_qdd"}), wp.DeterministicMode.NOT_GUARANTEED)
     assert len(recorded_mujoco_kwargs) == 1

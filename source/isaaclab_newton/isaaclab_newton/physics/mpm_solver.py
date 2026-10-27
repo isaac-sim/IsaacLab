@@ -19,7 +19,7 @@ from warp.fem import TemporaryStore
 from isaaclab.sim import SimulationContext
 
 from .mpm_solver_cfg import MPMSolverCfg
-from .newton_solver import NewtonSolverFunctions
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -200,7 +200,7 @@ def mpm_solver_config(cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
     return _make_solver_config(cfg, scene_prim)
 
 
-class MPMSolverFunctions(NewtonSolverFunctions):
+class MPMSolver(NewtonSolver):
     """Newton's implicit MPM solver, which steps particle materials in place on one state."""
 
     solver_class = SolverImplicitMPM

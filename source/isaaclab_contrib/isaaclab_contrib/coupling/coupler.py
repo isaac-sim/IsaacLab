@@ -5,8 +5,8 @@
 
 """Newton coupler for named solver configurations.
 
-:class:`CouplerSolverFunctions` build each entry's solver from the entry's configuration on its model view and couple
-the entries with Newton's experimental coupled solvers; each entry's functions answer for it (contacts, capture,
+:class:`CouplerSolver` builds each entry's solver from the entry's configuration on its model view and couples
+the entries with Newton's experimental coupled solvers; each entry's solver class answers for it (contacts, capture,
 status).
 """
 
@@ -17,7 +17,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 
 import warp as wp
-from isaaclab_newton.physics import MPMSolverCfg, NewtonCollisionPipelineCfg, NewtonSolverCfg, NewtonSolverFunctions
+from isaaclab_newton.physics import MPMSolverCfg, NewtonCollisionPipelineCfg, NewtonSolver, NewtonSolverCfg
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
 from newton.solvers import SolverBase
@@ -264,7 +264,7 @@ def _validate_no_cross_entry_proxy_joints(model: Model, entries: dict[str, _Reso
 # ----- Solver ----------------------------------------------------------------------------
 
 
-class CouplerSolverFunctions(NewtonSolverFunctions):
+class CouplerSolver(NewtonSolver):
     """Couple named entries, each built from its own solver configuration on its model view."""
 
     contact_sensors = False

@@ -16,7 +16,7 @@ from isaaclab.utils import configclass
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager, NewtonSolverFunctions
+    from isaaclab_newton.physics import NewtonManager, NewtonSolver
 
 logger = logging.getLogger(__name__)
 
@@ -25,15 +25,15 @@ logger = logging.getLogger(__name__)
 class NewtonSolverCfg:
     """Configuration of a Newton solver.
 
-    :attr:`class_type` selects the :class:`~isaaclab_newton.physics.NewtonSolverFunctions` that build and drive the
-    solver; customizing a solver means subclassing them. For the solver parameters, see the
+    :attr:`class_type` selects the :class:`~isaaclab_newton.physics.NewtonSolver` that builds and drives the
+    solver; customizing a solver means subclassing it. For the solver parameters, see the
     `Newton documentation`_.
 
     .. _Newton documentation: https://newton.readthedocs.io/en/latest/
     """
 
-    class_type: type[NewtonSolverFunctions] | str = "{DIR}.newton_solver:NewtonSolverFunctions"
-    """Stateless functions that build and drive the solver, e.g. ``cfg.class_type.build(cfg, model, mode)``."""
+    class_type: type[NewtonSolver] | str = "{DIR}.newton_solver:NewtonSolver"
+    """Solver class whose class methods build and drive Newton's solver, e.g. ``class_type.build(cfg, model, mode)``."""
 
     solver_type: str = "None"
     """Solver type metadata (deprecated).

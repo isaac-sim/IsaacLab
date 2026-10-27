@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import newton
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import MPMSolverFunctions
+from isaaclab_newton.physics import MPMSolver
 from isaaclab_newton.physics.mpm_solver import mpm_solver_config
 from newton import StateFlags
 from newton.solvers import SolverImplicitMPM
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from .dissolution import CoffeeDissolution
 
 
-class CoffeeMPMSolver(SolverImplicitMPM):
+class SolverCoffeeMPM(SolverImplicitMPM):
     """Advect Newton's native rendering grains at the actual solver substep rate."""
 
     def __init__(self, model: Model, config: SolverImplicitMPM.Config, *, grains_per_particle: int):
@@ -74,23 +74,23 @@ class CoffeeMPMSolver(SolverImplicitMPM):
             )
 
 
-class CoffeeMPMSolverFunctions(MPMSolverFunctions):
-    """Implicit MPM that builds :class:`CoffeeMPMSolver` with optional passive rendering grains."""
+class CoffeeMPMSolver(MPMSolver):
+    """Implicit MPM that builds :class:`SolverCoffeeMPM` with optional passive rendering grains."""
 
-    solver_class = CoffeeMPMSolver
+    solver_class = SolverCoffeeMPM
 
     @classmethod
     def build(
         cls, cfg: CoffeeMPMSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
-    ) -> CoffeeMPMSolver:
-        """Construct :class:`CoffeeMPMSolver` from the shared MPM configuration resolution."""
+    ) -> SolverCoffeeMPM:
+        """Construct :class:`SolverCoffeeMPM` from the shared MPM configuration resolution."""
         grains = cfg.grains_per_particle
         if type(grains) is not int or grains < 0:
             raise ValueError("grains_per_particle must be a nonnegative integer.")
         return cls.solver_class(model, mpm_solver_config(cfg), grains_per_particle=grains)
 
 
-def configure_spoon_rim_margin(solver: CoffeeMPMSolver, scale: float) -> None:
+def configure_spoon_rim_margin(solver: SolverCoffeeMPM, scale: float) -> None:
     """Taper native MPM face margins toward the spoon rim before graph capture.
 
     The original closed shell remains intact. Its outermost 15% of elliptical

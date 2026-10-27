@@ -14,7 +14,7 @@ isaaclab_contrib.coupling
   CouplerProxyMappingCfg
   CouplerProxyCfg
   CouplerAdmmCfg
-  CouplerSolverFunctions
+  CouplerSolver
 
 Coupler Configurations
 ----------------------
@@ -47,6 +47,6 @@ Coupler Configurations
 Coupler Solver
 --------------
 
-.. autoclass:: CouplerSolverFunctions
+.. autoclass:: CouplerSolver
   :members:
   :show-inheritance:

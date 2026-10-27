@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""VBD solver functions."""
+"""VBD solver implementation."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ import warp as wp
 from newton import Model, ModelBuilder, State, eval_ik
 from newton.solvers import SolverVBD
 
-from .newton_solver import NewtonSolverFunctions, solver_kwargs
+from .newton_solver import NewtonSolver, solver_kwargs
 
 if TYPE_CHECKING:
     from .vbd_solver_cfg import VBDSolverCfg
 
 
-class VBDSolverFunctions(NewtonSolverFunctions):
+class VBDSolver(NewtonSolver):
     """Newton's Vertex Block Descent solver."""
 
     solver_class = SolverVBD

@@ -16,7 +16,7 @@ from .newton_manager_cfg import NewtonSolverCfg
 class VBDSolverCfg(NewtonSolverCfg):
     """Configuration for the Vertex Block Descent solver."""
 
-    class_type: type | str = "{DIR}.vbd_solver:VBDSolverFunctions"
+    class_type: type | str = "{DIR}.vbd_solver:VBDSolver"
 
     iterations: int = 10
     """Number of VBD iterations per substep."""

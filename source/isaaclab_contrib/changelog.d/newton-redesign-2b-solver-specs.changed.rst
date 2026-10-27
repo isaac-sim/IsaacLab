@@ -1,8 +1,8 @@
-* **Breaking:** Replaced ``NewtonCouplerManager`` and ``NewtonCoupledMJWarpVBDManager`` with the solver functions
-  :class:`~isaaclab_contrib.coupling.CouplerSolverFunctions` and
-  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverFunctions`, selected by the configurations'
+* **Breaking:** Replaced ``NewtonCouplerManager`` and ``NewtonCoupledMJWarpVBDManager`` with the solvers
+  :class:`~isaaclab_contrib.coupling.CouplerSolver` and
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver`, selected by the configurations'
   ``class_type``; each entry's solver is built from its own configuration. Tasks with a custom coupled solver subclass
-  :class:`~isaaclab_contrib.coupling.CouplerSolverFunctions` and override ``build_coupled``.
+  :class:`~isaaclab_contrib.coupling.CouplerSolver` and override ``build_coupled``.
 * **Breaking:** Renamed ``custom_coupling.coupled_mjwarp_vbd_manager`` and ``custom_coupling.newton_manager_cfg`` to
   ``coupled_mjwarp_vbd_solver`` and ``coupled_mjwarp_vbd_solver_cfg``.
 * Added :attr:`~isaaclab_contrib.coupling.CouplerCfg.outer_contact_entry` to collide only one entry's shape pairs in

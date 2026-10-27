@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warp as wp
-from isaaclab_newton.physics import VBDSolverFunctions
+from isaaclab_newton.physics import VBDSolver
 from newton import BodyFlags, Contacts, Control, Model, State, StateFlags
 from newton.solvers import SolverVBD
 
@@ -99,8 +99,8 @@ class EndpointVBD(SolverVBD):
         )
 
 
-class EndpointVBDSolverFunctions(VBDSolverFunctions):
-    """VBD solver functions that build :class:`EndpointVBD`."""
+class EndpointVBDSolver(VBDSolver):
+    """VBD solver that builds :class:`EndpointVBD`."""
 
     solver_class = EndpointVBD
 

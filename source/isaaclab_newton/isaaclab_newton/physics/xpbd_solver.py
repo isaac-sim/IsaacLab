@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""XPBD solver functions."""
+"""XPBD solver implementation."""
 
 from newton.solvers import SolverXPBD
 
-from .newton_solver import NewtonSolverFunctions
+from .newton_solver import NewtonSolver
 
 
-class XPBDSolverFunctions(NewtonSolverFunctions):
+class XPBDSolver(NewtonSolver):
     """Newton's XPBD solver, which double-buffers state."""
 
     solver_class = SolverXPBD

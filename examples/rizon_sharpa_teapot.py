@@ -921,7 +921,7 @@ def _interpolate_joints(
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: type | str = "_rizon_sharpa_teapot_coupler:TeapotSolverFunctions"
+    class_type: type | str = "_rizon_sharpa_teapot_coupler:TeapotSolver"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:

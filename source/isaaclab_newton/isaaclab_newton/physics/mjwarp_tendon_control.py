@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 class MjWarpTendonControl:
     """Drives an articulation's fixed tendons through MuJoCo's native tendon actuators.
 
-    Created on demand by :meth:`~isaaclab_newton.physics.MJWarpSolverFunctions.fixed_tendon_control`
+    Created on demand by :meth:`~isaaclab_newton.physics.MJWarpSolver.fixed_tendon_control`
     when the model carries tendon actuators. Command tendons through the articulation's
     backend-neutral
     :meth:`~isaaclab.assets.articulation.BaseArticulation.set_fixed_tendon_position_target_index`

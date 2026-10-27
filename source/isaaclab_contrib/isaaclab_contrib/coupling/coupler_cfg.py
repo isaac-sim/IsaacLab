@@ -153,7 +153,7 @@ class CouplerCfg(NewtonSolverCfg):
     concrete subclass to configure the coupling interfaces.
     """
 
-    class_type: type | str = "{DIR}.coupler:CouplerSolverFunctions"
+    class_type: type | str = "{DIR}.coupler:CouplerSolver"
 
     entries: list[CouplerEntryCfg] = field(default_factory=list)
     """Ordered named sub-solver entries and their ownership selectors."""

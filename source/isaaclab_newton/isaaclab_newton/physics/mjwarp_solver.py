@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MuJoCo Warp solver functions."""
+"""MuJoCo Warp solver implementation."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import warp as wp
 from newton import Contacts, Model, State
 from newton.solvers import SolverMuJoCo
 
-from .newton_solver import NewtonSolverFunctions, solver_kwargs
+from .newton_solver import NewtonSolver, solver_kwargs
 
 if TYPE_CHECKING:
     from .mjwarp_solver_cfg import MJWarpSolverCfg
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent_f": "the joint-wrench sensor"}
 
 
-class MJWarpSolverFunctions(NewtonSolverFunctions):
+class MJWarpSolver(NewtonSolver):
     """Newton's MuJoCo Warp solver, which steps in place on one state."""
 
     solver_class = SolverMuJoCo

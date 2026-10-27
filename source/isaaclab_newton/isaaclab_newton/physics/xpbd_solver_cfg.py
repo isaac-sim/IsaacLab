@@ -27,7 +27,7 @@ class XPBDSolverCfg(NewtonSolverCfg):
 
     """
 
-    class_type: type | str = "{DIR}.xpbd_solver:XPBDSolverFunctions"
+    class_type: type | str = "{DIR}.xpbd_solver:XPBDSolver"
 
     solver_type: str = "xpbd"
     """Solver type. Can be "xpbd"."""
