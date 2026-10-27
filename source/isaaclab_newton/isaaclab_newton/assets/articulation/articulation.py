@@ -39,7 +39,6 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics import NewtonBuilderCfg
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
@@ -179,8 +178,7 @@ class Articulation(BaseArticulation):
 
     def _configure_joint_target_modes(self, _event) -> None:
         """Apply configured actuator modes to the shared builder before model allocation."""
-        sim = SimulationContext.instance()
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = SimulationContext.instance().backend_manager.builder
         root_prim_path_regex = _resolve_articulation_root_prim_path_expr(self.cfg)
         articulation_ids, _ = resolve_matching_names(
             root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
@@ -451,7 +449,7 @@ class Articulation(BaseArticulation):
         # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
         # outside the articulation view, so the manager owns how a buffered target reaches the solver.
         if self._fixed_tendon_target_dirty:
-            self._fixed_tendon_control.write_data_to_sim(self._backend_manager.get_control())
+            self._fixed_tendon_control.write_data_to_sim(self._backend_manager.backend.control)
             self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
@@ -709,7 +707,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -758,7 +756,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -813,7 +811,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
@@ -865,7 +863,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
@@ -3433,7 +3431,7 @@ class Articulation(BaseArticulation):
         root_prim_path_expr = _resolve_articulation_root_prim_path_expr(self.cfg)
         # -- articulation
         self._root_view = self._backend_manager.views[root_prim_path_expr] = ArticulationView(
-            self._backend_manager.get_model(),
+            self._backend_manager.backend.model,
             re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
@@ -3607,7 +3605,7 @@ class Articulation(BaseArticulation):
         """Process fixed and spatial tendons."""
         if self._root_view.tendon_count > 0:
             tendon_types = wp.to_torch(
-                self._root_view.get_attribute("mujoco.tendon_type", self._backend_manager.get_model())
+                self._root_view.get_attribute("mujoco.tendon_type", self._backend_manager.backend.model)
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")

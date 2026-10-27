@@ -5,3 +5,6 @@
   :meth:`~isaaclab.utils.buffers.DelayBuffer.reset`, which select batches on the device without synchronizing the
   host. Tensor lags set through a mask are full-sized and are not range-checked.
 * Added ``env_mask`` to :meth:`~isaaclab.assets.BaseCableObject.reset`, matching the other scene assets.
+* Added ``env_mask`` to :meth:`~isaaclab.scene.InteractiveScene.reset`, which forwards the mask to every asset and
+  sensor so only the masked environments are reset, without synchronizing the host. Surface grippers still reset by
+  index.
