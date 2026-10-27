@@ -522,13 +522,20 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
         def prepare_builder(cls, cfg, value):
             events.append(("finalize", value))
 
-    mpm_cfg = MPMSolverCfg(class_type=RecordingMPMSolver)
-    entries = [CouplerEntryCfg(name="media", solver_cfg=mpm_cfg, in_place=True)]
+    class OtherMPMSolver(MPMSolver):
+        @classmethod
+        def prepare_builder(cls, cfg, value):
+            events.append(("other", value))
+
+    entries = [
+        CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg(class_type=RecordingMPMSolver), in_place=True),
+        CouplerEntryCfg(name="sand", solver_cfg=MPMSolverCfg(class_type=OtherMPMSolver), in_place=True),
+    ]
     entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
 
     CouplerSolver.prepare_builder(CouplerProxyCfg(entries=entries), builder)
 
-    assert events == [("finalize", builder)] + ([("color", False)] if vbd_entries else [])
+    assert events == [("finalize", builder), ("other", builder)] + ([("color", False)] if vbd_entries else [])
 
 
 def test_nested_solvers_register_their_builder_attributes():
