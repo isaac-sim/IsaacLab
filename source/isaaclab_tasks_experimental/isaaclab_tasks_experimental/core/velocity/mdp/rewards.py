@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_experimental.managers import SceneEntityCfg
 
+from isaaclab.utils.warp.math import yaw_quat
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import ContactSensor
@@ -259,15 +261,7 @@ def _track_lin_vel_xy_yaw_frame_exp_kernel(
     """Compute the exponential xy linear-velocity tracking reward in the yaw-aligned frame."""
     i = wp.tid()
     q = root_quat_w[i]
-    # extract yaw-only quaternion
-    qx = q[0]
-    qy = q[1]
-    qz = q[2]
-    qw = q[3]
-    sin_yaw = 2.0 * (qw * qz + qx * qy)
-    cos_yaw = 1.0 - 2.0 * (qy * qy + qz * qz)
-    yaw_half = wp.atan2(sin_yaw, cos_yaw) * 0.5
-    yaw_q = wp.quatf(0.0, 0.0, wp.sin(yaw_half), wp.cos(yaw_half))
+    yaw_q = yaw_quat(q)
     # rotate world velocity into yaw frame (inverse = conjugate for unit quat)
     vel_w = root_lin_vel_w[i]
     vel_yaw = wp.quat_rotate(wp.quat_inverse(yaw_q), vel_w)

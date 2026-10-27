@@ -383,21 +383,26 @@ Newton has two resources with different lifetimes, not two interchangeable backe
 * ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
   requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
   is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
-* ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
-  borrow those handles. Closing it releases runtime allocations without closing the builder.
+* ``NewtonBackend`` owns the finalized model and native buffers and, under Newton physics, the
+  solver, contacts, and sensors. Physics and render consumers borrow those handles. Closing it
+  releases runtime allocations without closing the builder.
 
-Both resources use the same registry:
+Under Newton physics the manager acquires both and exposes them; a hard reset replaces the backend:
 
 .. code-block:: python
 
-    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
-    builder = sim.get_or_create_backend(builder_cfg)
-    # Clone/import populates this builder before model allocation.
-    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-    backend = sim.get_or_create_backend(model_cfg)
+    builder = sim.backend_manager.builder  # populated by cloning before sim.reset()
+    backend = sim.backend_manager.backend  # set by sim.reset()
 
-Both configurations use the selected physics cfg; non-Newton physics selects a render-only
-representation. ``SimulationContext`` has no backend-specific cfg fields, and consumers do not
+Consumers that also run under other physics, such as renderers and visualizers, share them through the registry. Under
+Newton physics this returns the manager's builder and backend; under other physics it finalizes a render-only backend:
+
+.. code-block:: python
+
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
+
+``SimulationContext`` has no backend-specific cfg fields, and consumers do not
 access clone contexts. Consumers request body transforms and visual points directly through SDP.
 Queries share the native resource's BVHs but keep each consumer's captured work separate.
 

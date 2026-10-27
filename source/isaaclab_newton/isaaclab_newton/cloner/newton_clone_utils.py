@@ -134,6 +134,7 @@ def build_source_builders(
             schema_resolvers=schema_resolvers,
             ignore_paths=ignore_paths or (),
             return_deformable_results=True,
+            allow_unsafe_torch_checkpoints=True,
         )
         replace_newton_builder_shape_colors(builder, stage)
         if load_visual_shapes:
