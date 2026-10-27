@@ -190,6 +190,16 @@ def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
         UsdExporter.load_usd(layer.realPath)
 
 
+def test_model_without_joint_dofs_has_no_changed_values():
+    """A model without joint DOFs, e.g. one with only fixed joints, compares to empty builder lists."""
+    from types import SimpleNamespace
+
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    changed = UsdExporter._changed({"joint_armature": np.zeros(0)}, SimpleNamespace(joint_armature=[]))
+    assert changed["joint_armature"].shape == (0,)
+
+
 def test_attribute_tables_cover_newton_importer():
     """Every attribute Newton's importer maps is exported or deliberately excluded."""
     from isaaclab_newton.sim.usd_export.usd_exporter import (

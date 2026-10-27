@@ -475,8 +475,10 @@ class UsdExporter(BaseUsdExporter):
         """Per entity, whether a live model array differs from the value the builder took from the stage."""
         changed = {}
         for name, live in values.items():
-            built = np.asarray(getattr(builder, name), dtype=float).reshape(len(live), -1)
-            changed[name] = ~np.isclose(live.reshape(len(live), -1), built, rtol=1e-5, atol=1e-7).all(axis=1)
+            # An explicit width also fits a model without any such entity.
+            shape = (len(live), int(np.prod(live.shape[1:])))
+            built = np.asarray(getattr(builder, name), dtype=float).reshape(shape)
+            changed[name] = ~np.isclose(live.reshape(shape), built, rtol=1e-5, atol=1e-7).all(axis=1)
         return changed
 
     @classmethod
