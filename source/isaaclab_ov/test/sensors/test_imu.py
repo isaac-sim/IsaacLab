@@ -11,13 +11,7 @@ Mirrors the structure of source/isaaclab_physx/test/sensors/test_imu.py
 but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
-omni.client (which works standalone in Kit's Python).
-
-Process-global wheel state: like the rigid-object test, this file mixes
-procedural USD assets (``test_constant_velocity``, ``test_constant_acceleration``,
-``test_attachment_validity``) with a Nucleus asset (``test_offset_calculation``). ``omni.client``
-must be loaded before the first OVPhysX scene is torn down; otherwise a later
-first import can fail native symbol resolution after ``ovphysx.reset()``.
+Isaac Lab's asset helpers.
 """
 
 from __future__ import annotations
@@ -45,11 +39,6 @@ import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg  # noqa: E402
-
-# Preload Omni Client while Kit's native libraries are still in a clean loader
-# state. Importing it for the first time after an OVPhysX reset can fail with an
-# undefined symbol from omni.client's native extension.
-import omni.client  # noqa: E402,F401
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402

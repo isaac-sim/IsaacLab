@@ -244,7 +244,6 @@ autodoc_mock_imports = [
     "omni.kit",
     "omni.log",
     "omni.usd",
-    "omni.client",
     "omni.physx",
     "omni.physics",
     "ovphysx",

@@ -537,15 +537,6 @@ index, use the command for your platform:
             unset LD_PRELOAD
             export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 
-      .. note::
-
-         If importing ``omni.client`` or ``torch`` fails because ``libcarb.so`` cannot allocate a
-         static TLS block, preload ``libcarb.so`` before launching Python:
-
-         .. code-block:: bash
-
-            export LD_PRELOAD=$(python -c "import sys,os;[print(os.path.join(p,'omni','client','libcarb.so')) for p in sys.path if os.path.isfile(os.path.join(p,'omni','client','libcarb.so'))]" 2>/dev/null | head -1)${LD_PRELOAD:+:$LD_PRELOAD}
-
 If you installed the ``isaacsim`` extra, verify it before running your project:
 
 .. code-block:: bash

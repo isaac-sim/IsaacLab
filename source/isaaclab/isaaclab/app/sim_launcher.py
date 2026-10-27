@@ -491,13 +491,7 @@ def launch_simulation(
     previous_context = SimulationContext.instance()
     exit_code = 0
     try:
-        try:
-            yield physics_cfg
-        finally:
-            # Release runtime consumers before a launcher can terminate the process.
-            context = SimulationContext.instance()
-            if context is not None and context is not previous_context:
-                SimulationContext.clear_instance()
+        yield physics_cfg
     except KeyboardInterrupt:
         exit_code = 130
         raise
@@ -510,5 +504,9 @@ def launch_simulation(
         traceback.print_exc()
         raise
     finally:
+        # Release runtime consumers before a launcher can terminate the process.
+        context = SimulationContext.instance()
+        if context is not None and context is not previous_context:
+            SimulationContext.clear_instance()
         for launcher in reversed(launchers):
             launcher.close(exit_code)

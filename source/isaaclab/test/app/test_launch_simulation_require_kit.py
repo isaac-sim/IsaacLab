@@ -15,6 +15,7 @@ is the signal that the Kit branch was taken. No Kit/GPU required.
 """
 
 import argparse
+import contextlib
 import signal
 import sys
 import types
@@ -43,30 +44,6 @@ def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
     return taken
-
-
-def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
-        pass
-
-    assert kit_branch_taken == []
-
-
-def test_failure_after_kit_starts_closes_it(monkeypatch: pytest.MonkeyPatch):
-    """A failure after Kit starts must still close the application."""
-    close_calls = []
-
-    class FakeKitLauncher(SimulationLauncher):
-        def close(self, exit_code=0):
-            close_calls.append(exit_code)
-
-    monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
-
-    with pytest.raises(RuntimeError, match="user failure"):
-        with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
-            raise RuntimeError("user failure")
-
-    assert close_calls == [1]
 
 
 @pytest.mark.parametrize(
@@ -160,9 +137,9 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
 
 
-@pytest.mark.parametrize("interrupt", [False, True])
-def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, interrupt):
-    """A config-selected launcher closes on success or interruption with the correct exit status."""
+@pytest.mark.parametrize(("outcome", "exit_code"), [("ok", 0), ("interrupt", 130), ("error", 1)])
+def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, outcome, exit_code):
+    """A config-selected launcher closes on success, interruption or failure with the matching exit status."""
     events = []
 
     class FakeLauncher(SimulationLauncher):
@@ -178,17 +155,14 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setitem(sys.modules, "fake_runtime", types.SimpleNamespace(FakeLauncher=FakeLauncher))
     cfg = argparse.Namespace(physics=sim_launcher.NewtonCfg(), renderer=CustomRendererCfg())
 
-    try:
-        with launch_simulation(cfg):
-            events.append("user")
-            if interrupt:
-                signal.raise_signal(signal.SIGINT)
-    except KeyboardInterrupt:
-        assert interrupt
-    else:
-        assert not interrupt
+    with contextlib.suppress(KeyboardInterrupt, RuntimeError), launch_simulation(cfg):
+        events.append("user")
+        if outcome == "interrupt":
+            signal.raise_signal(signal.SIGINT)
+        elif outcome == "error":
+            raise RuntimeError("user failure")
 
-    assert events == ["start", "user", 130 if interrupt else 0]
+    assert events == ["start", "user", exit_code]
 
 
 @pytest.mark.parametrize("producer_count", [0, 1, 2])

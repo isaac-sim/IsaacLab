@@ -15,6 +15,7 @@ For more information, please check information on `Omniverse Nucleus`_.
 
 import asyncio
 import contextlib
+import functools
 import io
 import json
 import logging
@@ -26,6 +27,7 @@ import shutil
 import tempfile
 import threading
 import uuid
+import warnings
 from collections.abc import Coroutine, Iterator
 from typing import Any, Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
@@ -108,12 +110,33 @@ def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
     return profile_name, profile
 
 
-def _profile_url(url: str) -> str:
-    """Route ``url`` through the selected asset region profile's CDN.
+def configure_asset_region_profile() -> None:
+    """Deprecated: Isaac Lab's asset helpers apply the selected asset region profile themselves."""
+    warnings.warn(
+        "configure_asset_region_profile() is deprecated and has no effect: Isaac Lab's asset helpers apply the"
+        " selected asset region profile themselves.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-    The China profile's asset root names its object-storage endpoint, which does not serve anonymous
-    reads; its CDN serves the same keys over HTTPS.
+
+def configure_storage_profile() -> None:
+    """Deprecated: Isaac Lab's asset helpers apply the selected asset region profile themselves."""
+    warnings.warn(
+        "configure_storage_profile() is deprecated and has no effect: Isaac Lab's asset helpers apply the"
+        " selected asset region profile themselves.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+
+def _route_to_profile_cdn(url: str) -> str:
+    """Return ``url`` with ``/`` separators, routed through the selected asset region profile's CDN.
+
+    The China profile's asset root names its object-storage endpoint, as Isaac Sim's does, but that endpoint
+    does not serve anonymous reads; its CDN serves the same keys over HTTPS.
     """
+    url = url.replace(os.sep, "/")
     selected_profile = _selected_storage_profile()
     if selected_profile is None:
         return url
@@ -125,23 +148,25 @@ def _profile_url(url: str) -> str:
 
 
 _OVSTORAGE_LOCK = threading.Lock()
-"""Guards the lazily created OVStorage loop and stacks."""
-
-_OVSTORAGE_LOOP: ovstorage.OwnedLoop | None = None
-"""Event loop thread driving every OVStorage stack, created on first use."""
+"""Guards the lazily built OVStorage stacks."""
 
 _OVSTORAGE_STACKS: dict[str, ovstorage.LayerBase] = {}
 """Built OVStorage stack per URL origin, since each OVStorage connection serves one origin."""
 
 
+@functools.cache
+def _ovstorage_loop() -> ovstorage.OwnedLoop:
+    """Event loop thread driving every OVStorage stack, started on first use."""
+    return ovstorage.OwnedLoop()
+
+
 def _ovstorage_run(coroutine: Coroutine[Any, Any, Any]) -> Any:
     """Run an OVStorage coroutine on its event loop thread and return the result."""
-    return asyncio.run_coroutine_threadsafe(coroutine, _OVSTORAGE_LOOP.loop).result()
+    return asyncio.run_coroutine_threadsafe(coroutine, _ovstorage_loop().loop).result()
 
 
 def _ovstorage_stack(url: str) -> ovstorage.LayerBase:
     """Return the OVStorage stack serving ``url``'s origin, building it on first use."""
-    global _OVSTORAGE_LOOP
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
     with _OVSTORAGE_LOCK:
@@ -160,17 +185,17 @@ def _ovstorage_stack(url: str) -> ovstorage.LayerBase:
                 .backend(PluginBackend(kind, "origin"))
                 .connection("origin", request)
             )
-            _OVSTORAGE_LOOP = _OVSTORAGE_LOOP or ovstorage.OwnedLoop()
             _OVSTORAGE_STACKS[origin] = _ovstorage_run(stack.build())
         return _OVSTORAGE_STACKS[origin]
 
 
 def _remote_stat(url: str) -> dict | None:
     """Revision metadata of ``url``, or ``None`` when the server does not report the file."""
-    url = _profile_url(url)
+    url = _route_to_profile_cdn(url)
     try:
         info = _ovstorage_run(_ovstorage_stack(url).stat(url))
     except ovstorage.Error:
+        # an unreachable server reads as unreported too, so offline runs keep using their local copies
         return None
     return {
         "hash": info.etag or "",
@@ -180,6 +205,12 @@ def _remote_stat(url: str) -> dict | None:
     }
 
 
+async def _materialize(stack: ovstorage.LayerBase, url: str, target: str) -> None:
+    """Copy ``url`` to the local file ``target``, releasing OVStorage's lease on its local copy."""
+    async with await stack.materialize(url) as delegate:
+        shutil.copyfile(delegate.path, target)
+
+
 def _remote_copy(url: str, target: str) -> None:
     """Download ``url`` to the local file ``target``.
 
@@ -187,20 +218,27 @@ def _remote_copy(url: str, target: str) -> None:
         FileNotFoundError: When the server does not have the file.
         RuntimeError: When the download fails.
     """
-    url = _profile_url(url)
+    url = _route_to_profile_cdn(url)
     try:
-        delegate = _ovstorage_run(_ovstorage_stack(url).materialize(url))
+        _ovstorage_run(_materialize(_ovstorage_stack(url), url, target))
     except ovstorage.NotFoundError as exc:
         raise FileNotFoundError(f"Unable to find the file: {url}") from exc
     except ovstorage.Error as exc:
         raise RuntimeError(f"Unable to copy file: '{url}' ({exc})") from exc
-    shutil.copyfile(delegate.path, target)
 
 
 def _remote_read(url: str) -> bytes:
-    """Read the contents of ``url``."""
-    url = _profile_url(url)
-    return _ovstorage_run(_ovstorage_stack(url).read_bytes(url))[0]
+    """Read the contents of ``url``.
+
+    Raises:
+        FileNotFoundError: When the server does not have the file.
+    """
+    url = _route_to_profile_cdn(url)
+    try:
+        data, _ = _ovstorage_run(_ovstorage_stack(url).read_bytes(url))
+    except ovstorage.NotFoundError as exc:
+        raise FileNotFoundError(f"Unable to find the file: {url}") from exc
+    return data
 
 
 def _resolve_asset_root() -> str:

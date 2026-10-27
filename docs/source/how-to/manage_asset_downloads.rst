@@ -181,8 +181,9 @@ asset-root override takes precedence over the selected profile.
          set ISAACSIM_ASSET_ROOT=
          set ISAACSIM_ASSET_REGION_PROFILE=china
 
-Isaac Lab's asset helpers apply the profile automatically. The same variable also selects the profile
-when Isaac Lab launches Isaac Sim.
+Isaac Lab's asset helpers apply the profile automatically and read the China profile's object storage
+through its CDN. The same variable also selects the profile when Isaac Lab launches Isaac Sim.
+``configure_asset_region_profile()`` is deprecated and no longer needed.
 
 To return to the primary service, clear ``ISAACSIM_ASSET_ROOT`` and select the ``us`` profile.
 
