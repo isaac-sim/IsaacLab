@@ -485,7 +485,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.transformf),
-            dim=(self.num_instances, self.num_bodies),
+            dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[body_poses, env_mask, body_mask],
             outputs=[self.data.body_link_pose_w],
             device=self.device,
@@ -599,7 +599,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.set_body_com_pose_to_sim_mask,
-            dim=(self.num_instances, self.num_bodies),
+            dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[body_poses, self.data.body_com_pos_b, env_mask, body_mask],
             outputs=[self.data.body_com_pose_w, self.data.body_link_pose_w],
             device=self.device,
@@ -721,7 +721,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
             shared_kernels.set_body_com_velocity_to_sim_mask,
-            dim=(self.num_instances, self.num_bodies),
+            dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[body_velocities, env_mask, body_mask],
             outputs=[self.data.body_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
@@ -845,7 +845,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim_mask,
-            dim=(self.num_instances, self.num_bodies),
+            dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[body_velocities, self.data.body_com_pos_b, self.data.body_link_pose_w, env_mask, body_mask],
             outputs=[self.data.body_link_vel_w, self.data.body_com_vel_w, self.data.body_com_acc_w],
             device=self.device,

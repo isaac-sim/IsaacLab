@@ -304,6 +304,13 @@ def test_writer_reads_back_full_and_partial_writes(monkeypatch, backend, device,
             method(**{kwarg: update}, env_mask=selectors["env_mask"], body_ids=body_ids)
             expected[-1, -1] = update[-1, -1]
             torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
+        if backend == "newton":
+            # A short mask writes only the rows it covers, even when the memory past its end selects more rows.
+            update = _payload(shape, trailing, offset=500.0, device=device)
+            short_mask = wp.ones(_NUM_INSTANCES, dtype=wp.bool, device=device)[: _NUM_INSTANCES - 1]
+            method(**{kwarg: update[: _NUM_INSTANCES - 1]}, env_mask=short_mask)
+            expected[: _NUM_INSTANCES - 1] = update[: _NUM_INSTANCES - 1]
+            torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
 
     # Data with an extra environment is rejected for torch and warp inputs.
     bad = _payload((_NUM_INSTANCES + 1, *shape[1:]), trailing, device=device)
