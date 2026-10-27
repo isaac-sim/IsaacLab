@@ -4575,6 +4575,9 @@ class Articulation(BaseArticulation):
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, all_mask: wp.array) -> wp.array:
         """Resolve a mask to a boolean warp array on the device.
 
+        The mask writers launch over the full axis, so the mask length must match :paramref:`all_mask`.
+        Controlled by :attr:`AssetBaseCfg.disable_shape_checks`, like the data shape checks.
+
         Args:
             mask: Boolean mask. If None, then :paramref:`all_mask` is used.
             all_mask: All-true mask of the same axis.
@@ -4582,6 +4585,10 @@ class Articulation(BaseArticulation):
         Returns:
             A boolean warp array on the device.
         """
+        if self._check_shapes and mask is not None:
+            assert mask.shape[0] == all_mask.shape[0], (
+                f"{type(self).__name__}: Mask length mismatch: {mask.shape[0]} != {all_mask.shape[0]}"
+            )
         return resolve_1d_mask(mask=mask, all_mask=all_mask, device=self.device)
 
     """

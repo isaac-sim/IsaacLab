@@ -541,6 +541,28 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
         method(**{kwarg: wp.from_torch(extra_env.contiguous(), dtype=dtype)})
 
 
+_TENDON_MASK_SETTERS = [
+    *[writer[:5] for writer in _WRITERS if writer[2] in ("fixed_tendon", "spatial_tendon")],
+    ("set_fixed_tendon_position_target", "target", "fixed_tendon", 0, wp.float32),
+]
+
+
+@pytest.mark.parametrize("backend", backends("physx"))
+@pytest.mark.parametrize(
+    "writer, kwarg, axis, trailing, dtype", _TENDON_MASK_SETTERS, ids=[w[0] for w in _TENDON_MASK_SETTERS]
+)
+def test_tendon_mask_setters_reject_short_masks(monkeypatch, backend, writer, kwarg, axis, trailing, dtype):
+    """A mask shorter than its axis raises, also when the data matches the mask."""
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    method = getattr(art, f"{writer}_mask")
+    count = _AXIS_COUNTS[axis]
+    for env_count, item_count in ((N - 1, count), (N, count - 1)):
+        shape = (N, count) if writer == "set_fixed_tendon_position_target" else (env_count, item_count)
+        masks = {"env_mask": _mask(env_count, [0], "cpu"), f"{axis}_mask": _mask(item_count, [0], "cpu")}
+        with pytest.raises(AssertionError):
+            method(**{kwarg: _payload(shape, trailing, dtype, "cpu")}, **masks)
+
+
 # quantity -> (writer, keyword, trailing size). Joint partial writes are covered by the ordering contract.
 _PARTIAL_WRITES = {
     "root_pose": ("write_root_link_pose_to_sim", "root_pose", 7),
