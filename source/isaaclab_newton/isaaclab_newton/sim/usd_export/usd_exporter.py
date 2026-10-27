@@ -326,7 +326,7 @@ class UsdExporter(BaseUsdExporter):
             if getattr(upstream, name) is None or not self._close(getattr(defaults, name), getattr(upstream, name))
         }
         flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
-        edits, materials = [], {}
+        edits, materials, complete, bound = [], {}, {}, {}
         for shape in self._selected(model.shape_world):
             prim = stage.GetPrimAtPath(model.shape_label[shape])
             # Sensor sites and visual shapes do not collide; generated shapes have no USD prim.
@@ -345,9 +345,17 @@ class UsdExporter(BaseUsdExporter):
                 for name, attribute in SHAPE_ATTRIBUTES.items()
                 if changed[name][shape]
             ]
-            updated = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape]}
+            path = str(prim.GetPath())
+            bound[path] = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")[0]
+            complete[path] = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items()}
+            updated = {a: complete[path][a] for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape]}
             if updated:
-                materials[str(prim.GetPath())] = updated
+                materials[path] = updated
+        # A changed material is checked against every collider bound to it, with complete values.
+        affected = {str(bound[path].GetPath()) for path in materials if bound[path]}
+        materials |= {
+            path: complete[path] for path in complete if bound[path] and str(bound[path].GetPath()) in affected
+        }
         edits = [edit for edit in edits if edit is not None]
         return edits + self._material_edits(
             stage, materials, lambda c, v: self._collider_contact_edits(stage.GetPrimAtPath(c), v)

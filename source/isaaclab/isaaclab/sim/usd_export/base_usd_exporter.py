@@ -405,8 +405,8 @@ class BaseUsdExporter(ABC):
     ) -> list[UsdEdit]:
         """Edits writing collider material values that the colliders' bound physics materials do not state.
 
-        Colliders sharing a material must have equal values. A stated value is never changed on a material
-        also used by colliders missing from ``values``; unset values may still be filled in.
+        Colliders sharing a material must have equal values, and a material also used by colliders missing
+        from ``values`` is never changed.
 
         Args:
             stage: The exported stage.
@@ -431,7 +431,10 @@ class BaseUsdExporter(ABC):
                     edits += without_material(collider, engine)
                 continue
             path = str(material.GetPath())
-            if path in groups and not all(cls._close(groups[path][name], value) for name, value in engine.items()):
+            if path in groups and (
+                groups[path].keys() != engine.keys()
+                or not all(cls._close(groups[path][name], value) for name, value in engine.items())
+            ):
                 raise NotImplementedError(f"Colliders sharing material '{path}' have different values.")
             groups[path] = engine
         for path, engine in groups.items():
@@ -441,9 +444,7 @@ class BaseUsdExporter(ABC):
                 for name, value in engine.items()
             ]
             pending = [edit for edit in pending if edit is not None]
-            if any(user not in values for user in users[path]) and any(
-                cls._stated(prim, e.attribute) is not None for e in pending
-            ):
+            if pending and any(user not in values for user in users[path]):
                 raise NotImplementedError(f"Material '{path}' changed but is shared with colliders not exported.")
             edits += pending
         if unbound:

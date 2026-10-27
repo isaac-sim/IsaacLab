@@ -145,3 +145,19 @@ def test_converted_usd_in_the_temporary_directory_is_refused(tmp_path, monkeypat
     with pytest.raises(ValueError, match="persistent 'usd_dir'"):
         BaseUsdExporter._keep_temporary_file(str(converted), export)
     assert BaseUsdExporter._keep_temporary_file(str(authored), export) == str(authored)
+
+
+def test_material_shared_with_a_collider_not_exported_is_not_changed():
+    """Writing a material changes every collider bound to it, so one also used by an unexported collider raises."""
+    from pxr import UsdShade
+
+    stage = Usd.Stage.CreateInMemory()
+    material = UsdShade.Material.Define(stage, "/Looks/Rubber")
+    UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+    for name in ("Exported", "Other"):
+        prim = UsdGeom.Cube.Define(stage, f"/{name}").GetPrim()
+        UsdPhysics.CollisionAPI.Apply(prim)
+        UsdShade.MaterialBindingAPI.Apply(prim).Bind(material, materialPurpose="physics")
+
+    with pytest.raises(NotImplementedError, match="shared with colliders not exported"):
+        PhysxUsdExporter._material_edits(stage, {"/Exported": {"physics:dynamicFriction": 0.7}})
