@@ -234,10 +234,8 @@ class UsdExporter(BaseUsdExporter):
                 if not actuated[dof] and prim.HasAPI(UsdPhysics.DriveAPI, axis):
                     raise NotImplementedError(f"Joint '{path}' has a USD drive the engine does not actuate.")
             # A changed drive is written whole, since Isaac Lab's build can hold drive values other than the USD's.
-            drive = {
-                dof: actuated[dof] and any(changed[name][dof] for name, (_, schema, _) in table.items() if schema)
-                for dof, _ in axes
-            }
+            driven = {name for name, (_, schema, _) in table.items() if schema and schema.startswith("PhysicsDriveAPI")}
+            drive = {dof: actuated[dof] and any(changed[name][dof] for name in driven) for dof, _ in axes}
             if len(axes) == 1 and drive[axes[0][0]]:
                 dof = axes[0][0]
                 drives[path] = (float(values["joint_target_ke"][dof]), float(values["joint_target_kd"][dof]))
@@ -247,7 +245,9 @@ class UsdExporter(BaseUsdExporter):
                         edits.append(self._joint_value_edit(path, attribute, values[name], axes, angular_scale))
                     continue
                 for dof, axis in axes:
-                    if (changed[name][dof] and (schema is None or actuated[dof])) or (drive[dof] and schema):
+                    if (changed[name][dof] and (name not in driven or actuated[dof])) or (
+                        drive[dof] and name in driven
+                    ):
                         scale = 1.0 if axis == "linear" else angular_scale
                         value = float(values[name][dof]) * scale
                         edits.append(
