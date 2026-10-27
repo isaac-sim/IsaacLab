@@ -15,7 +15,7 @@ import re
 import sys
 from html import escape
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from docutils import nodes
 from docutils.parsers.rst import directives
@@ -148,6 +148,13 @@ class IsaacLabDemos(SphinxDirective):
         ids = [value.strip() for value in self.arguments[0].split(",")] if self.arguments else []
         if any(not re.fullmatch(r"[A-Za-z0-9_-]+", value) for value in ids):
             raise self.error("Demo IDs must use letters, numbers, underscores or hyphens, separated by commas.")
+        address = urlsplit(base)
+        parameters = dict(parse_qsl(address.query, keep_blank_values=True))
+        parameters["demos"] = ",".join(ids) or "all"
+        for key in ("physics", "activity"):
+            if key in self.options:
+                parameters[key] = self.options[key]
+        gallery_url = address._replace(query=urlencode(parameters)).geturl()
         title = escape(self.options.get("title", "Interactive demos"), quote=True)
         html = (
             '<section class="isaaclab-demos" data-isaaclab-demos '
@@ -156,7 +163,7 @@ class IsaacLabDemos(SphinxDirective):
             f'aria-label="{title}">'
             '<div class="isaaclab-demos-heading">'
             f"<strong>{title}</strong>"
-            f'<a href="{escape(base, quote=True)}" target="_blank" rel="noopener noreferrer" '
+            f'<a href="{escape(gallery_url, quote=True)}" target="_blank" rel="noopener noreferrer" '
             'aria-label="Open demo gallery in a new tab">Open gallery</a>'
             "</div>"
             '<p class="isaaclab-demos-status" role="status" aria-live="polite">'
@@ -174,6 +181,7 @@ def _add_demo_assets(
 ) -> None:
     """Load the embed bridge only on pages that contain a gallery."""
     if doctree is not None and any(node.get("isaaclab_demos") for node in doctree.findall(nodes.raw)):
+        # Sphinx resets page assets before emitting html-page-context.
         app.add_css_file("css/interactive-demos.css")
         app.add_js_file("css/interactive-demos.js", loading_method="defer")
 

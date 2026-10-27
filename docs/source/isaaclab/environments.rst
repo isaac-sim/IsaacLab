@@ -99,7 +99,7 @@ Task Preview
      </section>
    </div>
 
-Try manipulation in your browser
+Try Manipulation in Your Browser
 --------------------------------
 
 UR10 reach and Franka lift use pretrained policies. Cube stacking

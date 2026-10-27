@@ -7,9 +7,9 @@
 set -euo pipefail
 
 # Pin the current runtime archive from the permanent interactive-demos release.
-readonly archive_commit="78fdecef00e746354ff49c4e2f1c57da38f30052"
+readonly archive_commit="1c3fdc57043a60d3c1b65d8d682ce85c0e544ca2"
 readonly archive_url="https://github.com/isaac-sim/IsaacLab/releases/download/interactive-demos/isaaclab-browser-demos-${archive_commit}.tar.gz"
-readonly archive_sha256="4374985b2689a90012e34b30856a73e8b5a4af83f158ed5bff83ff52e087b400"
+readonly archive_sha256="9577928fabc0115a5f60856c4dc80da266e489136ad6efe2dc5e2d70b701666f"
 
 archive=$(mktemp)
 trap 'rm -f "$archive"' EXIT

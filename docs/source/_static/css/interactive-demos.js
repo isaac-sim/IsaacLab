@@ -99,7 +99,7 @@
                     embed.height = height;
                     embed.iframe.style.height = `${height}px`;
                 }
-            } else if (message.type === "error") {
+            } else if (message.type === "error" && !embed.ready) {
                 const detail = typeof message.message === "string" ? message.message.slice(0, 240) : "";
                 showError(embed, detail || "The interactive demo could not load.");
             }

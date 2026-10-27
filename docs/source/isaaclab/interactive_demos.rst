@@ -84,8 +84,6 @@ WebAssembly, and policy inference also runs in your browser.
    **MicroDuck walking** — Walk through a bounded warehouse with travel and
    yaw sticks, or drag the robot to apply a 2 N perturbation.
 
-   .. _interactive-demo-franka-drawer:
-
    .. _interactive-demo-franka-reach:
 
    .. _interactive-demo-ur10-reach:

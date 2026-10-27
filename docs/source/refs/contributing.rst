@@ -135,7 +135,8 @@ Exporter sources remain in the private browser-demo project and are not included
 The docs workflow downloads the archive, verifies its checksum, and stages only its ``site/`` directory
 under ``docs/_build/demos/`` before publishing Pages. This contains one current gallery under
 ``interactive/``; earlier gallery entry points redirect there without retaining older physics builds.
-The documentation source tree contains the staging script, documentation links, and small thumbnails.
+The documentation source tree contains the staging script, documentation links, and thumbnails used on
+the Demos page. Gallery thumbnails stay in the runtime archive.
 Run the staging step from the repository root:
 
 .. code-block:: bash
@@ -166,7 +167,7 @@ into the documentation sources:
 Use stable gallery IDs, or omit the IDs for the full gallery. The ``title``, ``physics``
 (``rigid``, ``vbd``, ``mpm``), and ``activity`` (``tuning``, ``policy``, ``scripted``) options are optional.
 The embed loads near the viewport and starts a simulation only when the reader chooses a demo.
-It follows the documentation theme and provides a link to open the full gallery.
+It follows the documentation theme and provides a link to open the same selection in a separate tab.
 By default, embeds use the staged gallery on the documentation's own host, with links relative to
 each documentation page. To use a separate gallery host, set the Sphinx ``isaaclab_demo_base_url``
 configuration value to an absolute HTTP or HTTPS URL. For a local development server, pass
