@@ -35,7 +35,7 @@ def test_segment_mesh_spans_the_segment_and_other_classes_collapse():
     starts, ends = _vec3s([[0, 0, 0], [1, 1, 1]]), _vec3s([[0, 0, 1], [1, 1, 2]])
     classes = wp.array([0, 1], dtype=wp.int32, device="cpu")
     points = wp.zeros(26, dtype=wp.vec3, device="cpu")
-    wp.launch(build_segment_meshes, 2, [starts, ends, classes, 0, 0.01, 0.0, 0.0, points], device="cpu")
+    wp.launch(build_segment_meshes, 2, [starts, ends, classes, 0, 2, 0.01, 0.0, 0.0, points], device="cpu")
     vertices = points.numpy()
     assert vertices[:13, 2].min() == pytest.approx(0.0) and vertices[:13, 2].max() == pytest.approx(1.0)
     assert np.abs(vertices[:4, :2]).max() == pytest.approx(0.01)
@@ -47,7 +47,7 @@ def test_arrow_head_ends_at_the_tip():
     points = wp.zeros(13, dtype=wp.vec3, device="cpu")
     classes = wp.zeros(1, dtype=wp.int32, device="cpu")
     wp.launch(
-        build_segment_meshes, 1, [_vec3s([[0, 0, 0]]), _vec3s([[2, 0, 0]]), classes, 0, 0.01, 0.03, 0.2, points],
+        build_segment_meshes, 1, [_vec3s([[0, 0, 0]]), _vec3s([[2, 0, 0]]), classes, 0, 1, 0.01, 0.03, 0.2, points],
         device="cpu",
     )  # fmt: skip
     vertices = points.numpy()
@@ -68,11 +68,22 @@ def test_publisher_shows_recorded_batches_and_hides_the_rest():
     publisher.record("/model/joints", starts, ends, (0.0, 1.0, 0.0), 0.01, False, arrow=False)
     publisher.publish([renderer])
     assert [(call[0], call[3]["hidden"], call[3]["color"]) for call in renderer.calls] == [
-        ("Viewer_1/overlay/model_joints_1_0", False, (0.0, 1.0, 0.0))
+        ("Viewer_1/overlay/model_joints_64_0", False, (0.0, 1.0, 0.0))
     ]
     renderer.calls.clear()
     publisher.publish([renderer])  # nothing recorded this frame
-    assert [(call[0], call[3]["hidden"]) for call in renderer.calls] == [("Viewer_1/overlay/model_joints_1_0", True)]
+    assert [(call[0], call[3]["hidden"]) for call in renderer.calls] == [("Viewer_1/overlay/model_joints_64_0", True)]
     renderer.calls.clear()
     publisher.hide_all([renderer])
     assert not renderer.calls
+
+
+def test_a_changing_segment_count_reuses_the_meshes_until_it_outgrows_them():
+    renderer, publisher = _Renderer(), OverlayMeshPublisher("Viewer_1")
+    paths = []
+    for count in (3, 17, 64, 65, 40):
+        starts = _vec3s(np.zeros((count, 3)))
+        publisher.record("/contacts/normals", starts, _vec3s(np.ones((count, 3))), (0, 1, 0), 0.01, False, arrow=True)
+        publisher.publish([renderer])
+        paths.append(renderer.calls[-1][0])
+    assert paths == [f"Viewer_1/overlay/contacts_normals_{capacity}_0" for capacity in (64, 64, 64, 128, 128)]

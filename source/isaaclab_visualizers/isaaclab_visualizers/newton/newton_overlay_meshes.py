@@ -22,6 +22,10 @@ _VERTICES_PER_SEGMENT = 13
 _MAX_COLORS = 6
 """Most distinct colors drawn per batch; further colors take the first color."""
 
+_MIN_CAPACITY = 64
+"""Fewest segments a batch's meshes are sized for. Capacities grow in powers of two, so a count that changes each
+frame, like the contacts, rebuilds a mesh only when it outgrows the last one."""
+
 _COLOR_REFRESH_INTERVAL = 60
 """Publishes between reads of a batch's per-segment colors from the device."""
 
@@ -52,14 +56,22 @@ def build_segment_meshes(
     ends: wp.array[wp.vec3],
     classes: wp.array[wp.int32],
     class_id: int,
+    active: int,
     shaft_radius: float,
     head_radius: float,
     head_length: float,
     points: wp.array[wp.vec3],
 ):
-    """Write the vertices of one thin box (and arrowhead) per segment; other classes collapse to a point."""
+    """Write the vertices of one thin box (and arrowhead) per segment.
+
+    Segments past *active* and segments of other classes collapse to a point.
+    """
     i = wp.tid()
     base = i * 13
+    if i >= active:
+        for k in range(13):
+            points[base + k] = wp.vec3(0.0, 0.0, 0.0)
+        return
     start = starts[i]
     direction = ends[i] - start
     length = wp.length(direction)
@@ -124,15 +136,21 @@ def color_classes(colors, count: int) -> tuple[np.ndarray | None, list[tuple[flo
     return rank[inverse.reshape(-1)].astype(np.int32), [tuple(float(c) for c in unique[i]) for i in order]
 
 
-class _Batch:
-    """Meshes of one named line or arrow batch, rebuilt only when its segment count changes."""
+def _capacity(count: int) -> int:
+    """Return the segment capacity the meshes of a *count*-segment batch are sized for."""
+    return max(_MIN_CAPACITY, 1 << (count - 1).bit_length())
 
-    def __init__(self, count: int, device) -> None:
-        self.count = count
-        self.indices = segment_indices(count, device)
+
+class _Batch:
+    """Meshes of one named line or arrow batch, rebuilt only when its segment count outgrows their capacity."""
+
+    def __init__(self, capacity: int, device) -> None:
+        self.capacity = capacity
+        self.indices = segment_indices(capacity, device)
         self.points: list[wp.array] = []
         self.colors: list[tuple[float, float, float]] = []
         self.classes: wp.array | None = None
+        self.classes_count = -1
         self.publishes = 0
 
 
@@ -170,22 +188,31 @@ class OverlayMeshPublisher:
         for name in tuple(self._published):
             self._hide(name, renderers)
 
-    def _path(self, name: str, index: int, count: int) -> str:
-        return f"{self._prefix}/overlay/{name.strip('/').replace('/', '_')}_{count}_{index}"
+    def _path(self, name: str, index: int, capacity: int) -> str:
+        return f"{self._prefix}/overlay/{name.strip('/').replace('/', '_')}_{capacity}_{index}"
 
     def _show(self, name, starts, ends, colors, width, _hidden, arrow, renderers) -> None:
         count = len(starts)
         batch = self._batches.get(name)
-        if batch is None or batch.count != count:
+        if batch is None or batch.capacity < count or batch.capacity > 4 * _capacity(count):
             self._hide(name, renderers)
-            batch = self._batches[name] = _Batch(count, starts.device)
-        if batch.classes is None or batch.publishes % _COLOR_REFRESH_INTERVAL == 0:
+            batch = self._batches[name] = _Batch(_capacity(count), starts.device)
+        per_segment = not isinstance(colors, (tuple, list)) and colors is not None
+        if (
+            batch.classes is None
+            or (per_segment and batch.classes_count != count)
+            or (per_segment and batch.publishes % _COLOR_REFRESH_INTERVAL == 0)
+        ):
             classes, batch.colors = color_classes(colors, count)
-            batch.classes = wp.array(
-                np.zeros(count, np.int32) if classes is None else classes, dtype=wp.int32, device=starts.device
-            )
+            padded = np.zeros(batch.capacity, np.int32)
+            if classes is not None:
+                padded[:count] = classes
+            batch.classes = wp.array(padded, dtype=wp.int32, device=starts.device)
+            batch.classes_count = count
             while len(batch.points) < len(batch.colors):
-                batch.points.append(wp.zeros(count * _VERTICES_PER_SEGMENT, dtype=wp.vec3, device=starts.device))
+                batch.points.append(
+                    wp.zeros(batch.capacity * _VERTICES_PER_SEGMENT, dtype=wp.vec3, device=starts.device)
+                )
         batch.publishes += 1
         shaft = max(0.5 * float(width), LINE_RADIUS) if arrow else LINE_RADIUS
         head_radius, head_length = (2.5 * shaft, 6.0 * shaft) if arrow else (0.0, 0.0)
@@ -194,11 +221,11 @@ class OverlayMeshPublisher:
             points = batch.points[index]
             wp.launch(
                 build_segment_meshes,
-                count,
-                [starts, ends, batch.classes, index, shaft, head_radius, head_length, points],
+                batch.capacity,
+                [starts, ends, batch.classes, index, count, shaft, head_radius, head_length, points],
                 device=starts.device,
             )
-            path = self._path(name, index, count)
+            path = self._path(name, index, batch.capacity)
             paths.append(path)
             for renderer in renderers:
                 renderer.log_mesh(
