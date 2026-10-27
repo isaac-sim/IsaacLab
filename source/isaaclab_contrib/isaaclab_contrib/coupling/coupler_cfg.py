@@ -21,7 +21,6 @@ from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
     from newton import CollisionPipeline
     from newton.solvers.experimental.coupled import ModelView
 
@@ -154,11 +153,16 @@ class CouplerCfg(NewtonSolverCfg):
     concrete subclass to configure the coupling interfaces.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupler:NewtonCouplerManager"
-    """Coupler implementation class."""
+    class_type: type | str = "{DIR}.coupler:CouplerSolver"
 
     entries: list[CouplerEntryCfg] = field(default_factory=list)
     """Ordered named sub-solver entries and their ownership selectors."""
+
+    outer_contact_entry: str | None = None
+    """Entry whose shape pairs the outer collision pipeline collides, or ``None`` for the whole model.
+
+    Restricting outer contacts to one entry lets another entry, e.g. a cable, run its own post-transfer pipeline.
+    """
 
 
 @configclass
