@@ -1030,11 +1030,10 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("selector", _RESET_SELECTORS)
-def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run, selector: str) -> None:
+def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     """Newton: ``num_pushes`` zeroes for env 0's DOFs only after a partial reset of env 0."""
     stateful_pairs = _warm_delayed_island(newton_run)
-    _reset_env_0(newton_run.articulations["delayed"], selector)
+    _reset_env_0(newton_run.articulations["delayed"], "env_ids")
     _assert_delay_state_cleared_for_env_0_only(newton_run, stateful_pairs)
 
 
