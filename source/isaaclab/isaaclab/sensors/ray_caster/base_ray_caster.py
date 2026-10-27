@@ -124,6 +124,11 @@ class BaseRayCaster(SensorBase):
             # Resample in a kernel from the shared per-environment random states with the ranges as launch
             # arguments, so the masked reset neither synchronizes nor allocates and can be captured.
             # A zero range draws zero, which clears drift that was sampled before it was disabled.
+            if WarpRng.state is None:
+                raise RuntimeError(
+                    "A masked ray-caster reset draws drift from WarpRng.state; call WarpRng.initialize(num_envs,"
+                    " device) first (the Warp environments do this at construction)."
+                )
             wp.launch(
                 ray_caster_kernels.resample_drift_masked_kernel,
                 dim=self._view_count,

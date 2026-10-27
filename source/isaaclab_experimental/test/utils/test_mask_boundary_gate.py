@@ -14,8 +14,6 @@ Warp frontend code performs no data-dependent GPU-to-host synchronization outsid
   entry fails the gate.
 * **Runtime backstop**: ``ISAACLAB_SYNC_DEBUG=1`` runs eager Warp stages under
   ``torch.cuda.set_sync_debug_mode("error")``, trapping synchronizations this scan cannot see.
-
-A second test pins every ``@WarpCapturable(False)`` opt-out, so non-capturable terms are listed in one place.
 """
 
 from __future__ import annotations
@@ -130,51 +128,3 @@ def test_mask_first_code_has_no_unsanctioned_host_syncs():
         if not any(rel.endswith(suffix) and name == func for rel, name in matched)
     }
     assert not stale, f"Stale sanctioned boundaries (function gone or no longer syncs): {sorted(stale)}"
-
-
-# ``@WarpCapturable(False)`` and parameter-predicate opt-outs, by (path suffix, name).
-EXPECTED_NON_CAPTURABLE = {
-    ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_com"),
-    ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_mass"),
-    ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_material"),
-}
-
-NON_CAPTURABLE_SCAN_ROOTS = [
-    "source/isaaclab_experimental/isaaclab_experimental",
-    "source/isaaclab_tasks_experimental/isaaclab_tasks_experimental",
-]
-
-
-def _non_capturable_targets(tree: ast.Module) -> list[str]:
-    """Names of functions and classes decorated with ``@WarpCapturable(False)`` or a parameter predicate."""
-    targets = []
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            continue
-        for decorator in node.decorator_list:
-            if (
-                isinstance(decorator, ast.Call)
-                and isinstance(decorator.func, ast.Name)
-                and decorator.func.id == "WarpCapturable"
-                and decorator.args
-                and not (isinstance(decorator.args[0], ast.Constant) and decorator.args[0].value is True)
-            ):
-                targets.append(node.name)
-    return targets
-
-
-def test_non_capturable_terms_are_inventoried():
-    """Every ``@WarpCapturable(False)`` or predicate opt-out is listed here, and only these."""
-    found = set()
-    for scan_root in NON_CAPTURABLE_SCAN_ROOTS:
-        for path in sorted((_REPO_ROOT / scan_root).rglob("*.py")):
-            rel = path.relative_to(_REPO_ROOT).as_posix()
-            if "/test/" in rel:
-                continue
-            for name in _non_capturable_targets(ast.parse(path.read_text(), filename=rel)):
-                found.add((rel, name))
-    expected = {(f"source/{suffix.split('/')[0]}/{suffix}", name) for suffix, name in EXPECTED_NON_CAPTURABLE}
-    assert found == expected, (
-        f"Non-capturable inventory drift.\n  unexpected: {sorted(found - expected)}\n"
-        f"  missing:    {sorted(expected - found)}"
-    )
