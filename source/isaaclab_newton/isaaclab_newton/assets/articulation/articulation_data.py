@@ -16,6 +16,7 @@ from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 from isaaclab.utils.warp.utils import capture_unsafe
 
@@ -992,7 +993,7 @@ class ArticulationData(BaseArticulationData):
         jacobian = self._body_link_jacobian_w_ta.warp
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
-            articulation_kernels.shift_jacobian_com_to_origin,
+            warp_math.shift_jacobian_reference,
             dim=jacobian.shape[:2] + (jacobian.shape[3],),
             inputs=[
                 link_pose_w,
@@ -1194,7 +1195,7 @@ class ArticulationData(BaseArticulationData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.root_heading_w,
+                warp_math.heading[1],
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
@@ -1218,9 +1219,9 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_link_lin_vel_w.warp],
                 outputs=[self._root_link_lin_vel_b.data],
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -1241,9 +1242,9 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_link_ang_vel_w.warp],
                 outputs=[self._root_link_ang_vel_b.data],
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -1264,9 +1265,9 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_com_lin_vel_w.warp],
                 outputs=[self._root_com_lin_vel_b.data],
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -1287,9 +1288,9 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_com_ang_vel_w.warp],
                 outputs=[self._root_com_ang_vel_b.data],
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
