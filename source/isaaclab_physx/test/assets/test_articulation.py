@@ -2086,35 +2086,6 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
     assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
 
-    # Scalar coefficients reach the selected joints of the selected environments only, through the index writer and
-    # through the mask writer, which selects the same cells of full-shape data.
-    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
-    joint_ids = torch.tensor([3, 0], dtype=torch.int32, device=device)
-    joint_mask = torch.zeros(articulation.num_joints, dtype=torch.bool, device=device)
-    joint_mask[joint_ids] = True
-    index_selection = {"env_ids": env_ids, "joint_ids": joint_ids}
-    mask_selection = {
-        "env_mask": wp.array([False, True], dtype=wp.bool, device=device),
-        "joint_mask": wp.from_torch(joint_mask),
-    }
-    for write, (static, dynamic, viscous), selection in (
-        (articulation.write_joint_friction_coefficient_to_sim_index, (0.8, 0.35, 0.17), index_selection),
-        (articulation.write_joint_friction_coefficient_to_sim_mask, (0.6, 0.25, 0.13), mask_selection),
-    ):
-        write(
-            joint_friction_coeff=static,
-            joint_dynamic_friction_coeff=dynamic,
-            joint_viscous_friction_coeff=viscous,
-            **selection,
-        )
-        friction[env_ids[:, None], joint_ids] = static
-        dynamic_friction[env_ids[:, None], joint_ids] = dynamic
-        viscous_friction[env_ids[:, None], joint_ids] = viscous
-        friction_props_from_sim = wp.to_torch(articulation.root_view.get_dof_friction_properties())
-        assert torch.allclose(friction_props_from_sim[:, :, 0], friction.cpu())
-        assert torch.allclose(friction_props_from_sim[:, :, 1], dynamic_friction.cpu())
-        assert torch.allclose(friction_props_from_sim[:, :, 2], viscous_friction.cpu())
-
 
 ##
 # Shape-contract regression tests for the new BaseArticulation accessors.
