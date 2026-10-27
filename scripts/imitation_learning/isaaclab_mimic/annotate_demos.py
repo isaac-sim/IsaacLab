@@ -283,15 +283,12 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
 
     # Only enables inputs if this script runs with a GUI
     if env.sim.has_gui:
-        from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+        from isaaclab.visualizers import add_key_callbacks
 
-        keyboard_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
-        keyboard_interface.add_callback("N", play_cb)
-        keyboard_interface.add_callback("B", pause_cb)
-        keyboard_interface.add_callback("Q", skip_episode_cb)
+        key_callbacks = {"N": play_cb, "B": pause_cb, "Q": skip_episode_cb}
         if not args_cli.auto:
-            keyboard_interface.add_callback("S", mark_subtask_cb)
-        keyboard_interface.reset()
+            key_callbacks["S"] = mark_subtask_cb
+        add_key_callbacks(env.unwrapped.sim.visualizers, key_callbacks)
 
     # simulate environment -- run everything in inference mode
     exported_episode_count = 0
