@@ -83,6 +83,16 @@ def physx_replicate(
     _replicate_instances(stage, copies, env_ids, **options)
 
 
+_EXCLUDED_PATHS: list[str] = []
+"""Paths hidden from the PhysX stage parse, returned by every replicator's ``attach_fn``.
+
+The Python binding of ``register_replicator`` (omni.physx 110.4) calls only the first ``attach_fn`` of a process
+and keeps the list it returned: later attaches read that list object again instead of calling their own
+``attach_fn``. Returning one list object and replacing its contents at each registration gives every attach its
+own exclusions. See https://github.com/NVIDIA-Omniverse/PhysX/issues/590.
+"""
+
+
 def _replicate_instances(
     stage: Usd.Stage,
     copies: Iterable[tuple[tuple[str, str], np.ndarray]],
@@ -104,21 +114,21 @@ def _replicate_instances(
         if not len(world_ids) or world_ids[0] == -1:
             continue
         worlds = tuple(map(int, env_ids[world_ids]))
-        if has_usd_only_sources:
-            native_paths.append(src)
-            native_paths.extend(destination.format(world) for world in worlds)
+        if len(worlds) == 1 and src == destination.format(worlds[0]):
+            # The replicator builds each source along with its copies, so a source that is its own only
+            # target would be built twice, and such self-copies have triggered intermittent heap corruption
+            # in multi-GPU runs. The source already exists in USD: leave it to the PhysX stage parse.
+            has_usd_only_sources = True
+            continue
+        native_paths.append(src)
+        native_paths.extend(destination.format(world) for world in worlds)
         if exclude_self_replication:
             matched = cloner.path.match(src, destination)
             if matched is not None and matched.instance.isdigit():
                 worlds = tuple(world for world in worlds if world != int(matched.instance)) or worlds
         physx_queue.append((src, destination, worlds))
 
-    # The replicator builds each source along with its copies, so a source that is its own only target
-    # would be built twice, and such self-copies have triggered intermittent heap corruption in multi-GPU
-    # runs. Every environment already exists in USD: let PhysX parse the stage instead.
-    if not physx_queue or any(
-        len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue
-    ):
+    if not physx_queue:
         return
 
     physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
@@ -135,8 +145,10 @@ def _replicate_instances(
         else list(dict.fromkeys((*[source for source, _, _ in physx_queue], *env_namespaces)))
     )
 
+    _EXCLUDED_PATHS[:] = excluded_paths
+
     def attach_fn(_stage_id: int):
-        return excluded_paths
+        return _EXCLUDED_PATHS
 
     def rename_fn(_replicate_path: str, i: int):
         return current_template.format(current_worlds[i])

@@ -224,10 +224,12 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
 
     This is the Lift scenario: multiple object types, each with a designated proto-env.
     With ``exclude_self_replication=True`` (default), each source's own environment is
-    removed from its world list.
+    removed from its world list. A self-only source is left out of the replication queue,
+    so PhysX parses it from the stage: ``attach_fn`` hides only the replicated paths.
 
     Sources and expected behaviour:
       env_0/Object → worlds [0, 2, 4]   → exclude 0 → replicate to [2, 4]  (2 worlds)
+      env_5/Object → worlds [5]          → self-only → parsed by PhysX      (not replicated)
       env_7/Object → worlds [7, 11]      → exclude 7 → replicate to [11]   (1 world)
     """
     from unittest.mock import patch
@@ -238,16 +240,17 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
-    mapping = np.zeros((2, num_envs), dtype=np.bool_)
+    mapping = np.zeros((3, num_envs), dtype=np.bool_)
     mapping[0, [0, 2, 4]] = True
-    mapping[1, [7, 11]] = True
+    mapping[1, [5]] = True
+    mapping[2, [7, 11]] = True
 
     mock_rep, replicate_calls, attach_excluded = _make_mock_physx_rep_detailed()
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         physx_replicate(
             stage,
-            sources=["/World/envs/env_0/Object", "/World/envs/env_7/Object"],
-            destinations=["/World/envs/env_{}/Object"] * 2,
+            sources=["/World/envs/env_0/Object", "/World/envs/env_5/Object", "/World/envs/env_7/Object"],
+            destinations=["/World/envs/env_{}/Object"] * 3,
             env_ids=np.arange(num_envs, dtype=np.int64),
             mapping=mapping,
         )
@@ -258,24 +261,25 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
     ]
     assert replicate_calls == expected, f"Expected {expected}, got {replicate_calls}."
 
-    # Sources and destinations are owned by native replication, not the initial stage import.
-    assert all(source in attach_excluded for source, _ in expected)
-    assert "/World/envs" in attach_excluded
+    # A self-only source is parsed by PhysX, so only the replicated sources and destinations are hidden from it.
+    assert attach_excluded == [f"/World/envs/env_{i}/Object" for i in (0, 2, 4, 7, 11)]
 
 
 @cuda_only
-def test_physx_replicate_self_only_source_gets_one_body(sim):
+@pytest.mark.parametrize("num_envs", [3, 5])
+def test_physx_replicate_self_only_source_gets_one_body(sim, num_envs):
     """A source whose only target is its own environment is simulated once.
 
-    Two variants in three environments, as the default ``sequential`` strategy assigns them, give
-    the layout ``[0, 1, 1]``: the cube exists only in ``env_0`` and the sphere is replicated from
-    ``env_1`` to ``env_2``. A hidden second cube in ``env_0`` would push the cube out of its pose.
+    The cube exists only in ``env_0`` and the sphere is replicated from ``env_1`` to the other
+    environments; in three environments, this is the default ``sequential`` layout of two variants.
+    A hidden second cube in ``env_0`` would push the cube out of its pose. The second case replicates
+    other paths in the same process, so PhysX must hide the paths of this registration, not those of
+    an earlier one.
     """
     from omni.physx import get_physx_statistics_interface
     from omni.physx.bindings._physx import PhysicsSceneStats
     from pxr import PhysicsSchemaTools
 
-    num_envs = 3
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(2.0 * i, 0.0, 0.0))
@@ -292,7 +296,7 @@ def test_physx_replicate_self_only_source_gets_one_body(sim):
 
     stage = sim_utils.get_current_stage()
     env_ids = np.arange(num_envs, dtype=np.int64)
-    mapping = np.array([[True, False, False], [False, True, True]])
+    mapping = np.array([[True] + [False] * (num_envs - 1), [False] + [True] * (num_envs - 1)])
     physx_replicate(stage, sources, destinations, env_ids, mapping)
     usd_replicate(stage, sources, destinations, env_ids, mapping)
     sim.reset()
