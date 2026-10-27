@@ -3163,8 +3163,12 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # the solver keeps its own copy of the tendon properties and only re-reads them when notified
-        self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
+        # the solver keeps its own copy of the tendon properties and only re-reads them when notified;
+        # a capture records the refresh, so every replay reaches the solver
+        if wp.get_device(self.device).is_capturing:
+            self._backend_manager.backend.solver.notify_model_changed(ModelFlags.TENDON_PROPERTIES)
+        else:
+            self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 
     def set_spatial_tendon_stiffness_index(
         self,

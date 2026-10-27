@@ -1696,6 +1696,28 @@ def test_hand_with_tendons_targets_only_given_envs_and_properties_reach_solver(s
     articulation.write_fixed_tendon_properties_to_sim_index()
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_fixed_tendon_mask_writer_reaches_solver_on_every_replay(device: str) -> None:
+    """Each replay of a CUDA graph holding the fixed-tendon mask writer refreshes the solver's tendon properties.
+
+    The solver keeps its own copy of them, so a refresh queued only while capturing would leave the physics on the
+    values of the first replay.
+    """
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
+        articulation = spawn_assets({"tendon": _island_cfgs()["tendon"]})["tendon"]
+        sim.reset()
+        stiffness = torch.zeros(articulation.num_instances, articulation.num_fixed_tendons, device=device)
+        with wp.ScopedCapture(device) as capture:
+            articulation.set_fixed_tendon_stiffness_mask(stiffness=stiffness)
+            articulation.write_fixed_tendon_properties_to_sim_mask()
+        solver_model = sim.backend_manager.backend.solver.mjw_model
+        for value in (12.0, 34.0):
+            stiffness.fill_(value)
+            wp.capture_launch(capture.graph)
+            sim.step()
+            np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), value)
+
+
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("island", ["fixed", "floating", "ordered"], ids=["fixed", "floating", "floating_reordered"])
 def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene, island: str) -> None:
