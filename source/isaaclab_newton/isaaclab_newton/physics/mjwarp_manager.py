@@ -113,12 +113,15 @@ class NewtonMJWarpManager(NewtonManager):
         solver substep warm-starts from the NaN — the world is then permanently
         dead.  See https://github.com/newton-physics/newton/issues/1266.
 
-        With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
-        and its reset path is not mask-aware — it clears the buffers for every
-        world.  Since this hook can fire with an all-``False`` mask (e.g. on
-        every forward boundary after a graph-captured write), the CPU path is
-        gated on at least one world actually being flagged so warm-starting is
-        not defeated on every step.
+        When state imports are sparse or disabled, also push the authored
+        joint state into MuJoCo for the flagged worlds. ``reset(flags=0)``
+        only clears history; otherwise the next substep can overwrite the
+        authored state before importing it.
+
+        With ``use_mujoco_cpu=True`` the solver owns a single ``MjData`` for
+        template world 0. Gate the CPU path on that world's mask entry so
+        other worlds' resets cannot clear its history or copy uninitialized
+        coordinate-conversion buffers into it.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
@@ -127,11 +130,14 @@ class NewtonMJWarpManager(NewtonManager):
         """
         if world_mask is None:
             return
-        if self.backend.solver.use_mujoco_cpu and not world_mask.numpy().any():
+        if self.backend.solver.use_mujoco_cpu and not world_mask.numpy()[0]:
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
         self.backend.solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
+        if self.backend.solver.update_data_interval != 1:
+            data = self.backend.solver.mj_data if self.backend.solver.use_mujoco_cpu else self.backend.solver.mjw_data
+            self.backend.solver._update_mjc_data(data, self.backend.model, self.backend.state_0, world_mask=world_mask)
 
     def _log_solver_debug(self) -> None:
         """Optionally log MuJoCo solver convergence at the end of step."""

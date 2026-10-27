@@ -1469,6 +1469,83 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
         ]
 
 
+@pytest.fixture
+def single_joint_world() -> ModelBuilder:
+    """Build an unactuated revolute joint with no gravity or damping."""
+    world = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    body = world.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+    joint = world.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+    world.add_articulation([joint])
+    return world
+
+
+@pytest.mark.parametrize("device, use_cuda_graph", [(device, device != "cpu") for device in test_devices()])
+@pytest.mark.parametrize("update_data_interval", [0, 1, 2], ids=["disabled", "every_step", "sparse"])
+def test_mjwarp_authored_reset_survives_sparse_state_import(
+    single_joint_world, device, use_cuda_graph, update_data_interval
+):
+    """Authored resets reach MuJoCo even when the next substep skips importing Newton state."""
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(update_data_interval=update_data_interval, njmax=5, nconmax=5),
+            num_substeps=1,
+            use_cuda_graph=use_cuda_graph,
+        ),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder.add_world(single_joint_world)
+        sim.reset()
+
+        # Warm up before the final graph capture so sparse imports start off cadence.
+        sim.step(render=False)
+        manager = sim.backend_manager
+        manager.activate_newton_actuator_path()
+        manager.set_decimation(1)
+        state = manager.backend.state_0
+
+        for call_forward, position, velocity in ((False, 0.25, 0.5), (True, -0.25, -0.5)):
+            state.joint_q.fill_(position)
+            state.joint_qd.fill_(velocity)
+            manager.invalidate_fk()
+            if call_forward:
+                sim.forward()
+            sim.step(render=False)
+
+            # The unactuated joint moves at constant velocity over one solver step.
+            expected_position = position + velocity * sim_cfg.dt
+            np.testing.assert_allclose(state.joint_q.numpy(), expected_position, atol=1e-6)
+            np.testing.assert_allclose(state.joint_qd.numpy(), velocity, atol=1e-6)
+
+
+@pytest.mark.parametrize("reset_world", [0, 1, 2], ids=["template_world", "other_world", "global_world"])
+def test_mujoco_cpu_authored_reset_only_updates_selected_template_world(single_joint_world, reset_world):
+    """Native MuJoCo's single MjData preserves history unless template world 0 is reset."""
+    builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    builder.add_world(single_joint_world)
+    builder.add_world(single_joint_world)
+    model = builder.finalize(device="cpu")
+    solver = SolverMuJoCo(model, use_mujoco_cpu=True, separate_worlds=True, update_data_interval=2)
+    state = model.state()
+    state.joint_q.assign(np.array([0.25, 0.5], dtype=np.float32))
+    state.joint_qd.assign(np.array([0.5, 1.0], dtype=np.float32))
+    solver.mj_data.qpos[:] = 1.25
+    solver.mj_data.qvel[:] = -0.75
+    solver.mj_data.qacc_warmstart[:] = 13.0
+    manager = NewtonMJWarpManager(NewtonCfg())
+    manager.backend = SimpleNamespace(model=model, state_0=state, solver=solver)
+    world_mask = wp.array(np.arange(model.world_count + 1) == reset_world, dtype=wp.bool, device="cpu")
+
+    manager._reset_solver_internals(world_mask)
+
+    np.testing.assert_allclose(solver.mj_data.qpos, 0.25 if reset_world == 0 else 1.25)
+    np.testing.assert_allclose(solver.mj_data.qvel, 0.5 if reset_world == 0 else -0.75)
+    np.testing.assert_allclose(solver.mj_data.qacc_warmstart, 0.0 if reset_world == 0 else 13.0)
+
+
 # ---------------------------------------------------------------------------
 # Regression: an env reset written through the data layer must land in the
 # manager's canonical _state_0 after an odd number of steps when CUDA graphs

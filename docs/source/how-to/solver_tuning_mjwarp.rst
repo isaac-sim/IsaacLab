@@ -152,6 +152,13 @@ reporting, and sensors are verified; a larger interval reduces synchronization
 work but can expose stale data. ``save_to_mjcf``, ``use_mujoco_cpu``, and
 ``disable_contacts`` are diagnostic tools, not production tuning targets.
 
+``update_data_interval`` counts solver substeps, with
+``decimation * num_substeps`` solver steps per control step. ``0`` disables
+periodic imports. State writes through Isaac Lab's asset APIs still synchronize
+flagged worlds at the next ``forward()`` or physics-step boundary, including
+environment resets. Raw Newton state writes must also flag the manager's reset
+masks through ``sim.backend_manager.invalidate_fk()``.
+
 The diagnose-first order is: validate the model and fixed reproduction; choose
 timestep and substeps; size capacities; validate convergence; tune contact
 behavior and the contact pipeline; then optimize measured costs.
