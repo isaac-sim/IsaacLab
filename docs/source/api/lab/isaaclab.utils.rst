@@ -278,6 +278,17 @@ Warp operations
    sample_particles_in_mesh
    sample_particles_in_cavity
 
+Warp device math
+^^^^^^^^^^^^^^^^
+
+``isaaclab.utils.warp.math`` provides device-callable functions and generated array kernels for
+quaternion, rigid-body, interval, and Jacobian math. Quaternions use ``xyzw`` order, and spatial
+vectors contain linear components before angular components. Tensor operations, broadcasting,
+and Torch autograd remain in ``isaaclab.utils.math``.
+
+.. automodule:: isaaclab.utils.warp.math
+   :members:
+
 Warp Fabric kernels
 ^^^^^^^^^^^^^^^^^^^
 

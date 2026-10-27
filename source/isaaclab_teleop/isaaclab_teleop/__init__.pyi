@@ -31,10 +31,20 @@ __all__ = [
     "create_isaac_teleop_device",
     "poll_control_events",
     "remove_camera_configs",
+    "se2_gamepad_teleop_cfg",
+    "se2_keyboard_teleop_cfg",
+    "se2_spacemouse_teleop_cfg",
+    "se3_gamepad_teleop_cfg",
+    "se3_keyboard_teleop_cfg",
+    "se3_spacemouse_teleop_cfg",
 ]
 
 from .camera_feed import XrCameraFeedSession
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID, ControlEvents, SupportsControlEvents, poll_control_events
+from .device_pipelines import (
+    se2_gamepad_teleop_cfg, se2_keyboard_teleop_cfg, se2_spacemouse_teleop_cfg,
+    se3_gamepad_teleop_cfg, se3_keyboard_teleop_cfg, se3_spacemouse_teleop_cfg,
+)
 from .haptic_feedback import (
     ControllerHapticFeedbackCfg,
     GloveHapticFeedbackCfg,

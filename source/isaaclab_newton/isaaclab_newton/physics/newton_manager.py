@@ -35,7 +35,6 @@ from newton import (
 )
 from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
-from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverMuJoCo
 from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
@@ -44,10 +43,9 @@ from pxr import Usd, UsdGeom
 
 import isaaclab.cloner as cloner
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
+from isaaclab.scene_data import SceneDataBackend, SceneDataProvider
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import checked_apply, to_dict
-from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
@@ -55,27 +53,22 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
-from isaaclab_newton.physics.newton_manager_cfg import (
-    NewtonBackendCfg,
-    NewtonBuilderCfg,
-    NewtonCfg,
-    NewtonShapeCfg,
-    NewtonSolverCfg,
-)
+from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
+from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
+from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
     VisualShapeColorWriter,
 )
 
+from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
+from .newton_scene_data import NewtonSceneDataBackend
 from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
-    from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
-
-    from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 
 _SENSORS_BY_STATE_ATTRIBUTE = {
@@ -96,10 +89,6 @@ def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | No
 
 
 logger = logging.getLogger(__name__)
-
-# Tagged union for entries in _cl_site_index_map.
-# _GlobalSite: (global_shape_idx, None)           — body_pattern was None
-# _LocalSite:  (None, [[env0_idx, ...], ...])     — per-world site indices
 
 
 @wp.kernel(enable_backward=False)
@@ -164,49 +153,6 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     if isinstance(cfg.physics_cfg, NewtonCfg):
         return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
     return ModelBuilder()
-
-
-class NewtonBackend:
-    """Own one finalized Newton model and its native state and control buffers."""
-
-    def __init__(self, cfg: NewtonBackendCfg):
-        builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
-        self.model = builder.finalize(device=cfg.device)
-        self.particle_ranges: dict[str, tuple[int, int]] = {}
-        self.deformable_ranges = {
-            label: (start, end - start, kind)
-            for kind, labels, starts, ends in (
-                ("surface", builder.surface_label, builder._surface_particle_start, builder._surface_particle_end),
-                ("volume", builder.volume_label, builder._volume_particle_start, builder._volume_particle_end),
-            )
-            for label, start, end in zip(labels, starts, ends, strict=True)
-        }
-        self.model.num_envs = self.model.world_count
-        simulation = isinstance(cfg.physics_cfg, NewtonCfg)
-        soft_contact = cfg.physics_cfg.soft_contact_cfg if simulation else None
-        if soft_contact is not None:
-            self.model.soft_contact_ke = float(soft_contact.soft_contact_ke)
-            self.model.soft_contact_kd = float(soft_contact.soft_contact_kd)
-            self.model.soft_contact_mu = float(soft_contact.soft_contact_mu)
-        self.state_0 = self.model.state()
-        self.state_1 = self.model.state() if simulation else None
-        self.control = self.model.control() if simulation else None
-        self.geometry_offsets = (
-            {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
-        )
-        self.bvh_refit = TimestampedBuffer()
-
-    def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
-        """Bind material writes to this resource's native shape-color buffer."""
-        return VisualMaterialWriter(self.model, batches)
-
-    def close(self) -> None:
-        """Drop native handles after consumers release their bindings."""
-        self.control = self.state_1 = self.state_0 = self.model = None
-        self.deformable_ranges.clear()
-        self.particle_ranges = {}
-        self.geometry_offsets = {}
-        self.bvh_refit = TimestampedBuffer()
 
 
 class NewtonQueries:
@@ -289,106 +235,6 @@ class NewtonQueries:
                 gc.collect()
 
 
-class NewtonSceneDataBackend(SceneDataBackend):
-    """Scene data backend that reads rigid body transforms from Newton's simulation state.
-
-    The backend reads ``body_q`` (an array of :class:`wp.transformf`) from
-    Newton's current state and exposes it as :class:`SceneDataFormat.Transform`.
-    Body paths come from the model's ``body_label`` attribute.
-    """
-
-    def __init__(self, manager: NewtonManager):
-        self._manager = manager
-        self._transforms = SceneDataFormat.Transform()
-        self.transforms_timestamp = 0
-        self.geometry_timestamp = 0
-        self._geometry_batches = []
-
-    def initialize_geometry(self) -> None:
-        """Bind imported geometry paths to native particle ranges and capsule endpoints."""
-        state = self._manager.get_state_0()
-        self._geometry_batches = [
-            (source, ranges)
-            for source, ranges in self._geometry_batches
-            if source._cls is not SceneDataFormat.CapsuleEndpoints
-        ]
-        endpoints, ranges = [], {}
-        offset = 0
-        for path, shapes in self._manager._cable_bindings.items():
-            ids = np.asarray(shapes, dtype=np.int32)
-            left = np.concatenate((ids[:1], ids))
-            right = np.concatenate((ids, ids[-1:]))
-            left_sign = np.ones(len(left), dtype=np.int32)
-            right_sign = -np.ones(len(right), dtype=np.int32)
-            left_sign[0], right_sign[-1] = -1, 1
-            endpoints.append(np.column_stack((left, left_sign, right, right_sign)))
-            ranges[path] = (offset, len(left))
-            offset += len(left)
-        if endpoints:
-            model = self.model
-            source = SceneDataFormat.CapsuleEndpoints()
-            source.transforms = state.body_q
-            source.shape_body = model.shape_body
-            source.shape_transform = model.shape_transform
-            source.shape_scale = model.shape_scale
-            source.endpoints = wp.array(np.concatenate(endpoints), dtype=wp.vec4i, device=model.device)
-            self._geometry_batches.append((source, ranges))
-
-    @property
-    def native_geometry_formats(self) -> tuple[type, ...]:
-        return (SceneDataFormat.Points, SceneDataFormat.WeightedPoints, SceneDataFormat.CapsuleEndpoints)
-
-    def get_geometry_batches(self, output_format=SceneDataFormat.Points):
-        """Publish native arrays; SDP derives cable endpoints and applies destination layouts."""
-        state = self.state
-        for source, _ in self._geometry_batches:
-            attribute = "transforms" if source._cls is SceneDataFormat.CapsuleEndpoints else "points"
-            data = state.particle_q if attribute == "points" else state.body_q
-            if getattr(source, attribute) is not data:
-                setattr(source, attribute, data)
-                self.geometry_timestamp += 1
-        return self._geometry_batches
-
-    @property
-    def transforms(self) -> SceneDataFormat.Transform:
-        """Publish the authoritative native pointer, including solver state-buffer swaps."""
-        transforms = self.state.body_q
-        if self._transforms.transforms is not transforms:
-            self._transforms.transforms = transforms
-            self.transforms_timestamp += 1
-        return self._transforms
-
-    @property
-    def transform_count(self) -> int:
-        """Return the number of rigid body transforms in the Newton sim."""
-        return self.model.body_count
-
-    @property
-    def transform_paths(self) -> list[str]:
-        """Return the prim paths for each rigid body transform."""
-        if self.model.body_label is not None:
-            return list(self.model.body_label)
-        return []
-
-    @property
-    def model(self) -> Model:
-        return self._manager.get_model()
-
-    @property
-    def state(self) -> State:
-        """Return native physics state without entering the rendering consumer path."""
-        manager = self._manager
-        if manager.transforms_may_change_on_graph_replay:
-            # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
-            self.transforms_timestamp += 1
-            self.geometry_timestamp += 1
-        # TODO: Remove this guard when the Newton manager redesign makes lazy state reads capture-safe.
-        # Recording a graph must leave pending FK/reset work for the next eager read.
-        if not wp.get_device(manager.get_device()).is_capturing:
-            manager.forward()
-        return manager.get_state_0()
-
-
 def _eval_fk_unbound(world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
     """Default :attr:`NewtonManager._eval_fk` value before a solver is initialized.
 
@@ -414,7 +260,7 @@ class NewtonManager(PhysicsManager):
 
     Manager for physics lifecycle, solvers, contacts, sensors, replication, and CUDA graphs; the
     simulation context owns one instance as :attr:`~isaaclab.sim.SimulationContext.backend_manager`.
-    Model, state, and control allocations belong to the registered native backend.
+    Everything bound to the finalized model belongs to the registered :class:`NewtonBackend`.
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
@@ -431,9 +277,20 @@ class NewtonManager(PhysicsManager):
 
     backend_name = "newton"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, cfg: NewtonCfg):
+        super().__init__(cfg)
+        self._cfg: NewtonCfg = cfg
+        self.builder: ModelBuilder | None = None
+        """Shared construction builder, acquired at :meth:`initialize` and kept across hard resets."""
+        self.backend: NewtonBackend | None = None
+        """Data bound to the finalized model; replaced on every hard reset."""
         self.clear()
+        self._scene_data_backend = NewtonSceneDataBackend(self)
+
+    @property
+    def shares_materials(self) -> bool:
+        """Whether contacts read one material table shared by all environments instead of per-shape values."""
+        return False
 
     @classmethod
     def provides_implicit_damping(cls) -> bool:
@@ -468,108 +325,7 @@ class NewtonManager(PhysicsManager):
         if not prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
             raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
 
-    _solver_dt: float = 1.0 / 200.0
-    _num_substeps: int = 1
-    _decimation: int = 1
-    _collision_decimation: int = 0
-    _deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
-    _num_envs: int | None = None
-    _supports_rigid_body_force_input: bool = False
-    """Whether the solver consumes applied rigid-body forces from :class:`State`."""
-
-    # Native ownership and physics orchestration
-    backend: NewtonBackend | None = None
-    """Borrowed native resource shared by physics and scene consumers; the simulation registry owns it."""
-    _solver: SolverBase | None = None
-    _use_single_state: bool | None = None
-    """Use only one state for both input and output for solver stepping. Requires solver support."""
-
-    # Physics settings
-    _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
-    _up_axis: str = "Z"
-
-    # Collision and contacts
-    _contacts: Contacts | None = None
-    _needs_collision_pipeline: bool = False
-    _collision_pipeline = None
-    _collision_cfg: NewtonCollisionPipelineCfg | None = None
-    _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
-    _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
-    _newton_imu_sensors: list = []  # List of NewtonSensorIMU
-    _pending_extended_state_attributes: set[str] = set()
-    _active_extended_state_attributes: set[str] = set()
-    _pending_extended_contact_attributes: set[str] = set()
-    _report_contacts: bool = False
-    _supports_contact_sensors: bool = True
-
-    # Per-world reset masks (allocated in start_simulation, consumed in step/forward).
-    # Newton reserves the final slot for global entities in world -1.
-    _world_reset_mask: wp.array | None = None  # (num_envs + 1,) wp.bool
-    _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
-    kinematics_dirty: bool = False
-    # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
-    _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
-    # Solver-specialized reset delegate. Like _eval_fk, this must dispatch correctly through the base manager.
-    _reset_solver_internals_delegate: Callable[[wp.array | None], None] = _reset_solver_internals_unbound
-
-    # Newton actuator adapter (owns actuators and double-buffered states)
-    _adapter: NewtonActuatorAdapter | None = None
-    # One-shot hooks invoked once the solver exists, before any graph capture.
-    _solver_init_callbacks: list[Callable[[], None]] = []
-    # In-graph hooks invoked before the actuator step, in registration order.
-    _pre_actuator_callbacks: list[Callable[[], None]] = []
-    # In-graph hooks invoked after the actuator step and before the solver
-    # substeps, in registration order. Multiple articulations register their
-    # implicit-DOF telemetry / FF-routing kernels here.
-    _post_actuator_callbacks: list[Callable[[], None]] = []
-    # In-graph hooks invoked immediately before every solver substep.
-    _state_force_callbacks: list[Callable[[State], None]] = []
-    # Body forces written to ``state_0`` before a step. The substep loop clears
-    # the input state's forces, so every substep re-applies this copy.
-    _staged_body_f: wp.array | None = None
-    # In-graph hooks invoked after the last solver substep and before sensors,
-    # in registration order. Articulations with non-identity ordering register
-    # their backend-to-user state republish kernels here so the reorders are
-    # recorded into every captured graph.
-    _post_step_callbacks: list[Callable[[], None]] = []
-
-    # CUDA graphing
-    _graph = None
-    _graph_capture_pending: bool = False
-
-    # Native scene-data publication.
-    transforms_may_change_on_graph_replay: bool = False
-    _cable_bindings: dict[str, list[int]] = {}
-
-    # Model changes (callbacks use unified system from PhysicsManager)
-    _model_changes: set[int] = set()
-    # Model changes the active solver does not apply, mapped to the reason; each is warned about once
-    _ignored_model_changes: dict[int, str] = {}
-    _warned_model_changes: set[int] = set()
-
-    # Scene data backend
-    _scene_data_backend: NewtonSceneDataBackend | None = None
-
     _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
-    _particle_ranges: dict[str, tuple[int, int]] = {}
-
-    # CL: Cloning / Replication logic
-    # TODO: These attributes support cloning-specific logic and should be moved into a cloner class
-    # Pending site requests from sensors.
-    # Key: (body_pattern, per_world, xform_floats), Value: (label, wp.transform)
-    # identical (body_pattern, per_world, transform) reuses the same site.
-    _cl_pending_sites: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
-
-    # Maps each site label to its resolved global or local site entry.
-    _GlobalSite = tuple[int, None]
-    _LocalSite = tuple[None, list[list[int]]]
-    _SiteEntry = _GlobalSite | _LocalSite
-    _cl_site_index_map: dict[str, _SiteEntry] = {}
-    _world_xforms: list[wp.transform] | None = None
-    # Per-source builders retained from replication, keyed by clone-plan source
-    # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
-    # model from these using the asset prototype's native source path.
-    _cl_protos: dict[str, ModelBuilder] = {}
 
     def initialize(self, sim_context: SimulationContext) -> None:
         """Initialize the manager with simulation context.
@@ -578,18 +334,12 @@ class NewtonManager(PhysicsManager):
             sim_context: Parent simulation context.
         """
         super().initialize(sim_context)
+        self.builder = sim_context.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg))
 
         # This context imports NewtonManager, so it can only be imported after this module initializes.
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
 
         self.clone_context_type = NewtonReplicateContext
-
-        # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
-        sim = self._sim
-        if sim is not None:
-            self._gravity_vector = sim.cfg.gravity  # type: ignore[union-attr]
-
-        self._scene_data_backend = NewtonSceneDataBackend(self)
 
     def reset(self, soft: bool = False) -> None:
         """Reset physics simulation.
@@ -613,32 +363,30 @@ class NewtonManager(PhysicsManager):
             soft: If True, skip full reinitialization.
         """
         if not soft:
-            if self.backend is not None:
-                self.dispatch_event(PhysicsEvent.STOP)
-                # Assets recreate these views and hooks on PHYSICS_READY for the new model.
-                self.views.clear()
-                self._pre_actuator_callbacks.clear()
-                self._post_actuator_callbacks.clear()
-                self._post_step_callbacks.clear()
-            # Release the cached collision pipeline, contacts and CUDA graph;
-            # they point at the old model's freed buffers (CUDA 700 on next step).
-            self._graph = None
-            self._graph_capture_pending = False
-            self._collision_pipeline = None
-            self._contacts = None
-            self._solver = None
-            self._eval_fk = _eval_fk_unbound
-            self._reset_solver_internals_delegate = _reset_solver_internals_unbound
-            self._adapter = None
-            # IMU and frame transform sensors add native sensors for the new model on PHYSICS_READY.
-            self._newton_imu_sensors.clear()
-            self._newton_frame_transform_sensors.clear()
-            if self.backend is not None:
-                SimulationContext.instance().close_backend(self.backend)
-                self.backend = None
-
+            self._close_backend()
             self.start_simulation()
             self.initialize_solver()
+
+    def _close_backend(self, *, dispatch_stop: bool = True) -> None:
+        """Stop consumers, drop their views and per-model hooks, and close the backend."""
+        backend = self.backend
+        if backend is not None:
+            if dispatch_stop:
+                self.dispatch_event(PhysicsEvent.STOP)
+            # Assets recreate these views and hooks on PHYSICS_READY for the new model.
+            self.views.clear()
+            self._pre_actuator_callbacks.clear()
+            self._post_actuator_callbacks.clear()
+            self._post_step_callbacks.clear()
+        # The CUDA graph points at the old model's freed buffers (CUDA 700 on the next step).
+        self._graph = None
+        self._graph_capture_pending = False
+        self._eval_fk = _eval_fk_unbound
+        self._reset_solver_internals_delegate = _reset_solver_internals_unbound
+        self._use_newton_actuators_active = False
+        if backend is not None:
+            self.backend = None
+            SimulationContext.instance().close_backend(backend)
 
     def _eval_fk_impl(self, world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
         """Update body states from joint coordinates.
@@ -661,23 +409,22 @@ class NewtonManager(PhysicsManager):
 
         Update body poses from joint coordinates via the solver-specialized FK delegate
         (:attr:`_eval_fk`, bound to the active subclass's :meth:`_eval_fk_impl` in
-        :meth:`initialize_solver`). Only the articulations flagged dirty in
-        :attr:`_fk_reset_mask` and :attr:`_world_reset_mask` (see :meth:`invalidate_fk`) are
+        :meth:`initialize_solver`). Only the articulations flagged dirty in the backend's
+        :attr:`~NewtonBackend.fk_mask` and :attr:`~NewtonBackend.world_mask` (see :meth:`invalidate_fk`) are
         updated. The masks are consumed (zeroed) afterwards so the next :meth:`step` does not
         redundantly re-solve them.
 
         Asset and scene-data reads share the same pending work. The bound delegate dispatches
         calls on ``NewtonManager`` to the active solver's implementation.
         """
-        if not (self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
+        backend = self.backend
+        if backend is None or not (backend.kinematics_dirty or self.transforms_may_change_on_graph_replay):
             return
-        self._reset_solver_internals_delegate(self._world_reset_mask)
-        self._eval_fk(self._world_reset_mask, self._fk_reset_mask)
-        if self._fk_reset_mask is not None:
-            self._fk_reset_mask.zero_()
-        if self._world_reset_mask is not None:
-            self._world_reset_mask.zero_()
-        self.kinematics_dirty = False
+        self._reset_solver_internals_delegate(backend.world_mask)
+        self._eval_fk(backend.world_mask, backend.fk_mask)
+        backend.fk_mask.zero_()
+        backend.world_mask.zero_()
+        backend.kinematics_dirty = False
 
     def video_capture_backend(self) -> str:
         """Newton GL headless perspective video capture."""
@@ -685,9 +432,8 @@ class NewtonManager(PhysicsManager):
 
     def _mark_transforms_changed(self) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
-        if self._scene_data_backend is not None:
-            self._scene_data_backend.transforms_timestamp += 1
-            self._scene_data_backend.geometry_timestamp += 1
+        self._scene_data_backend.transforms_timestamp += 1
+        self._scene_data_backend.geometry_timestamp += 1
         device = self._device
         if device is not None:
             device = wp.get_device(device)
@@ -729,6 +475,7 @@ class NewtonManager(PhysicsManager):
         sim = self._sim
         if sim is None or not sim.is_playing():
             return
+        backend = self.backend
 
         # Notify solver of model changes
         if self._model_changes:
@@ -740,7 +487,7 @@ class NewtonManager(PhysicsManager):
                         self._warned_model_changes.add(change)
                     flags |= change
                 # Refresh shared solver constants once after applying all pending property changes.
-                self._solver.notify_model_changed(flags)
+                backend.solver.notify_model_changed(flags)
                 self._model_changes = set()
 
         # Reset-authored state and persistent solver resources must be ready before capture.
@@ -748,7 +495,7 @@ class NewtonManager(PhysicsManager):
         self.forward()
         cfg = self._cfg
         device = self._device
-        physics_dt = self._solver_dt * self._num_substeps
+        physics_dt = backend.dt
         use_graph = cfg is not None and cfg.use_cuda_graph and self._graph is not None and "cuda" in device  # type: ignore[union-attr]
 
         if self._is_all_graphable():
@@ -763,8 +510,8 @@ class NewtonManager(PhysicsManager):
             # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
             for cb in self._pre_actuator_callbacks:
                 cb()
-            if self._adapter is not None:
-                self._adapter.step(self.backend.state_0, self.backend.control, physics_dt)
+            if backend.actuators is not None:
+                backend.actuators.step(backend.state_0, backend.control, physics_dt)
             for cb in self._post_actuator_callbacks:
                 cb()
 
@@ -793,6 +540,7 @@ class NewtonManager(PhysicsManager):
         """Clean up Newton physics resources."""
         super().close()
         self.clear()
+        self.builder = None
 
     def get_scene_data_backend(self) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
@@ -819,61 +567,42 @@ class NewtonManager(PhysicsManager):
 
     def clear(self):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
-        self._num_envs = None
-        self._solver = None
+        self._close_backend(dispatch_stop=False)
         self._use_single_state = None
         self._supports_rigid_body_force_input = False
-        self._contacts = None
         self._needs_collision_pipeline = False
         self._ignored_model_changes = {}
         self._warned_model_changes = set()
         self._deterministic_mode = wp.DeterministicMode.NOT_GUARANTEED
-        self._eval_fk = _eval_fk_unbound
-        self._reset_solver_internals_delegate = _reset_solver_internals_unbound
-        self._collision_pipeline = None
         self._collision_cfg = None
-        self._newton_contact_sensors = {}
-        self._newton_frame_transform_sensors = []
-        self._newton_imu_sensors = []
-        self._report_contacts = False
         self._supports_contact_sensors = True
-        self._adapter = None
-        self._solver_init_callbacks = []
-        self._pre_actuator_callbacks = []
-        self._post_actuator_callbacks = []
-        self._state_force_callbacks = []
-        self._staged_body_f = None
-        self._post_step_callbacks = []
+        self._solver_init_callbacks: list[Callable[[], None]] = []
+        # In-graph step hooks, in registration order: before and after the actuator step, before every solver
+        # substep, and after the last substep.
+        self._pre_actuator_callbacks: list[Callable[[], None]] = []
+        self._post_actuator_callbacks: list[Callable[[], None]] = []
+        self._state_force_callbacks: list[Callable[[State], None]] = []
+        self._post_step_callbacks: list[Callable[[], None]] = []
+        # Substeps clear the input state's forces, so each one re-applies this copy of the staged body forces.
+        self._staged_body_f: wp.array | None = None
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
         # check, this gates whether the decimation loop can be captured into
         # a CUDA graph (see :meth:`_is_all_graphable`).
         self._use_newton_actuators_active = False
         self._decimation = 1
-        # Per-world reset masks
-        self._world_reset_mask = None
-        self._fk_reset_mask = None
-        self.kinematics_dirty = False
         self._graph = None
         self._graph_capture_pending = False
         self.transforms_may_change_on_graph_replay = False
-        self._cable_bindings = {}
-        self._particle_ranges = {}
-        self._up_axis = "Z"
-        self._model_changes = set()
-        self._scene_data_backend = None
-        self._cl_pending_sites = {}
-        self._cl_site_index_map = {}
-        self._world_xforms = None
-        self._cl_protos = {}
-        self._pending_extended_state_attributes = set()
-        self._active_extended_state_attributes = set()
-        self._pending_extended_contact_attributes = set()
+        self._model_changes: set[int] = set()
+        # Site requests and replication outputs survive hard resets.
+        # (body_pattern, per_world, xform floats) -> (label, transform)
+        self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
+        self._site_index_map: dict[str, SiteEntry] = {}
+        self._clone: NewtonCloneRecord | None = None
+        self._active_extended_state_attributes: set[str] = set()
         self.views.clear()
         self._solver_specific_clear()
-        if self.backend is not None:
-            SimulationContext.instance().close_backend(self.backend)
-            self.backend = None
 
     @classmethod
     def create_builder(
@@ -887,8 +616,7 @@ class NewtonManager(PhysicsManager):
         rough-terrain margin/gap still apply during early construction.
 
         Args:
-            up_axis: Override for the up-axis. Defaults to ``None``, which uses
-                the manager's ``_up_axis``.
+            up_axis: Override for the up-axis. Defaults to ``"Z"``.
             physics_cfg: Explicit builder settings; None uses the active physics configuration.
             **kwargs: Forwarded to :class:`ModelBuilder`.
 
@@ -903,7 +631,7 @@ class NewtonManager(PhysicsManager):
             physics_cfg = sim.cfg.physics if sim is not None else None
         cfg = physics_cfg
 
-        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder = ModelBuilder(up_axis=up_axis or "Z", **kwargs)
         builder.default_bvh_cfg = ModelBuilder.BvhConfig(
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
@@ -911,14 +639,14 @@ class NewtonManager(PhysicsManager):
             shape_flags=ShapeFlags.VISIBLE,
         )
 
-        cls._register_builder_attributes(builder)
+        cls._register_builder_attributes(builder, cfg.solver_cfg if isinstance(cfg, NewtonCfg) else None)
         shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
         checked_apply(shape_cfg, builder.default_shape_cfg)
         return builder
 
     @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Register custom attributes required by the active solver."""
+    def _register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: NewtonSolverCfg | None) -> None:
+        """Register custom attributes required by the solver configured by ``solver_cfg``."""
         for solver_cls in cls._builder_attribute_solvers:
             solver_cls.register_custom_attributes(builder)
 
@@ -936,129 +664,113 @@ class NewtonManager(PhysicsManager):
         The default implementation is a no-op.
         """
 
-    def cl_register_site(self, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
-        """Register a site request for injection into prototypes before replication.
+    def register_site(self, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
+        """Request a site for injection into prototypes before replication.
 
-        Sensors call this during ``__init__``. Sites are injected into prototype
-        builders by :meth:`_cl_inject_sites` (called from ``newton_replicate``)
-        before ``add_builder``, so they replicate correctly per-world.
-
-        Identical ``(body_pattern, per_world, transform)`` registrations share sites.
-
-        The *body_pattern* is matched against prototype-local body labels
-        (e.g. ``"Robot/link.*"``) when replication is active, or against the
-        flat builder's body labels in the fallback path. Wildcard patterns
-        that match multiple bodies create one site per matched body.
+        Sensors call this during ``__init__``. Identical ``(body_pattern, per_world, transform)`` requests share a site,
+        and requests persist until :meth:`close`, so sites survive hard resets without being requested again.
+        The pattern matches prototype-local body labels (e.g. ``"Robot/finger.*"``) during replication, and wildcard
+        patterns create one site per matched body.
 
         Args:
-            body_pattern: Regex pattern matched against body labels in the
-                prototype builder (e.g. ``"Robot/link0"`` or ``"Robot/finger.*"``
-                for multi-body wildcards), or ``None`` for global sites
-                (world-origin reference, etc.).
-            xform: Site transform relative to body.
-            per_world: When ``True``, ``body_pattern`` must be ``None`` and one
-                bodyless site is created in each cloned world's frame.
+            body_pattern: Regex matched against body labels, or ``None`` for a global site.
+            xform: Site transform relative to the body.
+            per_world: Create one bodyless site in each cloned world's frame. Requires ``body_pattern=None``.
 
         Returns:
-            Assigned site label suffix.
+            The assigned site label.
         """
         if per_world and body_pattern is not None:
             raise ValueError("per_world site registration requires body_pattern=None.")
-        xform_key = tuple(xform)
-        key = (body_pattern, per_world, xform_key)
-        if key in self._cl_pending_sites:
-            return self._cl_pending_sites[key][0]
-        label = f"ft_{len(self._cl_pending_sites)}"
-        self._cl_pending_sites[key] = (label, xform)
-        return label
+        requests = self._site_requests
+        key = (body_pattern, per_world, tuple(xform))
+        if key not in requests:
+            requests[key] = (f"ft_{len(requests)}", xform)
+        return requests[key][0]
+
+    def inject_sites(
+        self, main_builder: ModelBuilder, source_builders: dict[str, ModelBuilder]
+    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
+        """Add unresolved sites to source builders, or to the main builder for global and shared-asset sites.
+
+        Args:
+            main_builder: Top-level builder that receives global sites.
+            source_builders: Source builders by source path.
+
+        Returns:
+            ``(global_site_indices, source_site_indices, env_root_sites)``: global site shape indices by label,
+            builder-local site indices by ``id(builder)`` and label, and world-root site transforms by label.
+        """
+        global_sites: dict[str, int] = {}
+        source_sites: dict[int, dict[str, list[int]]] = {}
+        root_sites: dict[str, wp.transform] = {}
+        for (body_pattern, per_world, _), (label, xform) in self._site_requests.items():
+            if label in self._site_index_map:
+                continue
+            if per_world:
+                root_sites[label] = xform
+                continue
+            if body_pattern is None:
+                global_sites[label] = main_builder.add_site(body=-1, xform=xform, label=label)
+                continue
+            matched_any = False
+            for builder in (*source_builders.values(), main_builder):
+                if builder is main_builder and matched_any:
+                    break
+                indices, names = resolve_matching_names(body_pattern, builder.body_label, raise_when_no_match=False)
+                if not indices:
+                    continue
+                matched_any = True
+                sites = [
+                    builder.add_site(body=body, xform=xform, label=f"{name}/{label}")
+                    for body, name in zip(indices, names)
+                ]
+                source_sites.setdefault(id(builder), {})[label] = sites
+            if not matched_any:
+                raise ValueError(f"Site '{label}' with body_pattern '{body_pattern}' matched no builder bodies.")
+        return global_sites, source_sites, root_sites
+
+    def record_clone(self, record: NewtonCloneRecord, site_index_map: dict[str, SiteEntry]) -> None:
+        """Record native replication outputs for model finalization and consumers.
+
+        Args:
+            record: Replication outputs.
+            site_index_map: Sites resolved during replication, by label.
+        """
+        self._clone = record
+        self._site_index_map.update(site_index_map)
+
+    def get_site_index_map(self) -> dict[str, SiteEntry]:
+        """Return resolved sites by label."""
+        return self._site_index_map
+
+    def get_world_xforms(self) -> list[wp.transform] | None:
+        """Return the root transform of each cloned world, or ``None`` without replication."""
+        clone = self._clone
+        return None if clone is None else clone.world_xforms
+
+    def get_clone_source_builders(self) -> dict[str, ModelBuilder]:
+        """Return per-source builders retained from replication, keyed by clone-plan source path."""
+        clone = self._clone
+        return {} if clone is None else clone.source_builders
 
     def request_extended_state_attribute(self, attr: str) -> None:
-        """Request an extended state attribute (e.g. ``"body_qdd"``).
-
-        Sensors call this during ``__init__``, before model finalization.
-        Attributes are forwarded to the builder in :meth:`start_simulation`
-        so that subsequent ``model.state()`` calls allocate them.
+        """Request an extended state attribute (e.g. ``"body_qdd"``) from the builder before finalization.
 
         Args:
             attr: State attribute name (must be in ``State.EXTENDED_ATTRIBUTES``).
         """
-        self._pending_extended_state_attributes.add(attr)
+        self.builder.request_state_attributes(attr)
+        # initialize_solver() checks which sensors depend on state that MuJoCo's sensor stage fills.
+        self._active_extended_state_attributes.add(attr)
 
     def request_extended_contact_attribute(self, attr: str) -> None:
-        """Request an extended contact attribute (e.g. ``"force"``).
-
-        Sensors call this during ``__init__``, before model finalization.
-        Attributes are forwarded to the model in :meth:`start_simulation`
-        so that subsequent ``Contacts`` creation includes them.
+        """Request an extended contact attribute (e.g. ``"force"``) from the builder before finalization.
 
         Args:
             attr: Contact attribute name.
         """
-        self._pending_extended_contact_attributes.add(attr)
-
-    def _cl_inject_sites(
-        self,
-        main_builder: ModelBuilder,
-        source_builders: dict[str, ModelBuilder],
-    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
-        """Inject registered sites into source builders or an explicitly supplied main builder.
-
-        Body sites are matched against source builders, then the main builder containing
-        shared assets. Bodyless global sites are added to *main_builder* with ``body=-1``.
-
-        Returns builder-local shape indices so that ``newton_replicate`` can
-        compute final indices during replication without a second pattern match.
-
-        Pending requests are cleared after processing.
-
-        Args:
-            main_builder: Top-level builder that receives global sites.
-            source_builders: ``{source_path: ModelBuilder}`` source builders.
-
-        Returns:
-            Tuple of ``(global_site_indices, source_site_indices, env_root_sites)`` where
-            *global_site_indices* maps ``{label: main_builder_shape_idx}``,
-            *source_site_indices* maps ``{id(builder): {label: [builder_shape_idx, ...]}}``,
-            and *env_root_sites* maps ``{label: env_root_relative_transform}``.
-        """
-        global_site_indices: dict[str, int] = {}
-        source_site_indices: dict[int, dict[str, list[int]]] = {}
-
-        env_root_sites: dict[str, wp.transform] = {}
-
-        for (body_pattern, per_world, _xform_key), (label, xform) in self._cl_pending_sites.items():
-            if per_world:
-                env_root_sites[label] = xform
-                continue
-            if body_pattern is None:
-                site_idx = main_builder.add_site(body=-1, xform=xform, label=label)
-                global_site_indices[label] = site_idx
-                continue
-
-            any_matched = False
-            for source_builder in (*source_builders.values(), main_builder):
-                if source_builder is main_builder and any_matched:
-                    break
-                matched_indices, matched_names = resolve_matching_names(
-                    body_pattern, source_builder.body_label, raise_when_no_match=False
-                )
-                if not matched_indices:  # Pattern has no matches in this source builder
-                    continue
-
-                any_matched = True
-                site_indices: list[int] = []
-                for body_idx, body_name in zip(matched_indices, matched_names):
-                    site_label = f"{body_name}/{label}"
-                    source_site_idx = source_builder.add_site(body=body_idx, xform=xform, label=site_label)
-                    site_indices.append(source_site_idx)
-                    logger.debug(f"Injected site '{site_label}' into builder")
-                source_site_indices.setdefault(id(source_builder), {})[label] = site_indices
-
-            if not any_matched:
-                raise ValueError(f"Site '{label}' with body_pattern '{body_pattern}' matched no builder bodies.")
-
-        self._cl_pending_sites.clear()
-        return global_site_indices, source_site_indices, env_root_sites
+        self.builder.request_contact_attributes(attr)
 
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver."""
@@ -1087,16 +799,17 @@ class NewtonManager(PhysicsManager):
         """
         self._mark_transforms_changed()
 
-        if self._world_reset_mask is None or self._fk_reset_mask is None:
+        backend = self.backend
+        if backend is None:
             return
-        self.kinematics_dirty = True
+        backend.kinematics_dirty = True
 
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
                 _or_reset_masks_from_mask,
                 dim=articulation_ids.shape,
                 inputs=[env_mask, articulation_ids],
-                outputs=[self._world_reset_mask, self._fk_reset_mask],
+                outputs=[backend.world_mask, backend.fk_mask],
                 device=self._device,
             )
         elif articulation_ids is not None and env_ids is not None:
@@ -1104,13 +817,13 @@ class NewtonManager(PhysicsManager):
                 _scatter_reset_masks_from_ids_kernel(env_ids),
                 dim=(env_ids.shape[0], articulation_ids.shape[1]),
                 inputs=[env_ids, articulation_ids],
-                outputs=[self._world_reset_mask, self._fk_reset_mask],
+                outputs=[backend.world_mask, backend.fk_mask],
                 device=self._device,
             )
         else:
             # Fallback: no topology info — mark everything dirty
-            self._world_reset_mask[: self.backend.model.world_count].fill_(True)
-            self._fk_reset_mask.fill_(True)
+            backend.world_mask[: backend.model.world_count].fill_(True)
+            backend.fk_mask.fill_(True)
 
     def invalidate_body_state(
         self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
@@ -1122,15 +835,16 @@ class NewtonManager(PhysicsManager):
             env_mask: Boolean mask of dirtied environments. Used by mask write methods.
         """
         self._mark_transforms_changed()
-        if self._world_reset_mask is None:
+        backend = self.backend
+        if backend is None:
             return
-        self.kinematics_dirty = True
+        backend.kinematics_dirty = True
         if env_mask is not None:
             wp.launch(
                 _or_world_reset_mask_from_mask,
                 dim=env_mask.shape[0],
                 inputs=[env_mask],
-                outputs=[self._world_reset_mask],
+                outputs=[backend.world_mask],
                 device=self._device,
             )
         elif env_ids is not None:
@@ -1138,11 +852,11 @@ class NewtonManager(PhysicsManager):
                 _scatter_world_reset_mask_from_ids,
                 dim=env_ids.shape[0],
                 inputs=[env_ids],
-                outputs=[self._world_reset_mask],
+                outputs=[backend.world_mask],
                 device=self._device,
             )
         else:
-            self._world_reset_mask[: self.backend.model.world_count].fill_(True)
+            backend.world_mask[: backend.model.world_count].fill_(True)
 
     def _drain_stale_cuda_error(self) -> None:
         """Clear a stale CUDA error latched on the device before (re)initialization.
@@ -1203,37 +917,25 @@ class NewtonManager(PhysicsManager):
         Note: Collision pipeline is initialized later in initialize_solver() after
         we determine whether the solver needs external collision detection.
         """
-        sim = SimulationContext.instance()
-        cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
+        sim = self._sim
+        builder = self.builder
         self._drain_stale_cuda_error()
 
         logger.info("Dispatching MODEL_INIT callbacks")
         self.dispatch_event(PhysicsEvent.MODEL_INIT)
 
-        # Explicit builders and MODEL_INIT callbacks use the same site import as clone prototypes.
-        if self._cl_pending_sites:
-            global_sites, body_sites, world_sites = self._cl_inject_sites(builder, {})
-            self._cl_site_index_map.update((label, (index, None)) for label, index in global_sites.items())
-            self._cl_site_index_map.update(
-                (label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items()
-            )
-            for label, xform in world_sites.items():
-                index = builder.add_site(body=-1, xform=xform, label=label)
-                self._cl_site_index_map[label] = (None, [[index]])
+        # The builder survives hard resets, so sites already added to it are skipped.
+        global_sites, body_sites, root_sites = self.inject_sites(builder, {})
+        site_map = self._site_index_map
+        site_map.update((label, (index, None)) for label, index in global_sites.items())
+        site_map.update((label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items())
+        for label, xform in root_sites.items():
+            site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
 
         device = self._device
         logger.info(f"Finalizing model on device: {device}")
-        builder.up_axis = Axis.from_string(self._up_axis)
-        # Forward pending extended attribute requests to builder and clear them. The requests are
-        # retained because initialize_solver() runs afterwards and must know which sensors depend
-        # on state that MuJoCo's sensor stage fills.
-        if self._pending_extended_state_attributes:
-            builder.request_state_attributes(*self._pending_extended_state_attributes)
-            self._active_extended_state_attributes |= self._pending_extended_state_attributes
-            self._pending_extended_state_attributes = set()
+        builder.up_axis = Axis.Z
         self._prepare_builder_for_finalize(builder)
-        builder.request_contact_attributes(*sorted(self._pending_extended_contact_attributes))
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",
@@ -1241,30 +943,16 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=device,
         ):
-            self.backend = sim.get_or_create_backend(cfg)
-            self.backend.particle_ranges = self._particle_ranges
-            self.backend.model.set_gravity(self._gravity_vector)
-            if self._num_envs is not None:
-                self.backend.model.num_envs = self._num_envs
-            self._num_envs = self.backend.model.num_envs
-        self._pending_extended_contact_attributes = set()
-        # The initial body-state update from joint coordinates is deferred to the tail of
-        # initialize_solver(), where it runs through the solver-specialized FK delegate after the solver is initialized.
+            cfg = NewtonBackendCfg(physics_cfg=self._cfg, device=sim.device)
+            self.backend = sim.get_or_create_backend(cfg, dt=self.get_physics_dt())
+            self.backend.model.set_gravity(sim.cfg.gravity)
 
-        # The single global actuator adapter is built lazily on the first
-        # call to ``activate_newton_actuator_path`` from any Newton-fast-path
-        # articulation after this point. Assign through the explicit base
-        # class so external readers (which import ``NewtonManager`` directly)
-        # observe the canonical state regardless of which subclass is active.
-        self._adapter = None
-        self._use_newton_actuators_active = False
-
-        # Newton's final reset-mask slot selects global entities in world -1.
-        # Isaac Lab resets local environments only, so that slot remains false.
-        self._world_reset_mask = wp.zeros(self.backend.model.world_count + 1, dtype=wp.bool, device=device)
-        self._fk_reset_mask = wp.zeros(self.backend.model.articulation_count, dtype=wp.bool, device=device)
-
-        self._scene_data_backend.initialize_geometry()
+        clone = self._clone
+        if clone is not None:
+            self.backend.particle_ranges = clone.particle_ranges
+        self._scene_data_backend.initialize_geometry(
+            [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
+        )
         logger.info("Dispatching PHYSICS_READY callbacks")
         self.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
@@ -1359,37 +1047,38 @@ class NewtonManager(PhysicsManager):
         """
         if not self._needs_collision_pipeline:
             return
+        backend = self.backend
         pipeline_args = {"broad_phase": "explicit"}
         if self._collision_cfg is not None:
             pipeline_args = self._collision_cfg.to_pipeline_args()
         pipeline_args["deterministic"] = self._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
-        if self._collision_pipeline is None:
-            self._collision_pipeline = CollisionPipeline(self.backend.model, **pipeline_args)
-        if self._contacts is None:
-            self._contacts = self._collision_pipeline.contacts()
+        if backend.collision_pipeline is None:
+            backend.collision_pipeline = CollisionPipeline(backend.model, **pipeline_args)
+        if backend.contacts is None:
+            backend.contacts = backend.collision_pipeline.contacts()
             # Grow the collision-pipeline contact buffer to the solver's max when the
             # solver (e.g. MuJoCo/mujoco_warp) requires more contacts than the pipeline
             # auto-estimate. Without this, the RSL-RL sensor path (use_mujoco_contacts=
-            # False) sizes _contacts from the pipeline alone and solver.update_contacts()
+            # False) sizes contacts from the pipeline alone and solver.update_contacts()
             # raises when naconmax (nconmax * num_envs) exceeds rigid_contact_max.
             # Mirrors the mjwarp_manager.py override for the use_mujoco_contacts=True path.
-            _solver = self._solver
+            _solver = backend.solver
             if _solver is not None and hasattr(_solver, "get_max_contact_count"):
                 _need = _solver.get_max_contact_count()
-                if _need > self._contacts.rigid_contact_max:
+                if _need > backend.contacts.rigid_contact_max:
                     if self._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
                         # In deterministic mode, CollisionPipeline sizes _sort_key_array from rigid_contact_max at
                         # construction. Rebuild so the sort and contact buffers retain matching capacity; replacing
                         # Contacts alone would leave the sorting buffer undersized.
                         pipeline_args["rigid_contact_max"] = _need
-                        self._collision_pipeline = CollisionPipeline(self.backend.model, **pipeline_args)
-                        self._contacts = self._collision_pipeline.contacts()
+                        backend.collision_pipeline = CollisionPipeline(backend.model, **pipeline_args)
+                        backend.contacts = backend.collision_pipeline.contacts()
                     else:
-                        self._contacts = Contacts(
+                        backend.contacts = Contacts(
                             rigid_contact_max=_need,
                             soft_contact_max=0,
                             device=self._device,
-                            requested_attributes=self.backend.model.get_requested_contact_attributes(),
+                            requested_attributes=backend.model.get_requested_contact_attributes(),
                         )
 
     # ----- Solver construction (subclass contract) ------------------------
@@ -1409,9 +1098,9 @@ class NewtonManager(PhysicsManager):
     def _build_solver(self, model: Model, solver_cfg) -> None:
         """Construct the solver this manager owns and populate its solver slots.
 
-        Subclasses must populate the canonical :class:`NewtonManager` slots:
+        Subclasses must populate the canonical slots:
 
-        * :attr:`NewtonManager._solver` — the constructed :class:`SolverBase`
+        * :attr:`NewtonBackend.solver` — the constructed :class:`SolverBase`
           instance.
         * :attr:`NewtonManager._use_single_state` — ``True`` if the solver
           steps in-place on a single :class:`State` (e.g. MuJoCo); ``False``
@@ -1537,10 +1226,10 @@ class NewtonManager(PhysicsManager):
     ) -> None:
         """Run one solver substep.
 
-        Default invokes :attr:`_solver` once.  Subclasses can override to
+        Default invokes the backend's solver once.  Subclasses can override to
         batch multiple solvers within a single substep.
         """
-        self._solver.step(state_0, state_1, control, contacts, substep_dt)
+        self.backend.solver.step(state_0, state_1, control, contacts, substep_dt)
 
     def _solver_specific_clear(self) -> None:
         """Solver-specific cleanup hook called from :meth:`clear`.
@@ -1578,7 +1267,7 @@ class NewtonManager(PhysicsManager):
         """
         if world_mask is None:
             return
-        self._solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
+        self.backend.solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
 
     # ----- Lifecycle orchestration ----------------------------------------
 
@@ -1592,6 +1281,7 @@ class NewtonManager(PhysicsManager):
         cfg = self._cfg
         if cfg is None:
             return
+        backend = self.backend
 
         with Timer(
             name="newton_initialize_solver",
@@ -1600,24 +1290,21 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            self._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
-            self._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
             deterministic_mode = self._apply_deterministic_request(cfg)  # type: ignore[arg-type]
             self._validate_deterministic_solver_cfg(cfg.solver_cfg, deterministic_mode)  # type: ignore[union-attr]
             self._deterministic_mode = deterministic_mode
-            self._solver_dt = self.get_physics_dt() / self._num_substeps
             self._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
 
-            self._build_solver(self.backend.model, cfg.solver_cfg)  # type: ignore[union-attr]
-            if self._solver is None:
+            self._build_solver(backend.model, cfg.solver_cfg)  # type: ignore[union-attr]
+            if backend.solver is None:
                 raise RuntimeError(
-                    f"{type(self).__name__}._build_solver did not assign self._solver. "
-                    "Subclasses of NewtonManager must populate self._solver, "
+                    f"{type(self).__name__}._build_solver did not assign backend.solver. "
+                    "Subclasses of NewtonManager must populate backend.solver, "
                     "self._use_single_state, self._needs_collision_pipeline, and "
                     "self._supports_rigid_body_force_input."
                 )
             self._initialize_contacts()
-            state_0 = self.backend.state_0
+            state_0 = backend.state_0
             self._staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
 
         pending_solver_init, self._solver_init_callbacks = self._solver_init_callbacks, []
@@ -1691,45 +1378,46 @@ class NewtonManager(PhysicsManager):
         callbacks, which add on top of them.
         """
         backend = self.backend
-        collide_every = self._collision_decimation
+        num_substeps = backend.num_substeps
+        collide_every = self._cfg.collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's
         # top-of-loop collide(), not this one.
         collide_mid_loop = collide_every > 0 and self._needs_collision_pipeline and contacts is not None
 
         if self._use_single_state:
-            for i in range(self._num_substeps):
+            for i in range(num_substeps):
                 self._apply_staged_body_forces(backend.state_0)
                 for callback in self._state_force_callbacks:
                     callback(backend.state_0)
-                self._step_solver(backend.state_0, backend.state_0, backend.control, contacts, self._solver_dt)
+                self._step_solver(backend.state_0, backend.state_0, backend.control, contacts, backend.solver_dt)
                 backend.state_0.clear_forces()
-                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < self._num_substeps:
-                    self._collision_pipeline.collide(backend.state_0, contacts)
+                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
+                    backend.collision_pipeline.collide(backend.state_0, contacts)
         else:
-            cfg = self._cfg
-            need_copy_on_last = cfg is not None and self._num_substeps % 2 == 1
-            for i in range(self._num_substeps):
+            need_copy_on_last = num_substeps % 2 == 1
+            for i in range(num_substeps):
                 self._apply_staged_body_forces(backend.state_0)
                 for callback in self._state_force_callbacks:
                     callback(backend.state_0)
-                self._step_solver(backend.state_0, backend.state_1, backend.control, contacts, self._solver_dt)
-                if need_copy_on_last and i == self._num_substeps - 1:
+                self._step_solver(backend.state_0, backend.state_1, backend.control, contacts, backend.solver_dt)
+                if need_copy_on_last and i == num_substeps - 1:
                     backend.state_0.assign(backend.state_1)
                 else:
                     backend.state_0, backend.state_1 = backend.state_1, backend.state_0
                 backend.state_0.clear_forces()
-                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < self._num_substeps:
-                    self._collision_pipeline.collide(backend.state_0, contacts)
+                if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
+                    backend.collision_pipeline.collide(backend.state_0, contacts)
 
     def _update_sensors(self, contacts) -> None:
         """Push latest state to registered IMU and contact sensors."""
-        for sensor in self._newton_imu_sensors:
-            sensor.update(self.backend.state_0)
-        if self._report_contacts:
-            eval_contacts = contacts if contacts is not None else self._contacts
-            self._solver.update_contacts(eval_contacts, self.backend.state_0)
-            for sensor in self._newton_contact_sensors.values():
-                sensor.update(self.backend.state_0, eval_contacts)
+        backend = self.backend
+        for sensor in backend.imu_sensors:
+            sensor.update(backend.state_0)
+        if backend.contact_sensors:
+            eval_contacts = contacts if contacts is not None else backend.contacts
+            backend.solver.update_contacts(eval_contacts, backend.state_0)
+            for sensor in backend.contact_sensors.values():
+                sensor.update(backend.state_0, eval_contacts)
 
     # ------------------------------------------------------------------
     # Composite stepping routines
@@ -1741,21 +1429,21 @@ class NewtonManager(PhysicsManager):
         Works for any decimation count (including 1).  All actuators must be
         graph-safe so the entire loop can be captured as a single CUDA graph.
         """
-        physics_dt = self._solver_dt * self._num_substeps
-        contacts = self._contacts if self._needs_collision_pipeline else None
+        backend = self.backend
+        contacts = backend.contacts if self._needs_collision_pipeline else None
 
         self._stage_body_forces()
         for i in range(self._decimation):
             if self._needs_collision_pipeline:
-                self._collision_pipeline.collide(self.backend.state_0, self._contacts)
+                backend.collision_pipeline.collide(backend.state_0, backend.contacts)
 
             for cb in self._pre_actuator_callbacks:
                 cb()
-            if self._adapter is not None:
-                self._adapter.step(
-                    self.backend.state_0,
-                    self.backend.control,
-                    physics_dt,
+            if backend.actuators is not None:
+                backend.actuators.step(
+                    backend.state_0,
+                    backend.control,
+                    backend.dt,
                     swap_state=self._decimation % 2 == 0 or i < self._decimation - 1,
                 )
             for cb in self._post_actuator_callbacks:
@@ -1773,10 +1461,11 @@ class NewtonManager(PhysicsManager):
         Used when actuators are stepped eagerly outside the graph, or when
         there are no actuators at all.
         """
+        backend = self.backend
         self._stage_body_forces()
         if self._needs_collision_pipeline:
-            self._collision_pipeline.collide(self.backend.state_0, self._contacts)
-            contacts = self._contacts
+            backend.collision_pipeline.collide(backend.state_0, backend.contacts)
+            contacts = backend.contacts
         else:
             contacts = None
 
@@ -1785,7 +1474,6 @@ class NewtonManager(PhysicsManager):
             cb()
         self._update_sensors(contacts)
 
-    # State accessors (used extensively by articulation/rigid object data)
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Compile material-to-shape addresses for the active Newton model."""
         return self.backend.create_visual_material_writer(batches)
@@ -1794,7 +1482,7 @@ class NewtonManager(PhysicsManager):
         self, asset: BaseArticulation, body_names: tuple[str, ...]
     ) -> VisualShapeColorWriter:
         """Compile selected articulation-body shape addresses for the active Newton model."""
-        model = self.get_model()
+        model = None if self.backend is None else self.backend.model
         view = asset.root_view
         if not isinstance(view, ArticulationView):
             root_expr = asset.cfg.prim_path
@@ -1805,40 +1493,9 @@ class NewtonManager(PhysicsManager):
             view = ArticulationView(model, prim_paths, verbose=False)
         return VisualShapeColorWriter(model, view, body_names)
 
-    def get_model(self) -> Model:
-        """Return the active physics model. Render consumers acquire their backend from the registry."""
-        return None if self.backend is None else self.backend.model
-
-    def get_state_0(self) -> State:
-        """Return raw state for array binding and writes; consumers read ``get_scene_data_backend().state``."""
-        return None if self.backend is None else self.backend.state_0
-
-    def get_contacts(self) -> Contacts | None:
-        """Get the current Newton contact buffer, if the active solver exposes one."""
-        return self._contacts
-
-    def get_num_envs(self) -> int:
-        return self._num_envs
-
     def get_scene_data_provider(self) -> SceneDataProvider:
         """Return the active scene data provider."""
         return SimulationContext.instance().get_scene_data_provider()
-
-    def get_state_1(self) -> State:
-        """Get the next state."""
-        return None if self.backend is None else self.backend.state_1
-
-    def get_control(self) -> Control:
-        """Get the control object."""
-        return None if self.backend is None else self.backend.control
-
-    def get_dt(self) -> float:
-        """Get the physics timestep. Alias for get_physics_dt()."""
-        return self.get_physics_dt()
-
-    def get_solver_dt(self) -> float:
-        """Get the solver substep timestep."""
-        return self._solver_dt
 
     def _is_all_graphable(self) -> bool:
         """``True`` when the decimation loop can be captured into a CUDA graph.
@@ -1851,7 +1508,8 @@ class NewtonManager(PhysicsManager):
         """
         if not self._use_newton_actuators_active:
             return False
-        return self._adapter is None or self._adapter.is_all_graphable
+        actuators = self.backend.actuators
+        return actuators is None or actuators.is_all_graphable
 
     def activate_newton_actuator_path(self) -> None:
         """Opt an articulation into the Newton actuator fast path.
@@ -1863,29 +1521,25 @@ class NewtonManager(PhysicsManager):
            :meth:`_is_all_graphable` checks (adapter presence alone
            cannot distinguish the fast path from the standard Lab path).
         2. On first call, builds the single sim-level
-           :class:`NewtonActuatorAdapter` over the full flat DOF layout;
-           later calls reuse it.
+           :class:`NewtonActuatorAdapter` over the full flat DOF layout as
+           :attr:`NewtonBackend.actuators`; later calls reuse it.
         """
-        # Shared state lives on the base class so all readers (including
-        # framework code that imports ``NewtonManager`` directly) see the
-        # same flag regardless of which solver subclass is active.
         self._use_newton_actuators_active = True
 
-        if self._adapter is not None:
-            return
-        if self.backend is None or not self.backend.model.actuators:
+        backend = self.backend
+        if backend is None or backend.actuators is not None or not backend.model.actuators:
             return
         from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
-        dofs_per_env = self.backend.model.joint_dof_count // self._num_envs
-        self._adapter = NewtonActuatorAdapter(
-            actuators=list(self.backend.model.actuators),
-            num_envs=self._num_envs,
-            num_joints=dofs_per_env,
+        num_envs = backend.model.world_count
+        backend.actuators = NewtonActuatorAdapter(
+            actuators=list(backend.model.actuators),
+            num_envs=num_envs,
+            num_joints=backend.model.joint_dof_count // num_envs,
             dof_offset=0,
             device=self._device,
         )
-        self._adapter.finalize(self.backend.control)
+        backend.actuators.finalize(backend.control)
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.
@@ -1954,10 +1608,10 @@ class NewtonManager(PhysicsManager):
 
         Symmetric to :meth:`register_post_step_callback`, this lets an
         articulation deregister its republish hook when its callbacks are
-        cleared so the bound method does not linger on the class-level list
-        after the articulation is gone. Removing a callback that was never
-        registered (or was already removed) is a safe no-op, matching the
-        tolerant deregistration of other handles.
+        cleared so the bound method does not linger after the articulation is
+        gone. Removing a callback that was never registered (or was already
+        removed) is a safe no-op, matching the tolerant deregistration of other
+        handles.
         """
         with contextlib.suppress(ValueError):
             self._post_step_callbacks.remove(callback)
@@ -2016,8 +1670,8 @@ class NewtonManager(PhysicsManager):
         contact_partners_body_expr: str | list[str] | None = None,
         contact_partners_shape_expr: str | list[str] | None = None,
         verbose: bool = False,
-    ) -> tuple[str | list[str] | None, str | list[str] | None, str | list[str] | None, str | list[str] | None]:
-        """Add a contact sensor for reporting contacts between bodies/shapes.
+    ) -> NewtonContactSensor:
+        """Add a contact sensor for reporting contacts between bodies/shapes; identical requests share one sensor.
 
         Compiles the Isaac Lab regular expressions and delegates to
         :class:`newton.sensors.SensorContact`, which full-matches compiled patterns
@@ -2029,6 +1683,9 @@ class NewtonManager(PhysicsManager):
             contact_partners_body_expr: Expression for contact partner body names.
             contact_partners_shape_expr: Expression for contact partner shape names.
             verbose: Print verbose information.
+
+        Returns:
+            The Newton contact sensor, updated at the end of every step.
         """
         if not self._supports_contact_sensors:
             raise NotImplementedError(
@@ -2055,6 +1712,10 @@ class NewtonManager(PhysicsManager):
             _hashable_key(contact_partners_body_expr),
             _hashable_key(contact_partners_shape_expr),
         )
+        backend = self.backend
+        sensor = backend.contact_sensors.get(sensor_key)
+        if sensor is not None:
+            return sensor
 
         with Timer(
             name="newton_contact_sensor",
@@ -2063,7 +1724,7 @@ class NewtonManager(PhysicsManager):
             device=self.get_device(),
         ):
             sensor = NewtonContactSensor(
-                self.backend.model,
+                backend.model,
                 sensing_bodies=_compile_label_pattern(body_names_expr),
                 sensing_shapes=_compile_label_pattern(shape_names_expr),
                 counterpart_bodies=_compile_label_pattern(contact_partners_body_expr),
@@ -2072,48 +1733,23 @@ class NewtonManager(PhysicsManager):
                 verbose=verbose,
             )
 
-        self._newton_contact_sensors[sensor_key] = sensor
-        self._report_contacts = True
+        backend.contact_sensors[sensor_key] = sensor
 
-        if self._solver is not None and self._contacts is not None and self._contacts.force is None:
+        if backend.solver is not None and backend.contacts is not None and backend.contacts.force is None:
             self._initialize_contacts()
 
-        return sensor_key
+        return sensor
 
-    def add_frame_transform_sensor(self, shapes: list[int], reference_sites: list[int]) -> int:
-        """Add a frame transform sensor for measuring relative transforms.
-
-        Creates a :class:`SensorFrameTransform` from pre-resolved shape and reference
-        site indices, appends it to the internal list, and returns its index.
-
-        Args:
-            shapes: Ordered list of shape indices to measure.
-            reference_sites: 1:1 list of reference site indices (same length as shapes).
-
-        Returns:
-            Index of the newly created sensor in :attr:`_newton_frame_transform_sensors`.
-        """
-        sensor = SensorFrameTransform(
-            self.backend.model,
-            shapes=shapes,
-            reference_sites=reference_sites,
-        )
-        idx = len(self._newton_frame_transform_sensors)
-        self._newton_frame_transform_sensors.append(sensor)
-        logger.info(f"Added frame transform sensor (index={idx}, shapes={len(shapes)})")
-        return idx
-
-    def add_imu_sensor(self, sites: list[int]) -> int:
+    def add_imu_sensor(self, sites: list[int]) -> NewtonSensorIMU:
         """Add an IMU sensor for measuring acceleration and angular velocity at sites.
 
-        Creates a ``newton.sensors.SensorIMU`` from pre-resolved site indices,
-        appends it to the internal list, and returns its index.
+        The ``body_qdd`` state attribute must be requested before finalization.
 
         Args:
             sites: Ordered list of site indices (one per environment).
 
         Returns:
-            Index of the newly created sensor in the internal IMU sensor list.
+            The Newton sensor, updated at the end of every step.
         """
         if self.backend is None:
             raise RuntimeError("add_imu_sensor called before model finalization (start_simulation).")
@@ -2122,7 +1758,6 @@ class NewtonManager(PhysicsManager):
             sites=sites,
             request_state_attributes=False,  # Already requested via NewtonManager
         )
-        idx = len(self._newton_imu_sensors)
-        self._newton_imu_sensors.append(sensor)
-        logger.info(f"Added IMU sensor (index={idx}, sites={len(sites)})")
-        return idx
+        self.backend.imu_sensors.append(sensor)
+        logger.info(f"Added IMU sensor (sites={len(sites)})")
+        return sensor

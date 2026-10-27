@@ -52,10 +52,12 @@ class NewtonKaminoManager(NewtonManager):
     internal collision detector handles contact generation.
     """
 
-    # Annotate the concrete solver type.
-    _solver: SolverKamino
-
     _builder_attribute_solvers = (SolverKamino,)
+
+    @property
+    def shares_materials(self) -> bool:
+        """Kamino's own collision detector reads one material table; Newton's pipeline reads each shape."""
+        return self._get_kamino_solver_cfg().use_collision_detector
 
     def _get_kamino_solver_cfg(self) -> _KaminoSolverCfgBase:
         cfg = self._cfg
@@ -83,7 +85,7 @@ class NewtonKaminoManager(NewtonManager):
             fk_mask: Per-articulation mask of articulations to update (``None`` means all).
         """
         if self._get_kamino_solver_cfg().use_fk_solver:
-            self._solver.reset(
+            self.backend.solver.reset(
                 self.backend.state_0,
                 world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.from_joints(),
@@ -93,7 +95,7 @@ class NewtonKaminoManager(NewtonManager):
             eval_fk(backend.model, backend.state_0.joint_q, backend.state_0.joint_qd, backend.state_0, fk_mask)
 
             # Reset solver internals without performing Kamino's FK.
-            self._solver.reset(
+            self.backend.solver.reset(
                 self.backend.state_0,
                 world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.preserve(),
@@ -155,10 +157,10 @@ class NewtonKaminoManager(NewtonManager):
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
 
-        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self.backend.solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
         # Initialize the output state's persistent Kamino buffers before capture. The input
         # state is initialized by _eval_fk_impl after solver construction.
-        self._solver.reset(self.backend.state_1, config=SolverKamino.ResetConfig.preserve())
+        self.backend.solver.reset(self.backend.state_1, config=SolverKamino.ResetConfig.preserve())
         self._use_single_state = False
         self._needs_collision_pipeline = not solver_cfg.use_collision_detector
         self._supports_rigid_body_force_input = True

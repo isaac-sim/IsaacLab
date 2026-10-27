@@ -41,8 +41,9 @@ Responsibilities and Boundaries
 
 :class:`~isaaclab_newton.physics.NewtonManager` subclasses are instantiated by the
 simulation context, which owns exactly one manager instance as
-:attr:`~isaaclab.sim.SimulationContext.backend_manager`. All runtime state lives
-on that instance.
+:attr:`~isaaclab.sim.SimulationContext.backend_manager`. Everything bound to the
+finalized model lives on the registered :class:`~isaaclab_newton.physics.NewtonBackend`;
+a hard reset closes it and finalizes a new one.
 
 .. list-table::
    :header-rows: 1
@@ -55,9 +56,12 @@ on that instance.
        :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` and drives the
        public lifecycle calls.
    * - ``NewtonManager`` base
-     - Builder, finalized ``Model``, states, control, collision pipeline and
-       contacts, substep iteration, CUDA graph capture, Fabric and USD
-       synchronization, sensors, and reset masks.
+     - Builder, site requests and replication outputs
+       (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), substep iteration,
+       CUDA graph capture, step callbacks, and Fabric and USD synchronization.
+   * - :class:`~isaaclab_newton.physics.NewtonBackend`
+     - Finalized ``Model``, states, control, solver, collision pipeline and
+       contacts, sensors, Newton actuators, and reset masks.
    * - Manager subclass
      - Solver construction and any solver-owned internal state, contact
        buffers, or builder attributes.
@@ -88,15 +92,13 @@ class invokes them.
      - What happens
      - Subclass hooks
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize`
-     - Stores the simulation context, reads gravity from the simulation
-       configuration, and creates the scene data backend.
-     - none
-   * - ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))``
-     - Acquires the shared builder through the active manager's ``create_builder()`` factory.
-       The cloner imports declared prototypes and composes worlds into it.
+     - Stores the simulation context and acquires the shared
+       :attr:`~isaaclab_newton.physics.NewtonManager.builder` through ``create_builder()``. The cloner later imports
+       declared prototypes and composes worlds into it.
      - ``_register_builder_attributes()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
-     - Finalizes the model, then allocates states and reset masks.
+     - Finalizes the builder into a new :class:`~isaaclab_newton.physics.NewtonBackend`, which allocates states,
+       control, and reset masks.
      - ``_prepare_builder_for_finalize()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver`
      - Builds the solver, checks that it was assigned, and allocates contacts.
@@ -156,11 +158,11 @@ additionally checks ``_requires_initial_reset_before_graph_capture()``.
 Extension Contract
 ------------------
 
-A subclass must implement ``_build_solver()`` and assign four slots on the
-manager instance (``self``).
+A subclass must implement ``_build_solver()``, assign the constructed solver to
+``self.backend.solver``, and configure the three manager slots listed below.
 :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver` raises
-``RuntimeError`` if ``_solver`` is still unset. The other three are not
-validated and keep their defaults, so a subclass that forgets them runs with
+``RuntimeError`` if ``backend.solver`` is still unset. The three manager slots are
+not validated and keep their defaults, so a subclass that forgets them runs with
 double-buffered states, no collision pipeline, and no visualizer force input.
 
 .. list-table::
@@ -169,7 +171,7 @@ double-buffered states, no collision pipeline, and no visualizer force input.
 
    * - Slot
      - Meaning
-   * - ``_solver``
+   * - ``backend.solver``
      - The constructed Newton ``SolverBase`` instance.
    * - ``_use_single_state``
      - ``True`` if the solver steps in place on one ``State``; ``False`` if it
@@ -199,7 +201,7 @@ double-buffered states, no collision pipeline, and no visualizer force input.
 
    class NewtonMySolverManager(NewtonManager):
        def _build_solver(self, model: Model, solver_cfg: MySolverCfg) -> None:
-           self._solver = SolverMySolver(model, iterations=solver_cfg.iterations)
+           self.backend.solver = SolverMySolver(model, iterations=solver_cfg.iterations)
            self._use_single_state = False
            self._needs_collision_pipeline = True
            self._supports_rigid_body_force_input = True
@@ -213,7 +215,7 @@ Override anything else only when the solver needs it:
   substep while keeping the base simulation loop.
 * ``_simulate_physics_only()``: add per-step work around the substep loop.
 * ``_reset_solver_internals()``: clear solver-owned state for reset worlds.
-* ``_register_builder_attributes()``: register Newton custom particle, shape, or
+* ``_register_builder_attributes(builder, solver_cfg)``: register Newton custom particle, shape, or
   body attributes on the builder.
 * ``_prepare_builder_for_finalize()``: normalize imported or replicated builder
   data immediately before ``finalize()``.
