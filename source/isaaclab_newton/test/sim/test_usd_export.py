@@ -113,6 +113,12 @@ def test_loading_the_export_reproduces_the_initialized_model(tmp_path, solver, d
 
     assert type(loaded_solver) is solver_type
     assert dt == pytest.approx(1 / 120)
+    if solver == "mujoco":
+        # MuJoCo options are stated on the physics scene, where Newton's importer reads them.
+        stage = Usd.Stage.Open(output)
+        scene = stage.GetPrimAtPath("/physicsScene")
+        assert scene.GetAttribute("mjc:option:iterations").Get() == 17
+        assert loaded_solver.mjw_model.opt.iterations == 17
     # The actuator configuration differs from the USD drive, so the export must carry it.
     hinge = f"/World/envs/env_{env_id}/Robot/Hinge:0"
     assert live["joint_target_ke", hinge] == pytest.approx(83.0)

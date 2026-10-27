@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 SETTINGS_KEY = "isaaclab:newton"
 """Layer metadata holding what Newton's importer does not read from USD: the step size and the solver."""
 
+_SCENE = SchemaResolverNewton.mapping[PrimType.SCENE]
 _JOINT = SchemaResolverNewton.mapping[PrimType.JOINT]
 _SHAPE = SchemaResolverNewton.mapping[PrimType.SHAPE]
 _MATERIAL = SchemaResolverNewton.mapping[PrimType.MATERIAL]
@@ -128,6 +129,7 @@ class UsdExporter(BaseUsdExporter):
             *self._body_edits(stage, model, builder),
             *self._shape_edits(stage, model, builder, physics_cfg.default_shape_cfg),
             *self._gravity_edits(stage, gravity),
+            *self._scene_edits(solver_cfg),
         ]
         settings = {
             "dt": self.scene.sim.get_physics_dt(),
@@ -389,6 +391,39 @@ class UsdExporter(BaseUsdExporter):
         if deactivated:
             logger.info(f"MuJoCo actuators replaced by the exported zero-gain joint drives: {deactivated}.")
         return edits
+
+    def _scene_edits(self, solver_cfg) -> list[UsdEdit]:
+        """Edits stating the step rate and the solver options that Newton's importer reads from the physics scene."""
+        path = self.scene.physics_scene_path
+        rate = 1.0 / self.scene.sim.get_physics_dt()
+        if not math.isclose(rate, round(rate), rel_tol=1e-9):
+            raise ValueError(f"Step size 1/{rate} s is not a whole number of steps per second, as USD states it.")
+        edits = [UsdEdit(path, _SCENE["time_steps_per_second"].name, round(rate), "int", "NewtonSceneAPI")]
+        types = {bool: "bool", int: "int", float: "float", str: "token"}
+        for name, attribute in self._scene_solver_options(solver_cfg).items():
+            value = getattr(solver_cfg, name)
+            if value is not None:
+                edits.append(UsdEdit(path, attribute, value, types[type(value)]))
+        return edits
+
+    @classmethod
+    def _scene_solver_options(cls, solver_cfg) -> dict[str, str]:
+        """Solver configuration field -> physics-scene attribute, for options the solver reads from the model.
+
+        Only MuJoCo reads its options from the model; Newton registers their USD attributes.
+        """
+        manager = cls._manager(solver_cfg)
+        if not manager._registers_builder_attributes_from_solver(newton.solvers.SolverMuJoCo):
+            return {}
+        builder = newton.ModelBuilder()
+        manager._register_builder_attributes(builder)
+        scene = (newton.Model.AttributeFrequency.ONCE, newton.Model.AttributeFrequency.WORLD)
+        attributes = {
+            attribute.name: attribute.usd_attribute_name
+            for attribute in builder.custom_attributes.values()
+            if attribute.namespace == "mujoco" and attribute.frequency in scene and attribute.usd_attribute_name
+        }
+        return {name: attributes[name] for name in solver_cfg.to_dict() if name in attributes}
 
     @staticmethod
     def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
