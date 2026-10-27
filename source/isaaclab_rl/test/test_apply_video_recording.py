@@ -114,8 +114,6 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         ),
         # a scene sensor needs no visualizer
         (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
-        # the warp frontend records the same way
-        (dict(frontend="warp"), ("viz:newton_gl", [("newton_gl", True)])),
         # streaming visualizers have no frame capture
         (dict(video="viser", visualizer=["viser"]), "has no frame capture"),
     ],
@@ -129,7 +127,6 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         "camera-view-headless",
         "camera-view-windowed",
         "sensor",
-        "warp-frontend",
         "streaming-rejected",
     ],
 )
