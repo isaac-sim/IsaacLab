@@ -2706,8 +2706,7 @@ The ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields of
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
 
 For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), declare a task view
-with ``track_path`` first in :class:`~isaaclab.visualizers.VisualizerCfg` ``cameras``, so the viewport
-starts on it, followed by a free view:
+with ``track_path`` in :class:`~isaaclab.visualizers.VisualizerCfg` ``cameras``; a free view is added beside it:
 
 .. code-block:: python
 
@@ -2721,12 +2720,11 @@ starts on it, followed by a free view:
    from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
 
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
-       cameras=[PerspectiveCameraCfg(track_path="robot", eye=(4.0, 4.0, 2.0)), PerspectiveCameraCfg()],
+       cameras=[PerspectiveCameraCfg(track_path="robot", eye=(4.0, 4.0, 2.0))],
    )  # visualizer=kit
 
-The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
-tracking is a task view of :class:`~isaaclab_visualizers.kit.KitVisualizer`, switched at runtime with its
-``follow()`` and ``unfollow()`` methods or the **Follow Mode** control of the environment window.
+At runtime, :class:`~isaaclab_visualizers.kit.KitVisualizer` switches with ``follow()`` and ``unfollow()``, or the
+**Follow Mode** control of the environment window.
 
 
 Custom visualizers receive their owning ``sim`` and bound ``cameras`` in ``initialize()``.

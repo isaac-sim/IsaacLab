@@ -126,8 +126,7 @@ for dual monitoring.
 **Newton GL and Newton RTX** have a **Camera View** selector in the sidebar. Selecting a scene camera displays
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores interactive scene rendering. Newton GL also restores picking.
-A perspective entry that follows a robot or frames an environment is a task view and is listed as
-**Tracking Camera**; the free view is listed as **Perspective**. See :ref:`how-to-visualizer-task-views`.
+A task view is listed as **Tracking Camera**; see :ref:`how-to-visualizer-task-views`.
 
 Without an explicit ``cameras`` list, Newton GL starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. An explicit
@@ -171,58 +170,6 @@ images follow its framebuffer dimensions.
 Newton windows present at up to ``WindowCfg.fps`` (30 by default), measured in wall-clock time.
 Changing the simulation timestep does not change that limit. Headless on-demand capture is
 independent of the window update rate; Kit uses its application's update cadence.
-
-.. _how-to-visualizer-task-views:
-
-Task views that follow a robot
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-A ``PerspectiveCameraCfg`` with ``env_index`` or ``track_path`` is a *task view*: it is placed relative to an
-environment or an asset, so it frames a robot wherever the scene puts it. The viewer renders it from its own
-camera, so nothing is created in the scene, nothing depends on the number of environments, and the view has the
-viewport's markers and shadows. Tasks declare one in ``sim.visualizer_cfgs``:
-
-.. code-block:: python
-
-   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
-
-   self.sim.visualizer_cfgs = VisualizerCfg(
-       cameras=[
-           PerspectiveCameraCfg(
-               eye=(1.8, -3.0, 1.1),
-               lookat=(0.15, 0.0, 0.0),
-               track_path="robot",
-               follow_heading=True,
-               heading_smoothing_time_constant=0.2,
-           )
-       ],
-   )
-
-* ``eye`` and ``lookat`` are offsets [m] from the tracked asset, or from the origin of ``env_index``
-  when ``track_path`` is None, which keeps the view fixed in that environment.
-* ``track_path`` names a scene asset (``"robot"``) or one of its bodies (``"robot/base"``) in environment
-  ``env_index``, which defaults to 0.
-* ``follow_heading`` rotates the offsets with the asset's yaw, keeping the horizon level.
-  ``heading_smoothing_time_constant`` [s] damps rapid turns; zero follows immediately.
-
-The interactive view stays free: a free perspective view at the visualizer's own ``eye`` and ``lookat`` is
-added before the task view, and the first view starts active. Each visualizer offers the task view its own way:
-
-* **Newton GL:** the **Camera View** selector lists it as **Tracking Camera**, and a **Tracking Camera** group
-  below the selector edits it while it runs: the environment, the followed asset and body, the eye and look-at
-  offsets, the focal length, heading follow, and heading smoothing. **Reset to Task Default** restores what the task
-  declared, and an unknown asset or ambiguous body is reported there while the camera keeps its previous target.
-  While it is selected the window follows the robot, and selecting the free view hands the camera back. Record it,
-  whichever view the window shows, with ``--video viz:newton_gl:tracking``.
-* **Viser:** a **Camera View** folder in the sidebar has a **Follow task view** checkbox, off by default, and an
-  **Environment** field, 0 unless the view declares another. While it is on, the browser camera follows the robot;
-  turning it off leaves the camera where it is, free to move. Viser cannot be recorded.
-* **Kit:** the viewport starts on the task view when it is declared first, and follows the environment or the
-  asset until the **Follow Mode** control in the environment window or ``KitVisualizer.unfollow()`` hands it back.
-  The **Camera Eye** and **Camera Target** controls then edit the offsets. This replaces the ``origin_type``,
-  ``origin_env_index``, and ``origin_track_path`` fields of ``KitBackendCfg``.
-
-Newton RTX shares the Newton GL view code but is untested, and Rerun ignores task views.
 
 Newton RTX displays ordinary camera output in a Newton GL window. Equal ``OVRTXRendererCfg``
 configurations share one renderer and its scene. ``NewtonRTXBackendCfg.renderer_cfg`` selects
@@ -294,6 +241,53 @@ displayed image and sensor navigation; pausing training alone does not.
 With ``InteractiveSceneCfg.lazy_sensor_update=True``, the viewer reads only the selected camera.
 Unselected cameras are still allocated and may render if another consumer reads them or the
 scene uses eager sensor updates. ``streaming_envs`` selects displayed tiles, not capture work.
+
+
+.. _how-to-visualizer-task-views:
+
+Task views that follow a robot
+------------------------------
+
+A ``PerspectiveCameraCfg`` with ``env_index`` or ``track_path`` is a *task view*. Its ``eye`` and ``lookat`` are
+offsets [m] from the environment origin, or from the tracked asset, so it frames the robot wherever the scene puts
+it. The visualizer renders it from its own camera: nothing is added to the scene, and the view keeps the
+viewport's markers and shadows.
+
+.. code-block:: python
+
+   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+
+   self.sim.visualizer_cfgs = VisualizerCfg(
+       cameras=[
+           PerspectiveCameraCfg(
+               eye=(1.8, -3.0, 1.1),
+               lookat=(0.15, 0.0, 0.0),
+               track_path="robot",
+               follow_heading=True,
+               heading_smoothing_time_constant=0.2,
+           )
+       ],
+   )
+
+* ``env_index``: the environment to frame or follow; defaults to 0.
+* ``track_path``: a scene asset (``"robot"``) or one of its bodies (``"robot/base"``). Without it, the view stays
+  fixed in the environment.
+* ``follow_heading``: rotate the offsets with the asset's yaw, keeping the horizon level.
+  ``heading_smoothing_time_constant`` [s] damps rapid turns.
+
+A free view at the visualizer's own ``eye`` and ``lookat`` is added before the first task view, so the
+interactive camera stays free.
+
+* **Newton GL:** **Camera View** lists the task view as **Tracking Camera** beside **Perspective**. A
+  **Tracking Camera** group edits its environment, asset, body, eye, look-at, focal length and heading settings
+  while it runs; **Reset to Task Default** restores the declaration. Record it with
+  ``--video viz:newton_gl:tracking``, whichever view the window shows.
+* **Viser:** a **Follow task view** checkbox, off by default, and an **Environment** field in the **Camera View**
+  folder.
+* **Kit:** the viewport starts on the first declared view when it is a task view, and follows it until
+  ``KitVisualizer.unfollow()`` or the **Follow Mode** control in the environment window. An environment view can
+  still be moved; an asset view is re-applied every step.
+* **Newton RTX** and **Rerun** ignore task views.
 
 
 Examples

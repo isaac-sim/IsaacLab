@@ -567,10 +567,8 @@ task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton G
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
 provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
-views. A perspective view can also be a *task view* that follows a robot or frames an environment. **Newton GL**
-renders it as its own view, so the interactive view stays free; select it in **Camera View** or record it with
-``--video viz:newton_gl:tracking``. **Viser** follows it when you toggle it, and **Kit** follows it with its
-viewport.
+views. A perspective view can also be a *task view* that follows a robot or frames an environment; Newton GL, Viser
+and Kit support it.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
 sources, task views that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
@@ -800,26 +798,19 @@ Watch training live in Kit while recording from a separate headless Newton GL an
 
 **Following a moving robot**
 
-Declare a *task view* instead of updating ``eye``/``lookat`` yourself every step. Newton GL renders it
-as a separate view, Kit follows with its viewport, and Viser follows when you toggle it; see
-:ref:`how-to-visualizer-task-views`:
+Declare a *task view* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-task-views`:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitBackendCfg
-
     from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
 
-    # the first view starts active, so Kit's viewport starts on the task view; a free view follows it
     sim_cfg.visualizer_cfgs = VisualizerCfg(
         cameras=[
             PerspectiveCameraCfg(
                 track_path="robot",  # or "robot/panda_hand" to track a specific body
                 eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
             ),
-            PerspectiveCameraCfg(),
         ],
-        backend=KitBackendCfg(),
     )
 
 **Sharing a live view with a remote teammate**
