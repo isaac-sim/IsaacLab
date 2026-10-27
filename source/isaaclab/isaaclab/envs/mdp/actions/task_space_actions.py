@@ -884,5 +884,6 @@ def _resolve_task_space_clip(
             " or clip the raw actions in the RL wrapper instead."
         )
     clip_tensor = torch.tensor([[-float("inf"), float("inf")]], device=device).repeat(num_envs, len(action_names), 1)
-    clip_tensor[:, index_list] = torch.tensor(value_list, device=device)
+    if index_list:
+        clip_tensor[:, index_list] = torch.tensor(value_list, device=device)
     return clip_tensor

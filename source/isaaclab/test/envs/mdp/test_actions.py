@@ -188,9 +188,18 @@ def test_osc_clip_prefixed_quaternion_raises() -> None:
         OperationalSpaceControllerAction(cfg, _make_env())
 
 
-def test_osc_clip_applies_to_processed_actions() -> None:
+@pytest.mark.parametrize(
+    ("clip", "expected_z", "expected_stiffness"),
+    [
+        ({"pos_z": (-0.01, 0.01), "stiffness_.*": (0.0, 100.0)}, [0.01, -0.01], [100.0, 0.0]),
+        ({}, [1.0, -1.0], [500.0, 0.0]),
+    ],
+)
+def test_osc_clip_applies_to_processed_actions(
+    clip: dict[str, tuple[float, float]], expected_z: list[float], expected_stiffness: list[float]
+) -> None:
     """Scaled actions are clipped before the controller limits on the gains are applied."""
-    cfg = _osc_cfg(("pose_rel",), "variable_kp", clip={"pos_z": (-0.01, 0.01), "stiffness_.*": (0.0, 100.0)})
+    cfg = _osc_cfg(("pose_rel",), "variable_kp", clip=clip)
     cfg.position_scale = 2.0
     cfg.stiffness_scale = 0.5
     action = OperationalSpaceControllerAction(cfg, _make_env())
@@ -205,9 +214,8 @@ def test_osc_clip_applies_to_processed_actions() -> None:
     action._preprocess_actions(raw)
 
     processed = action.processed_actions
-    torch.testing.assert_close(processed[:, 2], torch.tensor([0.01, -0.01]))
-    torch.testing.assert_close(processed[0, 6:12], torch.full((6,), 100.0))
-    torch.testing.assert_close(processed[1, 6:12], torch.zeros(6))
+    torch.testing.assert_close(processed[:, 2], torch.tensor(expected_z))
+    torch.testing.assert_close(processed[:, 6:12], torch.tensor(expected_stiffness)[:, None].expand(-1, 6))
     # Unclipped components retain their scaled values.
     torch.testing.assert_close(processed[:, :2], torch.tensor([[0.04, -0.06], [-0.08, 0.1]]))
 
