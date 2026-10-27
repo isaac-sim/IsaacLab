@@ -12,6 +12,3 @@
   of :class:`~isaaclab_newton.assets.Articulation` to write through the masks, as the other Newton mask writers do,
   instead of converting the masks to indices, which synchronized the host with the GPU on every call. Recorded into
   a CUDA graph, ``write_fixed_tendon_properties_to_sim_mask`` refreshes the solver's tendon properties on every replay.
-* Changed the mask writers of :class:`~isaaclab_newton.assets.Articulation` and the pose and velocity mask writers of
-  :class:`~isaaclab_newton.assets.RigidObjectCollection` to reject a mask whose length differs from the asset
-  dimension it selects, while shape checks are enabled.

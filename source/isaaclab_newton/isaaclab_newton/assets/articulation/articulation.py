@@ -3826,12 +3826,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of mask.
         """
-        mask = resolve_1d_mask(mask=mask, all_mask=full_mask, device=self.device)
-        if self._check_shapes:
-            assert mask.shape[0] == full_mask.shape[0], (
-                f"{type(self).__name__}: Mask length mismatch: {mask.shape[0]} != {full_mask.shape[0]}"
-            )
-        return mask
+        return resolve_1d_mask(mask=mask, all_mask=full_mask, device=self.device)
 
     """
     Deprecated methods.
