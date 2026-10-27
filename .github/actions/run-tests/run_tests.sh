@@ -270,6 +270,8 @@ run_tests() {
       -e "HOME=/tmp/isaaclab-ci-home"
       -e "XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache"
       -e "XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share"
+      # The image's /var/cache/hub belongs to uid 1000, not necessarily the host uid.
+      -e "HUB__CACHE__PATH=/tmp/isaaclab-ci-home/.cache/hub"
       -e "USER=${host_user}"
       -e "LOGNAME=${host_user}"
     )

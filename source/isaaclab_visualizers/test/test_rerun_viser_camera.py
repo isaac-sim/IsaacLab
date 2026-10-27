@@ -13,11 +13,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
+from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.rerun.rerun_visualizer import NewtonViewerRerun
-from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+from isaaclab_visualizers.viser import ViserBackendCfg
 from isaaclab_visualizers.viser.viser_visualizer import NewtonViewerViser
 from newton.viewer import ViewerRerun
+
+from isaaclab.visualizers import VisualizerCfg
 
 
 def test_viser_missing_dependency_propagates_import_error(monkeypatch):
@@ -30,7 +32,8 @@ def test_viser_missing_dependency_propagates_import_error(monkeypatch):
 
 def test_rerun_visualizer_set_camera_view():
     # No viewer: must not raise.
-    visualizer = RerunVisualizer(RerunVisualizerCfg())
+    cfg = VisualizerCfg(backend=RerunBackendCfg())
+    visualizer = cfg.backend.class_type(cfg)
     visualizer.set_camera_view((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
 
     # A selected scene camera short-circuits _apply_camera_pose before it calls into the
@@ -76,7 +79,8 @@ def test_rerun_viewer_skips_unchanged_instance_appearance(monkeypatch):
 
 
 def test_viser_visualizer_set_camera_view():
-    visualizer = ViserVisualizer(ViserVisualizerCfg())
+    cfg = VisualizerCfg(backend=ViserBackendCfg())
+    visualizer = cfg.backend.class_type(cfg)
     visualizer.set_camera_view([1, 2, 3], [0, 0, 0])
     assert visualizer._pending_camera_pose == ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0))
 
@@ -89,7 +93,7 @@ def test_viser_visualizer_set_camera_view():
     clients.update({index: SimpleNamespace(camera=SimpleNamespace()) for index in range(2)})
     visualizer._is_initialized = True
     visualizer._sim = object()
-    visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
+    visualizer.backend = SimpleNamespace(model=SimpleNamespace(world_count=1))
     visualizer._paused_rendering = True
     visualizer.step(0.1)
     assert visualizer._pending_camera_pose is None

@@ -3,6 +3,81 @@ Changelog
 
 .. towncrier release notes start
 
+29.0.3 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to read Newton state, contacts and replication outputs from the physics manager's
+  backend and replication outputs.
+
+Fixed
+^^^^^
+
+* Fixed the SO-101 stacking pipeline for Isaac Capture 1.7 by removing the retired
+  ``orientation_offset`` argument and calibration constant. Orientation follows the SDK's
+  engage-relative clutch model seeded from the configured home transform, with the existing
+  eight-element pose and analog-gripper action order preserved.
+
+
+29.0.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed task asset lookups, coupled solver selectors, and teleoperation paths to follow the
+  scene's clone template instead of assuming the default environment namespace.
+
+
+29.0.1 (2026-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept the coffee demo's kitchen presentation out of the Newton physics model.
+
+
+29.0.0 (2026-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved task visualizer presets into ``VisualizerCfg.backend``. Configure common view
+  settings once with ``VisualizerCfg(..., backend=MultiBackendVisualizerCfg())`` instead of backend-specific
+  viewer declarations or ``SimulationCfg.default_visualizer_cfg``. Unselected visualizer presets resolved to ``[]``.
+* Composed standalone visualizer declarations before calling the core launcher, preserving declared backend options.
+
+Fixed
+^^^^^
+
+* Preserved selected visualizers when copying Franka Pour and UR10 Particle Push task configurations.
+* Preserved selected backends and window settings when reorientation play mode changed the camera pose.
+
+
+28.3.0 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``action_rate_penalty_scale`` to ``Isaac-Shadow-Handover-Direct`` to optionally penalize changes of each
+  hand's actions between steps for smoother motion; it is disabled by default.
+
+Changed
+^^^^^^^
+
+* Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to start each episode with the object in a
+  random hand (``randomize_start_hand``). Set ``randomize_start_hand=False`` for the previous fixed right-to-left
+  start.
+* Changed both handover tasks to start the object at the holding hand's goal point, 3 cm closer to the palm than
+  before, and renamed the Direct ``goal_position_offset`` and the command's ``position_offset`` to
+  ``hold_position_offset`` since it now sets both points.
+
+
 28.2.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~~
 

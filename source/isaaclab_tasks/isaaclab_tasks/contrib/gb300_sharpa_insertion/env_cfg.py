@@ -186,7 +186,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                 entries=[
                     CouplerEntryCfg(
                         name="rigid",
-                        bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Fixtures"],
+                        bodies=[r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Fixtures"],
                         substeps=1,
                         solver_cfg=MJWarpSolverCfg(
                             cone="elliptic",
@@ -200,7 +200,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                     ),
                     CouplerEntryCfg(
                         name="cable",
-                        bodies=[r"/World/envs/env_.*/Cable"],
+                        bodies=[r"{ENV_REGEX_NS}/Cable"],
                         substeps=1,
                         include_static_shapes=True,
                         solver_cfg=VBDSolverCfg(
@@ -215,9 +215,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
         )
         configure_hydroelastic_physics(self.sim.physics)
         self.sim.physics.collision_cfg.contact_matching = "latest"
-        self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(0.92, -0.02, 2.22), lookat=(0.52, 0.30, 2.075), focal_length=22.0
-        )
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.92, -0.02, 2.22), lookat=(0.52, 0.30, 2.075), focal_length=22.0)
         # Millimeter-scale grasps do not need the default 10 mm search halo.
         self.scene.robot.spawn.collision_props = {
             "/.*": [NewtonCollisionCfg(contact_gap=0.001)],

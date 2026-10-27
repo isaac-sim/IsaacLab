@@ -3,6 +3,25 @@ Changelog
 
 .. towncrier release notes start
 
+0.3.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused core Warp mathematics in observation, reward, and termination terms instead of importing solver-owned equations.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``ObservationTermCfg.modifiers`` in favor of ``ObservationTermCfg.tensor_processors``.
+  Retained the legacy field with a targeted warning and forwarding during manager initialization.
+  Setting both fields now raises ``ValueError`` to prevent silently overriding either pipeline.
+* Deprecated ``isaaclab_experimental.utils.modifiers``, ``ModifierBase``, and ``ModifierCfg`` in favor of
+  ``isaaclab_experimental.utils.tensor_processors``, ``TensorProcessor``, and ``TensorProcessorCfg``.
+  Preserved legacy imports and serialized callable paths with an import-time deprecation warning.
+
+
 0.2.7 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

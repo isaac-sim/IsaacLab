@@ -388,6 +388,8 @@ class ContactSensor(BaseContactSensor):
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
+        self._num_sensors = len(body_names)
+        self._check_env_count(self.body_physx_view.count, " or ".join(body_path_globs), self._num_sensors)
         # with a list of sensor patterns, the contact view expects one filter list per pattern;
         # keep the no-filter case as a flat empty list, matching the API default
         filter_patterns = [filter_prim_paths_glob] * len(body_path_globs) if filter_prim_paths_glob else []
@@ -404,18 +406,6 @@ class ContactSensor(BaseContactSensor):
                 f"\n\tFilter patterns: {filter_prim_paths_glob}"
             )
         self._supports_total_contact_forces = hasattr(self.contact_view, "get_net_friction_contact_forces")
-        # resolve the true count of bodies
-        self._num_sensors = self.body_physx_view.count // self._num_envs
-        # check that contact reporter succeeded
-        if self._num_sensors != len(body_names):
-            raise RuntimeError(
-                "Failed to initialize contact reporter for specified bodies."
-                f"\n\tInput prim path    : {self.cfg.prim_path}"
-                f"\n\tResolved prim paths: {body_path_globs}"
-                f"\n\tView body count    : {self.body_physx_view.count} ({self._num_envs} envs,"
-                f" {self._num_sensors} per env), expected {len(body_names)} per env"
-            )
-
         # check if filter paths are valid
         if self.cfg.track_contact_points or (
             self.cfg.track_friction_forces and not self._supports_total_contact_forces
@@ -582,6 +572,7 @@ class ContactSensor(BaseContactSensor):
 
         # PhysX returns (B*N, 7) float32 -> viewed as (B*N,) transformf, body-major
         if self.cfg.track_pose and include_pose:
+            self._backend_manager.update_kinematics()
             poses = self.body_physx_view.get_transforms()
             self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
 
@@ -630,7 +621,6 @@ class ContactSensor(BaseContactSensor):
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
-                self._timestamp,
                 self._elapsed_since_update,
             ],
             outputs=[
@@ -677,7 +667,6 @@ class ContactSensor(BaseContactSensor):
                     self._num_envs,
                     True,
                     float("nan"),
-                    self._timestamp,
                 ],
                 outputs=[self._data._contact_pos_w],
                 device=self.device,
@@ -696,7 +685,6 @@ class ContactSensor(BaseContactSensor):
                     self._num_envs,
                     False,
                     0.0,
-                    self._timestamp,
                 ],
                 outputs=[self._data._friction_force_matrix_w],
                 device=self.device,

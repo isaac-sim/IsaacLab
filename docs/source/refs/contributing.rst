@@ -38,7 +38,7 @@ follow the following steps to contribute code:
 3. Create a new branch for your changes.
 4. Make your changes and commit them.
 5. Push your changes to your fork.
-6. Submit a pull request to the `develop branch <https://github.com/isaac-sim/IsaacLab/compare/develop...>`__.
+6. Submit a pull request to the `main branch <https://github.com/isaac-sim/IsaacLab/compare/main...>`__.
 7. Ensure all the checks on the pull request template are performed.
 
 After sending a pull request, the maintainers will review your code and provide feedback.
@@ -115,7 +115,7 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 for maintaining the documentation.
 
 API ``[source]`` links open the implementation on GitHub, using the published documentation's
-branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+branch or tag (``main`` for a current-checkout build by default). We do not generate local
 Python source pages; viewing the implementation requires internet access.
 
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
@@ -286,12 +286,12 @@ Validate against the PR's base without creating temporary remote-tracking refs:
 
 .. code-block:: bash
 
-   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+   uv run python tools/changelog/cli.py check upstream/main --include-worktree
 
 The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
-``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
-select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
-set, otherwise ``develop``. Fetch the intended base before validation.
+``main`` continues to prefer ``origin/main`` when it exists; use ``refs/heads/main`` to select a
+local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when set,
+otherwise ``main``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -370,12 +370,19 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Put common configuration in the shared owner and document backend capabilities explicitly. Name
   collections in the plural. Remove empty hooks and expired compatibility aliases during their
   announced removal release instead of maintaining unused extension points.
+  Use one representation for an empty selection; do not give ``None`` and ``[]`` the same meaning.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
   Customize existing preset alternatives with configured instances; do not introduce a preset
   subclass just to change a backend's settings. Preset declarations and selection belong in
   ``isaaclab_tasks`` and scripts. Complete selection before runtime launch; core simulation and backend
-  packages must not import, declare, or resolve presets.
+  packages must not import, declare, or resolve presets. Compose task configurations with
+  ``resolve_task_config`` and standalone declarations with ``resolve_presets`` during initial configuration,
+  then call ``isaaclab.app.launch_simulation`` directly. Do not add another launcher to hide preset composition.
+  Preserve the distinction between available preset alternatives and a list of active backends;
+  do not replace one with the other to avoid a configuration boundary.
+  Keep view declarations separate from backend selections: select backends for each declared view,
+  preserving its camera and window settings rather than using the first view as a global template.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
   not import renderer implementations or manipulate their attachment state.
@@ -516,6 +523,27 @@ For classes that own resources, expose explicit cleanup through ``close()`` or a
 
    .. literalinclude:: snippets/code_skeleton.py
       :language: python
+
+Shared Warp mathematics
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Coordinate transformations, rotations, intervals, and spatial algebra belong in
+``isaaclab.utils.warp.math``. Keep solver-specific gathering and scattering in backends.
+Use Warp built-ins when they express the operation, and delete superseded equations instead
+of retaining forwarding aliases without an external caller. Preserve quaternion ``xyzw``
+and spatial-vector ``(linear, angular)`` conventions explicitly; different frames or sentinel
+policies are not interchangeable.
+
+Use ``wp.map(..., return_kernel=True)`` for elementwise array launches instead of maintaining a
+custom mapping factory. Declare required variants in the semantic owner before launch or graph
+capture; Warp owns their generation and per-operation compilation modules. Supply zero-extent array
+descriptors and an explicit ``out`` descriptor to avoid allocating storage or specializing singleton
+broadcasting. The returned kernels preserve runtime array strides and use existing launch caches.
+Specialize structural choices; numerical values remain runtime inputs. Name factories
+``make_<operation>`` and shared math entry points by their operation, without a ``_kernel`` suffix.
+Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a device operation and
+an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
+Verify ownership and dependency direction as well as numerical behavior and capture replay.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import importlib.metadata
 from pathlib import Path
 from typing import Any
 
@@ -42,12 +41,13 @@ def command_list_envs(args: list[str] | None = None) -> None:
 
     import isaaclab_tasks  # noqa: F401
 
+    from .. import load_external_tasks
+
     # PLACEHOLDER: Extension template (do not remove this comment)
     with contextlib.suppress(ImportError):
         import isaaclab_tasks_experimental  # noqa: F401
 
-    for entry_point in importlib.metadata.entry_points(group="isaaclab.tasks"):
-        entry_point.load()
+    load_external_tasks()
 
     project_modules = () if parsed_args.all or parsed_args.keyword else _find_project_task_modules(Path.cwd())
     task_specs = [

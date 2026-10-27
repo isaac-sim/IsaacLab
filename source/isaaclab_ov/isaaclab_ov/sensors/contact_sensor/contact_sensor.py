@@ -279,14 +279,7 @@ class ContactSensor(BaseContactSensor):
                 f"\n\tBound sensors       : {self._contact_binding.sensor_count}"
             )
 
-        # A sensor may select fewer worlds than the complete plan.
-        binding_num_envs = self._contact_binding.sensor_count // self._num_sensors
-        if binding_num_envs != self._num_envs:
-            self._num_envs = binding_num_envs
-            self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask_torch = wp.to_torch(self._reset_mask)
-            self._create_timing_buffers()
+        self._check_env_count(self._contact_binding.sensor_count, self.cfg.prim_path, self._num_sensors)
 
         # Optional: pose tracking via a RIGID_BODY_POSE tensor binding.
         # ovphysx fnmatch does not brace-expand, so we cannot match multiple
@@ -382,6 +375,7 @@ class ContactSensor(BaseContactSensor):
             self._contact_binding.read_normal_force_matrix(self._normal_force_matrix_flat_buf)
             self._contact_binding.read_friction_force_matrix(self._friction_force_matrix_flat_buf)
         if self.cfg.track_pose and include_pose:
+            self._backend_manager.update_kinematics()
             # Read pose into [num_envs * num_sensors, 7] float32.
             assert self._root_view is not None
             assert self._poses_flat_buf is not None
@@ -421,7 +415,6 @@ class ContactSensor(BaseContactSensor):
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
-                self._timestamp,
                 self._elapsed_since_update,
             ],
             outputs=[
@@ -456,7 +449,6 @@ class ContactSensor(BaseContactSensor):
                     contact_buffers[-1],
                     env_mask,
                     self._num_envs,
-                    self._timestamp,
                 ],
                 outputs=[self._data._contact_pos_w],
                 device=self._device,
