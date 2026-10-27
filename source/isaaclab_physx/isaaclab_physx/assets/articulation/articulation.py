@@ -2042,11 +2042,12 @@ class Articulation(BaseArticulation):
 
         Args:
             joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+                A scalar is broadcast to all selected cells.
                 Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
-                Same shape as above. If None, the dynamic coefficient is not updated.
+                A scalar or the same shape as above. If None, the dynamic coefficient is not updated.
             joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
-                Same shape as above. If None, the viscous coefficient is not updated.
+                A scalar or the same shape as above. If None, the viscous coefficient is not updated.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2104,22 +2105,12 @@ class Articulation(BaseArticulation):
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Broadcast scalar coefficients to the input shape that the kernel reads.
-        input_shape = (self.num_instances, self.num_joints) if full_data else (env_ids.shape[0], joint_ids.shape[0])
-        if isinstance(joint_friction_coeff, float):
-            joint_friction_coeff = wp.full(input_shape, joint_friction_coeff, dtype=wp.float32, device=self.device)
-        if isinstance(joint_dynamic_friction_coeff, float):
-            joint_dynamic_friction_coeff = wp.full(
-                input_shape, joint_dynamic_friction_coeff, dtype=wp.float32, device=self.device
-            )
-        if isinstance(joint_viscous_friction_coeff, float):
-            joint_viscous_friction_coeff = wp.full(
-                input_shape, joint_viscous_friction_coeff, dtype=wp.float32, device=self.device
-            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
-            articulation_kernels.write_joint_friction_data_to_buffer_kernel(env_ids, joint_ids),
+            articulation_kernels.write_joint_friction_data_to_buffer_kernel(
+                env_ids, joint_ids, joint_friction_coeff, joint_dynamic_friction_coeff, joint_viscous_friction_coeff
+            ),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 joint_friction_coeff,
@@ -2148,9 +2139,9 @@ class Articulation(BaseArticulation):
     def write_joint_friction_coefficient_to_sim_mask(
         self,
         *,
-        joint_friction_coeff: torch.Tensor | wp.array,
-        joint_dynamic_friction_coeff: torch.Tensor | wp.array | None = None,
-        joint_viscous_friction_coeff: torch.Tensor | wp.array | None = None,
+        joint_friction_coeff: torch.Tensor | wp.array | float,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ):
@@ -2176,11 +2167,12 @@ class Articulation(BaseArticulation):
 
         Args:
             joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+                A scalar is broadcast to all selected cells.
                 Shape is (num_instances, num_joints).
             joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
-                Same shape as above. If None, the dynamic coefficient is not updated.
+                A scalar or the same shape as above. If None, the dynamic coefficient is not updated.
             joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
-                Same shape as above. If None, the viscous coefficient is not updated.
+                A scalar or the same shape as above. If None, the viscous coefficient is not updated.
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """

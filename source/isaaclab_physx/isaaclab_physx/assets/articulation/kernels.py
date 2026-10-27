@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from functools import cache
 from typing import Any
 
 import torch
@@ -247,11 +248,43 @@ def write_joint_limit_data_to_buffer(
     )
 
 
+@wp.func
+def _write_joint_friction_component(
+    in_data: wp.float32,
+    data_i: wp.int32,
+    data_j: wp.int32,
+    env_id: wp.int32,
+    joint_id: wp.int32,
+    component: wp.int32,
+    out_data: wp.array2d(dtype=wp.float32),
+    friction_props: wp.array3d(dtype=wp.float32),
+):
+    out_data[env_id, joint_id] = in_data
+    friction_props[env_id, joint_id, component] = in_data
+
+
+@wp.func
+def _write_joint_friction_component(
+    in_data: wp.array2d(dtype=wp.float32),
+    data_i: wp.int32,
+    data_j: wp.int32,
+    env_id: wp.int32,
+    joint_id: wp.int32,
+    component: wp.int32,
+    out_data: wp.array2d(dtype=wp.float32),
+    friction_props: wp.array3d(dtype=wp.float32),
+):
+    if in_data:
+        value = in_data[data_i, data_j]
+        out_data[env_id, joint_id] = value
+        friction_props[env_id, joint_id, component] = value
+
+
 @wp.kernel
 def write_joint_friction_data_to_buffer(
-    in_friction: wp.array2d(dtype=wp.float32),
-    in_dynamic_friction: wp.array2d(dtype=wp.float32),
-    in_viscous_friction: wp.array2d(dtype=wp.float32),
+    in_friction: Any,
+    in_dynamic_friction: Any,
+    in_viscous_friction: Any,
     env_ids: wp.array(dtype=Any),
     joint_ids: wp.array(dtype=Any),
     from_mask: bool,
@@ -263,17 +296,17 @@ def write_joint_friction_data_to_buffer(
 ):
     """Write joint friction data to the output buffers.
 
-    This kernel writes joint friction coefficients from input arrays to output buffers
+    This kernel writes scalar or array joint friction coefficients to output buffers
     and updates the friction properties array used by the physics simulation.
 
     Args:
-        in_friction: Input array containing joint friction coefficients. Shape is
+        in_friction: Scalar or array containing joint friction coefficients. Array shape is
             (num_envs, num_joints) or (num_selected_envs, num_selected_joints) depending
             on from_mask. Can be None if not provided.
-        in_dynamic_friction: Input array containing joint dynamic friction coefficients.
+        in_dynamic_friction: Scalar or array containing joint dynamic friction coefficients.
             Shape is (num_envs, num_joints) or (num_selected_envs, num_selected_joints).
             Can be None if not provided.
-        in_viscous_friction: Input array containing joint viscous friction coefficients.
+        in_viscous_friction: Scalar or array containing joint viscous friction coefficients.
             Shape is (num_envs, num_joints) or (num_selected_envs, num_selected_joints).
             Can be None if not provided.
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
@@ -296,25 +329,16 @@ def write_joint_friction_data_to_buffer(
     joint_id = wp.int32(joint_ids[j])
     if j == 0:
         sim_env_ids[i] = env_id
-    # First update the output buffers
+    data_i, data_j = i, j
     if from_mask:
-        out_friction[env_id, joint_id] = in_friction[env_id, joint_id]
-        if in_dynamic_friction:
-            out_dynamic_friction[env_id, joint_id] = in_dynamic_friction[env_id, joint_id]
-        if in_viscous_friction:
-            out_viscous_friction[env_id, joint_id] = in_viscous_friction[env_id, joint_id]
-    else:
-        out_friction[env_id, joint_id] = in_friction[i, j]
-        if in_dynamic_friction:
-            out_dynamic_friction[env_id, joint_id] = in_dynamic_friction[i, j]
-        if in_viscous_friction:
-            out_viscous_friction[env_id, joint_id] = in_viscous_friction[i, j]
-    # Then update the friction properties
-    friction_props[env_id, joint_id, 0] = out_friction[env_id, joint_id]
-    if in_dynamic_friction:
-        friction_props[env_id, joint_id, 1] = out_dynamic_friction[env_id, joint_id]
-    if in_viscous_friction:
-        friction_props[env_id, joint_id, 2] = out_viscous_friction[env_id, joint_id]
+        data_i, data_j = env_id, joint_id
+    _write_joint_friction_component(in_friction, data_i, data_j, env_id, joint_id, 0, out_friction, friction_props)
+    _write_joint_friction_component(
+        in_dynamic_friction, data_i, data_j, env_id, joint_id, 1, out_dynamic_friction, friction_props
+    )
+    _write_joint_friction_component(
+        in_viscous_friction, data_i, data_j, env_id, joint_id, 2, out_viscous_friction, friction_props
+    )
 
 
 @wp.kernel
@@ -404,9 +428,18 @@ def _float_data_to_buffer_with_indices_and_sim_ids(
 _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
     write_joint_limit_data_to_buffer, ("env_ids", "joint_ids")
 )
-_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
-    write_joint_friction_data_to_buffer, ("env_ids", "joint_ids")
-)
+
+
+@cache
+def _joint_friction_data_dispatcher(scalar_inputs: tuple[bool, bool, bool]) -> IndexKernelDispatcher:
+    names = ("in_friction", "in_dynamic_friction", "in_viscous_friction")
+    argument_types = {
+        name: wp.float32 if scalar else wp.array2d(dtype=wp.float32)
+        for name, scalar in zip(names, scalar_inputs, strict=True)
+    }
+    return IndexKernelDispatcher(write_joint_friction_data_to_buffer, ("env_ids", "joint_ids"), argument_types)
+
+
 _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
     write_joint_friction_param_to_buffer, ("env_ids", "joint_ids")
 )
@@ -426,10 +459,17 @@ def write_joint_limit_data_to_buffer_kernel(
 
 
 def write_joint_friction_data_to_buffer_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor,
+    joint_ids: wp.array | torch.Tensor,
+    in_friction: float | torch.Tensor | wp.array | None = None,
+    in_dynamic_friction: float | torch.Tensor | wp.array | None = None,
+    in_viscous_friction: float | torch.Tensor | wp.array | None = None,
 ) -> wp.Kernel:
-    """Select the joint-friction writer for the selector dtypes."""
-    return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
+    """Select the joint-friction writer for scalar inputs and selector dtypes."""
+    scalar_inputs = tuple(
+        isinstance(value, (int, float)) for value in (in_friction, in_dynamic_friction, in_viscous_friction)
+    )
+    return _joint_friction_data_dispatcher(scalar_inputs).select(env_ids, joint_ids)
 
 
 def write_joint_friction_param_to_buffer_kernel(

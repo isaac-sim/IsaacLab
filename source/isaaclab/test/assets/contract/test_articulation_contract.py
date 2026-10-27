@@ -16,6 +16,7 @@ stage through CPU-pinned buffers there.
 
 import math
 import warnings
+from itertools import product
 from operator import attrgetter
 from unittest.mock import MagicMock, patch
 
@@ -534,6 +535,59 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
         method(**{kwarg: extra_env})
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: wp.from_torch(extra_env.contiguous(), dtype=dtype)})
+
+
+@pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
+@pytest.mark.parametrize("selection", ["index", "full_data", "mask"])
+def test_friction_mixed_inputs_preserve_other_cells_and_components(monkeypatch, backend, selection):
+    """Fused friction writes broadcast zero scalars independently and preserve omitted components."""
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    names = ("joint_friction_coeff", "joint_dynamic_friction_coeff", "joint_viscous_friction_coeff")
+    expected = [getattr(art.data, name).torch.clone() for name in names]
+    values = [torch.arange(N * J, dtype=torch.float32).reshape(N, J) / 100 + i + 0.1 for i in range(3)]
+    joints = [2, 0]
+    if selection == "mask":
+        method = art.write_joint_friction_coefficient_to_sim_mask
+        selectors = {"env_mask": _mask(N, [1], "cpu"), "joint_mask": _mask(J, joints, "cpu")}
+    else:
+        method = art.write_joint_friction_coefficient_to_sim_index
+        selectors = {"env_ids": [1], "joint_ids": joints}
+        if selection == "full_data":
+            if backend != "physx":
+                pytest.skip("OVPhysX index writes accept partial data only")
+            selectors["full_data"] = True
+
+    # Each tuple selects a distinct scalar/array specialization of the three inputs.
+    cases = list(product((True, False), repeat=3)) + [(True, False, None), (False, None, True)]
+    writes = [(method, inputs) for inputs in cases]
+    if backend == "ovphysx":
+        writes.extend(
+            [
+                (method, (False, False, False)),
+                (getattr(art, f"write_joint_dynamic_friction_coefficient_to_sim_{selection}"), (None, True, None)),
+                (getattr(art, f"write_joint_viscous_friction_coefficient_to_sim_{selection}"), (None, None, True)),
+            ]
+        )
+    for write, scalar_inputs in writes:
+        inputs = {}
+        for component, (name, scalar) in enumerate(zip(names, scalar_inputs, strict=True)):
+            if scalar is None:
+                continue
+            value = 0 if scalar else values[component]
+            expected[component][1, joints] = value if scalar else value[1, joints]
+            if not scalar and selection == "index":
+                value = value[1:, joints]
+            inputs[name] = value
+        write(**inputs, **selectors)
+        for name, reference in zip(names, expected, strict=True):
+            _assert_reads_back(getattr(art.data, name), reference, name)
+        if backend == "physx":
+            actual = art.root_view.get_dof_friction_properties()
+        else:
+            from isaaclab_ov import tensor_types as TT
+
+            actual = art.root_view.get_attribute(TT.DOF_FRICTION_PROPERTIES)
+        torch.testing.assert_close(wp.to_torch(actual).reshape(N, J, 3), torch.stack(expected, dim=-1))
 
 
 @requires("newton")
