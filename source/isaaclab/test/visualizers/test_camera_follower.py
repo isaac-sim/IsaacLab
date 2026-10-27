@@ -115,3 +115,59 @@ def test_task_views_get_a_free_view_beside_them():
     cfg = VisualizerCfg(eye=(7.0, 0.0, 0.0), streaming_view=True, cameras=[task])
     assert cfg.eye == (7.0, 0.0, 0.0) and cfg.streaming_view
     assert not VisualizerCfg(streaming_view=True, cameras=[free]).streaming_view
+
+
+class _NamedScene(_Scene):
+    """A scene that knows its assets by name, as an interactive scene does."""
+
+    def __init__(self):
+        super().__init__()
+        self.robot.body_names = ["base", "LF_FOOT"]
+        self.robot.find_bodies = lambda name: (
+            [self.robot.body_names.index(name)] if name in self.robot.body_names else [],
+            [],
+        )
+        self.articulations, self.rigid_objects = {"robot": self.robot}, {"cube": SimpleNamespace(is_initialized=True)}
+
+    def __getitem__(self, name):
+        try:
+            return {**self.articulations, **self.rigid_objects}[name]
+        except KeyError:
+            raise KeyError(name) from None
+
+
+def test_the_followed_asset_can_be_switched_and_cleared_while_running():
+    cfg = PerspectiveCameraCfg(env_index=1, eye=(1.0, 0.0, 0.0), lookat=(0.0, 0.0, 0.0))
+    follower = CameraFollower(cfg, _NamedScene())
+    assert _eye(follower).tolist() == [11.0, 0.0, 0.0]  # Fixed relative to the environment origin.
+
+    follower.set_track_path("robot")
+    assert cfg.track_path == "robot"
+    assert _eye(follower).tolist() == [11.0, 0.0, 0.5]  # Offset from the robot at (10, 0, 0.5).
+
+    follower.set_track_path(None)
+    assert cfg.track_path is None
+    assert _eye(follower).tolist() == [11.0, 0.0, 0.0]
+
+
+def test_an_unknown_asset_or_ambiguous_body_is_rejected_and_keeps_the_current_target():
+    cfg = PerspectiveCameraCfg(env_index=0, track_path="robot")
+    follower = CameraFollower(cfg, _NamedScene())
+
+    with pytest.raises(ValueError, match="unknown scene asset"):
+        follower.set_track_path("ghost")
+    with pytest.raises(ValueError, match="exactly one body"):
+        follower.set_track_path("robot/no_such_body")
+
+    assert cfg.track_path == "robot"
+    follower.set_track_path("robot/LF_FOOT")
+    assert cfg.track_path == "robot/LF_FOOT"
+
+
+def test_the_followable_assets_and_bodies_are_listed():
+    follower = CameraFollower(PerspectiveCameraCfg(env_index=0), _NamedScene())
+
+    assert follower.asset_names() == ["robot", "cube"]
+    assert follower.body_names("robot") == ["base", "LF_FOOT"]
+    assert follower.body_names("cube") == []
+    assert follower.body_names("missing") == []

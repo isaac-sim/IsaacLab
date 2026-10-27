@@ -52,7 +52,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         state_space = 4
 
         # scene: fewer, more-spaced envs and no fabric cloning so the camera renders cleanly
-        scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+        scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
 
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
@@ -60,7 +60,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         def __post_init__(self):
             super().__post_init__()
             # widen the viewport to see the camera environments; the tracking camera stays as the base declares it
-            self.sim.default_visualizer_cfg.eye = (20.0, 20.0, 20.0)
+            self.sim.visualizer_cfgs.eye = (20.0, 20.0, 20.0)
 
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])

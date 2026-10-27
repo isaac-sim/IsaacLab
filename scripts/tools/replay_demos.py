@@ -14,7 +14,7 @@ import argparse
 import sys
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils.string import list_intersection, string_to_callable
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.utils import setup_preset_cli
 
@@ -61,13 +61,10 @@ args_cli, hydra_args = setup_preset_cli(parser)
 args_cli.require_kit = True
 
 # Call an external callback if requested.
-remaining_args_env_registration = None
 if args_cli.external_callback:
-    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = external_callback_function()
-
-# Hand arguments consumed by neither this parser nor the callback over to Hydra.
-hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+    remaining = string_to_callable(args_cli.external_callback, separator=".")()
+    if remaining is not None:
+        _, hydra_args = setup_preset_cli(parser, remaining)
 sys.argv = [sys.argv[0]] + hydra_args
 
 import contextlib
@@ -306,18 +303,12 @@ def replay_dataset(
     success_term,
 ):
     """Create the environment and replay the selected episodes of the dataset."""
-    # the keyboard device needs the Kit runtime, which is running at this point
-    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+    from isaaclab.visualizers import add_key_callbacks
 
     num_envs = args_cli.num_envs
 
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
-
-    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
-    teleop_interface.add_callback("N", play_cb)
-    teleop_interface.add_callback("B", pause_cb)
-    print('Press "B" to pause and "N" to resume the replayed actions.')
 
     # Determine if state validation should be conducted
     state_validation_enabled = False
@@ -334,7 +325,8 @@ def replay_dataset(
 
     # reset before starting
     env.reset()
-    teleop_interface.reset()
+    add_key_callbacks(env.sim.visualizers, {"N": play_cb, "B": pause_cb})
+    print('Press "B" to pause and "N" to resume the replayed actions.')
 
     episode_names = list(dataset_file_handler.get_episode_names())
     replayed_episode_count, recorded_episode_count, failed_demo_ids = replay_episodes_loop(

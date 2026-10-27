@@ -77,7 +77,7 @@ class VideoRecorderCfg:
     * ``"viz:<type>"``                 – a ``kit``, ``newton_gl`` or ``newton_rtx`` visualizer, interactive
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
-      ``streaming_view=True`` on its config, e.g. :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`).
+      ``streaming_view=True`` on its config, e.g. :class:`~isaaclab_visualizers.kit.KitBackendCfg`).
     * ``"viz:<type>:tracking"``        – the first perspective view of that visualizer that is tied to an
       environment or an asset (:class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or
       ``track_path``), whichever view its window shows. Only Newton GL supports it.

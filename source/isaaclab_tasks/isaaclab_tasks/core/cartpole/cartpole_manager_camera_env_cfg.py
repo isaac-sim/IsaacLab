@@ -145,8 +145,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
             # reset: smaller initial pole angle than the proprioceptive task
             self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
             # widen the viewport to see the camera environments; the tracking camera stays as the base declares it
-            self.sim.default_visualizer_cfg.eye = (20.0, 20.0, 20.0)
-            self.sim.default_visualizer_cfg.lookat = (0.0, 0.0, 0.0)
+            self.sim.visualizer_cfgs.eye = (20.0, 20.0, 20.0)
+            self.sim.visualizer_cfgs.lookat = (0.0, 0.0, 0.0)
 
     rgb = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb"))
     depth = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("depth"))

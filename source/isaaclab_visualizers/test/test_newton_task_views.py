@@ -43,6 +43,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
     viz = NewtonVisualizerBase.__new__(NewtonVisualizerBase)
     viz.cfg = SimpleNamespace(focal_length=12.0, eye=(4.0, -4.0, 3.0), lookat=(0.0, 0.0, 0.0))
     viz._followers, viz._last_render_step = {}, 5
+    viz._tracking_defaults, viz._tracking_error = {}, ""
     camera = _Camera()
 
     def set_camera(pos, pitch, yaw):
@@ -95,7 +96,7 @@ def test_capturing_another_view_hands_the_viewer_camera_back():
         viz._viewer.camera.pos, viz._viewer.camera.fov = Vec3(11.0, 2.0, 3.0), 20.0
         return "frame"
 
-    viz._capture_perspective = capture
+    viz._capture_frame = capture
     assert viz._capture_view(task, None) == "frame"
     assert seen["view"] is task
     camera = viz._viewer.camera
@@ -124,11 +125,47 @@ def test_a_task_view_without_a_follower_has_no_pose_instead_of_failing():
     assert not viz._apply_view_pose(task)
 
 
-def test_the_selector_names_what_a_task_view_follows_or_frames():
-    label = NewtonVisualizerBase._view_label
-    assert label(0, _view(PerspectiveCameraCfg())) == "Perspective 1"
-    assert label(1, _view(PerspectiveCameraCfg(env_index=2))) == "Environment 2"
-    assert label(1, _view(PerspectiveCameraCfg(track_path="robot/base"))) == "Following robot/base (env 0)"
-    assert label(2, SimpleNamespace(camera=object(), cfg=SimpleNamespace(source="/World/envs/env_0/cam"))) == (
-        "/World/envs/env_0/cam"
-    )
+def test_the_selector_names_the_tracking_camera_and_the_free_perspective():
+    sensor = SimpleNamespace(camera=object(), cfg=SimpleNamespace(source="/World/envs/env_0/cam"))
+    viz = _visualizer([_view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=1))])
+    viz._image_views.append(sensor)
+    assert viz._view_labels() == ["Perspective", "Tracking Camera", "/World/envs/env_0/cam"]
+
+    viz = _visualizer([_view(PerspectiveCameraCfg(env_index=0)), _view(PerspectiveCameraCfg(track_path="robot"))])
+    assert viz._view_labels() == ["Tracking Camera 1", "Tracking Camera 2"]
+
+
+def test_resetting_the_tracking_camera_restores_what_the_task_declared():
+    task = _view(PerspectiveCameraCfg(env_index=0, eye=(1.0, 0.0, 0.0), track_path="robot", follow_heading=True))
+    viz = _visualizer([task])
+    cfg, follower = task.cfg.source, viz._followers[task]
+    viz._tracking_defaults = {
+        task: {
+            "eye": cfg.eye, "lookat": cfg.lookat, "focal_length": cfg.focal_length, "track_path": "robot",
+            "follow_heading": True, "heading_smoothing_time_constant": 0.0, "env": follower.env,
+        }
+    }  # fmt: skip
+    cfg.eye, cfg.follow_heading = (5.0, 5.0, 5.0), False
+    follower.set_env(1)
+    follower.set_track_path(None)
+
+    assert viz._reset_tracking_camera(follower)
+    assert (cfg.eye, cfg.track_path, cfg.follow_heading, follower.env) == ((1.0, 0.0, 0.0), "robot", True, 0)
+
+
+def test_an_unknown_asset_is_reported_and_the_camera_keeps_following_its_target():
+    task = _view(PerspectiveCameraCfg(env_index=0, track_path="robot"))
+    viz = _visualizer([task])
+    viz._tracking_error = ""
+    follower = viz._followers[task]
+
+    class _Scene2(_Scene):
+        def __getitem__(self, name):
+            if name != "robot":
+                raise KeyError(name)
+            return super().__getitem__(name)
+
+    follower._scene = _Scene2()
+    assert not viz._set_tracking_path(follower, "ghost")
+    assert "unknown scene asset" in viz._tracking_error and task.cfg.source.track_path == "robot"
+    assert viz._set_tracking_path(follower, "robot") and viz._tracking_error == ""

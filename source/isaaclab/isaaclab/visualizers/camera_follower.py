@@ -43,11 +43,42 @@ class CameraFollower:
         self._body_index: int | None = None
         self._body_name = ""
         if cfg.track_path:
-            asset_name, _, self._body_name = cfg.track_path.partition("/")
+            self.set_track_path(cfg.track_path)
+
+    def set_track_path(self, track_path: str | None) -> None:
+        """Follow another asset or body, or only the environment origin when *track_path* is empty.
+
+        Args:
+            track_path: ``"asset"`` for an asset root or ``"asset/body"`` for one of its bodies; None or an empty
+                string stops following an asset.
+
+        Raises:
+            ValueError: If the asset is unknown, or the body does not match exactly one body of an initialized asset.
+        """
+        asset, body_name = None, ""
+        if track_path:
+            asset_name, _, body_name = track_path.partition("/")
             try:
-                self._asset = scene[asset_name]
+                asset = self._scene[asset_name]
             except KeyError as exc:
                 raise ValueError(f"track_path refers to an unknown scene asset: {asset_name!r}.") from exc
+            if body_name and asset.is_initialized and len(asset.find_bodies(body_name)[0]) != 1:
+                raise ValueError(f"track_path must match exactly one body: {track_path!r}.")
+        self.cfg.track_path = track_path or None
+        self._asset, self._body_name, self._body_index = asset, body_name, None
+        self._yaw = self._last_position = self._time = None
+
+    def asset_names(self) -> list[str]:
+        """Return the names of the scene assets the view can follow."""
+        scene = self._scene
+        return [*getattr(scene, "articulations", {}), *getattr(scene, "rigid_objects", {})]
+
+    def body_names(self, asset_name: str) -> list[str]:
+        """Return the body names of the scene asset *asset_name*, or an empty list when it has none."""
+        try:
+            return list(getattr(self._scene[asset_name], "body_names", []))
+        except KeyError:
+            return []
 
     @property
     def env(self) -> int:

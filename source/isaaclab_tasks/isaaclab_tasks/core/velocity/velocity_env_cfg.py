@@ -358,7 +358,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(
+        self.sim.visualizer_cfgs = VisualizerCfg(
             cameras=[
                 PerspectiveCameraCfg(
                     eye=(1.8, -3.0, 1.1),

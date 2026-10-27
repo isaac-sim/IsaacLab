@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for VideoRecorder, VideoRecorderCfg, and the ViewerCfg deprecation shim.
+"""Unit tests for VideoRecorder and VideoRecorderCfg.
 
 All tests are pure-Python mocks — no simulation context or Kit app required.
 """
@@ -18,10 +18,10 @@ import gymnasium as gym
 import numpy as np
 import pytest
 
-from isaaclab.envs.common import ViewerCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
 from isaaclab.utils import validate
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
 _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
@@ -55,7 +55,7 @@ def _cfg(**overrides) -> VideoRecorderCfg:
 
 class _FakeViz:
     def __init__(self, viz_type: str, frame: np.ndarray | None = None):
-        self.cfg = SimpleNamespace(visualizer_type=viz_type, streaming_view=False)
+        self.cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type=viz_type))
         self._frame = frame if frame is not None else _FRAME.copy()
         self.render_calls = 0
 
@@ -293,58 +293,6 @@ def test_invalid_source_raises(source, make_env, error, message):
     """Invalid sources fail when the recorder is constructed, before training starts."""
     with pytest.raises(error, match=message):
         VideoRecorder(_cfg(source=source), make_env())
-
-
-# ---------------------------------------------------------------------------
-# _apply_deprecated_viewer_cfg bridge
-# ---------------------------------------------------------------------------
-
-
-def _make_env_cfg(eye=(7.5, 7.5, 7.5)):
-    return SimpleNamespace(viewer=ViewerCfg(eye=eye), sim=SimpleNamespace(default_visualizer_cfg=None))
-
-
-@pytest.mark.parametrize(
-    "origin_type,expected_path", [("world", None), ("asset_root", "robot"), ("asset_body", "robot/panda_hand")]
-)
-def test_apply_deprecated_viewer_preserves_pose_and_tracking(origin_type, expected_path):
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.viewer.origin_type = origin_type
-    env_cfg.viewer.asset_name = "robot"
-    env_cfg.viewer.body_name = "panda_hand"
-    _apply_deprecated_viewer_cfg(env_cfg)
-    cfg = env_cfg.sim.default_visualizer_cfg
-    assert cfg is not None
-    if expected_path is None:
-        assert cfg.eye == (1.0, 2.0, 3.0)
-        return
-    # a followed asset becomes a task view that comes first, so the viewport starts on it
-    assert cfg.cameras[0].track_path == expected_path and cfg.cameras[0].eye == (1.0, 2.0, 3.0)
-    assert not cfg.cameras[1].is_task_view
-
-
-def test_apply_deprecated_viewer_noop_when_defaults():
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg()
-    _apply_deprecated_viewer_cfg(env_cfg)
-    assert env_cfg.sim.default_visualizer_cfg is None
-
-
-def test_apply_deprecated_viewer_skips_when_default_visualizer_cfg_already_set():
-    """If sim.default_visualizer_cfg is already set, the shim logs and returns without overwriting."""
-    from unittest.mock import MagicMock
-
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    existing_cfg = MagicMock()
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.sim.default_visualizer_cfg = existing_cfg
-    _apply_deprecated_viewer_cfg(env_cfg)
-    # Must not overwrite the existing cfg.
-    assert env_cfg.sim.default_visualizer_cfg is existing_cfg
 
 
 # ---------------------------------------------------------------------------

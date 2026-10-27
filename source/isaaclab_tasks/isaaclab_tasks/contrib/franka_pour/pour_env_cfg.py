@@ -37,7 +37,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.visualizers import PerspectiveCameraCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -528,7 +528,13 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "{DIR}.pour_env:FrankaPourEnv"
 
-    scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5, replicate_physics=True)
+    scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5)
+    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
+        # the viewport starts on the first view, framing environment 0; a free view follows it
+        visualizer_cfgs=VisualizerCfg(
+            cameras=[PerspectiveCameraCfg(env_index=0, eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1))],
+        )
+    )
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     rewards: ResetDatasetRewardsCfg = ResetDatasetRewardsCfg()
@@ -582,23 +588,13 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     curriculum_freeze: bool = False
 
     def __post_init__(self):
-        """Set the canonical control rate, horizon, viewer, and coupled Newton solver."""
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
+        """Set the canonical control rate, horizon, and coupled Newton solver."""
         self.decimation = 4
         self.episode_length_s = 12.0
         self.is_finite_horizon = False
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
         self.sim.use_newton_actuators = True
-        # the viewport starts on the first view, framing environment 0; a free view follows it
-        self.sim.default_visualizer_cfg = KitVisualizerCfg(
-            cameras=[
-                PerspectiveCameraCfg(env_index=0, eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1)),
-                PerspectiveCameraCfg(),
-            ]
-        )
-
         self.sim.physics = NewtonCfg(
             solver_cfg=CouplerProxyCfg(
                 entries=[
@@ -612,9 +608,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             nconmax=400,
                         ),
                         bodies=[
-                            r"/World/envs/env_.*/Robot",
-                            r"/World/envs/env_.*/SourceCup",
-                            r"/World/envs/env_.*/TargetCup",
+                            r"{ENV_REGEX_NS}/Robot",
+                            r"{ENV_REGEX_NS}/SourceCup",
+                            r"{ENV_REGEX_NS}/TargetCup",
                         ],
                         include_static_shapes=True,
                         substeps=3,
@@ -650,7 +646,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerProxyMappingCfg(
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
-                        bodies=[r"/World/envs/env_.*/SourceCup", r"/World/envs/env_.*/TargetCup"],
+                        bodies=[r"{ENV_REGEX_NS}/SourceCup", r"{ENV_REGEX_NS}/TargetCup"],
                         # Represent the supported or grasp-constrained 50 g cup as 50 kg only in
                         # MPM's proxy view so the roughly 140 g payload cannot create unphysical recoil.
                         mass_scale=1000.0,
@@ -813,7 +809,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         """Configure frozen single-world dataset playback."""
         super().play_mode()
         self.scene.num_envs = 1
-        self.sim.default_visualizer_cfg.eye = (0.9, 0.65, 0.5)
+        self.sim.visualizer_cfgs.cameras[0].eye = (0.9, 0.65, 0.5)
         self.curriculum_freeze = True
 
 

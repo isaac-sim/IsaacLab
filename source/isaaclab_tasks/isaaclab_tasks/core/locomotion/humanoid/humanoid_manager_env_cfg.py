@@ -180,7 +180,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the manager-based Humanoid walking environment."""
 
     # Scene settings
-    scene: HumanoidSceneCfg = HumanoidSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    scene: HumanoidSceneCfg = HumanoidSceneCfg(num_envs=4096, env_spacing=5.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -198,7 +198,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = HumanoidPhysicsCfg()
-        self.sim.default_visualizer_cfg = VISUALIZER_CFG.copy()
+        self.sim.visualizer_cfgs = VISUALIZER_CFG.copy()
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
         self.sim.physics_material.restitution = 0.0

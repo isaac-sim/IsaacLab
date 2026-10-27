@@ -81,7 +81,7 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
         dt=1 / 120,
         render_interval=decimation,
         physics=PendulumPhysicsCfg(),
-        default_visualizer_cfg=VisualizerCfg(
+        visualizer_cfgs=VisualizerCfg(
             cameras=[
                 PerspectiveCameraCfg(
                     env_index=0,
@@ -98,7 +98,7 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     pendulum_dof_name = "pole_to_pendulum"
 
     # scene
-    scene: PendulumSceneCfg = PendulumSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: PendulumSceneCfg = PendulumSceneCfg(num_envs=4096, env_spacing=4.0)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]

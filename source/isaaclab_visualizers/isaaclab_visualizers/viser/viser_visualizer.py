@@ -23,14 +23,13 @@ from newton.viewer import ViewerViser
 
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
+from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
-
-from .viser_visualizer_cfg import ViserVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -279,14 +278,13 @@ class NewtonViewerViser(ViewerViser):
 class ViserVisualizer(BaseVisualizer):
     """Viser web-based visualizer backed by Newton's ViewerViser."""
 
-    def __init__(self, cfg: ViserVisualizerCfg):
+    def __init__(self, cfg: VisualizerCfg):
         """Initialize Viser visualizer state.
 
         Args:
             cfg: Viser visualizer configuration.
         """
         super().__init__(cfg)
-        self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
         self.backend = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -316,27 +314,27 @@ class ViserVisualizer(BaseVisualizer):
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._viewer = NewtonViewerViser(
-            port=self.cfg.port,
-            bind_address=self.cfg.bind_address,
+            port=self.cfg.backend.port,
+            bind_address=self.cfg.backend.bind_address,
             label="Isaac Lab",
             verbose=False,
-            share=self.cfg.share,
-            record_to_viser=self.cfg.record_to_viser,
+            share=self.cfg.backend.share,
+            record_to_viser=self.cfg.backend.record_to_viser,
         )
         self._viewer._server.gui.add_markdown(f"Physics: {_BACKEND_DISPLAY_NAMES[self.physics_backend]}")
-        viewer_url = self._viewer._share_url or f"http://{self.cfg.display_address}:{self.cfg.port}"
-        if self.cfg.verbose:
+        viewer_url = self._viewer._share_url or f"http://{self.cfg.backend.display_address}:{self.cfg.backend.port}"
+        if self.cfg.backend.verbose:
             print()
             self._log_viewer_url("ViserVisualizer", viewer_url)
         self._viewer.set_model(self.backend.model)
-        self._viewer.show_particles = self.cfg.show_particles
+        self._viewer.show_particles = self.cfg.backend.show_particles
         self._bind_task_view(cameras)
         # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
         # Preserve simulation world positions rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-        if self.cfg.open_browser:
+        if self.cfg.backend.open_browser:
             webbrowser.open_new_tab(viewer_url)
         self.set_camera_view(self.cfg.eye, self.cfg.lookat)
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
@@ -349,10 +347,10 @@ class ViserVisualizer(BaseVisualizer):
                 ("lookat", self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
                 ("num_visualized_envs", num_visualized_envs),
-                ("bind_address", self.cfg.bind_address),
-                ("display_address", self.cfg.display_address),
-                ("port", self.cfg.port),
-                ("record_to_viser", self.cfg.record_to_viser or "<none>"),
+                ("bind_address", self.cfg.backend.bind_address),
+                ("display_address", self.cfg.backend.display_address),
+                ("port", self.cfg.backend.port),
+                ("record_to_viser", self.cfg.backend.record_to_viser or "<none>"),
             ],
         )
         self._is_initialized = True
@@ -452,12 +450,14 @@ class ViserVisualizer(BaseVisualizer):
             return
         try:
             self._viewer.close()
-            if self.cfg.record_to_viser:
-                if os.path.exists(self.cfg.record_to_viser):
-                    size = os.path.getsize(self.cfg.record_to_viser)
-                    logger.info("[ViserVisualizer] Recording saved: %s (%s bytes)", self.cfg.record_to_viser, size)
+            if self.cfg.backend.record_to_viser:
+                if os.path.exists(self.cfg.backend.record_to_viser):
+                    size = os.path.getsize(self.cfg.backend.record_to_viser)
+                    logger.info(
+                        "[ViserVisualizer] Recording saved: %s (%s bytes)", self.cfg.backend.record_to_viser, size
+                    )
                 else:
-                    logger.warning("[ViserVisualizer] Recording file not found: %s", self.cfg.record_to_viser)
+                    logger.warning("[ViserVisualizer] Recording file not found: %s", self.cfg.backend.record_to_viser)
         except Exception as exc:
             logger.warning("[ViserVisualizer] Error during close: %s", exc)
 

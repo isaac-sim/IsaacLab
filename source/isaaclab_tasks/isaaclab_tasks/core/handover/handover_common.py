@@ -19,7 +19,7 @@ from isaaclab_tasks.core.reorient.utils import SuccessTracker
 
 __all__ = [
     "GOAL_MARKER_CFG",
-    "GOAL_POSITION_OFFSET",
+    "HOLD_POSITION_OFFSET",
     "HandoverGoal",
     "OBJECT_RADIUS",
     "VISUALIZER_CFG",
@@ -29,8 +29,9 @@ __all__ = [
 OBJECT_RADIUS: float = 0.0335
 """Hand-over object sphere radius [m], also used for the goal marker."""
 
-GOAL_POSITION_OFFSET: tuple[float, float, float] = (0.36, 0.0, 0.04)
-"""Goal-position offset in each hand's local root frame [m]."""
+HOLD_POSITION_OFFSET: tuple[float, float, float] = (0.36, 0.0, 0.04)
+"""Object hold position in each hand's local root frame [m]: the goal at the receiving hand and the start at the
+holding hand."""
 
 # The camera is world-framed, so this aims at the environment nearest the grid center for the
 # default 2048 environments (x = 0.75 m); other counts shift the grid.
@@ -62,8 +63,14 @@ on this template; configclass deep-copies defaults, so sharing the instance is s
 class HandoverGoal:
     """Track alternating goal positions and cumulative success steps for both workflows."""
 
-    def __init__(self, hand_root_poses: torch.Tensor, position_offset: tuple[float, float, float]):
-        """Initialize from right/left hand poses of shape (2, num_envs, 7), in environment frames."""
+    def __init__(
+        self, hand_root_poses: torch.Tensor, position_offset: tuple[float, float, float], randomize_start: bool = False
+    ):
+        """Initialize from right/left hand poses of shape (2, num_envs, 7), in environment frames.
+
+        With ``randomize_start``, each episode's first goal is at a random hand instead of the left hand.
+        """
+        self._randomize_start = randomize_start
         num_envs = hand_root_poses.shape[1]
         device = hand_root_poses.device
         offset = torch.tensor(position_offset, device=device).expand(2, num_envs, 3)
@@ -72,6 +79,11 @@ class HandoverGoal:
         self.success_steps = torch.zeros(num_envs, dtype=torch.long, device=device)
         self.success = SuccessTracker(num_envs, device)
         self._left = torch.ones(num_envs, dtype=torch.bool, device=device)
+
+    @property
+    def left(self) -> torch.Tensor:
+        """Whether each environment's current goal is at the left hand."""
+        return self._left
 
     def update(self, succeeded: torch.Tensor, steps_required: int) -> torch.Tensor:
         """Accumulate success steps, switch completed goals, and return the mask of switched environments.
@@ -89,9 +101,25 @@ class HandoverGoal:
         torch.where(self._left.unsqueeze(-1), self._positions[1], self._positions[0], out=self.position)
         return switched
 
+    def start_position(self, env_ids: Sequence[int] | torch.Tensor | slice) -> torch.Tensor:
+        """Object start position for each episode: the hold point of the hand opposite its first goal.
+
+        Args:
+            env_ids: Environments whose episodes start.
+
+        Returns:
+            Start positions in environment frames [m]. Shape is (len(env_ids), 3).
+        """
+        return torch.where(self._left[env_ids].unsqueeze(-1), self._positions[0, env_ids], self._positions[1, env_ids])
+
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
-        """Start a new episode with the left-hand goal and no success steps or transfers."""
-        index_fill_(self._left, env_ids, True)
+        """Start a new episode with no success steps or transfers, its first goal at the left or a random hand."""
+        if self._randomize_start:
+            self._left[env_ids] = torch.rand(self._left.shape, device=self._left.device)[env_ids] < 0.5
+        else:
+            index_fill_(self._left, env_ids, True)
         index_fill_(self.success_steps, env_ids, 0)
-        self.position[env_ids] = self._positions[1, env_ids]
+        self.position[env_ids] = torch.where(
+            self._left[env_ids].unsqueeze(-1), self._positions[1, env_ids], self._positions[0, env_ids]
+        )
         self.success.clear(env_ids, skip_next_update=torch.zeros_like(self.success_steps[env_ids], dtype=torch.bool))

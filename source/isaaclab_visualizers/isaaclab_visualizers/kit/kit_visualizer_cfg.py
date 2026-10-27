@@ -7,17 +7,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg, WindowCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg, WindowCfg
 
 if TYPE_CHECKING:
     from .kit_visualizer import KitVisualizer
 
 
 @configclass
-class KitVisualizerCfg(VisualizerCfg):
+class KitBackendCfg(VisualizerBackendCfg):
     """Configuration for Kit visualizer using Isaac Sim viewport.
 
     .. note::
@@ -30,6 +30,8 @@ class KitVisualizerCfg(VisualizerCfg):
 
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
+
+    launcher_type: ClassVar[str] = "isaaclab_physx.app:KitLauncher"
 
     viewport_name: str | None = None
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.
@@ -52,5 +54,13 @@ class KitVisualizerCfg(VisualizerCfg):
         side-by-side.
     """
 
+
+@configclass
+class KitVisualizerCfg(KitBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=KitBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: KitBackendCfg = KitBackendCfg()
     window: WindowCfg = WindowCfg(size=(1280, 720))
-    """Viewport and capture dimensions. Kit owns the application update cadence."""

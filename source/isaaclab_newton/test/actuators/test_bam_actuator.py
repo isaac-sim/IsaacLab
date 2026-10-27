@@ -144,7 +144,7 @@ Configuration and authoring.
 def test_bam_requires_the_newton_backend(monkeypatch, goldens):
     """BAM is rejected on a PhysX simulation, even without the Newton package installed."""
     sim_ctx = SimpleNamespace(
-        cfg=SimulationCfg(use_newton_actuators=True), physics_manager=SimpleNamespace(__name__="PhysxManager")
+        cfg=SimulationCfg(use_newton_actuators=True), backend_manager=SimpleNamespace(backend_name="physx")
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim_ctx)
     monkeypatch.setitem(sys.modules, "isaaclab_newton", None)

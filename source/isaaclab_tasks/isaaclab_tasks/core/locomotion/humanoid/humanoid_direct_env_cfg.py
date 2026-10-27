@@ -56,13 +56,11 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
         dt=1 / 120,
         render_interval=decimation,
         physics=HumanoidPhysicsCfg(),
-        default_visualizer_cfg=VISUALIZER_CFG.copy(),
+        visualizer_cfgs=VISUALIZER_CFG.copy(),
     )
 
     # scene
-    scene: HumanoidDirectSceneCfg = HumanoidDirectSceneCfg(
-        num_envs=4096, env_spacing=5.0, replicate_physics=True, clone_in_fabric=True
-    )
+    scene: HumanoidDirectSceneCfg = HumanoidDirectSceneCfg(num_envs=4096, env_spacing=5.0)
 
     # robot
     joint_gears: dict[str, float] = JOINT_GEARS

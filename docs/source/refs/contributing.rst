@@ -1,7 +1,7 @@
 Contribution Guidelines
 =======================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-following-coding-style``,
    ``isaaclab-preparing-pr-workflow``, and ``isaaclab-writing-changelog-fragments`` agent skills
@@ -11,25 +11,13 @@ Contribution Guidelines
    When shared guidance changes, update affected skill workflows and examples without copying the rules. See
    :doc:`/source/developer-tools/agent_skills`.
 
-We wholeheartedly welcome contributions to the project to make the framework more mature
-and useful for everyone. These may happen in forms of:
+Contributions can include bug fixes, features, documentation, and tutorials.
 
-* Bug reports: Please report any bugs you find in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
-* Feature requests: Please suggest new features you would like to see in the `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__.
-* Code contributions: Please submit a `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
-
-  * Bug fixes
-  * New features
-  * Documentation improvements
-  * Tutorials and tutorial improvements
-
-We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
-asking questions, conversations and requests for new features.
-
-Please use the
-`issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
-with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
-
+* Report reproducible bugs in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
+* Use `Discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__ for questions,
+  ideas, and feature proposals.
+* Submit code and documentation changes through a
+  `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
 
 Contributing Code
 -----------------
@@ -50,7 +38,7 @@ follow the following steps to contribute code:
 3. Create a new branch for your changes.
 4. Make your changes and commit them.
 5. Push your changes to your fork.
-6. Submit a pull request to the `develop branch <https://github.com/isaac-sim/IsaacLab/compare/develop...>`__.
+6. Submit a pull request to the `main branch <https://github.com/isaac-sim/IsaacLab/compare/main...>`__.
 7. Ensure all the checks on the pull request template are performed.
 
 After sending a pull request, the maintainers will review your code and provide feedback.
@@ -60,9 +48,8 @@ as described in `Unit Testing`_ and `Tools`_.
 
 .. tip::
 
-   It is important to keep the pull request as small as possible. This makes it easier for the
-   maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
-   Large pull requests are difficult to review and may take a long time to merge.
+   Keep each pull request focused on one change. Submit unrelated changes separately
+   so maintainers can review and test them independently.
 
 
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
@@ -128,7 +115,7 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 for maintaining the documentation.
 
 API ``[source]`` links open the implementation on GitHub, using the published documentation's
-branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+branch or tag (``main`` for a current-checkout build by default). We do not generate local
 Python source pages; viewing the implementation requires internet access.
 
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
@@ -209,29 +196,106 @@ The documentation is generated in ``docs/_build/current``. Open
 HTML output and its Sphinx cache so deleted pages and cached warnings cannot be carried over.
 
 
-Contributing assets
--------------------
+.. _contributing-assets-and-environments:
 
-Large asset files should not be added directly to the Isaac Lab repository. Instead, host them in a
-separate repository and link to them from the relevant documentation.
+Contributing assets and environments
+------------------------------------
 
-Please checkout the `Isaac Sim Assets <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_overview.html>`__
-for more information on what is presently available.
+We welcome asset and environment contributions that expand what the Isaac Lab framework can demonstrate. To keep
+the repository focused and maintainable, an asset or environment is a good fit when it is the smallest clear example
+of a framework capability that current Isaac Lab examples do not cover. Projects that build on capabilities already
+represented in Isaac Lab are best maintained as community-owned projects, and their reusable framework improvements
+can still be proposed separately.
 
-.. attention::
+Choose the contribution location
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-  We are currently working on a better way to contribute assets. We will update this section once we
-  have a solution. In the meantime, please follow the steps mentioned below.
+.. list-table::
+   :header-rows: 1
+   :widths: 22 34 44
 
-To host your own assets, the current solution is:
+   * - Location
+     - Purpose
+     - Appropriate content
+   * - Isaac Lab core
+     - Stable reference implementations maintained as part of the framework contract.
+     - Reusable APIs and the smallest canonical asset or environment needed to demonstrate them.
+   * - In-repository ``contrib`` packages
+     - Incubation for a new capability that may graduate to core after its API and maintenance requirements
+       stabilize.
+     - Capability-driven work with a named owner, an evaluation period, and a promotion or removal plan. This is
+       intended for focused capability development. See :doc:`/source/experimental-features/bleeding-edge`.
+   * - Community-owned project
+     - The default location for downstream projects and integrations.
+     - Robot ports, task or reward variants, research reproductions, vendor examples, application workflows,
+       trained policies, datasets, and combinations of capabilities already demonstrated in Isaac Lab.
 
-1. Create a separate repository for the assets and add it over there
-2. Make sure the assets are licensed for use and distribution
-3. Include images of the assets in the README file of the repository
-4. Send a pull request with a link to the repository
+If a downstream project exposes a missing reusable primitive, propose that primitive separately while keeping the
+complete robot or application in the community-owned project.
 
-We will then verify the assets and their licensing and determine how to integrate them. If you have
-questions, please open an issue in the repository.
+Before opening a pull request
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Start with a `GitHub Discussion <https://github.com/isaac-sim/IsaacLab/discussions>`__ or
+`proposal issue <https://github.com/isaac-sim/IsaacLab/issues/new?template=proposal.md>`__. Include:
+
+* the missing capability and the current examples reviewed before claiming the gap;
+* the proposed location: core, time-bounded ``contrib`` incubation, or a community-owned project;
+* supported physics backends, renderers, operating modes, and known limitations;
+* asset sources, licenses, immutable hosting, and reproducible conversion or authoring instructions;
+* evidence that the capability works as claimed;
+* the individual or organization responsible for triage and compatibility updates; and
+* for ``contrib`` work, an exit plan that allows an unmaintained contribution to be promoted, relocated, or
+  removed.
+
+Maintainers may consolidate, relocate, or remove an in-repository example when its capability is covered elsewhere
+or its ownership and dependencies are no longer sustainable.
+
+Requirements for in-repository environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An environment proposed for core or ``contrib`` must meet all of these requirements:
+
+* Demonstrate a Newton, PhysX, rendering, or application capability that no current Isaac Lab environment covers.
+* Exercise a reusable framework path rather than only a robot-specific reward, scene, policy, or benchmark.
+* Be the smallest clear example of the capability and reuse existing assets and task terms wherever possible.
+* Declare and validate the supported physics backend and renderer combinations. Unsupported combinations must be
+  omitted from registration or fail with a clear message.
+* Document the capability and name a support owner.
+
+Projects that adapt an existing reach, lift, locomotion, or manipulation task to another robot are usually a better
+fit for a community-owned project. The same applies to new reward formulations, scene layouts, training
+configurations, checkpoints, paper reproductions, vendor workflows, or high-performing policies when the underlying
+framework capabilities are already represented.
+
+Requirements for in-repository assets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An asset proposed for core or ``contrib`` should demonstrate a capability that current examples do not cover, such
+as tendons, closed-loop kinematics, mobile or floating bases, unusual articulations, deformable or coupled bodies, or
+new sensor or actuator integrations. Differences in brand, appearance, dimensions, degree-of-freedom count, or
+commercial popularity alone are better suited to a community-owned project.
+
+Accepted assets need clear provenance, redistribution-compatible licensing, immutable versioned hosting,
+reproducible conversion or authoring instructions, and an upstream owner. Keep large binaries externally hosted and
+link to an immutable version. See the
+`Isaac Sim asset documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_overview.html>`__
+for existing assets and asset-format guidance.
+
+Create a community-owned project
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For work that does not meet the in-repository capability gate, use the :ref:`template generator <template-generator>`
+to create a standalone project outside the Isaac Lab checkout:
+
+.. code-block:: bash
+
+   uv run isaaclab --new
+
+Choose **External**. Use **Cartpole** for a runnable task baseline, **Stubbed** for a task skeleton, or **Blank** when
+adding Isaac Lab support to an existing project. The project should own its code, assets, documentation, releases,
+support, compatibility declarations, and versioned dependencies. It should also document installation and use its
+own issue tracker for support.
 
 
 Maintaining package changelogs and versions
@@ -299,12 +363,12 @@ Validate against the PR's base without creating temporary remote-tracking refs:
 
 .. code-block:: bash
 
-   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+   uv run python tools/changelog/cli.py check upstream/main --include-worktree
 
 The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
-``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
-select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
-set, otherwise ``develop``. Fetch the intended base before validation.
+``main`` continues to prefer ``origin/main`` when it exists; use ``refs/heads/main`` to select a
+local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when set,
+otherwise ``main``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -362,6 +426,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Complete shared resource initialization at its lifecycle boundary; registering the first consumer
+  should not initialize the shared resource or transfer its handles.
   Resolve selections once at initialization; backends should consume the final selection without a second
   filtering pass or cache.
   Keep a single representation of the active selection alongside its available choices. Detach borrowed
@@ -381,10 +447,26 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Put common configuration in the shared owner and document backend capabilities explicitly. Name
   collections in the plural. Remove empty hooks and expired compatibility aliases during their
   announced removal release instead of maintaining unused extension points.
+  Use one representation for an empty selection; do not give ``None`` and ``[]`` the same meaning.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
+  Customize existing preset alternatives with configured instances; do not introduce a preset
+  subclass just to change a backend's settings. Preset declarations and selection belong in
+  ``isaaclab_tasks`` and scripts. Complete selection before runtime launch; core simulation and backend
+  packages must not import, declare, or resolve presets. Compose task configurations with
+  ``resolve_task_config`` and standalone declarations with ``resolve_presets`` during initial configuration,
+  then call ``isaaclab.app.launch_simulation`` directly. Do not add another launcher to hide preset composition.
+  Preserve the distinction between available preset alternatives and a list of active backends;
+  do not replace one with the other to avoid a configuration boundary.
+  Keep view declarations separate from backend selections: select backends for each declared view,
+  preserving its camera and window settings rather than using the first view as a global template.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
-  finalization. See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
+  finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
+  not import renderer implementations or manipulate their attachment state.
+  Author camera and ISP settings during camera construction, before scene cloning or native import.
+  Renderer initialization consumes the prepared configuration; do not add feature-specific scene-authoring
+  hooks to ``BaseRenderer``.
+  See :doc:`/source/concepts/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
   clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
@@ -519,6 +601,27 @@ For classes that own resources, expose explicit cleanup through ``close()`` or a
    .. literalinclude:: snippets/code_skeleton.py
       :language: python
 
+Shared Warp mathematics
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Coordinate transformations, rotations, intervals, and spatial algebra belong in
+``isaaclab.utils.warp.math``. Keep solver-specific gathering and scattering in backends.
+Use Warp built-ins when they express the operation, and delete superseded equations instead
+of retaining forwarding aliases without an external caller. Preserve quaternion ``xyzw``
+and spatial-vector ``(linear, angular)`` conventions explicitly; different frames or sentinel
+policies are not interchangeable.
+
+Use ``wp.map(..., return_kernel=True)`` for elementwise array launches instead of maintaining a
+custom mapping factory. Declare required variants in the semantic owner before launch or graph
+capture; Warp owns their generation and per-operation compilation modules. Supply zero-extent array
+descriptors and an explicit ``out`` descriptor to avoid allocating storage or specializing singleton
+broadcasting. The returned kernels preserve runtime array strides and use existing launch caches.
+Specialize structural choices; numerical values remain runtime inputs. Name factories
+``make_<operation>`` and shared math entry points by their operation, without a ``_kernel`` suffix.
+Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a device operation and
+an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
+Verify ownership and dependency direction as well as numerical behavior and capture replay.
+
 Circular Imports
 ^^^^^^^^^^^^^^^^
 
@@ -550,6 +653,12 @@ examples of both patterns.
 
 Configuration Operations
 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keep configuration classes declarative. Cross-config default merging and runtime wiring belong
+in launch preparation or construction code, not methods on config objects. Validation hooks may
+check a configuration's own fields.
+When changing ownership, use explicit declarations; do not add deprecated-selector translation
+or discover unselected scene entities to preserve earlier routing.
 
 Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
 

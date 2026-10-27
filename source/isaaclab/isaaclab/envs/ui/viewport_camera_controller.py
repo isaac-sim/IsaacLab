@@ -7,7 +7,7 @@
 
 Camera tracking is now built into :class:`~isaaclab_visualizers.kit.KitVisualizer`.
 Declare a :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or ``track_path`` in the
-``cameras`` of :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`, and add it to
+``cameras`` of :class:`~isaaclab.visualizers.VisualizerCfg`, and add it to
 :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
 """
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 def _warn_method(name: str) -> None:
     warnings.warn(
         f"ViewportCameraController.{name}() is deprecated. "
-        "Declare a PerspectiveCameraCfg with env_index or track_path in KitVisualizerCfg.cameras, and call "
+        "Declare a PerspectiveCameraCfg with env_index or track_path in VisualizerCfg.cameras, and call "
         "visualizer.follow() or visualizer.unfollow() to change it at runtime.",
         DeprecationWarning,
         stacklevel=3,
@@ -39,7 +39,7 @@ class ViewportCameraController:
         :class:`ViewportCameraController` has been removed. Camera tracking is now built into
         :class:`~isaaclab_visualizers.kit.KitVisualizer`. Declare a
         :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or ``track_path`` in
-        :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` ``cameras`` and pass it to
+        :class:`~isaaclab.visualizers.VisualizerCfg` ``cameras`` and pass it to
         :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
     """
 
@@ -47,7 +47,7 @@ class ViewportCameraController:
         warnings.warn(
             "ViewportCameraController is deprecated and has been removed. "
             "Camera tracking is now built into KitVisualizer: declare a PerspectiveCameraCfg with "
-            "env_index or track_path in KitVisualizerCfg.cameras and add it to SimulationCfg.visualizer_cfgs.",
+            "env_index or track_path in VisualizerCfg.cameras and add it to SimulationCfg.visualizer_cfgs.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -133,11 +133,4 @@ class ViewportCameraController:
 
     def _get_kit_visualizers(self) -> list:
         """Return active Kit visualizers from the env's sim, if any."""
-        sim = getattr(self._env, "sim", None)
-        if sim is None:
-            return []
-        return [
-            v
-            for v in getattr(sim, "visualizers", [])
-            if getattr(getattr(v, "cfg", None), "visualizer_type", None) == "kit"
-        ]
+        return [v for v in self._env.sim.visualizers if v.cfg.backend.visualizer_type == "kit"]

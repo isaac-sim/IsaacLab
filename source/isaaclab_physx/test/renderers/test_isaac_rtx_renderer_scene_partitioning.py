@@ -30,6 +30,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(enable_cameras=True)
 
 import os
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -40,6 +41,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
@@ -80,18 +82,20 @@ def test_partitioning_cfg_overrides_legacy_environment_variable(
         monkeypatch.setenv(_ENV_VAR, environment_value)
 
     stage = Usd.Stage.CreateInMemory()
-    world = stage.DefinePrim("/World", "Xform")  # noqa: F841
-    env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
+    plan = SimpleNamespace(env_template="/Lab/Cell{}")
+    prim = stage.DefinePrim(plan.env_template.format(0), "Xform")
+    camera = stage.DefinePrim(f"{prim.GetPath()}/Camera", "Camera")
 
     renderer = object.__new__(IsaacRtxRenderer)
+    renderer._sim = SimpleNamespace(get_clone_plan=lambda: plan)
     if cfg_enabled is None:
         renderer.cfg = IsaacRtxRendererCfg()
     else:
         renderer.cfg = IsaacRtxRendererCfg(enable_scene_partitioning=cfg_enabled)
     renderer.prepare_stage(stage, num_envs=1)
 
-    prim = stage.GetPrimAtPath("/World/envs/env_0")
     assert prim.HasAttribute("primvars:omni:scenePartition") is expected
+    assert camera.HasAttribute("omni:scenePartition") is expected
 
 
 @pytest.mark.isaacsim_ci
@@ -132,7 +136,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
 
     with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0, replicate_physics=False))
+        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0, clone_cfg=CloneCfg(clone_template="/Lab/Cell{}")))
         sim.reset()
         # one settle step so RigidObject data buffers are populated before we write into them
         sim.step()
@@ -256,7 +260,7 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
 
     with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0, replicate_physics=False))
+        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0))
         sim.reset()
 
         robot = scene["robot"]

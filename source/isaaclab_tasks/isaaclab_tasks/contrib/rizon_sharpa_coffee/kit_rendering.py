@@ -16,25 +16,25 @@ from isaaclab_visualizers.kit import KitVisualizer
 
 from pxr import Usd, UsdGeom, UsdShade, Vt
 
-from .rendering import COFFEE_COLOR, _CoffeePresentationCfg, _vertex_color_material, _water_material
+from isaaclab.visualizers import VisualizerCfg
+
+from .rendering import COFFEE_COLOR, _vertex_color_material, _water_material
 
 if TYPE_CHECKING:
-    from .demo_env_cfg import CoffeeKitVisualizerCfg
     from .rendering import CoffeeRendering
 
 
 class CoffeeKitVisualizer(KitVisualizer):
     """Render the coffee task through Kit while Newton remains the physics owner."""
 
-    cfg: CoffeeKitVisualizerCfg
+    cfg: VisualizerCfg
     rendering: CoffeeRendering | None = None
     _update_subscription = None
 
     def initialize(self, sim, *, cameras) -> None:
         if self._is_initialized:
             return
-        apply_isaac_rtx_global_settings(self.cfg.render_settings)
-        sim.get_or_create_backend(_CoffeePresentationCfg(backdrop=self.cfg.backdrop), stage=sim.stage)
+        apply_isaac_rtx_global_settings(self.cfg.backend.render_settings)
         super().initialize(sim, cameras=cameras)
         self._stage = sim.stage
         self._root_path = "/World/CoffeePresentation/Kit"

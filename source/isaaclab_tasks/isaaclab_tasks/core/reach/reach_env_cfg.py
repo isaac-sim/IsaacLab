@@ -248,7 +248,7 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = ReachPhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(
+        self.sim.visualizer_cfgs = VisualizerCfg(
             eye=(3.5, 3.5, 3.5),
             cameras=[
                 PerspectiveCameraCfg(
