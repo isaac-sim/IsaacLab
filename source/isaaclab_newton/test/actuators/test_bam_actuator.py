@@ -237,6 +237,9 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, ca
     asset = make_stage(servo_usd)
     for index, name in enumerate(JOINT_NAMES):
         prim = asset.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
+        # Integer-typed asset attributes must still accept fractional configuration overrides.
+        prim.RemoveProperty("newton:kpFw")
+        prim.CreateAttribute("newton:kpFw", Sdf.ValueTypeNames.Int).Set(200)
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
         prim.GetAttribute("newton:frictionScale").Set(2.0)
         prim.CreateAttribute("newton:hasBacklash", Sdf.ValueTypeNames.Int).Set(1)
@@ -245,8 +248,12 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, ca
         asset.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Set(0.0)
     path = tmp_path / "robot.usda"
     asset.Export(str(path))
+    asset_layer = Sdf.Layer.FindOrOpen(str(path))
+    asset_opinions = asset_layer.ExportToString()
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().subLayerPaths.append(str(path))
+    # Cover an existing edit-target opinion as well as one inherited from the asset layer.
+    stage.GetPrimAtPath(f"/Robot/servo_{JOINT_NAMES[0]}_actuator").GetAttribute("newton:kpFw").Set(201)
     cfg = BamActuatorCfg(joint_names_expr=[".*"], kp_fw=123.5)
     cfg.motor.friction_base = 0.012
     # Part of the stall torque inputs: the asset's torque limit stays, with a warning.
@@ -254,6 +261,7 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, ca
     with caplog.at_level("WARNING"):
         author_actuator_prims(stage, "/Robot", {"servo": cfg})
     assert "actuator_effort_limit" in caplog.text
+    assert asset_layer.ExportToString() == asset_opinions
 
     for index, name in enumerate(JOINT_NAMES):
         entry = parse_actuator_prim(stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator"))

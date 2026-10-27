@@ -349,7 +349,11 @@ def _author_group(
             if schema not in present:
                 prim.AddAppliedSchema(schema)
         for field, value in values:
-            prim.CreateAttribute(field.attr, field.type_name).Set(value)
+            attr = prim.CreateAttribute(field.attr, field.type_name)
+            # CreateAttribute keeps an existing type, including one authored on a weaker layer.
+            if attr.GetTypeName() != field.type_name:
+                attr.SetTypeName(field.type_name)
+            attr.Set(value)
         for name, type_name, value in layout.joint_attrs:
             joint_prim.CreateAttribute(name, type_name).Set(value)
 
