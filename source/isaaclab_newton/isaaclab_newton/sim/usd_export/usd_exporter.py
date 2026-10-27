@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton USD export: every live model value the exported stage does not already state."""
+"""Newton USD export: every live model value that Isaac Lab set after building the model from the stage."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from isaaclab.sim.usd_export.base_usd_exporter import (
 )
 from isaaclab.utils.string import string_to_callable
 
-from isaaclab_newton.physics import NewtonManager, NewtonSolverCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonManager, NewtonShapeCfg, NewtonSolverCfg
 
 logger = logging.getLogger(__name__)
 
@@ -72,12 +72,30 @@ MATERIAL_ATTRIBUTES = {
 SHAPE_CONTACT_ATTRIBUTES = {_MATERIAL[key].name: _SHAPE[key].name for key in ("ke", "kd", "kf", "ka")}
 """Material contact gain -> collider attribute, used by colliders without a physics material."""
 
+SHAPE_DEFAULTS = {
+    "margin": ("shape_margin", _SHAPE["margin"].name),
+    "gap": ("shape_gap", _SHAPE["gap"].name),
+    "ke": ("shape_material_ke", _SHAPE["ke"].name),
+    "kd": ("shape_material_kd", _SHAPE["kd"].name),
+    "mu": ("shape_material_mu", None),
+}
+""":class:`NewtonShapeCfg` field -> model shape array and the collider attribute that states it.
+
+Workaround until Newton's USD schema has scene-level shape defaults: Isaac Lab applies these defaults
+when it builds the model, so an exported collider using one states it explicitly. Friction is set by a
+physics material only and is not written.
+"""
+
 
 class UsdExporter(BaseUsdExporter):
-    """Export a Newton scene environment: its USD plus every live model value the USD does not state."""
+    """Export a Newton scene environment: its USD plus every live model value Isaac Lab set after the build.
+
+    The baseline is Isaac Lab's model builder, which holds the values of the stage before any asset writes
+    its configuration to the model. A value is written where the live model differs from it.
+    """
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
-        """Return the live model values that ``stage`` does not already state; record the step size and solver.
+        """Return the live model values that differ from the build of ``stage``; record the step size and solver.
 
         Args:
             stage: The exported stage, reduced to the selected environment.
@@ -85,15 +103,18 @@ class UsdExporter(BaseUsdExporter):
         Returns:
             Values to author so that :meth:`load_usd` reproduces the live model.
         """
-        solver_cfg = self.scene.sim.cfg.physics.solver_cfg
+        physics_cfg = self.scene.sim.cfg.physics
+        solver_cfg = physics_cfg.solver_cfg
         model = self.scene.sim.backend_manager.get_model()
+        builder = self.scene.sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=physics_cfg))
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
-        joint_edits, force_position_velocity = self._joint_edits(stage, model)
+        joint_edits, force_position_velocity, drives = self._joint_edits(stage, model, builder)
+        self._deactivate_mjc_actuators(stage, drives)
         edits = [
             *joint_edits,
-            *self._body_edits(stage, model),
-            *self._shape_edits(stage, model),
+            *self._body_edits(stage, model, builder),
+            *self._shape_edits(stage, model, builder, physics_cfg.default_shape_cfg),
             *self._gravity_edits(stage, gravity),
         ]
         settings = {
@@ -174,11 +195,14 @@ class UsdExporter(BaseUsdExporter):
     def _selected(self, worlds) -> np.ndarray:
         return np.flatnonzero(np.isin(worlds.numpy(), (-1, self.env_id)))
 
-    def _joint_edits(self, stage: Usd.Stage, model: newton.Model) -> tuple[list[UsdEdit], bool]:
+    def _joint_edits(
+        self, stage: Usd.Stage, model: newton.Model, builder: newton.ModelBuilder
+    ) -> tuple[list[UsdEdit], bool, dict[str, tuple[float, float]]]:
         values = self._arrays(model, DOF_ATTRIBUTES)
+        changed = self._changed(values, builder)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
         axes = {int(newton.JointType.REVOLUTE): "angular", int(newton.JointType.PRISMATIC): "linear"}
-        edits, dofs, unsupported = [], [], []
+        edits, dofs, unsupported, drives = [], [], [], {}
         for joint in self._selected(model.joint_world):
             prim = stage.GetPrimAtPath(model.joint_label[joint])
             # Free joints of floating bodies have no USD prim; their pose is exported by the body.
@@ -195,25 +219,34 @@ class UsdExporter(BaseUsdExporter):
             actuated = modes[dof] != int(newton.JointTargetMode.NONE)
             if not actuated and prim.HasAPI(UsdPhysics.DriveAPI, axis):
                 raise NotImplementedError(f"Joint '{prim.GetPath()}' has a USD drive the engine does not actuate.")
+            # A changed drive is written whole, since Isaac Lab's build can hold drive values other than the USD's.
+            drive = actuated and any(changed[name][dof] for name, (_, schema, _) in DOF_ATTRIBUTES.items() if schema)
+            if drive:
+                drives[str(prim.GetPath())] = (
+                    float(values["joint_target_ke"][dof]),
+                    float(values["joint_target_kd"][dof]),
+                )
             for name, (attribute, schema, angular_scale) in DOF_ATTRIBUTES.items():
-                if schema is None or actuated:
+                if (changed[name][dof] and (schema is None or actuated)) or (drive and schema is not None):
                     scale = angular_scale if axis == "angular" else 1.0
                     schema = schema and schema.format(axis=axis)
                     value = float(values[name][dof]) * scale
-                    edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
+                    edits.append(UsdEdit(str(prim.GetPath()), attribute.format(axis=axis), value, schema=schema))
         if unsupported:
             logger.warning(f"Joints other than revolute and prismatic are not exported: {unsupported}.")
         force_position_velocity = self._actuation_flag(
             values["joint_target_ke"][dofs], values["joint_target_kd"][dofs], modes[dofs]
         )
-        return [edit for edit in edits if edit is not None], force_position_velocity
+        return edits, force_position_velocity, drives
 
-    def _body_edits(self, stage: Usd.Stage, model: newton.Model) -> list[UsdEdit]:
-        mass, com, inertia = model.body_mass.numpy(), model.body_com.numpy(), model.body_inertia.numpy()
+    def _body_edits(self, stage: Usd.Stage, model: newton.Model, builder: newton.ModelBuilder) -> list[UsdEdit]:
+        values = self._arrays(model, ("body_mass", "body_com", "body_inertia"))
+        changed = self._changed(values, builder)
+        mass, com, inertia = values["body_mass"], values["body_com"], values["body_inertia"]
         edits = []
         for body in self._selected(model.body_world):
             prim = stage.GetPrimAtPath(model.body_label[body])
-            if prim:
+            if prim and any(rows[body] for rows in changed.values()):
                 edits += self._mass_edits(prim, float(mass[body]), com[body], inertia[body])
         # Root bodies and world anchors are placed where initialization put them; joint state is not exported.
         body_q, anchors = self.scene.sim.backend_manager.get_state_0().body_q.numpy(), model.joint_X_p.numpy()
@@ -230,8 +263,20 @@ class UsdExporter(BaseUsdExporter):
                 edits.append(self._value_edit(prim, "physics:localRot0", anchors[joint][3:7], "quatf"))
         return [edit for edit in edits if edit is not None]
 
-    def _shape_edits(self, stage: Usd.Stage, model: newton.Model) -> list[UsdEdit]:
+    def _shape_edits(
+        self, stage: Usd.Stage, model: newton.Model, builder: newton.ModelBuilder, defaults: NewtonShapeCfg
+    ) -> list[UsdEdit]:
         values, material = self._arrays(model, SHAPE_ATTRIBUTES), self._arrays(model, MATERIAL_ATTRIBUTES)
+        changed = self._changed(values, builder) | self._changed(material, builder)
+        # Isaac Lab's shape defaults that Newton's import does not apply (see SHAPE_DEFAULTS).
+        upstream = newton.ModelBuilder.ShapeConfig()
+        lab_defaults = {
+            name: getattr(defaults, name)
+            for name in SHAPE_DEFAULTS
+            if getattr(upstream, name) is None or not self._close(getattr(defaults, name), getattr(upstream, name))
+        }
+        if "mu" in lab_defaults:
+            raise NotImplementedError("A Newton default friction other than Newton's needs a physics material.")
         flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
         edits, materials = [], {}
         for shape in self._selected(model.shape_world):
@@ -239,15 +284,46 @@ class UsdExporter(BaseUsdExporter):
             # Sensor sites and visual shapes do not collide; generated shapes have no USD prim.
             if not prim or not int(flags[shape]) & collide:
                 continue
+            for name, value in lab_defaults.items():
+                array, attribute = SHAPE_DEFAULTS[name]
+                if not changed[array][shape] and self._close(getattr(builder, array)[shape], value):
+                    edits.append(self._value_edit(prim, attribute, float(value)))
             edits += [
-                self._value_edit(prim, attribute, float(values[name][shape]))
+                UsdEdit(str(prim.GetPath()), attribute, float(values[name][shape]))
                 for name, attribute in SHAPE_ATTRIBUTES.items()
+                if changed[name][shape]
             ]
-            materials[str(prim.GetPath())] = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items()}
+            updated = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items() if changed[n][shape]}
+            if updated:
+                materials[str(prim.GetPath())] = updated
         edits = [edit for edit in edits if edit is not None]
         return edits + self._material_edits(
             stage, materials, lambda c, v: self._collider_contact_edits(stage.GetPrimAtPath(c), v)
         )
+
+    @classmethod
+    def _deactivate_mjc_actuators(cls, stage: Usd.Stage, drives: dict[str, tuple[float, float]]):
+        """Deactivate the MuJoCo actuators that would override the exported drive gains of their joint.
+
+        Workaround: Newton's import sets a joint's stiffness, or damping, to the gain of a MuJoCo position, or
+        velocity, actuator targeting it. Assumes such an actuator, the one with an affine bias, only duplicates
+        the joint drive, as in assets converted from MJCF; it is kept while its gain is one of the drive's.
+
+        Args:
+            stage: The exported stage.
+            drives: Live stiffness and damping of the joints whose drive the export writes, keyed by joint path.
+        """
+        deactivated = []
+        for prim in [prim for prim in stage.Traverse() if prim.GetTypeName() == "MjcActuator"]:
+            if prim.GetAttribute("mjc:biasType").Get() != "affine":
+                continue
+            gain = float((prim.GetAttribute("mjc:gainPrm").Get() or [1.0])[0])
+            gains = [drives.get(str(target)) for target in prim.GetRelationship("mjc:target").GetTargets()]
+            if any(drive is not None and not any(cls._close(gain, value) for value in drive) for drive in gains):
+                prim.SetActive(False)
+                deactivated.append(str(prim.GetPath()))
+        if deactivated:
+            logger.info(f"MuJoCo actuators replaced by the exported joint drives: {deactivated}.")
 
     @staticmethod
     def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
@@ -293,6 +369,15 @@ class UsdExporter(BaseUsdExporter):
     @staticmethod
     def _arrays(model, names) -> dict[str, np.ndarray]:
         return {name: getattr(model, name).numpy() for name in names}
+
+    @staticmethod
+    def _changed(values: dict[str, np.ndarray], builder: newton.ModelBuilder) -> dict[str, np.ndarray]:
+        """Per entity, whether a live model array differs from the value the builder took from the stage."""
+        changed = {}
+        for name, live in values.items():
+            built = np.asarray(getattr(builder, name), dtype=float).reshape(len(live), -1)
+            changed[name] = ~np.isclose(live.reshape(len(live), -1), built, rtol=1e-5, atol=1e-7).all(axis=1)
+        return changed
 
     @classmethod
     def _collider_contact_edits(cls, prim: Usd.Prim, values: dict[str, float]) -> list[UsdEdit]:
