@@ -35,7 +35,6 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.app import validate_launch
 from isaaclab.utils import validate
-from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES
 
 from isaaclab_tasks.utils.hydra import (
@@ -667,9 +666,9 @@ def _launchable_visualizers_for_run(
         needs_ovphysx = any(isinstance(cfg, OvPhysxCfg) for cfg in configs)
         needs_ovrtx = OVRTXRendererCfg.launcher_type in launcher_types
         extras = {
-            cfg.visualizer_type
+            visualizer_type
             for cfg in configs
-            if isinstance(cfg, VisualizerCfg) and cfg.visualizer_type in optional_extras
+            if (visualizer_type := getattr(cfg, "visualizer_type", None)) in optional_extras
         }
         if kit_sources:
             extras.add("isaacsim")
