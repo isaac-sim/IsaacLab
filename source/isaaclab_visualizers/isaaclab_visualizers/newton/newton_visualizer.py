@@ -38,7 +38,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg, solver_spec
+from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -850,7 +850,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         picking_supported = (
             physics_backend is not None
             and physics_backend.solver is not None
-            and solver_spec(physics_backend.solver_cfg).body_forces(physics_backend.solver_cfg)
+            and physics_backend.solver_cfg.applies_body_forces()
         )
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:

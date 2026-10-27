@@ -29,7 +29,6 @@ import isaaclab.cloner as cloner
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataProvider
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import instantiate
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
@@ -44,8 +43,8 @@ from isaaclab_newton.renderers.visual_material import (
 )
 
 from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
+from .newton_builder import create_builder
 from .newton_scene_data import NewtonSceneDataBackend
-from .solver_specs import create_builder, solver_spec
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
@@ -212,7 +211,7 @@ class NewtonManager(PhysicsManager):
     Manager for physics lifecycle, solvers, contacts, sensors, replication, and CUDA graphs; the
     simulation context owns one instance as :attr:`~isaaclab.sim.SimulationContext.backend_manager`.
     Everything bound to the finalized model belongs to the registered :class:`NewtonBackend`. Solver-specific
-    behavior lives in the :class:`SolverSpec` that the solver configuration's ``class_type`` selects.
+    behavior lives on the solver configuration (:class:`NewtonSolverCfg`), which overrides only what differs.
 
     Lifecycle: ``initialize() -> reset() -> step()`` (repeated) ``-> close()``.
     """
@@ -324,8 +323,8 @@ class NewtonManager(PhysicsManager):
     def forward(self) -> None:
         """Update articulation kinematics without stepping physics.
 
-        Reset solver internals (:attr:`SolverSpec.reset`) and update body poses from joint coordinates
-        (:attr:`SolverSpec.eval_fk`) for the articulations flagged in the backend's
+        Reset solver internals (:meth:`NewtonSolverCfg.reset`) and update body poses from joint coordinates
+        (:meth:`NewtonSolverCfg.eval_fk`) for the articulations flagged in the backend's
         :attr:`~NewtonBackend.fk_mask` and the worlds flagged in :attr:`~NewtonBackend.world_mask` (see
         :meth:`invalidate_fk`). The masks are consumed (zeroed) afterwards so the next :meth:`step` does not
         redundantly re-solve them.
@@ -340,14 +339,9 @@ class NewtonManager(PhysicsManager):
                 "NewtonManager.initialize_solver() must run (via reset()) before forward()/step() can run forward"
                 " kinematics."
             )
-        spec, solver, solver_cfg, state = (
-            solver_spec(backend.solver_cfg),
-            backend.solver,
-            backend.solver_cfg,
-            backend.state_0,
-        )
-        spec.reset(solver, solver_cfg, state, backend.world_mask)
-        spec.eval_fk(solver, solver_cfg, state, backend.world_mask, backend.fk_mask)
+        solver, solver_cfg, state = backend.solver, backend.solver_cfg, backend.state_0
+        solver_cfg.reset(solver, state, backend.world_mask)
+        solver_cfg.eval_fk(solver, state, backend.world_mask, backend.fk_mask)
         backend.fk_mask.zero_()
         backend.world_mask.zero_()
         backend.kinematics_dirty = False
@@ -402,15 +396,15 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
         backend = self.backend
-        spec = solver_spec(backend.solver_cfg)
 
         # Notify solver of model changes
         if self._model_changes:
             with wp.ScopedDevice(self._device):
                 flags = 0
+                ignored = {ModelFlags[name]: msg for name, msg in backend.solver_cfg.ignored_model_changes.items()}
                 for change in self._model_changes:
-                    if change in spec.ignored_model_changes and change not in self._warned_model_changes:
-                        logger.warning(spec.ignored_model_changes[change])
+                    if change in ignored and change not in self._warned_model_changes:
+                        logger.warning(ignored[change])
                         self._warned_model_changes.add(change)
                     flags |= change
                 # Refresh shared solver constants once after applying all pending property changes.
@@ -458,9 +452,7 @@ class NewtonManager(PhysicsManager):
 
         self._mark_transforms_changed()
 
-        spec.check_status(backend.solver, backend.solver_cfg, use_graph)
-        if cfg.debug_mode:
-            spec.log_debug(backend.solver, backend.solver_cfg)
+        backend.solver_cfg.check_step(backend.solver, use_graph, cfg.debug_mode)
 
     def close(self) -> None:
         """Clean up Newton physics resources."""
@@ -791,8 +783,8 @@ class NewtonManager(PhysicsManager):
         device = self._device
         logger.info(f"Finalizing model on device: {device}")
         builder.up_axis = Axis.Z
-        solver_cfg = self._cfg.solver_cfg
-        solver_spec(solver_cfg).prepare_builder(builder, solver_cfg)
+        if self._cfg.solver_cfg is not None:
+            self._cfg.solver_cfg.prepare_builder(builder)
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",
@@ -818,34 +810,31 @@ class NewtonManager(PhysicsManager):
         cloner.replicate(self._sim.get_clone_plan())
 
     def _initialize_contacts(self) -> None:
-        """Allocate contacts, and the collision pipeline when the solver does not detect contacts internally.
-
-        Solvers with internal contact handling (:attr:`SolverSpec.external_contacts` is ``False``) allocate their
-        contacts through :attr:`SolverSpec.create_contacts`; the others use Newton's :class:`CollisionPipeline`.
-        """
+        """Allocate contacts from Newton's collision pipeline, or from the solver when it detects contacts itself."""
         backend = self.backend
-        spec, model, solver, solver_cfg = (
-            solver_spec(backend.solver_cfg),
-            backend.model,
-            backend.solver,
-            backend.solver_cfg,
-        )
-        if not spec.external_contacts(solver, solver_cfg):
-            backend.contacts = spec.create_contacts(solver, solver_cfg)
+        model, solver, solver_cfg = backend.model, backend.solver, backend.solver_cfg
+        if not solver_cfg.uses_collision_pipeline(solver):
+            backend.contacts = solver_cfg.create_contacts(solver)
+            if backend.contacts is not None and self._cfg.collision_cfg is not None:
+                raise ValueError(
+                    f"NewtonCfg.collision_cfg cannot be set while {type(solver_cfg).__name__} detects contacts itself."
+                    " Remove collision_cfg, or configure the solver to use Newton's collision pipeline (e.g."
+                    " use_mujoco_contacts=False)."
+                )
         else:
             collision_cfg = self._cfg.collision_cfg
             args = collision_cfg.to_pipeline_args() if collision_cfg is not None else {"broad_phase": "explicit"}
             args["deterministic"] = self._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
             required = getattr(solver, "get_max_contact_count", lambda: 0)()
             if backend.collision_pipeline is None:
-                backend.collision_pipeline = spec.create_collision_pipeline(model, solver, solver_cfg, **args)
+                backend.collision_pipeline = solver_cfg.create_collision_pipeline(model, solver, **args)
             backend.contacts = backend.collision_pipeline.contacts()
             # MuJoCo Warp can require more contacts than the pipeline estimates.
             if required > backend.contacts.rigid_contact_max:
                 if args["deterministic"]:
                     # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
-                    backend.collision_pipeline = spec.create_collision_pipeline(
-                        model, solver, solver_cfg, **args, rigid_contact_max=required
+                    backend.collision_pipeline = solver_cfg.create_collision_pipeline(
+                        model, solver, **args, rigid_contact_max=required
                     )
                     backend.contacts = backend.collision_pipeline.contacts()
                 else:
@@ -856,7 +845,7 @@ class NewtonManager(PhysicsManager):
                         requested_attributes=model.get_requested_contact_attributes(),
                     )
         if backend.contacts is not None:
-            spec.prepare_contacts(solver, solver_cfg, backend.contacts, backend.collision_pipeline)
+            solver_cfg.prepare_contacts(solver, backend.contacts, backend.collision_pipeline)
 
     @staticmethod
     def _resolve_deterministic_mode(cfg: NewtonCfg) -> wp.DeterministicMode:
@@ -873,6 +862,8 @@ class NewtonManager(PhysicsManager):
             The mode for the solver and collision pipeline.
         """
         if getattr(cfg.solver_cfg, "use_mujoco_cpu", False):
+            if cfg.deterministic_mode != "not_guaranteed":
+                logger.info("MuJoCo CPU backend is already reproducible; Newton's deterministic mode is not applied.")
             return wp.DeterministicMode.NOT_GUARANTEED
         if cfg.deterministic_mode != "not_guaranteed":
             return {"run_to_run": wp.DeterministicMode.RUN_TO_RUN, "gpu_to_gpu": wp.DeterministicMode.GPU_TO_GPU}[
@@ -885,8 +876,8 @@ class NewtonManager(PhysicsManager):
     def initialize_solver(self) -> None:
         """Initialize the solver and collision pipeline.
 
-        Construct the solver and contacts through the configured :class:`SolverSpec`, establish the initial body
-        state, and schedule graph capture for the first step after the environment has authored its initial state.
+        Construct the solver and contacts through the solver configuration, establish the initial body state, and
+        schedule graph capture for the first step after the environment has authored its initial state.
         Initialization and capture do not advance physics.
         """
         cfg = self._cfg
@@ -901,18 +892,18 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            spec, model = solver_spec(backend.solver_cfg), backend.model
+            model = backend.model
             mode = self._deterministic_mode = self._resolve_deterministic_mode(cfg)
-            solver_cfg = backend.solver_cfg = spec.resolve_cfg(model, backend.solver_cfg)
-            if mode != wp.DeterministicMode.NOT_GUARANTEED and not spec.deterministic:
+            solver_cfg = backend.solver_cfg = backend.solver_cfg.resolve(model)
+            if mode != wp.DeterministicMode.NOT_GUARANTEED and not solver_cfg.deterministic:
                 raise ValueError(
                     f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
                     " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
                 )
-            spec.validate(model, solver_cfg, cfg, mode)
-            solver = backend.solver = instantiate(solver_cfg, model, mode)
-            if not spec.single_state:
-                spec.init_state(solver, solver_cfg, backend.state_1)
+            plan = self._sim.get_clone_plan() if self._sim is not None else None
+            solver = backend.solver = solver_cfg.build(model, mode, plan.env_template if plan is not None else None)
+            if not solver_cfg.single_state:
+                solver_cfg.init_state(solver, backend.state_1)
             self._initialize_contacts()
             state_0 = backend.state_0
             self._staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
@@ -923,11 +914,11 @@ class NewtonManager(PhysicsManager):
 
         # Picking callbacks must be registered after the solver exists, but before CUDA graph capture.
         sim = self._sim
-        if spec.body_forces(solver_cfg) and sim is not None:
+        if solver_cfg.applies_body_forces() and sim is not None:
             sim._prepare_newton_visualizer_for_capture()
 
         # Establish the initial kinematically-consistent body state, now that the solver exists.
-        spec.eval_fk(solver, solver_cfg, backend.state_0, None, None)
+        solver_cfg.eval_fk(solver, backend.state_0, None, None)
         self._mark_transforms_changed()
 
         self._invalidate_graph()
@@ -941,7 +932,7 @@ class NewtonManager(PhysicsManager):
         backend = self.backend
         if device is None or not cfg.use_cuda_graph or "cuda" not in device or backend.solver is None:
             return
-        if not solver_spec(backend.solver_cfg).supports_capture(backend.solver, backend.solver_cfg):
+        if not backend.solver_cfg.supports_capture(backend.solver):
             logger.warning(
                 "%s cannot be captured in its current configuration; using eager execution.",
                 type(backend.solver_cfg).__name__,
@@ -960,11 +951,9 @@ class NewtonManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     def _prepare_step(self) -> None:
-        """Refresh solver structures before the physics step, when the solver's spec does."""
+        """Refresh solver structures before the physics step."""
         backend = self.backend
-        prepare_step = solver_spec(backend.solver_cfg).prepare_step
-        if prepare_step is not None:
-            prepare_step(backend.solver, backend.solver_cfg, backend.state_0)
+        backend.solver_cfg.pre_step(backend.solver, backend.state_0)
 
     def _stage_body_forces(self) -> None:
         """Copy the body forces written to ``state_0`` before the step, so that every solver substep applies them."""
@@ -983,21 +972,19 @@ class NewtonManager(PhysicsManager):
         callbacks, which add on top of them.
         """
         backend = self.backend
-        spec, solver, solver_cfg = solver_spec(backend.solver_cfg), backend.solver, backend.solver_cfg
+        solver, solver_cfg = backend.solver, backend.solver_cfg
         num_substeps = backend.num_substeps
         collide_every = self._cfg.collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's
         # top-of-loop collide(), not this one.
         collide_mid_loop = collide_every > 0 and backend.collision_pipeline is not None and contacts is not None
 
-        if spec.single_state:
+        if solver_cfg.single_state:
             for i in range(num_substeps):
                 self._apply_staged_body_forces(backend.state_0)
                 for callback in self._state_force_callbacks:
                     callback(backend.state_0)
-                spec.step(
-                    solver, solver_cfg, backend.state_0, backend.state_0, backend.control, contacts, backend.solver_dt
-                )
+                solver_cfg.step(solver, backend.state_0, backend.state_0, backend.control, contacts, backend.solver_dt)
                 backend.state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
                     backend.collision_pipeline.collide(backend.state_0, contacts)
@@ -1007,9 +994,7 @@ class NewtonManager(PhysicsManager):
                 self._apply_staged_body_forces(backend.state_0)
                 for callback in self._state_force_callbacks:
                     callback(backend.state_0)
-                spec.step(
-                    solver, solver_cfg, backend.state_0, backend.state_1, backend.control, contacts, backend.solver_dt
-                )
+                solver_cfg.step(solver, backend.state_0, backend.state_1, backend.control, contacts, backend.solver_dt)
                 if need_copy_on_last and i == num_substeps - 1:
                     backend.state_0.assign(backend.state_1)
                 else:
@@ -1017,8 +1002,7 @@ class NewtonManager(PhysicsManager):
                 backend.state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
                     backend.collision_pipeline.collide(backend.state_0, contacts)
-        if spec.finish_step is not None:
-            spec.finish_step(solver, solver_cfg, backend.state_0)
+        solver_cfg.post_step(solver, backend.state_0)
 
     def _update_sensors(self, contacts) -> None:
         """Push latest state to registered IMU and contact sensors."""
@@ -1278,7 +1262,7 @@ class NewtonManager(PhysicsManager):
             The Newton contact sensor, updated at the end of every step.
         """
         solver_cfg = self._cfg.solver_cfg if self.backend is None else self.backend.solver_cfg
-        if not solver_spec(solver_cfg).contact_sensors:
+        if solver_cfg is not None and not solver_cfg.contact_sensors:
             raise NotImplementedError(
                 f"Newton contact sensors are not yet supported by {type(solver_cfg).__name__}:"
                 " contact forces live in per-entry buffers."

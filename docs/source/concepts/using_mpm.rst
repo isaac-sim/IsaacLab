@@ -371,11 +371,9 @@ How MPM fits into the Newton backend
 ------------------------------------
 
 Selecting :class:`~isaaclab_newton.physics.MPMSolverCfg` as the ``solver_cfg`` of
-:class:`~isaaclab_newton.physics.NewtonCfg` selects
-:data:`~isaaclab_newton.physics.MPM_SPEC`, the solver specification that
-constructs Newton's ``SolverImplicitMPM``. The solver
+:class:`~isaaclab_newton.physics.NewtonCfg` constructs Newton's ``SolverImplicitMPM``. The solver
 represents material as particles and solves its rheology implicitly on a
-background voxel grid. The MPM specification configures the Newton backend as
+background voxel grid. The MPM configuration sets up the Newton backend as
 follows:
 
 * It advances particles in place on a single Newton state rather than double

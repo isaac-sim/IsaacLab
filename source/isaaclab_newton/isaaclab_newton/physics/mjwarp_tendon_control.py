@@ -15,9 +15,9 @@ resolution and shape checking rather than restating them. The command buffer its
 :class:`~isaaclab_newton.assets.ArticulationData`, beside the other fixed-tendon buffers.
 
 Tendon submission is solver-specific -- ``mujoco.ctrl`` exists only under MJWarp -- so it lives
-beside the MJWarp manager rather than in the backend-neutral actuator control. The articulation
-owns the target buffer and asks its manager to submit; only
-:data:`~isaaclab_newton.physics.MJWARP_SPEC` imports this module.
+beside the MJWarp solver configuration rather than in the backend-neutral actuator control. The articulation
+owns the target buffer and asks its manager to submit; only :class:`~isaaclab_newton.physics.MJWarpSolverCfg`
+imports this module.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 class MjWarpTendonControl:
     """Drives an articulation's fixed tendons through MuJoCo's native tendon actuators.
 
-    Created on demand by :attr:`SolverSpec.fixed_tendon_control` of :data:`~isaaclab_newton.physics.MJWARP_SPEC`
+    Created on demand by :meth:`~isaaclab_newton.physics.MJWarpSolverCfg.fixed_tendon_control`
     when the model carries tendon actuators. Command tendons through the articulation's
     backend-neutral
     :meth:`~isaaclab.assets.articulation.BaseArticulation.set_fixed_tendon_position_target_index`

@@ -7,14 +7,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from isaaclab.utils import configclass
+from isaaclab.utils.string import string_to_callable
 
 from .newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import SolverSpec
+    import warp as wp
+    from newton import Contacts, Control, Model, ModelBuilder, State
+    from newton.solvers import SolverImplicitMPM
 
 
 @configclass
@@ -25,8 +28,9 @@ class MPMSolverCfg(NewtonSolverCfg):
     as colliders. It is not a rigid-body or articulation dynamics solver.
     """
 
-    class_type: SolverSpec | str = "{DIR}.mpm_solver:MPM_SPEC"
-    """Specification of the implicit MPM solver."""
+    solver_class: str = "newton.solvers:SolverImplicitMPM"
+
+    single_state: ClassVar[bool] = True
 
     solver_type: str = "implicit_mpm"
     """Solver type. Can be "implicit_mpm"."""
@@ -125,7 +129,7 @@ class MPMSolverCfg(NewtonSolverCfg):
     project_outside_colliders: bool = False
     """Whether to hard-project particles out of collider interiors after each substep.
 
-    When ``True``, :data:`~isaaclab_newton.physics.MPM_SPEC` calls
+    When ``True``, :meth:`step` calls
     :meth:`SolverImplicitMPM.project_outside` immediately after every solver
     substep: it applies a Coulomb response and pushes particles that drifted into
     a collider back onto its surface. The implicit solve already resolves
@@ -137,3 +141,66 @@ class MPMSolverCfg(NewtonSolverCfg):
     This is a manager-level stepping option and is intentionally **not** part of
     ``SolverImplicitMPM.Config``.
     """
+
+    def prepare_builder(self, builder: ModelBuilder) -> None:
+        """Make kinematic colliders massless and classify convex meshes as meshes, as implicit MPM requires."""
+        from .mpm_solver import prepare_builder
+
+        prepare_builder(builder)
+
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None = None) -> SolverImplicitMPM:
+        """Construct implicit MPM from the configuration authored on the active physics scene."""
+        from warp.fem import TemporaryStore
+
+        from .mpm_solver import mpm_solver_config
+
+        solver_cls = string_to_callable(self.solver_class)
+        return solver_cls(model, mpm_solver_config(self), temporary_store=TemporaryStore())
+
+    def applies_body_forces(self) -> bool:
+        return False
+
+    def supports_capture(self, solver: SolverImplicitMPM) -> bool:
+        from .mpm_solver import mpm_supports_graph_capture
+
+        return mpm_supports_graph_capture(solver)
+
+    def coupling_error(self, in_place: bool) -> str | None:
+        """MPM entries step in place, and the per-substep collider projection runs outside Newton's coupled step."""
+        if self.project_outside_colliders:
+            return (
+                "enables MPMSolverCfg.project_outside_colliders, whose per-substep projection cannot yet run inside a"
+                " coupled-solver entry"
+            )
+        if not in_place:
+            return "uses MPMSolverCfg and must set in_place=True"
+        return None
+
+    def uses_collision_pipeline(self, solver: SolverImplicitMPM) -> bool:
+        return False
+
+    def step(
+        self,
+        solver: SolverImplicitMPM,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+    ) -> None:
+        """Run one implicit MPM substep, optionally projecting particles out of collider interiors."""
+        solver.step(state_in, state_out, control, contacts, dt)
+        if self.project_outside_colliders:
+            solver.project_outside(state_out, state_out, dt)
+
+    def reset(self, solver: SolverImplicitMPM, state: State, world_mask: wp.array) -> None:
+        """Keep implicit-MPM history across automatic asset resets.
+
+        Shared-grid MPM cannot reset history for a subset of worlds. Tasks with independent MPM worlds that need an
+        exact history reset call :func:`~isaaclab_newton.physics.reset_mpm_solver_state` after authoring their state.
+        """
+
+    def check_step(self, solver: SolverImplicitMPM, captured: bool, debug: bool) -> None:
+        """Raise asynchronous sparse-grid rebuild failures after a graph replay."""
+        if captured:
+            solver.check_sparse_grid_rebuild_status()

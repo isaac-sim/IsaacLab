@@ -10,31 +10,22 @@ from unittest.mock import MagicMock
 
 import pytest
 import warp as wp
-from isaaclab_newton.physics import (
-    MJWarpSolverCfg,
-    NewtonCfg,
-    NewtonManager,
-    SolverSpec,
-    VBDSolverCfg,
-)
-from isaaclab_newton.physics.solver_specs import register_builder_attributes, usd_schema_resolvers
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager, VBDSolverCfg
+from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
 from newton import ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver import (
-    COUPLED_MJWARP_VBD_SPEC,
-    CoupledMJWarpVBDSolver,
-)
+from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver import CoupledMJWarpVBDSolver
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
 NOT_GUARANTEED = wp.DeterministicMode.NOT_GUARANTEED
 
 
 def _stub_subsolvers(monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
-    """Replace the MJWarp and VBD sub-solver specs with ones building mocks."""
-    monkeypatch.setattr(solver_cfg.rigid_solver_cfg, "class_type", SolverSpec(build=MagicMock()))
-    monkeypatch.setattr(solver_cfg.soft_solver_cfg, "class_type", SolverSpec(build=MagicMock()))
+    """Make the MJWarp and VBD sub-solver configurations build mocks."""
+    monkeypatch.setattr(solver_cfg.rigid_solver_cfg, "build", MagicMock())
+    monkeypatch.setattr(solver_cfg.soft_solver_cfg, "build", MagicMock())
 
 
 def _create(
@@ -43,7 +34,7 @@ def _create(
     """Construct the coupled solver over mocked sub-solvers."""
     solver_cfg = CoupledMJWarpVBDSolverCfg() if solver_cfg is None else solver_cfg
     _stub_subsolvers(monkeypatch, solver_cfg)
-    return COUPLED_MJWARP_VBD_SPEC.build(MagicMock(), solver_cfg, NOT_GUARANTEED)
+    return solver_cfg.build(MagicMock(), NOT_GUARANTEED)
 
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
@@ -82,7 +73,7 @@ def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> N
     state = object()
     world_mask = object()
 
-    COUPLED_MJWARP_VBD_SPEC.reset(solver, CoupledMJWarpVBDSolverCfg(), state, world_mask)
+    CoupledMJWarpVBDSolverCfg().reset(solver, state, world_mask)
 
     rigid_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
     soft_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
@@ -119,7 +110,7 @@ def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None
 )
 def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBDSolverCfg, match: str) -> None:
     with pytest.raises(ValueError, match=match):
-        COUPLED_MJWARP_VBD_SPEC.build(MagicMock(), solver_cfg, NOT_GUARANTEED)
+        solver_cfg.build(MagicMock(), NOT_GUARANTEED)
 
 
 def test_add_contact_sensor_rejects_coupled_solver() -> None:
@@ -135,16 +126,14 @@ def test_add_contact_sensor_rejects_coupled_solver() -> None:
 def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     solver = _create(monkeypatch, solver_cfg)
-    spec = COUPLED_MJWARP_VBD_SPEC
 
-    # Each sub-solver is built by the spec its configuration selects.
-    assert solver.rigid_solver is solver_cfg.rigid_solver_cfg.class_type.build.return_value
-    assert solver.soft_solver is solver_cfg.soft_solver_cfg.class_type.build.return_value
-    assert spec.single_state is False
-    assert spec.external_contacts(solver, solver_cfg) is True
-    assert spec.contact_sensors is False
-    assert spec.body_forces(solver_cfg) is True
-    assert spec.prepare_step is not None
+    # Each sub-solver is built by its own configuration.
+    assert solver.rigid_solver is solver_cfg.rigid_solver_cfg.build.return_value
+    assert solver.soft_solver is solver_cfg.soft_solver_cfg.build.return_value
+    assert solver_cfg.single_state is False
+    assert solver_cfg.uses_collision_pipeline(solver) is True
+    assert solver_cfg.contact_sensors is False
+    assert solver_cfg.applies_body_forces() is True
 
 
 @pytest.mark.parametrize("mode", ["one_way", "two_way"])
@@ -160,7 +149,7 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
     solver = _create(monkeypatch, CoupledMJWarpVBDSolverCfg(coupling_mode=mode))
     rigid_solver = solver.rigid_solver
     soft_solver = solver.soft_solver
-    COUPLED_MJWARP_VBD_SPEC.prepare_contacts(solver, CoupledMJWarpVBDSolverCfg(), contacts, collision_pipeline)
+    CoupledMJWarpVBDSolverCfg().prepare_contacts(solver, contacts, collision_pipeline)
     monkeypatch.setattr(solver, "_apply_reactions", reactions)
 
     solver.step(state_in, state_out, control, contacts, 0.01)

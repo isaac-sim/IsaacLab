@@ -7,45 +7,189 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, to_dict
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
+    import warp as wp
+    from newton import CollisionPipeline, Contacts, Control, Model, ModelBuilder, State
+    from newton.solvers import SolverBase
 
-    from .solver_specs import SolverSpec
+    from isaaclab_newton.physics import NewtonManager
 
 logger = logging.getLogger(__name__)
 
 
+def solver_kwargs(solver_cls: type, cfg: Any, mode: wp.DeterministicMode) -> dict:
+    """Return the configuration fields matching ``solver_cls``'s constructor, plus ``deterministic`` if accepted.
+
+    A constructor forwarding ``**kwargs`` also accepts its base class's parameters, e.g. a solver subclass.
+    """
+    valid = set()
+    for cls in solver_cls.__mro__:
+        parameters = inspect.signature(cls.__init__).parameters.values()
+        valid.update(p.name for p in parameters if p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD))
+        if not any(p.kind is p.VAR_KEYWORD for p in parameters):
+            break
+    valid -= {"self", "model"}
+    kwargs = {key: value for key, value in to_dict(cfg).items() if key in valid}
+    if "deterministic" in valid:
+        kwargs["deterministic"] = mode
+    return kwargs
+
+
 @configclass
 class NewtonSolverCfg:
-    """Configuration for Newton solver-related parameters.
+    """Configuration of a Newton solver, and how Isaac Lab drives it.
 
-    These parameters are used to configure the Newton solver. For more information, see the `Newton documentation`_.
-
-    :attr:`class_type` selects the :class:`SolverSpec` that builds the solver, ``instantiate(cfg, model, mode)``,
-    and describes it to Isaac Lab.
+    Every solver runs through one generic path written against Newton's :class:`~newton.solvers.SolverBase` API. A
+    solver configuration overrides the capabilities and methods below only where its solver differs; customizing a
+    solver means subclassing its configuration. For the solver parameters, see the `Newton documentation`_.
 
     .. _Newton documentation: https://newton.readthedocs.io/en/latest/
     """
 
-    class_type: SolverSpec | str | None = None
-    """Solver specification, or a ``"module:ATTRIBUTE"`` reference to one. ``None`` describes geometry only."""
+    solver_class: type[SolverBase] | str | None = None
+    """Newton solver class that :meth:`build` constructs, or a ``"module:Class"`` reference to it. ``None`` describes
+    geometry only."""
 
     solver_type: str = "None"
     """Solver type metadata (deprecated).
 
     .. deprecated::
-        Solver dispatch is driven by :attr:`class_type`; this field is
-        retained as metadata for logging and debugging only.  Do not branch on
-        ``solver_type`` in new code.
+        Solver dispatch is driven by the configuration class; this field is retained as metadata for logging and
+        debugging only. Do not branch on ``solver_type`` in new code.
     """
+
+    single_state: ClassVar[bool] = False
+    """Whether the solver steps in place on one :class:`newton.State`."""
+
+    deterministic: ClassVar[bool] = False
+    """Whether the solver can honor a Warp determinism guarantee."""
+
+    contact_sensors: ClassVar[bool] = True
+    """Whether Newton contact sensors can read the solver's contacts."""
+
+    ignored_model_changes: ClassVar[Mapping[str, str]] = {}
+    """Names of :class:`newton.ModelFlags` the solver does not apply after construction, mapped to the warning logged
+    once."""
+
+    # ----- Before the model exists -----
+
+    def solver_classes(self) -> tuple[type[SolverBase], ...]:
+        """Newton solvers whose custom builder attributes, and USD schemas, the builder needs before import."""
+        return () if self.solver_class is None else (string_to_callable(self.solver_class),)
+
+    def prepare_builder(self, builder: ModelBuilder) -> None:
+        """Normalize the complete builder before it is finalized."""
+
+    # ----- Construction -----
+
+    def resolve(self, model: Model) -> NewtonSolverCfg:
+        """Return this configuration with model-dependent defaults resolved; the backend keeps the result."""
+        return self
+
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None = None) -> SolverBase:
+        """Construct Newton's solver from the configuration fields matching its constructor.
+
+        Args:
+            model: Model, or coupled-entry model view, the solver advances.
+            mode: Warp determinism mode.
+            env_template: Environment path template of the clone plan, e.g. ``"/World/envs/env_{}"``.
+        """
+        if self.solver_class is None:
+            raise NotImplementedError(f"{type(self).__name__} describes geometry only and builds no solver.")
+        solver_cls = string_to_callable(self.solver_class)
+        return solver_cls(model, **solver_kwargs(solver_cls, self, mode))
+
+    def init_state(self, solver: SolverBase, state: State) -> None:
+        """Initialize solver-owned buffers of a double-buffered solver's output state."""
+
+    # ----- Capabilities -----
+
+    def applies_body_forces(self) -> bool:
+        """Whether the solver consumes applied rigid-body forces from :attr:`newton.State.body_f`."""
+        return True
+
+    def supports_capture(self, solver: SolverBase) -> bool:
+        """Whether the constructed solver can be recorded into a CUDA graph."""
+        return True
+
+    def coupling_error(self, in_place: bool) -> str | None:
+        """Why the solver cannot run as a coupled-solver entry (stepping in place or not), or ``None``."""
+        return None
+
+    # ----- Contacts -----
+
+    def uses_collision_pipeline(self, solver: SolverBase) -> bool:
+        """Whether contacts come from Newton's :class:`~newton.CollisionPipeline` instead of the solver."""
+        return True
+
+    def create_collision_pipeline(self, model: Model, solver: SolverBase, **kwargs) -> CollisionPipeline:
+        """Construct the collision pipeline over the model; ``kwargs`` are the pipeline arguments."""
+        from newton import CollisionPipeline
+
+        return CollisionPipeline(model, **kwargs)
+
+    def create_contacts(self, solver: SolverBase) -> Contacts | None:
+        """Allocate the contacts a solver reports itself when it does not use the collision pipeline."""
+        return None
+
+    def prepare_contacts(self, solver: SolverBase, contacts: Contacts, pipeline: CollisionPipeline | None) -> None:
+        """Bind newly allocated contacts to solver-owned buffers before CUDA graph capture."""
+        if hasattr(solver, "prepare_contacts"):
+            solver.prepare_contacts(contacts)
+
+    # ----- Stepping and resets -----
+
+    def pre_step(self, solver: SolverBase, state: State) -> None:
+        """Refresh solver structures once per physics step, before collision."""
+
+    def step(
+        self,
+        solver: SolverBase,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+    ) -> None:
+        """Advance one substep of ``dt`` [s]."""
+        solver.step(state_in, state_out, control, contacts, dt)
+
+    def post_step(self, solver: SolverBase, state: State) -> None:
+        """Publish derived state once per physics step, after the substeps."""
+
+    def reset(self, solver: SolverBase, state: State, world_mask: wp.array) -> None:
+        """Clear solver-owned history for the worlds of a ``(world_count + 1,)`` mask, keeping authored joint state."""
+        solver.reset(state, world_mask=world_mask, flags=0)
+
+    def eval_fk(self, solver: SolverBase, state: State, world_mask: wp.array | None, fk_mask: wp.array | None) -> None:
+        """Update body state from the joint coordinates of the masked articulations; ``None`` selects everything."""
+        from newton import eval_fk
+
+        eval_fk(solver.model, state.joint_q, state.joint_qd, state, fk_mask)
+
+    def check_step(self, solver: SolverBase, captured: bool, debug: bool) -> None:
+        """Raise asynchronous solver failures after a step launch (``captured``: a CUDA graph replay), and log
+        diagnostics when ``debug`` is set."""
+
+    # ----- Consumers -----
+
+    def fixed_tendon_control(self, articulation: Any, model: Model) -> Any:
+        """Build the fixed-tendon command adapter of an articulation, or ``None`` when no tendon is driven."""
+        raise NotImplementedError(
+            "The configured solver does not drive fixed tendons. Fixed-tendon targets require a solver that transmits"
+            " to tendons, such as MJWarp."
+        )
 
 
 @configclass
@@ -121,8 +265,8 @@ class NewtonCfg(PhysicsCfg):
 
     This configuration includes Newton-specific simulation settings and solver configuration.
 
-    ``class_type`` selects the integration manager independently of ``solver_cfg.class_type``. Downstream code can
-    subclass :class:`NewtonManager` and set this field.
+    ``class_type`` selects the integration manager independently of the solver, which :attr:`solver_cfg` describes.
+    Downstream code can subclass :class:`NewtonManager` and set this field.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"

@@ -7,15 +7,12 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import newton
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import MPM_SPEC
-from isaaclab_newton.physics.mpm_solver import mpm_builder
 from newton import StateFlags
 from newton.solvers import SolverImplicitMPM
 from warp.fem import TemporaryStore
@@ -26,16 +23,6 @@ if TYPE_CHECKING:
     from newton import Model, State
 
     from .dissolution import CoffeeDissolution
-
-
-def _instantiate_coffee_mpm(model: Model, config: SolverImplicitMPM.Config, cfg) -> CoffeeMPMSolver:
-    if type(cfg.grains_per_particle) is not int or cfg.grains_per_particle < 0:
-        raise ValueError("grains_per_particle must be a nonnegative integer.")
-    return CoffeeMPMSolver(model, config, grains_per_particle=cfg.grains_per_particle)
-
-
-COFFEE_MPM_SPEC = replace(MPM_SPEC, build=mpm_builder(_instantiate_coffee_mpm))
-"""Native MPM constructing :class:`CoffeeMPMSolver` through the shared MPM configuration resolution."""
 
 
 class CoffeeMPMSolver(SolverImplicitMPM):

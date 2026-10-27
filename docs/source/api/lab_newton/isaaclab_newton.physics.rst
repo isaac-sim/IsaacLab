@@ -8,7 +8,6 @@
   .. autosummary::
 
     NewtonManager
-    SolverSpec
     NewtonBackend
     NewtonCloneRecord
     MjWarpActuatorBridge
@@ -176,32 +175,7 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-Solver Specifications
----------------------
-
-.. autoclass:: SolverSpec
-  :members:
-
-.. autofunction:: solver_spec
-
-.. autofunction:: build_from_cfg
-
-.. autodata:: MJWARP_SPEC
-  :annotation:
-
-.. autodata:: VBD_SPEC
-  :annotation:
-
-.. autodata:: XPBD_SPEC
-  :annotation:
-
-.. autodata:: FEATHERSTONE_SPEC
-  :annotation:
-
-.. autodata:: KAMINO_SPEC
-  :annotation:
-
-.. autodata:: MPM_SPEC
-  :annotation:
+MPM Solver State
+----------------
 
 .. autofunction:: reset_mpm_solver_state

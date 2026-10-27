@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
-from isaaclab_newton.physics.vbd_solver import vbd_kwargs
+from isaaclab_newton.physics.newton_manager_cfg import solver_kwargs
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
@@ -99,7 +99,7 @@ def test_vbd_colors_builder_before_finalization():
         mass=0.01,
         edge_ke=1.0,
     )
-    physics.VBD_SPEC.prepare_builder(builder, physics.VBDSolverCfg())
+    physics.VBDSolverCfg().prepare_builder(builder)
     colors = {int(particle): color for color, group in enumerate(builder.particle_color_groups) for particle in group}
     assert len(set(colors.values())) == builder.particle_count
 
@@ -113,7 +113,7 @@ def test_vbd_solver_force_input_capability():
     physics = importlib.import_module("isaaclab_newton.physics")
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
 
-    assert physics.VBD_SPEC.body_forces(solver_cfg) is False
+    assert solver_cfg.applies_body_forces() is False
 
 
 @pytest.mark.parametrize(
@@ -122,11 +122,11 @@ def test_vbd_solver_force_input_capability():
 def test_vbd_rigid_solver_controls(overrides):
     """VBD configuration preserves native defaults and forwards explicit controls."""
     physics = importlib.import_module("isaaclab_newton.physics")
-    kwargs = vbd_kwargs(physics.VBDSolverCfg(**overrides), wp.DeterministicMode.NOT_GUARANTEED)
+    kwargs = solver_kwargs(SolverVBD, physics.VBDSolverCfg(**overrides), wp.DeterministicMode.NOT_GUARANTEED)
     assert kwargs["rigid_body_contact_buffer_size"] == 64
     model = ModelBuilder().finalize(device="cpu")
     native_solver = SolverVBD(model, **overrides)
-    configured_solver = physics.VBD_SPEC.build(model, physics.VBDSolverCfg(**overrides), NOT_GUARANTEED)
+    configured_solver = physics.VBDSolverCfg(**overrides).build(model, NOT_GUARANTEED)
     for name in (
         "rigid_compliant_alm",
         "rigid_joint_linear_ke",
@@ -157,7 +157,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     builder.color()
     model = builder.finalize(device="cpu")
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
-    solver = physics.VBD_SPEC.build(model, solver_cfg, NOT_GUARANTEED)
+    solver = solver_cfg.build(model, NOT_GUARANTEED)
     assert solver.rigid_compliant_alm is True
     assert solver.body_body_contact_indices.size == model.body_count * 256
 
@@ -193,7 +193,7 @@ def test_vbd_structural_joint_stiffness_under_load():
         rigid_joint_linear_ke=linear_ke,
         rigid_joint_angular_ke=angular_ke,
     )
-    solver = physics.VBD_SPEC.build(model, solver_cfg, NOT_GUARANTEED)
+    solver = solver_cfg.build(model, NOT_GUARANTEED)
     state_0, state_1, control = model.state(), model.state(), model.control()
     for _ in range(480):
         state_0.clear_forces()

@@ -317,6 +317,13 @@ def _add_annotation_types(cls):
         # this only refreshes the type and keeps their original position.
         hints.update(ann)
 
+    # dataclass resolves a string ``ClassVar`` annotation in the subclass's module, which need not import ClassVar,
+    # so an inherited class variable would become a field; mark it with ``ClassVar`` itself instead.
+    own = cls.__dict__.get("__annotations__", {})
+    for key, hint in hints.items():
+        if key not in own and isinstance(hint, str) and hint.startswith(("ClassVar", "typing.ClassVar")):
+            hints[key] = ClassVar
+
     # Note: assign (not update) so that inherited annotations are not mutated in place.
     cls.__annotations__ = hints
 
@@ -470,7 +477,7 @@ def _process_mutable_types(cls):
         if isinstance(ann_value, str) and ann_value.startswith(("ClassVar", "typing.ClassVar")):
             continue
         origin = getattr(ann_value, "__origin__", None)
-        if origin is ClassVar:
+        if ann_value is ClassVar or origin is ClassVar:
             continue
         if isinstance(value, Field):
             setattr(cls, key, value)

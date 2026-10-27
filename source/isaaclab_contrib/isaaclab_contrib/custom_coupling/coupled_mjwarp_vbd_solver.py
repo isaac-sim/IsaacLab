@@ -3,23 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Custom MJWarp and VBD coupled solver and its specification."""
+"""Custom MJWarp and VBD coupled solver."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import warp as wp
-from isaaclab_newton.physics.solver_specs import SolverSpec, solver_spec
-from newton import CollisionPipeline, Contacts, Control, Model, ModelBuilder, State
+from newton import CollisionPipeline, Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
-from isaaclab.utils import instantiate
-
 from .kernels import _kernel_body_particle_reaction
-
-if TYPE_CHECKING:
-    from .coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
 
 class CoupledMJWarpVBDSolver(SolverBase):
@@ -124,50 +116,3 @@ class CoupledMJWarpVBDSolver(SolverBase):
                 state.body_f,
             ],
         )
-
-
-def build(
-    model: Model, cfg: CoupledMJWarpVBDSolverCfg, deterministic_mode: wp.DeterministicMode
-) -> CoupledMJWarpVBDSolver:
-    """Construct both sub-solvers through their own specs."""
-    if cfg.coupling_mode not in ("one_way", "two_way"):
-        raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
-    if not cfg.rigid_solver_cfg.use_mujoco_contacts:
-        raise ValueError("The custom coupling manager requires MJWarp internal contacts.")
-    if not cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
-        raise ValueError("The custom coupling manager requires VBD external rigid-body integration.")
-    rigid, soft = cfg.rigid_solver_cfg, cfg.soft_solver_cfg
-    return CoupledMJWarpVBDSolver(
-        model,
-        instantiate(rigid, model, deterministic_mode),
-        instantiate(soft, model, deterministic_mode),
-        cfg.coupling_mode,
-    )
-
-
-def prepare_builder(builder: ModelBuilder, cfg: CoupledMJWarpVBDSolverCfg) -> None:
-    """Prepare the completed builder for both sub-solvers, e.g. color it for VBD."""
-    for sub_cfg in (cfg.rigid_solver_cfg, cfg.soft_solver_cfg):
-        solver_spec(sub_cfg).prepare_builder(builder, sub_cfg)
-
-
-def prepare_contacts(
-    solver: CoupledMJWarpVBDSolver,
-    cfg: CoupledMJWarpVBDSolverCfg,
-    contacts: Contacts,
-    pipeline: CollisionPipeline | None,
-) -> None:
-    """Bind the contacts and pipeline used inside each coupled substep."""
-    solver.contacts = contacts
-    solver.collision_pipeline = pipeline
-
-
-COUPLED_MJWARP_VBD_SPEC = SolverSpec(
-    attribute_solvers=lambda cfg: (SolverMuJoCo,),
-    prepare_builder=prepare_builder,
-    build=build,
-    contact_sensors=False,
-    prepare_contacts=prepare_contacts,
-    prepare_step=lambda solver, cfg, state: solver.rebuild_bvh(state),
-)
-"""Specification of the custom MJWarp and VBD coupling (:class:`CoupledMJWarpVBDSolver`)."""

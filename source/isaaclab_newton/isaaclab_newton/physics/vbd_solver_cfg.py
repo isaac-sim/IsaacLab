@@ -10,19 +10,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
+from isaaclab.utils.string import string_to_callable
 
-from .newton_manager_cfg import NewtonSolverCfg
+from .newton_manager_cfg import NewtonSolverCfg, solver_kwargs
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import SolverSpec
+    import warp as wp
+    from newton import Model, ModelBuilder, State
+    from newton.solvers import SolverVBD
 
 
 @configclass
 class VBDSolverCfg(NewtonSolverCfg):
     """Configuration for the Vertex Block Descent solver."""
 
-    class_type: SolverSpec | str = "{DIR}.vbd_solver:VBD_SPEC"
-    """Specification of the VBD solver."""
+    solver_class: str = "newton.solvers:SolverVBD"
 
     iterations: int = 10
     """Number of VBD iterations per substep."""
@@ -81,3 +83,36 @@ class VBDSolverCfg(NewtonSolverCfg):
 
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body particle, edge, and face soft-contact capacity when VBD integrates rigid bodies."""
+
+    def prepare_builder(self, builder: ModelBuilder) -> None:
+        """Color the completed builder before allocating the model."""
+        builder.color(include_bending=True, balance_colors=False)
+
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None = None) -> SolverVBD:
+        """Construct VBD, leaving :attr:`rigid_compliant_alm` to Newton's default when unset."""
+        solver_cls = string_to_callable(self.solver_class)
+        kwargs = solver_kwargs(solver_cls, self, mode)
+        if self.rigid_compliant_alm is None:
+            del kwargs["rigid_compliant_alm"]
+        return solver_cls(model, **kwargs)
+
+    def applies_body_forces(self) -> bool:
+        return not self.integrate_with_external_rigid_solver
+
+    def pre_step(self, solver: SolverVBD, state: State) -> None:
+        """Rebuild the particle BVH before each physics step."""
+        if solver.model.particle_count > 0:
+            solver.rebuild_bvh(state)
+
+    def post_step(self, solver: SolverVBD, state: State) -> None:
+        """Publish standalone VBD joint state without changing coupled-solver ownership."""
+        from newton import eval_ik
+
+        model = solver.model
+        if (
+            self.update_joint_state
+            and not self.integrate_with_external_rigid_solver
+            and model.articulation_count > 0
+            and model.joint_coord_count > 0
+        ):
+            eval_ik(model, state, state.joint_q, state.joint_qd)

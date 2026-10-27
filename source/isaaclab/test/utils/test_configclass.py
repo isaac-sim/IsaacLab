@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import MISSING, asdict, field
+from dataclasses import MISSING, asdict, field, fields
 from functools import wraps
 from typing import Any, ClassVar
 
@@ -976,6 +976,23 @@ def test_config_with_class_type():
     assert cfg.class_name_3 == DummyClass
     assert cfg.class_name_4 == DummyClass
     assert cfg.b == "dummy"
+
+
+@configclass
+class ClassVariableCfg:
+    """Configuration with a class variable whose default a field could not hold."""
+
+    names: ClassVar[dict[str, str]] = {"a": "b"}
+    value: int = 0
+
+
+def test_inherited_class_variable_stays_off_the_fields():
+    """A subclass from a module without ``ClassVar`` keeps an inherited class variable off its fields."""
+    # The ``types`` module does not import ClassVar, like a downstream module that only subclasses.
+    subclass = configclass(type("SubCfg", (ClassVariableCfg,), {"__module__": "types"}))
+
+    assert [f.name for f in fields(subclass)] == ["value"]
+    assert subclass().names == {"a": "b"}
 
 
 @pytest.mark.parametrize("lazy", [False, True])

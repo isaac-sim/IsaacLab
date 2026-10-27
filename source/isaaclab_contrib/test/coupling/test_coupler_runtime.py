@@ -20,7 +20,6 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonManager,
     XPBDSolverCfg,
-    solver_spec,
 )
 from newton import CollisionPipeline, Mesh, ModelBuilder
 from newton.solvers import SolverXPBD
@@ -29,7 +28,6 @@ from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupled
 from isaaclab.sim import SimulationContext
 
 from isaaclab_contrib.coupling import (
-    COUPLER_SPEC,
     CouplerAdmmCfg,
     CouplerEntryCfg,
     CouplerProxyCfg,
@@ -42,15 +40,15 @@ def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAd
     cfg = NewtonCfg(solver_cfg=solver_cfg)
     manager = NewtonManager(cfg)
     manager._device = "cpu"
-    sim = SimpleNamespace(
+    manager._sim = SimpleNamespace(
         get_or_create_backend=lambda _: builder,
         get_clone_plan=lambda: SimpleNamespace(env_template="/Lab/Cells/Cell{}"),
+        _prepare_newton_visualizer_for_capture=lambda: None,
     )
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(SimulationContext, "instance", lambda: sim)
+        patch.setattr(SimulationContext, "instance", lambda: manager._sim)
         manager.backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), dt=1.0 / 60.0)
-        assert solver_spec(manager.backend.solver_cfg) is COUPLER_SPEC
-        manager.initialize_solver()
+    manager.initialize_solver()
     return manager
 
 

@@ -921,7 +921,18 @@ def _interpolate_joints(
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: str = "_rizon_sharpa_teapot_coupler:TEAPOT_COUPLER_SPEC"
+    def prepare_builder(self, builder):
+        from _rizon_sharpa_teapot_coupler import repair_teapot_hulls
+
+        # MPM preparation converts convex parts to triangle meshes; repair their generated support geometry first.
+        repair_teapot_hulls(builder)
+        super().prepare_builder(builder)
+
+    def construct_solver(self, model, entries, proxies, mode):
+        """Couple the dynamic grasped pot to its exact MPM collision shell."""
+        from _rizon_sharpa_teapot_coupler import TeapotColliderSyncSolver
+
+        return TeapotColliderSyncSolver(model=model, entries=entries)
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:

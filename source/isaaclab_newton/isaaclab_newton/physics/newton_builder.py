@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""USD construction helpers for Newton models."""
+"""Construction of Newton model builders: Isaac Lab defaults and USD helpers."""
 
 from __future__ import annotations
 
@@ -12,9 +12,15 @@ from collections.abc import Sequence
 
 import numpy as np
 import warp as wp
-from newton import Heightfield, ModelBuilder
+from newton import Heightfield, ModelBuilder, ShapeFlags
+from newton.solvers import SolverMuJoCo
+from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
+
+from isaaclab.utils import checked_apply
+
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
 
 logger = logging.getLogger(__name__)
 
@@ -71,3 +77,50 @@ def inject_terrain_heightfields(
         )
         ignore_paths.append(prim.GetPath().pathString)
     return ignore_paths
+
+
+def register_builder_attributes(builder: ModelBuilder, cfg: NewtonSolverCfg | None) -> None:
+    """Register the custom attributes the configured solver reads on a builder that receives imported assets."""
+    for solver_cls in dict.fromkeys(cfg.solver_classes() if cfg is not None else ()):
+        solver_cls.register_custom_attributes(builder)
+
+
+def usd_schema_resolvers(cfg: NewtonSolverCfg | None) -> list[SchemaResolver]:
+    """Return ordered schema resolvers for physics-model USD imports.
+
+    MJC is enabled when the configured solver registers ``SolverMuJoCo`` attributes. Visualization and
+    articulation-ordering builders keep their fixed pair because solver attributes do not affect their outputs.
+    """
+    resolvers: list[SchemaResolver] = [SchemaResolverNewton(), SchemaResolverPhysx()]
+    if cfg is not None and any(issubclass(solver_cls, SolverMuJoCo) for solver_cls in cfg.solver_classes()):
+        resolvers.append(SchemaResolverMjc())
+    return resolvers
+
+
+def create_builder(physics_cfg: NewtonCfg | None = None, up_axis: str | None = None, **kwargs) -> ModelBuilder:
+    """Create a :class:`ModelBuilder` configured with Isaac Lab's defaults.
+
+    Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream ``ModelBuilder.default_shape_cfg`` via
+    :func:`~isaaclab.utils.checked_apply`, and registers the custom attributes the configured solver reads. Without a
+    Newton configuration the default shape settings still apply, so rough-terrain margin and gap hold during early
+    construction.
+
+    Args:
+        physics_cfg: Newton physics configuration; ``None`` uses the default shape settings and no solver attributes.
+        up_axis: Override for the up-axis. Defaults to ``"Z"``.
+        **kwargs: Forwarded to :class:`ModelBuilder`.
+
+    Returns:
+        New builder with up-axis and per-shape defaults (gap, margin) applied.
+    """
+    newton_cfg = physics_cfg if isinstance(physics_cfg, NewtonCfg) else None
+    builder = ModelBuilder(up_axis=up_axis or "Z", **kwargs)
+    builder.default_bvh_cfg = ModelBuilder.BvhConfig(
+        mesh_constructor=newton_cfg.bvh_constructor_geometry if newton_cfg else None,
+        gaussian_constructor=newton_cfg.bvh_constructor_gaussian if newton_cfg else None,
+        shape_constructor=newton_cfg.bvh_constructor_scene if newton_cfg else None,
+        shape_flags=ShapeFlags.VISIBLE,
+    )
+    register_builder_attributes(builder, newton_cfg.solver_cfg if newton_cfg else None)
+    checked_apply(newton_cfg.default_shape_cfg if newton_cfg else NewtonShapeCfg(), builder.default_shape_cfg)
+    return builder

@@ -34,7 +34,7 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
     # The fixture proxy includes the pedestal and rack; only the ground needs static ownership.
     cable.include_static_shapes = False
     cable.shape_label_patterns = [r"/World/GroundPlane/.*"]
-    cable.solver_cfg.class_type = "isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:ENDPOINT_VBD_SPEC"
+    cable.solver_cfg.solver_class = "isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:EndpointVBD"
     physics.solver_cfg = CouplerProxyCfg(
         entries=[rigid, cable],
         # The cable runs its own post-transfer pipeline; the outer pipeline collides rigid pairs once.

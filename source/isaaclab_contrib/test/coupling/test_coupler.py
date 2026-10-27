@@ -14,31 +14,27 @@ constructs the coupled solver.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import (
-    MPM_SPEC,
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonManager,
-    SolverSpec,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
-from isaaclab_newton.physics.solver_specs import create_builder, register_builder_attributes, usd_schema_resolvers
+from isaaclab_newton.physics.newton_builder import create_builder, register_builder_attributes, usd_schema_resolvers
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
-
-from isaaclab.sim import SimulationContext
 
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
@@ -48,10 +44,9 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
     coupler,
 )
-from isaaclab_contrib.coupling.coupler import COUPLER_SPEC
 
-_CELL_SIM = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/Lab/Cells/Cell{}"))
-"""Simulation stand-in whose clone plan names environments ``/Lab/Cells/Cell{i}``."""
+_CELL_TEMPLATE = "/Lab/Cells/Cell{}"
+"""Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""
 
 
 @dataclass
@@ -456,10 +451,11 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
 def test_mpm_entry_forwards_config_and_execution_policy():
     """MPM construction preserves grid configuration, substeps, and in-place stepping."""
 
-    solver_cfg = MPMSolverCfg(grid_type="fixed", max_active_cell_count=256)
-    solver_cfg.class_type = SolverSpec(
-        build=lambda model, cfg, deterministic_mode: SimpleNamespace(model=model, solver_cfg=cfg)
-    )
+    class RecordingMPMSolverCfg(MPMSolverCfg):
+        def build(self, model, mode, env_template=None):
+            return SimpleNamespace(model=model, solver_cfg=self)
+
+    solver_cfg = RecordingMPMSolverCfg(grid_type="fixed", max_active_cell_count=256)
     entry = coupler._ResolvedEntry(
         config=CouplerEntryCfg(
             name="media",
@@ -473,7 +469,7 @@ def test_mpm_entry_forwards_config_and_execution_policy():
         shapes=[],
     )
 
-    solver_entry = coupler._build_entry(entry, _NG)
+    solver_entry = coupler._build_entry(entry, _NG, None)
     solver = solver_entry.solver("media-view")
 
     assert solver.model == "media-view"
@@ -506,7 +502,7 @@ def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
     coupled_solver = SimpleNamespace(solver=lambda name: mpm_solver)
 
-    assert COUPLER_SPEC.supports_capture(coupled_solver, solver_cfg) is expected
+    assert solver_cfg.supports_capture(coupled_solver) is expected
 
 
 @pytest.mark.parametrize("vbd_entries", [0, 2])
@@ -515,14 +511,16 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
     events: list[tuple[str, object]] = []
     builder = ModelBuilder()
     monkeypatch.setattr(builder, "color", lambda *, balance_colors, **_: events.append(("color", balance_colors)))
-    mpm_cfg = MPMSolverCfg(
-        class_type=replace(MPM_SPEC, prepare_builder=lambda value, cfg: events.append(("finalize", value)))
-    )
-    entries = [CouplerEntryCfg(name="media", solver_cfg=mpm_cfg, in_place=True)]
+
+    class RecordingMPMSolverCfg(MPMSolverCfg):
+        def prepare_builder(self, value):
+            events.append(("finalize", value))
+
+    entries = [CouplerEntryCfg(name="media", solver_cfg=RecordingMPMSolverCfg(), in_place=True)]
     entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
     solver_cfg = CouplerProxyCfg(entries=entries)
 
-    COUPLER_SPEC.prepare_builder(builder, solver_cfg)
+    solver_cfg.prepare_builder(builder)
 
     assert events == [("finalize", builder)] + ([("color", False)] if vbd_entries else [])
 
@@ -590,7 +588,7 @@ def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, sh
     mask = _FakeArray(np.asarray(mask_values, dtype=np.bool_))
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
-    COUPLER_SPEC.reset(solver, solver_cfg, state_0, mask)
+    solver_cfg.reset(solver, state_0, mask)
 
     assert calls == ([(state_0, None, 0)] if should_reset else [])
 
@@ -611,7 +609,7 @@ def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
     mask = _DeviceMask()
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
 
-    COUPLER_SPEC.reset(solver, solver_cfg, state, mask)
+    solver_cfg.reset(solver, state, mask)
 
     assert calls == [(state, mask, 0)]
 
@@ -627,7 +625,7 @@ def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
     mask = _FakeArray(np.asarray([True, False, False], dtype=np.bool_))
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
-    COUPLER_SPEC.reset(solver, solver_cfg, state, mask)
+    solver_cfg.reset(solver, state, mask)
 
     assert calls == [(state, mask, 0)]
 
@@ -671,11 +669,10 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     else:
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
     proxy_cfg.entries = [entry.config for entry in resolved_entries]
-    monkeypatch.setattr(SimulationContext, "instance", lambda: _CELL_SIM)
     monkeypatch.setattr(
         coupler,
         "_build_entry",
-        lambda entry, mode: recorded_entries.append(entry) or entry.config.name,
+        lambda entry, mode, env_template: recorded_entries.append(entry) or entry.config.name,
     )
     monkeypatch.setattr(
         coupler,
@@ -689,11 +686,11 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
             ),
         ),
     )
-    solver = COUPLER_SPEC.build(model, proxy_cfg, _NG)
+    solver = proxy_cfg.build(model, _NG, _CELL_TEMPLATE)
 
-    assert COUPLER_SPEC.external_contacts(solver, proxy_cfg) is expected_outer
-    assert COUPLER_SPEC.contact_sensors is False
-    assert COUPLER_SPEC.body_forces(proxy_cfg) is True
+    assert proxy_cfg.uses_collision_pipeline(solver) is expected_outer
+    assert proxy_cfg.contact_sensors is False
+    assert proxy_cfg.applies_body_forces() is True
     assert [entry.config.name for entry in recorded_entries] == ["rigid", "soft"]
     assert [entry.bodies for entry in recorded_entries] == [[0, 1], [2]]
     assert recorded_entries[1].shapes == [2]
@@ -706,22 +703,21 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     model = _FakeModel()
     _, resolved_entries, _ = _valid_proxy_setup()
     cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
-    monkeypatch.setattr(SimulationContext, "instance", lambda: _CELL_SIM)
     monkeypatch.setattr(
         coupler,
         "_resolve_entry",
         lambda model, entry_cfg: next(entry for entry in resolved_entries if entry.config.name == entry_cfg.name),
     )
-    monkeypatch.setattr(coupler, "_build_entry", lambda entry, mode: entry.config.name)
+    monkeypatch.setattr(coupler, "_build_entry", lambda entry, mode, env_template: entry.config.name)
     monkeypatch.setattr(
         coupler,
         "_build_admm_coupled_solver",
         lambda model, entries, cfg, mode: SimpleNamespace(kind="admm"),
     )
-    solver = COUPLER_SPEC.build(model, cfg, _NG)
+    solver = cfg.build(model, _NG, _CELL_TEMPLATE)
 
-    assert COUPLER_SPEC.external_contacts(solver, cfg) is True
-    assert COUPLER_SPEC.body_forces(cfg) is True
+    assert cfg.uses_collision_pipeline(solver) is True
+    assert cfg.applies_body_forces() is True
 
 
 def test_contact_sensor_guard_rejects_coupler():

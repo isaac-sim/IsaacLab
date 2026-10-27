@@ -28,9 +28,6 @@ Custom Coupling
   :members:
   :show-inheritance:
 
-.. autodata:: isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver.COUPLED_MJWARP_VBD_SPEC
-  :annotation:
-
 .. autoclass:: isaaclab_contrib.custom_coupling.franka_soft_env_cfg.FrankaSoftCustomCouplingEnvCfg
   :members:
   :show-inheritance:

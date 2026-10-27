@@ -45,7 +45,6 @@ from .robot import (
 class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Native MPM with optional passive rendering grains."""
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:COFFEE_MPM_SPEC"
     solver: str | tuple[str, ...] | None = None
     """Pressure solver; ``None`` selects the final wet or dry task profile."""
     max_iterations: int | None = None
@@ -54,6 +53,16 @@ class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Contact basis; ``None`` reserves particle-site capacity from the sampling density."""
     grains_per_particle: int = 0
     """Number of visual samples per physical particle; zero disables their allocation."""
+
+    def build(self, model, mode, env_template=None):
+        """Construct :class:`~.physics.CoffeeMPMSolver` from the shared MPM configuration resolution."""
+        from isaaclab_newton.physics.mpm_solver import mpm_solver_config
+
+        from .physics import CoffeeMPMSolver
+
+        if type(self.grains_per_particle) is not int or self.grains_per_particle < 0:
+            raise ValueError("grains_per_particle must be a nonnegative integer.")
+        return CoffeeMPMSolver(model, mpm_solver_config(self), grains_per_particle=self.grains_per_particle)
 
 
 def make_physics_cfg(voxel_size: float) -> NewtonCfg:

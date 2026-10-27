@@ -7,14 +7,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import ClassVar
 
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
-
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import SolverSpec
 
 
 @configclass
@@ -33,8 +30,16 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
     See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
     """
 
-    class_type: SolverSpec | str = "{DIR}.featherstone_solver:FEATHERSTONE_SPEC"
-    """Specification of the Featherstone solver."""
+    solver_class: str = "newton.solvers:SolverFeatherstone"
+
+    deterministic: ClassVar[bool] = True
+    # SolverFeatherstone derives its inertia data from the model only when it is constructed.
+    ignored_model_changes: ClassVar[dict[str, str]] = {
+        "BODY_INERTIAL_PROPERTIES": (
+            "The Newton Featherstone solver does not apply mass, center of mass, or inertia changes made after the"
+            " simulation starts; the simulation keeps the initial values."
+        )
+    }
 
     solver_type: str = "featherstone"
     """Solver type. Can be "featherstone"."""

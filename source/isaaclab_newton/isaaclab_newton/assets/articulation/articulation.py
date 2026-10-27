@@ -38,7 +38,6 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics.solver_specs import solver_spec
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
@@ -3582,7 +3581,7 @@ class Articulation(BaseArticulation):
                 raise NotImplementedError("Spatial tendons are not supported yet.")
             # Only the solver's specification knows whether the solver transmits to tendons.
             backend = self._backend_manager.backend
-            self._fixed_tendon_control = solver_spec(backend.solver_cfg).fixed_tendon_control(self, backend.model)
+            self._fixed_tendon_control = backend.solver_cfg.fixed_tendon_control(self, backend.model)
 
     """
     Internal helpers -- Debugging.
