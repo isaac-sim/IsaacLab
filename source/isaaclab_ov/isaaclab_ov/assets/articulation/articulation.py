@@ -33,7 +33,7 @@ from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import kernels as warp_kernels
-from isaaclab.utils.warp import math as math_kernels
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -4139,7 +4139,7 @@ class Articulation(BaseArticulation):
         # (or zeros if no joints).  This matches the PhysX/Newton path.
         if D > 0:
             wp.launch(
-                math_kernels.scale_interval_kernel,
+                warp_math.scale_intervals,
                 dim=(N, D),
                 inputs=[self._data.joint_pos_limits, cfg.soft_joint_pos_limit_factor],
                 outputs=[self._data._soft_joint_pos_limits],

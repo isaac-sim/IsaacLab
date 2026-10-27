@@ -99,14 +99,14 @@ def scale_interval(bounds: wp.vec2f, factor: float) -> wp.vec2f:
 
 
 @wp.kernel
-def scale_interval_kernel(bounds: wp.array2d(dtype=wp.vec2f), factor: float, result: wp.array2d(dtype=wp.vec2f)):
+def scale_intervals(bounds: wp.array2d(dtype=wp.vec2f), factor: float, result: wp.array2d(dtype=wp.vec2f)):
     """Scale each interval in a rank-2 array by one factor; preserve input component order."""
     i, j = wp.tid()
     result[i, j] = scale_interval(bounds[i, j], factor)
 
 
 @wp.kernel
-def shift_jacobian_reference_kernel(
+def shift_jacobian_reference(
     body_link_pose: wp.array2d(dtype=wp.transformf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     link_offset: wp.int32,
@@ -136,9 +136,10 @@ def shift_jacobian_reference_kernel(
     dst[env, body, 5, dof] = angular[2]
 
 
-quat_rotate_inv_kernel = {
+# Array launch entry points, indexed by rank. Device operations remain composable inside caller kernels.
+quat_rotate_inv = {
     rank: make_binary(wp.quat_rotate_inv, wp.quatf, wp.vec3f, wp.vec3f, rank, module=__name__) for rank in (1, 2)
 }
-heading_kernel = {
+heading = {
     rank: make_binary(heading_from_quat, wp.vec3f, wp.quatf, wp.float32, rank, module=__name__) for rank in (1, 2)
 }

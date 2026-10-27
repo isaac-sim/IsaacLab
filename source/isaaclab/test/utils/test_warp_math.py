@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import warp as wp
 
-from isaaclab.utils.warp import math as math_kernels
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.warp.math import (
     acceleration_at_offset,
     body_ang_vel_from_root,
@@ -81,8 +81,8 @@ def test_heading_and_inverse_rotation_use_body_and_world_frames():
         rotated = wp.empty(2, dtype=wp.vec3f)
         heading = wp.empty(2, dtype=float)
         for inverse, yaw, shape in [
-            (math_kernels.quat_rotate_inv_kernel[1], math_kernels.heading_kernel[1], (2,)),
-            (math_kernels.quat_rotate_inv_kernel[2], math_kernels.heading_kernel[2], (1, 2)),
+            (warp_math.quat_rotate_inv[1], warp_math.heading[1], (2,)),
+            (warp_math.quat_rotate_inv[2], warp_math.heading[2], (1, 2)),
         ]:
             wp.launch(inverse, shape, [quat.reshape(shape), vector.reshape(shape), rotated.reshape(shape)])
             wp.launch(yaw, shape, [forward.reshape(shape), quat.reshape(shape), heading.reshape(shape)])
@@ -95,7 +95,7 @@ def test_interval_scaling_preserves_midpoints_without_clamping():
         bounds = wp.array([[[-4, 8], [2, 6]]], dtype=wp.vec2f)
         result = wp.empty_like(bounds)
         for factor, expected in [(0.5, [[[-1, 5], [3, 5]]]), (-1.0, [[[8, -4], [6, 2]]])]:
-            wp.launch(math_kernels.scale_interval_kernel, (1, 2), [bounds, factor, result])
+            wp.launch(warp_math.scale_intervals, (1, 2), [bounds, factor, result])
             np.testing.assert_array_equal(result.numpy(), expected)
 
 
@@ -107,7 +107,7 @@ def test_jacobian_shift_preserves_angular_rows_and_maps_omitted_root():
         jacobian = wp.array([[[[1, -1], [2, 4], [3, 5], [0, 1], [0, 0], [2, 0]]]], dtype=float)
         result = wp.empty_like(jacobian)
         for offset, expected_linear in [(0, [[1, -1], [0, 4], [3, 5]]), (1, [[5, -1], [2, 4], [3, 3]])]:
-            wp.launch(math_kernels.shift_jacobian_reference_kernel, (1, 1, 2), [pose, com, offset, jacobian, result])
+            wp.launch(warp_math.shift_jacobian_reference, (1, 1, 2), [pose, com, offset, jacobian, result])
             np.testing.assert_allclose(result.numpy()[0, 0, :3], expected_linear, atol=1e-6)
             np.testing.assert_array_equal(result.numpy()[0, 0, 3:], [[0, 1], [0, 0], [2, 0]])
 
@@ -118,7 +118,8 @@ def test_shared_math_ownership(source_checkout_root):
 
     from isaaclab.utils.warp import math
 
-    for operation in (math.quat_rotate_inv_kernel, math.heading_kernel):
+    assert not any(name.endswith(("_kernel", "_kernels")) for name in vars(math)), "Name shared math by operation"
+    for operation in (math.quat_rotate_inv, math.heading):
         assert all(kernel.module.name == math.__name__ for kernel in operation.values())
     source = source_checkout_root / "source"
     core = source / "isaaclab/isaaclab"

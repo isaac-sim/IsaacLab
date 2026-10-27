@@ -15,7 +15,7 @@ import warp as wp
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp import math as math_kernels
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -522,7 +522,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                math_kernels.heading_kernel[1],
+                warp_math.heading[1],
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
@@ -545,7 +545,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
-                math_kernels.quat_rotate_inv_kernel[1],
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_link_lin_vel_w.warp],
                 outputs=[self._root_link_lin_vel_b.data],
@@ -567,7 +567,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
-                math_kernels.quat_rotate_inv_kernel[1],
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_link_ang_vel_w.warp],
                 outputs=[self._root_link_ang_vel_b.data],
@@ -589,7 +589,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
-                math_kernels.quat_rotate_inv_kernel[1],
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_com_lin_vel_w.warp],
                 outputs=[self._root_com_lin_vel_b.data],
@@ -611,7 +611,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
-                math_kernels.quat_rotate_inv_kernel[1],
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_com_ang_vel_w.warp],
                 outputs=[self._root_com_ang_vel_b.data],

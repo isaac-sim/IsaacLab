@@ -538,7 +538,9 @@ Generate required variants before launch or graph capture. ``make_binary`` gener
 and rank-2 kernels from one device operation while preserving array strides. Register variants
 in the semantic owner's module so importing another owner cannot invalidate earlier compilation.
 Specialize structural choices; numerical values remain runtime inputs. Name factories
-``make_<operation>``; reserve ``_kernel`` for concrete launchable kernels where useful.
+``make_<operation>`` and shared math entry points by their operation, without a ``_kernel`` suffix.
+Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a device operation and
+an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
 Verify ownership and dependency direction as well as numerical behavior and capture replay.
 
 Circular Imports
