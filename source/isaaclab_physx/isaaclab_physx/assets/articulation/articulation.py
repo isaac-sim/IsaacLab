@@ -3351,13 +3351,18 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
             env_mask: Environment mask. If None, then all the instances are commanded.
         """
-        if isinstance(target, wp.array):
-            target = wp.to_torch(target)
         self.assert_shape_and_dtype(target, (self.num_instances, self.num_fixed_tendons), wp.float32, "target")
-        # buffer only; ``write_data_to_sim`` pushes the offset with the other tendon properties
-        offset = self.data.fixed_tendon_rest_length.torch - target
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        # buffer only; ``write_data_to_sim`` pushes the offset with the other tendon properties
+        offset = self.data._fixed_tendon_offset_scratch
+        wp.launch(
+            warp_kernels.subtract_2d,
+            dim=(self.num_instances, self.num_fixed_tendons),
+            inputs=[self.data._fixed_tendon_rest_length, target],
+            outputs=[offset],
+            device=self.device,
+        )
         wp.launch(
             warp_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.float32),
             dim=(self.num_instances, self.num_fixed_tendons),
