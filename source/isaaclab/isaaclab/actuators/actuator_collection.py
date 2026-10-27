@@ -195,11 +195,12 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
         group_env_ids = self._control._normalize_index_sequence(env_ids)
-        group_env_mask = None if env_mask is None else wp.to_torch(env_mask)
+        # actuator models written before masked resets existed only accept indices
+        mask_kwargs = {} if env_mask is None else {"env_mask": wp.to_torch(env_mask)}
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
-                actuator.reset(group_env_ids, env_mask=group_env_mask)
+                actuator.reset(group_env_ids, **mask_kwargs)
         self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids, env_mask)
 
     def compute(self, dt: float = 0.0) -> None:

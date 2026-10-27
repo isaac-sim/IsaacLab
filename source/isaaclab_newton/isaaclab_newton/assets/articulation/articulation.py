@@ -33,7 +33,7 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -2311,8 +2311,6 @@ class Articulation(BaseArticulation):
         """
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
-        if isinstance(env_ids, wp.array) and env_ids.dtype != wp.int32:
-            env_ids = wp.to_torch(env_ids)
         return resolve_1d_mask(
             ids=env_ids, all_mask=self._ALL_ENV_MASK, scratch_mask=self._scratch_env_mask, device=self.device
         )
@@ -2702,8 +2700,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
@@ -2714,15 +2712,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         self.assert_shape_and_dtype_mask(stiffness, (env_mask, fixed_tendon_mask), wp.float32, "stiffness")
-        wp.launch(
-            articulation_kernels.float_data_to_buffer_with_mask
-            if isinstance(stiffness, float)
-            else shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self.num_instances, self.num_fixed_tendons),
-            inputs=[stiffness, env_mask, fixed_tendon_mask],
-            outputs=[self.data._fixed_tendon_stiffness],
-            device=self.device,
-        )
+        write_2d_with_mask(stiffness, env_mask, fixed_tendon_mask, self.data._fixed_tendon_stiffness, self.device)
 
     def set_fixed_tendon_damping_index(
         self,
@@ -2804,8 +2794,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
@@ -2816,15 +2806,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         self.assert_shape_and_dtype_mask(damping, (env_mask, fixed_tendon_mask), wp.float32, "damping")
-        wp.launch(
-            articulation_kernels.float_data_to_buffer_with_mask
-            if isinstance(damping, float)
-            else shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self.num_instances, self.num_fixed_tendons),
-            inputs=[damping, env_mask, fixed_tendon_mask],
-            outputs=[self.data._fixed_tendon_damping],
-            device=self.device,
-        )
+        write_2d_with_mask(damping, env_mask, fixed_tendon_mask, self.data._fixed_tendon_damping, self.device)
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
@@ -2926,8 +2908,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (num_instances, num_fixed_tendons)
@@ -2940,13 +2922,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
         if isinstance(limit, float):
             raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.vec2f),
-            dim=(self.num_instances, self.num_fixed_tendons),
-            inputs=[limit, env_mask, fixed_tendon_mask],
-            outputs=[self.data._fixed_tendon_pos_limits],
-            device=self.device,
-        )
+        write_2d_with_mask(limit, env_mask, fixed_tendon_mask, self.data._fixed_tendon_pos_limits, self.device)
 
     def set_fixed_tendon_rest_length_index(
         self,
@@ -3150,7 +3126,7 @@ class Articulation(BaseArticulation):
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         wp.launch(
             articulation_kernels.copy_fixed_tendon_properties_with_mask,
-            dim=(self.num_instances, self.num_fixed_tendons),
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
             inputs=[
                 env_mask,
                 fixed_tendon_mask,
@@ -3165,8 +3141,12 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # the solver keeps its own copy of the tendon properties and only re-reads them when notified
-        self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
+        # the solver keeps its own copy of the tendon properties and only re-reads them when notified;
+        # a capture records the refresh, so every replay reaches the solver
+        if wp.get_device(self.device).is_capturing:
+            self._backend_manager.backend.solver.notify_model_changed(ModelFlags.TENDON_PROPERTIES)
+        else:
+            self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 
     def set_spatial_tendon_stiffness_index(
         self,
