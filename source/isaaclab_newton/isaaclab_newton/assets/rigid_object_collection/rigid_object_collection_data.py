@@ -15,6 +15,7 @@ import warp as wp
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager
@@ -82,7 +83,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # projected_gravity_b kernel broadcasts each env's vector across its bodies.
         # The final entry is reserved for Newton's global world and is not an
         # Isaac Lab environment.
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self.num_instances, self.num_bodies, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
@@ -472,7 +473,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.body_heading_w,
+                warp_math.heading[2],
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.FORWARD_VEC_B.warp, self.body_link_quat_w.warp],
                 outputs=[self._heading_w.data],
@@ -492,9 +493,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_lin_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_link_lin_vel_w.warp],
                 outputs=[self._body_link_lin_vel_b.data],
             )
             self._body_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -512,9 +513,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_ang_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_link_ang_vel_w.warp],
                 outputs=[self._body_link_ang_vel_b.data],
             )
             self._body_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -532,9 +533,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_lin_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_com_lin_vel_w.warp],
                 outputs=[self._body_com_lin_vel_b.data],
             )
             self._body_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -552,9 +553,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_ang_vel_w.warp, self.body_link_quat_w.warp],
+                inputs=[self.body_link_quat_w.warp, self.body_com_ang_vel_w.warp],
                 outputs=[self._body_com_ang_vel_b.data],
             )
             self._body_com_ang_vel_b.timestamp = self._sim_timestamp
@@ -705,8 +706,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         per world) corresponds to the different body types. This gives us direct 2D bindings into
         Newton's state with no scatter/gather overhead.
         """
-        state_0 = self._backend_manager.get_state_0()
-        model = self._backend_manager.get_model()
+        state_0 = self._backend_manager.backend.state_0
+        model = self._backend_manager.backend.model
 
         # Root transforms/velocities are (num_envs, num_bodies) — direct 2D bindings
         self._sim_bind_body_link_pose_w = self._root_view.get_root_transforms(state_0)

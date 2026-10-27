@@ -72,13 +72,13 @@ def test_transport_reset_rebind_and_close(device):
             previous_model = None
             for _ in range(2):
                 sim.reset()
-                model = manager.get_model()
+                model = manager.backend.model
                 assert model is not previous_model
                 previous_model = model
-                before = manager.get_state_0().body_q.numpy().copy()
+                before = manager.backend.state_0.body_q.numpy().copy()
                 for _ in range(120):
                     sim.step(render=False)
-                after = manager.get_state_0().body_q.numpy()
+                after = manager.backend.state_0.body_q.numpy()
                 assert after[0, 0] - before[0, 0] > 0.025  # Straight belt in world 0.
                 assert after[2, 1] - before[2, 1] > 0.025  # Pivot belt in world 1.
                 np.testing.assert_allclose(after[[1, 3], :2], before[[1, 3], :2], atol=0.002)

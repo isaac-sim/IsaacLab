@@ -100,8 +100,8 @@ def test_checkpoint_interface_and_invalid_action_recovery(task):
         _place(env, positions)
         if pool is not None:
             env.sim.step(render=False)
-            model = env.sim.backend_manager.get_model()
-            contacts = env.sim.backend_manager.get_contacts()
+            model = env.sim.backend_manager.backend.model
+            contacts = env.sim.backend_manager.backend.contacts
             count = int(contacts.rigid_contact_count.numpy()[0])
             assert count > 0
             bodies = model.shape_body.numpy()
