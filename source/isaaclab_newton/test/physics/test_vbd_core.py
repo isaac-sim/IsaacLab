@@ -42,6 +42,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
         soft_contact_ke = 7.0
         soft_contact_kd = 8.0
         soft_contact_mu = 9.0
+        device = "cpu"
         world_count = 0
         articulation_count = 0
 
@@ -63,7 +64,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     builder = sim.get_or_create_backend(builder_cfg)
-    backend = sim.get_or_create_backend(cfg)
+    backend = sim.get_or_create_backend(cfg, dt=0.01)
     assert not {"_builder", "set_builder", "_model", "_state_0", "_state_1"}.intersection(vars(NewtonManager))
     assert not {"sync_transforms_to_fabric", "sync_transforms_to_usd"}.intersection(vars(NewtonManager))
     assert cfg.physics_cfg is physics_cfg
@@ -95,7 +96,7 @@ def test_vbd_colors_builder_before_finalization():
         mass=0.01,
         edge_ke=1.0,
     )
-    physics.NewtonVBDManager._prepare_builder_for_finalize(builder)
+    physics.NewtonVBDManager(NewtonCfg())._prepare_builder_for_finalize(builder)
     colors = {int(particle): color for color, group in enumerate(builder.particle_color_groups) for particle in group}
     assert len(set(colors.values())) == builder.particle_count
 
@@ -108,17 +109,18 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     """
     physics = importlib.import_module("isaaclab_newton.physics")
     solver = object()
-    monkeypatch.setattr(physics.NewtonVBDManager, "_create_solver", lambda model, cfg: solver)
-    monkeypatch.setattr(NewtonManager, "_solver", None)
-    monkeypatch.setattr(NewtonManager, "_use_single_state", True)
-    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
-    monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", True)
+    manager = physics.NewtonVBDManager(NewtonCfg())
+    monkeypatch.setattr(manager, "_create_solver", lambda model, cfg, deterministic_mode: solver)
+    monkeypatch.setattr(manager, "backend", SimpleNamespace(solver=None))
+    monkeypatch.setattr(manager, "_use_single_state", True)
+    monkeypatch.setattr(manager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(manager, "_supports_rigid_body_force_input", True)
 
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
-    physics.NewtonVBDManager._build_solver(object(), solver_cfg)
+    manager._build_solver(object(), solver_cfg)
 
-    assert NewtonManager._solver is solver
-    assert NewtonManager._supports_rigid_body_force_input is False
+    assert manager.backend.solver is solver
+    assert manager._supports_rigid_body_force_input is False
 
 
 @pytest.mark.parametrize(
@@ -223,15 +225,15 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
         def rebuild_bvh(self, solver_state):
             events.append(("rebuild", solver_state))
 
-    def simulate_physics_only(cls):
-        events.append(("step", cls))
+    def simulate_physics_only(self):
+        events.append(("step", self))
 
-    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(simulate_physics_only))
+    manager = physics.NewtonVBDManager(NewtonCfg())
+    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", simulate_physics_only)
     monkeypatch.setattr(
-        physics.NewtonVBDManager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state)
+        manager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state, solver=Solver())
     )
-    monkeypatch.setattr(physics.NewtonVBDManager, "_solver", Solver())
 
-    physics.NewtonVBDManager._simulate_physics_only()
+    manager._simulate_physics_only()
 
-    assert events == [("rebuild", state), ("step", physics.NewtonVBDManager)]
+    assert events == [("rebuild", state), ("step", manager)]

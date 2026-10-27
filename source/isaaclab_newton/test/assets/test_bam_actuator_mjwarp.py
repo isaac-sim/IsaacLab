@@ -10,7 +10,7 @@ from dataclasses import fields
 import numpy as np
 import pytest
 import torch
-from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager, NewtonSolverCfg
+from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg
 from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
 from newton import ModelBuilder
 from newton.solvers import SolverMuJoCo
@@ -146,7 +146,7 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     np.testing.assert_allclose(
         robot.data.joint_viscous_friction_coeff.torch.cpu().numpy(), _make_cfg().motor.friction_viscous, rtol=1e-6
     )
-    NewtonManager.set_decimation(decimation)
+    native_sim.backend_manager.set_decimation(decimation)
     robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, INITIAL_ANGLE))
     robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(robot.data.joint_vel.torch))
     robot.actuators.reset()
@@ -206,14 +206,17 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
         torch.ones(NUM_ENVS, robot_c.num_joints, device=robot_c.device),
     )
 
-    hook_counts = (len(NewtonManager._pre_actuator_callbacks), len(NewtonManager._post_actuator_callbacks))
+    hook_counts = (
+        len(native_sim.backend_manager._pre_actuator_callbacks),
+        len(native_sim.backend_manager._post_actuator_callbacks),
+    )
     for reset_index in range(3):
         if reset_index:
             # A hard reset rebuilds the model and drives; the bridge hooks must be replaced, not appended.
             native_sim.reset()
             assert hook_counts == (
-                len(NewtonManager._pre_actuator_callbacks),
-                len(NewtonManager._post_actuator_callbacks),
+                len(native_sim.backend_manager._pre_actuator_callbacks),
+                len(native_sim.backend_manager._post_actuator_callbacks),
             )
         assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "identical robots must merge"
         for robot in (robot_a, robot_c):
@@ -232,7 +235,7 @@ def test_each_group_configures_only_its_own_actuator(native_sim, device):
     for name, expected in (("shoulders", VIN), ("elbows", 6.5)):
         voltage = read_group_parameter(robot.actuators, name, "drive", "vin")
         torch.testing.assert_close(voltage, torch.full_like(voltage, expected), atol=1e-6, rtol=0.0)
-    solref = NewtonManager.backend.model.mujoco.solreffriction.numpy()
+    solref = native_sim.backend_manager.backend.model.mujoco.solreffriction.numpy()
     stiff = np.asarray(MjWarpActuatorBridge.STIFF_SOLREF_FRICTION)
     assert np.allclose(solref[robot.actuators["shoulders"].indices.numpy()], stiff)
     assert not np.isclose(solref[robot.actuators["elbows"].indices.numpy()], stiff).all(axis=1).any()

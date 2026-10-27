@@ -10,11 +10,10 @@
 Prepare an Asset for Newton with MJWarp
 =======================================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-preparing-assets-for-newton`` agent skill
-   (`skill source
-   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__).
+   (:isaaclab-source:`skill source <skills/user/prepare-assets-for-newton/SKILL.md>`).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
@@ -61,7 +60,7 @@ backend fragments, passed alongside the common fragment(s) in the same spawner f
   properties in the matching ``Physx*Cfg`` fragments.
 
 For the fragment model and how multiple fragments combine on one spawner field, see
-:doc:`/source/concepts/schema_fragments`. Check the
+:ref:`schema-fragments`. Check the
 :doc:`Newton/MuJoCo schema API </source/api/lab_newton/isaaclab_newton.sim.schemas>` and
 :doc:`PhysX schema API </source/api/lab_physx/isaaclab_physx.sim.schemas>` for supported fields.
 A value present in a PhysX asset or imported Newton model is not proof that MJWarp consumes it.

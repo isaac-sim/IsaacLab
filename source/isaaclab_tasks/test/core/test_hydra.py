@@ -10,6 +10,7 @@ external environment configurations.
 """
 
 import warnings
+from copy import deepcopy
 
 import pytest
 
@@ -304,7 +305,10 @@ def _register(env_cfg, agent_cfg=None, overrides=()):
 
     agent_cfg = PresetCfgAgentCfg() if agent_cfg is None else agent_cfg
     task = "Isaac-Hydra-Overrides-Test"
-    entry_points = {"env_cfg_entry_point": lambda: clone(env_cfg), "agent_cfg_entry_point": lambda: clone(agent_cfg)}
+    entry_points = {
+        "env_cfg_entry_point": lambda: clone(env_cfg),
+        "agent_cfg_entry_point": lambda: deepcopy(agent_cfg) if isinstance(agent_cfg, dict) else clone(agent_cfg),
+    }
     gym.register(id=task, entry_point="dummy:Env", kwargs=entry_points)
     try:
         return hydra_mod.register_task(task, "agent_cfg_entry_point", overrides=list(overrides))
@@ -464,6 +468,21 @@ def test_register_task_mixed_overrides():
     assert env_cfg.range == (0.1, 0.9)
     assert agent_cfg.learning_rate == 1e-5
     assert hydra_args == ["--flag"]
+
+
+def test_register_task_resolves_interpolations_after_overrides():
+    """Resolve dictionary agent interpolations after presets and scalar overrides without extra Hydra arguments."""
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, fast=8)
+    agent = {"params": "${env.backend}", "rollout_length": "${env.decimation}"}
+
+    env_cfg, agent_cfg, hydra_args = _register(
+        env, agent, overrides=["presets=fast", "env.decimation=12", "env.backend.dt=0.001"]
+    )
+
+    assert env_cfg.decimation == agent_cfg["rollout_length"] == 12
+    assert agent_cfg["params"] == {"backend": "physx", "dt": 0.001, "substeps": 2}
+    assert hydra_args == []
 
 
 # =============================================================================
@@ -1278,6 +1297,7 @@ def test_resolve_presets_errors_on_cyclic_preset_at_root():
 # =============================================================================
 
 from isaaclab.physics import PhysicsCfg as _RealPhysicsCfg  # noqa: E402
+from isaaclab.renderers.renderer_cfg import RendererCfg as _RealRendererCfg  # noqa: E402
 
 
 @configclass
@@ -1305,11 +1325,29 @@ def test_register_task_validates_physics_selector(monkeypatch, typed):
     if typed:
         cfg, _, _ = hydra_mod.register_task("test", "", overrides=["physics=newton_mjwarp"])
         assert isinstance(cfg.physics, _NewtonPhysicsCfg) and cfg.armature == 0.01
+        with pytest.raises(ValueError, match="Unknown preset\\(s\\): does_not_exist") as error:
+            hydra_mod.register_task("test", "", overrides=["physics=does_not_exist"])
+        assert "newton_mjwarp" in str(error.value)
     else:
         with pytest.raises(ValueError, match="physics=newton_mjwarp"):
             hydra_mod.register_task("test", "", overrides=["physics=newton_mjwarp"])
         cfg, _, _ = hydra_mod.register_task("test", "", overrides=["presets=newton_mjwarp"])
         assert cfg.armature == 0.01
+
+
+def test_register_task_explains_unavailable_typed_selectors(monkeypatch):
+    """A defaults-only task should report all selectors and explain how to use its defaults."""
+
+    @configclass
+    class Cfg:
+        physics: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
+        renderer: _RealRendererCfg = _RealRendererCfg()
+
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", lambda *_: Cfg())
+    with pytest.raises(ValueError, match="registered default configuration") as error:
+        hydra_mod.register_task("test", "", overrides=["physics=isaacsim_physx", "renderer=isaacsim_rtx"])
+    assert "physics=isaacsim_physx" in str(error.value)
+    assert "renderer=isaacsim_rtx" in str(error.value)
 
 
 # =============================================================================

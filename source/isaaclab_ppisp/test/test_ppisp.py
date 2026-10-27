@@ -3,13 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for PPISP USD parsing helpers."""
+"""Tests for PPISP configuration and camera USD settings."""
 
 from __future__ import annotations
 
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    apply_rtx_exposure_overrides,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -272,3 +273,34 @@ def test_ppisp_cfg_from_usd_camera_validates_controller_weights_len():
 
     with pytest.raises(ValueError, match=f"Expected {PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN}"):
         ppisp_cfg_from_usd_camera(camera)
+
+
+def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
+    """PPISP neutralizes RTX exposure while preserving other camera schema edits."""
+    stage = Usd.Stage.CreateInMemory()
+    prim = _author_camera(stage)
+    prim.SetMetadata("apiSchemas", Sdf.TokenListOp.Create(prependedItems=["ExistingAPI"], deletedItems=["RetiredAPI"]))
+    prim.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
+    prim.CreateAttribute("exposure:fStop", Sdf.ValueTypeNames.Float).Set(2.8)
+    prim.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(800.0)
+    prim.CreateAttribute("exposure:responsivity", Sdf.ValueTypeNames.Float).Set(0.5)
+    prim.CreateAttribute("exposure:time", Sdf.ValueTypeNames.Float).Set(1.0 / 60.0)
+    prim.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+
+    apply_rtx_exposure_overrides(stage, [str(prim.GetPath())])
+
+    assert prim.GetAttribute("exposure").Get() == 0.0
+    assert prim.GetAttribute("exposure:fStop").Get() == 1.0
+    assert prim.GetAttribute("exposure:iso").Get() == 0.0
+    assert prim.GetAttribute("exposure:responsivity").Get() == 1.0
+    assert prim.GetAttribute("exposure:time").Get() == 1.0
+    assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
+    # These APIs route camera exposure attributes into RTX's per-camera settings.
+    api_schemas = prim.GetMetadata("apiSchemas")
+    assert api_schemas is not None
+    applied = api_schemas.GetAppliedItems()
+    assert "OmniRtxCameraAutoExposureAPI_1" in applied
+    assert "OmniRtxCameraExposureAPI_1" in applied
+    assert "ExistingAPI" in applied
+    authored_schemas = stage.GetRootLayer().GetPrimAtPath(prim.GetPath()).GetInfo("apiSchemas")
+    assert authored_schemas.deletedItems == ["RetiredAPI"]

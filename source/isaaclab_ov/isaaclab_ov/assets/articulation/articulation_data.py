@@ -16,6 +16,7 @@ from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_ov import tensor_types as TT
@@ -36,7 +37,6 @@ from isaaclab_ov.assets.kernels import (
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
-from . import kernels as articulation_kernels
 from .kernels import _fd_joint_acc
 
 # import logger
@@ -86,7 +86,7 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, view: OvPhysxView, device: str) -> None:
+    def __init__(self, view: OvPhysxView, device: str, *, backend_manager: OvPhysxManager | None = None) -> None:
         """Initialize the articulation data container.
 
         Args:
@@ -97,8 +97,13 @@ class ArticulationData(BaseArticulationData):
                 :meth:`~isaaclab_ov.assets.Articulation._initialize_impl` after
                 construction.
             device: Simulation device string (e.g., ``"cuda:0"`` or ``"cpu"``).
+            backend_manager: The OVPhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view=None, device=device)
+        if backend_manager is None:
+            backend_manager = OvPhysxManager._deprecated_active("ArticulationData()")
+        self._backend_manager = backend_manager
         self._view = view
 
         # The view exposes the articulation metadata (instance count, dof_count,
@@ -127,10 +132,9 @@ class ArticulationData(BaseArticulationData):
         # obtain gravity from the simulation configuration (fall back to standard
         # gravity when the simulation has not been configured yet, e.g. in unit tests)
         gravity = (0.0, 0.0, -9.81)
-        from isaaclab.physics import PhysicsManager
 
-        if PhysicsManager._sim is not None and hasattr(PhysicsManager._sim, "cfg"):
-            gravity = PhysicsManager._sim.cfg.gravity
+        if self._backend_manager._sim is not None and hasattr(self._backend_manager._sim, "cfg"):
+            gravity = self._backend_manager._sim.cfg.gravity
         gravity_np = np.array(gravity, dtype=np.float32)
         gravity_mag = float(np.linalg.norm(gravity_np))
         if gravity_mag == 0.0:
@@ -224,7 +228,7 @@ class ArticulationData(BaseArticulationData):
             ]
         )
         # Force a kinematic refresh on the next FK-dependent read.
-        OvPhysxManager.kinematics_dirty = True
+        self._backend_manager.kinematics_dirty = True
 
     def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
@@ -259,7 +263,7 @@ class ArticulationData(BaseArticulationData):
             ]
         )
         # Force a kinematic refresh on the next FK-dependent read.
-        OvPhysxManager.kinematics_dirty = True
+        self._backend_manager.kinematics_dirty = True
 
     def _reset_dynamics(
         self, *, body_com_jacobian: bool = False, mass_matrix: bool = False, gravity_compensation: bool = False
@@ -470,7 +474,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_friction_coeff(self) -> ProxyArray:
-        """Joint static friction coefficient [dimensionless].
+        """Joint static friction effort [N or N*m, depending on joint type].
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         Component ``[..., 0]`` of the ``DOF_FRICTION_PROPERTIES`` binding.
@@ -485,7 +489,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_dynamic_friction_coeff(self) -> ProxyArray:
-        """Joint dynamic friction coefficient [dimensionless].
+        """Joint dynamic friction effort [N or N*m, depending on joint type].
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         Component ``[..., 1]`` of the ``DOF_FRICTION_PROPERTIES`` binding.
@@ -755,7 +759,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
         """
-        OvPhysxManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         # ovphysx ROOT_VELOCITY is COM velocity; link velocity comes from the first
         # element of the backend-order per-link velocity tensor.
         if self.has_body_ordering:
@@ -835,7 +839,7 @@ class ArticulationData(BaseArticulationData):
         (identical in either order for the same physical body), so it must not advance the public
         :attr:`body_link_pose_w` shadow.
         """
-        OvPhysxManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         if not self.has_body_ordering:
             self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
             return self._body_link_pose_w.data
@@ -939,7 +943,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        OvPhysxManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         self._refresh_reordered_body_buffer(self._body_link_pose_w, self._body_link_pose_w_backend, TT.LINK_POSE)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -952,7 +956,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
         In torch this resolves to (num_instances, num_bodies, 6).
         """
-        OvPhysxManager.update_kinematics()
+        self._backend_manager.update_kinematics()
         self._refresh_reordered_body_buffer(self._body_com_vel_w, self._body_com_vel_w_backend, TT.LINK_VELOCITY)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
@@ -1111,7 +1115,7 @@ class ArticulationData(BaseArticulationData):
             self._body_link_jacobian_w = ProxyArray(wp.empty_like(jacobian.warp))
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
-            articulation_kernels.shift_jacobian_com_to_origin,
+            warp_math.shift_jacobian_reference,
             dim=jacobian.shape[:2] + (jacobian.shape[3],),
             inputs=[self.body_link_pose_w, self.body_com_pos_b, self._jacobian_link_offset, jacobian],
             outputs=[self._body_link_jacobian_w],
