@@ -524,6 +524,12 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: wp.from_torch(extra_env.contiguous(), dtype=dtype)})
 
+    if backend == "newton" and selection == "mask" and not writer.endswith("_target"):
+        # A mask shorter than the asset dimension is rejected, even with data of the mask's length.
+        short_env = _payload((N - 1, *shape[1:]), trailing, dtype, device)
+        with pytest.raises(AssertionError, match="Mask length"):
+            method(**{kwarg: short_env, "env_mask": _mask(N - 1, [0], device)})
+
 
 # quantity -> (writer, keyword, trailing size). Joint partial writes are covered by the ordering contract.
 _PARTIAL_WRITES = {

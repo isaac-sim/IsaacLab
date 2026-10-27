@@ -1298,6 +1298,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             scratch_mask=self._scratch_body_mask,
             device=self.device,
         )
+        if self._check_shapes:
+            for mask, full_mask in ((env_mask, self._ALL_ENV_MASK), (body_mask, self._ALL_BODY_MASK)):
+                assert mask.shape[0] == full_mask.shape[0], (
+                    f"{type(self).__name__}: Mask length mismatch: {mask.shape[0]} != {full_mask.shape[0]}"
+                )
         return env_mask, body_mask
 
     """
