@@ -49,7 +49,19 @@ DOF_ATTRIBUTES = {
     "joint_limit_ke": (_JOINT["limit_ke"].name, None, math.radians(1.0)),
     "joint_limit_kd": (_JOINT["limit_kd"].name, None, math.radians(1.0)),
 }
-"""Model DOF array -> USD joint attribute, required API schema, and scale to USD units for angular DOFs."""
+"""Model DOF array -> USD joint attribute, required API schema, and scale to USD units for angular DOFs.
+
+An attribute without ``{axis}`` holds one value for the whole joint.
+"""
+
+D6_DOF_ATTRIBUTES = {
+    **DOF_ATTRIBUTES,
+    "joint_limit_lower": ("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    "joint_limit_upper": ("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    "joint_limit_ke": (_JOINT["limit_rotX_ke"].name.replace("rotX", "{axis}"), None, math.radians(1.0)),
+    "joint_limit_kd": (_JOINT["limit_rotX_kd"].name.replace("rotX", "{axis}"), None, math.radians(1.0)),
+}
+""":data:`DOF_ATTRIBUTES` of a rotational D6 joint, whose axes are ``rotX``, ``rotY`` and ``rotZ``."""
 
 SHAPE_ATTRIBUTES = {
     "shape_margin": _SHAPE["margin"].name,
@@ -201,43 +213,77 @@ class UsdExporter(BaseUsdExporter):
         values = self._arrays(model, DOF_ATTRIBUTES)
         changed = self._changed(values, builder)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
-        axes = {int(newton.JointType.REVOLUTE): "angular", int(newton.JointType.PRISMATIC): "linear"}
         edits, dofs, unsupported, drives = [], [], [], {}
         for joint in self._selected(model.joint_world):
             prim = stage.GetPrimAtPath(model.joint_label[joint])
             # Free joints of floating bodies have no USD prim; their pose is exported by the body.
             if types[joint] == int(newton.JointType.FREE) or not prim:
                 continue
-            axis = axes.get(int(types[joint]))
-            if axis is None:
+            axes, table = self._dof_axes(model, joint)
+            if axes is None:
                 if starts[joint + 1] > starts[joint]:
                     unsupported.append(model.joint_label[joint])
                 continue
-            dof = starts[joint]
-            dofs.append(dof)
-            # Newton's importer actuates exactly the joints with a USD drive.
-            actuated = modes[dof] != int(newton.JointTargetMode.NONE)
-            if not actuated and prim.HasAPI(UsdPhysics.DriveAPI, axis):
-                raise NotImplementedError(f"Joint '{prim.GetPath()}' has a USD drive the engine does not actuate.")
+            path = str(prim.GetPath())
+            dofs += [dof for dof, _ in axes]
+            # Newton's importer actuates exactly the axes with a USD drive.
+            actuated = {dof: modes[dof] != int(newton.JointTargetMode.NONE) for dof, _ in axes}
+            for dof, axis in axes:
+                if not actuated[dof] and prim.HasAPI(UsdPhysics.DriveAPI, axis):
+                    raise NotImplementedError(f"Joint '{path}' has a USD drive the engine does not actuate.")
             # A changed drive is written whole, since Isaac Lab's build can hold drive values other than the USD's.
-            drive = actuated and any(changed[name][dof] for name, (_, schema, _) in DOF_ATTRIBUTES.items() if schema)
-            if drive:
-                drives[str(prim.GetPath())] = (
-                    float(values["joint_target_ke"][dof]),
-                    float(values["joint_target_kd"][dof]),
-                )
-            for name, (attribute, schema, angular_scale) in DOF_ATTRIBUTES.items():
-                if (changed[name][dof] and (schema is None or actuated)) or (drive and schema is not None):
-                    scale = angular_scale if axis == "angular" else 1.0
-                    schema = schema and schema.format(axis=axis)
-                    value = float(values[name][dof]) * scale
-                    edits.append(UsdEdit(str(prim.GetPath()), attribute.format(axis=axis), value, schema=schema))
+            drive = {
+                dof: actuated[dof] and any(changed[name][dof] for name, (_, schema, _) in table.items() if schema)
+                for dof, _ in axes
+            }
+            if len(axes) == 1 and drive[axes[0][0]]:
+                dof = axes[0][0]
+                drives[path] = (float(values["joint_target_ke"][dof]), float(values["joint_target_kd"][dof]))
+            for name, (attribute, schema, angular_scale) in table.items():
+                if "{axis}" not in attribute:
+                    if any(changed[name][dof] for dof, _ in axes):
+                        edits.append(self._joint_value_edit(path, attribute, values[name], axes, angular_scale))
+                    continue
+                for dof, axis in axes:
+                    if (changed[name][dof] and (schema is None or actuated[dof])) or (drive[dof] and schema):
+                        scale = 1.0 if axis == "linear" else angular_scale
+                        value = float(values[name][dof]) * scale
+                        edits.append(
+                            UsdEdit(
+                                path, attribute.format(axis=axis), value, schema=schema and schema.format(axis=axis)
+                            )
+                        )
         if unsupported:
-            logger.warning(f"Joints other than revolute and prismatic are not exported: {unsupported}.")
+            logger.warning(f"Joints other than revolute, prismatic and rotational D6 are not exported: {unsupported}.")
         force_position_velocity = self._actuation_flag(
             values["joint_target_ke"][dofs], values["joint_target_kd"][dofs], modes[dofs]
         )
         return edits, force_position_velocity, drives
+
+    @staticmethod
+    def _dof_axes(model: newton.Model, joint: int) -> tuple[list[tuple[int, str]] | None, dict]:
+        """The DOFs of a joint with their USD axis names, and the attribute table; None for unsupported joints."""
+        start, joint_type = int(model.joint_qd_start.numpy()[joint]), int(model.joint_type.numpy()[joint])
+        if joint_type == int(newton.JointType.REVOLUTE):
+            return [(start, "angular")], DOF_ATTRIBUTES
+        if joint_type == int(newton.JointType.PRISMATIC):
+            return [(start, "linear")], DOF_ATTRIBUTES
+        linear, angular = model.joint_dof_dim.numpy()[joint]
+        if joint_type != int(newton.JointType.D6) or linear:
+            return None, {}
+        axes = model.joint_axis.numpy()
+        dofs = range(start, start + int(angular))
+        return [(dof, "rot" + "XYZ"[int(np.argmax(np.abs(axes[dof])))]) for dof in dofs], D6_DOF_ATTRIBUTES
+
+    @classmethod
+    def _joint_value_edit(
+        cls, path: str, attribute: str, values: np.ndarray, axes: list[tuple[int, str]], angular_scale: float
+    ) -> UsdEdit:
+        """Edit writing a value USD states once per joint, which all its axes must share."""
+        live = [float(values[dof]) for dof, _ in axes]
+        if not cls._close(live, live[0]):
+            raise NotImplementedError(f"Joint '{path}' has a different '{attribute}' per axis; USD states one.")
+        return UsdEdit(path, attribute, live[0] * (1.0 if axes[0][1] == "linear" else angular_scale))
 
     def _body_edits(self, stage: Usd.Stage, model: newton.Model, builder: newton.ModelBuilder) -> list[UsdEdit]:
         values = self._arrays(model, ("body_mass", "body_com", "body_inertia"))
