@@ -1748,7 +1748,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "28.0.0"
+version = "28.0.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2180,7 +2180,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "8.0.0"
+version = "8.0.1"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },

@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+28.0.1 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras moving to their env-local pose after an environment reset when Kit runs without the Fabric Scene
+  Delegate. Fabric frame views now run the Fabric Hierarchy update once after they seed their transforms.
+
+
 28.0.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~~
 

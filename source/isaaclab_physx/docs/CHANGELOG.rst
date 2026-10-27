@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+8.0.1 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the first camera observation after :meth:`~isaaclab.envs.ManagerBasedEnv.reset` showing rigid bodies at
+  their spawn pose on GPU simulation. The Fabric re-synchronization in :meth:`~isaaclab_physx.physics.PhysxManager.play`
+  now runs only when the timeline resumes from pause.
+
+
 8.0.0 (2026-10-17)
 ~~~~~~~~~~~~~~~~~~
 
