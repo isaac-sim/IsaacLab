@@ -158,15 +158,11 @@ jobs:
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/cli/test_test_orchestrator_result_handling.py::test_windows_timeout_keeps_output_and_kills_the_process_tree --junitxml=tests/windows-ci-orchestrator-report.xml
 
-      # The orchestrator skips install_ci/, so the Cartpole probes run here. Their camera training is
-      # the combinations' newton_mjwarp-newton_renderer pairing, so it runs there only.
+      # The orchestrator skips install_ci/, so the Cartpole probes run here; --run-gpu adds camera
+      # training on every other physics and renderer pairing.
       - name: Run Cartpole smoke tests
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
-        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py -k "not test_train_cartpole_camera_completes" --junitxml=tests/windows-ci-smoke-report.xml
-
-      - name: Run Cartpole backend combinations
-        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
-        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_backend_combinations_smoke.py --junitxml=tests/windows-ci-combinations-report.xml
+        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py --run-gpu --junitxml=tests/windows-ci-smoke-report.xml
 
       # Not success(): compiled kernels and shaders stay valid when a test fails. Cancellation still
       # skips, so a cache the run was mid-write on is never published.
