@@ -1174,7 +1174,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         task = self._is_task_view(view)
         source = view.cfg.source if task else self.cfg
-        changed, focal = imgui.slider_float("Focal Length", float(source.focal_length), 5.0, 100.0, "%.0f mm")
+        changed, focal = imgui.slider_float("Focal Length", float(source.focal_length), 5.0, 64.0, "%.0f mm")
         hover_tooltip(imgui, "Lens focal length of the camera; smaller values see a wider area")
         if changed:
             source.focal_length = focal
