@@ -16,6 +16,7 @@ from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_ov import tensor_types as TT
@@ -36,7 +37,6 @@ from isaaclab_ov.assets.kernels import (
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
-from . import kernels as articulation_kernels
 from .kernels import _fd_joint_acc
 
 # import logger
@@ -1115,7 +1115,7 @@ class ArticulationData(BaseArticulationData):
             self._body_link_jacobian_w = ProxyArray(wp.empty_like(jacobian.warp))
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
-            articulation_kernels.shift_jacobian_com_to_origin,
+            warp_math.shift_jacobian_reference,
             dim=jacobian.shape[:2] + (jacobian.shape[3],),
             inputs=[self.body_link_pose_w, self.body_com_pos_b, self._jacobian_link_offset, jacobian],
             outputs=[self._body_link_jacobian_w],
