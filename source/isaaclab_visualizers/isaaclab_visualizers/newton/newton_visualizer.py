@@ -54,7 +54,6 @@ from isaaclab.visualizers.policy_ghost import PolicyGhostController
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
-from isaaclab_visualizers.newton.newton_animation_ghosts import AnimationGhostSet, draw_animation_section
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
@@ -187,7 +186,6 @@ class NewtonViewerGL(ViewerGL):
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
     _owner = None
     _policy_ghost_panel = None
-    _animation_ghosts = None
     _policy_ghost_restart = None
     _recording_panel = None
     image_matches_camera = False
@@ -375,18 +373,13 @@ class NewtonViewerGL(ViewerGL):
                 live_plots_cb(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
-            animations = viewer._animation_ghosts
-            ghosts_offered = (
-                viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None or animations
-            )
+            ghosts_offered = viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None
             if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
                 viewer._draw_policy_ghosts_unsupported(imgui)
             elif viewer._policy_ghost_panel is not None:
-                viewer._policy_ghost_panel.draw(imgui, animations.draw if animations else None)
+                viewer._policy_ghost_panel.draw(imgui)
             elif viewer._policy_ghost_restart is not None:
-                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart, animations.draw if animations else None)
-            elif animations:
-                draw_animation_section(imgui, animations)
+                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
 
             # --- Articulation Inspector (Newton's Selection API) ------------
             with _header_tooltips(
@@ -448,13 +441,13 @@ class NewtonViewerGL(ViewerGL):
         imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
         expanded = imgui.collapsing_header("Policy Ghosts")
         imgui.pop_style_color()
-        hover_tooltip(imgui, "Compare checkpoints and recorded animations in one window. OpenGL view only")
+        hover_tooltip(imgui, "Compare several checkpoints of this task in one window. OpenGL view only")
         if expanded:
             imgui.separator()
             imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
             imgui.text_wrapped(
-                "Policy Ghosts and animations are not supported in the RTX view. "
-                "Switch Camera View > Renderer to OpenGL to compare checkpoints and animations."
+                "Policy Ghosts are not supported in the RTX view. "
+                "Switch Camera View > Renderer to OpenGL to compare checkpoints."
             )
             imgui.pop_style_color()
 
@@ -659,9 +652,8 @@ class NewtonViewerGL(ViewerGL):
         if self._policy_ghost_panel is not None:
             ghosts = sum(slot.active for slot in self._policy_ghost_panel.layout.slots[1:])
             badges.append((f"{ghosts} ghost{'s' * (ghosts != 1)}", (0.5, 0.8, 1.0, 1.0)))
-        animations = len(self._animation_ghosts) if self._animation_ghosts is not None else 0
-        if animations:
-            badges.append((f"{animations} animation{'s' * (animations != 1)}", (0.5, 0.85, 1.0, 1.0)))
+        if self._recording_panel is not None and self._recording_panel.animation.active:
+            badges.append(("animation", (0.5, 0.85, 1.0, 1.0)))
         for index, (text, color) in enumerate(badges):
             if index:
                 imgui.same_line()
@@ -678,7 +670,7 @@ class NewtonViewerGL(ViewerGL):
             self._paused_training = not self._paused_training
         hover_tooltip(
             imgui,
-            "Stop or resume stepping the simulation and playing animations. The window keeps updating",
+            "Stop or resume stepping the simulation and playing an animation. The window keeps updating",
         )
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
@@ -1526,7 +1518,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
     _recording: NewtonRecordingPanel | None = None
-    _animation_ghosts: AnimationGhostSet | None = None
     _simulation_hidden = False
 
     @property
@@ -1627,7 +1618,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._num_envs = num_envs
         self._viewer._owner = self
         self._recording = self._viewer._recording_panel = NewtonRecordingPanel(self)
-        self._animation_ghosts = self._viewer._animation_ghosts = AnimationGhostSet(self, self._recording.scene_folder)
         self._apply_visible_worlds()
         self._viewer._paused = False
         self._viewer.picking_enabled = self._picking_enabled
@@ -1729,8 +1719,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
-            if self._animation_ghosts is not None and self.current_image_view.camera is None:
-                self._animation_ghosts.update()
+            if self._recording is not None and self.current_image_view.camera is None:
+                self._recording.animation.update()
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -1939,8 +1929,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             offsets = self._viewer.world_offsets.numpy() + self._policy_ghost_panel.controller.env_origin_offsets()
             self._viewer.world_offsets = wp.array(offsets, dtype=wp.vec3, device=self._viewer.world_offsets.device)
         self._apply_rtx_visible_envs()
-        if self._animation_ghosts is not None:
-            self._animation_ghosts.invalidate()
+        if self._recording is not None:
+            self._recording.animation.invalidate()
 
     def frame_animation(self, player) -> None:
         """Point the camera at one animation ghost."""

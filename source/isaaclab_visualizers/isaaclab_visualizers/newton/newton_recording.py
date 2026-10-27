@@ -22,6 +22,7 @@ import numpy as np
 
 from isaaclab.paths import ISAACLAB_ROOT
 
+from .newton_animation_panel import NewtonAnimationPanel
 from .newton_visualization_markers import render_newton_visualization_markers
 
 if TYPE_CHECKING:
@@ -101,6 +102,7 @@ class NewtonRecordingPanel:
         self._video_temp: Path | None = None
         self._video_unsaved: Path | None = None
         """Finished clip that stays in a temporary file until :meth:`save_video` keeps it."""
+        self.animation = NewtonAnimationPanel(owner, self.scene_folder)
         self._video: subprocess.Popen | None = None
         self._video_frames = 0
         self._video_shape: tuple[int, int] | None = None
@@ -133,7 +135,8 @@ class NewtonRecordingPanel:
         expanded = imgui.collapsing_header("Recording  (REC)###recording" if active else "Recording###recording")
         if active:
             imgui.pop_style_color()
-        hover_tooltip(imgui, "Record a video or an animation, and save a policy checkpoint")
+        hover_tooltip(imgui, "Record a video or an animation, play animations back, and save a policy checkpoint")
+        self.animation.draw_window(imgui)
         if not expanded:
             return
         imgui.separator()
@@ -183,10 +186,11 @@ class NewtonRecordingPanel:
             self.start_scene()
         if imgui.is_item_hovered() and not self.recording_scene:
             imgui.set_tooltip("Record the visible environments to a .viser file")
+        imgui.same_line()
+        self.animation.draw_open_button(imgui)
         if self.recording_scene:
             imgui.text_colored(imgui.ImVec4(*_RED), f"REC  {self._scene_frames} frames")
-        else:
-            imgui.text_disabled("Open animations from Policy Ghosts")
+        self.animation.draw(imgui)
         imgui.separator()
 
     def _draw_checkpoint(self, imgui: Any) -> None:

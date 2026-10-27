@@ -5,10 +5,9 @@
 * Added :class:`~isaaclab_visualizers.newton.NewtonRecordingCfg` (``NewtonGLBackendCfg.recording``) with the
   output folder, file prefix, auto-numbering, and timestamp options shared by all recordings, plus the video frame
   rate and a video length after which recording stops by itself.
-* Added animation ghosts to the Newton visualizer's Policy Ghosts section: "Add Animation..." lists ``.viser``
-  recordings, and each one opens as a tinted ghost with its own opacity, tint, and offset next to the simulation.
-  Several animations can be open at once; they need no extra simulated environments and work without
-  ``--policy_ghosts``. They share one timeline with loop and speed controls, play and pause with the Playback
-  section's Pause Simulation button, and the timeline can be dragged when only animations are loaded. "Hide live
-  simulation" shows only the animations. Animations record the visualization markers, such as velocity arrows, and
-  replay them with their changing scales.
+* Added animation playback to the Newton visualizer's Recording section: "Open..." lists ``.viser`` recordings, and the
+  loaded animation is drawn as a tinted ghost over the simulation. It plays and pauses with the Playback section's
+  Pause Simulation button and has a draggable timeline, a Loop checkbox, "Hide live simulation", and Speed, Opacity,
+  Tint, Offset, and Frame options. The timeline is greyed out while live Policy Ghost checkpoints are loaded, since
+  they cannot be scrubbed. Animations record the visualization markers, such as velocity arrows, and replay them with
+  their changing scales.
