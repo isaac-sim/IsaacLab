@@ -190,7 +190,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
@@ -313,7 +313,7 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
         pass
 
     def compute(
