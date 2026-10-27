@@ -633,7 +633,7 @@ def test_windows_timeout_keeps_output_and_kills_the_process_tree(monkeypatch, tm
     )
 
     _returncode, stdout, _stderr, kill_reason, _wall_time, _diag = orchestrator.capture_test_output_with_timeout(
-        [sys.executable, str(script)], timeout=8, env=os.environ.copy()
+        [sys.executable, str(script)], timeout=3, env=os.environ.copy()
     )
 
     assert kill_reason == "timeout"
