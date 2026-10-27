@@ -26,3 +26,6 @@
   are drawn in the OpenGL view only.
 * Moved the camera position, field of view, pitch, and yaw readout from "Control Bindings" to the end of "Camera View",
   and limited the Focal Length slider to 5-64 mm.
+* Removed the panel's own title bar from the Newton HUD, since the window title names the visualizer, and moved the
+  Newton version next to the "Visualizer docs" link. Removed the Window FPS slider from "Playback"; the update rate
+  still follows ``WindowCfg.fps``.

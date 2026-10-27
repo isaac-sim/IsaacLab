@@ -288,7 +288,7 @@ class NewtonViewerGL(ViewerGL):
         time, simulation rate and real-time factor, status badges, and a documentation link) sits above the
         sections, which are ordered by how often they are used:
 
-        1. **Playback** (open) — pause, reset, and window-rate controls, and any ``"side"`` UI callbacks.
+        1. **Playback** (open) — pause, rendering pause, and reset controls, and any ``"side"`` UI callbacks.
         2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
         3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
@@ -326,7 +326,8 @@ class NewtonViewerGL(ViewerGL):
                 imgui.ImVec2(io.display_size[0], panel_h),
             )
 
-            if not imgui.begin(f"Newton Visualizer v{nt.__version__}"):
+            # The window title already names the visualizer, so the panel has no title bar of its own.
+            if not imgui.begin("Newton Visualizer###newton_panel", flags=imgui.WindowFlags_.no_title_bar.value):
                 imgui.end()
                 return
             viewer._panel_right = imgui.get_window_pos().x + imgui.get_window_width()
@@ -673,6 +674,8 @@ class NewtonViewerGL(ViewerGL):
             webbrowser.open(VISUALIZER_DOCS_URL)
         if imgui.is_item_hovered():
             imgui.set_tooltip(VISUALIZER_DOCS_URL)
+        imgui.same_line()
+        imgui.text_disabled(f"Newton v{newton.__version__}")
 
     def _render_training_controls(self, imgui):
         """Render the Isaac Lab playback controls inside the Playback section."""
@@ -692,10 +695,6 @@ class NewtonViewerGL(ViewerGL):
         if imgui.button("Reset Episode"):
             self._reset_requested = True
         hover_tooltip(imgui, "Reset every environment on the next step")
-
-        _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Maximum window updates per second; independent of simulation speed.")
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
