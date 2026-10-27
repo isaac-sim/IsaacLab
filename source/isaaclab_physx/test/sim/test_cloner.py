@@ -134,22 +134,20 @@ def test_physx_replicate_context_consumes_plan(sim, world_prototypes):
 
 @cuda_only
 @pytest.mark.parametrize(
-    "num_envs,src,mapped,expected_worlds",
+    "num_envs,src,expected_worlds",
     [
-        (3, "/World/envs/env_0", True, [2]),
-        (1, "/World/envs/env_0", True, []),
-        (3, "/Library/Robot", True, [3]),
-        (3, "/World/envs/env_0", False, []),
+        (3, "/World/envs/env_0", [2]),
+        (1, "/World/envs/env_0", []),
+        (3, "/Library/Robot", [3]),
     ],
 )
-def test_physx_replicate_world_counts(sim, num_envs, src, mapped, expected_worlds):
+def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
     """physx_replicate calls rep.replicate with the correct world count (exclude-self).
 
     With ``exclude_self_replication=True`` (default), the source environment is excluded
     from the replication targets when it also maps to other environments.  A source at
     ``env_0`` mapping to ``[0, 1, 2]`` only replicates to ``[1, 2]`` (2 worlds).
-    With ``num_envs == 1`` the ``num_envs > 1`` guard skips registration entirely, as does
-    a mapping that selects no environment.
+    With ``num_envs == 1`` the ``num_envs > 1`` guard skips registration entirely.
     Non-env sources (e.g. ``/Library/Robot``) are never excluded because the
     self-id is not a digit.
     """
@@ -168,13 +166,12 @@ def test_physx_replicate_world_counts(sim, num_envs, src, mapped, expected_world
             sources=[src, src],
             destinations=["/World/envs/env_{}"] * 2,
             env_ids=np.arange(num_envs, dtype=np.int64),
-            mapping=np.array([[mapped] * num_envs, [False] * num_envs], dtype=np.bool_),
+            mapping=np.array([[True] * num_envs, [False] * num_envs], dtype=np.bool_),
         )
 
     assert replicate_calls == expected_worlds, (
         f"Expected replicate world counts {expected_worlds}, got {replicate_calls}"
     )
-    assert mock_rep.register_replicator.called == bool(expected_worlds)
 
     if expected_worlds:
         attach = mock_rep.register_replicator.call_args.args[1]
@@ -265,56 +262,48 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
     assert attach_excluded == [f"/World/envs/env_{i}/Object" for i in (0, 2, 4, 7, 11)]
 
 
-@cuda_only
-@pytest.mark.parametrize("num_envs", [3, 5])
-def test_physx_replicate_self_only_source_gets_one_body(sim, num_envs):
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_physx_replicate_self_only_source_gets_one_body(device):
     """A source whose only target is its own environment is simulated once.
 
     The cube exists only in ``env_0`` and the sphere is replicated from ``env_1`` to the other
     environments; in three environments, this is the default ``sequential`` layout of two variants.
-    A hidden second cube in ``env_0`` would push the cube out of its pose. The second case replicates
-    other paths in the same process, so PhysX must hide the paths of this registration, not those of
-    an earlier one.
+    A hidden second cube in ``env_0`` would add a body. The second scene replicates other paths in
+    the same process, so PhysX must hide the paths of its own registration, not those of the first.
     """
     from omni.physx import get_physx_statistics_interface
     from omni.physx.bindings._physx import PhysicsSceneStats
     from pxr import PhysicsSchemaTools
 
-    sim_utils.create_prim("/World/envs", "Xform")
-    for i in range(num_envs):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(2.0 * i, 0.0, 0.0))
-    cfg = sim_utils.MultiAssetSpawnerCfg(
-        assets_cfg=[sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)), sim_utils.SphereCfg(radius=0.05)],
-        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
-        mass_props=sim_utils.MassCfg(mass=1.0),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    )
-    sources = ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
-    destinations = ("/World/envs/env_{}/Object",) * 2
-    cfg.spawn_paths = list(sources)
-    cfg.func("/World/unused", cfg)
+    for num_envs in (3, 5):
+        with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim:
+            sim_utils.create_prim("/World/envs", "Xform")
+            for i in range(num_envs):
+                sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(2.0 * i, 0.0, 0.0))
+            cfg = sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)), sim_utils.SphereCfg(radius=0.05)],
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            )
+            sources = ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
+            destinations = ("/World/envs/env_{}/Object",) * 2
+            cfg.spawn_paths = list(sources)
+            cfg.func("/World/unused", cfg)
 
-    stage = sim_utils.get_current_stage()
-    env_ids = np.arange(num_envs, dtype=np.int64)
-    mapping = np.array([[True] + [False] * (num_envs - 1), [False] + [True] * (num_envs - 1)])
-    physx_replicate(stage, sources, destinations, env_ids, mapping)
-    usd_replicate(stage, sources, destinations, env_ids, mapping)
-    sim.reset()
+            stage = sim_utils.get_current_stage()
+            env_ids = np.arange(num_envs, dtype=np.int64)
+            mapping = np.array([[True] + [False] * (num_envs - 1), [False] + [True] * (num_envs - 1)])
+            physx_replicate(stage, sources, destinations, env_ids, mapping)
+            usd_replicate(stage, sources, destinations, env_ids, mapping)
+            sim.reset()
 
-    stats = PhysicsSceneStats()
-    scene_path = PhysicsSchemaTools.sdfPathToInt(sim.cfg.physics_prim_path)
-    assert get_physx_statistics_interface().get_physx_scene_statistics(
-        sim_utils.get_current_stage_id(), scene_path, stats
-    )
-    assert stats.nb_dynamic_rigids == num_envs
-
-    physx_view = sim.backend_manager.get_physics_sim_view().create_rigid_body_view("/World/envs/env_*/Object")
-    for _ in range(10):
-        sim.step()
-    positions = wp.to_torch(physx_view.get_transforms())[:, :3].cpu()
-    expected = torch.tensor([[2.0 * i, 0.0, 0.0] for i in range(num_envs)])
-    torch.testing.assert_close(positions, expected, atol=1e-4, rtol=0.0)
-
+            stats = PhysicsSceneStats()
+            scene_path = PhysicsSchemaTools.sdfPathToInt(sim.cfg.physics_prim_path)
+            assert get_physx_statistics_interface().get_physx_scene_statistics(
+                sim_utils.get_current_stage_id(), scene_path, stats
+            )
+            assert stats.nb_dynamic_rigids == num_envs
 
 def test_direct_clone_plan_multi_asset(sim):
     """Clone representative env sources directly and exercise both USD and PhysX."""

@@ -89,7 +89,9 @@ _EXCLUDED_PATHS: list[str] = []
 The Python binding of ``register_replicator`` (omni.physx 110.4) calls only the first ``attach_fn`` of a process
 and keeps the list it returned: later attaches read that list object again instead of calling their own
 ``attach_fn``. Returning one list object and replacing its contents at each registration gives every attach its
-own exclusions. See https://github.com/NVIDIA-Omniverse/PhysX/issues/590.
+own exclusions. This assumes that Isaac Lab makes the first replicator attach of the process and that each
+registration attaches before the next one; multiple replicators per process are not supported in 110.4
+(https://github.com/NVIDIA-Omniverse/PhysX/issues/590#issuecomment-6436165383).
 """
 
 
