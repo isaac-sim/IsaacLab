@@ -42,8 +42,12 @@ custom force, impulse, or state transfer.
 Responsibilities and Boundaries
 -------------------------------
 
-:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model, and the
-:class:`~isaaclab_newton.physics.NewtonManager` drives it. The backend's solver
+:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model. The functions in
+:mod:`~isaaclab_newton.physics.newton_backend` take the backend explicitly, in the style of ``mj_step(m, d)``, and read
+no class or module state: ``init_solver``, ``step``, ``forward``, ``invalidate_fk``, ``add_contact_sensor``,
+``run_query``, ``capture_graph``, and so on. Several backends with different solvers can therefore be built and stepped
+side by side. The :class:`~isaaclab_newton.physics.NewtonManager` adapts one backend to the Isaac Lab lifecycle. The
+backend's solver
 (:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is Newton's solver, built with
 ``solver_cfg.class_type.build(solver_cfg, model, mode)``. The Isaac Lab solver is never instantiated and holds no state:
 each method is a class method that takes the configuration and Newton's solver. A coupled solver builds each entry's
@@ -61,11 +65,11 @@ Newton solver through the entry's own Isaac Lab solver.
    * - :class:`~isaaclab_newton.physics.NewtonManager`
      - What must survive a hard reset: site requests, the replication outputs
        (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), and the decimation setting. It finalizes the
-       :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry, closes it on a hard reset, and runs
-       the step, holding the step callbacks and the captured step.
+       :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry, closes it on a hard reset, and
+       publishes scene-data timestamps.
    * - :class:`~isaaclab_newton.physics.NewtonBackend`
-     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, and reset masks.
-       A hard reset or close discards it.
+     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, reset masks, step
+       callbacks, and the captured step. A hard reset or close discards it, together with its callbacks.
    * - Solver configuration
      - Solver parameters, and ``class_type``, which selects the Isaac Lab solver.
    * - Isaac Lab solver

@@ -20,6 +20,7 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonManager,
     XPBDSolverCfg,
+    newton_backend,
 )
 from newton import CollisionPipeline, Mesh, ModelBuilder
 from newton.solvers import SolverXPBD
@@ -208,7 +209,7 @@ def test_real_coupler_constructs_resets_and_steps(
     backend.state_0 = state_0
     backend.state_1 = state_1
     backend.control = control
-    manager._run_solver_substeps(contacts)
+    newton_backend._run_solver_substeps(backend, contacts)
     state_1 = backend.state_0
 
     body_q_after = state_1.body_q.numpy()

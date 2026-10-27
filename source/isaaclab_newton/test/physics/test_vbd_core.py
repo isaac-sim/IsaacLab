@@ -13,7 +13,14 @@ from types import SimpleNamespace
 
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
+from isaaclab_newton.physics import (
+    NewtonBackendCfg,
+    NewtonBuilderCfg,
+    NewtonCfg,
+    NewtonManager,
+    NewtonSoftContactCfg,
+    newton_backend,
+)
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
@@ -233,9 +240,8 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
             events.append(("step", state_in))
 
     state_0, state_1 = State(), State()
-    manager = NewtonManager(NewtonCfg())
-    manager._cfg = NewtonCfg(solver_cfg=physics.VBDSolverCfg())
-    manager.backend = SimpleNamespace(
+    backend = SimpleNamespace(
+        cfg=NewtonCfg(solver_cfg=physics.VBDSolverCfg()),
         model=SimpleNamespace(particle_count=1),
         solver=NativeSolver(),
         state_0=state_0,
@@ -243,12 +249,15 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         control=None,
         collision_pipeline=None,
         contacts=None,
+        staged_body_f=None,
         num_substeps=1,
         solver_dt=0.01,
+        state_force_callbacks=[],
+        post_step_callbacks=[],
         contact_sensors={},
         imu_sensors=[],
     )
 
-    manager._simulate_physics_only()
+    newton_backend._simulate_physics_only(backend)
 
     assert events == [("rebuild", state_0), ("step", state_0)]
