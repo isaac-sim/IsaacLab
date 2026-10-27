@@ -2700,8 +2700,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
@@ -2802,8 +2802,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
@@ -2924,8 +2924,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (num_instances, num_fixed_tendons)

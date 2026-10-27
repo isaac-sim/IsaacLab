@@ -973,13 +973,14 @@ def set_body_com_pose_to_sim_mask(
     """Write body COM pose data, and the link poses derived from it, for the selected environments and bodies.
 
     Args:
-        data: Input array of body COM poses. Shape is (num_envs, num_bodies).
-        body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
+        data: Input array of body COM poses (position [m] and quaternion). Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame [m]. Shape is (num_envs, num_bodies).
         env_mask: Input array of environment mask. Shape is (num_envs,).
         body_mask: Input array of body mask. Shape is (num_bodies,).
-        body_com_pose_w: Output array where body COM poses are written. Shape is (num_envs, num_bodies).
-        body_link_pose_w: Output array where body link poses (derived from COM) are written.
+        body_com_pose_w: Output array where body COM poses (position [m] and quaternion) are written.
             Shape is (num_envs, num_bodies).
+        body_link_pose_w: Output array where body link poses derived from COM are written (position [m] and
+            quaternion). Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
     if env_mask[i] and body_mask[j]:
@@ -998,11 +999,12 @@ def set_body_com_velocity_to_sim_mask(
     """Write body COM velocity data, and zero the body accelerations, for the selected environments and bodies.
 
     Args:
-        data: Input array of body COM spatial velocities. Shape is (num_envs, num_bodies).
+        data: Input array of body COM spatial velocities [m/s, rad/s]. Shape is (num_envs, num_bodies).
         env_mask: Input array of environment mask. Shape is (num_envs,).
         body_mask: Input array of body mask. Shape is (num_bodies,).
-        body_com_velocity_w: Output array where body COM velocities are written. Shape is (num_envs, num_bodies).
-        body_acc_w: Output array where body accelerations are zeroed. Shape is (num_envs, num_bodies).
+        body_com_velocity_w: Output array where body COM velocities [m/s, rad/s] are written.
+            Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations [m/s^2, rad/s^2] are zeroed. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
     if env_mask[i] and body_mask[j]:
@@ -1025,15 +1027,17 @@ def set_body_link_velocity_to_sim_mask(
     selected environments and bodies.
 
     Args:
-        data: Input array of body link spatial velocities. Shape is (num_envs, num_bodies).
-        body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
-        body_link_pose_w: Input array of body link poses in world frame. Shape is (num_envs, num_bodies).
+        data: Input array of body link spatial velocities [m/s, rad/s]. Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame [m]. Shape is (num_envs, num_bodies).
+        body_link_pose_w: Input array of body link poses in world frame (position [m] and quaternion).
+            Shape is (num_envs, num_bodies).
         env_mask: Input array of environment mask. Shape is (num_envs,).
         body_mask: Input array of body mask. Shape is (num_bodies,).
-        body_link_velocity_w: Output array where body link velocities are written. Shape is (num_envs, num_bodies).
-        body_com_velocity_w: Output array where body COM velocities (derived from link) are written.
+        body_link_velocity_w: Output array where body link velocities [m/s, rad/s] are written.
             Shape is (num_envs, num_bodies).
-        body_acc_w: Output array where body accelerations are zeroed. Shape is (num_envs, num_bodies).
+        body_com_velocity_w: Output array where body COM velocities [m/s, rad/s], derived from link, are written.
+            Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations [m/s^2, rad/s^2] are zeroed. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
     if env_mask[i] and body_mask[j]:

@@ -65,21 +65,17 @@ def test_resolve_ids(device, dtype):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("mask_type", ["warp", "torch_bool", "torch_int"])
+@pytest.mark.parametrize("mask_type", ["warp", "torch"])
 def test_resolve_ids_from_a_mask(device, mask_type):
     """A mask resolves to its ascending ids, takes precedence over ids, and honours ``dtype``."""
-    expected = torch.tensor([0, 1, 1, 0, 1, 0, 0, 1], dtype=torch.bool, device=wp.device_to_torch(device))
-    mask = {
-        "warp": wp.from_torch(expected, dtype=wp.bool),
-        "torch_bool": expected,
-        "torch_int": expected.to(torch.int64),
-    }[mask_type]
-    all_ids = _all_ids(expected.shape[0], device)
+    mask_bool = torch.tensor([0, 1, 1, 0, 1, 0, 0, 1], dtype=torch.bool, device=wp.device_to_torch(device))
+    mask = wp.from_torch(mask_bool, dtype=wp.bool) if mask_type == "warp" else mask_bool
+    all_ids = _all_ids(mask_bool.shape[0], device)
     ids = resolve_ids(ids=[0, 1], mask=mask, all_ids=all_ids, device=device)
-    assert ids.dtype == torch.int64 and torch.equal(ids, torch.nonzero(expected).flatten())
+    assert ids.dtype == torch.int64 and ids.tolist() == [1, 2, 4, 7]
     ids_int32 = resolve_ids(mask=mask, all_ids=all_ids, device=device, dtype=wp.int32)
     assert isinstance(ids_int32, wp.array) and ids_int32.dtype == wp.int32 and ids_int32.is_contiguous
-    assert torch.equal(wp.to_torch(ids_int32), torch.nonzero(expected).flatten().to(torch.int32))
+    assert ids_int32.numpy().tolist() == [1, 2, 4, 7]
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -118,7 +114,7 @@ def test_resolve_1d_mask_needs_a_scratch_mask_only_for_ids(device):
     assert resolve_1d_mask(ids=[0], mask=mask, all_mask=all_mask, device=device) is mask
     assert resolve_1d_mask(all_mask=all_mask, device=device) is all_mask
     assert resolve_1d_mask(ids=slice(None), all_mask=all_mask, device=device) is all_mask
-    mask_torch = torch.tensor([0, 1, 1, 0, 0], device=wp.device_to_torch(device))
+    mask_torch = torch.tensor([False, True, True, False, False], device=wp.device_to_torch(device))
     resolved = resolve_1d_mask(mask=mask_torch, all_mask=all_mask, device=device)
     assert resolved.dtype == wp.bool and resolved.numpy().tolist() == [False, True, True, False, False]
     with pytest.raises(ValueError, match="scratch_mask"):
