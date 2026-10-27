@@ -102,7 +102,7 @@ class ManagerBasedEnv:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
-        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        # them to sim.visualizer_cfgs so the scene camera still matches user intent.
         _apply_deprecated_viewer_cfg(self.cfg)
 
         # create a simulation context to control the simulator
@@ -384,11 +384,7 @@ class ManagerBasedEnv:
 
         Does nothing when running truly headless (no Kit GUI and no standalone visualizers).
         """
-        if not (
-            self.sim.has_gui
-            or any(cfg.visualizer_type and not cfg.headless for cfg in self.sim.cfg.visualizer_cfgs)
-            or self.sim.get_setting("/isaaclab/video/auto_start_kit")
-        ):
+        if not (self.sim.has_gui or any(cfg.backend and not cfg.headless for cfg in self.sim.cfg.visualizer_cfgs)):
             self.manager_visualizers = {}
             return
         managers = {

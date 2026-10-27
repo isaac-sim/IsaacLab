@@ -64,7 +64,7 @@ def configure_granular(cfg, is_physx: bool):
         cfg.sim.device = "cpu"
         cfg.scene.terrain.class_type = ParticleTerrainImporter
         return
-    robot_pattern = r"/World/envs/env_.*/Robot"
+    robot_pattern = r"{ENV_REGEX_NS}/Robot"
     coupled = CouplerProxyCfg(
         entries=[
             CouplerEntryCfg(

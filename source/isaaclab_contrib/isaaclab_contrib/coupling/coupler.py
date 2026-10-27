@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 
 import warp as wp
@@ -27,6 +27,7 @@ from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
 from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
+from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 
@@ -82,18 +83,31 @@ class NewtonCouplerManager(NewtonVBDManager):
 
     def _build_solver(self, model: Model, solver_cfg: CouplerCfg) -> None:
         """Resolve ownership and construct the selected coupled solver."""
-        if self._report_contacts:
+        if self.backend.contact_sensors:
             raise NotImplementedError(
                 "Newton contact sensors are not yet supported by coupled solvers because contact forces live "
                 "in per-entry buffers. Remove the contact sensor."
             )
 
         self._validate_config(solver_cfg)
-        resolved_entries = [self._resolve_entry(model, entry) for entry in solver_cfg.entries]
+        env_template = self._sim.get_clone_plan().env_template
+        resolved_entries = []
+        for entry in solver_cfg.entries:
+            bodies = [
+                expand_env_regex_ns(body, env_template) if isinstance(body, str) else body for body in entry.bodies
+            ]
+            shapes = [expand_env_regex_ns(pattern, env_template) for pattern in entry.shape_label_patterns]
+            resolved_entries.append(
+                self._resolve_entry(model, replace(entry, bodies=bodies, shape_label_patterns=shapes))
+            )
         proxies: list[CouplerProxyMappingCfg] = []
         active_proxy_destinations: set[str] = set()
         if isinstance(solver_cfg, CouplerProxyCfg):
-            proxies = [self._resolve_proxy(model, proxy) for proxy in solver_cfg.proxies]
+            for proxy in solver_cfg.proxies:
+                bodies = [
+                    expand_env_regex_ns(body, env_template) if isinstance(body, str) else body for body in proxy.bodies
+                ]
+                proxies.append(self._resolve_proxy(model, replace(proxy, bodies=bodies)))
             active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
         self._validate_resolved_entries(model, resolved_entries, solver_cfg, active_proxy_destinations)
         entries = [self._build_entry(entry) for entry in resolved_entries]
@@ -111,13 +125,13 @@ class NewtonCouplerManager(NewtonVBDManager):
                 for source, destination in directions
                 if solver.get_proxy_contacts(source, destination) is None
             )
-            self._solver = solver
+            self.backend.solver = solver
             needs_collision_pipeline = any(
                 entry.config.name in outer_contact_entries and self._requires_external_contacts(entry.config.solver_cfg)
                 for entry in resolved_entries
             )
         else:
-            self._solver = self._build_admm_coupled_solver(model, entries, solver_cfg)
+            self.backend.solver = self._build_admm_coupled_solver(model, entries, solver_cfg)
             needs_collision_pipeline = True
 
         self._use_single_state = False
@@ -207,11 +221,11 @@ class NewtonCouplerManager(NewtonVBDManager):
             self._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
 
     @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+    def _register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: CouplerCfg) -> None:
         """Register custom attributes required by nested coupled entries."""
-        super()._register_builder_attributes(builder)
-        for entry in SimulationContext.instance().cfg.physics.solver_cfg.entries:
-            entry.solver_cfg.class_type._register_builder_attributes(builder)
+        super()._register_builder_attributes(builder, solver_cfg)
+        for entry in solver_cfg.entries:
+            entry.solver_cfg.class_type._register_builder_attributes(builder, entry.solver_cfg)
 
     @classmethod
     def _registers_builder_attributes_from_solver(cls, solver_cls: type[SolverBase]) -> bool:
@@ -230,8 +244,8 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _initialize_contacts(self) -> None:
         """Initialize contacts and entry-local buffers before CUDA graph capture."""
         super()._initialize_contacts()
-        if self._contacts is not None and hasattr(self._solver, "prepare_contacts"):
-            self._solver.prepare_contacts(self._contacts)
+        if self.backend.contacts is not None and hasattr(self.backend.solver, "prepare_contacts"):
+            self.backend.solver.prepare_contacts(self.backend.contacts)
 
     def _check_solver_status(self) -> None:
         """Raise asynchronous failures from nested implicit-MPM solvers."""
@@ -258,7 +272,7 @@ class NewtonCouplerManager(NewtonVBDManager):
             if not selected.any():
                 return
             if selected[0] and not selected[-1]:
-                self._solver.reset(backend.state_0, world_mask=None, flags=0)
+                self.backend.solver.reset(backend.state_0, world_mask=None, flags=0)
                 return
         super()._reset_solver_internals(world_mask)
 

@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 from isaaclab.test.utils import launch_test_simulation
-from isaaclab.utils import clone, instantiate
+from isaaclab.utils import clone
+from isaaclab.visualizers import VisualizerCfg
 
 launch_test_simulation()
 
@@ -19,12 +21,13 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
-from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
-from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonGLVisualizerCfg
-from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
-from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitBackendCfg
+from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonGLBackendCfg
+from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunBackendCfg
+from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserBackendCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import make_clone_plan
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -77,10 +80,31 @@ class _FakeMarkerVisualizer:
         (False, False, True, False, [], ["kit"]),
         (False, False, False, True, [], ["kit"]),
         (False, False, False, False, [], []),
-        (False, False, False, False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
-        (False, False, False, False, [newton_visualizer.NewtonGLVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
-        (False, False, False, False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
-        (False, False, False, False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [KitVisualizer(VisualizerCfg(backend=KitBackendCfg()))], ["kit"]),
+        (
+            False,
+            False,
+            False,
+            False,
+            [newton_visualizer.NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))],
+            ["newton"],
+        ),
+        (
+            False,
+            False,
+            False,
+            False,
+            [rerun_visualizer.RerunVisualizer(VisualizerCfg(backend=RerunBackendCfg()))],
+            ["newton"],
+        ),
+        (
+            False,
+            False,
+            False,
+            False,
+            [viser_visualizer.ViserVisualizer(VisualizerCfg(backend=ViserBackendCfg()))],
+            ["newton"],
+        ),
     ],
 )
 def test_marker_backend_selection(
@@ -116,7 +140,9 @@ def test_marker_backend_selection(
     )()
 
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: fake_sim))
-    monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
+    monkeypatch.setattr(
+        VisualizationMarkers, "_ensure_kit_backend", lambda self, sim=None: self._backends.append("kit")
+    )
     monkeypatch.setattr(VisualizationMarkers, "_ensure_newton_backend", lambda self: self._backends.append("newton"))
 
     marker._ensure_backends_initialized()
@@ -172,10 +198,6 @@ def test_environment_ids_author_scene_partitions_and_rebuild_only_on_change(sim,
 
     sim._has_offscreen_render = True
     stage = sim_utils.get_current_stage()
-    for env_id in range(2):
-        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
-
     config = VisualizationMarkersCfg(
         prim_path="/World/Visuals/cached_partition_marker",
         markers={"test": sim_utils.SphereCfg(radius=0.1)},
@@ -183,6 +205,14 @@ def test_environment_ids_author_scene_partitions_and_rebuild_only_on_change(sim,
     test_marker = VisualizationMarkers(config)
     translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
     environment_ids = torch.tensor([1, 0], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=environment_ids)
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert not primvar or not primvar.GetAttr().HasAuthoredValueOpinion()
+    plan = make_clone_plan((), ((),), 2, env_template="/Lab/Cells/Cell{}")
+    sim.set_clone_plan(plan)
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(plan.env_template.format(env_id), "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
     test_marker.visualize(translations=translations, environment_ids=environment_ids)
 
     primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
@@ -355,9 +385,9 @@ def test_newton_marker_backend_registers_and_updates_state_without_frame_capture
 @pytest.mark.parametrize(
     "module, cfg_type, marker_error",
     [
-        (newton_visualizer, NewtonGLVisualizerCfg, False),
-        (viser_visualizer, ViserVisualizerCfg, True),
-        (rerun_visualizer, RerunVisualizerCfg, True),
+        (newton_visualizer, NewtonGLBackendCfg, False),
+        (viser_visualizer, ViserBackendCfg, True),
+        (rerun_visualizer, RerunBackendCfg, True),
     ],
     ids=["newton", "viser", "rerun"],
 )
@@ -365,7 +395,12 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     """Markers use the current native state; overlay failures still close the frame."""
     calls, marker_calls = [], []
     state = SimpleNamespace(body_q=None)
-    backend = SimpleNamespace(model=SimpleNamespace(num_envs=4, body_count=0), state_0=state, geometry_offsets={})
+    backend = SimpleNamespace(
+        model=SimpleNamespace(num_envs=4, world_count=4, body_count=0),
+        state_0=state,
+        geometry_offsets={},
+        contacts=None,
+    )
 
     class Viewer:
         show_contacts = False
@@ -396,12 +431,11 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
 
     provider = SimpleNamespace(
         get_transforms=lambda output, **kwargs: False,
-        get_camera_transforms=lambda: {},
         get_contact_sensors=lambda: {},
     )
     monkeypatch.setattr(module, "render_newton_visualization_markers", render_markers)
-    cfg = cfg_type()
-    visualizer = instantiate(cfg)
+    cfg = VisualizerCfg(backend=cfg_type())
+    visualizer = cfg.backend.class_type(cfg)
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()
@@ -409,8 +443,9 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer._sim = SimpleNamespace(
         get_scene_data_provider=lambda: provider,
         get_physics_step_count=lambda: 1,
-        backend_manager=SimpleNamespace(backend_name="newton", get_contacts=lambda: None),
+        backend_manager=SimpleNamespace(backend_name="newton", backend=backend),
     )
+    visualizer._backend_manager = visualizer._sim.backend_manager
     visualizer._transform_mapping = None
     visualizer._env_ids = [1, 3]
 

@@ -284,19 +284,22 @@ class IsaacTeleopCfg:
     """Optional USD prim path whose world frame becomes the target coordinate
     frame for all output poses.
 
-    When set, the device automatically reads this prim's world transform each
-    frame and uses its inverse as the ``target_T_world`` rebase matrix in
+    The prim must exist when entering the device context. Its Fabric attribute is bound
+    once at that point; a missing prim raises :class:`ValueError` before the session starts.
+    Each frame reads its current world transform and uses its inverse as the
+    ``target_T_world`` rebase matrix in
     :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`.  An explicit
     ``target_T_world`` argument to :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`
     takes precedence over this config.
 
     Typical usage: set to the robot base link prim path so that an IK
     controller receives end-effector poses in the robot's base frame.
+    :func:`create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when given an ``env_prim_path``.
 
     Example::
 
         IsaacTeleopCfg(
-            target_frame_prim_path="/World/envs/env_0/Robot/base_link",
+            target_frame_prim_path="{ENV_REGEX_NS}/Robot/base_link",
             ...
         )
     """

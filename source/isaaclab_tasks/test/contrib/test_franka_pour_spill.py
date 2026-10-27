@@ -8,8 +8,9 @@
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourResetDatasetEnvCfg
+from isaaclab_tasks.utils import resolve_presets
 
-ENV_CFG = FrankaPourResetDatasetEnvCfg()
+ENV_CFG = resolve_presets(FrankaPourResetDatasetEnvCfg())
 ENV_CFG.play_mode()
 ENV_CFG.scene.num_envs = 1
 launch_test_simulation(ENV_CFG)
@@ -36,7 +37,7 @@ def test_spilled_particles_land_on_ground_without_escaping_workspace(device):
     env = FrankaPourEnv(cfg)
     try:
         env.reset()
-        model = env.sim.backend_manager.get_model()
+        model = env.sim.backend_manager.backend.model
         table_shapes = [index for index, label in enumerate(model.shape_label) if "/Table/" in label]
         assert table_shapes, "The stationary table must retain its collision geometry."
         assert (model.shape_body.numpy()[table_shapes] == -1).all()

@@ -7,6 +7,8 @@
 
 import warp as wp
 
+from isaaclab.utils.warp.math import yaw_quat
+
 ALIGNMENT_WORLD = wp.constant(0)
 ALIGNMENT_YAW = wp.constant(1)
 ALIGNMENT_BASE = wp.constant(2)
@@ -14,27 +16,6 @@ ALIGNMENT_BASE = wp.constant(2)
 # Upper-bound ray-cast distance [m] used by camera classes. The actual depth-clipping is applied
 # as a post-process step per data type, so the kernel is always given a large budget.
 CAMERA_RAYCAST_MAX_DIST: float = 1e6
-
-
-@wp.func
-def quat_yaw_only(
-    # input
-    q: wp.quatf,
-) -> wp.quatf:
-    """Extract the yaw-only quaternion from a general quaternion.
-
-    Equivalent to :func:`isaaclab.utils.math.yaw_quat`: extracts the yaw angle via
-    ``atan2(2*(qw*qz + qx*qy), 1 - 2*(qy^2 + qz^2))`` and returns a pure-yaw quaternion
-    ``(0, 0, sin(yaw/2), cos(yaw/2))``. This is correct for all orientations, including
-    those with non-zero roll and pitch.
-    """
-    qx = q[0]
-    qy = q[1]
-    qz = q[2]
-    qw = q[3]
-    yaw = wp.atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
-    half_yaw = yaw * 0.5
-    return wp.quatf(0.0, 0.0, wp.sin(half_yaw), wp.cos(half_yaw))
 
 
 @wp.kernel(enable_backward=False)
@@ -107,7 +88,7 @@ def update_ray_caster_kernel(
         ray_starts_w[env_id, ray_id] = local_start + pos_drifted
         ray_directions_w[env_id, ray_id] = local_dir
     elif alignment_mode == ALIGNMENT_YAW:
-        yaw_q = quat_yaw_only(combined_quat)
+        yaw_q = yaw_quat(combined_quat)
         rot_drift = wp.quat_rotate(yaw_q, rcd)
         pos_drifted = wp.vec3f(combined_pos[0] + rot_drift[0], combined_pos[1] + rot_drift[1], combined_pos[2])
         ray_starts_w[env_id, ray_id] = wp.quat_rotate(yaw_q, local_start) + pos_drifted
@@ -321,47 +302,19 @@ def copy_int16_2d_to_image1_masked_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def copy_mesh_poses_to_table_kernel(
-    # input
-    positions_src: wp.array(dtype=wp.vec3f),
-    orientations_src: wp.array(dtype=wp.quatf),
-    meshes_per_env: int,
-    mesh_offset: int,
-    broadcast_single_source: bool,
-    # output
-    positions_dst: wp.array2d(dtype=wp.vec3f),
-    orientations_dst: wp.array2d(dtype=wp.quatf),
-):
-    """Copy flat tracked-mesh poses into the rectangular per-env mesh table."""
-    env, local_mesh = wp.tid()
-    src_index = local_mesh
-    if not broadcast_single_source:
-        src_index = env * meshes_per_env + local_mesh
-    dst_index = mesh_offset + local_mesh
-    positions_dst[env, dst_index] = positions_src[src_index]
-    orientations_dst[env, dst_index] = orientations_src[src_index]
-
-
-@wp.kernel(enable_backward=False)
 def copy_mesh_transforms_to_table_kernel(
-    # input
     transforms_src: wp.array(dtype=wp.transformf),
-    meshes_per_env: int,
-    mesh_offset: int,
-    broadcast_single_source: bool,
-    # output
+    body_indices: wp.array2d(dtype=wp.int32),
     positions_dst: wp.array2d(dtype=wp.vec3f),
     orientations_dst: wp.array2d(dtype=wp.quatf),
 ):
-    """Copy flat tracked-mesh transforms into the rectangular per-env mesh table."""
-    env, local_mesh = wp.tid()
-    src_index = local_mesh
-    if not broadcast_single_source:
-        src_index = env * meshes_per_env + local_mesh
-    dst_index = mesh_offset + local_mesh
-    xform = transforms_src[src_index]
-    positions_dst[env, dst_index] = wp.transform_get_translation(xform)
-    orientations_dst[env, dst_index] = wp.transform_get_rotation(xform)
+    """Gather shared body poses into mesh slots, preserving static and padded slots."""
+    env, mesh = wp.tid()
+    body = body_indices[env, mesh]
+    if body >= 0:
+        pose = transforms_src[body]
+        positions_dst[env, mesh] = wp.transform_get_translation(pose)
+        orientations_dst[env, mesh] = wp.transform_get_rotation(pose)
 
 
 @wp.kernel(enable_backward=False)

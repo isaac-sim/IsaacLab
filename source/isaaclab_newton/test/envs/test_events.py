@@ -13,6 +13,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -99,7 +100,7 @@ def event_env(
 
 def test_material_body_selection(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.backend_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     shape_bodies = wp.to_torch(model.shape_body)
     selected = torch.tensor(
         [
@@ -131,7 +132,7 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
 
 def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.backend_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     worlds = wp.to_torch(model.shape_world)
     margin = wp.to_torch(model.shape_margin)
     gap = wp.to_torch(model.shape_gap)
@@ -158,7 +159,7 @@ def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBas
 
 def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
     env = event_env
-    gravity = wp.to_torch(env.sim.backend_manager.get_model().gravity)
+    gravity = wp.to_torch(env.sim.backend_manager.backend.model.gravity)
     original = gravity.clone()
     params = {"gravity_distribution_params": ((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)), "operation": "abs"}
     term = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
@@ -195,7 +196,7 @@ def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
 def test_joint_friction_preserves_unselected_environments(event_env: ManagerBasedEnv):
     env = event_env
     robot = env.scene["robot"]
-    model = env.sim.backend_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     friction = wp.to_torch(model.joint_friction)
     damping = wp.to_torch(model.joint_damping)
     expected_friction = friction.clone()
@@ -223,9 +224,9 @@ def test_visual_colors_select_bodies_and_rebind(
     event_env: ManagerBasedEnv, monkeypatch: pytest.MonkeyPatch, consumer: str
 ):
     env = event_env
-    model = env.sim.backend_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     if consumer == "visualizer":
-        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(visualizer_type="newton_gl")])
+        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(backend=NewtonGLBackendCfg())])
     else:
         monkeypatch.setattr(
             env.sim, "_render_context", RenderContext([(RendererCfg(renderer_type="newton_warp"), None)])
@@ -274,7 +275,7 @@ def test_visual_colors_select_bodies_and_rebind(
 @pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg()], indirect=True)
 def test_kamino_material_groups_persist(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.backend_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     friction = wp.to_torch(model.shape_material_mu)
     restitution = wp.to_torch(model.shape_material_restitution)
     shape_bodies = wp.to_torch(model.shape_body).tolist()

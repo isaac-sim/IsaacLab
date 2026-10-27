@@ -8,6 +8,8 @@
   .. autosummary::
 
     NewtonManager
+    NewtonBackend
+    NewtonCloneRecord
     MjWarpActuatorBridge
     NewtonCfg
     NewtonBackendCfg
@@ -47,6 +49,13 @@ Physics Manager
   :members:
   :inherited-members:
   :show-inheritance:
+
+.. autoclass:: NewtonBackend
+  :members:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonCloneRecord
+  :members:
 
 Actuator Solver Access
 ----------------------

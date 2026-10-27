@@ -16,12 +16,15 @@ See ``test_update_ray_caster_kernel.py`` for tests of
 
 from __future__ import annotations
 
+import ast
 import math
 
 import numpy as np
 import pytest
 import trimesh
 import warp as wp
+
+from isaaclab.utils.warp.math import yaw_quat
 
 pytestmark = pytest.mark.unit
 
@@ -30,7 +33,6 @@ from isaaclab.sensors.ray_caster.kernels import (
     compute_distance_to_image_plane_to_image_masked_kernel,
     copy_float2d_to_image1_depth_clipped_masked_kernel,
     fill_ray_hits_distance_inf_kernel,
-    quat_yaw_only,
 )
 from isaaclab.utils.warp.kernels import raycast_dynamic_meshes_kernel, raycast_mesh_masked_kernel
 from isaaclab.utils.warp.ops import convert_to_warp_mesh
@@ -44,18 +46,58 @@ DEVICE = "cuda:0" if wp.is_cuda_available() else "cpu"
 ATOL = 1e-5
 
 
+def test_ray_caster_binding_ownership(source_checkout_root):
+    """Keep provider ownership centralized, indices persistent, and retired wrappers absent."""
+    source = source_checkout_root / "source"
+    consumers = (
+        source / "isaaclab/isaaclab/sensors/ray_caster/base_multi_mesh_ray_caster.py",
+        source / "isaaclab_ov/isaaclab_ov/sensors/ray_caster/ray_caster.py",
+        source / "isaaclab_newton/isaaclab_newton/sensors/ray_caster/newton_raycast_sensor.py",
+        source / "isaaclab_physx/isaaclab_physx/sensors/ray_caster/ray_caster.py",
+    )
+    for path in consumers:
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.FunctionDef):
+                assert node.name not in {
+                    "_newton_body_pattern",
+                    "_identity_offsets",
+                    "_register_sites_for_expr",
+                    "_resolve_site_indices",
+                    "_physx_body_glob",
+                    "_initialize_static_pose_tracking",
+                }, path
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                assert node.func.attr not in {"instance", "get_scene_data_provider"}, path
+            if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Attribute) and target.attr == "_mesh_body_indices" for target in node.targets
+            ):
+                assert not any(
+                    isinstance(value, ast.Constant) and value.value is None for value in ast.walk(node.value)
+                )
+
+    root = source / "isaaclab/isaaclab/sensors/ray_caster/base_ray_caster.py"
+    lookups = [
+        node
+        for node in ast.walk(ast.parse(root.read_text()))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get_scene_data_provider"
+    ]
+    assert len(lookups) == 1
+
+
 # ---------------------------------------------------------------------------
-# Wrapper kernel for quat_yaw_only (@wp.func cannot be launched directly)
+# Wrapper kernel for yaw_quat (@wp.func cannot be launched directly)
 # ---------------------------------------------------------------------------
 
 
 @wp.kernel(enable_backward=False)
-def _quat_yaw_only_test_kernel(
+def _yaw_quat_test_kernel(
     q_in: wp.array(dtype=wp.quatf),
     q_out: wp.array(dtype=wp.quatf),
 ):
     tid = wp.tid()
-    q_out[tid] = quat_yaw_only(q_in[tid])
+    q_out[tid] = yaw_quat(q_in[tid])
 
 
 # ---------------------------------------------------------------------------
@@ -572,12 +614,12 @@ class TestApplyZDriftKernel:
 
 
 # ---------------------------------------------------------------------------
-# Tests: quat_yaw_only
+# Tests: yaw_quat
 # ---------------------------------------------------------------------------
 
 
 class TestQuatYawOnly:
-    """Tests for :func:`quat_yaw_only` (a ``@wp.func`` tested via wrapper kernel)."""
+    """Tests for :func:`yaw_quat` (a ``@wp.func`` tested via wrapper kernel)."""
 
     def test_gimbal_lock(self):
         """At pitch = +/-pi/2, atan2 is near-degenerate but should produce a
@@ -591,7 +633,7 @@ class TestQuatYawOnly:
         q_out = wp.zeros(2, dtype=wp.quatf, device=DEVICE)
 
         wp.launch(
-            _quat_yaw_only_test_kernel,
+            _yaw_quat_test_kernel,
             dim=2,
             inputs=[q_in],
             outputs=[q_out],
@@ -624,7 +666,7 @@ class TestQuatYawOnly:
         )
         q_out = wp.zeros(len(cases), dtype=wp.quatf, device=DEVICE)
 
-        wp.launch(_quat_yaw_only_test_kernel, dim=len(cases), inputs=[q_in], outputs=[q_out], device=DEVICE)
+        wp.launch(_yaw_quat_test_kernel, dim=len(cases), inputs=[q_in], outputs=[q_out], device=DEVICE)
         wp.synchronize_device(DEVICE)
 
         expected = [[0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)] for _, _, yaw in cases]

@@ -9,12 +9,8 @@ This experimental example uses a fixed index grasp and motion.
 
 .. code-block:: bash
 
-    # Newton GL (the default):
+    # Newton GL:
     uv run isaaclab example rizon-sharpa-teapot
-    # Isaac Sim Kit, including its optional runtime:
-    uv run --extra isaacsim isaaclab example rizon-sharpa-teapot --visualizer kit
-    # Standalone Newton RTX:
-    uv run --extra ovrtx isaaclab example rizon-sharpa-teapot --visualizer newton_rtx
 
 
 The pinned robot USD and textures are downloaded and verified on first use.
@@ -618,7 +614,7 @@ class TeapotPourMotion:
         self._thumb_joints = joint_ids[7:12]
         self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
-        mj = SimulationContext.instance().backend_manager._solver.solver("robot").mj_model
+        mj = SimulationContext.instance().backend_manager.backend.solver.solver("robot").mj_model
         names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
         arm_q = mj.jnt_qposadr[joints[:7]]

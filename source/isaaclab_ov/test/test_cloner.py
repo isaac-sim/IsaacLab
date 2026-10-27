@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from isaaclab_ov.cloner import OvPhysxReplicateContext, ovphysx_replicate
 from isaaclab_ov.cloner.replicate import _serialize_stage
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
@@ -31,7 +32,7 @@ def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, 
 
 def test_nested_clone_uses_final_target_pose(monkeypatch):
     """Nested clone rows keep their source-local pose under the target environment."""
-    manager = OvPhysxManager()
+    manager = OvPhysxManager(OvPhysxCfg())
     half_sqrt_two = math.sqrt(0.5)
     source_half_angle_sin = 0.5
     source_half_angle_cos = math.sqrt(0.75)
@@ -233,7 +234,7 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     """World positions become target-root poses with identity rotations."""
-    manager = OvPhysxManager()
+    manager = OvPhysxManager(OvPhysxCfg())
 
     manager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
