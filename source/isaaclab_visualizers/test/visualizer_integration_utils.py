@@ -40,14 +40,10 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg, KitVisualizer
 from isaaclab_visualizers.newton import (
     NewtonGLBackendCfg,
-    NewtonRTXBackendCfg,
-    NewtonRTXVisualizer,
     NewtonVisualizer,
 )
 
 import isaaclab.sim as sim_utils
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import (
@@ -234,7 +230,6 @@ _BACKEND_DISPLAY_NAMES = {
 _VISUALIZER_DISPLAY_NAMES = {
     "kit": "Kit Visualizer",
     "newton": "Newton Visualizer",
-    "newton_rtx": "Newton RTX Visualizer",
     "rerun": "Rerun Visualizer",
     "viser": "Viser Visualizer",
 }
@@ -382,20 +377,6 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
                 backend=NewtonGLBackendCfg(),
             ),
             NewtonVisualizer,
-        )
-    if visualizer_kind == "newton_rtx":
-        __import__("newton")
-        nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
-        # The RTX viewer has no tiled camera panel, so no streaming kwargs here.
-        return (
-            VisualizerCfg(
-                headless=True,
-                window=WindowCfg(size=(nw, nh)),
-                randomly_sample_visible_envs=False,
-                **cam,
-                backend=NewtonRTXBackendCfg(),
-            ),
-            NewtonRTXVisualizer,
         )
     if visualizer_kind == "viser":
         __import__("newton")
@@ -1020,72 +1001,6 @@ def _flush_newton_render_for_motion_capture(visualizer) -> None:
     visualizer.step(0.0)
 
 
-def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, case_label: str) -> None:
-    """Fail unless a visualization marker shows up in the Newton RTX capture when it is made visible."""
-    markers = VisualizationMarkers(
-        VisualizationMarkersCfg(
-            prim_path="/Visuals/rtx_marker_check",
-            markers={
-                "sphere": sim_utils.SphereCfg(
-                    radius=0.4, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
-                ),
-                "bar": sim_utils.CuboidCfg(
-                    size=(1.0, 0.3, 0.3),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
-                ),
-                "arrow": GREEN_ARROW_X_MARKER_CFG.markers["arrow"],
-            },
-        )
-    )
-    markers.visualize(translations=torch.tensor([_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT], device=env.device))
-
-    def _capture(visible: bool) -> np.ndarray:
-        markers.set_visibility(visible)
-        _flush_newton_render_for_motion_capture(visualizer)
-        return visualizer.render_rgb_array()
-
-    hidden_frame = _capture(False)
-    shown_frame = _capture(True)
-    _assert_frames_differ(
-        hidden_frame, shown_frame, case_label=case_label, phase="marker visible", debug_phase="marker"
-    )
-    red = (shown_frame[..., 0] > 50) & (shown_frame[..., 0] > 1.5 * shown_frame[..., 1])
-    red &= shown_frame[..., 0] > 1.5 * shown_frame[..., 2]
-    assert not red[3 * shown_frame.shape[0] // 4 :].any(), "Marker prototypes must not appear at the origin."
-    markers.visualize(marker_indices=[1])
-    bar_frame = _capture(True)
-    _assert_frames_differ(
-        shown_frame, bar_frame, case_label=case_label, phase="marker prototype changed", debug_phase="marker"
-    )
-    markers.visualize(
-        orientations=torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5]], device=env.device),
-        scales=torch.tensor([[2.0, 1.0, 1.0]], device=env.device),
-    )
-    rotated_frame = _capture(True)
-    widths = []
-    for image in (bar_frame, rotated_frame):
-        green = (image[..., 1] > 50) & (image[..., 1] > 1.5 * image[..., 0])
-        green &= image[..., 1] > 1.5 * image[..., 2]
-        columns = np.nonzero(green)[1]
-        assert columns.size, "The green marker must remain visible."
-        widths.append(np.ptp(columns))
-    assert widths[1] > 2 * widths[0], "Rotating the bar into the image plane must change its visible extent."
-    position = torch.tensor(_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT, device=env.device)
-    positions = position.repeat(2, 1)
-    positions[1, 1] += 0.7
-    markers.visualize(
-        translations=positions,
-        orientations=positions.new_tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(2, 1),
-        scales=torch.ones_like(positions),
-        marker_indices=[0, 2],
-        environment_ids=[0, 0],
-    )
-    resized_frame = _capture(True)
-    _assert_frames_differ(
-        rotated_frame, resized_frame, case_label=case_label, phase="marker count changed", debug_phase="marker"
-    )
-
-
 def _prepare_visualizer_test_process() -> None:
     """Reset Python-side sim state and let Kit settle before a flaky retry starts."""
     with contextlib.suppress(Exception):
@@ -1642,9 +1557,7 @@ def _make_cartpole_camera_env(
         raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
     physics = "newton_mjwarp" if backend_kind == "newton" else "physx"
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
-    # OVRTX cannot share a process with Kit, so the Newton RTX viewer needs a kit-less renderer.
-    renderer = "newton_renderer" if "newton_rtx" in visualizer_kinds else "isaacsim_rtx"
-    env_cfg = _compose_task_cfg("Isaac-Cartpole-Camera-Direct", physics, f"renderer={renderer}")
+    env_cfg = _compose_task_cfg("Isaac-Cartpole-Camera-Direct", physics, "renderer=isaacsim_rtx")
     env_cfg.scene.num_envs = (
         _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS
         if tiled_camera
@@ -1675,10 +1588,6 @@ def _make_cartpole_camera_env(
     if tiled_camera:
         eye = _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET
         _declare_streaming_cameras(env_cfg.scene, visualizer_cfgs, env_cfg.scene.cartpole, "slider", eye)
-    if "newton_rtx" in visualizer_kinds:
-        from isaaclab.app.sim_launcher import validate_launch
-
-        validate_launch(env_cfg, {"visualizer": list(visualizer_kinds)})
     return CartpoleCameraEnv(env_cfg)
 
 
@@ -1725,11 +1634,7 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                     _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
 
             if "newton" in visualizer_kinds:
-                newton_visualizers = [
-                    viz
-                    for viz in env.sim.visualizers
-                    if isinstance(viz, NewtonVisualizer) and not isinstance(viz, NewtonRTXVisualizer)
-                ]
+                newton_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonVisualizer)]
                 assert newton_visualizers, "Expected an initialized Newton visualizer."
                 viewer = getattr(newton_visualizers[0], "_viewer", None)
                 assert viewer is not None, "Newton viewer was not created."

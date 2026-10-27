@@ -92,18 +92,17 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     [
         ("viz", ("viz", "", "")),
         ("kit", ("viz", "kit", "")),
-        ("newton_gl", ("viz", "newton_gl", "")),
-        ("newton_rtx", ("viz", "newton_rtx", "")),
+        ("newton", ("viz", "newton", "")),
+        ("newton_gl", ("viz", "newton", "")),
         ("viser", ("viz", "viser", "")),
         ("rerun", ("viz", "rerun", "")),
-        ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("viz:newton:streaming_view", ("viz", "newton", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
         # ``visualizer`` is the long form of ``viz``
         ("visualizer:kit", ("viz", "kit", "")),
-        # the deprecated ``newton`` type maps to ``newton_gl``, with a DeprecationWarning
-        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
-        ("newton", ("viz", "newton_gl", "")),
+        # ``newton_gl`` is a silent alias of ``newton``
+        ("visualizer:newton_gl:streaming_view", ("viz", "newton", "streaming_view")),
         ("a=b", "Invalid video source"),
         ("viz:foo", "Invalid video source"),
         ("viz:kit:bar", "Invalid video source"),
@@ -118,10 +117,15 @@ def test_parse_video_source(source, expected):
         with pytest.raises(ValueError, match=expected):
             parse_video_source(source)
         return
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # aliases resolve without a warning
         assert parse_video_source(source) == expected
-    assert [w.category for w in caught] == [DeprecationWarning] * ("newton" in source.split(":"))
+
+
+@pytest.mark.parametrize("source", ["newton_rtx", "viz:newton_rtx", "visualizer:newton_rtx:streaming_view"])
+def test_parse_video_source_points_newton_rtx_at_newton(source):
+    with pytest.raises(ValueError, match="newton_rtx.*Use the 'newton' visualizer"):
+        parse_video_source(source)
 
 
 # ---------------------------------------------------------------------------
@@ -235,10 +239,10 @@ def _rgb_sensor():
     "source,make_env",
     [
         ("viz", lambda: _make_env(visualizers=[_FakeViz("kit")])),
-        ("viz:newton_gl", lambda: _make_env(visualizers=[_FakeViz("newton_gl")])),
+        ("viz:newton", lambda: _make_env(visualizers=[_FakeViz("newton")])),
         ("sensor:tiled_camera", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()})),
     ],
-    ids=["auto_visualizer", "newton_gl", "sensor_rgb"],
+    ids=["auto_visualizer", "newton", "sensor_rgb"],
 )
 def test_source_resolves_frame(source, make_env, caplog):
     env = make_env()
@@ -248,7 +252,7 @@ def test_source_resolves_frame(source, make_env, caplog):
     env.sim.visualizers = []
     if source.startswith("sensor:"):
         env.sim._scene_data_provider.get_camera_sensors.return_value = {}
-    if source == "viz:newton_gl":
+    if source == "viz:newton":
         visualizers[0]._frame = None
         assert recorder._capture() is None
         visualizers[0]._frame = _FRAME.copy()
@@ -264,8 +268,8 @@ def test_source_resolves_frame(source, make_env, caplog):
         ("badkind:foo", _make_env, ValueError, "Invalid video source"),
         ("viz", lambda: _make_env(visualizers=[]), RuntimeError, "no recording-capable visualizer"),
         (
-            "viz:newton_gl:streaming_view",
-            lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
+            "viz:newton:streaming_view",
+            lambda: _make_env(visualizers=[_FakeViz("newton")]),
             RuntimeError,
             "Enable streaming_view",
         ),
@@ -300,7 +304,7 @@ def test_clip_files_resume_and_prune_only_matching_indices(tmp_path, existing, e
     for name in existing:
         (tmp_path / name).touch()
     recorder = VideoRecorder(
-        _cfg(output_dir=str(tmp_path), keep_last_n_clips=2, video_length=1), _make_env([_FakeViz("newton_gl")])
+        _cfg(output_dir=str(tmp_path), keep_last_n_clips=2, video_length=1), _make_env([_FakeViz("newton")])
     )
     with patch.object(recorder, "_clip_class") as encoder:
         encoder.return_value.write_videofile.side_effect = lambda path, **kwargs: (tmp_path / path).touch()

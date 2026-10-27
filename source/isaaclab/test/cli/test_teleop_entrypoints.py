@@ -82,13 +82,13 @@ def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, 
     script = source_checkout_root.joinpath(*script_parts)
     monkeypatch.setattr(sys, "argv", [
         str(script), "--task", "Isaac-Cartpole-Direct", "--external_callback", "_teleop_callback.register",
-        "--callback_option", "42", "--viz", "newton_gl", "--physics=newton_mjwarp", "--renderer", "newton_renderer",
+        "--callback_option", "42", "--viz", "newton", "--physics=newton_mjwarp", "--renderer", "newton_renderer",
         "env.sim.dt=0.01",
     ])  # fmt: skip
     namespace = runpy.run_path(str(script))
     assert namespace["args_cli"].task == "Isaac-Cartpole-Direct"
     assert set(sys.argv[1:]) == {
-        "visualizer=newton_gl",
+        "visualizer=newton",
         "physics=newton_mjwarp",
         "renderer=newton_renderer",
         "env.sim.dt=0.01",

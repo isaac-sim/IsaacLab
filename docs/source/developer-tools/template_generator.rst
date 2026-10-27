@@ -246,7 +246,7 @@ Copy the task name from the output, then run a quick smoke test:
 
 .. code-block:: bash
 
-   uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16 --viz newton_gl
+   uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16 --viz newton
 
 If the environment launches and the cart moves, the project is ready to edit.
 You can then train and play a policy with the same command surface used by
@@ -255,7 +255,7 @@ Isaac Lab itself:
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>
-   uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton_gl
+   uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton
 
 Choose optional features and a simulation backend
 -------------------------------------------------

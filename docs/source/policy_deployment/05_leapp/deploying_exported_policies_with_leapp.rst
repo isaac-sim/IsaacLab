@@ -23,7 +23,7 @@ same backend extra and backend selector that you used for training and export, a
          uv run --extra leapp isaaclab leapp deploy \
              --task <TASK_NAME> \
              --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-             --viz newton_gl physics=newton_mjwarp
+             --viz newton physics=newton_mjwarp
 
          # OV PhysX backend
          uv run --extra ovphysx --extra leapp isaaclab leapp deploy \
@@ -46,7 +46,7 @@ same backend extra and backend selector that you used for training and export, a
          uv run --extra leapp isaaclab leapp deploy ^
              --task <TASK_NAME> ^
              --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-             --viz newton_gl physics=newton_mjwarp
+             --viz newton physics=newton_mjwarp
 
          :: OV PhysX backend
          uv run --extra ovphysx --extra leapp isaaclab leapp deploy ^
@@ -99,15 +99,15 @@ For example, append the preset after the deployment options:
    uv run --extra leapp isaaclab leapp deploy \
        --task Isaac-Humanoid \
        --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --viz newton_gl \
+       --viz newton \
        presets=newton_mjwarp
 
 Visualization Options
 ^^^^^^^^^^^^^^^^^^^^^
 
 Visualization does not change the policy or its LEAPP inputs. Omit ``--viz`` for headless
-execution, use ``--viz kit`` for the Omniverse Kit viewport, or select ``newton_gl``,
-``newton_rtx`` (experimental), ``rerun``, or ``viser`` when those visualizers are installed.
+execution, use ``--viz kit`` for the Omniverse Kit viewport, or select ``newton``,
+``rerun``, or ``viser`` when those visualizers are installed.
 Use ``--max_visible_envs <COUNT>`` to limit displayed environments. Choose a visualizer compatible with the selected physics and
 renderer backend.
 

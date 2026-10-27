@@ -32,7 +32,7 @@ controls presentation independently through ``VisualizerCfg.window``. ``Visualiz
    )
    env_cfg.video_recorders = [VideoRecorderCfg(source=view, output_dir="videos")]
 
-Use ``--viz newton_gl`` (or ``--viz newton_rtx`` for the RTX example) to display the window.
+Use ``--viz newton`` to display the window.
 Omit ``--viz`` for recording alone. The scene must declare ``front_camera`` with both requested outputs.
 The view preserves environment order and native tile dimensions, placing channels beside each other.
 ``channels`` selects existing outputs; ``depth_range`` only maps depth values to display colors.
@@ -50,7 +50,7 @@ selection. Reading the shared view twice in one physics step reuses its frame an
 Changing the view's selection rebuilds composition state; captured composition graphs must then be
 recreated. This does not resize the sensor's render product.
 
-For Newton RTX, a perspective declaration is expanded into an ordinary scene camera before launch:
+A perspective declaration is displayed by the Newton window's own free camera:
 
 .. code-block:: python
 
@@ -62,15 +62,15 @@ For Newton RTX, a perspective declaration is expanded into an ordinary scene cam
    )
    env_cfg.video_recorders = [VideoRecorderCfg(source=view)]
 
-Select ``visualizer=newton_rtx`` or ``visualizer=newton_gl`` at the task entry point.
-Newton RTX fixes perspective render resolution at the initial ``WindowCfg.size``; resizing the window
-scales its image. Newton GL perspective rendering follows its window framebuffer dimensions.
+Select ``visualizer=newton`` at the task entry point. With OpenGL rendering, perspective images follow the window
+framebuffer dimensions. With RTX rendering, they keep the initial ``WindowCfg.size`` and resizing the window
+scales the image.
 The recorder reads the completed native render without requesting a second render for that step.
 Perspective views currently provide one RGB image, so keep ``envs=(0,)`` and ``channels=("rgb",)``.
 A recorded perspective view requires exactly one configured rendering visualizer. In headless runs,
 the launcher retains that producer without opening a window; recording a sensor view needs no visualizer.
 
-``VisualizerCfg.view`` is supported by Newton GL and RTX. Existing ``cameras`` and
+``VisualizerCfg.view`` is supported by the Newton visualizer. Existing ``cameras`` and
 ``streaming_*`` configurations and CLI recording source strings remain supported; they are translated
 at initialization. Use ``view`` instead of combining it with legacy camera selection fields.
 
@@ -122,11 +122,11 @@ Choose and control displayed views
 the Viewport tabs; it can also be placed side by side with the default interactive viewport
 for dual monitoring.
 
-**Newton GL and Newton RTX** have a **Camera View** selector in the sidebar. Selecting a scene camera displays
+The **Newton** visualizer has a **Camera View** selector in the sidebar. Selecting a scene camera displays
 its tiled output in the main viewport instead of rendering a perspective view behind it.
-Selecting a perspective camera restores interactive scene rendering. Newton GL also restores picking.
+Selecting a perspective camera restores interactive scene rendering and picking.
 
-Without an explicit ``cameras`` list, Newton GL starts in perspective and offers scene cameras
+Without an explicit ``cameras`` list, Newton starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. An explicit
 ``streaming_sensor_prim_path`` starts with that scene camera selected. For example, set
 ``streaming_gt_types=("depth",)`` to offer depth-only cameras. The RGB view accepts RGB or RGBA
@@ -134,8 +134,10 @@ outputs; the display uses opaque alpha. No images are captured to
 build the selector. Explicitly configured scene-camera choices must support the requested channels;
 incompatible choices raise a configuration error during initialization, including inactive choices.
 
-Newton RTX displays only the sources declared in ``view`` or ``cameras``. With neither set, launch
-preparation declares one perspective camera. Scene sensors are never added to its selector automatically.
+A **Renderer** selector switches the main perspective view between OpenGL and RTX when the scene has the OVRTX
+viewer camera, which launch declares when ``ovrtx`` is installed and the physics is not PhysX. Set
+``NewtonGLBackendCfg.initial_renderer="rtx"`` to start in RTX. The RTX view follows the OpenGL camera pose and
+renders only while selected.
 
 Use ``cameras`` to declare a list of selectable views; the first starts active:
 
@@ -156,23 +158,20 @@ Use ``cameras`` to declare a list of selectable views; the first starts active:
    )
 
 The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use the first scene
-camera for their image panel; Newton GL and RTX provide the source dropdown shown above.
+camera for their image panel; Newton provides the source dropdown shown above.
 ``SceneCameraCfg`` selects an existing sensor; ``PerspectiveCameraCfg`` configures the viewer's
-interactive camera. For Newton RTX, ``launch_simulation(env_cfg, ...)`` adds a ``CameraCfg``
-to the scene before any scene objects are constructed and selects it through ``SceneCameraCfg``.
-Newton GL retains its native perspective camera. Newton RTX keeps its perspective
-render resolution fixed at the initial ``WindowCfg.size``; resizing
-its window scales the displayed image. Sensor resolution remains controlled by ``CameraCfg``.
-Window resizing does not reallocate sensor or RTX perspective image buffers. Newton GL perspective
-images follow its framebuffer dimensions.
+interactive camera. Newton retains its native perspective camera, and ``launch_simulation(env_cfg, ...)``
+adds the OVRTX viewer ``CameraCfg`` to the scene before any scene objects are constructed. The RTX view keeps
+its render resolution fixed at the initial ``WindowCfg.size``; resizing its window scales the displayed image.
+Sensor resolution remains controlled by ``CameraCfg``. Window resizing does not reallocate sensor or RTX
+perspective image buffers. OpenGL perspective images follow the framebuffer dimensions.
 Newton windows present at up to ``WindowCfg.fps`` (30 by default), measured in wall-clock time.
 Changing the simulation timestep does not change that limit. Headless on-demand capture is
 independent of the window update rate; Kit uses its application's update cadence.
 
-Newton RTX displays ordinary camera output in a Newton GL window. Equal ``OVRTXRendererCfg``
-configurations share one renderer and its scene. ``NewtonRTXBackendCfg.renderer_cfg`` selects
-the renderer for generated perspective cameras; explicitly selected scene cameras retain their
-own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
+The Newton window displays ordinary camera output, including RTX. Equal ``OVRTXRendererCfg``
+configurations share one renderer and its scene. ``NewtonGLBackendCfg.rtx_renderer_cfg`` selects
+the renderer of the viewer camera; explicitly selected scene cameras retain their own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
 ``isaaclab_ov.stage.OvstageBackend`` remains available for downstream consumers that need an
 independent native stage. Its ``populate(stage, plan)`` method imports and clones a declared scene.
 
@@ -194,7 +193,7 @@ spawning assets and cameras, including for a single environment:
    from isaaclab.utils import instantiate
    from isaaclab.visualizers import SceneCameraCfg
    from isaaclab_ov.renderers import OVRTXRendererCfg
-   from isaaclab_visualizers.newton import NewtonRTXBackendCfg
+   from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
    camera_cfg = CameraCfg(
        prim_path="/World/PerspectiveCamera", width=960, height=540,
@@ -203,11 +202,11 @@ spawning assets and cameras, including for a single environment:
        render_settings={"omni:rtx:quality": ("Int", 0)},
    )
    sim_cfg = SimulationCfg(
-       visualizer_cfgs=[NewtonRTXBackendCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
+       visualizer_cfgs=[NewtonGLBackendCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
    )
    target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=CuboidCfg(size=(1.0, 1.0, 1.0)))
    light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=DomeLightCfg(intensity=1000.0))
-   with launch_simulation(sim_cfg, {"physics": "ovphysx", "visualizer": ["newton_rtx"]}):
+   with launch_simulation(sim_cfg, {"physics": "ovphysx", "visualizer": ["newton"]}):
        sim = SimulationContext(sim_cfg)
        with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=1, env_spacing=0.0):
            instantiate(target_cfg)
@@ -222,8 +221,7 @@ The script retains the camera and advances its sensor timing, just as it does fo
 spawned sensors. ``SceneCameraCfg`` discovers it by prim path without an ``InteractiveScene``.
 
 Display layout and channel mappings are compiled when the source, selection, resolution, or
-color settings change. Composition writes into reusable device RGBA storage. Newton GL, Newton
-RTX, and Kit present CUDA images without downloading pixels. Recording through
+color settings change. Composition writes into reusable device RGBA storage. Newton and Kit present CUDA images without downloading pixels. Recording through
 ``render_tiled_rgb_array()`` and the Rerun/Viser transports explicitly read back the composed
 image. The GPU API, ``render_tiled_rgba_array()``, returns borrowed storage that is reused on the next
 composition; consumers must copy it if they need to retain a frame.
@@ -301,7 +299,7 @@ Example 2: Streaming from Robot-Mounted Cameras
       .. code-block:: bash
 
          uv run --extra teleop python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -309,7 +307,7 @@ Example 2: Streaming from Robot-Mounted Cameras
       .. code-block:: batch
 
          uv run --extra teleop python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
-             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
 
 The Galbot cube-stacking environment ships with wrist-mounted cameras giving an egocentric
 view of the gripper, table, and cubes. The script's ``NewtonGLBackendCfg`` streams from the
@@ -336,10 +334,10 @@ Declare camera resolution, pose, renderer, and output types on ``CameraCfg`` in 
 Then choose what to display in ``VisualizerCfg``:
 
 * ``cameras=[SceneCameraCfg(prim_path=...)]`` selects a scene camera; ``view=ImageViewCfg(source="name")``
-  selects a named sensor and its image layout. Newton RTX uses these explicit declarations.
+  selects a named sensor and its image layout.
 * For other viewers, ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
   prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
-  If omitted, Newton GL starts in perspective mode and offers compatible scene cameras
+  If omitted, Newton starts in perspective mode and offers compatible scene cameras
   in the Camera View dropdown. Kit and web viewers select the first compatible scene camera;
   without one, their panel stays empty.
 * ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
@@ -358,7 +356,7 @@ Display sources
 
 ``VisualizerCfg.cameras`` accepts ``PerspectiveCameraCfg`` for the interactive view and
 ``SceneCameraCfg(prim_path=...)`` for a camera sensor already declared in the scene.
-Newton GL and RTX provide a source dropdown; Kit, Rerun, and Viser use the first scene source
+Newton provides a source dropdown; Kit, Rerun, and Viser use the first scene source
 in their camera panel. Every explicit scene source must provide the requested
 ``streaming_gt_types`` channels.
 
@@ -366,8 +364,8 @@ in their camera panel. Every explicit scene source must provide the requested
 Troubleshooting
 ---------------
 
-``--video viz:newton_gl:streaming_view`` records the selected scene-camera tiles, not a network
-stream. Without ``--viz``, capture runs on demand without opening a window. Adding ``--viz newton_gl``
+``--video viz:newton:streaming_view`` records the selected scene-camera tiles, not a network
+stream. Without ``--viz``, capture runs on demand without opening a window. Adding ``--viz newton``
 displays the visualizer; it is not required to advance recorded frames. A new physics step refreshes
 the image, while repeated captures within the same step reuse it.
 

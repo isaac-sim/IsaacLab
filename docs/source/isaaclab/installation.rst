@@ -173,7 +173,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
@@ -199,7 +199,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
       .. note::
 
@@ -238,7 +238,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          :: Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option includes the selected optional integration in the command's environment. Place it
@@ -983,13 +983,13 @@ Kit-less image
 
 The kit-less image drops Isaac Sim entirely and builds on Ubuntu 24.04 with Python 3.12. It carries
 Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL frameworks: RL Games, RSL-RL,
-Stable-Baselines3, and SKRL. The ``newton_gl``, ``newton_rtx``, ``viser``, and ``rerun`` visualizers are
-included. Use ``--viz newton_gl`` for local visualization with a display available in the container.
-``--viz newton_gl`` selects the OpenGL rasterizer; ``--viz newton_rtx`` selects the OVRTX
-path tracer. Both can render offscreen without Isaac Sim. To open their windows from a direct
+Stable-Baselines3, and SKRL. The ``newton``, ``viser``, and ``rerun`` visualizers are
+included. Use ``--viz newton`` for local visualization with a display available in the container.
+``--viz newton`` opens the OpenGL rasterizer, and its Renderer selector switches the view to the OVRTX
+path tracer. Both can render offscreen without Isaac Sim. To open its window from a direct
 ``docker run``, run ``xhost +local:`` on the host and add ``-e DISPLAY`` and
-``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. The deprecated ``--viz newton`` alias
-selects GL; it does not choose between GL and RTX automatically.
+``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. ``--viz newton_gl`` is an alias of
+``--viz newton``; ``--viz newton_rtx`` is no longer accepted.
 
 Rendering needs NVIDIA graphics driver capabilities in addition to compute. For direct
 ``docker run`` commands, pass ``--gpus all -e NVIDIA_DRIVER_CAPABILITIES=all``. The NVIDIA
@@ -1087,8 +1087,8 @@ otherwise every start recompiles shaders:
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
      nvcr.io/nvidia/isaac-lab:3.0.0
 
-The command above opens no windows: without a display, ``--viz kit``, ``--viz newton_gl``, and
-``--viz newton_rtx`` run headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
+The command above opens no windows: without a display, ``--viz kit`` and ``--viz newton`` run
+headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
 and need no display. To enable rendering through X11 forwarding, let local clients use the host X
 server and pass the display into the container:
 

@@ -224,7 +224,7 @@ def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> No
         getattr(getattr(cfg, "backend", None), "visualizer_type", None) or getattr(cfg, "visualizer_type", None)
         for cfg in visualizers
     ]
-    if "newton_gl" not in types:
+    if "newton" not in types:
         raise SystemExit("--policy_ghosts requires the Newton GL visualizer; pass --visualizer newton_gl.")
 
 

@@ -71,7 +71,7 @@ def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str) -> None:
 
     from pxr import Usd, UsdGeom, UsdShade
 
-    viewers = [viz for viz in env.sim.visualizers if viz.cfg.backend.visualizer_type == "newton_gl"]
+    viewers = [viz for viz in env.sim.visualizers if viz.cfg.backend.visualizer_type == "newton"]
     if not viewers:
         return
     stage = Usd.Stage.Open(retrieve_file_path(rack_path))

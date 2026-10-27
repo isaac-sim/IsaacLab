@@ -46,9 +46,9 @@ No source checkout is required.
        <button type="button" class="demo-card is-selected" aria-pressed="true"
                data-demo-name="Zoo" data-demo-id="zoo"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="kit,newton,rerun,viser"
                data-demo-description="Animate an arm, biped, quadruped, dexterous hand, quadcopter, and rigid props in one deterministic scene.">
          <img src="../../_static/demos/zoo.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
          <span>Zoo</span>
@@ -56,7 +56,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
                data-demo-physics="isaacsim_physx"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton,rerun,viser"
                data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
          <img src="../../_static/browser_demos/previews/microduck.jpg"
               alt="MicroDuck warehouse scene" loading="lazy">
@@ -65,9 +65,9 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="kit,newton,rerun,viser"
                data-demo-description="Select H1 robots and control a trained rough-terrain policy with the keyboard and follow camera.">
          <img src="../../_static/demos/h1_locomotion.jpg" alt="H1 locomotion in Isaac Lab" loading="lazy">
          <span>H1 Locomotion</span>
@@ -75,9 +75,9 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="SONIC" data-demo-id="sonic"
                data-demo-physics="newton_mjwarp,isaacsim_physx"
-               data-demo-visualizers="newton_gl,kit,newton_rtx,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="newton_gl,kit,newton_rtx,rerun,viser"
+               data-demo-visualizers="newton,kit,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="newton,kit,rerun,viser"
                data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
          <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
          <span>SONIC</span>
@@ -85,7 +85,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="NIST" data-demo-id="nist"
                data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
-               data-demo-visualizers="newton_gl,newton_rtx"
+               data-demo-visualizers="newton"
                data-demo-description="Assemble ten randomized NIST parts using an automatically downloaded TorchScript policy.">
          <img src="../../_static/demos/nist.jpg" alt="Franka robot assembling parts on a NIST task board" loading="lazy">
          <span>NIST</span>
@@ -100,7 +100,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Newton Block and Tackle" data-demo-id="newton-block-and-tackle"
                data-demo-physics="newton_vbd" data-demo-fixed-physics="true"
-               data-demo-visualizers="newton_gl"
+               data-demo-visualizers="newton"
                data-demo-description="Drag a cable handle to lift a load through a 4:1 pulley system.">
          <img src="../../_static/demos/newton_block_and_tackle.jpg" alt="Block and tackle pulleys and a red load" loading="lazy">
          <span>Newton Block and Tackle</span>
@@ -108,7 +108,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Snowball Smash" data-demo-id="snowball-smash"
                data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton,rerun,viser"
                data-demo-args="--device cuda:0"
                data-demo-description="Smash rigid crates with coupled MPM snowballs.">
          <img src="../../_static/demos/snowball_smash.jpg" alt="Snowballs striking a stack of colored crates" loading="lazy">
@@ -117,7 +117,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Teapot Fill" data-demo-id="teapot-fill"
                data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="newton_gl"
+               data-demo-visualizers="newton"
                data-demo-args="--device cuda:0"
                data-demo-description="Fill a Utah teapot with MPM water particles and pour them into a bowl.">
          <img src="../../_static/demos/teapot_fill.jpg" alt="Utah teapot pouring simulated water" loading="lazy">
@@ -126,7 +126,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Rizon–Sharpa Coffee" data-demo-id="rizon-sharpa-coffee"
                data-demo-physics="newton_coupler" data-demo-fixed-physics="true"
-               data-demo-visualizers="newton_gl,newton_rtx,kit"
+               data-demo-visualizers="newton,kit"
                data-demo-args="--device cuda:0 --water"
                data-demo-description="Scoop coffee with scripted IK, dissolve it into water and stir.">
          <img src="../../_static/environment-previews/rizon_sharpa_coffee.jpg"
@@ -137,7 +137,7 @@ No source checkout is required.
        <aside class="admonition hint demo-command-note" data-demo-note="h1-locomotion" hidden>
          <p class="admonition-title">H1 locomotion</p>
          <p>H1 locomotion uses a published policy. For autonomous H1 task playback, use <code>isaaclab play</code>.</p>
-         <p data-demo-note-visualizers="newton_gl,newton_rtx" hidden>In the Newton viewer, press <kbd>N</kbd> to select a robot,
+         <p data-demo-note-visualizers="newton" hidden>In the Newton viewer, press <kbd>N</kbd> to select a robot,
            <kbd>I</kbd>/<kbd>J</kbd>/<kbd>L</kbd> to walk forward or turn, <kbd>K</kbd> to stop, and <kbd>C</kbd> to toggle the follow camera.</p>
        </aside>
        <aside class="admonition hint demo-command-note" data-demo-note="pick-and-place" hidden>
@@ -161,7 +161,7 @@ List all demos or focused API examples:
    uvx --torch-backend cu130 isaaclab demo list
    uvx --torch-backend cu130 isaaclab example list
 
-Run a focused example with ``isaaclab example <name>``. In the Newton GL viewer, the
+Run a focused example with ``isaaclab example <name>``. In the Newton viewer, the
 **Isaac Lab Programs** panel lets you switch between available demos and examples.
 
 MicroDuck Warehouse rendering
@@ -216,7 +216,7 @@ The terminal reports simulation progress. Recording advances
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
 
-Pass ``--viz newton_gl`` or ``--viz kit`` to open a Newton simulation window instead.
+Pass ``--viz newton`` or ``--viz kit`` to open a Newton simulation window instead.
 With an explicit ``--viz`` selection, recording is opt-in via ``--video``.
 
 Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC
@@ -251,7 +251,7 @@ Focused examples
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
 
-      Newton GL is the default visualizer. For the Isaac Sim RTX viewport,
+      Newton is the default visualizer. For the Isaac Sim RTX viewport,
       install the ``isaacsim`` extra and select ``--visualizer kit``.
 
       .. code-block:: bash
@@ -282,7 +282,7 @@ Focused examples
          uvx isaaclab example sharpa-rj45
 
       From a checkout, use ``uv run isaaclab example sharpa-rj45``.
-      NewtonGL displays one GB300 rack; ``--viz kit`` and ``--viz newton_rtx``
-      load the full render-only data center without adding physics geometry.
+      The Newton visualizer displays one GB300 rack; ``--viz kit`` and a Newton window that starts in RTX
+      (``initial_renderer="rtx"``) load the full render-only data center without adding physics geometry.
       Requires the external Rizon/SHARPA robot asset bundle; see the
       :download:`asset and recording setup <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/gb300_sharpa_insertion/README.md>`.

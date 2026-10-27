@@ -355,7 +355,7 @@ class NewtonRecordingPanel:
         """Return the next file of ``kind`` from the output settings, creating its folder."""
         folder = resolve_output_dir(self.output_dir) / kind
         folder.mkdir(parents=True, exist_ok=True)
-        name = self.filename_prefix or "newton_gl"
+        name = self.filename_prefix or "newton"
         if self.timestamp:
             name = f"{name}_{datetime.now():%Y%m%d-%H%M%S}"
         if not self.auto_increment:

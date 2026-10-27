@@ -14,7 +14,7 @@ display-only: they carry no physics and do not affect the simulation.
 For plain points, lines, and splines, Isaac Sim's own :mod:`isaacsim.util.debug_draw` extension
 is lighter-weight. Use ``VisualizationMarkers`` when you need more complex shapes.
 
-Markers are supported on Kit, Newton GL, Rerun, and Viser, but not yet on Newton RTX. See
+Markers are supported on Kit, Newton (OpenGL and RTX), Rerun, and Viser. See
 :doc:`/source/concepts/visualization` for how to enable them on a given visualizer.
 
 

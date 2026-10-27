@@ -160,7 +160,7 @@ Four independent clips are written to ``videos/recording_tutorial/example_3/``:
 
 * ``kit_viewport_0000.mp4``: Kit interactive viewport (RTX renderer)
 * ``tiled_kit_viewport_0000.mp4``: Kit tiled-camera grid (per-environment views)
-* ``newton_viewport_0000.mp4``: Newton GL viewer framebuffer
+* ``newton_viewport_0000.mp4``: Newton viewer framebuffer
 * ``sensor_0000.mp4``: scene tiled-camera sensor (offline render)
 
 .. raw:: html
@@ -172,7 +172,7 @@ Four independent clips are written to ``videos/recording_tutorial/example_3/``:
            <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_newton_viewport.mp4" type="video/mp4">
          </video>
        </div>
-       <p class="viz-cap">Newton GL visualizer</p>
+       <p class="viz-cap">Newton visualizer</p>
      </div>
      <div>
        <div class="viz-clip-square">
@@ -201,7 +201,7 @@ Record a short clip at regular intervals while training, without opening a windo
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video \
        --video_length 200 --video_interval 2000
 
-With no ``--viz``, ``--video`` records from a headless Newton GL visualizer. This writes a
+With no ``--viz``, ``--video`` records from a headless Newton visualizer. This writes a
 200-step clip every 2,000 steps. The ``train`` and ``play`` entrypoints put clips in ``videos/``
 under the run's log directory unless a recorder sets ``output_dir``; a script that builds its own
 recorders writes to ``output_dir`` (default ``videos``). Add ``--viz kit`` to watch the run in a
@@ -231,7 +231,7 @@ recorded. Pair them with a capture-capable visualizer that runs headless next to
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser --video viz:newton_gl
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser --video viz:newton
 
 Alternatively, record directly from a scene camera with ``source="sensor:<name>"``, which needs no
 visualizer.
@@ -257,7 +257,7 @@ configure both; the recorder adds the Newton visualizer, headless:
         VisualizerCfg(eye=(12.0, 0.0, 6.0), backend=NewtonGLBackendCfg()),
     ]
     env_cfg.video_recorders = [
-        VideoRecorderCfg(source="viz:newton_gl", output_dir="videos/"),
+        VideoRecorderCfg(source="viz:newton", output_dir="videos/"),
     ]
 
 Alternatively, use a :class:`~isaaclab.sensors.CameraCfg` sensor in the scene and record
@@ -277,17 +277,15 @@ The ``source`` string selects what to capture:
    * - Source string
      - Captures from
    * - ``"viz"`` (default)
-     - First capture-capable visualizer ``--viz`` selected, else a headless Newton GL visualizer
+     - First capture-capable visualizer ``--viz`` selected, else a headless Newton visualizer
    * - ``"viz:kit"``
      - Kit visualizer viewport
    * - ``"viz:kit:streaming_view"``
      - Kit streaming camera panel, requires ``streaming_view=True``
-   * - ``"viz:newton_gl"``
-     - Newton GL visualizer viewport
-   * - ``"viz:newton_rtx"``
-     - Newton OVRTX path-traced viewport
-   * - ``"viz:newton_gl:streaming_view"``
-     - Newton GL streaming camera panel, requires ``streaming_view=True``
+   * - ``"viz:newton"``
+     - Newton visualizer viewport, as rendered by OpenGL or RTX
+   * - ``"viz:newton:streaming_view"``
+     - Newton streaming camera panel, requires ``streaming_view=True``
    * - ``"sensor:<name>"``
      - ``env.scene.sensors[name]``, RGB (default)
    * - ``"sensor:<name>:rgb"``
@@ -304,13 +302,13 @@ visualizer config, not on the recorder. A ``viz:<type>`` visualizer that ``--viz
 headless, only for the recording, with the settings of its config in ``sim.visualizer_cfgs``.
 
 ``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The
-deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton_gl``. Bare visualizer
-types are accepted here too, e.g. ``VideoRecorderCfg(source="newton_gl")`` is equivalent to
-``VideoRecorderCfg(source="viz:newton_gl")``.
+deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton``. Bare visualizer
+types are accepted here too, e.g. ``VideoRecorderCfg(source="newton")`` is equivalent to
+``VideoRecorderCfg(source="viz:newton")``.
 
 .. note::
 
-   The Newton RTX viewer framebuffer can be recorded with ``"viz:newton_rtx"``, but
+   The Newton viewport can be recorded with ``"viz:newton"`` while it renders with RTX, but
    recording its streaming view is not supported.
 
 
@@ -366,7 +364,7 @@ Clip control
 Limitations
 -----------
 
-* ``source="viz:newton_gl:streaming_view"`` and ``source="viz:kit:streaming_view"``
+* ``source="viz:newton:streaming_view"`` and ``source="viz:kit:streaming_view"``
   require ``streaming_view=True`` on the corresponding visualizer cfg.  A
   :class:`~RuntimeError` is raised when the recorder is constructed if it is not set.
 
@@ -383,22 +381,18 @@ Limitations
    * - ``kit``
      - ✓
      - Launches Isaac Sim; the launch enables camera rendering for the recording.
-   * - ``newton_gl``
+   * - ``newton``
      - ✓
      - Uses pyglet's EGL backend when headless; the default for ``--video`` without a
        capture-capable ``--viz``.
-   * - ``newton_rtx``
-     - ✓
-     - Starts the OVRTX runtime; capture performs a GPU-to-CPU readback of the path-traced
-       framebuffer.
    * - ``rerun``
      - ✗
      - Remote streaming tool; no local frame-capture API. ``viz:rerun`` is an error;
-       ``--video --viz rerun`` records from a headless ``newton_gl``.
+       ``--video --viz rerun`` records from a headless ``newton``.
    * - ``viser``
      - ✗
      - Browser streaming tool; no local frame-capture API. ``viz:viser`` is an error;
-       ``--video --viz viser`` records from a headless ``newton_gl``.
+       ``--video --viz viser`` records from a headless ``newton``.
 
 To record video while streaming with Rerun or Viser, see `Recording while streaming with Viser or
 Rerun`_.

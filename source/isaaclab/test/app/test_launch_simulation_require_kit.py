@@ -18,16 +18,17 @@ import argparse
 import signal
 import sys
 import types
+import warnings
 
 import isaaclab_physx.app as physx_app
 import pytest
-
-from pxr import Gf
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
 
@@ -102,7 +103,13 @@ def test_kit_rejects_ovrtx_before_loading_runtime(monkeypatch: pytest.MonkeyPatc
 
     for cfg, launcher_args in (
         (types.SimpleNamespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg()), {"require_kit": True}),
-        (SimulationCfg(physics=CustomPhysxCfg()), {"visualizer": ["newton_rtx"]}),
+        (
+            SimulationCfg(
+                physics=CustomPhysxCfg(),
+                visualizer_cfgs=VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx")),
+            ),
+            {"visualizer": ["newton"]},
+        ),
     ):
         with pytest.raises(ValueError, match="OVRTX runtime"):
             with launch_simulation(cfg, launcher_args):
@@ -117,57 +124,44 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
     monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
-    with launch_simulation(
-        SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu"), {"visualizer": ["newton_rtx"]}
-    ):
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(
+            physics=sim_launcher.NewtonCfg(),
+            device="cpu",
+            visualizer_cfgs=VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx")),
+        ),
+        scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
+    )
+    with launch_simulation(cfg, {"visualizer": ["newton"]}):
         calls.append("user")
 
     assert calls == ["register", "storage", "user"]
 
 
-@pytest.mark.parametrize("channels", [("rgb",), ("rgb", "depth")])
-def test_rtx_perspective_configuration_declares_scene_cameras(channels):
-    """Launch declares selected cameras without adding unrelated sensors to the window."""
-    from isaaclab_visualizers.newton import NewtonRTXBackendCfg
+def test_newton_rtx_selection_points_at_newton():
+    with pytest.raises(ValueError, match="newton_rtx.*Use the 'newton' visualizer"):
+        sim_launcher.validate_launch(SimulationCfg(physics=sim_launcher.NewtonCfg()), {"visualizer": ["newton_rtx"]})
 
-    from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg
-    from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
 
-    view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(0.0, -5.0, 0.0), lookat=(0.0, 0.0, 0.0)))
+def test_newton_gl_alias_selects_newton_without_a_warning():
+    cfg = SimulationCfg(physics=sim_launcher.NewtonCfg())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        sim_launcher.validate_launch(cfg, {"visualizer": ["newton_gl"]})
+    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["newton"]
+
+
+def test_initial_renderer_opens_in_opengl_and_rtx_needs_the_viewer_camera():
+    assert NewtonGLBackendCfg().initial_renderer == "opengl"
     cfg = types.SimpleNamespace(
         sim=SimulationCfg(
             physics=sim_launcher.NewtonCfg(),
-            visualizer_cfgs=[
-                VisualizerCfg(
-                    window=WindowCfg(size=(160, 120)), streaming_gt_types=channels, backend=NewtonRTXBackendCfg()
-                ),
-                VisualizerCfg(window=WindowCfg(size=(160, 120)), view=view, backend=NewtonRTXBackendCfg()),
-            ],
+            visualizer_cfgs=VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx", rtx_camera=False)),
         ),
         scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
     )
-    cfg.scene.observation_camera = sim_launcher.CameraCfg(
-        prim_path="{ENV_REGEX_NS}/ObservationCamera", width=64, height=48,
-        data_types=["rgba", "depth"], renderer_cfg=sim_launcher.OVRTXRendererCfg(),
-    )  # fmt: skip
-    sim_launcher.validate_launch(cfg, {"visualizer": ["newton_rtx"]})
-    cameras = [sensor for sensor in vars(cfg.scene).values() if isinstance(sensor, sim_launcher.CameraCfg)]
-    assert cameras[0] is cfg.scene.observation_camera
-    assert len(cameras) == 3
-    assert cfg.sim.visualizer_cfgs[0].cameras == [SceneCameraCfg(prim_path=cameras[1].prim_path)]
-    assert vars(cfg.scene)[view.source] is cameras[2]
-    assert cameras[2].offset.pos == (0.0, -5.0, 0.0)
-    assert cameras[2].offset.rot == pytest.approx((2**-0.5, 0.0, 0.0, 2**-0.5))
-    assert cameras[1].offset.pos == cfg.sim.visualizer_cfgs[0].eye
-    assert cameras[1].data_types == ["rgba" if channel == "rgb" else channel for channel in channels]
-    assert all((camera.width, camera.height) == (160, 120) for camera in cameras[1:])
-    for camera in cameras[1:]:
-        assert camera.spawn.vertical_aperture == pytest.approx(Gf.Camera().verticalAperture)
-        assert camera.spawn.horizontal_aperture / camera.spawn.vertical_aperture == pytest.approx(160 / 120)
-    assert all(camera.renderer_cfg == cfg.sim.visualizer_cfgs[0].backend.renderer_cfg for camera in cameras[1:])
-    sim_launcher.validate_launch(cfg, {"visualizer": ["newton_rtx"]})
-    assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
+    with pytest.raises(ValueError, match="initial_renderer='rtx' requires rtx_camera"):
+        sim_launcher.validate_launch(cfg, {})
 
 
 def test_kit_run_drops_the_implicit_ovrtx_viewer_camera():
@@ -260,7 +254,7 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
             assert producer.window.size == (128, 96)
 
 
-@pytest.mark.parametrize("visualizers,source", [([], "newton_gl"), (["newton_gl"], "newton_gl"), ([], "kit")])
+@pytest.mark.parametrize("visualizers,source", [([], "newton"), (["newton"], "newton"), ([], "kit")])
 def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualizers, source):
     """Display and multiple legacy recorders create one producer when none was configured."""
     from types import SimpleNamespace

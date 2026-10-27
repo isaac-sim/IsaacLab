@@ -14,7 +14,7 @@ This script demonstrates the visualizer tiled camera panel.
 
     # Newton visualizer tiled camera panel
     uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
+        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
 
 """
 
@@ -72,7 +72,7 @@ def main():
         backend for cfg in visualizers for backend in (cfg.backend if isinstance(cfg.backend, list) else [cfg.backend])
     ]
     if not backends or any(not isinstance(backend, (KitBackendCfg, NewtonGLBackendCfg)) for backend in backends):
-        raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
+        raise ValueError("This tutorial supports --viz kit or --viz newton.")
     camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
         eye, target = torch.tensor([[3.0, 3.0, 3.0]]), torch.zeros((1, 3))

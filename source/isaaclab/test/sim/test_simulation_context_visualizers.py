@@ -295,26 +295,24 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
             viz.set_camera_view = lambda eye, target: camera_calls.append((cfg.backend.visualizer_type, eye, target))
             return viz
 
-    ctx = _make_context_with_settings(
-        {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
-    )
+    ctx = _make_context_with_settings({}, visualizer_cfgs=[_Cfg("newton", True), _Cfg("viser"), _Cfg("rerun")])
     ctx.get_or_create_backend = Mock(side_effect=AssertionError("Core must not construct viewer backends"))
     ctx._create_visualizers()
     eye, target = (1.0, 2.0, 3.0), (0.0, 0.0, 0.0)
     ctx.set_camera_view(eye, target)
     ctx._prepare_newton_visualizer_for_capture()
-    assert created == ["newton_gl"]
+    assert created == ["newton"]
 
     ctx.initialize_visualizers()
     ctx._prepare_newton_visualizer_for_capture()
 
-    assert created == ["newton_gl", "newton_rtx", "rerun"]
+    assert created == ["newton", "viser", "rerun"]
     assert len(ctx._visualizers) == 3
-    assert camera_calls == [(name, eye, target) for name in ("newton_gl", "newton_rtx", "rerun")]
+    assert camera_calls == [(name, eye, target) for name in ("newton", "viser", "rerun")]
     assert ctx._pending_camera_view is None
     assert reset_calls == [
-        ("newton_gl", False),
-        ("newton_gl", False),
+        ("newton", False),
+        ("newton", False),
     ]
 
 
@@ -328,9 +326,7 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     ctx._backend_registry = [(object(), view)]
     ctx.cfg = SimpleNamespace(physics=object())
     ctx._visualizers = [
-        SimpleNamespace(
-            cfg=SimpleNamespace(visualizer_type="newton_rtx"), reset=lambda soft: events.append("viewer_reset")
-        )
+        SimpleNamespace(cfg=SimpleNamespace(visualizer_type="newton"), reset=lambda soft: events.append("viewer_reset"))
     ]
     ctx.get_or_create_backend = Mock(side_effect=AssertionError("Core must not rebind viewer backends"))
 
@@ -836,13 +832,13 @@ def test_common_visualizer_settings_survive_backend_selection(monkeypatch, backe
     common.backend = backend
     other = common.replace(eye=(8.0, 0.0, 2.0), window=WindowCfg(size=(800, 600), fps=30))
     sim_cfg = SimulationCfg(physics=PhysicsCfg(), device="cpu", visualizer_cfgs=[common, other])
-    validate_launch(sim_cfg, {"visualizer": ["newton_gl", "newton_rtx"]})
-    with launch_simulation(sim_cfg, {"visualizer": ["newton_gl", "newton_rtx"]}):
+    validate_launch(sim_cfg, {"visualizer": ["newton", "viser"]})
+    with launch_simulation(sim_cfg, {"visualizer": ["newton", "viser"]}):
         ctx = _make_context_with_settings({}, visualizer_cfgs=sim_cfg.visualizer_cfgs)
 
     ctx._create_visualizers()
     cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
-    assert [cfg.backend.visualizer_type for cfg in cfgs] == ["newton_gl", "newton_gl", "newton_rtx", "newton_rtx"]
+    assert [cfg.backend.visualizer_type for cfg in cfgs] == ["newton", "newton", "viser", "viser"]
     for cfg, declaration in zip(cfgs, [common, other, common, other], strict=True):
         assert cfg.max_visible_envs == 16
         assert cfg.background_color == declaration.background_color
@@ -891,7 +887,7 @@ def test_visualizer_failures_propagate_and_retain_constructed_instances(fail_con
     good_cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type="kit", class_type=_FakeVisualizer))
     failing_cfg = VisualizerCfg(
         backend=VisualizerBackendCfg(
-            visualizer_type="newton_gl",
+            visualizer_type="newton",
             class_type=_FailingConstructionVisualizer if fail_construct else _FailingInitVisualizer,
         )
     )
@@ -907,7 +903,7 @@ def test_visualizer_failures_propagate_and_retain_constructed_instances(fail_con
 
 
 def test_explicit_type_matches_existing_cfg():
-    """Requesting 'newton_gl' via CLI when cfg.visualizer_cfgs already has a customized 'newton_gl'
+    """Requesting 'newton' via CLI when cfg.visualizer_cfgs already has a customized 'newton'
     config selects and returns that exact instance, rather than discarding it and building a
     fresh default -- exercising the branch that filters pre-existing cfgs by type."""
     sim_cfg = SimulationCfg(
@@ -919,13 +915,13 @@ def test_explicit_type_matches_existing_cfg():
         ],
     )
     existing_cfg = sim_cfg.visualizer_cfgs[0]
-    with launch_simulation(sim_cfg, {"visualizer": ["newton_gl"]}):
+    with launch_simulation(sim_cfg, {"visualizer": ["newton"]}):
         assert sim_cfg.visualizer_cfgs == [existing_cfg]
         assert sim_cfg.visualizer_cfgs[0] is existing_cfg
         assert existing_cfg.background_color == (0.4, 0.5, 0.6)
 
     sim_cfg.visualizer_cfgs = []
-    validate_launch(sim_cfg, {"visualizer": ["newton_gl"]})
+    validate_launch(sim_cfg, {"visualizer": ["newton"]})
     assert len(sim_cfg.visualizer_cfgs) == 1
     assert isinstance(sim_cfg.visualizer_cfgs[0].backend, NewtonGLBackendCfg)
 

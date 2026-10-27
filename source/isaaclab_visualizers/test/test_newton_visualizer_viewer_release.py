@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Presentation teardown closes the native viewer and preserves borrowed sensor lifetimes."""
+"""Presentation teardown leaves the shared GL context alone and closes the viewer after a frame."""
 
 from unittest.mock import Mock
 
@@ -12,8 +12,6 @@ import pytest
 from isaaclab_visualizers.newton import (
     NewtonGLBackendCfg,
     NewtonGLVisualizer,
-    NewtonRTXBackendCfg,
-    NewtonRTXVisualizer,
 )
 
 from isaaclab.visualizers import VisualizerCfg
@@ -46,29 +44,3 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     viewer.end_frame()
 
     assert events == (["frame", "context", "close"] if requested else ["frame"])
-
-
-@pytest.mark.parametrize("failure", [False, True])
-def test_close_releases_owned_resources_even_on_failure(failure):
-    """Teardown is idempotent and leaves borrowed sensor references untouched, even when one release fails."""
-    visualizer = NewtonRTXVisualizer(VisualizerCfg(backend=NewtonRTXBackendCfg()))
-    viewer = visualizer._viewer = Mock()
-    camera = Mock()
-    visualizer.current_image_view = Mock(camera=camera)
-    visualizer._image_views = [visualizer.current_image_view]
-    visualizer._sim = Mock()
-    if failure:
-        viewer.close.side_effect = RuntimeError("release failed")
-    if not failure:
-        visualizer.close()
-    else:
-        with pytest.raises(RuntimeError, match="release failed"):
-            visualizer.close()
-    visualizer.close()
-
-    viewer.close.assert_called_once()
-    camera.close.assert_not_called()
-    assert visualizer._viewer is visualizer.backend is None
-    assert visualizer._sim is visualizer.current_image_view is None
-    assert not visualizer._image_views
-    assert visualizer._is_closed

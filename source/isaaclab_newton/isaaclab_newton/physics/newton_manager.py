@@ -678,7 +678,7 @@ class NewtonManager(PhysicsManager):
 
     def video_capture_backend(self) -> str:
         """Newton GL headless perspective video capture."""
-        return "newton_gl"
+        return "newton"
 
     def _mark_transforms_changed(self) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
