@@ -1489,3 +1489,9 @@ def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
     for view, selected in ((free, False), (sensor, True), (rtx, False)):
         visualizer.current_image_view = view
         assert visualizer.sensor_view_selected is selected
+
+
+def test_the_statistics_overlay_starts_closed():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
+
+    assert NewtonViewerGL._show_stats is False

@@ -189,6 +189,8 @@ class NewtonViewerGL(ViewerGL):
     _policy_ghost_panel = None
     _policy_ghost_restart = None
     _recording_panel = None
+    _show_stats = False
+    """Whether the performance and model statistics overlay in the top-right corner is open."""
     _panel_right = 0.0
     """Right edge of the left panel [px], which the animation transport bar stays clear of."""
     image_matches_camera = False
@@ -423,8 +425,36 @@ class NewtonViewerGL(ViewerGL):
         gui._render_left_panel = _render_left_panel
         render_stats = gui._render_stats_overlay
 
+        def _hide_stats_button(imgui):
+            imgui.separator()
+            if imgui.small_button("Hide##stats"):
+                self._show_stats = False
+            hover_tooltip(imgui, "Close the performance and model statistics")
+
+        gui._ui_callbacks.setdefault("stats", []).append(_hide_stats_button)
+
         def _render_overlays(_g=gui):
-            render_stats()
+            imgui, io, scale = _g.ui.imgui, _g.ui.io, _g.ui.dpi_scale
+            if self._show_stats:
+                render_stats()
+            else:  # The statistics start closed; a small button in the corner opens them.
+                imgui.set_next_window_pos(
+                    imgui.ImVec2(io.display_size[0] - 10 * scale, 10 * scale), pivot=imgui.ImVec2(1.0, 0.0)
+                )
+                imgui.set_next_window_bg_alpha(0.7)
+                flags = (
+                    imgui.WindowFlags_.no_decoration.value
+                    | imgui.WindowFlags_.always_auto_resize.value
+                    | imgui.WindowFlags_.no_saved_settings.value
+                    | imgui.WindowFlags_.no_focus_on_appearing.value
+                    | imgui.WindowFlags_.no_nav.value
+                    | imgui.WindowFlags_.no_move.value
+                )
+                if imgui.begin("Performance Stats Toggle", flags=flags):
+                    if imgui.small_button("Stats"):
+                        self._show_stats = True
+                    hover_tooltip(imgui, "Show the frame rate and the model's body, shape, and joint counts")
+                imgui.end()
             owner, panel = self._owner, self._recording_panel
             if owner is not None and panel is not None and not owner.rtx_rendering:
                 panel.animation.draw_bar(_g.ui.imgui, _g.ui.io.display_size, _g.ui.dpi_scale, self._panel_right)

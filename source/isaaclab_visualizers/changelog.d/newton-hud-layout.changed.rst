@@ -29,3 +29,5 @@
 * Removed the panel's own title bar from the Newton HUD, since the window title names the visualizer, and moved the
   Newton version next to the "Visualizer docs" link. Removed the Window FPS slider from "Playback"; the update rate
   still follows ``WindowCfg.fps``.
+* The performance and model statistics overlay in the top-right corner of the Newton window now starts closed. A small
+  "Stats" button opens it and a "Hide" button inside it closes it.
