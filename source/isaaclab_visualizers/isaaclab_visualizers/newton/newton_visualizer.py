@@ -301,7 +301,6 @@ class NewtonViewerGL(ViewerGL):
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
         """
-        import newton as nt
 
         gui = self.gui
 
