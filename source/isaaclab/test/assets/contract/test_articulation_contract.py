@@ -162,15 +162,16 @@ def test_resolve_ids_accept_tensor_views(monkeypatch, backend):
 
 @pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
 def test_commanding_a_tendon_target_schedules_the_write(monkeypatch, backend):
+    """Index and masked length targets schedule the tendon write that ``write_data_to_sim`` performs.
+
+    A masked target buffers ``rest_length - target`` for the selected environments and tendons only.
+    """
     art, _ = _articulation(backend, "cpu", monkeypatch, num_fixed_tendons=2)
     art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
     assert art._fixed_tendon_target_dirty is True
+    art.write_data_to_sim()
+    assert art._fixed_tendon_target_dirty is False
 
-
-@pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
-def test_masked_tendon_target_buffers_the_selected_offsets(monkeypatch, backend):
-    """A masked length target buffers ``rest_length - target`` for the selected environments and tendons only."""
-    art, _ = _articulation(backend, "cpu", monkeypatch, num_fixed_tendons=2)
     rest_length = art.data.fixed_tendon_rest_length.torch.clone()
     expected = art.data.fixed_tendon_offset.torch.clone()
     target = torch.arange(2 * N, dtype=torch.float32).reshape(N, 2) + 0.5
