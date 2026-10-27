@@ -962,7 +962,7 @@ _JOINT_METHODS = [
     ("write_joint_velocity_limit_to_sim", "limits", wp.float32, True, "joint_vel_limits"),
     ("write_joint_effort_limit_to_sim", "limits", wp.float32, True, "joint_effort_limits"),
     ("write_joint_armature_to_sim", "armature", wp.float32, True, "joint_armature"),
-    ("write_joint_friction_coefficient_to_sim", "joint_friction_coeff", wp.float32, False, "joint_friction_coeff"),
+    ("write_joint_friction_coefficient_to_sim", "joint_friction_coeff", wp.float32, True, "joint_friction_coeff"),
     ("set_joint_position_target", "target", wp.float32, False, "actuators.target_command.position"),
     ("set_joint_velocity_target", "target", wp.float32, False, "actuators.target_command.velocity"),
     ("set_joint_effort_target", "target", wp.float32, False, "actuators.target_command.effort"),

@@ -2230,6 +2230,41 @@ class TestArticulationOperations:
             art._validate_cfg()
 
 
+@_physx_ovphysx_backends
+@pytest.mark.parametrize("selection", ["index", "mask"])
+def test_friction_mixed_inputs_preserve_other_cells_and_components(backend: str, selection: str) -> None:
+    """Mixed writes broadcast zero and preserve nonzero coefficients omitted with None."""
+    num_instances, num_joints = 2, 4
+    art, raw_backend = get_articulation(backend, num_instances, num_joints, 2, device="cpu")
+    if backend == "physx":
+        raw_backend._noop_setters = False
+    names = ("joint_friction_coeff", "joint_dynamic_friction_coeff", "joint_viscous_friction_coeff")
+    expected = [torch.full((num_instances, num_joints), value) for value in (0.5, 0.4, 0.3)]
+    art.write_joint_friction_coefficient_to_sim_index(**dict(zip(names, expected, strict=True)))
+    values = torch.arange(num_instances * num_joints, dtype=torch.float32).reshape(num_instances, num_joints) + 1
+    joints = [2, 0]
+    if selection == "index":
+        selectors = {"joint_ids": joints}
+    else:
+        selectors = {"joint_mask": _make_item_mask(num_joints, joints, "cpu")}
+    write = getattr(art, f"write_joint_friction_coefficient_to_sim_{selection}")
+
+    for coefficients in ((0, values, None), (values, None, 0), (values, 0, values)):
+        inputs = {
+            name: value[:, joints] if selection == "index" and isinstance(value, torch.Tensor) else value
+            for name, value in zip(names, coefficients, strict=True)
+        }
+        write(**inputs, **selectors)
+        actual = _get_backend_joint_property_tensors(backend, art, raw_backend)
+        for name, prop, reference, value in zip(
+            names, ("friction", "dynamic_friction", "viscous_friction"), expected, coefficients, strict=True
+        ):
+            if value is not None:
+                reference[:, joints] = value[:, joints] if isinstance(value, torch.Tensor) else value
+            _assert_proxy_close(getattr(art.data, name), reference)
+            torch.testing.assert_close(actual[prop], reference)
+
+
 class TestArticulationWritersJoint:
     """Test joint writers/setters with all input combinations."""
 
@@ -2327,6 +2362,18 @@ class TestArticulationWritersJoint:
                 public_joint_ids = torch.as_tensor(selected_joints, dtype=torch.long)
                 expected[:, backend_joint_ids] = values[:, public_joint_ids]
             torch.testing.assert_close(after, expected, rtol=0.0, atol=0.0)
+
+            scalar_friction = property_name == "friction" or (
+                backend == "ovphysx" and property_name in ("dynamic_friction", "viscous_friction")
+            )
+            if backend in ("physx", "ovphysx") and scalar_friction:
+                expected_scalar = _get_backend_joint_property_tensors(backend, art, raw_backend)
+                getattr(art, f"{method_name}_{selection}")(**(kwargs | {value_name: 0}))
+                expected_scalar[property_name][:, backend_joint_ids] = 0
+                actual = _get_backend_joint_property_tensors(backend, art, raw_backend)
+                for component in ("friction", "dynamic_friction", "viscous_friction"):
+                    torch.testing.assert_close(actual[component], expected_scalar[component])
+                _assert_proxy_close(getattr(art.data, value_name), expected_scalar[property_name][:, user_to_backend])
 
             if property_name == "position_limits":
                 soft_limits_after = art.data.soft_joint_pos_limits.torch
