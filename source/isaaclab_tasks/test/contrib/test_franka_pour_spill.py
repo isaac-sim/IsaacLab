@@ -37,7 +37,7 @@ def test_spilled_particles_land_on_ground_without_escaping_workspace(device):
     env = FrankaPourEnv(cfg)
     try:
         env.reset()
-        model = env.sim.backend_manager.get_model()
+        model = env.sim.backend_manager.backend.model
         table_shapes = [index for index, label in enumerate(model.shape_label) if "/Table/" in label]
         assert table_shapes, "The stationary table must retain its collision geometry."
         assert (model.shape_body.numpy()[table_shapes] == -1).all()

@@ -20,13 +20,13 @@ class NewtonEndpointCouplerManager(NewtonCouplerManager):
     """Detect rigid contacts once; the cable has its own post-transfer pipeline."""
 
     def _initialize_contacts(self) -> None:
-        if self._needs_collision_pipeline and self._collision_pipeline is None:
+        if self._needs_collision_pipeline and self.backend.collision_pipeline is None:
             options = self._collision_cfg.to_pipeline_args() if self._collision_cfg is not None else {}
-            options["shape_pairs_filtered"] = self._solver.view("rigid").shape_contact_pairs
+            options["shape_pairs_filtered"] = self.backend.solver.view("rigid").shape_contact_pairs
             options["deterministic"] = self._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
             # Shape IDs remain global; use the full model's body bindings, not
             # the compact rigid view, when colliding the shared state.
-            self._collision_pipeline = CollisionPipeline(self.backend.model, **options)
+            self.backend.collision_pipeline = CollisionPipeline(self.backend.model, **options)
         super()._initialize_contacts()
 
 

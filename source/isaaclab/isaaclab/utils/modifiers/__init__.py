@@ -3,56 +3,42 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing different modifiers implementations.
+"""Deprecated import path for tensor processors."""
 
-Modifiers are used to apply stateful or stateless modifications to tensor data. They take
-in a tensor and a configuration and return a tensor with the modification applied. This way users
-can define custom operations to apply to a tensor. For instance, a modifier can be used to normalize
-the input data or to apply a rolling average.
+import sys
+import warnings
 
-They are primarily used to apply custom operations in the :class:`~isaaclab.managers.ObservationManager`
-as an alternative to the built-in noise, clip and scale post-processing operations. For more details, see
-the :class:`~isaaclab.managers.ObservationTermCfg` class.
+from .. import tensor_processors as _processors
 
-Usage with a function modifier:
+__all__ = [
+    "ModifierCfg",
+    "DigitalFilterCfg",
+    "IntegratorCfg",
+    "ModifierBase",
+    "DigitalFilter",
+    "Integrator",
+    "bias",
+    "clip",
+    "scale",
+]
 
-.. code-block:: python
-
-    import torch
-    from isaaclab.utils import modifiers
-
-    # create a random tensor
-    my_tensor = torch.rand(256, 128, device="cuda")
-
-    # create a modifier configuration
-    cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.0, torch.inf)})
-
-    # apply the modifier
-    my_modified_tensor = cfg.func(my_tensor, cfg)
+warnings.warn(
+    "isaaclab.utils.modifiers is deprecated; use isaaclab.utils.tensor_processors."
+    " ModifierBase and ModifierCfg are now TensorProcessor and TensorProcessorCfg.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
-Usage with a class modifier:
+def __getattr__(name: str):
+    aliases = {"ModifierBase": "TensorProcessor", "ModifierCfg": "TensorProcessorCfg"}
+    return getattr(_processors, aliases.get(name, name))
 
-.. code-block:: python
 
-    import torch
-    from isaaclab.utils import modifiers
+def __dir__():
+    return __all__
 
-    # create a random tensor
-    my_tensor = torch.rand(256, 128, device="cuda")
 
-    # create a modifier configuration
-    # a digital filter with a simple delay of 1 timestep
-    cfg = modifiers.DigitalFilterCfg(A=[0.0], B=[0.0, 1.0])
-
-    # create the modifier instance
-    my_modifier = modifiers.DigitalFilter(cfg, my_tensor.shape, "cuda")
-
-    # apply the modifier as a callable object
-    my_modified_tensor = my_modifier(my_tensor)
-
-"""
-
-from ..module import lazy_export
-
-lazy_export()
+for _name in ("modifier", "modifier_base", "modifier_cfg"):
+    sys.modules[f"{__name__}.{_name}"] = sys.modules[__name__]
+    setattr(sys.modules[__name__], _name, sys.modules[__name__])

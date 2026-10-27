@@ -138,7 +138,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
     def _setup_task_state(self) -> None:
         """Resolve scene assets and allocate state shared by the MDP terms."""
-        self.sim.backend_manager.get_model().particle_max_velocity = self._particle_max_velocity
+        self.sim.backend_manager.backend.model.particle_max_velocity = self._particle_max_velocity
 
         self._robot = self.scene["robot"]
         self._media = self.scene["media"]

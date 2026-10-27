@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
 from newton import ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
@@ -37,7 +37,7 @@ def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
     builder = ModelBuilder()
-    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder)
+    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder, None)
     builder.add_usd(stage, schema_resolvers=NewtonCoupledMJWarpVBDManager._get_usd_import_schema_resolvers())
     model = builder.finalize(device="cpu")
 
@@ -53,7 +53,7 @@ def test_reset_forwards_to_both_subsolvers() -> None:
     state = object()
     world_mask = object()
 
-    manager = NewtonCoupledMJWarpVBDManager()
+    manager = NewtonCoupledMJWarpVBDManager(NewtonCfg())
     manager._rigid_solver = rigid_solver
     manager._soft_solver = soft_solver
     manager.backend = SimpleNamespace(state_0=state)
@@ -72,7 +72,7 @@ def test_reset_skips_all_false_cpu_mask() -> None:
     world_mask = MagicMock()
     world_mask.numpy.return_value.any.return_value = False
 
-    manager = NewtonCoupledMJWarpVBDManager()
+    manager = NewtonCoupledMJWarpVBDManager(NewtonCfg())
     manager._rigid_solver = rigid_solver
     manager._soft_solver = soft_solver
 
@@ -98,12 +98,12 @@ def test_reset_skips_all_false_cpu_mask() -> None:
 )
 def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBDSolverCfg, match: str) -> None:
     with pytest.raises(ValueError, match=match):
-        NewtonCoupledMJWarpVBDManager()._build_solver(MagicMock(), solver_cfg)
+        NewtonCoupledMJWarpVBDManager(NewtonCfg())._build_solver(MagicMock(), solver_cfg)
 
 
 def test_build_solver_rejects_contact_sensors() -> None:
-    manager = NewtonCoupledMJWarpVBDManager()
-    manager._report_contacts = True
+    manager = NewtonCoupledMJWarpVBDManager(NewtonCfg())
+    manager.backend = SimpleNamespace(contact_sensors={"key": object()})
 
     with pytest.raises(NotImplementedError, match="contact sensors are not supported"):
         manager._build_solver(MagicMock(), CoupledMJWarpVBDSolverCfg())
@@ -111,10 +111,9 @@ def test_build_solver_rejects_contact_sensors() -> None:
 
 def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
-    manager = NewtonCoupledMJWarpVBDManager()
-    manager._report_contacts = False
+    manager = NewtonCoupledMJWarpVBDManager(NewtonCfg())
     manager._supports_contact_sensors = True
-    manager._solver = None
+    manager.backend = SimpleNamespace(solver=None, contact_sensors={})
     manager._use_single_state = True
     manager._needs_collision_pipeline = False
     manager._supports_rigid_body_force_input = False
@@ -129,7 +128,7 @@ def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None
 
     manager._build_solver(MagicMock(), solver_cfg)
 
-    assert manager._solver is manager_module.SolverBase.return_value
+    assert manager.backend.solver is manager_module.SolverBase.return_value
     assert manager._use_single_state is False
     assert manager._needs_collision_pipeline is True
     assert manager._supports_contact_sensors is False
@@ -149,9 +148,8 @@ def test_step_preserves_input_forces(mode: str) -> None:
     soft_solver = MagicMock()
     reactions = MagicMock()
 
-    manager = NewtonCoupledMJWarpVBDManager()
-    manager._contacts = contacts
-    manager._collision_pipeline = collision_pipeline
+    manager = NewtonCoupledMJWarpVBDManager(NewtonCfg())
+    manager.backend = SimpleNamespace(contacts=contacts, collision_pipeline=collision_pipeline)
     manager._rigid_solver = rigid_solver
     manager._soft_solver = soft_solver
     manager._apply_reactions = reactions
@@ -172,7 +170,7 @@ def test_step_preserves_input_forces(mode: str) -> None:
 
 def test_solver_specific_clear_releases_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:
     base_clear = MagicMock()
-    manager = NewtonCoupledMJWarpVBDManager()
+    manager = NewtonCoupledMJWarpVBDManager(NewtonCfg())
     monkeypatch.setattr(manager_module.NewtonVBDManager, "_solver_specific_clear", lambda self: base_clear())
     manager._rigid_solver = object()
     manager._soft_solver = object()
