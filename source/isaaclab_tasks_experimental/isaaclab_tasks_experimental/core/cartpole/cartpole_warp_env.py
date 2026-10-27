@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
+from isaaclab_experimental.utils.warp_capture import captured
 
 from isaaclab.utils.seed import WarpRng
 
@@ -218,9 +219,11 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
             ],
         )
 
+    @captured
     def _apply_action(self) -> None:
         self.cartpole.set_joint_effort_target_mask(target=self.actions)
 
+    @captured
     def _get_observations(self) -> dict:
         wp.launch(
             get_observations,
@@ -237,6 +240,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         )
         return {"policy": self.torch_obs_buf}
 
+    @captured
     def _get_rewards(self) -> None:
         wp.launch(
             compute_rewards,
@@ -257,6 +261,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
             ],
         )
 
+    @captured
     def _get_dones(self) -> None:
         wp.launch(
             get_dones,
@@ -273,6 +278,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
             ],
         )
 
+    @captured
     def _reset_idx(self, mask: wp.array | None = None) -> None:
         if mask is None:
             mask = self._ALL_ENV_MASK

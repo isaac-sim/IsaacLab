@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
+from isaaclab_experimental.utils.warp_capture import captured
 
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.utils.seed import WarpRng
@@ -525,6 +526,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             inputs=[actions, self.actions_mapped, self.joint_gears, self.action_scale],
         )
 
+    @captured
     def _apply_action(self) -> None:
         self.robot.set_joint_effort_target_mask(target=self.actions_mapped)
 
@@ -568,6 +570,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             ],
         )
 
+    @captured
     def _get_observations(self) -> dict:
         wp.launch(
             observations,
@@ -594,6 +597,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         )
         return {"policy": self.torch_obs_buf}
 
+    @captured
     def _get_rewards(self) -> None:
         wp.launch(
             compute_rewards,
@@ -621,6 +625,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             ],
         )
 
+    @captured
     def _get_dones(self) -> None:
         self._compute_intermediate_values()
 
@@ -638,6 +643,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             ],
         )
 
+    @captured
     def _reset_idx(self, mask: wp.array | None = None):
         if mask is None:
             mask = self._ALL_ENV_MASK
