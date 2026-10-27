@@ -13,13 +13,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 
 from isaaclab.sensors import SensorBase
 
 from . import shoelace_constants as physics
 
 if TYPE_CHECKING:
+    from isaaclab_newton.physics import NewtonManager
     from newton import Model
 
 
@@ -79,12 +79,16 @@ class FingerTailContacts:
     Args:
         model: Finalized Newton model containing the robot and cable collision shapes.
         body_chains: Left and right cable body indices grouped by environment.
+        backend_manager: Newton physics manager that owns the model and contact buffer.
 
     Attributes:
         signed_distance: Finger-tail surface distances [m], shape [N, 4], or ``None`` before initialization.
     """
 
-    def __init__(self, model: Model, body_chains: list[tuple[list[int], list[int]]]) -> None:
+    def __init__(
+        self, model: Model, body_chains: list[tuple[list[int], list[int]]], backend_manager: NewtonManager
+    ) -> None:
+        self._backend_manager = backend_manager
         # Columns are finger slot, environment index, and matching tail arm; -1 means unused.
         self._shape_slots = np.full((len(model.shape_label), 3), -1, dtype=np.int32)
         self._num_envs = len(body_chains)
@@ -115,12 +119,12 @@ class FingerTailContacts:
 
     def initialize(self) -> None:
         """Allocate device buffers and register the post-step observer after model construction."""
-        device = NewtonManager.get_model().device
+        device = self._backend_manager.backend.model.device
         self._device_slots = wp.array(self._shape_slots, dtype=wp.int32, device=device)
         self._distance = wp.full((self._num_envs, 4), physics.CONTACT_DISTANCE_CAP, device=device)
         self.signed_distance = wp.to_torch(self._distance)
-        NewtonManager.unregister_post_step_callback(self.update)
-        NewtonManager.register_post_step_callback(self.update)
+        self._backend_manager.unregister_post_step_callback(self.update)
+        self._backend_manager.register_post_step_callback(self.update)
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
         """Invalidate cached distances [m] for selected environments, or all when ``None``."""
@@ -131,8 +135,8 @@ class FingerTailContacts:
 
     def update(self) -> None:
         """Aggregate signed surface distances [m] after each physics step, including CUDA capture."""
-        contacts = NewtonManager.get_contacts()
-        model = NewtonManager.get_model()
+        backend = self._backend_manager.backend
+        contacts, model = backend.contacts, backend.model
         if contacts is None:
             raise RuntimeError("Shoelace contact observation requires an initialized Newton collision buffer")
         self._distance.fill_(physics.CONTACT_DISTANCE_CAP)
@@ -140,7 +144,7 @@ class FingerTailContacts:
             _aggregate_finger_tail_signed_distance,
             dim=contacts.rigid_contact_max,
             inputs=[
-                NewtonManager.get_state_0().body_q,
+                backend.state_0.body_q,
                 model.shape_body,
                 contacts.rigid_contact_count,
                 contacts.rigid_contact_shape0,
@@ -177,11 +181,11 @@ class FingerTailContactSensor(SensorBase):
 
     def _initialize_impl(self) -> None:
         super()._initialize_impl()
-        model = NewtonManager.get_model()
+        model = self._backend_manager.backend.model
         chains = _find_chains(model.body_label, model.body_world.numpy(), self._num_envs, "edge_body")
         if any(not left or not right for left, right in chains):
             raise RuntimeError("Finger-tail contact sensor requires both shoelace segment chains in every world")
-        self._contacts = FingerTailContacts(model, chains)
+        self._contacts = FingerTailContacts(model, chains, self._backend_manager)
         self._contacts.initialize()
 
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
@@ -190,12 +194,12 @@ class FingerTailContactSensor(SensorBase):
 
     def _invalidate_initialize_callback(self, event: object) -> None:
         if hasattr(self, "_contacts"):
-            NewtonManager.unregister_post_step_callback(self._contacts.update)
+            self._backend_manager.unregister_post_step_callback(self._contacts.update)
         super()._invalidate_initialize_callback(event)
 
     def _clear_callbacks(self) -> None:
         if hasattr(self, "_contacts"):
-            NewtonManager.unregister_post_step_callback(self._contacts.update)
+            self._backend_manager.unregister_post_step_callback(self._contacts.update)
         super()._clear_callbacks()
 
 

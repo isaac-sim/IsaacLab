@@ -320,7 +320,8 @@ class _FakePresenter:
         self.prepare_calls.append((name, image, previous_source, previous_upload))
         return image
 
-    def create_panel(self, descriptor, width, height):
+    def create_panel(self, descriptor, width, height, *, env_prim_path):
+        assert env_prim_path == "/Lab/Cells/Cell0"
         panel = _FakePanel(descriptor, width, height)
         self.panels.append(panel)
         return panel
@@ -367,7 +368,7 @@ def _manager(monkeypatch, cfgs, images, layout=None, source_images=None):
     cameras = {name: _FakeCamera(image) for name, image in images.items()}
     monkeypatch.setattr(camera_feed, "_camera_type", lambda: _FakeCamera)
     presenter = _FakePresenter(source_images)
-    env = SimpleNamespace(scene=SimpleNamespace(sensors=cameras))
+    env = SimpleNamespace(scene=SimpleNamespace(sensors=cameras, env_prim_paths=["/Lab/Cells/Cell0"]))
     manager = camera_feed._XrCameraFeedManager(env, cfgs, layout or XrCameraFeedLayoutCfg(), presenter)
     return manager, presenter, cameras
 
@@ -399,7 +400,7 @@ def test_nonisolated_pip_preserves_camera_and_global_renderer_settings(monkeypat
     settings = SimpleNamespace(get=lambda key: True, set=Mock(side_effect=AssertionError("Global settings changed")))
     monkeypatch.setattr("isaaclab.app.settings_manager.get_settings_manager", lambda: settings)
     camera = _FakeCamera(_FakeImage())
-    env = SimpleNamespace(scene=SimpleNamespace(sensors={"robot_pov_cam": camera}))
+    env = SimpleNamespace(scene=SimpleNamespace(sensors={"robot_pov_cam": camera}, env_prim_paths=["/Lab/Cells/Cell0"]))
     session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
     assert session.enabled
     assert env_cfg.scene.robot_pov_cam.renderer_cfg == expected
@@ -614,7 +615,7 @@ def test_manager_uses_camera_buffer_when_image_source_is_unavailable(monkeypatch
     monkeypatch.setattr(camera_feed, "_camera_type", lambda: _FakeCamera)
     presenter = _FakePresenter()
     presenter.create_image_source = Mock(return_value=None)
-    env = SimpleNamespace(scene=SimpleNamespace(sensors={"robot_pov_cam": camera}))
+    env = SimpleNamespace(scene=SimpleNamespace(sensors={"robot_pov_cam": camera}, env_prim_paths=["/Lab/Cells/Cell0"]))
     manager = camera_feed._XrCameraFeedManager(env, [cfg], XrCameraFeedLayoutCfg(), presenter)
 
     presenter.subscription.publish()

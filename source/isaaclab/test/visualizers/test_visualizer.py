@@ -16,7 +16,15 @@ import pytest
 from isaaclab.utils import validate
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+from isaaclab.visualizers.key_event_source import KeyEventSource
+from isaaclab.visualizers.visualizer_cfg import (
+    ImageViewCfg,
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
+    VisualizerBackendCfg,
+    VisualizerCfg,
+    WindowCfg,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -28,11 +36,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 @pytest.mark.parametrize(
     "module_name,cfg_name,implementation",
     [
-        ("isaaclab_visualizers.kit", "KitVisualizerCfg", "KitVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonGLVisualizerCfg", "NewtonGLVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonRTXVisualizerCfg", "NewtonRTXVisualizer"),
-        ("isaaclab_visualizers.rerun", "RerunVisualizerCfg", "RerunVisualizer"),
-        ("isaaclab_visualizers.viser", "ViserVisualizerCfg", "ViserVisualizer"),
+        ("isaaclab_visualizers.kit", "KitBackendCfg", "KitVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonGLBackendCfg", "NewtonGLVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonRTXBackendCfg", "NewtonRTXVisualizer"),
+        ("isaaclab_visualizers.rerun", "RerunBackendCfg", "RerunVisualizer"),
+        ("isaaclab_visualizers.viser", "ViserBackendCfg", "ViserVisualizer"),
     ],
 )
 def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):
@@ -41,13 +49,15 @@ def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implemen
     class_type = cfg.class_type
     assert isinstance(class_type, ResolvableString)
     assert class_type.__name__ == implementation
-    assert cfg.streaming_sensor_prim_path is None
-    assert "cameras" in vars(cfg) and "camera" not in vars(cfg)
+    assert not vars(VisualizerCfg()).keys() & vars(cfg).keys()
     assert not any(name.startswith(("streaming_cam_", "tiled_cam_")) for name in vars(cfg))
 
 
 def test_visualizer_cfg_camera_sources():
+    # Cross-config default merging belongs to launch preparation.
+    assert "apply_defaults" not in vars(VisualizerCfg)
     cfg = VisualizerCfg()
+    assert cfg.backend == []
     assert cfg.focal_length == 12.0
     assert cfg.background_color is None
     assert cfg.streaming_view is False
@@ -74,6 +84,11 @@ def test_visualizer_cfg_validates_presentation():
     for fps in (0.0, -1.0, float("inf"), float("nan")):
         with pytest.raises(ValueError, match="WindowCfg.fps"):
             validate(WindowCfg(fps=fps))
+    cfg = VisualizerCfg(view=ImageViewCfg(source="camera"), backend=[VisualizerBackendCfg(visualizer_type="newton_gl")])
+    validate(cfg)
+    cfg.backend.append(VisualizerBackendCfg(visualizer_type="viser"))
+    with pytest.raises(ValueError, match="requires a Newton GL or RTX"):
+        validate(cfg)
 
 
 #
@@ -90,7 +105,8 @@ class _DummyVisualizer(BaseVisualizer):
         return
 
     def close(self) -> None:
-        self._is_closed = True
+        self._close_key_event_source()
+        super().close()
 
     def is_running(self) -> bool:
         return True
@@ -147,3 +163,17 @@ def test_physics_backend_returns_none_without_simulation_context():
     """physics_backend is None when no SimulationContext is active."""
     viz = _DummyVisualizer(VisualizerCfg())
     assert viz.physics_backend is None
+    assert viz.key_event_source is None
+
+
+def test_visualizer_retires_window_input_before_focus_loss_callbacks():
+    viz = _DummyVisualizer(VisualizerCfg())
+    source = viz._key_event_source = KeyEventSource()
+    observed = []
+    subscription = source.add_key_listener(lambda code, pressed: None, lambda: observed.append(viz.key_event_source))
+    assert viz.key_event_source is source
+
+    viz.close()
+    viz.close()
+    assert viz.key_event_source is None and source.closed and subscription.closed
+    assert observed == [None]

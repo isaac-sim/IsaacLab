@@ -23,12 +23,19 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
+from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
+from isaaclab.utils import instantiate
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
@@ -218,49 +225,6 @@ def create_fluid_points() -> tuple[np.ndarray, np.ndarray, int]:
     return points, velocities, blob.shape[0]
 
 
-def create_visualizer_cfgs():
-    """Create a visualizer for the selected renderer."""
-    common = {
-        "eye": CAMERA_EYE,
-        "lookat": CAMERA_TARGET,
-        "focal_length": 30.0,
-    }
-    cfgs = []
-    if "kit" in (args_cli.visualizer or []):
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        cfgs.append(KitVisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET, focal_length=30.0))
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(args_cli.visualizer or []):
-        return cfgs
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    for name in args_cli.visualizer or []:
-        if name in ("newton", "newton_gl"):
-            cfgs.append(
-                NewtonGLVisualizerCfg(
-                    streaming_view=False,
-                    background_color=None,
-                    show_particles=SHOW_PARTICLES,
-                    particle_color=WATER_COLOR,
-                    enable_live_plots=False,
-                    **common,
-                )
-            )
-        elif name == "newton_rtx":
-            cfgs.append(
-                NewtonRTXVisualizerCfg(
-                    render_settings={
-                        "omni:rtx:quality": ("Int", args_cli.rtx_quality),
-                        "omni:rtx:rt:reflections:enabled": ("Bool", True),
-                        "omni:rtx:rt:reflections:maxBounces": ("Int", 2),
-                    },
-                    **common,
-                )
-            )
-    return cfgs
-
-
 def create_sim_cfg():
     """Create the sparse implicit-MPM simulation configuration."""
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg
@@ -271,7 +235,22 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            eye=CAMERA_EYE,
+            lookat=CAMERA_TARGET,
+            focal_length=30.0,
+            enable_live_plots=False,
+            backend=MultiBackendVisualizerCfg(
+                newton_gl=NewtonGLBackendCfg(show_particles=SHOW_PARTICLES, particle_color=WATER_COLOR),
+                newton_rtx=NewtonRTXBackendCfg(
+                    render_settings={
+                        "omni:rtx:quality": ("Int", args_cli.rtx_quality),
+                        "omni:rtx:rt:reflections:enabled": ("Bool", True),
+                        "omni:rtx:rt:reflections:maxBounces": ("Int", 2),
+                    }
+                ),
+            ),
+        ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=MPM_VOXEL_SIZE,
@@ -435,8 +414,8 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
         fluid = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Fluid",
             spawn=MPMPointsCfg(
-                positions=points.tolist(),
-                velocities=velocities.tolist(),
+                positions=points,
+                velocities=velocities,
                 mass=PARTICLE_MASS,
                 radius=PARTICLE_RADIUS,
                 material=MPMParticleMaterialCfg(
@@ -474,11 +453,10 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
 
 def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
     """Configure splash-specific surface extraction after Newton initializes."""
-    from isaaclab_newton.physics import NewtonManager
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
     from newton.geometry import ParticleSurface
 
-    model = NewtonManager.get_model()
+    model = sim.backend_manager.backend.model
     surface = ParticleSurface(
         voxel_size=SURFACE_CFG.surface_voxel_size,
         max_grid_cells=MAX_SURFACE_GRID_CELLS,
@@ -505,6 +483,7 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
         opacity=args_cli.surface_opacity,
         roughness=0.06,
         use_cuda_graph=not args_cli.disable_cuda_graph,
+        backend_manager=sim.backend_manager,
     )
 
 
@@ -545,14 +524,14 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None) 
 def main() -> None:
     """Launch the surface-reconstruction study."""
     configure_console_logging(vars(args_cli))
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     points, velocities, blob_particle_count = create_fluid_points()
-    sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = create_scene_cfg(points, velocities)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         import isaaclab.sim as sim_utils
-        from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg(points, velocities))
+        scene = instantiate(scene_cfg)
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = create_surface_renderer(sim) if SHOW_SURFACE else None

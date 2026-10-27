@@ -11,6 +11,7 @@ import torch
 import warp as wp
 
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.math import velocity_at_offset
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
@@ -31,18 +32,15 @@ def get_link_vel_from_root_com_vel_func(
     the angular velocity contribution from the COM offset relative to the link frame.
 
     Args:
-        com_vel: COM spatial velocity (angular, linear).
+        com_vel: COM spatial velocity (linear, angular).
         link_pose: Link pose in world frame.
         body_com_pose: COM pose in body (link) frame.
 
     Returns:
-        Link spatial velocity (angular, linear).
+        Link spatial velocity (linear, angular).
     """
-    projected_vel = wp.cross(
-        wp.spatial_bottom(com_vel),
-        wp.quat_rotate(wp.transform_get_rotation(link_pose), -wp.transform_get_translation(body_com_pose)),
-    )
-    return wp.spatial_vector(wp.spatial_top(com_vel) + projected_vel, wp.spatial_bottom(com_vel))
+    offset = wp.quat_rotate(wp.transform_get_rotation(link_pose), -wp.transform_get_translation(body_com_pose))
+    return wp.spatial_vector(velocity_at_offset(com_vel, offset), wp.spatial_bottom(com_vel))
 
 
 @wp.func
@@ -81,26 +79,6 @@ def concat_pose_and_vel_to_state_func(
     return vec13f(
         pose[0], pose[1], pose[2], pose[3], pose[4], pose[5], pose[6], vel[0], vel[1], vel[2], vel[3], vel[4], vel[5]
     )
-
-
-@wp.func
-def compute_heading_w_func(
-    forward_vec: wp.vec3f,
-    quat: wp.quatf,
-):
-    """Compute heading angle (yaw) in world frame from a forward vector and orientation.
-
-    Rotates the forward vector by the quaternion and computes atan2(y, x).
-
-    Args:
-        forward_vec: Forward direction vector in body frame.
-        quat: Orientation quaternion.
-
-    Returns:
-        Heading angle in radians.
-    """
-    forward_w = wp.quat_rotate(quat, forward_vec)
-    return wp.atan2(forward_w[1], forward_w[0])
 
 
 @wp.func
@@ -168,21 +146,15 @@ def get_link_velocity_in_com_frame_func(
     the cross-product contribution of the COM offset rotated into the world frame.
 
     Args:
-        link_velocity_w: Link spatial velocity in world frame (angular, linear).
+        link_velocity_w: Link spatial velocity in world frame (linear, angular).
         link_pose_w: Link pose in world frame.
         body_com_pose_b: COM pose in body (link) frame.
 
     Returns:
-        COM spatial velocity in world frame (angular, linear).
+        COM spatial velocity in world frame (linear, angular).
     """
-    return wp.spatial_vector(
-        wp.spatial_top(link_velocity_w)
-        + wp.cross(
-            wp.spatial_bottom(link_velocity_w),
-            wp.quat_rotate(wp.transform_get_rotation(link_pose_w), wp.transform_get_translation(body_com_pose_b)),
-        ),
-        wp.spatial_bottom(link_velocity_w),
-    )
+    offset = wp.quat_rotate(wp.transform_get_rotation(link_pose_w), wp.transform_get_translation(body_com_pose_b))
+    return wp.spatial_vector(velocity_at_offset(link_velocity_w, offset), wp.spatial_bottom(link_velocity_w))
 
 
 @wp.func
@@ -381,88 +353,6 @@ def concat_body_pose_and_vel_to_state(
 """
 Derived property kernels.
 """
-
-
-@wp.kernel
-def quat_apply_inverse_1D_kernel(
-    gravity: wp.array(dtype=wp.vec3f),
-    quat: wp.array(dtype=wp.quatf),
-    projected_gravity: wp.array(dtype=wp.vec3f),
-):
-    """Apply inverse quaternion rotation to gravity vectors (1D).
-
-    This kernel rotates gravity vectors into the local frame of each environment
-    using the inverse of the provided quaternion.
-
-    Args:
-        gravity: Input array of gravity vectors in world frame. Shape is (num_envs,).
-        quat: Input array of quaternions representing orientations. Shape is (num_envs,).
-        projected_gravity: Output array where projected gravity vectors are written.
-            Shape is (num_envs,).
-    """
-    i = wp.tid()
-    projected_gravity[i] = wp.quat_rotate_inv(quat[i], gravity[i])
-
-
-@wp.kernel
-def root_heading_w(
-    forward_vec: wp.array(dtype=wp.vec3f),
-    quat: wp.array(dtype=wp.quatf),
-    heading_w: wp.array(dtype=wp.float32),
-):
-    """Compute root heading angle in the world frame.
-
-    This kernel computes the heading angle (yaw) by rotating the forward vector
-    by the root quaternion and computing atan2 of the resulting x and y components.
-
-    Args:
-        forward_vec: Input array of forward direction vectors. Shape is (num_envs,).
-        quat: Input array of root quaternions. Shape is (num_envs,).
-        heading_w: Output array where heading angles (radians) are written. Shape is (num_envs,).
-    """
-    i = wp.tid()
-    heading_w[i] = compute_heading_w_func(forward_vec[i], quat[i])
-
-
-@wp.kernel
-def quat_apply_inverse_2D_kernel(
-    vec: wp.array2d(dtype=wp.vec3f),
-    quat: wp.array2d(dtype=wp.quatf),
-    result: wp.array2d(dtype=wp.vec3f),
-):
-    """Apply inverse quaternion rotation to vectors (2D).
-
-    This kernel rotates vectors into the local frame of each body in each environment
-    using the inverse of the provided quaternion.
-
-    Args:
-        vec: Input array of vectors in world frame. Shape is (num_envs, num_bodies).
-        quat: Input array of quaternions representing orientations. Shape is (num_envs, num_bodies).
-        result: Output array where rotated vectors are written. Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    result[i, j] = wp.quat_rotate_inv(quat[i, j], vec[i, j])
-
-
-@wp.kernel
-def body_heading_w(
-    forward_vec: wp.array2d(dtype=wp.vec3f),
-    quat: wp.array2d(dtype=wp.quatf),
-    heading_w: wp.array2d(dtype=wp.float32),
-):
-    """Compute body heading angles in the world frame for all bodies.
-
-    This kernel computes heading angles (yaw) by rotating forward vectors
-    by body quaternions and computing atan2 of the resulting x and y components.
-
-    Args:
-        forward_vec: Input array of forward direction vectors. Shape is (num_envs, num_bodies).
-        quat: Input array of body quaternions. Shape is (num_envs, num_bodies).
-        heading_w: Output array where heading angles (radians) are written.
-            Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    heading_w[i, j] = compute_heading_w_func(forward_vec[i, j], quat[i, j])
 
 
 """

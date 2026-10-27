@@ -12,7 +12,6 @@ Fabrics-Sim licensing. See the demo README for provisioning and provenance.
 from __future__ import annotations
 
 import math
-import os
 from typing import TYPE_CHECKING
 
 from .assets import COFFEE_ASSET_DIR
@@ -21,8 +20,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
 
 ASSET_USD_NAME = "rizon4s_sharpa.usda"
-ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
-ROBOT_ASSET_DIR = os.environ.get(ASSET_ROOT_ENV, f"{COFFEE_ASSET_DIR}/Robot").rstrip("/")
+ROBOT_ASSET_DIR = f"{COFFEE_ASSET_DIR}/Robot"
 PALM_BODY_NAME = "r_palm_ctrl"
 """Canonical palm: +X toward the knuckles, +Z out of the palm."""
 
@@ -31,18 +29,18 @@ DEFAULT_SPOON_OFFSET_ROT = (1.0, 0.0, 0.0, 0.0)
 
 ARM_JOINT_NAMES = tuple(f"joint{index}" for index in range(1, 8))
 COFFEE_READY_POSITIONS = (
-    -1.081903255791,
-    0.013804070751,
-    0.268143828426,
-    2.645703260349,
-    2.465847724197,
-    0.413775564614,
-    -0.366468701795,
+    -0.704524636269,
+    -0.584716141224,
+    0.548297226429,
+    1.619004607201,
+    2.447559595108,
+    2.105417251587,
+    -0.419155776501,
 )
-"""Measured IK branch with the level spoon at ``(0.508, -0.12, 0.22)`` m.
+"""Measured IK branch with the spoon at ``(0.4995, -0.1265, 0.09)`` m and 60° pitch.
 
 The spoon uses ``DEFAULT_SPOON_OFFSET_POS`` and 180 degrees about palm X.
-This places the held utensil above the source bowl, ready to descend.
+This places the held utensil close above the source bowl, ready to descend.
 """
 # Named joints, hard limits [rad] and measured pinch angles [deg], in action order.
 _HAND_JOINTS = (
