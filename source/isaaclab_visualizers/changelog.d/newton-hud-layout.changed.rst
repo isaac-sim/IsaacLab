@@ -24,3 +24,5 @@
   plot, from the first docstring line of the plotted manager term.
 * The Policy Ghosts section of the Newton GL HUD is greyed out while the RTX view is active, with a note that ghosts
   are drawn in the OpenGL view only.
+* Moved the camera position, field of view, pitch, and yaw readout from "Control Bindings" to the end of "Camera View",
+  and limited the Focal Length slider to 5-64 mm.

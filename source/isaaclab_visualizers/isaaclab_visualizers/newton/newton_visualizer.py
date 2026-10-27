@@ -395,8 +395,6 @@ class NewtonViewerGL(ViewerGL):
             hover_tooltip(imgui, "What each camera, keyboard, and mouse control does")
             if controls_open:
                 imgui.separator()
-                _g._render_camera_info()
-                imgui.separator()
                 imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*nav_highlight_color))
                 imgui.text("Controls:")
                 imgui.pop_style_color()
@@ -975,6 +973,21 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._draw_tracking_camera_controls(imgui, follower)
         elif self.current_image_view in self._sensor_tiles:
             self._draw_sensor_controls(imgui, self.current_image_view)
+        self._draw_camera_info(imgui)
+
+    def _draw_camera_info(self, imgui) -> None:
+        """Draw the navigation camera's position, field of view, and orientation."""
+        camera = getattr(self._viewer, "camera", None)
+        if camera is None:
+            return
+        imgui.separator()
+        pos = camera.pos
+        imgui.text(f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
+        hover_tooltip(imgui, "World position of the camera [m]")
+        imgui.text(f"FOV: {camera.fov:.1f} deg")
+        hover_tooltip(imgui, "Vertical field of view; the Focal Length slider changes it")
+        imgui.text(f"Pitch: {camera.pitch:.1f} deg   Yaw: {camera.yaw:.1f} deg")
+        hover_tooltip(imgui, "Look direction: pitch up or down, yaw around the vertical axis")
 
     def _rtx_appearance_controller(self) -> RtxAppearance | None:
         """Create the OVRTX appearance controller on first use, or None when it cannot be created."""
