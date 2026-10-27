@@ -1784,8 +1784,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if state.body_q is not None and not len(state.body_q):
             return
         viewer._overlay_capture = publisher
+        # Contact disks are instanced meshes that only the OpenGL view draws, and they dominate the contact cost.
+        disks = viewer.show_contact_disks
+        viewer.show_contact_disks = False
         try:
-            viewer.log_state(state)
+            # Only the overlays are needed, not the per-shape instances that log_state also updates for OpenGL.
+            getattr(viewer, "_log_non_shape_state", viewer.log_state)(state)
             contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
             if contacts is not None:
                 viewer.log_contacts(contacts, state)
@@ -1793,6 +1797,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._log_scene_contact_sensor_arrows()
         finally:
             viewer._overlay_capture = None
+            viewer.show_contact_disks = disks
         publisher.publish(renderers)
 
     def _update_state(self):
