@@ -2938,6 +2938,9 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
         if isinstance(limit, float):
             raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        if isinstance(limit, torch.Tensor):
+            # a vec2f kernel argument needs contiguous components; a contiguous tensor is returned as is
+            limit = limit.contiguous()
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.vec2f),
             dim=(self.num_instances, self.num_fixed_tendons),
