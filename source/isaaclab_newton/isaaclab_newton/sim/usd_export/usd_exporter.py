@@ -25,7 +25,7 @@ from isaaclab.sim.usd_export.base_usd_exporter import (
 )
 from isaaclab.utils.string import string_to_callable
 
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonManager, NewtonShapeCfg, NewtonSolverCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonShapeCfg, NewtonSolverCfg
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ class UsdExporter(BaseUsdExporter):
         """
         physics_cfg = self.scene.sim.cfg.physics
         solver_cfg = physics_cfg.solver_cfg
-        model = self.scene.sim.backend_manager.get_model()
+        model = self.scene.sim.backend_manager.backend.model
         builder = self.scene.sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=physics_cfg))
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
@@ -201,9 +201,9 @@ class UsdExporter(BaseUsdExporter):
         Returns:
             The finalized model.
         """
-        manager = cls._manager(solver_cfg)()
+        manager = cls._manager(solver_cfg)(NewtonCfg(solver_cfg=solver_cfg))
         builder = newton.ModelBuilder()
-        manager._register_builder_attributes(builder)
+        manager._register_builder_attributes(builder, solver_cfg)
         # Tagged terrains become heightfields, as in Isaac Lab; the importer does not read their colliders.
         terrains = manager._inject_terrain_heightfields(stage, builder, root_paths=("/",), device=device)
         for shape, label in enumerate(builder.shape_label):
@@ -325,7 +325,7 @@ class UsdExporter(BaseUsdExporter):
             if prim and any(rows[body] for rows in changed.values()):
                 edits += self._mass_edits(prim, float(mass[body]), com[body], inertia[body])
         # Root bodies and world anchors are placed where initialization put them; joint state is not exported.
-        body_q, anchors = self.scene.sim.backend_manager.get_state_0().body_q.numpy(), model.joint_X_p.numpy()
+        body_q, anchors = self.scene.sim.backend_manager.backend.state_0.body_q.numpy(), model.joint_X_p.numpy()
         parents, children, types = model.joint_parent.numpy(), model.joint_child.numpy(), model.joint_type.numpy()
         for joint in self._selected(model.joint_world):
             if parents[joint] != -1:
@@ -462,7 +462,7 @@ class UsdExporter(BaseUsdExporter):
         if not manager._registers_builder_attributes_from_solver(newton.solvers.SolverMuJoCo):
             return {}
         builder = newton.ModelBuilder()
-        manager._register_builder_attributes(builder)
+        manager._register_builder_attributes(builder, solver_cfg)
         scene = (newton.Model.AttributeFrequency.ONCE, newton.Model.AttributeFrequency.WORLD)
         attributes = {
             attribute.name: attribute.usd_attribute_name

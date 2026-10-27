@@ -36,10 +36,10 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
         sim.reset()
         scene.export_to_usd(output, env_id=env_id)
         manager = sim.backend_manager
-        live = _capture(manager.get_model(), manager.get_state_0().body_q, env_id)
-        solver_type = type(manager._solver)
+        live = _capture(manager.backend.model, manager.backend.state_0.body_q, env_id)
+        solver_type = type(manager.backend.solver)
         # The engine's own construction of the solver, stepped from the model's initial state.
-        motion = _rollout(manager.get_model(), type(manager)._create_solver(manager.get_model(), solver_cfg))
+        motion = _rollout(manager.backend.model, type(manager)._create_solver(manager.backend.model, solver_cfg))
     return output, live, solver_type, motion
 
 
