@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import functools
 from typing import Any
 
 import torch
@@ -932,33 +931,6 @@ def write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(
 ) -> wp.Kernel:
     """Select a 2-D buffer writer that also emits int32 environment indices."""
     return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_AND_SIM_IDS_DISPATCHER.select(env_ids, item_ids)
-
-
-@wp.kernel
-def write_2d_data_to_buffer_with_mask(
-    in_data: wp.array2d(dtype=Any),
-    env_mask: wp.array(dtype=wp.bool),
-    item_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=Any),
-):
-    """Write 2D data to a buffer where both the environment and the item mask are set.
-
-    Args:
-        in_data: Input array containing data for every environment and item. Shape is (num_envs, num_items).
-        env_mask: Input array of environment mask. Shape is (num_envs,).
-        item_mask: Input array of item mask. Shape is (num_items,).
-        out_data: Output array where data is written. Shape is (num_envs, num_items).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and item_mask[j]:
-        out_data[i, j] = in_data[i, j]
-
-
-@functools.cache
-def write_2d_data_to_buffer_with_mask_kernel(dtype: type) -> wp.Kernel:
-    """Select the masked 2-D buffer writer for the buffer dtype."""
-    array = wp.array2d(dtype=dtype)
-    return wp.overload(write_2d_data_to_buffer_with_mask, {"in_data": array, "out_data": array})
 
 
 @wp.kernel

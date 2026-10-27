@@ -5,6 +5,7 @@
 
 """Custom kernels for warp."""
 
+import functools
 from typing import Any
 
 import torch
@@ -780,3 +781,35 @@ _GATHER_SUBTRACT_2D_DISPATCHER = IndexKernelDispatcher(gather_subtract_2d, ("env
 def gather_subtract_2d_kernel(env_ids: "wp.array | torch.Tensor", item_ids: "wp.array | torch.Tensor") -> wp.Kernel:
     """Select the gather-subtract worker for the selector dtypes."""
     return _GATHER_SUBTRACT_2D_DISPATCHER.select(env_ids, item_ids)
+
+
+##
+# Masked writes.
+##
+
+
+@wp.kernel
+def write_2d_data_to_buffer_with_mask(
+    in_data: wp.array2d(dtype=Any),
+    env_mask: wp.array(dtype=wp.bool),
+    item_mask: wp.array(dtype=wp.bool),
+    out_data: wp.array2d(dtype=Any),
+):
+    """Write 2D data to a buffer where both the environment and the item mask are set.
+
+    Args:
+        in_data: Input array containing data for every environment and item. Shape is (num_envs, num_items).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        item_mask: Input array of item mask. Shape is (num_items,).
+        out_data: Output array where data is written. Shape is (num_envs, num_items).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and item_mask[j]:
+        out_data[i, j] = in_data[i, j]
+
+
+@functools.cache
+def write_2d_data_to_buffer_with_mask_kernel(dtype: type) -> wp.Kernel:
+    """Select the masked 2-D buffer writer for the buffer dtype."""
+    array = wp.array2d(dtype=dtype)
+    return wp.overload(write_2d_data_to_buffer_with_mask, {"in_data": array, "out_data": array})
