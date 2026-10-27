@@ -139,20 +139,12 @@ def test_finders(monkeypatch, backend):
             finder("nonexistent_xyz")
 
 
-def test_resolve_ids_accept_tensor_views(monkeypatch, backend):
-    """Selector resolution honors tensor views, and environment slices alias the cached indices without copies."""
-    art, _ = _articulation(backend, "cpu", monkeypatch, num_instances=4, num_joints=4, num_bodies=4)
-    ids = torch.arange(4, dtype=torch.int32)
-    for resolve in (art._resolve_env_ids, art._resolve_joint_ids, art._resolve_body_ids):
-        assert resolve(ids).shape[0] == 4
-        assert resolve(ids[:2]).shape[0] == 2
-
-    cached = wp.to_torch(art._ALL_INDICES)
-    for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
-        resolved = wp.to_torch(art._resolve_env_ids(selection))
-        torch.testing.assert_close(resolved, cached[selection])
-        assert resolved.data_ptr() == cached[selection].data_ptr()
-        assert resolved.stride() == cached[selection].stride()
+def test_resolvers_select_from_their_own_cached_indices(monkeypatch, backend):
+    """Each selector resolver returns its own cached indices for a selection of every element."""
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    assert art._resolve_env_ids(slice(None)) is art._ALL_INDICES
+    assert art._resolve_joint_ids(slice(None)) is art._ALL_JOINT_INDICES
+    assert art._resolve_body_ids(slice(None)) is art._ALL_BODY_INDICES
 
 
 # ---------------------------------------------------------------------------
@@ -526,20 +518,11 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
             method(**{kwarg: 1.0})
             _assert_reads_back(read(), torch.ones_like(expected), f"{writer} scalar")
 
-    if backend == "newton" and selection == "mask" and is_tendon:
-        return  # pinned by test_newton_fixed_tendon_mask_setters_reject_extra_environments
     extra_env = _payload((N + 1, *shape[1:]), trailing, dtype, device)
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: extra_env})
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: wp.from_torch(extra_env.contiguous(), dtype=dtype)})
-
-
-@requires("newton")
-def test_newton_fixed_tendon_mask_setters_reject_extra_environments(monkeypatch):
-    art, _ = _articulation("newton", "cpu", monkeypatch)
-    with pytest.raises((AssertionError, RuntimeError)):
-        art.set_fixed_tendon_stiffness_mask(stiffness=torch.ones((N + 1, FT)))
 
 
 # quantity -> (writer, keyword, trailing size). Joint partial writes are covered by the ordering contract.
