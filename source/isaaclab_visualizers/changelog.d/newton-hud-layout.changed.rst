@@ -3,7 +3,7 @@
   "Rendering Options" starts collapsed. The Visible Envs slider moved from the playback controls to "Environments".
   Callbacks registered with ``register_ui_callback(position="side")`` now appear under "Playback".
 * Added an always-visible header to the Newton GL HUD showing the task and run, physics backend and device,
-  step and simulation time, simulation rate and real-time factor, and status badges
+  number of environments, step and simulation time, simulation rate and real-time factor, and status badges
   for replay, pause, and Policy Ghosts. "Environments", "Visualization Markers", and "Model Overlays" are now
   grouped in one "Scene" section.
 * Renamed the Newton GL window and its HUD panel from "Newton Viewer" to "Newton Visualizer", and moved

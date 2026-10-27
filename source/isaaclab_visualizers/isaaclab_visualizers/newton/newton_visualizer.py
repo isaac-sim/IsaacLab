@@ -600,6 +600,9 @@ class NewtonViewerGL(ViewerGL):
         device = getattr(getattr(owner, "_sim", None), "device", None)
         imgui.text(f"Physics: {self._backend_display}" + (f" ({device})" if device else ""))
         hover_tooltip(imgui, "Physics backend and the device it runs on")
+        if owner is not None and owner._num_envs:
+            imgui.text(f"Envs: {owner._num_envs:,}")
+            hover_tooltip(imgui, "Number of simulated environments")
         if owner is not None and owner._sim is not None:
             sim = owner._sim
             steps, dt = sim.get_physics_step_count(), sim.get_physics_dt()
