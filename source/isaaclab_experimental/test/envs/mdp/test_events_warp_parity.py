@@ -109,15 +109,10 @@ def all_joints_cfg():
 
 
 def _make_event_term(term_type: type[ManagerTermBase], env, mode: str = "reset", **params) -> ManagerTermBase:
-    """Build a class event term the way the event manager does, after resolving its asset's Warp body fields."""
+    """Build a class event term the way the event manager does, after resolving its asset's Warp selections."""
     params.setdefault("asset_cfg", SceneEntityCfg("robot"))
     cfg = EventTermCfg(func=term_type, mode=mode, params=params)
-    # the mock scene cannot run SceneEntityCfg.resolve, so fill the fields it would set on the stored cfg
-    asset_cfg = cfg.params["asset_cfg"]
-    num_bodies = env.scene[asset_cfg.name].num_bodies
-    body_ids = list(range(num_bodies)) if asset_cfg.body_ids in (None, slice(None)) else list(asset_cfg.body_ids)
-    asset_cfg.body_ids_wp = wp.array(body_ids, dtype=wp.int32, device=DEVICE)
-    asset_cfg.body_mask_wp = wp.array([i in body_ids for i in range(num_bodies)], dtype=wp.bool, device=DEVICE)
+    cfg.params["asset_cfg"].resolve_warp(env.scene)
     return term_type(cfg, env)
 
 
