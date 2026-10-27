@@ -12,7 +12,7 @@ shared device interfaces and configurable retargeting pipelines.
 .. note::
 
    **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab installs
-   ``isaaccapture~=1.7.44a1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
+   ``isaaccapture~=1.7.68a1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
    compatibility import used in this documentation; new integrations should use ``isaaccapture``.
    See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
@@ -345,7 +345,7 @@ Prerequisites
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
   Then clone, check out the release branch matching the ``isaaccapture`` version Isaac Lab is
-  pinned to (``isaaccapture~=1.7.44a1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  pinned to (``isaaccapture~=1.7.68a1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
   plugin's wire format matches the ``isaaccapture`` package Isaac Lab installs), configure, build,
   and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
