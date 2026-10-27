@@ -813,3 +813,29 @@ def write_2d_data_to_buffer_with_mask_kernel(dtype: type) -> wp.Kernel:
     """Select the masked 2-D buffer writer for the buffer dtype."""
     array = wp.array2d(dtype=dtype)
     return wp.overload(write_2d_data_to_buffer_with_mask, {"in_data": array, "out_data": array})
+
+
+@wp.kernel
+def fill_2d_buffer_with_mask(
+    value: Any,
+    env_mask: wp.array(dtype=wp.bool),
+    item_mask: wp.array(dtype=wp.bool),
+    out_data: wp.array2d(dtype=Any),
+):
+    """Write one value to a buffer where both the environment and the item mask are set.
+
+    Args:
+        value: Value written to every selected entry.
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        item_mask: Input array of item mask. Shape is (num_items,).
+        out_data: Output array where the value is written. Shape is (num_envs, num_items).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and item_mask[j]:
+        out_data[i, j] = value
+
+
+@functools.cache
+def fill_2d_buffer_with_mask_kernel(dtype: type) -> wp.Kernel:
+    """Select the masked 2-D buffer fill for the buffer dtype."""
+    return wp.overload(fill_2d_buffer_with_mask, {"value": dtype, "out_data": wp.array2d(dtype=dtype)})
