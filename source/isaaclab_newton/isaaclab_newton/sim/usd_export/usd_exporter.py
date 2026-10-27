@@ -110,9 +110,9 @@ class UsdExporter(BaseUsdExporter):
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
         joint_edits, force_position_velocity, drives = self._joint_edits(stage, model, builder)
-        self._deactivate_mjc_actuators(stage, drives)
         edits = [
             *joint_edits,
+            *self._mjc_actuator_edits(stage, drives),
             *self._body_edits(stage, model, builder),
             *self._shape_edits(stage, model, builder, physics_cfg.default_shape_cfg),
             *self._gravity_edits(stage, gravity),
@@ -302,28 +302,45 @@ class UsdExporter(BaseUsdExporter):
         )
 
     @classmethod
-    def _deactivate_mjc_actuators(cls, stage: Usd.Stage, drives: dict[str, tuple[float, float]]):
-        """Deactivate the MuJoCo actuators that would override the exported drive gains of their joint.
+    def _mjc_actuator_edits(cls, stage: Usd.Stage, drives: dict[str, tuple[float, float]]) -> list[UsdEdit]:
+        """Edits giving the MuJoCo actuators of joints whose drive the export writes the joint's live gain.
 
-        Workaround: Newton's import sets a joint's stiffness, or damping, to the gain of a MuJoCo position, or
-        velocity, actuator targeting it. Assumes such an actuator, the one with an affine bias, only duplicates
-        the joint drive, as in assets converted from MJCF; it is kept while its gain is one of the drive's.
+        Workaround: Newton's import sets a joint's stiffness to the gain of a MuJoCo position actuator targeting
+        it, and its damping to that of a velocity actuator. Assumes such an actuator, the one with an affine
+        bias, only duplicates the joint drive, as in assets converted from MJCF. An actuator whose gain becomes
+        zero is deactivated, since the import keeps it as a separate actuator.
 
         Args:
             stage: The exported stage.
             drives: Live stiffness and damping of the joints whose drive the export writes, keyed by joint path.
+
+        Returns:
+            The edits.
         """
-        deactivated = []
+        edits, deactivated = [], []
         for prim in [prim for prim in stage.Traverse() if prim.GetTypeName() == "MjcActuator"]:
-            if prim.GetAttribute("mjc:biasType").Get() != "affine":
+            targets = [str(target) for target in prim.GetRelationship("mjc:target").GetTargets()]
+            if len(targets) != 1 or targets[0] not in drives or prim.GetAttribute("mjc:biasType").Get() != "affine":
                 continue
-            gain = float((prim.GetAttribute("mjc:gainPrm").Get() or [1.0])[0])
-            gains = [drives.get(str(target)) for target in prim.GetRelationship("mjc:target").GetTargets()]
-            if any(drive is not None and not any(cls._close(gain, value) for value in drive) for drive in gains):
+            # Unset parameters take MuJoCo's defaults.
+            gain = list(prim.GetAttribute("mjc:gainPrm").Get() or [1.0] + [0.0] * 9)
+            bias = list(prim.GetAttribute("mjc:biasPrm").Get() or [0.0] * 10)
+            # A position actuator biases by -kp * qpos, a velocity actuator by -kv * qvel.
+            index = 1 if bias[1] != 0.0 else 2
+            stiffness, damping = drives[targets[0]]
+            value = stiffness if index == 1 else damping
+            if cls._close(gain[0], value):
+                continue
+            if value <= 0.0:
                 prim.SetActive(False)
                 deactivated.append(str(prim.GetPath()))
+                continue
+            gain[0], bias[index] = value, -value
+            path = str(prim.GetPath())
+            edits += [UsdEdit(path, "mjc:gainPrm", gain, "double[]"), UsdEdit(path, "mjc:biasPrm", bias, "double[]")]
         if deactivated:
-            logger.info(f"MuJoCo actuators replaced by the exported joint drives: {deactivated}.")
+            logger.info(f"MuJoCo actuators replaced by the exported zero-gain joint drives: {deactivated}.")
+        return edits
 
     @staticmethod
     def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
