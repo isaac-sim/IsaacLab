@@ -138,9 +138,9 @@ def _build_admm_coupled_solver(
 # ----- Ownership resolution ----------------------------------------------------------
 
 
-def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg) -> _ResolvedEntry:
+def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg, env_template: str) -> _ResolvedEntry:
     """Resolve one entry's selectors and derived ownership."""
-    bodies = _resolve_entities_to_body_ids(model, entry_cfg.bodies, f"entry {entry_cfg.name!r}")
+    bodies = _resolve_entities_to_body_ids(model, entry_cfg.bodies, f"entry {entry_cfg.name!r}", env_template)
 
     particles = list(dict.fromkeys(map(int, entry_cfg.particles)))
     if entry_cfg.all_particles:
@@ -168,7 +168,8 @@ def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg) -> _ResolvedEntry:
         labeled_shapes = [(index, label) for index, label in enumerate(labels) if label is not None]
         try:
             matched_shapes, _ = resolve_matching_names(
-                entry_cfg.shape_label_patterns, [label for _, label in labeled_shapes]
+                [expand_env_regex_ns(pattern, env_template) for pattern in entry_cfg.shape_label_patterns],
+                [label for _, label in labeled_shapes],
             )
         except ValueError as error:
             raise ValueError(f"CouplerEntryCfg {entry_cfg.name!r}: failed to resolve shape-label patterns.") from error
@@ -183,10 +184,10 @@ def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg) -> _ResolvedEntry:
     )
 
 
-def _resolve_proxy(model: Model, proxy_cfg: CouplerProxyMappingCfg) -> CouplerProxyMappingCfg:
-    """Resolve a proxy mapping's selectors to collidable body ids, writing them into the config in place."""
+def _resolve_proxy(model: Model, proxy_cfg: CouplerProxyMappingCfg, env_template: str) -> CouplerProxyMappingCfg:
+    """Resolve a proxy mapping to collidable body ids without changing its declaration."""
     selected = _resolve_entities_to_body_ids(
-        model, proxy_cfg.bodies, f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}"
+        model, proxy_cfg.bodies, f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}", env_template
     )
     collide_flag = int(ShapeFlags.COLLIDE_SHAPES)
     collide_bodies = {
@@ -200,12 +201,10 @@ def _resolve_proxy(model: Model, proxy_cfg: CouplerProxyMappingCfg) -> CouplerPr
             f"CouplerProxyMappingCfg {proxy_cfg.source!r}->{proxy_cfg.destination!r} selected no bodies "
             "with ShapeFlags.COLLIDE_SHAPES."
         )
-    proxy_cfg.bodies = bodies
-    proxy_cfg.particles = list(dict.fromkeys(map(int, proxy_cfg.particles)))
-    return proxy_cfg
+    return replace(proxy_cfg, bodies=bodies, particles=list(dict.fromkeys(map(int, proxy_cfg.particles))))
 
 
-def _resolve_entities_to_body_ids(model: Model, specs: list[str | int], field: str) -> list[int]:
+def _resolve_entities_to_body_ids(model: Model, specs: list[str | int], field: str, env_template: str) -> list[int]:
     """Resolve body-label regexes or raw body ids to unique, order-preserving body ids."""
     labels = list(model.body_label)
     body_ids: list[int] = []
@@ -216,7 +215,8 @@ def _resolve_entities_to_body_ids(model: Model, specs: list[str | int], field: s
             body_ids.append(spec)
             continue
         if isinstance(spec, str):
-            matched, _ = resolve_matching_names(f"(?:{spec})(?:/.*)?", labels, raise_when_no_match=False)
+            pattern = expand_env_regex_ns(spec, env_template)
+            matched, _ = resolve_matching_names(f"(?:{pattern})(?:/.*)?", labels, raise_when_no_match=False)
             if not matched:
                 raise ValueError(f"CouplerCfg {field}: body-label regex {spec!r} matched no Newton bodies.")
             body_ids.extend(matched)
@@ -294,21 +294,11 @@ class CouplerSolver(NewtonSolver):
         """
         _validate_cfg(cfg)
         template = DEFAULT_ENV_TEMPLATE if env_template is None else env_template
-
-        def expand(selectors: list) -> list:
-            return [expand_env_regex_ns(s, template) if isinstance(s, str) else s for s in selectors]
-
-        resolved_entries = [
-            _resolve_entry(
-                model,
-                replace(entry, bodies=expand(entry.bodies), shape_label_patterns=expand(entry.shape_label_patterns)),
-            )
-            for entry in cfg.entries
-        ]
+        resolved_entries = [_resolve_entry(model, entry, template) for entry in cfg.entries]
         proxies: list[CouplerProxyMappingCfg] = []
         active_proxy_destinations: set[str] = set()
         if isinstance(cfg, CouplerProxyCfg):
-            proxies = [_resolve_proxy(model, replace(proxy, bodies=expand(proxy.bodies))) for proxy in cfg.proxies]
+            proxies = [_resolve_proxy(model, proxy, template) for proxy in cfg.proxies]
             active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
         _validate_resolved_entries(model, resolved_entries, cfg, active_proxy_destinations)
         entries = [_coupled_entry(entry, mode, env_template) for entry in resolved_entries]

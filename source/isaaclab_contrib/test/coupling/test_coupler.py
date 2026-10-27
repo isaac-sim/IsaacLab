@@ -37,6 +37,8 @@ from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupled
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
     CouplerCfg,  # noqa: F401 - importing every public name guards the package exports
@@ -219,54 +221,48 @@ def test_config_validation_rejects_unsupported_nested_lifecycle(solver_cfg, entr
 
 def test_string_selector_resolves_full_body_labels_and_descendants():
     assert coupler._resolve_entities_to_body_ids(
-        _FakeModel(),
-        ["/World/envs/env_[^/]+/Robot"],
-        "entry 'rigid'",
+        _FakeModel(), ["/World/envs/env_[^/]+/Robot"], "entry 'rigid'", DEFAULT_ENV_TEMPLATE
     ) == [0, 1]
 
 
 def test_body_selector_rejects_unknown_types():
     with pytest.raises(TypeError, match="expected a full-label regex string"):
-        coupler._resolve_entities_to_body_ids(
-            _FakeModel(),
-            [object()],
-            "entry 'rigid'",
-        )
+        coupler._resolve_entities_to_body_ids(_FakeModel(), [object()], "entry 'rigid'", DEFAULT_ENV_TEMPLATE)
 
 
 def test_raw_body_label_selector_reports_no_matches():
     with pytest.raises(ValueError, match="matched no Newton bodies"):
         coupler._resolve_entities_to_body_ids(
-            _FakeModel(),
-            ["/World/envs/env_[^/]+/Missing"],
-            "entry 'missing'",
+            _FakeModel(), ["/World/envs/env_[^/]+/Missing"], "entry 'missing'", DEFAULT_ENV_TEMPLATE
         )
 
 
 def test_raw_body_id_selectors_pass_through_and_dedupe():
     """Integer selectors resolve to themselves, preserving order and removing duplicates."""
-    assert coupler._resolve_entities_to_body_ids(_FakeModel(), [2, 0, 2], "proxy 'a'->'b'") == [2, 0]
+    assert coupler._resolve_entities_to_body_ids(_FakeModel(), [2, 0, 2], "proxy 'a'->'b'", DEFAULT_ENV_TEMPLATE) == [
+        2,
+        0,
+    ]
 
 
 def test_out_of_range_body_id_selector_is_rejected():
     with pytest.raises(ValueError, match="out of range"):
-        coupler._resolve_entities_to_body_ids(_FakeModel(), [5], "proxy 'a'->'b'")
+        coupler._resolve_entities_to_body_ids(_FakeModel(), [5], "proxy 'a'->'b'", DEFAULT_ENV_TEMPLATE)
 
 
-def test_proxy_resolution_writes_body_ids_into_config_in_place():
-    """Resolution replaces the proxy's selectors with body ids and is idempotent."""
+def test_proxy_resolution_preserves_config():
+    """Resolved body and particle ids leave the reusable declaration unchanged."""
     model = _FakeModel()
     proxy = CouplerProxyMappingCfg(
         source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"], particles=[1, 1]
     )
 
-    resolved = coupler._resolve_proxy(model, proxy)
+    resolved = coupler._resolve_proxy(model, proxy, DEFAULT_ENV_TEMPLATE)
 
-    assert resolved is proxy
-    assert proxy.bodies == [0, 1]
-    assert proxy.particles == [1]
-    # Re-resolving the now-integer selectors yields the same result.
-    assert coupler._resolve_proxy(model, proxy).bodies == [0, 1]
+    assert resolved.bodies == [0, 1]
+    assert resolved.particles == [1]
+    assert proxy.bodies == [r"/World/envs/env_[^/]+/Robot"]
+    assert proxy.particles == [1, 1]
 
 
 def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
@@ -291,7 +287,7 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
         ),
     ]
 
-    resolved = [coupler._resolve_entry(model, entry) for entry in entries]
+    resolved = [coupler._resolve_entry(model, entry, DEFAULT_ENV_TEMPLATE) for entry in entries]
 
     assert resolved[0].bodies == [0, 1]
     assert resolved[0].joints == [0]
@@ -326,7 +322,7 @@ def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
         ),
     ]
 
-    resolved = [coupler._resolve_entry(model, entry) for entry in entries]
+    resolved = [coupler._resolve_entry(model, entry, DEFAULT_ENV_TEMPLATE) for entry in entries]
 
     assert resolved[0].joints == [0]
     assert resolved[1].joints == []
@@ -369,6 +365,7 @@ def test_shape_label_patterns_and_static_shape_selection_are_additive():
             include_static_shapes=True,
             shape_label_patterns=[r".*/Object/object_collision"],
         ),
+        DEFAULT_ENV_TEMPLATE,
     )
     assert entry.bodies == [0]
     assert entry.shapes == [3, 2]
@@ -382,6 +379,7 @@ def test_proxy_resolution_keeps_only_collidable_selected_bodies():
     proxy = coupler._resolve_proxy(
         model,
         CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"]),
+        DEFAULT_ENV_TEMPLATE,
     )
     assert proxy.bodies == [0]
 
@@ -434,7 +432,7 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
         lambda model_view, **kwargs: (model_view, kwargs["broad_phase"]),
     )
 
-    proxies = [coupler._resolve_proxy(model, proxy) for proxy in cfg.proxies]
+    proxies = [coupler._resolve_proxy(model, proxy, DEFAULT_ENV_TEMPLATE) for proxy in cfg.proxies]
     solver = coupler._build_proxy_coupled_solver(model, [], proxies, cfg, _NG)
 
     assert solver.coupling.iterations == 3
@@ -710,18 +708,16 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     assert recorded_entries[1].shapes == [2]
     assert recorded_proxies[0].bodies == [1]
     assert proxy_cfg.entries[0].bodies == ["{ENV_REGEX_NS}/Robot"]
+    assert proxy_cfg.entries[1].shape_label_patterns == ["{ENV_REGEX_NS}/Object/.*"]
     assert proxy_cfg.proxies[0].bodies == ["{ENV_REGEX_NS}/Robot/hand"]
 
 
 def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     model = _FakeModel()
     _, resolved_entries, _ = _valid_proxy_setup()
+    for entry in resolved_entries:
+        entry.config.bodies = entry.bodies
     cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
-    monkeypatch.setattr(
-        coupler,
-        "_resolve_entry",
-        lambda model, entry_cfg: next(entry for entry in resolved_entries if entry.config.name == entry_cfg.name),
-    )
     monkeypatch.setattr(coupler, "_coupled_entry", lambda entry, mode, env_template: entry.config.name)
     monkeypatch.setattr(
         coupler,

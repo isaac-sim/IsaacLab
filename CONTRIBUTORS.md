@@ -203,6 +203,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Sahara Yuta
 * saime428
+* Sanghyun Yun
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
