@@ -133,7 +133,7 @@ class BaseRayCaster(SensorBase):
                 ray_caster_kernels.resample_drift_masked_kernel,
                 dim=self._view_count,
                 inputs=[
-                    env_mask,
+                    reset_mask,
                     wp.vec2f(*self.cfg.drift_range),
                     wp.vec3f(*(low for low, _ in ray_cast_range_list)),
                     wp.vec3f(*(high for _, high in ray_cast_range_list)),

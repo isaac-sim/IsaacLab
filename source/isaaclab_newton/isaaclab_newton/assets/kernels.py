@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import functools
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -973,13 +972,14 @@ def set_body_com_pose_to_sim_mask(
     """Write body COM pose data, and the link poses derived from it, for the selected environments and bodies.
 
     Args:
-        data: Input array of body COM poses. Shape is (num_envs, num_bodies).
-        body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
+        data: Input array of body COM poses (position [m] and quaternion). Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame [m]. Shape is (num_envs, num_bodies).
         env_mask: Input array of environment mask. Shape is (num_envs,).
         body_mask: Input array of body mask. Shape is (num_bodies,).
-        body_com_pose_w: Output array where body COM poses are written. Shape is (num_envs, num_bodies).
-        body_link_pose_w: Output array where body link poses (derived from COM) are written.
+        body_com_pose_w: Output array where body COM poses (position [m] and quaternion) are written.
             Shape is (num_envs, num_bodies).
+        body_link_pose_w: Output array where body link poses derived from COM are written (position [m] and
+            quaternion). Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
     if env_mask[i] and body_mask[j]:
@@ -998,11 +998,12 @@ def set_body_com_velocity_to_sim_mask(
     """Write body COM velocity data, and zero the body accelerations, for the selected environments and bodies.
 
     Args:
-        data: Input array of body COM spatial velocities. Shape is (num_envs, num_bodies).
+        data: Input array of body COM spatial velocities [m/s, rad/s]. Shape is (num_envs, num_bodies).
         env_mask: Input array of environment mask. Shape is (num_envs,).
         body_mask: Input array of body mask. Shape is (num_bodies,).
-        body_com_velocity_w: Output array where body COM velocities are written. Shape is (num_envs, num_bodies).
-        body_acc_w: Output array where body accelerations are zeroed. Shape is (num_envs, num_bodies).
+        body_com_velocity_w: Output array where body COM velocities [m/s, rad/s] are written.
+            Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations [m/s^2, rad/s^2] are zeroed. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
     if env_mask[i] and body_mask[j]:
@@ -1025,15 +1026,17 @@ def set_body_link_velocity_to_sim_mask(
     selected environments and bodies.
 
     Args:
-        data: Input array of body link spatial velocities. Shape is (num_envs, num_bodies).
-        body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
-        body_link_pose_w: Input array of body link poses in world frame. Shape is (num_envs, num_bodies).
+        data: Input array of body link spatial velocities [m/s, rad/s]. Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame [m]. Shape is (num_envs, num_bodies).
+        body_link_pose_w: Input array of body link poses in world frame (position [m] and quaternion).
+            Shape is (num_envs, num_bodies).
         env_mask: Input array of environment mask. Shape is (num_envs,).
         body_mask: Input array of body mask. Shape is (num_bodies,).
-        body_link_velocity_w: Output array where body link velocities are written. Shape is (num_envs, num_bodies).
-        body_com_velocity_w: Output array where body COM velocities (derived from link) are written.
+        body_link_velocity_w: Output array where body link velocities [m/s, rad/s] are written.
             Shape is (num_envs, num_bodies).
-        body_acc_w: Output array where body accelerations are zeroed. Shape is (num_envs, num_bodies).
+        body_com_velocity_w: Output array where body COM velocities [m/s, rad/s], derived from link, are written.
+            Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations [m/s^2, rad/s^2] are zeroed. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
     if env_mask[i] and body_mask[j]:
@@ -1118,37 +1121,26 @@ def write_2d_data_to_buffer_with_indices_kernel(
 
 
 @wp.kernel
-def _write_2d_data_to_buffer_with_mask(
-    in_data: wp.array2d(dtype=Any),
+def write_2d_data_to_buffer_with_mask(
+    in_data: wp.array2d(dtype=wp.float32),
     env_mask: wp.array(dtype=wp.bool),
     joint_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=Any),
+    out_data: wp.array2d(dtype=wp.float32),
 ):
-    """Write 2D data to a buffer where both masks are true.
+    """Write 2D float data to a buffer at specified indices.
+
+    This kernel copies float data from an input array to an output buffer at the specified
+    environment and joint/body indices.
 
     Args:
-        in_data: Input array. Shape is (num_instances, num_joints).
+        in_data: Input array containing float data. Shape is (num_instances, num_joints).
         env_mask: Input array of environment mask. Shape is (num_instances,).
-        joint_mask: Input array of joint/body/tendon mask. Shape is (num_joints,).
+        joint_mask: Input array of joint/body mask. Shape is (num_instances, num_joints).
         out_data: Output array where data is written. Shape is (num_instances, num_joints).
     """
     i, j = wp.tid()
     if env_mask[i] and joint_mask[j]:
         out_data[i, j] = in_data[i, j]
-
-
-@functools.cache
-def write_2d_data_to_buffer_with_mask_kernel(dtype: type) -> wp.Kernel:
-    """Select the masked 2-D buffer writer for the buffer's ``dtype``.
-
-    Launching the generic kernel directly resolves its types on every launch (about twice the host cost), and
-    cannot take torch input.
-    """
-    array_type = wp.array2d(dtype=dtype)
-    return wp.overload(_write_2d_data_to_buffer_with_mask, {"in_data": array_type, "out_data": array_type})
-
-
-write_2d_data_to_buffer_with_mask = write_2d_data_to_buffer_with_mask_kernel(wp.float32)
 
 
 @wp.func

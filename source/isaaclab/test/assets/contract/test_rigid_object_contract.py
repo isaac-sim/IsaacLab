@@ -295,10 +295,22 @@ def test_writer_reads_back_full_and_partial_writes(monkeypatch, backend, device,
         and backend != "ovphysx"
     ):
         # Collection mask writers given ``body_ids`` write only those bodies of the masked environments.
-        update = _payload(shape, trailing, offset=200.0, device=device)
-        method(**{kwarg: update}, env_mask=selectors["env_mask"], body_ids=[num_bodies - 1])
-        expected[-1, -1] = update[-1, -1]
-        torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
+        last_body = num_bodies - 1
+        for offset, body_ids in enumerate(
+            ([last_body], wp.array([last_body], dtype=wp.int64, device=device), slice(None, last_body - 1, -2)),
+            start=2,
+        ):
+            update = _payload(shape, trailing, offset=100.0 * offset, device=device)
+            method(**{kwarg: update}, env_mask=selectors["env_mask"], body_ids=body_ids)
+            expected[-1, -1] = update[-1, -1]
+            torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
+        if backend == "newton":
+            # A short mask writes only the rows it covers, even when the memory past its end selects more rows.
+            update = _payload(shape, trailing, offset=500.0, device=device)
+            short_mask = wp.ones(_NUM_INSTANCES, dtype=wp.bool, device=device)[: _NUM_INSTANCES - 1]
+            method(**{kwarg: update[: _NUM_INSTANCES - 1]}, env_mask=short_mask)
+            expected[: _NUM_INSTANCES - 1] = update[: _NUM_INSTANCES - 1]
+            torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
 
     # Data with an extra environment is rejected for torch and warp inputs.
     bad = _payload((_NUM_INSTANCES + 1, *shape[1:]), trailing, device=device)

@@ -518,6 +518,20 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
             method(**{kwarg: 1.0})
             _assert_reads_back(read(), torch.ones_like(expected), f"{writer} scalar")
 
+    if writer == "set_fixed_tendon_position_limit":
+        # Limit pairs whose components are strided in memory write as contiguous ones do.
+        expected = _payload(shape, trailing, dtype, device, offset=200.0)
+        method(**{kwarg: expected.repeat_interleave(2, dim=-1)[..., ::2]})
+        _assert_reads_back(read(), expected, f"{writer} strided")
+
+    if backend == "newton" and selection == "mask" and not writer.endswith("_target"):
+        # A short mask writes only the rows it covers, even when the memory past its end selects more rows.
+        expected = read().torch.clone()
+        values = _payload(shape, trailing, dtype, device, offset=300.0)
+        method(**{kwarg: values[: N - 1], "env_mask": _mask(N, range(N), device)[: N - 1]})
+        expected[: N - 1] = values[: N - 1]
+        _assert_reads_back(read(), expected, f"{writer} short mask")
+
     extra_env = _payload((N + 1, *shape[1:]), trailing, dtype, device)
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: extra_env})
