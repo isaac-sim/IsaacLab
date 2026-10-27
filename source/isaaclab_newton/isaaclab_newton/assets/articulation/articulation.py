@@ -3434,7 +3434,7 @@ class Articulation(BaseArticulation):
             self._model_init_handle.deregister()
             self._model_init_handle = None
         # Remove the post-step republish hook registered in ``_create_buffers`` so the
-        # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
+        # bound method does not linger on the backend's post-step callbacks after
         # this articulation is gone (registered only for non-identity ordering).
         post_step_callback = getattr(self, "_post_step_callback", None)
         if post_step_callback is not None:
@@ -3580,8 +3580,10 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            # Only the active solver's manager knows whether this solver transmits to tendons.
-            self._fixed_tendon_control = self._backend_manager.create_fixed_tendon_control(self)
+            # Only the solver knows whether it transmits to tendons.
+            backend = self._backend_manager.backend
+            solver_cfg = backend.cfg.solver_cfg
+            self._fixed_tendon_control = solver_cfg.class_type.fixed_tendon_control(solver_cfg, self, backend.model)
 
     """
     Internal helpers -- Debugging.
