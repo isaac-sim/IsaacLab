@@ -943,17 +943,30 @@ class NewtonVisualizerBase(BaseVisualizer):
         rtx_index = getattr(self, "rtx_view_index", None)
         if rtx_index is not None:
             rtx_on = self.rtx_rendering
+            sensor = self.sensor_view_selected
+            if sensor:  # The sensor draws its own image, so the choice would only leave the sensor view.
+                imgui.begin_disabled()
             imgui.text("Renderer")
             imgui.same_line()
-            if imgui.radio_button("OpenGL", not rtx_on) and rtx_on:
+            if imgui.radio_button("OpenGL", not rtx_on and not sensor) and rtx_on:
                 self.set_rtx_rendering(False)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("Fast rasterizer with visual overlays, markers, and Policy Ghosts")
+            if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+                imgui.set_tooltip(
+                    "Fast rasterizer with visual overlays, markers, and Policy Ghosts"
+                    if not sensor
+                    else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
+                )
             imgui.same_line()
             if imgui.radio_button("RTX", rtx_on) and not rtx_on:
                 self.set_rtx_rendering(True)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("OVRTX path-traced rendering of the scene; slower, without visual overlays")
+            if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+                imgui.set_tooltip(
+                    "OVRTX path-traced rendering of the scene; slower, without visual overlays"
+                    if not sensor
+                    else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
+                )
+            if sensor:
+                imgui.end_disabled()
         self._draw_focal_length(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
         indices = sorted(
@@ -982,7 +995,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         follower = self._followers.get(self._pose_source_view())
         if follower is not None:
             self._draw_tracking_camera_controls(imgui, follower)
-        elif self.current_image_view.camera is not None and not self.rtx_rendering:
+        elif self.sensor_view_selected:
             self._draw_sensor_controls(imgui, self.current_image_view)
         self._draw_camera_info(imgui)
 
@@ -1891,6 +1904,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             ):
                 return index
         return None
+
+    @property
+    def sensor_view_selected(self) -> bool:
+        """Whether the main view shows a scene sensor, which is rendered by its own renderer."""
+        view = self.current_image_view
+        return view is not None and view.camera is not None and not self.rtx_rendering
 
     @property
     def rtx_rendering(self) -> bool:

@@ -1476,3 +1476,16 @@ def test_sensor_labels_name_the_outputs_of_the_sensor():
     assert label("/World/Camera", ["distance_to_image_plane", "normals"]) == "Camera (depth + normals sensor)"
     assert label("/World/Camera", ["motion_vectors"]) == "Camera (sensor)"
     assert label("/World/Camera") == "Camera (sensor)"
+
+
+def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
+    visualizer = object.__new__(NewtonGLVisualizer)
+    free, sensor = (
+        SimpleNamespace(camera=None),
+        SimpleNamespace(camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera"))),
+    )
+    rtx = SimpleNamespace(camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx")))
+    visualizer._image_views = [free, sensor, rtx]
+    for view, selected in ((free, False), (sensor, True), (rtx, False)):
+        visualizer.current_image_view = view
+        assert visualizer.sensor_view_selected is selected
