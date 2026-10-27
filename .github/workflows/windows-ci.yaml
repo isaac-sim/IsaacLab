@@ -169,10 +169,6 @@ jobs:
       - name: Report cache growth
         id: caches-growth
         if: ${{ !cancelled() && steps.caches-restored.outcome == 'success' }}
-        env:
-          WARP_BEFORE: ${{ steps.caches-restored.outputs.warp-fingerprint }}
-          KIT_BEFORE: ${{ steps.caches-restored.outputs.kit-fingerprint }}
-          KITLESS_BEFORE: ${{ steps.caches-restored.outputs.kitless-fingerprint }}
         run: uv run --frozen --no-sync python .github/scripts/windows_ci_caches.py growth
 
       - name: Save Warp kernel cache

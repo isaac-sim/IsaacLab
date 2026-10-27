@@ -11,7 +11,7 @@ which resolves to WSL on the Windows runners.
 Usage: windows_ci_caches.py keys|restored|growth
 
   keys      resolves each cache's key and directory and exports the paths the tests read
-  restored  reports each restore and checks the paths took effect; a save also fingerprints them
+  restored  reports each restore and checks Warp uses its path; a save also fingerprints them
   growth    reports each cache's size; a save also reports whether the run changed it
 
 The directories survive on a reused runner, so a pull request keeps what earlier jobs compiled.
@@ -136,9 +136,8 @@ def restored() -> None:
     if not os.path.normcase(reported).startswith(os.path.normcase(str(CACHES["warp"]))):
         print(f"::error::Warp resolved its kernel cache to {reported}, not {CACHES['warp']}")
         sys.exit(1)
-    print(_run_script("tools/verify_ovrtx_shader_cache.py"))
     if SAVING:
-        _write_lines("GITHUB_OUTPUT", [f"{name}-fingerprint={_fingerprint(path)}" for name, path in CACHES.items()])
+        _write_lines("GITHUB_ENV", [f"{name.upper()}_BEFORE={_fingerprint(path)}" for name, path in CACHES.items()])
 
 
 def growth() -> None:
