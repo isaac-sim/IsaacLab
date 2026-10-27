@@ -35,11 +35,7 @@ Select ``newton_steel`` under ``physics=`` for tasks that offer the Steel solver
          </label>
          <label class="environment-inline-field">
            <span>--viz</span>
-           <select data-environment-field="visualizer" aria-label="Visualizer">
-             <option value="">None</option>
-             <option value="newton_gl">newton_gl</option>
-             <option value="kit">kit</option>
-           </select>
+           <select data-environment-field="visualizer" aria-label="Visualizer"></select>
          </label>
        </div>
        <div class="environment-command-row environment-command-row-options">
