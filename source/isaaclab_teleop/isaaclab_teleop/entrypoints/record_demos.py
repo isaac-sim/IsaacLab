@@ -46,6 +46,7 @@ import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.cli import load_external_tasks
 from isaaclab.devices import DeviceCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -773,6 +774,8 @@ def record_demos(
 
 def run_record_demos_cli(argv: list[str] | None = None) -> int:
     """Record demonstrations from command-line arguments, excluding the program name."""
+    # tasks from installed downstream projects, including for the script and ``isaaclab teleop``
+    load_external_tasks()
     original_argv = sys.argv
     try:
         _parse_args(argv)

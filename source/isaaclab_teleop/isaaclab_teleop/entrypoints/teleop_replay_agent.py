@@ -266,6 +266,7 @@ import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.cli import load_external_tasks
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils._manual_success import _prepare_success_term
@@ -1602,6 +1603,8 @@ def run_teleop_replay_agent_cli(argv: list[str] | None = None) -> int:
     Returns:
         The exit code documented in the module docstring.
     """
+    # tasks from installed downstream projects, including for the script and ``isaaclab teleop``
+    load_external_tasks()
     original_argv = sys.argv
     try:
         _parse_args(argv)
