@@ -84,7 +84,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         articulation = _generate_single_joint_articulations(num_articulations=2, device=device)
         sim.reset()
 
-        solver = sim.backend_manager._solver
+        solver = sim.backend_manager.backend.solver
         assert isinstance(solver, SolverMuJoCo)
         warm_start = wp.to_torch(solver.mjw_data.qacc_warmstart)
         assert warm_start.shape[0] == 2

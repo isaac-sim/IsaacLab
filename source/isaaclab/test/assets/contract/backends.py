@@ -97,10 +97,10 @@ def requires(name: str) -> pytest.MarkDecorator:
 
 def physx_manager():
     """Return a PhysX manager with gravity and a scene-data backend, without creating a physics scene."""
-    from isaaclab_physx.physics import PhysxManager
+    from isaaclab_physx.physics import PhysxCfg, PhysxManager
     from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
 
-    manager = PhysxManager()
+    manager = PhysxManager(PhysxCfg())
     physics_sim_view = MagicMock()
     physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     manager.get_physics_sim_view = MagicMock(return_value=physics_sim_view)
@@ -111,9 +111,10 @@ def physx_manager():
 
 def ovphysx_manager():
     """Return an OVPhysX manager with the scene-data backend whose transform version the writers bump."""
+    from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 
-    manager = OvPhysxManager()
+    manager = OvPhysxManager(OvPhysxCfg())
     manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
     return manager
 
@@ -187,7 +188,8 @@ def newton_manager(num_instances: int, device: str) -> MagicMock:
     """Return a NewtonManager double with a gravity-carrying model and no solver."""
     model = MagicMock(world_count=num_instances)
     model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
-    manager = MagicMock(_solver=None)
-    manager.get_model.return_value = model
-    manager.get_state_0.return_value = manager.get_state_1.return_value = MagicMock()
+    manager = MagicMock()
+    manager.backend.solver = None
+    manager.backend.model = model
+    manager.backend.state_0 = manager.backend.state_1 = MagicMock()
     return manager
