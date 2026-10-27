@@ -18,3 +18,9 @@
   apply to any solver that does not use Newton's collision pipeline, e.g. Kamino's own collision detector and MPM.
 * Changed :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to reject ``None``; omit it to use
   :class:`~isaaclab_newton.physics.NewtonManager`.
+* Changed MJWarp under a determinism request to build with its sensor stage disabled instead of raising when
+  :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` is ``False``; the configuration is no longer
+  modified. Tasks whose sensors read attributes only that stage fills (IMU/PVA ``body_qdd``, joint wrench
+  ``body_parent_f``) still raise.
+* Changed MJWarp with :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu` to step eagerly instead of
+  capturing a CUDA graph.

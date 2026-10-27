@@ -279,8 +279,8 @@ class CouplerSolver(NewtonSolver):
 
     @classmethod
     def prepare_builder(cls, cfg: CouplerCfg, builder: ModelBuilder) -> None:
-        """Prepare the shared builder once per distinct entry solver configuration type."""
-        for entry_cfg in {type(entry.solver_cfg): entry.solver_cfg for entry in cfg.entries}.values():
+        """Prepare the shared builder once per distinct entry solver class."""
+        for entry_cfg in {entry.solver_cfg.class_type: entry.solver_cfg for entry in cfg.entries}.values():
             entry_cfg.class_type.prepare_builder(entry_cfg, builder)
 
     @classmethod

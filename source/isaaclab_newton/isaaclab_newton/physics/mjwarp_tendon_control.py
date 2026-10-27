@@ -15,8 +15,8 @@ resolution and shape checking rather than restating them. The command buffer its
 :class:`~isaaclab_newton.assets.ArticulationData`, beside the other fixed-tendon buffers.
 
 Tendon submission is solver-specific -- ``mujoco.ctrl`` exists only under MJWarp -- so it lives
-beside the MJWarp solver configuration rather than in the backend-neutral actuator control. The articulation
-owns the target buffer and asks its manager to submit; only :class:`~isaaclab_newton.physics.MJWarpSolverCfg`
+beside the MJWarp solver rather than in the backend-neutral actuator control. The articulation
+owns the target buffer and asks its manager to submit; only :class:`~isaaclab_newton.physics.MJWarpSolver`
 imports this module.
 """
 

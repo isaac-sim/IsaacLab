@@ -11,7 +11,7 @@ import newton
 import pytest
 import warp as wp
 from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, reset_mpm_solver_state
-from isaaclab_newton.physics import mpm_solver as mpm_manager_module
+from isaaclab_newton.physics import mpm_solver as mpm_solver_module
 from newton.solvers import SolverImplicitMPM
 
 
@@ -84,7 +84,7 @@ def test_mpm_manager_explicit_reset_promotes_selected_single_world(monkeypatch):
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
     backend = SimpleNamespace(model=SimpleNamespace(world_count=1), solver=solver)
-    monkeypatch.setattr(mpm_manager_module, "implicit_mpm_solvers", lambda root: (root,))
+    monkeypatch.setattr(mpm_solver_module, "implicit_mpm_solvers", lambda root: (root,))
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
 
     reset_mpm_solver_state(backend, state=state, world_mask=world_mask, flags=0)
@@ -99,7 +99,7 @@ def test_mpm_manager_explicit_reset_deduplicates_manager_states(monkeypatch):
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
     backend = SimpleNamespace(model=SimpleNamespace(world_count=2), state_0=state_0, state_1=state_1, solver=solver)
-    monkeypatch.setattr(mpm_manager_module, "implicit_mpm_solvers", lambda root: (root,))
+    monkeypatch.setattr(mpm_solver_module, "implicit_mpm_solvers", lambda root: (root,))
     world_mask = wp.array([True, False, False], dtype=wp.bool, device="cpu")
 
     reset_mpm_solver_state(backend, world_mask=world_mask, flags=17)

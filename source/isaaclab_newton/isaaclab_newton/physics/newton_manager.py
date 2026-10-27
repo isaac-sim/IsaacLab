@@ -453,7 +453,8 @@ class NewtonManager(PhysicsManager):
 
         self._mark_transforms_changed()
 
-        cfg.solver_cfg.class_type.check_step(cfg.solver_cfg, backend.solver, use_graph, cfg.debug_mode)
+        captured = self._graph is not None
+        cfg.solver_cfg.class_type.check_step(cfg.solver_cfg, backend.solver, captured, cfg.debug_mode)
 
     def close(self) -> None:
         """Clean up Newton physics resources."""
