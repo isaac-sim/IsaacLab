@@ -125,9 +125,9 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
         collider.write_root_link_pose_to_sim_index(root_pose=root_pose)
         sim.step(render=False)
 
-        body_labels = list(sim.backend_manager.get_model().body_label)
+        body_labels = list(sim.backend_manager.backend.model.body_label)
         body_idx = body_labels.index("/World/envs/env_0/KinematicBox")
-        body_q = sim.backend_manager.get_state_0().body_q.numpy()[body_idx]
+        body_q = sim.backend_manager.backend.state_0.body_q.numpy()[body_idx]
 
         np.testing.assert_allclose(body_q, root_pose.detach().cpu().numpy()[0], rtol=1.0e-5, atol=1.0e-6)
 
