@@ -113,6 +113,31 @@ def test_create_resets_env_args_when_reusing_handler(temp_dir):
     assert env_args == {"env_name": "second_env", "type": 2}
 
 
+def test_convert_dataset_to_xyzw_updates_format_version(temp_dir):
+    """Converted datasets should load their XYZW quaternions without converting them again."""
+    input_path = os.path.join(temp_dir, "legacy.hdf5")
+    output_path = os.path.join(temp_dir, "converted.hdf5")
+    with h5py.File(input_path, "w") as dataset:
+        dataset.attrs["format_version"] = 0
+        data = dataset.create_group("data")
+        data.attrs["env_args"] = json.dumps({"env_name": "test_env_name"})
+        episode = data.create_group("demo_0")
+        episode.create_dataset("root_pose", data=[[1.0, 2.0, 3.0, 1.0, 0.0, 0.0, 0.0]])
+
+    HDF5DatasetFileHandler.convert_dataset_to_xyzw(input_path, output_path)
+
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.open(output_path)
+    try:
+        assert dataset_file_handler.get_format_version() == 1
+        loaded_episode = dataset_file_handler.load_episode("demo_0", device="cpu")
+        torch.testing.assert_close(
+            loaded_episode.data["root_pose"], torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float64)
+        )
+    finally:
+        dataset_file_handler.close()
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_write_and_load_episode(temp_dir, device):
     """Test writing and loading an episode to and from the dataset file."""

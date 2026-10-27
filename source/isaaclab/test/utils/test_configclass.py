@@ -79,7 +79,7 @@ def double(x):
 
 
 @configclass
-class ModifierCfg:
+class TensorProcessorCfg:
     params: dict[str, Any] = {"A": 1, "B": 2}
 
 
@@ -111,7 +111,7 @@ class BasicDemoCfg:
     device_id: int = 0
     env: EnvCfg = EnvCfg()
     robot_default_state: RobotDefaultStateCfg = RobotDefaultStateCfg()
-    list_config = [ModifierCfg(), ModifierCfg(params={"A": 3, "B": 4})]
+    list_config = [TensorProcessorCfg(), TensorProcessorCfg(params={"A": 3, "B": 4})]
 
 
 @configclass
