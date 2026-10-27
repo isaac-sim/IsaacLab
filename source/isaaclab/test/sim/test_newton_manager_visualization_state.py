@@ -117,7 +117,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonCfg, NewtonManager
+    from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSolverCfg
     from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
@@ -126,12 +126,14 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"),
         body_f=wp.zeros(1, dtype=wp.spatial_vectorf, device="cpu"),
     )
-    owner = NewtonManager(NewtonCfg())
+    owner = NewtonManager(
+        NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=SimpleNamespace(reset=Mock(), eval_fk=Mock())))
+    )
+    eval_fk = owner._cfg.solver_cfg.class_type.eval_fk
     owner._device = "cpu"
     backend = NewtonSceneDataBackend(owner)
     provider = SceneDataProvider(backend)
 
-    eval_fk = Mock()
     newton_backend = SimpleNamespace(
         model=SimpleNamespace(body_count=1, world_count=1),
         state_0=state,
@@ -144,7 +146,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     monkeypatch.setattr(owner, "_scene_data_backend", backend)
     # Fabric may bind between native allocation and solver initialization.
     assert backend.transforms.transforms is state.body_q
-    newton_backend.solver = SimpleNamespace(reset=Mock(), eval_fk=eval_fk)
+    newton_backend.solver = object()
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()

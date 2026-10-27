@@ -850,7 +850,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         picking_supported = (
             physics_backend is not None
             and physics_backend.solver is not None
-            and physics_backend.solver.applies_body_forces()
+            and physics_backend.cfg.solver_cfg.class_type.applies_body_forces(
+                physics_backend.cfg.solver_cfg, physics_backend.solver
+            )
         )
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:

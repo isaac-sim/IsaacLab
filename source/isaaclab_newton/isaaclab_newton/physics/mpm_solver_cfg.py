@@ -22,7 +22,7 @@ class MPMSolverCfg(NewtonSolverCfg):
     as colliders. It is not a rigid-body or articulation dynamics solver.
     """
 
-    class_type: type | str = "{DIR}.mpm_solver:MPMSolver"
+    class_type: type | str = "{DIR}.mpm_solver:MPMSolverFunctions"
 
     solver_type: str = "implicit_mpm"
     """Solver type. Can be "implicit_mpm"."""

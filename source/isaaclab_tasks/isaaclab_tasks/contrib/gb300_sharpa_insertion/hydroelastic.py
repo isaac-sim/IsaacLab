@@ -35,7 +35,7 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
     cable.include_static_shapes = False
     cable.shape_label_patterns = [r"/World/GroundPlane/.*"]
     cable.solver_cfg = cable.solver_cfg.replace(
-        class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:EndpointVBDSolver"
+        class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:EndpointVBDSolverFunctions"
     )
     physics.solver_cfg = CouplerProxyCfg(
         entries=[rigid, cable],

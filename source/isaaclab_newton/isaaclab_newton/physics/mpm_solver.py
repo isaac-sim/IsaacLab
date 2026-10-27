@@ -19,7 +19,7 @@ from warp.fem import TemporaryStore
 from isaaclab.sim import SimulationContext
 
 from .mpm_solver_cfg import MPMSolverCfg
-from .newton_solver import NewtonSolver
+from .newton_solver import NewtonSolverFunctions
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -200,11 +200,9 @@ def mpm_solver_config(cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
     return _make_solver_config(cfg, scene_prim)
 
 
-class MPMSolver(NewtonSolver):
+class MPMSolverFunctions(NewtonSolverFunctions):
     """Newton's implicit MPM solver, which steps particle materials in place on one state."""
 
-    cfg: MPMSolverCfg
-    native: SolverImplicitMPM
     solver_class = SolverImplicitMPM
     single_state = True
 
@@ -239,36 +237,54 @@ class MPMSolver(NewtonSolver):
             return "uses MPMSolverCfg and must set in_place=True"
         return None
 
-    def build_native(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverImplicitMPM:
+    @classmethod
+    def build(
+        cls, cfg: MPMSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
+    ) -> SolverImplicitMPM:
         """Construct implicit MPM from the configuration authored on the active physics scene."""
-        return self.solver_class(model, mpm_solver_config(self.cfg), temporary_store=TemporaryStore())
+        return cls.solver_class(model, mpm_solver_config(cfg), temporary_store=TemporaryStore())
 
-    def applies_body_forces(self) -> bool:
+    @classmethod
+    def applies_body_forces(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:
         return False
 
-    def supports_capture(self) -> bool:
-        return mpm_supports_graph_capture(self.native)
+    @classmethod
+    def supports_capture(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:
+        return mpm_supports_graph_capture(solver)
 
-    def uses_collision_pipeline(self) -> bool:
+    @classmethod
+    def uses_collision_pipeline(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:
         return False
 
-    def step(self, state_in: State, state_out: State, control: Control, contacts: Contacts | None, dt: float) -> None:
+    @classmethod
+    def step(
+        cls,
+        cfg: MPMSolverCfg,
+        solver: SolverImplicitMPM,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+    ) -> None:
         """Run one implicit MPM substep, optionally projecting particles out of collider interiors."""
-        self.native.step(state_in, state_out, control, contacts, dt)
-        if self.cfg.project_outside_colliders:
-            self.native.project_outside(state_out, state_out, dt)
+        solver.step(state_in, state_out, control, contacts, dt)
+        if cfg.project_outside_colliders:
+            solver.project_outside(state_out, state_out, dt)
 
-    def reset(self, state: State, world_mask: wp.array) -> None:
+    @classmethod
+    def reset(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM, state: State, world_mask: wp.array) -> None:
         """Keep implicit-MPM history across automatic asset resets.
 
         Shared-grid MPM cannot reset history for a subset of worlds. Tasks with independent MPM worlds that need an
         exact history reset call :func:`reset_mpm_solver_state` after authoring their state.
         """
 
-    def check_step(self, captured: bool, debug: bool) -> None:
+    @classmethod
+    def check_step(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM, captured: bool, debug: bool) -> None:
         """Raise asynchronous sparse-grid rebuild failures after a graph replay."""
         if captured:
-            self.native.check_sparse_grid_rebuild_status()
+            solver.check_sparse_grid_rebuild_status()
 
 
 def reset_mpm_solver_state(
@@ -294,7 +310,7 @@ def reset_mpm_solver_state(
         RuntimeError: If the MPM solver or a usable state is not initialized.
         ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
     """
-    solver = backend.solver.native if backend.solver is not None else None
+    solver = backend.solver
     if not implicit_mpm_solvers(solver):
         raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
     model = backend.model

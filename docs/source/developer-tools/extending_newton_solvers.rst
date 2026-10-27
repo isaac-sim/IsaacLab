@@ -3,9 +3,9 @@
 Extending Newton Solvers
 ========================
 
-To add a Newton solver or a custom coupled solver, write an Isaac Lab solver, a
-:class:`~isaaclab_newton.physics.NewtonSolver` subclass, and its configuration, a
-:class:`~isaaclab_newton.physics.NewtonSolverCfg` subclass whose ``class_type`` selects it. The sections below explain
+To add a Newton solver or a custom coupled solver, write its solver functions, a
+:class:`~isaaclab_newton.physics.NewtonSolverFunctions` subclass, and its configuration, a
+:class:`~isaaclab_newton.physics.NewtonSolverCfg` subclass whose ``class_type`` selects them. The sections below explain
 what the solver overrides, resource ownership, and extension requirements.
 
 If you only need to select and configure a shipped solver, use the user-facing
@@ -20,16 +20,16 @@ When a New Solver Is Needed
 Every Newton solver runs through one generic path written against Newton's
 :class:`~newton.solvers.SolverBase` API: build the solver from the configuration fields matching its constructor,
 step it, reset it for masked worlds, evaluate forward kinematics, and collide with Newton's
-:class:`~newton.CollisionPipeline`. An Isaac Lab solver names its Newton solver class
-(:attr:`~isaaclab_newton.physics.NewtonSolver.solver_class`) and overrides capabilities and methods only where its
-solver differs. Write a new one when:
+:class:`~newton.CollisionPipeline`. Solver functions name their Newton solver class
+(:attr:`~isaaclab_newton.physics.NewtonSolverFunctions.solver_class`) and override capabilities and functions only
+where their solver differs. Write new ones when:
 
 * a Newton solver has no Isaac Lab configuration yet;
 * the solver needs its own construction, contact allocation, or reset handling;
 * several solvers must advance one shared model and the substep order is part
   of the algorithm.
 
-Do not write one when an existing solver can advance the whole model, or when
+Do not write them when an existing solver can advance the whole model, or when
 the scene can be partitioned into named solver entries. Partitioning is already
 covered by :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` and
 :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg`, which resolve into entry views over a
@@ -44,10 +44,10 @@ Responsibilities and Boundaries
 
 :class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model, and the
 :class:`~isaaclab_newton.physics.NewtonManager` drives it. The backend's solver
-(:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is the Isaac Lab solver, built with
-``instantiate(solver_cfg, model, mode)``; it owns Newton's solver as
-:attr:`~isaaclab_newton.physics.NewtonSolver.native`. A coupled solver builds each entry's Isaac Lab solver the same
-way and hands Newton the entry's ``native``.
+(:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is Newton's solver, built with
+``solver_cfg.class_type.build(solver_cfg, model, mode)``. The solver functions hold no state: each is a class method
+that takes the configuration and Newton's solver. A coupled solver builds each entry's Newton solver through the
+entry's own functions.
 
 .. list-table::
    :header-rows: 1
@@ -67,10 +67,10 @@ way and hands Newton the entry's ``native``.
      - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, and reset masks.
        A hard reset or close discards it.
    * - Solver configuration
-     - Solver parameters, and ``class_type``, which selects the Isaac Lab solver.
-   * - Isaac Lab solver
-     - Newton's solver (``native``), plus what differs from the generic path: construction, capabilities, stepping,
-       per-world reset of solver-owned buffers, forward kinematics, contacts, and builder preparation.
+     - Solver parameters, and ``class_type``, which selects the solver functions.
+   * - Solver functions
+     - What differs from the generic path: construction, capabilities, stepping, per-world reset of solver-owned
+       buffers, forward kinematics, contacts, and builder preparation.
    * - Coupler entry
      - A disjoint part of the shared model, when the solver configuration is a coupler.
 
@@ -83,7 +83,7 @@ Custom Managers
 
 To customize Isaac Lab integration, subclass ``NewtonManager`` and select it with
 ``NewtonCfg(class_type=MyManager, solver_cfg=...)``. Call the base implementation from overridden lifecycle methods.
-A custom solver only needs an Isaac Lab solver and its configuration, not a new manager.
+A custom solver only needs solver functions and their configuration, not a new manager.
 
 
 Lifecycle
@@ -95,7 +95,7 @@ Lifecycle
 
    * - Public call
      - What happens
-     - Isaac Lab solver
+     - Solver functions
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize`
      - Stores the simulation context and acquires the shared :attr:`~isaaclab_newton.physics.NewtonManager.builder`,
        created by :func:`~isaaclab_newton.physics.create_builder`. The cloner later imports declared prototypes and
@@ -105,7 +105,7 @@ Lifecycle
      - Dispatches ``MODEL_INIT``, finalizes the model into a new backend, dispatches ``PHYSICS_READY`` so consumers
        bind views, sensors, actuators, and step callbacks, then constructs the solver and contacts and runs FK. Does
        not advance physics. A soft reset keeps the backend.
-     - ``prepare_builder``, ``build_native``, ``init_state``, ``uses_collision_pipeline``,
+     - ``prepare_builder``, ``build``, ``init_state``, ``uses_collision_pipeline``,
        ``create_collision_pipeline``, ``create_contacts``, ``prepare_contacts``, ``eval_fk``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.step`
      - Runs :meth:`~isaaclab_newton.physics.NewtonManager.forward` for authored state, runs the first step after a
@@ -143,32 +143,33 @@ categories once at the next step.
 Extension Contract
 ------------------
 
-Subclass :class:`~isaaclab_newton.physics.NewtonSolver`, name the Newton solver class, and point a configuration at
-it. A solver whose constructor takes the configuration fields as keyword arguments needs nothing else:
+Subclass :class:`~isaaclab_newton.physics.NewtonSolverFunctions`, name the Newton solver class, and point a
+configuration at it. A solver whose constructor takes the configuration fields as keyword arguments needs nothing
+else:
 
 .. code-block:: python
 
    from isaaclab.utils import configclass
-   from isaaclab_newton.physics import NewtonSolver, NewtonSolverCfg
+   from isaaclab_newton.physics import NewtonSolverCfg, NewtonSolverFunctions
 
    from my_package.solvers import SolverMySolver
 
 
-   class MySolver(NewtonSolver):
+   class MySolverFunctions(NewtonSolverFunctions):
        solver_class = SolverMySolver
        deterministic = True
 
 
    @configclass
    class MySolverCfg(NewtonSolverCfg):
-       class_type: type | str = "my_package.my_solver:MySolver"
+       class_type: type | str = "my_package.my_solver:MySolverFunctions"
 
        iterations: int = 16
 
-``MySolver(cfg, model, mode, env_template)`` builds Newton's solver into
-:attr:`~isaaclab_newton.physics.NewtonSolver.native` and keeps ``cfg``; it holds no other state, so state a solver
-needs between steps belongs on Newton's solver. Methods called before the model exists are class methods that take the
-configuration. Override only what differs:
+``MySolverFunctions.build(cfg, model, mode, env_template)`` returns Newton's solver. Every function is a class method:
+functions called before the model exists take the configuration, and the rest also take Newton's solver, e.g.
+``MySolverFunctions.reset(cfg, solver, state, world_mask)``. State a solver needs between steps belongs on Newton's
+solver. Override only what differs:
 
 .. list-table::
    :header-rows: 1
@@ -177,7 +178,7 @@ configuration. Override only what differs:
    * - Member
      - Meaning
    * - ``solver_class``
-     - Newton solver class that ``build_native`` constructs.
+     - Newton solver class that ``build`` constructs.
    * - ``single_state``, ``deterministic``, ``contact_sensors``
      - Class-level capabilities: stepping in place on one ``State``, honoring a Warp determinism guarantee, and
        readable contacts for Newton contact sensors.
@@ -191,7 +192,7 @@ configuration. Override only what differs:
    * - ``applied_deterministic_mode``, ``coupling_error``
      - The determinism mode the solver runs with for a request, and why the solver cannot run as a coupled-solver
        entry.
-   * - ``build_native``
+   * - ``build``
      - Construct Newton's solver for a model, given the determinism mode and the clone plan's environment template.
    * - ``init_state``
      - Initialize the output state of double-buffered solvers before capture.
@@ -213,11 +214,11 @@ configuration. Override only what differs:
    * - ``fixed_tendon_control``
      - Build a fixed-tendon command adapter (MJWarp only).
 
-A task that needs a different Newton solver class subclasses the Isaac Lab solver it extends and selects it through
-its configuration's ``class_type``: a custom VBD solver only sets ``solver_class``, and a custom implicit MPM solver
-overrides ``build_native`` around ``isaaclab_newton.physics.mpm_solver.mpm_solver_config``, which keeps the shared MPM
+A task that needs a different Newton solver class subclasses the solver functions it extends and selects them through
+its configuration's ``class_type``: custom VBD functions only set ``solver_class``, and custom implicit MPM functions
+override ``build`` around ``isaaclab_newton.physics.mpm_solver.mpm_solver_config``, which keeps the shared MPM
 configuration resolution. Subclass a Newton solver only to change the physics; integration behavior belongs in the
-Isaac Lab solver. Raise from a method on an unsupported configuration rather than silently degrading.
+solver functions. Raise from a method on an unsupported configuration rather than silently degrading.
 
 
 Coupling Paths
@@ -237,17 +238,17 @@ The four architectures differ in what drives the substep loop:
      - :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` partitions the model
        into named entries and builds a Newton coupled solver that exposes source
        bodies to the destination solver as proxies and returns lagged feedback.
-       Each entry's Isaac Lab solver is built from the entry's own
+       Each entry's Newton solver is built through the entry's own
        configuration. No new manager is required.
    * - ADMM coupling
      - :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` uses the same manager
        and entry model, but Newton creates symmetric interface constraints and
        iterates the sub-solvers. No new manager is required.
    * - Custom shared-model solver
-     - ``build_native`` returns a :class:`newton.solvers.SolverBase` subclass
+     - ``build`` returns a :class:`newton.solvers.SolverBase` subclass
        that holds several sub-solvers, built from their own configurations,
        and fixes the substep order in its ``step()``.
-       :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver`
+       :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverFunctions`
        is the in-tree example. Its Newton solver clears force accumulators, detects
        contacts once, injects soft-to-rigid reactions into ``body_f`` when
        ``coupling_mode="two_way"``, then advances MJWarp on its own internal

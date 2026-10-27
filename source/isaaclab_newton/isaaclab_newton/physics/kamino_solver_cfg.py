@@ -236,7 +236,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     .. _Newton Kamino documentation: https://newton-physics.github.io/newton/latest/
     """
 
-    class_type: type | str = "{DIR}.kamino_solver:KaminoSolver"
+    class_type: type | str = "{DIR}.kamino_solver:KaminoSolverFunctions"
 
     solver_type: str = "kamino"
     """Solver type. Can be "kamino"."""

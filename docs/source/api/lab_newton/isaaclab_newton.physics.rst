@@ -17,13 +17,13 @@
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
     NewtonShapeCfg
-    NewtonSolver
-    MJWarpSolver
-    VBDSolver
-    XPBDSolver
-    FeatherstoneSolver
-    KaminoSolver
-    MPMSolver
+    NewtonSolverFunctions
+    MJWarpSolverFunctions
+    VBDSolverFunctions
+    XPBDSolverFunctions
+    FeatherstoneSolverFunctions
+    KaminoSolverFunctions
+    MPMSolverFunctions
     NewtonSolverCfg
     MJWarpSolverCfg
     VBDSolverCfg
@@ -63,25 +63,25 @@ Physics Manager
 Solvers
 -------
 
-.. autoclass:: NewtonSolver
+.. autoclass:: NewtonSolverFunctions
   :members:
 
-.. autoclass:: MJWarpSolver
+.. autoclass:: MJWarpSolverFunctions
   :show-inheritance:
 
-.. autoclass:: VBDSolver
+.. autoclass:: VBDSolverFunctions
   :show-inheritance:
 
-.. autoclass:: XPBDSolver
+.. autoclass:: XPBDSolverFunctions
   :show-inheritance:
 
-.. autoclass:: FeatherstoneSolver
+.. autoclass:: FeatherstoneSolverFunctions
   :show-inheritance:
 
-.. autoclass:: KaminoSolver
+.. autoclass:: KaminoSolverFunctions
   :show-inheritance:
 
-.. autoclass:: MPMSolver
+.. autoclass:: MPMSolverFunctions
   :show-inheritance:
 
 Actuator Solver Access

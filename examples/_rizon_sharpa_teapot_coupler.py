@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_contrib.coupling import CouplerSolver
+from isaaclab_contrib.coupling import CouplerSolverFunctions
 from newton import BodyFlags, GeoType, StateFlags
 from newton.solvers.experimental.coupled import SolverCoupled
 from scipy.spatial import ConvexHull
@@ -150,7 +150,7 @@ def repair_teapot_hulls(builder: ModelBuilder) -> None:
             builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
 
 
-class TeapotSolver(CouplerSolver):
+class TeapotSolverFunctions(CouplerSolverFunctions):
     """Couple the dynamic grasped pot to its exact MPM collision shell."""
 
     @classmethod
@@ -159,5 +159,6 @@ class TeapotSolver(CouplerSolver):
         repair_teapot_hulls(builder)
         super().prepare_builder(cfg, builder)
 
-    def construct_native(self, model, entries, proxies, mode):
+    @classmethod
+    def build_coupled(cls, cfg, model, entries, proxies, mode):
         return TeapotColliderSyncSolver(model=model, entries=entries)

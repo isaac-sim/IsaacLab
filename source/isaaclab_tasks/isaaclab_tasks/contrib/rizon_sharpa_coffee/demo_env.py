@@ -28,7 +28,7 @@ from .assets import (
 )
 from .attachment import MountedSpoonAttachment
 from .demo_env_cfg import CoffeeDemoEnvCfg, configure_scene
-from .physics import SolverCoffeeMPM, configure_spoon_rim_margin
+from .physics import CoffeeMPMSolver, configure_spoon_rim_margin
 from .robot import PALM_BODY_NAME
 
 
@@ -93,8 +93,8 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         )
         (solver,) = (
             solver
-            for solver in implicit_mpm_solvers(self.sim.backend_manager.backend.solver.native)
-            if isinstance(solver, SolverCoffeeMPM)
+            for solver in implicit_mpm_solvers(self.sim.backend_manager.backend.solver)
+            if isinstance(solver, CoffeeMPMSolver)
         )
         configure_spoon_rim_margin(solver, self.cfg.spoon_rim_margin_scale)
         if self.cfg.water_enabled:

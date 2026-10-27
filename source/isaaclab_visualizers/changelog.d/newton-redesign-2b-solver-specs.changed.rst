@@ -1,1 +1,1 @@
-* Changed the Newton visualizer to ask the backend's solver whether it accepts applied body forces.
+* Changed the Newton visualizer to ask the solver functions whether the solver accepts applied body forces.

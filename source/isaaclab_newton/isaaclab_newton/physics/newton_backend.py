@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 from newton import CollisionPipeline, Contacts, ModelBuilder, State
 from newton.sensors import SensorContact, SensorIMU
+from newton.solvers import SolverBase
 
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.buffers import TimestampedBuffer
@@ -27,7 +28,6 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from .newton_backend_cfg import NewtonBackendCfg
-    from .newton_solver import NewtonSolver
 
 SiteEntry = tuple[int, None] | tuple[None, list[list[int]]]
 """Resolved site: ``(global_shape_index, None)`` for a global site, or ``(None, per_world_indices)``."""
@@ -114,8 +114,8 @@ class NewtonBackend:
         """Next state written by the solver."""
         self.control = self.model.control()
         """Joint targets and applied forces read by the solver."""
-        self.solver: NewtonSolver | None = None
-        """Isaac Lab solver, set when the manager initializes it; Newton's solver is ``solver.native``."""
+        self.solver: SolverBase | None = None
+        """Newton solver, set when the manager initializes it."""
         self.collision_pipeline: CollisionPipeline | None = None
         """Collision pipeline, or ``None`` when the solver collides internally."""
         self.contacts: Contacts | None = None

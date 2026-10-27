@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kamino solver implementation."""
+"""Kamino solver functions."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import warp as wp
 from newton import Model, State
 from newton.solvers import SolverKamino
 
-from .newton_solver import NewtonSolver
+from .newton_solver import NewtonSolverFunctions
 
 if TYPE_CHECKING:
     from .kamino_solver_cfg import _KaminoSolverCfgBase
@@ -22,11 +22,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class KaminoSolver(NewtonSolver):
+class KaminoSolverFunctions(NewtonSolverFunctions):
     """Newton's Kamino solver, which resets its internals through forward kinematics."""
 
-    cfg: _KaminoSolverCfgBase
-    native: SolverKamino
     solver_class = SolverKamino
 
     @classmethod
@@ -36,19 +34,21 @@ class KaminoSolver(NewtonSolver):
             " coupled-solver entry API"
         )
 
-    def build_native(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverKamino:
+    @classmethod
+    def build(
+        cls, cfg: _KaminoSolverCfgBase, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
+    ) -> SolverKamino:
         """Construct Kamino, capping contacts per world; the FK solver requires one articulation per environment.
 
         Unless :attr:`~_KaminoSolverCfgBase.use_fk_solver` chose explicitly, the FK solver is enabled for
-        loop-closing articulations; :attr:`cfg` keeps the resolved copy.
+        loop-closing articulations.
         """
-        cfg = self.cfg
         if cfg.use_fk_solver is None:
             start, end = model.articulation_start, model.articulation_end
             loop_closing = start is not None and end is not None and bool(end.shape[0])
             # Loop-closing joints are stored after an articulation's tree joints.
             loop_closing = loop_closing and bool((start.numpy()[1:] > end.numpy()).any())
-            cfg = self.cfg = cfg.replace(use_fk_solver=loop_closing)
+            cfg = cfg.replace(use_fk_solver=loop_closing)
         if cfg.max_contacts_per_world is not None:
             model.rigid_contact_max = int(cfg.max_contacts_per_world) * model.world_count
             logger.info(
@@ -63,27 +63,38 @@ class KaminoSolver(NewtonSolver):
                 f" has {model.articulation_count} articulations across {model.world_count} environments."
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
-        return self.solver_class(model, cfg.to_solver_config())
+        return cls.solver_class(model, cfg.to_solver_config())
 
-    def init_state(self, state: State) -> None:
+    @classmethod
+    def init_state(cls, cfg: _KaminoSolverCfgBase, solver: SolverKamino, state: State) -> None:
         """Initialize the output state's persistent Kamino buffers; FK initializes the input state."""
-        self.native.reset(state, config=self.native.ResetConfig.preserve())
+        solver.reset(state, config=solver.ResetConfig.preserve())
 
-    def uses_collision_pipeline(self) -> bool:
-        return not self.cfg.use_collision_detector
+    @classmethod
+    def uses_collision_pipeline(cls, cfg: _KaminoSolverCfgBase, solver: SolverKamino) -> bool:
+        return not cfg.use_collision_detector
 
-    def reset(self, state: State, world_mask: wp.array) -> None:
+    @classmethod
+    def reset(cls, cfg: _KaminoSolverCfgBase, solver: SolverKamino, state: State, world_mask: wp.array) -> None:
         """Skip the generic reset; :meth:`eval_fk` performs the masked Kamino reset."""
 
-    def eval_fk(self, state: State, world_mask: wp.array | None, fk_mask: wp.array | None) -> None:
+    @classmethod
+    def eval_fk(
+        cls,
+        cfg: _KaminoSolverCfgBase,
+        solver: SolverKamino,
+        state: State,
+        world_mask: wp.array | None,
+        fk_mask: wp.array | None,
+    ) -> None:
         """Update body state from joint coordinates and reset Kamino's internals for masked worlds.
 
         With :attr:`~_KaminoSolverCfgBase.use_fk_solver`, Kamino's loop-closure forward kinematics writes a consistent
         joint and body state. Otherwise Newton's articulated ``eval_fk`` runs over ``fk_mask``, and the caller is
-        responsible for constraint-consistent joint values.
+        responsible for constraint-consistent joint values. The solver's own configuration holds the resolved choice.
         """
-        if self.cfg.use_fk_solver:
-            self.native.reset(state, world_mask=world_mask, config=self.native.ResetConfig.from_joints())
+        if solver._config.use_fk_solver:
+            solver.reset(state, world_mask=world_mask, config=solver.ResetConfig.from_joints())
             return
-        super().eval_fk(state, world_mask, fk_mask)
-        self.native.reset(state, world_mask=world_mask, config=self.native.ResetConfig.preserve())
+        super().eval_fk(cfg, solver, state, world_mask, fk_mask)
+        solver.reset(state, world_mask=world_mask, config=solver.ResetConfig.preserve())

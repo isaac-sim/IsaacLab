@@ -10,15 +10,9 @@ from types import SimpleNamespace
 import newton
 import pytest
 import warp as wp
-from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, reset_mpm_solver_state
+from isaaclab_newton.physics import MPMSolverCfg, MPMSolverFunctions, reset_mpm_solver_state
 from isaaclab_newton.physics import mpm_solver as mpm_manager_module
 from newton.solvers import SolverImplicitMPM
-
-
-def _bind_backend(solver, backend):
-    """Return ``backend`` with Isaac Lab's solver around Newton's ``solver`` attached."""
-    backend.solver = SimpleNamespace(native=solver)
-    return backend
 
 
 @pytest.fixture(scope="module")
@@ -47,7 +41,7 @@ def cpu_mpm_solver_and_state():
         warmstart_mode="none",
         transfer_scheme="pic",
     )
-    solver = MPMSolver(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED).native
+    solver = MPMSolverFunctions.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
     return solver, model.state()
 
 
@@ -62,7 +56,7 @@ def test_mpm_manager_explicit_reset_accepts_canonical_mask(cpu_mpm_solver_and_st
         newton_reset(self, state, world_mask=world_mask, flags=flags)
 
     monkeypatch.setattr(SolverImplicitMPM, "reset", record_reset)
-    backend = _bind_backend(solver, SimpleNamespace(model=solver.model))
+    backend = SimpleNamespace(model=solver.model, solver=solver)
     world_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
 
     reset_mpm_solver_state(backend, state=state, world_mask=world_mask, flags=0)
@@ -77,7 +71,7 @@ def test_mpm_manager_explicit_reset_accepts_canonical_mask(cpu_mpm_solver_and_st
 def test_mpm_manager_explicit_reset_rejects_local_only_mask(cpu_mpm_solver_and_state, monkeypatch):
     """The explicit API requires the final global-world entry."""
     solver, state = cpu_mpm_solver_and_state
-    backend = _bind_backend(solver, SimpleNamespace(model=solver.model))
+    backend = SimpleNamespace(model=solver.model, solver=solver)
     local_only_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
 
     with pytest.raises(ValueError, match=r"world_mask must have shape \(3,\); got \(2,\)"):
@@ -89,7 +83,7 @@ def test_mpm_manager_explicit_reset_promotes_selected_single_world(monkeypatch):
     state = object()
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
-    backend = _bind_backend(solver, SimpleNamespace(model=SimpleNamespace(world_count=1)))
+    backend = SimpleNamespace(model=SimpleNamespace(world_count=1), solver=solver)
     monkeypatch.setattr(mpm_manager_module, "implicit_mpm_solvers", lambda root: (root,))
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
 
@@ -104,8 +98,7 @@ def test_mpm_manager_explicit_reset_deduplicates_manager_states(monkeypatch):
     state_1 = object()
     calls = []
     solver = SimpleNamespace(reset=lambda *args, **kwargs: calls.append((args, kwargs)))
-    backend = SimpleNamespace(model=SimpleNamespace(world_count=2), state_0=state_0, state_1=state_1)
-    _bind_backend(solver, backend)
+    backend = SimpleNamespace(model=SimpleNamespace(world_count=2), state_0=state_0, state_1=state_1, solver=solver)
     monkeypatch.setattr(mpm_manager_module, "implicit_mpm_solvers", lambda root: (root,))
     world_mask = wp.array([True, False, False], dtype=wp.bool, device="cpu")
 

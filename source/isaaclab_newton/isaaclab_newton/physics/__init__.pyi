@@ -5,7 +5,7 @@
 
 __all__ = [
     "create_newton_builder",
-    "FeatherstoneSolver",
+    "FeatherstoneSolverFunctions",
     "FeatherstoneSolverCfg",
     "HydroelasticSDFCfg",
     "KaminoCollisionDetectorCfg",
@@ -17,11 +17,11 @@ __all__ = [
     "KaminoMaterialsCfg",
     "KaminoPADMMCfg",
     "KaminoPADMMSolverCfg",
-    "KaminoSolver",
-    "MJWarpSolver",
+    "KaminoSolverFunctions",
+    "MJWarpSolverFunctions",
     "MJWarpSolverCfg",
     "MjWarpActuatorBridge",
-    "MPMSolver",
+    "MPMSolverFunctions",
     "MPMSolverCfg",
     "NewtonBackend",
     "NewtonBackendCfg",
@@ -34,18 +34,18 @@ __all__ = [
     "reset_mpm_solver_state",
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
-    "NewtonSolver",
+    "NewtonSolverFunctions",
     "NewtonSolverCfg",
     "create_builder",
-    "VBDSolver",
+    "VBDSolverFunctions",
     "VBDSolverCfg",
-    "XPBDSolver",
+    "XPBDSolverFunctions",
     "XPBDSolverCfg",
 ]
 
-from .featherstone_solver import FeatherstoneSolver
+from .featherstone_solver import FeatherstoneSolverFunctions
 from .featherstone_solver_cfg import FeatherstoneSolverCfg
-from .kamino_solver import KaminoSolver
+from .kamino_solver import KaminoSolverFunctions
 from .kamino_solver_cfg import (
     KaminoCollisionDetectorCfg,
     KaminoConstraintsCfg,
@@ -58,9 +58,9 @@ from .kamino_solver_cfg import (
     KaminoPADMMSolverCfg,
 )
 from .mjwarp_actuator_bridge import MjWarpActuatorBridge
-from .mjwarp_solver import MJWarpSolver
+from .mjwarp_solver import MJWarpSolverFunctions
 from .mjwarp_solver_cfg import MJWarpSolverCfg
-from .mpm_solver import MPMSolver, reset_mpm_solver_state
+from .mpm_solver import MPMSolverFunctions, reset_mpm_solver_state
 from .mpm_solver_cfg import MPMSolverCfg
 from .newton_backend import NewtonBackend, NewtonCloneRecord
 from .newton_backend_cfg import NewtonBackendCfg
@@ -69,8 +69,8 @@ from .newton_builder_cfg import NewtonBuilderCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
 from .newton_manager import NewtonManager, NewtonQueries, create_newton_builder
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSoftContactCfg, NewtonSolverCfg
-from .newton_solver import NewtonSolver
-from .vbd_solver import VBDSolver
+from .newton_solver import NewtonSolverFunctions
+from .vbd_solver import VBDSolverFunctions
 from .vbd_solver_cfg import VBDSolverCfg
-from .xpbd_solver import XPBDSolver
+from .xpbd_solver import XPBDSolverFunctions
 from .xpbd_solver_cfg import XPBDSolverCfg

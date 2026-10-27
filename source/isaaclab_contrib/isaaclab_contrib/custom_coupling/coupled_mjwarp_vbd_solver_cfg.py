@@ -18,7 +18,7 @@ from isaaclab.utils import configclass
 class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """Configuration for the custom MJWarp and VBD coupled solver."""
 
-    class_type: type | str = "{DIR}.coupled_mjwarp_vbd_solver:CoupledMJWarpVBDSolver"
+    class_type: type | str = "{DIR}.coupled_mjwarp_vbd_solver:CoupledMJWarpVBDSolverFunctions"
 
     rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
     """MJWarp rigid-body solver configuration."""

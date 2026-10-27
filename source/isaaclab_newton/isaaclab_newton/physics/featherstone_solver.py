@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Featherstone solver implementation."""
+"""Featherstone solver functions."""
 
 from newton import ModelFlags
 from newton.solvers import SolverFeatherstone
 
-from .newton_solver import NewtonSolver
+from .newton_solver import NewtonSolverFunctions
 
 
-class FeatherstoneSolver(NewtonSolver):
+class FeatherstoneSolverFunctions(NewtonSolverFunctions):
     """Newton's Featherstone solver, which double-buffers state."""
 
     solver_class = SolverFeatherstone

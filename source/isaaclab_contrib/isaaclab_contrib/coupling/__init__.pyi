@@ -9,10 +9,10 @@ __all__ = [
     "CouplerEntryCfg",
     "CouplerProxyMappingCfg",
     "CouplerProxyCfg",
-    "CouplerSolver",
+    "CouplerSolverFunctions",
 ]
 
-from .coupler import CouplerSolver
+from .coupler import CouplerSolverFunctions
 from .coupler_cfg import (
     CouplerAdmmCfg,
     CouplerCfg,
