@@ -373,6 +373,7 @@ def _following_visualizer(monkeypatch, cameras):
     visualizer._start_cameras = cameras
     poses = []
     monkeypatch.setattr(visualizer, "set_camera_view", lambda eye, target: poses.append((eye, target)))
+    monkeypatch.setattr(visualizer, "_set_viewport_focal_length", lambda focal_length: None)
     return visualizer, poses
 
 
@@ -435,3 +436,14 @@ def test_only_a_followed_asset_is_reapplied_every_step(monkeypatch):
     poses.clear()
     visualizer._update_asset_follow_camera()
     assert len(poses) == 1
+
+
+def test_following_applies_the_task_views_lens_to_the_viewport_camera(monkeypatch):
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    task = PerspectiveCameraCfg(env_index=0, track_path="robot", focal_length=26.0)
+    visualizer, _ = _following_visualizer(monkeypatch, [task, PerspectiveCameraCfg()])
+    lenses = []
+    monkeypatch.setattr(visualizer, "_set_viewport_focal_length", lenses.append)
+    visualizer._setup_initial_camera_view()
+    assert lenses == [26.0]

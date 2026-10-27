@@ -494,6 +494,7 @@ class KitVisualizer(BaseVisualizer):
             heading_smoothing_time_constant=template.heading_smoothing_time_constant if same_asset else 0.0,
         )
         self._follower = CameraFollower(self._follow_view, scene)
+        self._set_viewport_focal_length(self._follow_view.focal_length)
         self._update_follow_camera()
 
     def unfollow(self) -> None:
@@ -830,6 +831,14 @@ class KitVisualizer(BaseVisualizer):
         camera_state = ViewportCameraState(camera_path, self._viewport_api)
         camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), False)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
+
+    def _set_viewport_focal_length(self, focal_length: float) -> None:
+        """Set the lens of the viewport camera [mm], in the session layer so the user's stage is left alone."""
+        camera_path = (self._viewport_api.get_active_camera() if self._viewport_api is not None else None) or (
+            _DEFAULT_VIEWPORT_CAMERA_PATH
+        )
+        with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
+            UsdGeom.Camera.Define(self._sim.stage, camera_path).GetFocalLengthAttr().Set(float(focal_length))
 
     def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
         """Apply eye/target camera pose directly to a USD camera prim.

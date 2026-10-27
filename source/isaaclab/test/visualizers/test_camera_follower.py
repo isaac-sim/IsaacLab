@@ -110,6 +110,10 @@ def test_task_views_get_a_free_view_beside_them():
     assert with_free_view([task], *args)[0].eye == (1.0, 2.0, 3.0)
     assert len(with_free_view([task], *args)) == 2
     assert with_free_view([free, task], *args) == [free, task]
+    # scene cameras declared ahead of the task view stay first
+    sensor = SceneCameraCfg(prim_path="/cam")
+    views = with_free_view([sensor, task], *args)
+    assert views[0] is sensor and views[1].eye == (1.0, 2.0, 3.0) and views[2] is task
     assert with_free_view([SceneCameraCfg(prim_path="/cam")], *args) == [SceneCameraCfg(prim_path="/cam")]
     # a task view first does not replace the visualizer's own pose or its streaming choice
     cfg = VisualizerCfg(eye=(7.0, 0.0, 0.0), streaming_view=True, cameras=[task])

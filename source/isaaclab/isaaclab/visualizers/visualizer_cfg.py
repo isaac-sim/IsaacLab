@@ -33,14 +33,17 @@ def with_free_view(
     lookat: tuple[float, float, float],
     focal_length: float,
 ) -> list[PerspectiveCameraCfg | SceneCameraCfg]:
-    """Return *cameras*, preceded by a free perspective view when it has task views but no free view of its own.
+    """Return *cameras* with a free perspective view added when it has task views but no free view of its own.
 
     A task view follows a robot or frames an environment, so the interactive view that a user moves stays
-    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``.
+    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``. The free view goes
+    right before the first task view, so scene cameras declared ahead of it stay first.
     """
     perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
     if perspective and all(camera.is_task_view for camera in perspective):
-        return [PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length), *cameras]
+        free = PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length)
+        first_task = next(i for i, camera in enumerate(cameras) if isinstance(camera, PerspectiveCameraCfg))
+        return [*cameras[:first_task], free, *cameras[first_task:]]
     return cameras
 
 
