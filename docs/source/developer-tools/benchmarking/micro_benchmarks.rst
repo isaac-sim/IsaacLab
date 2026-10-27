@@ -93,6 +93,12 @@ and data artifacts. Existing result ingestion continues to work. Methods cover
 supported state writes, targets, forces, and material or mass properties. Data
 benchmarks cover backend-supported cached and derived properties.
 
+Packed root and body state readers are included for articulations and rigid
+objects. Their pose and velocity dependencies are prepared outside the timed
+call. Automatic cyclic garbage collection is suspended during each batch of
+timed asset calls, then its previous state is restored. Newton mock callbacks
+do not retain call histories.
+
 Equivalent sets exist under:
 
 * ``source/isaaclab_physx/benchmark/assets/``
