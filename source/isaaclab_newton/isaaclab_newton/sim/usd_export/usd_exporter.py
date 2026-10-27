@@ -105,6 +105,12 @@ class UsdExporter(BaseUsdExporter):
 
     The baseline is Isaac Lab's model builder, which holds the values of the stage before any asset writes
     its configuration to the model. A value is written where the live model differs from it.
+
+    The file is meant for Newton's USD import (:meth:`newton.ModelBuilder.add_usd`) with the solver's custom
+    attributes registered and the Newton, PhysX and, for MuJoCo, MuJoCo schema resolvers. USD cannot yet
+    state Newton's substeps and collision pipeline settings, nor a joint target mode other than the one the
+    import infers from the gains; the export warns about these. Terrain that Isaac Lab collides as a
+    heightfield is imported as its mesh.
     """
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:

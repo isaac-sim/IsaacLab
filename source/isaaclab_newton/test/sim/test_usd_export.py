@@ -17,7 +17,7 @@ from pxr import Sdf, Usd, UsdPhysics
 
 
 def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=None):
-    """Initialize the fixture scene, export it, and capture the live model for comparison."""
+    """Initialize the fixture scene, export it, and capture the live model and its rollout for comparison."""
     from isaaclab_newton.physics import NewtonCfg
 
     from isaaclab.scene import InteractiveScene
@@ -38,7 +38,33 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
         manager = sim.backend_manager
         live = _capture(manager.get_model(), manager.get_state_0().body_q, env_id)
         solver_type = type(manager._solver)
-    return output, live, solver_type
+        # The engine's own construction of the solver, stepped from the model's initial state.
+        motion = _rollout(manager.get_model(), type(manager)._create_solver(manager.get_model(), solver_cfg))
+    return output, live, solver_type, motion
+
+
+def _rollout(model, solver, steps=60, dt=1 / 120):
+    """Body positions after stepping the model's initial state without control input, keyed by body label."""
+    state_0, state_1, control = model.state(), model.state(), model.control()
+    newton.eval_fk(model, model.joint_q, model.joint_qd, state_0)
+    for _ in range(steps):
+        state_0.clear_forces()
+        solver.step(state_0, state_1, control, None, dt)
+        state_0, state_1 = state_1, state_0
+    return dict(zip(model.body_label, state_0.body_q.numpy()[:, :3]))
+
+
+def _newton_import(output, solver, device):
+    """Newton's own USD import of the exported file, as a consumer without Isaac Lab does it."""
+    from newton.usd import SchemaResolverMjc, SchemaResolverPhysx
+
+    builder = newton.ModelBuilder()
+    resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+    if solver == "mujoco":
+        newton.solvers.SolverMuJoCo.register_custom_attributes(builder)
+        resolvers.append(SchemaResolverMjc())
+    builder.add_usd(Usd.Stage.Open(output), schema_resolvers=resolvers)
+    return builder.finalize(device=device)
 
 
 def _capture(model, body_q, env_id):
@@ -98,27 +124,28 @@ def _assert_pose_equal(actual, expected):
     "solver,device,num_envs,env_id",
     [("xpbd", "cpu", 1, 0), ("xpbd", "cpu", 2, 1), ("mujoco", "cuda:0", 1, 0)],
 )
-def test_loading_the_export_reproduces_the_initialized_model(tmp_path, caplog, solver, device, num_envs, env_id):
-    """Every exported quantity of the loaded model equals the live model's, including config overrides."""
+def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog, solver, device, num_envs, env_id):
+    """Newton's own import of the file reproduces every live model value, including config overrides."""
     from isaaclab_newton.physics import MJWarpSolverCfg, XPBDSolverCfg
     from isaaclab_newton.sim.usd_export import UsdExporter
 
     if device.startswith("cuda") and not wp.is_cuda_available():
         pytest.skip("MuJoCo Warp requires CUDA.")
     solver_cfg = XPBDSolverCfg(iterations=7) if solver == "xpbd" else MJWarpSolverCfg(iterations=17)
-    output, live, solver_type = _export(tmp_path, solver_cfg, device, num_envs, env_id)
+    output, live, solver_type, motion = _export(tmp_path, solver_cfg, device, num_envs, env_id)
 
-    model, loaded_solver, dt = UsdExporter.load_usd(output, device=device)
-    loaded = _capture(model, model.body_q, 0)
-
+    _, loaded_solver, dt = UsdExporter.load_usd(output, device=device)
     assert type(loaded_solver) is solver_type
     assert dt == pytest.approx(1 / 120)
+    model = _newton_import(output, solver, device)
+    loaded = _capture(model, model.body_q, 0)
     if solver == "mujoco":
-        # MuJoCo options are stated on the physics scene, where Newton's importer reads them.
-        stage = Usd.Stage.Open(output)
-        scene = stage.GetPrimAtPath("/physicsScene")
-        assert scene.GetAttribute("mjc:option:iterations").Get() == 17
-        assert loaded_solver.mjw_model.opt.iterations == 17
+        # MuJoCo reads its options from the physics scene, so the default solver runs the configured one.
+        imported_solver = newton.solvers.SolverMuJoCo(model)
+        assert imported_solver.mjw_model.opt.iterations == 17
+        moved = _rollout(model, imported_solver)
+        for label, position in motion.items():
+            np.testing.assert_allclose(moved[label], position, atol=1e-4, err_msg=label)
     # The actuator configuration differs from the USD drive, so the export must carry it.
     hinge = f"/World/envs/env_{env_id}/Robot/Hinge:0"
     assert live["joint_target_ke", hinge] == pytest.approx(83.0)
@@ -139,7 +166,7 @@ def test_export_references_assets_and_keeps_one_environment(tmp_path):
     """The exported layer references the robot file instead of copying it, and drops other environments."""
     from isaaclab_newton.physics import XPBDSolverCfg
 
-    output, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", num_envs=2, env_id=0)
+    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu", num_envs=2, env_id=0)
 
     layer = Sdf.Layer.FindOrOpen(output)
     assert str(tmp_path / "robot.usda") in layer.externalReferences
@@ -158,7 +185,7 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     from isaaclab.actuators import IdealPDActuatorCfg
 
     actuator = IdealPDActuatorCfg(joint_names_expr=["Hinge"], stiffness=83.0, damping=4.5, actuator_effort_limit=12.0)
-    output, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator)
+    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator)
 
     stage = Usd.Stage.Open(output)
     hinge = UsdPhysics.DriveAPI(stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge"), "angular")
