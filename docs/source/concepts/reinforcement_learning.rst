@@ -67,8 +67,7 @@ Choose a library for the algorithms and configuration tools your experiment need
      - PyTorch, JAX, or NVIDIA Warp workflows, explicit multi-agent training,
        and support for different Gymnasium spaces
      - PPO, AMP, IPPO, and MAPPO with PyTorch, JAX or NVIDIA Warp. Different Gymnasium spaces.
-     - ``--extra skrl`` for PyTorch, ``--extra skrl-jax`` for JAX,
-       or ``--extra skrl-warp`` for NVIDIA Warp
+     - ``--extra skrl`` for PyTorch and NVIDIA Warp, or ``--extra skrl-jax`` for JAX
    * - **RL-Games**
      - Existing RL-Games projects or population-based workflows
      - PPO, SAC, A2C, population-based training, distributed training, and Ray
@@ -94,8 +93,8 @@ Install optional dependencies by selecting the corresponding ``uv`` extra when r
 .. code-block:: bash
 
    uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole
+   uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework warp
    uv run --extra skrl-jax isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework jax
-   uv run --extra skrl-warp isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework warp
    uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Cartpole
    uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole
    uv run --extra torchrl isaaclab train --rl_library torchrl --task Isaac-Cartpole
@@ -420,6 +419,19 @@ Use ``--algorithm IPPO`` to run the corresponding independent-policy workflow.
 The selected task must expose a multi-agent interface supported by the
 algorithm.
 
+skrl training with NVIDIA Warp
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+skrl can also train policies with NVIDIA Warp instead of PyTorch. This is useful when
+integrating with an NVIDIA Warp-based learning stack or experimenting with NVIDIA Warp
+compilation and execution:
+
+.. code-block:: bash
+
+   uv run --extra skrl isaaclab train --rl_library skrl \
+       --task Isaac-Reach-Franka \
+       --ml_framework warp
+
 skrl training with JAX
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -443,19 +455,6 @@ learner can share the available memory. See the `skrl installation guide
 <https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ and the `JAX
 installation guide <https://docs.jax.dev/en/latest/installation.html>`__ for
 more information.
-
-skrl training with NVIDIA Warp
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-skrl can also train policies with NVIDIA Warp instead of PyTorch. This is useful when
-integrating with an NVIDIA Warp-based learning stack or experimenting with NVIDIA Warp
-compilation and execution:
-
-.. code-block:: bash
-
-   uv run --extra skrl-warp isaaclab train --rl_library skrl \
-       --task Isaac-Reach-Franka \
-       --ml_framework warp
 
 RLinf VLA post-training
 ~~~~~~~~~~~~~~~~~~~~~~~

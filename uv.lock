@@ -1897,7 +1897,7 @@ all = [
     { name = "rich" },
     { name = "rl-games" },
     { name = "rsl-rl-lib" },
-    { name = "skrl" },
+    { name = "skrl", extra = ["torch", "warp"] },
     { name = "stable-baselines3" },
     { name = "standard-distutils" },
     { name = "tqdm" },
@@ -1985,14 +1985,11 @@ sb3 = [
     { name = "tqdm" },
 ]
 skrl = [
-    { name = "skrl" },
+    { name = "skrl", extra = ["torch", "warp"] },
 ]
 skrl-jax = [
     { name = "jax", version = "0.11.2", source = { registry = "https://pypi.org/simple" }, extra = ["cuda13"], marker = "sys_platform != 'win32'" },
     { name = "skrl", extra = ["jax"] },
-]
-skrl-warp = [
-    { name = "skrl", extra = ["warp"] },
 ]
 teleop = [
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
@@ -2125,9 +2122,8 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.5.1" },
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.5.1" },
     { name = "scipy", specifier = ">=1.11.0" },
-    { name = "skrl", marker = "extra == 'skrl'", specifier = ">=2.1.1" },
     { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.1" },
-    { name = "skrl", extras = ["warp"], marker = "extra == 'skrl-warp'", specifier = ">=2.1.1" },
+    { name = "skrl", extras = ["torch", "warp"], marker = "extra == 'skrl'", specifier = ">=2.1.1" },
     { name = "sphinx", marker = "extra == 'dev'", specifier = ">=7.0,<9" },
     { name = "sphinx-book-theme", marker = "extra == 'dev'", specifier = ">=1.1" },
     { name = "sphinx-copybutton", marker = "extra == 'dev'" },
@@ -2159,7 +2155,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-warp", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -5318,6 +5314,9 @@ jax = [
     { name = "jaxlib", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "jaxlib", version = "0.11.2", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "optax" },
+]
+torch = [
+    { name = "torch" },
 ]
 warp = [
     { name = "warp-lang" },

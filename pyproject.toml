@@ -149,8 +149,7 @@ dev = [
 
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 
-skrl = ["skrl>=2.1.1"]
-skrl-warp = ["skrl[warp]>=2.1.1"]
+skrl = ["skrl[torch,warp]>=2.1.1"]
 skrl-jax = ["jax[cuda13] ; sys_platform == 'linux'", "skrl[jax]>=2.1.1"]
 
 rl-games = [
