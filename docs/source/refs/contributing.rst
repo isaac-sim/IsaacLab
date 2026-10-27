@@ -545,6 +545,27 @@ For classes that own resources, expose explicit cleanup through ``close()`` or a
    .. literalinclude:: snippets/code_skeleton.py
       :language: python
 
+Shared Warp mathematics
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Coordinate transformations, rotations, intervals, and spatial algebra belong in
+``isaaclab.utils.warp.math``. Keep solver-specific gathering and scattering in backends.
+Use Warp built-ins when they express the operation, and delete superseded equations instead
+of retaining forwarding aliases without an external caller. Preserve quaternion ``xyzw``
+and spatial-vector ``(linear, angular)`` conventions explicitly; different frames or sentinel
+policies are not interchangeable.
+
+Use ``wp.map(..., return_kernel=True)`` for elementwise array launches instead of maintaining a
+custom mapping factory. Declare required variants in the semantic owner before launch or graph
+capture; Warp owns their generation and per-operation compilation modules. Supply zero-extent array
+descriptors and an explicit ``out`` descriptor to avoid allocating storage or specializing singleton
+broadcasting. The returned kernels preserve runtime array strides and use existing launch caches.
+Specialize structural choices; numerical values remain runtime inputs. Name factories
+``make_<operation>`` and shared math entry points by their operation, without a ``_kernel`` suffix.
+Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a device operation and
+an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
+Verify ownership and dependency direction as well as numerical behavior and capture replay.
+
 Circular Imports
 ^^^^^^^^^^^^^^^^
 

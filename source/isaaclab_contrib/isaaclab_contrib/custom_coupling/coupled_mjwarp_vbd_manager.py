@@ -54,7 +54,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             raise ValueError("The custom coupling manager requires MJWarp internal contacts.")
         if not solver_cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
             raise ValueError("The custom coupling manager requires VBD external rigid-body integration.")
-        if self._report_contacts:
+        if self.backend.contact_sensors:
             raise NotImplementedError("Newton contact sensors are not supported by the custom coupling manager.")
 
         self._coupling_mode = solver_cfg.coupling_mode
@@ -67,7 +67,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         )
 
         # The base lifecycle needs a solver slot; substeps use the two solvers above.
-        self._solver = SolverBase(model)
+        self.backend.solver = SolverBase(model)
         self._use_single_state = False
         self._supports_contact_sensors = False
         self._needs_collision_pipeline = True
@@ -118,13 +118,13 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         state_out.clear_forces()
 
         # 2. Detect deformable-rigid contacts.
-        self._collision_pipeline.collide(state_in, self._contacts)
+        self.backend.collision_pipeline.collide(state_in, self.backend.contacts)
 
         # 3. Advance rigid bodies without injected deformable reactions.
         self._rigid_step(state_in, state_out, control, dt)
 
         # 4. Advance particles using the updated rigid poses.
-        self._soft_solver.step(state_in, state_out, control, self._contacts, dt)
+        self._soft_solver.step(state_in, state_out, control, self.backend.contacts, dt)
 
     def _step_two_way(self, state_in: State, state_out: State, control: Control, dt: float) -> None:
         """Advance rigid bodies and particles with deformable reaction forces."""
@@ -132,7 +132,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         state_out.clear_forces()
 
         # 2. Detect contacts before advancing rigid bodies.
-        self._collision_pipeline.collide(state_in, self._contacts)
+        self.backend.collision_pipeline.collide(state_in, self.backend.contacts)
 
         # 3. Inject contact reactions before MJWarp consumes body_f.
         # The inactive state buffer supplies reference poses for friction velocity estimation.
@@ -144,7 +144,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         self._rigid_step(state_in, state_out, control, dt)
 
         # 5. Advance particles using the contacts detected above.
-        self._soft_solver.step(state_in, state_out, control, self._contacts, dt)
+        self._soft_solver.step(state_in, state_out, control, self.backend.contacts, dt)
 
     def _rigid_step(self, state_in: State, state_out: State, control: Control, dt: float) -> None:
         """Advance rigid bodies with the configured sub-solver."""
@@ -158,7 +158,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             state_prev: Inactive state buffer providing reference poses for friction velocity estimation.
             dt: Substep timestep [s].
         """
-        contacts = self._contacts
+        contacts = self.backend.contacts
         if contacts is None:
             return
 

@@ -215,7 +215,7 @@ def _newton_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering,
 
     manager = newton_manager(N, device)
     # Sizes of the lazy task-space buffers; the mock model holds only this homogeneous articulation batch.
-    model = view.model = manager.get_model.return_value
+    model = view.model = manager.backend.model
     total_dofs = J + (0 if is_fixed_base else 6)
     model.articulation_count = N
     model.max_joints_per_articulation = B

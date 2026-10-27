@@ -498,7 +498,7 @@ Cable limitations
     Topologies the runtime object rejects still simulate: the physics model is built from the whole
     USD stage, so every curve carrying ``PhysicsCurvesDeformableSimAPI`` is imported whether or not
     a :class:`~isaaclab.assets.CableObject` wraps it. Drive them through
-    :class:`~isaaclab_newton.physics.NewtonManager` ``get_model()`` / ``get_state_0()`` and your own
+    the :class:`~isaaclab_newton.physics.NewtonBackend` ``model`` / ``state_0`` and your own
     ``newton.selection.ArticulationView``. There is no Isaac Lab asset wrapper for those cases.
 
 
