@@ -80,6 +80,11 @@ class NewtonSolver:
         return mode
 
     @classmethod
+    def shares_materials(cls, cfg: NewtonSolverCfg) -> bool:
+        """Whether contacts read one material table shared by all environments instead of per-shape values."""
+        return False
+
+    @classmethod
     def coupling_error(cls, cfg: NewtonSolverCfg, in_place: bool) -> str | None:
         """Why the solver cannot run as a coupled-solver entry (stepping in place or not), or ``None``."""
         return None

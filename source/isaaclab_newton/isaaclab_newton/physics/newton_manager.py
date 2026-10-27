@@ -229,6 +229,12 @@ class NewtonManager(PhysicsManager):
         self.clear()
         self._scene_data_backend = NewtonSceneDataBackend(self)
 
+    @property
+    def shares_materials(self) -> bool:
+        """Whether contacts read one material table shared by all environments instead of per-shape values."""
+        solver_cfg = self._cfg.solver_cfg
+        return solver_cfg.class_type.shares_materials(solver_cfg)
+
     @classmethod
     def provides_implicit_damping(cls) -> bool:
         # Newton's symplectic integrator has no implicit damping.

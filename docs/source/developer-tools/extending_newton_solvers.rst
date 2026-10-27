@@ -192,6 +192,8 @@ solver. Override only what differs:
    * - ``applied_deterministic_mode``, ``coupling_error``
      - The determinism mode the solver runs with for a request, and why the solver cannot run as a coupled-solver
        entry.
+   * - ``shares_materials``
+     - Whether contacts read one material table shared by all environments, e.g. Kamino's own collision detector.
    * - ``build``
      - Construct Newton's solver for a model, given the determinism mode and the clone plan's environment template.
    * - ``init_state``

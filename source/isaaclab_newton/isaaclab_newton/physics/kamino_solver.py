@@ -28,6 +28,11 @@ class KaminoSolver(NewtonSolver):
     solver_class = SolverKamino
 
     @classmethod
+    def shares_materials(cls, cfg: _KaminoSolverCfgBase) -> bool:
+        """Kamino's own collision detector reads one material table; Newton's pipeline reads each shape."""
+        return cfg.use_collision_detector
+
+    @classmethod
     def coupling_error(cls, cfg: _KaminoSolverCfgBase, in_place: bool) -> str | None:
         return (
             "uses a Kamino solver config, whose FK/reset lifecycle cannot yet be preserved inside Newton's"
