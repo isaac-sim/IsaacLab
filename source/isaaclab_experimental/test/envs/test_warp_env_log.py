@@ -29,46 +29,30 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 _NUM_ENVS = 16
-_STEPS = 120
 
 
-def _make_env(task_id: str):
+def _env_cfg(task_id: str):
     env_cfg, _ = resolve_task_config(task_id, "", overrides=("physics=newton_mjwarp",))
     env_cfg.seed = 7
     env_cfg.scene.num_envs = _NUM_ENVS
     sim_utils.create_new_stage()
-    return WarpFrontend.build_env(env_cfg, task_id).unwrapped
+    return env_cfg
 
 
-def test_reset_logs_keep_their_values():
-    env = _make_env("Isaac-Cartpole")
-    logged = []
-    try:
-        env.reset()
-        # different pushes drive the carts out of bounds at different steps, so episode sums differ
-        push = torch.linspace(-0.3, 0.3, _NUM_ENVS, device=env.device)[:, None]
-        for _ in range(_STEPS):
-            _, _, terminated, truncated, extras = env.step(push)
-            if (terminated | truncated).any():
-                log = extras["log"]
-                logged.append((log, {key: value.clone() for key, value in log.items() if torch.is_tensor(value)}))
-    finally:
-        env.close()
-
-    first_values = logged[0][1]
-    assert any(not torch.equal(values[key], first_values[key]) for _, values in logged[1:] for key in first_values)
-    for log, values in logged:
-        for key, value in values.items():
-            assert torch.equal(log[key], value), key
+def _make_env(task_id: str):
+    return WarpFrontend.build_env(_env_cfg(task_id), task_id).unwrapped
 
 
-def test_base_env_reset_logs_keep_their_values(monkeypatch: pytest.MonkeyPatch):
-    env_cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
-    env_cfg.seed = 7
-    env_cfg.scene.num_envs = _NUM_ENVS
+def _make_base_env(task_id: str):
+    env_cfg = _env_cfg(task_id)
     WarpFrontend.adapt_cfg(env_cfg)
-    sim_utils.create_new_stage()
-    env = ManagerBasedEnvWarp(cfg=env_cfg)
+    return ManagerBasedEnvWarp(cfg=env_cfg)
+
+
+# the base and the RL environment each copy the log in their own ``_reset_mask``
+@pytest.mark.parametrize("make_env", [_make_base_env, _make_env], ids=["base", "rl"])
+def test_reset_logs_keep_their_values(make_env, monkeypatch: pytest.MonkeyPatch):
+    env = make_env("Isaac-Cartpole")
     logged = []
     try:
         # a manager logs a persistent buffer that it refreshes on every reset

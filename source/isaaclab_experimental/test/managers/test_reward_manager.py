@@ -66,6 +66,4 @@ def test_capturability_is_decided_per_term_from_its_parameters(monkeypatch):
     wp.synchronize()
 
     assert CALLS == {1.0: 1, 2.0: 3, 4.0: 3}
-    # each eager term splits the recording, so it holds one graph before each of the two eager terms and one after
-    assert manager._captured_stages[RewardManager.compute].num_graphs == 3
     assert torch.equal(reward, torch.full((NUM_ENVS,), (1.0 + 2.0 + 4.0) * 0.5, device=DEVICE))

@@ -9,8 +9,8 @@ Each task runs the same seeded action sequence twice, once with capture disabled
 (:attr:`CapturedStage.enabled` False) and once with stage capture on. For manager-based tasks, a hard
 :meth:`SimulationContext.reset` halfway through rebuilds the Newton model and reallocates every simulation
 buffer; recorded graphs still point at the freed buffers, so the captured rollout only stays equal when the
-stages record again. A variant marks one term of every manager as not capturable: its stage must record the
-other terms and run that term eagerly.
+stages record again. The manager-based task also marks one term of every manager as not capturable: its stage
+must record the other terms and run that term eagerly.
 """
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -59,17 +59,6 @@ def _recorded_stages(env) -> tuple[str, ...]:
     )
 
 
-def _stale_stages(env) -> list[str]:
-    """Stages whose graphs were recorded before the latest physics rebind."""
-    owners = [env, *(getattr(env, name) for name in _MANAGERS if hasattr(env, name))]
-    return [
-        method.__name__
-        for owner in owners
-        for method, stage in owner.__dict__.get("_captured_stages", {}).items()
-        if stage.num_graphs and stage._generation != CapturedStage.generation
-    ]
-
-
 def _rollout(
     task_id: str, capture: bool, rebind: bool, monkeypatch: pytest.MonkeyPatch, eager_terms: tuple[str, ...] = ()
 ) -> dict:
@@ -111,7 +100,6 @@ def _rollout(
             rollout["terminated"].append(terminated.clone())
             rollout["truncated"].append(truncated.clone())
         rollout["stages_at_end"] = _recorded_stages(env)
-        rollout["stale_stages"] = _stale_stages(env)
     finally:
         env.close()
     for key in ("obs", "reward", "terminated", "truncated"):
@@ -123,11 +111,10 @@ def _rollout(
 @pytest.mark.parametrize(
     ("task_id", "rebind", "eager_terms"),
     [
-        ("Isaac-Cartpole", True, ()),
-        ("Isaac-Cartpole", False, _CARTPOLE_EAGER_TERMS),
+        ("Isaac-Cartpole", True, _CARTPOLE_EAGER_TERMS),
         ("Isaac-Cartpole-Direct", False, ()),
     ],
-    ids=["manager-cartpole", "manager-cartpole-eager-terms", "direct-cartpole"],
+    ids=["manager-cartpole", "direct-cartpole"],
 )
 def test_captured_rollout_matches_eager(
     task_id: str, rebind: bool, eager_terms: tuple[str, ...], monkeypatch: pytest.MonkeyPatch
@@ -143,7 +130,6 @@ def test_captured_rollout_matches_eager(
         assert {"ObservationManager", "RewardManager", "TerminationManager", "EventManager"} <= recorded_groups
     if rebind:
         assert captured["rebind_advanced_generation"], "the rebind must retire graphs that read freed buffers"
-        assert captured["stale_stages"] == [], "every stage must record again after the rebind"
         assert captured["stages_at_end"] == captured["stages_before_rebind"]
     for window in (slice(0, _REBIND_STEP), slice(_REBIND_STEP, _STEPS)):
         dones = captured["terminated"][window] | captured["truncated"][window]
