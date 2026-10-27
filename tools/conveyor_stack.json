@@ -22,46 +22,88 @@
     }
   ],
   "snapshot": {
-    "base": "259e1a8cf79de53c52ca395599ac1cd9bc395b28",
+    "base": "d78054af53e326385b5e01f13bccf8964b431442",
     "components": [
       {
         "pr": 8327,
-        "name": "Experimental conveyor support in Contrib",
-        "head": "619e4d24e125a45668a8c95249984376c5e8a82c",
-        "merged": false
+        "head": "471d248be7deac4cd0abb179994472040ac42fef",
+        "merged": false,
+        "name": "Experimental conveyor support in Contrib"
       },
       {
         "pr": 8331,
-        "name": "Racetrack transfer task",
-        "head": "b702f94a3074fc3816df7aa35c5240c771ff65fa",
-        "merged": false
+        "head": "b02ce3980a46e3f9a11e2155773d8c56c4da001b",
+        "merged": false,
+        "name": "Racetrack transfer task"
       },
       {
         "pr": 8332,
-        "name": "Warehouse sorting task",
-        "head": "8ff9bf90dbc270fd9fe51b4070118e585db2d13e",
-        "merged": false
+        "head": "6408fc369205c5d6a67b2e511c32e05b157955c6",
+        "merged": false,
+        "name": "Warehouse sorting task"
       },
       {
         "pr": 8794,
-        "name": "Optional native CPU PhysX support",
-        "head": "fbe9220ded233c3cf102bfa8c14251d3e2350872",
-        "merged": false
+        "head": "bdf751ea5d681e84d2d8eef9f1e4e8372db5210f",
+        "merged": false,
+        "name": "Optional native CPU PhysX support"
       }
     ],
     "checks": [
-      "38 focused cases passed: 13 task/geometry, 4 warehouse assets, 15 Newton/spec, 5 optional PhysX and the existing native triangle-mesh owner case",
-      "Native mesh replacement matches 90 mesh inputs and 16 finalized Newton geometry/material arrays; stock cuboid colors match all six original callers",
-      "Single-pass visual stripping preserves physics ownership; normalized warehouse geometry/materials/cameras match after correcting the old duplicate robot height",
-      "84 action/tool/reset tensors and 261 dispatcher tensors match; existing keepers reject duplicate robot elevation and cross-environment slot broadcast mutations",
-      "Newton GPU checkpoint: eight environments, 1200 steps, 15 transfers, zero failures/non-finite observations",
-      "Optional PhysX native probe: two CPU environments, 135 steps, 16 surfaces, no fall-through; partial/full/hard reset and repeated close passed",
-      "Full formatting/lint/changelog/LFS, lock consistency and generated environment-browser checks passed",
-      "Clean strict Sphinx HTML build passed; existing JPEG previews retained"
+      "Combined CPU and CUDA physical transport/reset/close tests passed.",
+      "Conveyor specification, optional PhysX, geometry, warehouse asset, MDP and clone-ownership tests passed.",
+      "Every changed source file matches a freshly reviewed component; three integration-only files are unchanged.",
+      "Full formatting/lint/changelog hooks passed on the combined tree."
     ],
     "limitations": [
-      "Warehouse checkpoint model_1100: paired corrected historical/new scenes each completed zero transfers in two environments over 2400 steps (seed 41), with zero failures/non-finite observations; sorting capability remains unvalidated"
+      "Full racetrack/warehouse policy rollouts and native PhysX task acceptance remain historical; warehouse policy success is not established."
     ],
-    "checked_at": "2026-10-25T18:51:48.568549+00:00"
-  }
+    "checked_at": "2026-10-27T05:33:25.419524+00:00",
+    "refresh_mode": "normal merges preserving prior integration and component history"
+  },
+  "snapshot_history": [
+    {
+      "base": "259e1a8cf79de53c52ca395599ac1cd9bc395b28",
+      "components": [
+        {
+          "pr": 8327,
+          "name": "Experimental conveyor support in Contrib",
+          "head": "619e4d24e125a45668a8c95249984376c5e8a82c",
+          "merged": false
+        },
+        {
+          "pr": 8331,
+          "name": "Racetrack transfer task",
+          "head": "b702f94a3074fc3816df7aa35c5240c771ff65fa",
+          "merged": false
+        },
+        {
+          "pr": 8332,
+          "name": "Warehouse sorting task",
+          "head": "8ff9bf90dbc270fd9fe51b4070118e585db2d13e",
+          "merged": false
+        },
+        {
+          "pr": 8794,
+          "name": "Optional native CPU PhysX support",
+          "head": "fbe9220ded233c3cf102bfa8c14251d3e2350872",
+          "merged": false
+        }
+      ],
+      "checks": [
+        "38 focused cases passed: 13 task/geometry, 4 warehouse assets, 15 Newton/spec, 5 optional PhysX and the existing native triangle-mesh owner case",
+        "Native mesh replacement matches 90 mesh inputs and 16 finalized Newton geometry/material arrays; stock cuboid colors match all six original callers",
+        "Single-pass visual stripping preserves physics ownership; normalized warehouse geometry/materials/cameras match after correcting the old duplicate robot height",
+        "84 action/tool/reset tensors and 261 dispatcher tensors match; existing keepers reject duplicate robot elevation and cross-environment slot broadcast mutations",
+        "Newton GPU checkpoint: eight environments, 1200 steps, 15 transfers, zero failures/non-finite observations",
+        "Optional PhysX native probe: two CPU environments, 135 steps, 16 surfaces, no fall-through; partial/full/hard reset and repeated close passed",
+        "Full formatting/lint/changelog/LFS, lock consistency and generated environment-browser checks passed",
+        "Clean strict Sphinx HTML build passed; existing JPEG previews retained"
+      ],
+      "limitations": [
+        "Warehouse checkpoint model_1100: paired corrected historical/new scenes each completed zero transfers in two environments over 2400 steps (seed 41), with zero failures/non-finite observations; sorting capability remains unvalidated"
+      ],
+      "checked_at": "2026-10-25T18:51:48.568549+00:00"
+    }
+  ]
 }
