@@ -61,12 +61,8 @@ def test_teleop_workflow_help_exposes_task_preset_selectors(source_checkout_root
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
 def test_teleop_dispatches_to_its_workflow(source_checkout_root: Path, command, script_parts, monkeypatch):
     """``isaaclab teleop`` runs packaged workflows in process and forwards replay to its script."""
-    import warp as wp
-
     args = [command, "--task", "IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "--xr"]
-    monkeypatch.setattr(wp.config, "enable_backward", True)
-    backward_at_run = []
-    workflow = mock.Mock(side_effect=lambda argv: backward_at_run.append(wp.config.enable_backward) or 0)
+    workflow = mock.Mock(return_value=0)
     if command in TELEOP_MODULES:
         cli_name = {"run": "run_teleop_se3_agent_cli", "record": "run_record_demos_cli"}[command]
         monkeypatch.setattr(importlib.import_module("isaaclab_teleop.entrypoints"), cli_name, workflow)
@@ -80,7 +76,6 @@ def test_teleop_dispatches_to_its_workflow(source_checkout_root: Path, command, 
     if command in TELEOP_MODULES:
         workflow.assert_called_once_with(args[1:])
         run_python.assert_not_called()
-        assert backward_at_run == [False]
     else:
         script = source_checkout_root.joinpath(*script_parts)
         run_python.assert_called_once_with(script, args[1:], check=True)
@@ -177,28 +172,27 @@ def test_teleop_rejects_unknown_workflow():
     ],
 )
 def test_teleop_entrypoints_load_out_of_tree_tasks_before_parsing(monkeypatch, module_name, cli_name):
-    """Tasks registered through ``isaaclab.tasks`` are imported before the task is resolved."""
+    """Tasks registered through ``isaaclab.tasks`` load before parsing; ``sys.argv`` and the exit code survive."""
     module = importlib.import_module(module_name)
     calls = []
     task_entry_point = mock.Mock()
     task_entry_point.load.side_effect = lambda: calls.append("load tasks")
 
-    class Parsed(Exception):
-        pass
-
     def parse_args(argv):
         calls.append("parse")
-        raise Parsed
+        sys.argv = [sys.argv[0], "hydra.override=1"]
 
+    monkeypatch.setattr(sys, "argv", ["caller", "--caller-flag"])
     monkeypatch.setattr(module, "_parse_args", parse_args)
-    with (
-        mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[task_entry_point]) as entry_points,
-        pytest.raises(Parsed),
-    ):
-        getattr(module, cli_name)(["--task", "Out-Of-Tree-Task"])
+    monkeypatch.setattr(module, "main", lambda: calls.append("main") or 3)
+    with mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[task_entry_point]) as entry_points:
+        status = getattr(module, cli_name)(["--task", "Out-Of-Tree-Task"])
 
     entry_points.assert_called_once_with(group="isaaclab.tasks")
-    assert calls == ["load tasks", "parse"]
+    assert calls == ["load tasks", "parse", "main"]
+    assert sys.argv == ["caller", "--caller-flag"]
+    # only the replay agent reports an outcome; the interactive workflows always exit 0
+    assert status == (3 if cli_name == "run_teleop_replay_agent_cli" else 0)
 
 
 @pytest.mark.parametrize("task", ["Reach", "Lift"])

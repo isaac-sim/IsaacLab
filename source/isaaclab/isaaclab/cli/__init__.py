@@ -160,12 +160,6 @@ def teleop(args: list[str] | None = None) -> None:
         run_python_command(ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py", args[1:], check=True)
         return
 
-    import warp as wp
-
-    # Teleoperation only runs inference. Warp fixes this option when each kernel module is imported, so set
-    # it before importing the workflow.
-    wp.config.enable_backward = False
-
     from isaaclab_teleop.entrypoints import run_record_demos_cli, run_teleop_se3_agent_cli
 
     run_workflow = run_teleop_se3_agent_cli if command == "run" else run_record_demos_cli

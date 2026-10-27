@@ -10,6 +10,12 @@ Each ``run_*_cli`` function takes the command-line arguments without the program
 They need ``isaaclab_tasks`` to resolve the task.
 """
 
-from isaaclab.utils.module import lazy_export
+import warp as wp
+
+# Teleoperation only runs inference. Warp fixes this option when each kernel module is imported, so set it
+# here, before any entrypoint module imports one, whether through a script, ``isaaclab teleop`` or a direct call.
+wp.config.enable_backward = False
+
+from isaaclab.utils.module import lazy_export  # noqa: E402
 
 lazy_export()

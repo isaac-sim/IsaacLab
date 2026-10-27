@@ -423,7 +423,15 @@ def run_teleoperation(
 
 
 def run_teleop_se3_agent_cli(argv: list[str] | None = None) -> int:
-    """Run interactive teleoperation from command-line arguments, excluding the program name."""
+    """Run interactive teleoperation from the command line.
+
+    Args:
+        argv: Command-line arguments, excluding the program name. Defaults to ``sys.argv[1:]``.
+            ``sys.argv`` is restored on return.
+
+    Returns:
+        The process exit code, 0 once the session ends.
+    """
     # tasks from installed downstream projects, including for the script and ``isaaclab teleop``
     load_external_tasks()
     original_argv = sys.argv

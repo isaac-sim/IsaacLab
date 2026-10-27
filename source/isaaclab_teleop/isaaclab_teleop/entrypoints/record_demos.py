@@ -773,7 +773,15 @@ def record_demos(
 
 
 def run_record_demos_cli(argv: list[str] | None = None) -> int:
-    """Record demonstrations from command-line arguments, excluding the program name."""
+    """Record teleoperated demonstrations from the command line.
+
+    Args:
+        argv: Command-line arguments, excluding the program name. Defaults to ``sys.argv[1:]``.
+            ``sys.argv`` is restored on return.
+
+    Returns:
+        The process exit code, 0 once recording ends.
+    """
     # tasks from installed downstream projects, including for the script and ``isaaclab teleop``
     load_external_tasks()
     original_argv = sys.argv

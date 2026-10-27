@@ -1042,7 +1042,7 @@ def _prepare_env_cfg(
       ``--num_success_steps``. This matches record_demos.py's pattern of
       manually counting consecutive success steps before resetting.
     * The ``time_out`` term is cleared for the same reason it is cleared in
-      :file:`scripts/tools/record_demos.py` and
+      :mod:`isaaclab_teleop.entrypoints.record_demos` and
       :file:`scripts/imitation_learning/robomimic/play.py`: a recorded
       trajectory often exceeds ``episode_length_s`` (pick-place is 20s by
       default; a successful operator demo can easily run 25-30s). With the
@@ -1094,7 +1094,7 @@ def _prepare_env_cfg(
 def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice) -> None:
     """Run the full env+teleop reset cycle used by ``record_demos.py``.
 
-    Mirrors :func:`scripts.tools.record_demos.handle_reset` (sans the
+    Mirrors :func:`isaaclab_teleop.entrypoints.record_demos.handle_reset` (sans the
     instruction-display update, which the headless replay agent doesn't
     own). ``env.sim.reset()`` does the hard physics reinit that keeps Pink
     IK seeded against fresh articulation views; see the initial-reset note
@@ -1118,7 +1118,7 @@ def _process_success_condition(
 ) -> tuple[int, bool]:
     """Track consecutive success steps and decide whether to reset.
 
-    Mirrors :func:`scripts.tools.record_demos.process_success_condition`
+    Mirrors :func:`isaaclab_teleop.entrypoints.record_demos.process_success_condition`
     minus the recorder-export side effects, which this script does not own.
 
     Returns:
@@ -1598,10 +1598,14 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
 
 
 def run_teleop_replay_agent_cli(argv: list[str] | None = None) -> int:
-    """Replay a captured Isaac Capture session from command-line arguments, excluding the program name.
+    """Replay a captured Isaac Capture session from the command line.
+
+    Args:
+        argv: Command-line arguments, excluding the program name. Defaults to ``sys.argv[1:]``.
+            ``sys.argv`` is restored on return.
 
     Returns:
-        The exit code documented in the module docstring.
+        The process exit code documented in the module docstring.
     """
     # tasks from installed downstream projects, including for the script and ``isaaclab teleop``
     load_external_tasks()
