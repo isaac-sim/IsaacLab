@@ -93,7 +93,7 @@ def test_viser_visualizer_set_camera_view():
     clients.update({index: SimpleNamespace(camera=SimpleNamespace()) for index in range(2)})
     visualizer._is_initialized = True
     visualizer._sim = object()
-    visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
+    visualizer.backend = SimpleNamespace(model=SimpleNamespace(world_count=1))
     visualizer._paused_rendering = True
     visualizer.step(0.1)
     assert visualizer._pending_camera_pose is None

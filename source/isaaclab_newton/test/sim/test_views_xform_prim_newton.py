@@ -63,17 +63,17 @@ def _sim_context(device, num_envs=4):
 
 def _get_body_positions(num_envs, device="cpu"):
     backend_manager = SimulationContext.instance().backend_manager
-    model = backend_manager.get_model()
+    model = backend_manager.backend.model
     body_labels = list(model.body_label)
-    body_q_t = wp.to_torch(backend_manager.get_state_0().body_q)
+    body_q_t = wp.to_torch(backend_manager.backend.state_0.body_q)
     return torch.stack([body_q_t[body_labels.index(f"/World/envs/env_{i}/Cube"), :3] for i in range(num_envs)])
 
 
 def _set_body_positions(positions, num_envs):
     backend_manager = SimulationContext.instance().backend_manager
-    model = backend_manager.get_model()
+    model = backend_manager.backend.model
     body_labels = list(model.body_label)
-    body_q_t = wp.to_torch(backend_manager.get_state_0().body_q)
+    body_q_t = wp.to_torch(backend_manager.backend.state_0.body_q)
     for i in range(num_envs):
         body_q_t[body_labels.index(f"/World/envs/env_{i}/Cube"), :3] = positions[i]
 
@@ -136,7 +136,7 @@ def test_non_colliding_shapes_after_finalize(device):
     cloner.replicate(plan)
     sim.reset()
 
-    shape_labels = list(sim.backend_manager.get_model().shape_label)
+    shape_labels = list(sim.backend_manager.backend.model.shape_label)
     assert SITE_PATH in shape_labels
     assert VISUAL_PATH in shape_labels
     FrameView(SITE_PATH, device=device)
@@ -212,7 +212,7 @@ def test_close_before_reset_cancels_deferred_initialization(device):
 
     body_view = FrameView("/World/envs/env_[^/]+/Cube", device=device)
     torch.testing.assert_close(body_view.get_world_poses()[0].torch, _get_body_positions(num_envs, device))
-    shape_labels = list(sim.backend_manager.get_model().shape_label)
+    shape_labels = list(sim.backend_manager.backend.model.shape_label)
     assert shape_labels, "scene must contribute at least one collision shape"
     shape_view = FrameView(shape_labels[0], device=device)
     for physics_view in (body_view, shape_view):
