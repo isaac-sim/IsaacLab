@@ -310,6 +310,10 @@ The shipped processor is PPISP (Physically Plausible Image Signal Processing), w
 scene-linear ``rgb_hdr`` output through responsivity, exposure, vignetting, color correction, and a
 camera response function into ``rgb`` and ``rgba``. The camera requests ``rgb_hdr`` from the renderer.
 Processors run in list order on each new capture, and each can read earlier processors' outputs.
+With ``update_period > 0``, environments reset at different times and capture on different steps, so a call
+can mix new rows with rows that still hold the previous capture. Stateful processors (frame stacking,
+temporal filters, video generation) can list ``"env_mask"`` in their ``inputs`` to receive a boolean mask of
+the environments with a new capture. The name is reserved, and the mask is not published as an output.
 
 :class:`~isaaclab_ppisp.PpispProcessorCfg` accepts :class:`~isaaclab_ppisp.PpispCfg` for explicit
 coefficients or coefficients imported from a USD camera, or :class:`~sensors.CameraISPMode` to

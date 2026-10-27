@@ -216,6 +216,11 @@ class CameraCfg(SensorBaseCfg):
     input that no earlier processor produces, so a processor can filter an output in place. Camera construction
     calls an optional ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method before
     the scene is cloned or exported; it returns the configuration to use, or None to remove the processor.
+
+    With ``update_period > 0``, environments capture on different steps, so a call can mix new rows with rows that
+    still hold the previous capture. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a
+    boolean mask of shape ``(N,)`` marking the environments with a new capture. The name is reserved and the mask
+    is not published as a camera output.
     """
 
     isp_cfg: Any | CameraISPMode | None = None
@@ -272,10 +277,16 @@ class CameraCfg(SensorBaseCfg):
             )
 
 
+CAPTURE_MASK_NAME = "env_mask"
+"""Processor input holding the boolean mask of environments with a new capture."""
+
+
 def _render_data_types(cfg: CameraCfg) -> list[str]:
     """Return the data types that no processor produces and the inputs that no earlier processor produces."""
     produced, inputs = set(), []
     for processor_cfg in cfg.tensor_processors:
-        inputs += [name for name in processor_cfg.inputs if name not in produced]
+        if CAPTURE_MASK_NAME in processor_cfg.outputs:
+            raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
+        inputs += [name for name in processor_cfg.inputs if name not in produced and name != CAPTURE_MASK_NAME]
         produced.update(processor_cfg.outputs)
     return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))

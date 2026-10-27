@@ -29,7 +29,7 @@ from ...utils.math import (
 )
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
-from .camera_cfg import _render_data_types
+from .camera_cfg import CAPTURE_MASK_NAME, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
@@ -811,11 +811,13 @@ class Camera(SensorBase):
         if not self.cfg.tensor_processors:
             return
         buffers = dict(self._render_outputs)
+        # The capture mask is an input for processors, not a camera output.
+        mask = {CAPTURE_MASK_NAME: ProxyArray(self._is_outdated)}
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
             # Construction needs the outputs of earlier processors, which exist after their first call.
             if index == len(self._tensor_processors):
-                self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
-            buffers.update(self._tensor_processors[index](buffers))
+                self._tensor_processors.append(processor_cfg.func(processor_cfg, {**buffers, **mask}))
+            buffers.update(self._tensor_processors[index]({**buffers, **mask}))
         self._data.output.update(buffers)
 
     """

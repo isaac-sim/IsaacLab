@@ -43,12 +43,14 @@ class _ScaleProcessor(TensorProcessor):
     """Scale one input into a persistent output and record lifecycle calls."""
 
     events: ClassVar[list[tuple]] = []
+    masks: ClassVar[list[list[bool]]] = []
 
     def __init__(self, cfg: TensorProcessorCfg, data: dict[str, ProxyArray]) -> None:
         super().__init__(cfg)
         self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
 
     def __call__(self, data: dict[str, ProxyArray]) -> dict[str, ProxyArray]:
+        _ScaleProcessor.masks.append(data["env_mask"].warp.numpy().tolist())
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
 
@@ -149,10 +151,15 @@ def _newton_cube_scene(device: str, num_envs: int, **camera_kwargs):
 def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
     """Processors read render outputs and earlier results, and may replace a render output they read."""
     _ScaleProcessor.events.clear()
+    _ScaleProcessor.masks.clear()
     # The second processor is constructed from the first one's output and replaces the render input.
     processors = [
-        TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr"], outputs=["half"], params={"scale": 0.5}),
-        TensorProcessorCfg(func=_ScaleProcessor, inputs=["half"], outputs=["rgb_hdr"], params={"scale": 4.0}),
+        TensorProcessorCfg(
+            func=_ScaleProcessor, inputs=["rgb_hdr", "env_mask"], outputs=["half"], params={"scale": 0.5}
+        ),
+        TensorProcessorCfg(
+            func=_ScaleProcessor, inputs=["half", "env_mask"], outputs=["rgb_hdr"], params={"scale": 4.0}
+        ),
     ]
     camera_kwargs = dict(data_types=["rgb_hdr"], background_color=(0.25, 0.5, 0.75), tensor_processors=processors)
     background = np.array([0.050876088, 0.21404114, 0.52252155])
@@ -161,9 +168,26 @@ def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
         for _ in range(2):
             np.testing.assert_allclose(capture()[:, 0, 0], [2 * background] * 2, atol=1e-6)
         assert set(camera.data.output) == set(camera.data.info) == {"rgb_hdr", "half"}
+        assert "env_mask" not in camera.data.output and "env_mask" not in camera.data.info
+        # Processors listing env_mask receive one flag per environment, and it is not published as an output.
+        assert _ScaleProcessor.masks and all(len(mask) == 2 for mask in _ScaleProcessor.masks)
         camera.reset(env_ids=[1])
         assert _ScaleProcessor.events == [("reset", "half", [1]), ("reset", "rgb_hdr", [1])]
     assert _ScaleProcessor.events[2:] == [("close", "half"), ("close", "rgb_hdr")]
+
+
+def test_capture_mask_is_not_requested_from_the_renderer():
+    """The camera supplies env_mask to processors, so it never becomes a renderer data type or a processor output."""
+    from isaaclab.sensors.camera.camera_cfg import _render_data_types
+
+    def cfg(processors):
+        return SimpleNamespace(data_types=["rgb_hdr"], tensor_processors=processors)
+
+    stateful = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr", "env_mask"], outputs=["half"])
+    assert _render_data_types(cfg([stateful])) == ["rgb_hdr"]
+    reserved = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr"], outputs=["env_mask"])
+    with pytest.raises(ValueError, match="reserved"):
+        _render_data_types(cfg([reserved]))
 
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
