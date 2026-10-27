@@ -58,7 +58,7 @@ def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, act
             if fail:
                 raise ValueError("step failed")
 
-    manager = CoupledManager()
+    manager = CoupledManager(None)
     if pass_class:
         from isaaclab.sim import SimulationContext
 

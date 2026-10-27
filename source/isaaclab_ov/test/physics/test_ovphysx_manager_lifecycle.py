@@ -43,13 +43,13 @@ class _FakePhysX:
 def manager(monkeypatch):
     """Create a manager instance bound to a fake simulation and restore process-wide state after each test."""
     import isaaclab_ov.physics.ovphysx_manager as module
-    from isaaclab_ov.physics import OvPhysxBackendCfg
+    from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxCfg
 
     from isaaclab.sim import SimulationContext
 
     monkeypatch.setattr(module.ovphysx_compat, "OVPHYSX_USES_TASKS", False)
     cfg = OvPhysxBackendCfg(device="cpu")
-    manager = module.OvPhysxManager()
+    manager = module.OvPhysxManager(OvPhysxCfg())
     sim = SimpleNamespace(_backend_registry=[], backend_manager=manager)
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.get_backends = SimulationContext.get_backends.__get__(sim)

@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.6 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed generated locomanipulation objects to use the scene's environment namespace.
+
+
 2.1.5 (2026-10-23)
 ~~~~~~~~~~~~~~~~~~
 

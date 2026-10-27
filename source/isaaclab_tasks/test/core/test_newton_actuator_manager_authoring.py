@@ -63,7 +63,7 @@ def test_newton_actuators_present_for_g1_manager_env():
         stage = env.unwrapped.sim.stage
         actuator_prim_count = sum(1 for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator")
         assert actuator_prim_count > 0, "Expected authored NewtonActuator prims in the manager-based scene."
-        assert len(env.unwrapped.sim.backend_manager.get_model().actuators) > 0, (
+        assert len(env.unwrapped.sim.backend_manager.backend.model.actuators) > 0, (
             "Expected Newton model actuators to be non-empty."
         )
     finally:

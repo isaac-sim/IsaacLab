@@ -10,6 +10,7 @@ external environment configurations.
 """
 
 import warnings
+from copy import deepcopy
 
 import pytest
 
@@ -304,7 +305,10 @@ def _register(env_cfg, agent_cfg=None, overrides=()):
 
     agent_cfg = PresetCfgAgentCfg() if agent_cfg is None else agent_cfg
     task = "Isaac-Hydra-Overrides-Test"
-    entry_points = {"env_cfg_entry_point": lambda: clone(env_cfg), "agent_cfg_entry_point": lambda: clone(agent_cfg)}
+    entry_points = {
+        "env_cfg_entry_point": lambda: clone(env_cfg),
+        "agent_cfg_entry_point": lambda: deepcopy(agent_cfg) if isinstance(agent_cfg, dict) else clone(agent_cfg),
+    }
     gym.register(id=task, entry_point="dummy:Env", kwargs=entry_points)
     try:
         return hydra_mod.register_task(task, "agent_cfg_entry_point", overrides=list(overrides))
@@ -500,6 +504,21 @@ def test_resolve_task_config_replaces_task_without_migration_warnings(monkeypatc
             assert sys.argv is original_argv
     finally:
         del gym.registry[task]
+
+
+def test_register_task_resolves_interpolations_after_overrides():
+    """Resolve dictionary agent interpolations after presets and scalar overrides without extra Hydra arguments."""
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, fast=8)
+    agent = {"params": "${env.backend}", "rollout_length": "${env.decimation}"}
+
+    env_cfg, agent_cfg, hydra_args = _register(
+        env, agent, overrides=["presets=fast", "env.decimation=12", "env.backend.dt=0.001"]
+    )
+
+    assert env_cfg.decimation == agent_cfg["rollout_length"] == 12
+    assert agent_cfg["params"] == {"backend": "physx", "dt": 0.001, "substeps": 2}
+    assert hydra_args == []
 
 
 # =============================================================================

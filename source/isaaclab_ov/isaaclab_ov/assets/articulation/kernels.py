@@ -11,35 +11,11 @@ import torch
 import warp as wp
 
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.math import scale_interval
 
 """
 Articulation-specific warp functions.
 """
-
-
-@wp.func
-def compute_soft_joint_pos_limits_func(
-    joint_pos_limits: wp.vec2f,
-    soft_limit_factor: wp.float32,
-):
-    """Compute the soft joint position limits.
-
-    Args:
-        joint_pos_limits: Hard joint position limits as ``(lower, upper)`` [m or rad,
-            depending on joint type].
-        soft_limit_factor: Scale factor in [0, 1] shrinking the soft range around
-            the midpoint of the hard range; ``1.0`` makes the soft limits equal the
-            hard limits, smaller values create a tighter window.
-
-    Returns:
-        The soft joint position limits as ``(lower, upper)``.
-    """
-    joint_pos_mean = (joint_pos_limits[0] + joint_pos_limits[1]) / 2.0
-    joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
-    return wp.vec2f(
-        joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
-        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
-    )
 
 
 """
@@ -189,57 +165,6 @@ def _fd_joint_acc(
 
 
 @wp.kernel
-def shift_jacobian_com_to_origin(
-    body_link_pose: wp.array2d(dtype=wp.transformf),
-    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    link_offset: wp.int32,
-    src: wp.array4d(dtype=wp.float32),
-    dst: wp.array4d(dtype=wp.float32),
-):
-    """Shift the linear-velocity rows of a Jacobian from COM to link origin.
-
-    OvPhysX computed Jacobians are referenced at each link's center of mass. The public
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` contract instead
-    requires the linear rows at the USD link origin. Each column is shifted with
-    ``v_origin = v_com - omega x (R * body_com_pos_b)``.
-
-    Args:
-        body_link_pose: Per-body link poses in world frame [m, -]. Shape is
-            (num_instances, num_bodies).
-        body_com_pos_b: Per-body center-of-mass offsets in link frame [m]. Shape is
-            (num_instances, num_bodies).
-        link_offset: Offset from a Jacobian body row to the full public body index.
-            This is 1 for a fixed base and 0 for a floating base.
-        src: COM-referenced Jacobian. Shape is
-            (num_instances, num_jacobian_bodies, 6, num_joints + num_base_dofs).
-        dst: Link-origin Jacobian output with the same shape and units as :paramref:`src`.
-    """
-    env_id, jacobian_body_id, dof_id = wp.tid()
-    body_id = jacobian_body_id + link_offset
-
-    link_rotation = wp.transform_get_rotation(body_link_pose[env_id, body_id])
-    com_offset_w = wp.quat_rotate(link_rotation, body_com_pos_b[env_id, body_id])
-    com_linear_velocity = wp.vec3(
-        src[env_id, jacobian_body_id, 0, dof_id],
-        src[env_id, jacobian_body_id, 1, dof_id],
-        src[env_id, jacobian_body_id, 2, dof_id],
-    )
-    angular_velocity = wp.vec3(
-        src[env_id, jacobian_body_id, 3, dof_id],
-        src[env_id, jacobian_body_id, 4, dof_id],
-        src[env_id, jacobian_body_id, 5, dof_id],
-    )
-    link_linear_velocity = com_linear_velocity - wp.cross(angular_velocity, com_offset_w)
-
-    dst[env_id, jacobian_body_id, 0, dof_id] = link_linear_velocity[0]
-    dst[env_id, jacobian_body_id, 1, dof_id] = link_linear_velocity[1]
-    dst[env_id, jacobian_body_id, 2, dof_id] = link_linear_velocity[2]
-    dst[env_id, jacobian_body_id, 3, dof_id] = angular_velocity[0]
-    dst[env_id, jacobian_body_id, 4, dof_id] = angular_velocity[1]
-    dst[env_id, jacobian_body_id, 5, dof_id] = angular_velocity[2]
-
-
-@wp.kernel
 def _compose_body_com_poses(
     link_pose: wp.array(dtype=wp.transformf, ndim=2),
     com_pose_b: wp.array(dtype=wp.transformf, ndim=2),
@@ -257,29 +182,6 @@ def _compose_body_com_poses(
     """
     i, j = wp.tid()
     com_pose_w[i, j] = wp.transform_multiply(link_pose[i, j], com_pose_b[i, j])
-
-
-@wp.kernel
-def update_soft_joint_pos_limits(
-    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-    soft_limit_factor: wp.float32,
-    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-):
-    """Update soft joint position limits from hard limits and a soft limit factor.
-
-    Soft limits provide a safety margin before reaching the hard joint position
-    limits. See :func:`compute_soft_joint_pos_limits_func` for the per-joint
-    formula.
-
-    Args:
-        joint_pos_limits: Hard joint position limits as vec2f ``(lower, upper)``
-            [m or rad, depending on joint type]. Shape is (num_envs, num_joints).
-        soft_limit_factor: Scale factor in [0, 1]. ``1.0`` makes the soft limits
-            equal the hard limits; smaller values create a tighter window.
-        soft_joint_pos_limits: Output array. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
 
 
 @wp.kernel
@@ -326,7 +228,7 @@ def clamp_default_joint_pos_and_update_soft_limits_index(
     if (default_joint_pos[e, k] < lo) or (default_joint_pos[e, k] > hi):
         wp.atomic_add(clamped_count, 0, 1)
         default_joint_pos[e, k] = wp.clamp(default_joint_pos[e, k], lo, hi)
-    soft_joint_pos_limits[e, k] = compute_soft_joint_pos_limits_func(joint_pos_limits[e, k], soft_limit_factor)
+    soft_joint_pos_limits[e, k] = scale_interval(joint_pos_limits[e, k], soft_limit_factor)
 
 
 _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER = IndexKernelDispatcher(
@@ -378,7 +280,7 @@ def clamp_default_joint_pos_and_update_soft_limits_mask(
     if (default_joint_pos[i, j] < lo) or (default_joint_pos[i, j] > hi):
         wp.atomic_add(clamped_count, 0, 1)
         default_joint_pos[i, j] = wp.clamp(default_joint_pos[i, j], lo, hi)
-    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
+    soft_joint_pos_limits[i, j] = scale_interval(joint_pos_limits[i, j], soft_limit_factor)
 
 
 @wp.kernel

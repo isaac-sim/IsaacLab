@@ -416,9 +416,9 @@ class OvPhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    def __init__(self):
-        super().__init__()
-        self._cfg: OvPhysxCfg | None = None
+    def __init__(self, cfg: OvPhysxCfg):
+        super().__init__(cfg)
+        self._cfg: OvPhysxCfg = cfg
         self.backend: OvPhysxBackend | None = None
         """Native resource borrowed from the context registry after warmup."""
         self._stage_usda: str | None = None
@@ -726,7 +726,7 @@ class OvPhysxManager(PhysicsManager):
         if shared_scene is not None:
             stage_usda = export_stage_to_string(
                 sim.stage,
-                len(shared_scene.clone_env_paths),
+                shared_scene.clone_env_paths,
                 source_paths=tuple(source for source, _ in shared_scene.clone_copies),
                 keep_env_roots=False,
                 env_paths=shared_scene.population_env_paths,
@@ -734,7 +734,7 @@ class OvPhysxManager(PhysicsManager):
             if ovphysx_compat.OVPHYSX_USES_TASKS:
                 layer = Sdf.Layer.CreateAnonymous()
                 layer.ImportFromString(stage_usda)
-                _convert_legacy_joint_properties(layer, sim.cfg.physics.legacy_joint_friction_replacements)
+                _convert_legacy_joint_properties(layer, self._cfg.legacy_joint_friction_replacements)
                 stage_usda = layer.ExportToString()
             native_clones = ()
         else:
@@ -744,14 +744,14 @@ class OvPhysxManager(PhysicsManager):
                 self._clone_recipes,
                 full_stage,
                 plan,
-                friction_replacements=sim.cfg.physics.legacy_joint_friction_replacements,
+                friction_replacements=self._cfg.legacy_joint_friction_replacements,
             )
         self._stage_usda = stage_usda
 
         self.backend = sim.get_or_create_backend(
             OvPhysxBackendCfg(
                 device=self._device,
-                cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
+                cooked_collider_cache_dir=self._cfg.cooked_collider_cache_dir,
             ),
             scene=shared_scene,
         )

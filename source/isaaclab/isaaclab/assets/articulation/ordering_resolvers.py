@@ -482,6 +482,7 @@ def _get_names_from_newton_usd_builder(
         schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()],
         joint_ordering=joint_ordering,
         bodies_follow_joint_ordering=bodies_follow_joint_ordering,
+        allow_unsafe_torch_checkpoints=True,
     )
     model = builder.finalize(device="cpu")
     view = ArticulationView(
