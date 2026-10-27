@@ -316,7 +316,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             env: Environment owning this term.
         """
         super().__init__(cfg, env, device="cpu")
-        self._manager = env.sim.physics_manager
+        self._manager = env.sim.backend_manager
 
     def __call__(
         self,

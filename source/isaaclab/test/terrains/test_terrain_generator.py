@@ -287,7 +287,7 @@ def test_generation_reproducibility(use_global_seed):
     configure_seed(seed)
 
     # create terrain generator
-    cfg = ROUGH_TERRAINS_CFG
+    cfg = ROUGH_TERRAINS_CFG.copy()
     cfg.use_cache = False
     cfg.seed = seed if use_global_seed else None
     terrain_generator = TerrainGenerator(cfg=cfg)
@@ -319,7 +319,7 @@ def test_generation_cache(output_dir, curriculum):
     when the terrain generator is created again.
     """
     # create terrain generator with cache enabled
-    cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG
+    cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG.copy()
     cfg.use_cache = True
     cfg.seed = 0
     cfg.cache_dir = output_dir
@@ -361,7 +361,7 @@ def test_generation_cache(output_dir, curriculum):
 def test_terrain_flat_patches():
     """Test the terrain size and the flat patches generation."""
     # create terrain generator
-    cfg = ROUGH_TERRAINS_CFG
+    cfg = ROUGH_TERRAINS_CFG.copy()
     # add flat patch configuration
     for _, sub_terrain_cfg in cfg.sub_terrains.items():
         sub_terrain_cfg.flat_patch_sampling = {

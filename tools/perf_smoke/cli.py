@@ -12,7 +12,7 @@ The container SAS URL is read from ``$ISAACLAB_BLOB_URL``.
 
 Subcommands:
     ``compare``    compare independent benchmark runs against the baseline store
-    ``write``      record one measurement in the store (develop only)
+    ``write``      record one measurement in the store (default branch only)
     ``aggregate``  roll several comparison JSONs into one summary
 """
 

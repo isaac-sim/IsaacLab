@@ -66,19 +66,14 @@ class G1TerrainEnv(ManagerBasedRLEnv):
         self.step(robot.data.default_joint_pos.torch.clone())
         return super().reset(**kwargs)
 
-    def prepare_view(self, visualizer: KitVisualizer) -> None:
-        """Configure the spectator camera after initializing physics and depth geometry."""
-        import omni.kit.app  # noqa: PLC0415
+    def prepare_view(self, kit_visualizer: KitVisualizer | None = None) -> None:
+        """Prepare scene appearance and the optional Kit spectator after initializing physics."""
         from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
         from isaaclab.sim import bind_visual_material  # noqa: PLC0415
 
         from .terrain import separate_ramp_base  # noqa: PLC0415
 
-        omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
-        import omni.replicator.core as rep  # noqa: PLC0415
-
-        rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
         stage = self.sim.stage
         for name, material_cfg in self.cfg.robot_visual_materials.items():
             material_cfg.func(f"/World/G1Looks/{name}", material_cfg)
@@ -90,7 +85,7 @@ class G1TerrainEnv(ManagerBasedRLEnv):
             "left_ankle_roll_link",
             "right_ankle_roll_link",
         }
-        for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/envs/env_0/Robot")):
+        for prim in Usd.PrimRange(stage.GetPrimAtPath(self.scene["robot"].cfg.spawn.spawn_path)):
             if prim.HasAPI(UsdPhysics.CollisionAPI) or prim.GetName().startswith("imu_in_"):
                 UsdGeom.Imageable(prim).MakeInvisible()
             if prim.GetName() == "visuals":
@@ -101,29 +96,40 @@ class G1TerrainEnv(ManagerBasedRLEnv):
                     else:
                         material = "/World/G1Looks/" + ("dark" if part.GetName() in dark_parts else "light")
                         bind_visual_material(part.GetPath(), material)
-        # Kit's viewport camera opinions in the session layer override the scene layer.
-        with Usd.EditContext(stage, stage.GetSessionLayer()):
-            camera_path = "/OmniverseKit_Persp"
-            camera = UsdGeom.Camera.Define(stage, camera_path)
-            transform = UsdGeom.Xformable(camera.GetPrim())
-            transform.ClearXformOpOrder()
-            transform.SetResetXformStack(True)
-            view = Gf.Matrix4d(1.0).SetLookAt(
-                Gf.Vec3d(*self.cfg.camera_eye), Gf.Vec3d(*self.cfg.camera_target), Gf.Vec3d(0.0, 0.0, 1.0)
-            )
-            transform.AddTransformOp(UsdGeom.XformOp.PrecisionDouble).Set(view.GetInverse())
-            aperture = 20.955 * visualizer.cfg.window.size[1] / visualizer.cfg.window.size[0]
-            camera.CreateHorizontalApertureAttr(20.955)
-            camera.CreateVerticalApertureAttr(aperture)
-            camera.CreateFocalLengthAttr(aperture / (2 * math.tan(math.radians(self.cfg.camera_vfov) / 2)))
-        for _ in range(60):
-            self.sim.render()
-            visualizer.render_rgb_array()
+        if kit_visualizer is not None:
+            import omni.kit.app  # noqa: PLC0415
+
+            omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
+            import omni.replicator.core as rep  # noqa: PLC0415
+
+            rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
+            # Kit's viewport camera opinions in the session layer override the scene layer.
+            with Usd.EditContext(stage, stage.GetSessionLayer()):
+                camera_path = "/OmniverseKit_Persp"
+                camera = UsdGeom.Camera.Define(stage, camera_path)
+                transform = UsdGeom.Xformable(camera.GetPrim())
+                transform.ClearXformOpOrder()
+                transform.SetResetXformStack(True)
+                view = Gf.Matrix4d(1.0).SetLookAt(
+                    Gf.Vec3d(*self.cfg.camera_eye), Gf.Vec3d(*self.cfg.camera_target), Gf.Vec3d(0.0, 0.0, 1.0)
+                )
+                transform.AddTransformOp(UsdGeom.XformOp.PrecisionDouble).Set(view.GetInverse())
+                aperture = 20.955 * kit_visualizer.cfg.window.size[1] / kit_visualizer.cfg.window.size[0]
+                camera.CreateHorizontalApertureAttr(20.955)
+                camera.CreateVerticalApertureAttr(aperture)
+                camera.CreateFocalLengthAttr(aperture / (2 * math.tan(math.radians(self.cfg.camera_vfov) / 2)))
+        # Only Kit's RTX needs warm-up frames; on other backends queued renders would overlap the depth
+        # camera's first CUDA graph capture below.
+        if kit_visualizer is not None:
+            for _ in range(60):
+                self.sim.render()
+                kit_visualizer.render_rgb_array()
         self.sim.forward()
         self.scene.update(0.0)
         if self.cfg.scene.depth_camera is not None:
             self.scene["depth_camera"].update(0.0, force_recompute=True)
             separate_ramp_base(stage)
-        for _ in range(30):
-            self.sim.render()
-            visualizer.render_rgb_array()
+        if kit_visualizer is not None:
+            for _ in range(30):
+                self.sim.render()
+                kit_visualizer.render_rgb_array()

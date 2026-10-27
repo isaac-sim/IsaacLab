@@ -38,8 +38,6 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
 
     num_envs = 2048
     env_spacing = 1.5
-    replicate_physics = True
-
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(),
@@ -218,16 +216,6 @@ class RandomizationEventCfg:
 class ResetEventCfg:
     """Reset distributions matching the Direct handover environment."""
 
-    reset_object = EventTerm(
-        func=mdp.reset_root_state_with_random_orientation,
-        mode="reset",
-        params={
-            # the Direct task jitters the drop position and samples a random orientation
-            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object"),
-        },
-    )
     reset_right_hand = EventTerm(
         func=reorient_mdp.reset_reorient_hand,
         mode="reset",
@@ -322,4 +310,4 @@ class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics_material = RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0)
         self.sim.physics = PhysicsCfg()
-        self.sim.default_visualizer_cfg = clone(VISUALIZER_CFG)
+        self.sim.visualizer_cfgs = clone(VISUALIZER_CFG)

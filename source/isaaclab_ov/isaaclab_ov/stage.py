@@ -3,29 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared helpers for creating ovstage stages and describing their attribute columns.
+"""Simulation-owned OVStage resources and shared attribute-column helpers.
 
 ``ovstage`` is a hard dependency of ``isaaclab_ov``, so it is imported unconditionally here.
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import numpy as np
 import ovstage
 import warp as wp
 
-from pxr import Usd
+from pxr import Sdf, Usd, UsdRender, UsdUtils
 
-from isaaclab.cloner import ClonePlan
-from isaaclab.cloner.clone_plan import path as cloner_path
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-
-from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
-from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -47,27 +43,15 @@ def create_ovstage(name: str) -> ovstage.Stage:
     Every Isaac Lab stage is therefore created through this helper so the whole process agrees on
     one model.
 
-    The model is requested explicitly rather than left implicit, so the model in force is visible
-    at the call site. Which one is requested depends on the installed ovstage version; see
-    :mod:`isaaclab_ov.ovstage_compat`. A selected model the installed enum does not carry falls
-    back to the host model, so a version gate that runs ahead of the runtime degrades rather than
-    preventing stage creation.
-
     Args:
         name: Instance name used for ovstage diagnostics.
 
     Returns:
         The created :class:`ovstage.Stage`.
     """
-    hierarchy_computation_model = getattr(ovstage.HierarchyComputationModel, HIERARCHY_COMPUTATION_MODEL, None)
-    if hierarchy_computation_model is None:
-        logger.warning(
-            "This ovstage does not expose HierarchyComputationModel.%s; falling back to CPU_INCREMENTAL.",
-            HIERARCHY_COMPUTATION_MODEL,
-        )
-        # Left unguarded: an ovstage without the host model is broken, and should say so loudly.
-        hierarchy_computation_model = ovstage.HierarchyComputationModel.CPU_INCREMENTAL
-    config = ovstage.StageConfig(runtime_default_hierarchy_computation_model=hierarchy_computation_model)
+    config = ovstage.StageConfig(
+        runtime_default_hierarchy_computation_model=ovstage.HierarchyComputationModel.GPU_INCREMENTAL
+    )
     return ovstage.Stage(name, config=config)
 
 
@@ -125,51 +109,35 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
 
 
-def _iter_clone_batches(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
-    """Yield native clone paths parent-first, omitting self-copies and children covered by their parent."""
-    sources = cloner_path.get_asset_prototype_paths(plan)
-    templates, starts, worlds, world_starts = cloner_path.get_world_prototype_asset_templates(
-        plan, include_world_indices=True
-    )
-    copies = {}
-    for group in np.flatnonzero(np.diff(world_starts)):
-        start, end = starts[group : group + 2]
-        targets = worlds[world_starts[group] : world_starts[group + 1]]
-        references = [
-            (sources[asset], templates[index])
-            for index, asset in enumerate(plan.topology.world_prototypes[start:end], start)
-        ]
-        parents = cloner_path.get_parent_indices([target for _, target in references])
-        for (source, target), parent in zip(references, parents, strict=True):
-            if parent != -1:
-                parent_source, parent_target = references[parent]
-                if source == cloner_path.rebase(target, parent_target, parent_source):
-                    continue
-            copies.setdefault((source, target), []).append(targets)
-    for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
-        worlds = np.concatenate(copies[source, template])
-        targets = [target for target in map(template.format, worlds) if target != source]
-        if targets:
-            yield source, targets
-
-
-def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) -> None:
-    """Clone the scene's prototypes and place environments on a native stage.
+def ovstage_replicate(
+    stage: ovstage.Stage,
+    paths: ovstage.PathDictionary,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None = None,
+    *,
+    ordinal: int,
+) -> None:
+    """Apply the same prepared copies and placement to an OVStage scene.
 
     Args:
-        stage: Populated stage containing the authored prototypes.
-        plan: Scene topology and environment positions [m].
-        ordinal: Write ordinal for cloning and placement.
+        stage: Native stage holding the source prims.
+        paths: Path dictionary of ``stage``.
+        copies: Source paths paired with destination paths, ordered with parents before children.
+            Self-copies must be excluded.
+        env_paths: Environment-root paths in placement order.
+        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+        ordinal: Write ordinal for the clones and environment placement.
     """
-    for source, targets in _iter_clone_batches(plan):
-        stage.clone(source, targets, ordinal=ordinal)
-    num_envs = len(plan.topology.world_prototype_layout)
-    xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-    xforms[:, 3, :3] = plan.positions
-    with ovstage.PathDictionary(stage) as paths:
-        env_paths = paths.create_path_list_from_strings([plan.env_template.format(i) for i in range(num_envs)])
+    for source, targets in copies:
+        if targets:
+            stage.clone(source, targets, ordinal=ordinal)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        path_list = paths.create_path_list_from_strings(env_paths)
         try:
-            with stage.query_from_path_list(env_paths) as query:
+            with stage.query_from_path_list(path_list) as query:
                 stage.write_attribute(
                     query,
                     "omni:xform",
@@ -179,42 +147,205 @@ def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) ->
                     semantic=ovstage.AttributeSemantic.MATRIX,
                 ).wait()
         finally:
-            paths.destroy_path_list(env_paths)
+            paths.destroy_path_list(path_list)
 
 
 @configclass
 class OvstageBackendCfg(BackendCfg):
-    """Identify the simulation-owned rendering stage for one visualizer instance."""
+    """Configuration of a simulation-owned stage and its populated domains."""
 
     class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
-    viewer_id: int = 0
+    scene_key: BackendCfg | int | None = None
+    """None selects the simulation scene; isolated consumers use their configuration or instance identity."""
+    population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
+    """USD domains to populate. Physics consumers require PHYSICS or ALL."""
 
 
 class OvstageBackend:
-    """Own the native scene until the simulation has closed its borrowing viewers."""
+    """Own a detached stage and its paths until the simulation has closed its consumers."""
 
     def __init__(self, cfg: OvstageBackendCfg):
-        """Create an empty stage for the configured consumer."""
-        self.stage = create_ovstage("isaaclab.viewer")
-        self._populated = False
+        """Create the stage identified by its consumer configuration and population domains.
 
-    def populate(self, stage: Usd.Stage, plan: ClonePlan | None) -> None:
-        """Export and clone the authored scene before a viewer attaches to it."""
-        if self._populated:
+        Args:
+            cfg: Scene identity and USD domains to populate.
+        """
+        self.cfg = cfg
+        self.clone_copies: list[tuple[str, list[str]]] = []
+        self.clone_env_paths: list[str] = []
+        self.population_env_paths: list[str] = []
+        self.clone_positions: np.ndarray | None = None
+        self.resources = contextlib.ExitStack()
+        """Release borrowers before paths and stage, in reverse registration order."""
+        self.reset()
+
+    def populate(self, usda: str) -> None:
+        """Import the exported prototypes and apply the clone context's prepared operations.
+
+        Population commits ordinal 1. Consumers may then author render products and poses
+        starting at ordinal 2, after every cloned camera path exists.
+
+        Args:
+            usda: USD scene containing the routed prototypes and their materials.
+        """
+        if self.ordinal:
             return
-        num_envs = len(plan.topology.world_prototype_layout) if plan is not None else 1
-        sources = None
-        if plan is not None:
-            sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
-        usda = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=False)
-        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=ovstage.PopulationDomain.RENDERING)
-        if num_envs > 1:
-            ovstage_replicate(self.stage, plan, ordinal=1)
-        self.stage.advance_write_floor(1).wait()
-        self._populated = True
+
+        # Ordinal 0 is the empty state; population and cloning form the first committed write.
+        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
+        ovstage_replicate(
+            self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
+        )
+        self.ordinal = 1
+        self.commit()
+
+    @contextlib.contextmanager
+    def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
+        """Retain a query and its path list together until the caller leaves the context.
+
+        Args:
+            prim_paths: Prim paths in the query's binding order.
+
+        Yields:
+            The query, released before its caller-owned path list.
+        """
+        paths = self.paths.create_path_list_from_strings(prim_paths)
+        try:
+            with self.stage.query_from_path_list(paths) as query:
+                yield query
+        finally:
+            self.paths.destroy_path_list(paths)
+
+    def commit(self) -> int:
+        """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
+        ordinal = self.ordinal
+        self.stage.advance_write_floor(ordinal=ordinal).wait()
+        self.ordinal += 1
+        return ordinal
 
     def close(self) -> None:
-        """Release the stage after all viewers have detached."""
-        if self.stage is not None:
-            self.stage.destroy()
-            self.stage = None
+        """Release borrowers, then the path dictionary and stage."""
+        self.resources.close()
+        self.stage = self.paths = None
+
+    def reset(self) -> None:
+        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
+        self.close()
+        self.ordinal = self.next_camera_id = 0
+        with contextlib.ExitStack() as resources:
+            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
+            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
+            self.resources = resources.pop_all()
+
+
+def export_stage_to_string(
+    stage: Usd.Stage,
+    clone_env_paths: Sequence[str],
+    source_paths: tuple[str, ...],
+    keep_env_roots: bool = True,
+    *,
+    env_paths: Sequence[str] = (),
+    preserve_references: bool = False,
+) -> str:
+    """Export routed prototypes without mutating the simulation's authored USD stage.
+
+    An anonymous session layer hides non-source subtrees, including copies already authored
+    by USD replication. Native clone contexts recreate environment frames from the clone plan;
+    callers preserving authored frames can retain them with ``keep_env_roots``.
+
+    Args:
+        stage: USD stage to export.
+        clone_env_paths: Declared environment roots. Source filtering is skipped for one environment.
+        source_paths: Prototype subtrees retained with their materials and descendants.
+        keep_env_roots: Whether to retain non-source environment roots and their transforms.
+        env_paths: Environment frames to create in the private export before native cloning.
+        preserve_references: Retain clean file-backed references and instances instead of baking
+            their geometry into text. Anonymous or unsaved referenced layers require full
+            composition so that the returned string does not depend on their Python lifetime.
+
+    Returns:
+        USDA text containing the selected prototypes. By default, composition arcs are baked.
+    """
+    export_session = Sdf.Layer.CreateAnonymous()
+    export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
+    export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
+    export_stage.SetEditTarget(export_session)
+    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
+    settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
+    settings = UsdRender.Settings.Define(export_stage, settings_path)
+    settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
+    settings.GetPrim().CreateAttribute(
+        "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
+    ).Set(True)
+    export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
+    prim_paths = []
+    if len(clone_env_paths) > 1:
+        source_path_set = frozenset(map(Sdf.Path, source_paths))
+        retained_env_paths = frozenset(map(Sdf.Path, env_paths))
+        ancestors = {prefix for source in source_path_set for prefix in source.GetPrefixes()}
+        for env_path in clone_env_paths:
+            env_root = export_stage.GetPrimAtPath(env_path)
+            if not env_root:
+                continue
+            prims = iter(Usd.PrimRange(env_root))
+            for prim in prims:
+                path = prim.GetPath()
+                if path in source_path_set:
+                    prims.PruneChildren()
+                elif (
+                    path not in ancestors
+                    and path not in retained_env_paths
+                    and not (keep_env_roots and path == env_root.GetPath())
+                ):
+                    # Kit may already have USD copies; routing may also exclude a prototype.
+                    prim_paths.append(path)
+                    prims.PruneChildren()
+
+        with Sdf.ChangeBlock():
+            for prim_path in prim_paths:
+                Sdf.CreatePrimInLayer(export_session, prim_path).active = False
+                logger.debug("Deactivated prim: %s", prim_path)
+        logger.info("Deactivated %d prims in total", len(prim_paths))
+    # CPU hierarchy propagation requires USD-populated frames, including clone ancestors.
+    # Author them only in the export; native cloning writes their poses from the plan.
+    # The local layer stack is baked either way. External in-memory edits cannot be borrowed
+    # by a detached string; retain the fully composed export for those scenes and legacy callers.
+    external_layers = set(export_stage.GetUsedLayers()) - set(export_stage.GetLayerStack())
+    if preserve_references and all(not (layer.anonymous or layer.dirty) for layer in external_layers):
+        # Keeping reference arcs avoids duplicating dense geometry and preserves material
+        # bindings whose targets cross nested instance scopes.
+        layer = UsdUtils.FlattenLayerStack(export_stage)
+        # A remaining arc can also point back into the baked root/session stack, directly
+        # or through a clean referenced layer. Such unsaved data must be baked as well.
+        dependencies = (
+            Sdf.Layer.Find(Sdf.ComputeAssetPathRelativeToLayer(source, path))
+            for source in (layer, *external_layers)
+            for path in source.GetCompositionAssetDependencies()
+            if path
+        )
+        if any(dependency is not None and (dependency.anonymous or dependency.dirty) for dependency in dependencies):
+            layer = export_stage.Flatten()
+        elif prim_paths:
+            # Unlike Stage.Flatten, layer-stack flattening retains inactive authored copies.
+            # Remove them, restoring an inactive override if a reference still supplies a prim.
+            edits = Sdf.BatchNamespaceEdit()
+            for path in prim_paths:
+                edits.Add(path, Sdf.Path.emptyPath)
+            if not layer.Apply(edits):
+                raise RuntimeError("Failed to remove unrouted native USD prototypes.")
+            composed = Usd.Stage.Open(layer)
+            referenced_paths = [path for path in prim_paths if composed.GetPrimAtPath(path)]
+            with Sdf.ChangeBlock():
+                for path in referenced_paths:
+                    Sdf.CreatePrimInLayer(layer, path).active = False
+    else:
+        layer = export_stage.Flatten()
+    with Sdf.ChangeBlock():
+        for path in env_paths:
+            prim = Sdf.CreatePrimInLayer(layer, path)
+            if not prim.typeName:
+                prim.typeName = "Xform"
+            while prim and prim.specifier == Sdf.SpecifierOver:
+                prim.specifier = Sdf.SpecifierDef
+                prim = prim.nameParent
+    return layer.ExportToString()

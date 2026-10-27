@@ -22,7 +22,14 @@ import warp as wp
 from ..utils import validate
 from ..utils.backend_utils import FactoryBase
 from .image_view import ImageView
-from .visualizer_cfg import ImageViewCfg, PerspectiveCameraCfg, VisualizerCfg
+from .key_event_source import KeyEventSource
+from .visualizer_cfg import (
+    ImageViewCfg,
+    PerspectiveCameraCfg,
+    VisualizerBackendCfg,
+    VisualizerCfg,
+    migrate_visualizer_cfgs,
+)
 
 if TYPE_CHECKING:
     from ..managers import ManagerBase
@@ -49,6 +56,8 @@ class BaseVisualizer(ABC):
         Args:
             cfg: Visualizer configuration.
         """
+        if isinstance(cfg, VisualizerBackendCfg):
+            cfg = migrate_visualizer_cfgs(cfg)[0]
         validate(cfg)
         self.cfg = cfg
         self._sim: SimulationContext | None = None
@@ -63,6 +72,7 @@ class BaseVisualizer(ABC):
         self._sim_time = 0.0
         self.current_image_view: ImageView | None = None
         self._image_views: list[ImageView] = []
+        self._key_event_source: KeyEventSource | None = None
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -114,17 +124,17 @@ class BaseVisualizer(ABC):
                 env_ids = sorted(random.sample(pool, num_tiles))
         for camera in cameras:
             if isinstance(camera, PerspectiveCameraCfg):
-                if self.cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
+                if self.cfg.backend.visualizer_type not in ("newton_gl", "newton_rtx"):
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
             else:
                 view_cfg = ImageViewCfg(
-                    source=camera.cfg.prim_path, envs=tuple(map(int, env_ids)),
+                    source=camera.cfg.prim_path, envs=(0,) if camera.num_instances == 1 else tuple(map(int, env_ids)),
                     channels=tuple(self.cfg.streaming_gt_types),
                     depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
                 )  # fmt: skip
                 view = sim.get_or_create_backend(view_cfg, camera=camera)
-            if self.cfg.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
+            if self.cfg.backend.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
                 view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
             self._image_views.append(view)
         self.current_image_view = next((view for view in self._image_views if view.camera is not None), None)
@@ -222,6 +232,29 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         return FactoryBase._get_backend(sim=self._sim) if self._sim is not None else None
+
+    @property
+    def key_event_source(self) -> KeyEventSource | None:
+        """Keyboard input from this visualizer's local window, or ``None`` when there is none.
+
+        Consumers subscribe to the keys pressed and released while the window has focus, e.g. for
+        keyboard teleoperation or script hotkeys. The source connects when the visualizer initializes
+        its window, and the visualizer closes it before releasing that window. ``None``
+        before initialization, after close, and for backends or modes with no local window that can
+        report keys (the default).
+        """
+        return self._key_event_source
+
+    def set_camera_keys_enabled(self, enabled: bool) -> None:
+        """Enable or disable moving this visualizer's camera with the keyboard.
+
+        A keyboard consumer such as keyboard teleoperation disables it, so the motion keys it uses
+        (e.g. WASD/QE and the arrow keys) do not also move the camera. Mouse camera control is
+        unaffected. Visualizers whose camera takes no keyboard input ignore it (the default).
+
+        Args:
+            enabled: Whether keyboard camera movement is enabled.
+        """
 
     def supports_markers(self) -> bool:
         """Check if visualizer supports VisualizationMarkers.
@@ -414,3 +447,12 @@ class BaseVisualizer(ABC):
     def stop(self) -> None:
         """Handle simulation stop. No-op by default."""
         pass
+
+    def _close_key_event_source(self) -> None:
+        """Close window input before native teardown; cleanup failures must not retain the window."""
+        source, self._key_event_source = self._key_event_source, None
+        if source is not None:
+            try:
+                source.close()
+            except Exception:
+                logger.exception("[%s] Keyboard input cleanup failed", type(self).__name__)
