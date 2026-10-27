@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import tempfile
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from operator import attrgetter
@@ -98,6 +99,37 @@ def validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, ActuatorBaseCf
             "Newton-native actuator execution does not support "
             f"{', '.join(unsupported_groups)}. Disable 'use_newton_actuators' or use a supported actuator config."
         )
+
+
+def resolve_per_dof(
+    value: dict[str, float | int] | float | int | None,
+    joint_names: list[str],
+    cast: type = float,
+) -> dict[str, float | int]:
+    """Expand scalar or regex-keyed actuator values into a sparse joint-name mapping.
+
+    .. deprecated:: 3.0
+        Use :func:`~isaaclab.utils.string.resolve_matching_names_values` for regex mappings.
+        Handle None as an empty mapping and broadcast scalars directly.
+
+    Args:
+        value: Scalar, regex-keyed mapping, or None for no configured values.
+        joint_names: Joint names against which patterns are resolved.
+        cast: Conversion applied to each configured value. Defaults to float.
+
+    Returns:
+        Configured values keyed by matching joint name; None returns an empty mapping.
+
+    Raises:
+        ValueError: If a mapping pattern matches no joint, or a joint matches several patterns.
+    """
+    warnings.warn(
+        "resolve_per_dof is deprecated. Use isaaclab.utils.string.resolve_matching_names_values for regex"
+        " mappings, broadcast scalar values directly, and use an empty mapping for None.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _configured_values(value, joint_names, cast)
 
 
 def define_actuator_properties(
@@ -193,8 +225,7 @@ def author_actuator_prims(
         # Collection construction emits the deprecation warning later in the
         # normal asset lifecycle. Authoring only needs the normalized value.
         resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
-        if isinstance(resolved_cfg, BamActuatorCfg):
-            validate(resolved_cfg)
+        validate(resolved_cfg)
         joints = {name: stage.GetPrimAtPath(joint_inventory[name]) for name in joint_names}
         _author_group(stage, articulation_prim_path, group_name, resolved_cfg, joints, actuator_prims)
 
@@ -447,7 +478,6 @@ def _new_prim_effort_limit(cfg: ActuatorBaseCfg, joint_prim: Usd.Prim, new_prim:
 
 def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_names: list[str]) -> dict[str, Any]:
     """Return a configured neural checkpoint for every joint, or no overrides when the checkpoint is unset."""
-    validate(cfg)
     if cfg.network_file is None:
         return {}
     meta: dict[str, Any] = {}

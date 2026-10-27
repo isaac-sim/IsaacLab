@@ -47,13 +47,22 @@ from isaaclab.sim.schemas.schemas_actuators import (
 )
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.test.utils.actuator_equivalence import make_dummy_lstm_checkpoint, make_dummy_mlp_checkpoint
-from isaaclab.utils import validate
+from isaaclab.utils import configclass, validate
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
 
 class MisleadingImplicitActuatorDCMotor(DCMotor):
     """Explicit actuator whose class name contains ``ImplicitActuator``."""
+
+
+@configclass
+class ValidatedPDActuatorCfg(IdealPDActuatorCfg):
+    """A supported config subclass with its own gain constraint."""
+
+    def validate_config(self):
+        if self.stiffness < 0.0:
+            raise ValueError("stiffness must be nonnegative.")
 
 
 def _write_pickle_marker(marker_path: str) -> str:
@@ -461,6 +470,11 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
             "missing_joint",
         ),
         (
+            _make_asset_stage,
+            {"group": ValidatedPDActuatorCfg(joint_names_expr=["pd_a"], stiffness=-1.0, damping=0.0)},
+            "stiffness",
+        ),
+        (
             lambda tmp_path: _make_robot_stage(),
             {"group": DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, damping=1.0)},
             "saturation_effort.*dc_a",
@@ -489,6 +503,7 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
     ids=[
         "unsupported_cfgs",
         "unmatched_effort_limit",
+        "custom_validation",
         "new_prim_without_saturation",
         "new_prim_without_lookup",
         "new_prim_without_checkpoint",
@@ -505,6 +520,21 @@ def test_rejected_config_raises_before_editing_the_joint(tmp_path, make_stage, g
         author_actuator_prims(stage, "/World/Robot", groups)
 
     assert stage.GetRootLayer().ExportToString() == before
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, {}), (2.9, {"pd_a": 2, "dc_a": 2}), ({"pd_.*": 3.9}, {"pd_a": 3})],
+    ids=["unset", "scalar", "pattern_mapping"],
+)
+def test_resolve_per_dof_retains_functional_deprecation_wrapper(value, expected):
+    """Existing imports still resolve values and report the public migration at the caller."""
+    from isaaclab.sim.schemas.schemas_actuators import resolve_per_dof
+
+    with pytest.warns(DeprecationWarning, match="resolve_matching_names_values") as warnings:
+        actual = resolve_per_dof(value, ["pd_a", "dc_a"], cast=int)
+    assert actual == expected
+    assert warnings[0].filename == __file__
 
 
 def test_schema_authoring_accepts_supported_public_actuator_alias():

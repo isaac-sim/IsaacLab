@@ -878,8 +878,8 @@ one or, without it, the drive's ``vin * kt / resistance`` default, which ignores
 
 Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
 ``max(vin_range) * motor.kt / motor.resistance``; if the config does not set the fit and voltage, the
-asset's authored cap applies, or the drive's ``vin * kt / resistance`` default when it has none. ``joint_effort_limit`` is unchanged; keep it at
-least as large as the actuator cap.
+asset's authored cap applies, or the drive's ``vin * kt / resistance`` default when it has none.
+``joint_effort_limit`` is unchanged; keep it at least as large as the actuator cap.
 
 .. _actuators-bam-paths:
 

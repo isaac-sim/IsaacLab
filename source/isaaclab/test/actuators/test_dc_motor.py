@@ -214,6 +214,10 @@ def test_lstm_actuator_clips_with_torque_speed_curve(tmp_path):
     ("cfg", "match"),
     [
         (
+            DCMotorCfg(joint_names_expr=["joint"], stiffness=0.0, damping=0.0, actuator_velocity_limit=10.0),
+            "saturation_effort",
+        ),
+        (
             RemotizedPDActuatorCfg(joint_names_expr=["joint"], stiffness=0.0, damping=0.0, joint_parameter_lookup=None),
             "joint_parameter_lookup",
         ),
@@ -232,6 +236,6 @@ def test_lstm_actuator_clips_with_torque_speed_curve(tmp_path):
     ],
 )
 def test_lab_models_require_parameters_supplied_by_usd_on_native_path(cfg, match):
-    """The Lab execution path cannot inherit lookup tables or checkpoints from USD actuators."""
+    """The Lab execution path requires motor limits, lookup tables and checkpoints in its config."""
     with pytest.raises(ValueError, match=match):
         instantiate(cfg, joint_names=["joint"], joint_ids=slice(None), num_envs=1, device="cpu")
