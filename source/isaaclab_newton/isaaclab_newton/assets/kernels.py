@@ -76,8 +76,6 @@ def get_com_pose_from_link_pose_func(
     return link_pose * wp.transformf(body_com_pos_b, wp.quatf(0.0, 0.0, 0.0, 1.0))
 
 
-
-
 @wp.func
 def get_link_velocity_in_com_frame_func(
     link_velocity_w: wp.spatial_vectorf,

@@ -59,8 +59,6 @@ def get_com_pose_from_link_pose_func(
     return link_pose * body_com_pose
 
 
-
-
 @wp.func
 def set_state_transforms_func(
     state: vec13f,
