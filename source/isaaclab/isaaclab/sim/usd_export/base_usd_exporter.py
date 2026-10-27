@@ -281,14 +281,22 @@ class BaseUsdExporter(ABC):
         """Copy a file the run wrote to the temporary directory next to the export, and reference the copy.
 
         Such files, e.g. re-saved actuator networks, are removed with the machine's temporary directory.
-        USD layers stay referenced in place, since a copy would not carry the layers they reference.
+        USD layers stay referenced in place, since a copy would not carry the layers they reference; one an
+        asset converter wrote to its default temporary folder raises instead.
         """
         temporary = os.path.realpath(tempfile.gettempdir())
         source = os.path.realpath(asset) if os.path.isabs(asset) else None
-        if source is None or not os.path.isfile(source) or Sdf.FileFormat.FindByExtension(source):
+        if source is None or not os.path.isfile(source) or os.path.commonpath([source, temporary]) != temporary:
             return asset
-        if os.path.commonpath([source, temporary]) != temporary:
-            return asset
+        if Sdf.FileFormat.FindByExtension(source):
+            # Default output folder of AssetConverterBase.
+            converted = os.path.join(temporary, "IsaacLab")
+            if os.path.commonpath([source, converted]) != converted:
+                return asset
+            raise ValueError(
+                f"USD layer '{source}' is in the temporary directory and would be lost with it; convert the asset"
+                " with a persistent 'usd_dir'."
+            )
         directory = os.path.dirname(os.path.abspath(export_path))
         folder = os.path.splitext(os.path.abspath(export_path))[0] + "_files"
         os.makedirs(folder, exist_ok=True)

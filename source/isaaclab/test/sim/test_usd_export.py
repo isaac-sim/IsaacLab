@@ -126,3 +126,22 @@ def test_collider_values_its_shapes_disagree_on_keep_their_usd_values():
     for collider in ("/Table/Top", "/Table/Legs"):
         assert (collider, "physxCollision:contactOffset") not in edits
         assert edits[collider, "physxCollision:restOffset"] == pytest.approx(0.001)
+
+
+def test_converted_usd_in_the_temporary_directory_is_refused(tmp_path, monkeypatch):
+    """A layer an asset converter wrote to its default temporary folder would be lost; other USD stays referenced."""
+    import tempfile
+
+    from isaaclab.sim.usd_export.base_usd_exporter import BaseUsdExporter
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    converted = tmp_path / "IsaacLab" / "usd_0" / "robot.usda"
+    authored = tmp_path / "scene" / "table.usda"
+    for layer in (converted, authored):
+        layer.parent.mkdir(parents=True)
+        Sdf.Layer.CreateNew(str(layer)).Save()
+    export = str(tmp_path / "export" / "env.usda")
+
+    with pytest.raises(ValueError, match="persistent 'usd_dir'"):
+        BaseUsdExporter._keep_temporary_file(str(converted), export)
+    assert BaseUsdExporter._keep_temporary_file(str(authored), export) == str(authored)
