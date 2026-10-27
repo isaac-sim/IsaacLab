@@ -16,7 +16,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, newton_backend
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
@@ -126,8 +126,8 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         wp.synchronize_device(device)
 
         with (
-            patch.object(sim.backend_manager, "_simulate_full", lambda: None),
-            patch.object(sim.backend_manager, "_simulate_physics_only", lambda: None),
+            patch.object(newton_backend, "_simulate_full", lambda backend: None),
+            patch.object(newton_backend, "_simulate_physics_only", lambda backend: None),
         ):
             sim.step(render=False)
         wp.synchronize_device(device)

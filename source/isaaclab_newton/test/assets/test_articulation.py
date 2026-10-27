@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import isaaclab_newton.physics.newton_manager as newton_manager_module
+import isaaclab_newton.physics.newton_backend as newton_backend_module
 import newton
 import numpy as np
 import pytest
@@ -394,7 +394,7 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
     fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
 
     wp.launch(
-        newton_manager_module._scatter_reset_masks_from_ids,
+        newton_backend_module._scatter_reset_masks_from_ids,
         dim=(env_ids.shape[0], articulation_ids.shape[1]),
         inputs=[env_ids, articulation_ids],
         outputs=[world_mask, fk_mask],
@@ -619,8 +619,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         sim.reset()
         callback_counts = (
             len(sim.backend_manager._callbacks),
-            len(sim.backend_manager._post_step_callbacks),
-            len(sim.backend_manager._post_actuator_callbacks),
+            len(sim.backend_manager.backend.post_step_callbacks),
+            len(sim.backend_manager.backend.post_actuator_callbacks),
         )
         for reset_index in range(3):
             if reset_index:
@@ -629,8 +629,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
                 assert callback_counts == (
                     len(sim.backend_manager._callbacks),
-                    len(sim.backend_manager._post_step_callbacks),
-                    len(sim.backend_manager._post_actuator_callbacks),
+                    len(sim.backend_manager.backend.post_step_callbacks),
+                    len(sim.backend_manager.backend.post_actuator_callbacks),
                 )
 
             positions = []
@@ -685,7 +685,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.reset()
         # the first step captures the graph that later steps replay
         sim.step()
-        assert sim.backend_manager._graph is not None
+        assert sim.backend_manager.backend.graph is not None
         data = articulation.data
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
@@ -2044,9 +2044,9 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     # Patch _simulate_physics_only to capture body_q before collide runs
     captured = {}
     backend_manager = scene.sim.backend_manager
-    original_simulate = backend_manager._simulate_physics_only
+    original_simulate = newton_backend_module._simulate_physics_only
 
-    def _patched_simulate() -> None:
+    def _patched_simulate(backend) -> None:
         if backend_manager.backend.collision_pipeline is not None:
             bq = wp.to_torch(backend_manager.backend.state_0.body_q)
             jq = wp.to_torch(backend_manager.backend.state_0.joint_q)
@@ -2054,9 +2054,9 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
             jc0 = int(jc_starts[0])
             captured["bq_root"] = bq[b0, :3].clone()
             captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
-        original_simulate()
+        original_simulate(backend)
 
-    with patch.object(backend_manager, "_simulate_physics_only", _patched_simulate):
+    with patch.object(newton_backend_module, "_simulate_physics_only", _patched_simulate):
         scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 

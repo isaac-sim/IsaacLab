@@ -135,6 +135,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     provider = SceneDataProvider(backend)
 
     newton_backend = SimpleNamespace(
+        cfg=owner._cfg,
         model=SimpleNamespace(body_count=1, world_count=1),
         state_0=state,
         solver=None,
