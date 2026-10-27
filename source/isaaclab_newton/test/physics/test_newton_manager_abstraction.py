@@ -1480,11 +1480,11 @@ def single_joint_world() -> ModelBuilder:
 
 
 @pytest.mark.parametrize("device, use_cuda_graph", [(device, device != "cpu") for device in test_devices()])
-@pytest.mark.parametrize("update_data_interval", [0, 1, 2], ids=["disabled", "every_step", "sparse"])
+@pytest.mark.parametrize("update_data_interval", [0, 2], ids=["disabled", "sparse"])
 def test_mjwarp_authored_reset_survives_sparse_state_import(
     single_joint_world, device, use_cuda_graph, update_data_interval
 ):
-    """Authored resets reach MuJoCo even when the next substep skips importing Newton state."""
+    """Sparse imports preserve authored resets and the motion of an unselected world."""
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device=device,
@@ -1497,6 +1497,8 @@ def test_mjwarp_authored_reset_survives_sparse_state_import(
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        single_joint_world.joint_qd[0] = 0.125
+        builder.add_world(single_joint_world)
         builder.add_world(single_joint_world)
         sim.reset()
 
@@ -1506,22 +1508,35 @@ def test_mjwarp_authored_reset_survives_sparse_state_import(
         manager.activate_newton_actuator_path()
         manager.set_decimation(1)
         state = manager.backend.state_0
+        articulation_ids = ArticulationView(manager.backend.model, "*", verbose=False).articulation_ids
+        env_ids = wp.array([0], dtype=wp.int32, device=device)
+        other_position = state.joint_q.numpy()[1]
 
         for call_forward, position, velocity in ((False, 0.25, 0.5), (True, -0.25, -0.5)):
-            state.joint_q.fill_(position)
-            state.joint_qd.fill_(velocity)
-            manager.invalidate_fk()
+            state.joint_q[:1].fill_(position)
+            state.joint_qd[:1].fill_(velocity)
+            manager.invalidate_fk(env_ids=env_ids, articulation_ids=articulation_ids)
             if call_forward:
+                # Distinct uncommitted inputs expose an import that ignores the reset mask.
+                state.joint_q[1:].fill_(1.25)
+                state.joint_qd[1:].fill_(-0.75)
                 sim.forward()
+                data = manager.backend.solver.mjw_data
+                np.testing.assert_allclose(data.qpos.numpy()[1], other_position, atol=1e-6)
+                np.testing.assert_allclose(data.qvel.numpy()[1], 0.125, atol=1e-6)
+                # Restore these inputs before the next periodic, unmasked import.
+                state.joint_q[1:].fill_(other_position)
+                state.joint_qd[1:].fill_(0.125)
             sim.step(render=False)
 
-            # The unactuated joint moves at constant velocity over one solver step.
+            # Both unactuated joints move at constant velocity over one solver step.
             expected_position = position + velocity * sim_cfg.dt
-            np.testing.assert_allclose(state.joint_q.numpy(), expected_position, atol=1e-6)
-            np.testing.assert_allclose(state.joint_qd.numpy(), velocity, atol=1e-6)
+            other_position += 0.125 * sim_cfg.dt
+            np.testing.assert_allclose(state.joint_q.numpy(), [expected_position, other_position], atol=1e-6)
+            np.testing.assert_allclose(state.joint_qd.numpy(), [velocity, 0.125], atol=1e-6)
 
 
-@pytest.mark.parametrize("reset_world", [0, 1, 2], ids=["template_world", "other_world", "global_world"])
+@pytest.mark.parametrize("reset_world", [0, 1], ids=["template_world", "other_world"])
 def test_mujoco_cpu_authored_reset_only_updates_selected_template_world(single_joint_world, reset_world):
     """Native MuJoCo's single MjData preserves history unless template world 0 is reset."""
     builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))

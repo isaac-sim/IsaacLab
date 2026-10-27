@@ -136,6 +136,8 @@ class NewtonMJWarpManager(NewtonManager):
         # joint_q/joint_qd and has already written the authored reset pose.
         self.backend.solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
         if self.backend.solver.update_data_interval != 1:
+            # Newton has no public masked import. With sleeping disabled,
+            # reset(flags=0) skips it, so reuse the pinned solver's conversion.
             data = self.backend.solver.mj_data if self.backend.solver.use_mujoco_cpu else self.backend.solver.mjw_data
             self.backend.solver._update_mjc_data(data, self.backend.model, self.backend.state_0, world_mask=world_mask)
 
