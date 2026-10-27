@@ -63,7 +63,7 @@ jobs:
             ^VERSION$ :: Version file
             ^\.github/workflows/windows-ci\.yaml$ :: This workflow file
             ^\.github/actions/(warp-cache-key/collection_id|run-package-tests/warp_cache_inventory)\.py$ :: Shared cache scripts
-            ^\.github/scripts/windows_ci_caches\.ps1$ :: Cache script
+            ^\.github/scripts/windows_ci_caches\.py$ :: Cache script
 
   windows-ci:
     name: windows-ci
@@ -113,7 +113,7 @@ jobs:
 
       - name: Resolve cache keys
         id: cache-keys
-        run: .github/scripts/windows_ci_caches.ps1 keys
+        run: uv run --frozen --no-sync python .github/scripts/windows_ci_caches.py keys
 
       - name: Restore Warp kernel cache
         id: restore-warp
@@ -145,7 +145,7 @@ jobs:
           WARP_HIT: ${{ steps.restore-warp.outputs.cache-matched-key }}
           KIT_HIT: ${{ steps.restore-kit.outputs.cache-matched-key }}
           KITLESS_HIT: ${{ steps.restore-kitless.outputs.cache-matched-key }}
-        run: .github/scripts/windows_ci_caches.ps1 restored
+        run: uv run --frozen --no-sync python .github/scripts/windows_ci_caches.py restored
 
       - name: Run windows_ci marker tests
         env:
@@ -173,7 +173,7 @@ jobs:
           WARP_BEFORE: ${{ steps.caches-restored.outputs.warp-fingerprint }}
           KIT_BEFORE: ${{ steps.caches-restored.outputs.kit-fingerprint }}
           KITLESS_BEFORE: ${{ steps.caches-restored.outputs.kitless-fingerprint }}
-        run: .github/scripts/windows_ci_caches.ps1 growth
+        run: uv run --frozen --no-sync python .github/scripts/windows_ci_caches.py growth
 
       - name: Save Warp kernel cache
         if: ${{ !cancelled() && steps.caches-growth.outputs.warp-changed == 'true' }}
