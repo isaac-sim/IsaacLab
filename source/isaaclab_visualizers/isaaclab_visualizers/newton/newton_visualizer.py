@@ -522,7 +522,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             source = view.cfg.source
             if self._is_tracking_view(view) and scene is not None:
                 # fail at initialization, not on a frame: a bad env_index or track_path raises here
-                self._followers[view] = follower = CameraFollower(source, scene)
+                self._followers[view] = follower = CameraFollower(source, scene, self._env_ids)
                 self._tracking_defaults[view] = {
                     "eye": source.eye,
                     "lookat": source.lookat,
@@ -532,11 +532,11 @@ class NewtonVisualizerBase(BaseVisualizer):
                     "heading_smoothing_time_constant": source.heading_smoothing_time_constant,
                     "env": follower.env,
                 }
-                if self._env_ids is not None and (source.env_index or 0) not in self._env_ids:
+                if self._env_ids is not None and follower.env not in self._env_ids:
                     logger.warning(
                         "[NewtonVisualizer] A tracking camera frames environment %d, which is not among the visible "
                         "environments %s, so it will show an empty scene.",
-                        source.env_index or 0,
+                        follower.env,
                         list(self._env_ids),
                     )
         self._runtime_headless = self.cfg.headless or (

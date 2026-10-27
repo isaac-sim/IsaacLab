@@ -78,8 +78,9 @@ class TrackingCameraCfg(PerspectiveCameraCfg):
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Look-at target [m], in the same frame as :attr:`eye`."""
 
-    env_index: int = 0
-    """Environment to frame, or the one holding the tracked asset."""
+    env_index: int | None = None
+    """Environment to frame, or the one holding the tracked asset; None picks the middle one of the visible
+    environments, which has neighbors on every side."""
 
     track_path: str | None = None
     """Scene asset to follow, or None for a view fixed relative to the environment origin.
@@ -100,7 +101,7 @@ class TrackingCameraCfg(PerspectiveCameraCfg):
     """
 
     def __post_init__(self) -> None:
-        if self.env_index < 0:
+        if self.env_index is not None and self.env_index < 0:
             raise ValueError("env_index must be non-negative.")
         if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
             raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")

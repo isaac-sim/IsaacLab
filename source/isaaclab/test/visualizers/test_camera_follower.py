@@ -192,3 +192,13 @@ def test_two_updates_a_millisecond_apart_are_not_mistaken_for_an_environment_res
     follower._yaw = 0.0
     follower._last_position = [0.0, 0.0, 0.5]
     assert follower._filtered_yaw([0.0, 0.0, 0.0099995, 0.99995], [0.0, 0.0, 0.5], 0.001) < 0.02
+
+
+def test_without_an_env_index_the_middle_visible_environment_is_followed():
+    class _Many(_Scene):
+        num_envs = 256
+        env_origins = torch.zeros(256, 3)
+
+    assert CameraFollower(TrackingCameraCfg(), _Many()).env == 127
+    assert CameraFollower(TrackingCameraCfg(), _Many(), env_ids=[3, 10, 40]).env == 10
+    assert CameraFollower(TrackingCameraCfg(env_index=5), _Many()).env == 5

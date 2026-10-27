@@ -269,7 +269,7 @@ viewport's markers and shadows.
        ],
    )
 
-* ``env_index``: the environment to frame or follow; defaults to 0.
+* ``env_index``: the environment to frame or follow; defaults to the middle one, which has neighbors on every side.
 * ``track_path``: a scene asset (``"robot"``) or one of its bodies (``"robot/base"``). Without it, the view stays
   fixed in the environment.
 * ``follow_heading``: rotate the offsets with the asset's yaw, keeping the horizon level.

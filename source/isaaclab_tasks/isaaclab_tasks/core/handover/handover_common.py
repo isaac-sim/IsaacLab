@@ -39,7 +39,7 @@ VISUALIZER_CFG = VisualizerCfg(
     eye=(2.35, -0.5, 1.1),
     lookat=(0.75, -0.5, 0.55),
     focal_length=35.0,
-    cameras=[TrackingCameraCfg(env_index=0, eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0)],
+    cameras=[TrackingCameraCfg(eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0)],
 )
 """Recording view facing one hand pair from the side, with both hands and the object between them."""
 

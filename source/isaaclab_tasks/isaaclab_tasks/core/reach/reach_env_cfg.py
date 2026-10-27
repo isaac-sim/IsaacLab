@@ -252,7 +252,6 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
             eye=(3.5, 3.5, 3.5),
             cameras=[
                 TrackingCameraCfg(
-                    env_index=0,
                     eye=(1.8, -1.8, 1.5),
                     lookat=(0.3, 0.0, 0.4),
                     focal_length=28.0,

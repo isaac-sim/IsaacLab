@@ -244,7 +244,6 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
             eye=(12.0, 0.0, 4.0),
             cameras=[
                 TrackingCameraCfg(
-                    env_index=0,
                     eye=(4.5, 0.0, 1.8),
                     lookat=(0.0, 0.0, 1.8),
                     focal_length=24.0,

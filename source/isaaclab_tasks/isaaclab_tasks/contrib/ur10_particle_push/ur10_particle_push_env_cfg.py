@@ -616,7 +616,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         render_interval=decimation,
         # the viewport starts on the first view, framing environment 0; a free view follows it
         visualizer_cfgs=VisualizerCfg(
-            cameras=[TrackingCameraCfg(env_index=0, eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
+            cameras=[TrackingCameraCfg(eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
         ),
     )
     actions: ActionsCfg = ActionsCfg()

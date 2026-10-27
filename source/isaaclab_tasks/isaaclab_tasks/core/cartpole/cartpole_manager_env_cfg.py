@@ -185,7 +185,6 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
             eye=(8.0, 0.0, 5.0),
             cameras=[
                 TrackingCameraCfg(
-                    env_index=0,
                     eye=(8.0, 0.0, 2.5),
                     lookat=(0.0, 0.0, 2.5),
                     focal_length=24.0,

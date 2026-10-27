@@ -568,7 +568,6 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
             lookat=(0.0, 0.0, 0.45),
             cameras=[
                 TrackingCameraCfg(
-                    env_index=0,
                     eye=(-1.8, -1.8, 1.45),
                     lookat=(-0.3, 0.0, 0.45),
                     focal_length=28.0,

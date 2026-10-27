@@ -636,7 +636,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.visualizer_cfgs = VisualizerCfg(
             eye=(0.75, 0.25, 0.65),
             lookat=(0.0, 0.75, 0.4),
-            cameras=[TrackingCameraCfg(env_index=0, eye=(1.8, -1.8, 1.5), lookat=(0.35, 0.0, 0.35), focal_length=28.0)],
+            cameras=[TrackingCameraCfg(eye=(1.8, -1.8, 1.5), lookat=(0.35, 0.0, 0.35), focal_length=28.0)],
         )
 
     def play_mode(self):

@@ -113,7 +113,6 @@ class CabinetSimCfg(PresetCfg):
             lookat=(0.8, 0.0, 0.5),
             cameras=[
                 TrackingCameraCfg(
-                    env_index=0,
                     eye=(-1.8, 2.0, 1.6),
                     lookat=(0.55, 0.0, 0.5),
                     focal_length=28.0,

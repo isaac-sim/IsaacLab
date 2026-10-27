@@ -84,7 +84,6 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
         visualizer_cfgs=VisualizerCfg(
             cameras=[
                 TrackingCameraCfg(
-                    env_index=0,
                     eye=(8.0, 0.0, 2.3),
                     lookat=(0.0, 0.0, 2.3),
                     focal_length=24.0,

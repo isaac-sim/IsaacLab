@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -33,14 +34,25 @@ class CameraFollower:
     asset's position, and its yaw when ``follow_heading`` is set, with the heading filtered over time.
     """
 
-    def __init__(self, cfg: TrackingCameraCfg, scene: InteractiveScene) -> None:
+    def __init__(self, cfg: TrackingCameraCfg, scene: InteractiveScene, env_ids: Sequence[int] | None = None) -> None:
+        """Bind *cfg* to *scene*.
+
+        Args:
+            cfg: The tracking camera. Its ``env_index`` None selects the middle environment.
+            scene: The scene to read environment origins and assets from.
+            env_ids: The visible environments, or None when all are; the middle one is picked from these.
+        """
         self.cfg = cfg
         self._scene = scene
         self._env = 0
         self._yaw: float | None = None
         self._last_position: list[float] | None = None
         self._time: float | None = None
-        self.set_env(cfg.env_index)
+        if cfg.env_index is not None:
+            self.set_env(cfg.env_index)
+        else:
+            ids = list(env_ids) if env_ids else range(scene.num_envs)
+            self.set_env(ids[(len(ids) - 1) // 2])
         self._asset = None
         self._body_index: int | None = None
         self._body_name = ""

@@ -89,7 +89,7 @@ class KitVisualizer(BaseVisualizer):
         self._declared_tracking_camera: PerspectiveCameraCfg | None = None
         self._follow_view: PerspectiveCameraCfg | None = None
         self._follower: CameraFollower | None = None
-        self._follow_env = 0
+        self._follow_env: int | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -463,18 +463,21 @@ class KitVisualizer(BaseVisualizer):
     @property
     def follow_env_index(self) -> int:
         """Environment the viewport camera follows, or would follow when asked to."""
+        if self._follow_env is None:
+            scene = self._interactive_scene
+            return 0 if scene is None else (scene.num_envs - 1) // 2
         return self._follow_env
 
     def follow(self, track_path: str | None = None, *, env_index: int | None = None) -> None:
         """Make the viewport camera frame an environment, or follow an asset in it.
 
-        :attr:`~KitVisualizerCfg.eye` and :attr:`~KitVisualizerCfg.lookat` become offsets from the environment
-        origin, or from the tracked asset when *track_path* is set. A tracking camera declared in the configuration
-        supplies the heading behaviour when it follows the same asset.
+        The configuration's ``eye`` and ``lookat`` become offsets from the environment origin, or from the tracked
+        asset when *track_path* is set. A tracking camera declared in the configuration supplies the heading
+        behaviour when it follows the same asset.
 
         Args:
             track_path: ``"<asset>"`` or ``"<asset>/<body>"``, or None to frame the environment's origin.
-            env_index: Environment to follow; None keeps the one last chosen, 0 at first.
+            env_index: Environment to follow; None keeps the one last chosen, the middle one at first.
         """
         if env_index is not None:
             self._follow_env = int(env_index)
@@ -493,7 +496,8 @@ class KitVisualizer(BaseVisualizer):
             follow_heading=same_asset and template.follow_heading,
             heading_smoothing_time_constant=template.heading_smoothing_time_constant if same_asset else 0.0,
         )
-        self._follower = CameraFollower(self._follow_view, scene)
+        self._follower = CameraFollower(self._follow_view, scene, self._env_ids)
+        self._follow_env = self._follower.env
         self._set_viewport_focal_length(self._follow_view.focal_length)
         self._update_follow_camera()
 
@@ -1007,7 +1011,7 @@ class KitVisualizer(BaseVisualizer):
         if views and isinstance(views[0], TrackingCameraCfg):
             first = views[0]
             self.cfg.eye, self.cfg.lookat, self.cfg.focal_length = first.eye, first.lookat, first.focal_length
-            self.follow(first.track_path, env_index=first.env_index or 0)
+            self.follow(first.track_path, env_index=first.env_index)
 
     def _update_asset_follow_camera(self) -> None:
         """Re-apply the pose every step while an asset is followed; a fixed environment view is left movable."""
