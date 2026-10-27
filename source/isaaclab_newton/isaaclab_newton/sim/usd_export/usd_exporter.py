@@ -154,7 +154,7 @@ class UsdExporter(BaseUsdExporter):
 
     @classmethod
     def load_usd(
-        cls, path: str, device: str = "cpu"
+        cls, path: str, device: str = "cpu", allow_unsafe_torch_checkpoints: bool = False
     ) -> tuple[newton.Model, newton.solvers.SolverBase | None, float | None]:
         """Load a USD file exported from a Newton scene.
 
@@ -163,6 +163,9 @@ class UsdExporter(BaseUsdExporter):
         Args:
             path: Exported USD file.
             device: Device of the model and solver. Defaults to ``"cpu"``.
+            allow_unsafe_torch_checkpoints: Load the torch checkpoints the file's actuators reference, such as
+                actuator networks. Loading one can run arbitrary code; enable it only for trusted files.
+                Defaults to False.
 
         Returns:
             The model, the solver configured as in training (None if the file records none), and the
@@ -179,13 +182,18 @@ class UsdExporter(BaseUsdExporter):
             solver_cfg = solver_type()
             solver_cfg.from_dict(settings["solver"])
         force = settings.get("force_position_velocity_actuation", False)
-        model = cls.import_model(stage, solver_cfg, device, force)
+        model = cls.import_model(stage, solver_cfg, device, force, allow_unsafe_torch_checkpoints)
         solver = cls._manager(solver_cfg)._create_solver(model, solver_cfg) if solver_cfg is not None else None
         return model, solver, settings.get("dt")
 
     @classmethod
     def import_model(
-        cls, stage: Usd.Stage, solver_cfg=None, device: str = "cpu", force_position_velocity_actuation: bool = False
+        cls,
+        stage: Usd.Stage,
+        solver_cfg=None,
+        device: str = "cpu",
+        force_position_velocity_actuation: bool = False,
+        allow_unsafe_torch_checkpoints: bool = False,
     ) -> newton.Model:
         """Import a stage with Newton's USD importer, as :meth:`load_usd` does.
 
@@ -198,6 +206,8 @@ class UsdExporter(BaseUsdExporter):
             device: Device of the finalized model. Defaults to ``"cpu"``.
             force_position_velocity_actuation: Actuate joints with both drive gains in position-velocity
                 mode. Defaults to False.
+            allow_unsafe_torch_checkpoints: Load the torch checkpoints the stage's actuators reference; see
+                :meth:`load_usd`. Defaults to False.
 
         Returns:
             The finalized model.
@@ -214,6 +224,7 @@ class UsdExporter(BaseUsdExporter):
             schema_resolvers=manager._get_usd_import_schema_resolvers(),
             ignore_paths=terrains,
             force_position_velocity_actuation=force_position_velocity_actuation,
+            allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoints,
         )
         return builder.finalize(device=device)
 
