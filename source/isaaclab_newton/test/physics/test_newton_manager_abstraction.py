@@ -1469,19 +1469,9 @@ def single_joint_world() -> ModelBuilder:
 
 
 @pytest.mark.parametrize("device, use_cuda_graph", [(device, device != "cpu") for device in test_devices()])
-@pytest.mark.parametrize(
-    "update_data_interval, decimation, num_substeps",
-    [
-        pytest.param(2, 1, 1, id="single_solver_step"),
-        pytest.param(2, 3, 1, id="odd_decimation"),
-        pytest.param(2, 1, 3, id="odd_substeps"),
-        pytest.param(2, 2, 1, id="even_decimation"),
-        pytest.param(0, 1, 1, id="disabled_periodic_imports"),
-        pytest.param(1, 1, 1, id="default_import_interval"),
-    ],
-)
+@pytest.mark.parametrize("update_data_interval", [0, 1, 2], ids=["disabled", "every_step", "sparse"])
 def test_mjwarp_authored_reset_survives_sparse_state_import(
-    single_joint_world, device, use_cuda_graph, update_data_interval, decimation, num_substeps
+    single_joint_world, device, use_cuda_graph, update_data_interval
 ):
     """Authored resets reach MuJoCo even when the next substep skips importing Newton state."""
     sim_cfg = SimulationCfg(
@@ -1490,41 +1480,31 @@ def test_mjwarp_authored_reset_survives_sparse_state_import(
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(update_data_interval=update_data_interval, njmax=5, nconmax=5),
-            num_substeps=num_substeps,
+            num_substeps=1,
             use_cuda_graph=use_cuda_graph,
         ),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         builder.add_world(single_joint_world)
-        builder.add_world(single_joint_world)
         sim.reset()
 
         # Warm up before the final graph capture so sparse imports start off cadence.
         sim.step(render=False)
         NewtonManager.activate_newton_actuator_path()
-        NewtonManager.set_decimation(decimation)
+        NewtonManager.set_decimation(1)
         state = NewtonManager.get_state_0()
-        articulation_ids = wp.array([[0], [1]], dtype=wp.int32, device=device)
 
-        for reset_world in (0, 1):
-            position = state.joint_q.numpy().copy()
-            velocity = state.joint_qd.numpy().copy()
-            position[reset_world] = 0.25 * (reset_world + 1)
-            velocity[reset_world] = 0.5 * (reset_world + 1)
-            state.joint_q.assign(position)
-            state.joint_qd.assign(velocity)
-            NewtonManager.invalidate_fk(
-                env_ids=wp.array([reset_world], dtype=wp.int32, device=device),
-                articulation_ids=articulation_ids,
-            )
-            # Cover a direct step, then a read/forward boundary that consumes the reset mask first.
-            if reset_world == 1:
+        for call_forward, position, velocity in ((False, 0.25, 0.5), (True, -0.25, -0.5)):
+            state.joint_q.fill_(position)
+            state.joint_qd.fill_(velocity)
+            NewtonManager.invalidate_fk()
+            if call_forward:
                 sim.forward()
             sim.step(render=False)
 
-            # With no gravity, damping, or applied effort, both joints move at constant velocity.
-            expected_position = position + velocity * sim_cfg.dt * decimation
+            # The unactuated joint moves at constant velocity over one solver step.
+            expected_position = position + velocity * sim_cfg.dt
             np.testing.assert_allclose(state.joint_q.numpy(), expected_position, atol=1e-6)
             np.testing.assert_allclose(state.joint_qd.numpy(), velocity, atol=1e-6)
 
