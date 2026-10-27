@@ -20,7 +20,7 @@ overrides = [
     { name = "fsspec", specifier = ">=2026.6.0" },
     { name = "mujoco", specifier = "~=3.15.0" },
     { name = "mujoco-warp", specifier = "~=3.15.0" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=71eeba16a717d4dcf0b9dd7056a7b6f863054dc3" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=42f7def118c2c4299ce493457bafd4e8a22a696e" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -886,6 +886,19 @@ nvtx = [
 ]
 
 [[package]]
+name = "cupy-cuda12x"
+version = "14.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cuda-pathfinder" },
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/8c/5fe3f6719c2d4560c79c62ef6d9b7d6c34d145879ddc0c1a41f8153ad0a6/cupy_cuda12x-14.2.0-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:b74340aa7271f0f081f77e2e5107bac75af19b86df29213db7ada90e14428efe", size = 147490427, upload-time = "2026-08-20T02:40:00.196Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/5b/65124de2dbaf2e85109f611a41947e39acd6dd938751c04b4c4d7bf6fc82/cupy_cuda12x-14.2.0-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:f82141761f2c81905d49387464ae29438887956d99063381c93a1d5d1b7d32e8", size = 136111459, upload-time = "2026-08-20T02:40:04.909Z" },
+]
+
+[[package]]
 name = "cycler"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1481,19 +1494,6 @@ wheels = [
 ]
 
 [[package]]
-name = "hidapi"
-version = "0.15.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/74/f6/caad9ed701fbb9223eb9e0b41a5514390769b4cb3084a2704ab69e9df0fe/hidapi-0.15.0.tar.gz", hash = "sha256:ecbc265cbe8b7b88755f421e0ba25f084091ec550c2b90ff9e8ddd4fcd540311", size = 184995, upload-time = "2025-12-09T09:48:54.129Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/bc/0eb92f4f238adc8edc3decb859662cf87e302b0a6ecdabe0e4d0560eb5fd/hidapi-0.15.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:cfdbc74d5c4b5fdeef58a246d80f7dbf4ca33fe741c889505a4a350dd2eb54fb", size = 1082139, upload-time = "2025-12-09T09:45:32.799Z" },
-    { url = "https://files.pythonhosted.org/packages/03/04/856827cfecaa89091ed470f697e3f9cfb172fc852960e6b902e765d7d650/hidapi-0.15.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:4b7b6207c1c7df3524e9d4019c7196547327636e9924010b9b0bf0c40029e329", size = 1620074, upload-time = "2025-12-09T09:45:28.573Z" },
-    { url = "https://files.pythonhosted.org/packages/84/08/28ce99698e14bb6bdf9d0dcf7ab45ab86d8bade894885aa15bb3fa43bcc1/hidapi-0.15.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:f9356fffebf723ccfbf0f9370d3725de37b3e2f1f6bffc40c3466f854542861c", size = 713596, upload-time = "2025-12-09T09:45:34.564Z" },
-    { url = "https://files.pythonhosted.org/packages/af/ef/e2fa4d795235eb09951f806bbfdbd766d1be805df448d67918e828b7cb31/hidapi-0.15.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:35eb5797d86306bd67aee80ad8973ab0a0b4e6d54018d3efb328767d0e8c9373", size = 717599, upload-time = "2025-12-09T09:45:37.825Z" },
-    { url = "https://files.pythonhosted.org/packages/7f/35/f9e2d3ead60b573140546b041dd41c78a48c0e6b573d61a03130adccd32e/hidapi-0.15.0-cp312-cp312-win_amd64.whl", hash = "sha256:9abc71a62bf8a8f1d70a6fd3613f86feb37ddb67e05ed934e734df79e27bf4f6", size = 67073, upload-time = "2025-12-09T09:45:39.261Z" },
-]
-
-[[package]]
 name = "hoptorch"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1747,6 +1747,41 @@ wheels = [
 ]
 
 [[package]]
+name = "isaaccapture"
+version = "1.7.44a1"
+source = { registry = "https://pypi.nvidia.com/" }
+dependencies = [
+    { name = "isaacteleop" },
+    { name = "numpy" },
+    { name = "pyyaml" },
+]
+wheels = [
+    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.44a1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:b266c52af35a93e85133fe195243d616e9ba41c70e6d88ee6a7183be0fcfb324" },
+    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.44a1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:bba80a67891474bc2cf9ddc4b6b0bd6ea78977f8d4d5cf38c4e7f2aae02c781c" },
+]
+
+[package.optional-dependencies]
+cloudxr = [
+    { name = "cryptography" },
+    { name = "cupy-cuda12x" },
+    { name = "pillow" },
+    { name = "websockets" },
+]
+retargeters = [
+    { name = "cmeel-tinyxml2" },
+    { name = "cmeel-urdfdom" },
+    { name = "dex-retargeting" },
+    { name = "nlopt" },
+    { name = "pin" },
+    { name = "pyyaml" },
+    { name = "scipy" },
+    { name = "torch" },
+]
+ui = [
+    { name = "imgui", extra = ["glfw"] },
+]
+
+[[package]]
 name = "isaaclab"
 version = "41.1.0"
 source = { editable = "source/isaaclab" }
@@ -1797,7 +1832,6 @@ dependencies = [
     { name = "gymnasium" },
     { name = "h5py" },
     { name = "hf-xet" },
-    { name = "hidapi" },
     { name = "hydra-core" },
     { name = "imgui-bundle" },
     { name = "isaaclab" },
@@ -1959,9 +1993,9 @@ skrl-jax = [
 ]
 teleop = [
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "isaaccapture", extra = ["cloudxr", "retargeters", "ui"], marker = "sys_platform != 'win32'" },
     { name = "isaaclab-mimic" },
     { name = "isaaclab-teleop" },
-    { name = "isaacteleop", extra = ["cloudxr", "retargeters", "ui"], marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
 ]
 test = [
     { name = "coverage" },
@@ -2011,10 +2045,10 @@ requires-dist = [
     { name = "gymnasium", specifier = ">=1.2.0" },
     { name = "h5py", specifier = ">=3.15.0" },
     { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'x86_64'", specifier = ">=1.4.1,<2.0.0" },
-    { name = "hidapi", specifier = ">=0.14.0" },
     { name = "hydra-core" },
     { name = "imgui-bundle", specifier = ">=1.92.5" },
     { name = "ipywidgets", marker = "extra == 'mimic'", specifier = ">=8.1.5" },
+    { name = "isaaccapture", extras = ["retargeters", "ui", "cloudxr"], marker = "sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.7.44a1" },
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
@@ -2035,7 +2069,6 @@ requires-dist = [
     { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
     { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.2.0.0" },
     { name = "isaacsim-asset-isolated", marker = "extra == 'importers'", specifier = "==6.2.0.0" },
-    { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.145" },
     { name = "jax", extras = ["cuda13"], marker = "sys_platform == 'linux' and extra == 'skrl-jax'" },
     { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
@@ -2045,7 +2078,7 @@ requires-dist = [
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=71eeba16a717d4dcf0b9dd7056a7b6f863054dc3" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=42f7def118c2c4299ce493457bafd4e8a22a696e" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2747,33 +2780,13 @@ wheels = [
 
 [[package]]
 name = "isaacteleop"
-version = "1.4.145"
+version = "1!1.7.44a1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
-    { name = "numpy" },
-    { name = "pyyaml" },
+    { name = "isaaccapture" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacteleop/isaacteleop-1.4.145-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:b18b210535b28516593bb6e85ffb70a6e8265d9547365c818e38920184ee7b40" },
-]
-
-[package.optional-dependencies]
-cloudxr = [
-    { name = "cryptography" },
-    { name = "websockets" },
-]
-retargeters = [
-    { name = "cmeel-tinyxml2" },
-    { name = "cmeel-urdfdom" },
-    { name = "dex-retargeting" },
-    { name = "nlopt" },
-    { name = "pin" },
-    { name = "pyyaml" },
-    { name = "scipy" },
-    { name = "torch" },
-]
-ui = [
-    { name = "imgui", extra = ["glfw"] },
+    { url = "https://pypi.nvidia.com/isaacteleop/isaacteleop-1%211.7.44a1-py3-none-any.whl", hash = "sha256:d09008a3ece5ae4e2debb9b7f0fa8a58aaa4632c9f025c487bfbf946dd2829f8" },
 ]
 
 [[package]]
@@ -3134,8 +3147,11 @@ version = "7.0.0a3"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ff/4f/7857f1ad3949c5f4f1bd4a06b0cc80d8b4418294a11b0ba9091bd66808b3/lxml-7.0.0a3.tar.gz", hash = "sha256:032fbe02d001d2ad7ad3bd2d4d387d651adf7f910bdf85d1633ff7ea4fe26011", size = 5079184, upload-time = "2026-06-17T02:00:37.63Z" }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/13/1fe68741c8f76e14c64d149b6d43bca17877a7ed3ffab0461a3c90aa9203/lxml-7.0.0a3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:82a37bda527ce5671827daf698ca99028c6291225a2e8e6b4a5305d1a3a00b62", size = 5029652, upload-time = "2026-06-17T01:56:36.197Z" },
     { url = "https://files.pythonhosted.org/packages/8c/f6/26ecaa3f0cb5022fa8c95bfa079cdd0ee022cb3c1b12c4ce8327f36a737a/lxml-7.0.0a3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:2944e368c90d28ec749f4ee403207063f103f4dcd525f4b9de39adbf3e6bb2bf", size = 5206190, upload-time = "2026-06-17T01:56:38.422Z" },
+    { url = "https://files.pythonhosted.org/packages/69/28/58d59576619512ceda96cac7478877603e3b5b17f71d126abc8a05f4db07/lxml-7.0.0a3-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6a8d30425433c52722eada9140598228a5d65f22fe6c8cf6f11d58a9c6e06dbc", size = 5107935, upload-time = "2026-06-17T01:56:40.94Z" },
     { url = "https://files.pythonhosted.org/packages/61/be/169445c66bb304884631da3aeb92ff889a5d7ec2b666e640b93a50d7b3ec/lxml-7.0.0a3-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:79f77375e15c8af12597c18edba55de83d8df2aee37a2b4904083d4e5fe100c6", size = 5351840, upload-time = "2026-06-17T01:56:45.592Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/75/7744d7c7faf610784917ddc1bf925d8e9ef8de8947d594e474b1adf08ed8/lxml-7.0.0a3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:bdfc1708df864b873b26e0429528a8c721a2c7500a859b1353a39a531a7f0aeb", size = 5154105, upload-time = "2026-06-17T01:56:55.334Z" },
     { url = "https://files.pythonhosted.org/packages/51/d7/5ca72059bef4c7ecd7c535e214aed0b908a2fd284f263c4d615c30e401e5/lxml-7.0.0a3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:1f24edf92b881d7a8ce7c154d61cf3fae0dfe758ad3f64ee2313a6210459ce6f", size = 5370450, upload-time = "2026-06-17T01:57:04.757Z" },
 ]
 
@@ -3459,7 +3475,7 @@ wheels = [
 [[package]]
 name = "newton"
 version = "1.8.0.dev0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=71eeba16a717d4dcf0b9dd7056a7b6f863054dc3#71eeba16a717d4dcf0b9dd7056a7b6f863054dc3" }
+source = { git = "https://github.com/newton-physics/newton.git?rev=42f7def118c2c4299ce493457bafd4e8a22a696e#42f7def118c2c4299ce493457bafd4e8a22a696e" }
 dependencies = [
     { name = "warp-lang" },
 ]
@@ -3487,6 +3503,7 @@ dependencies = [
     { name = "numpy" },
 ]
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/1d/382ab0aadfdf75782899eea7bbc7fa42846ac850666614ba8211f913a6a6/nlopt-2.11.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4c6b3d5f9dbfa2d049fc89611e8bb70e8ff2ebbea61c3d5e295783080fc06143", size = 389198, upload-time = "2026-07-17T06:50:47.223Z" },
     { url = "https://files.pythonhosted.org/packages/d0/0d/9f826469fdc6dd21f18c52dbe209b2c7a29b71d2b6bb21f494bcc7260085/nlopt-2.11.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b7ea0d34cb00ed71fb032ff24a1b5599a61ca0101984c3fdfd954eca569e8ad2", size = 402848, upload-time = "2026-07-17T06:50:48.233Z" },
 ]
 

@@ -58,7 +58,7 @@ class Pva(BasePva):
         self._newton_model = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
-        self._site_label = self._backend_manager.cl_register_site(cfg.prim_path, offset_xform)
+        self._site_label = self._backend_manager.register_site(cfg.prim_path, offset_xform)
         self._backend_manager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"Pva '{cfg.prim_path}': site registered (label='{self._site_label}')")
@@ -122,13 +122,12 @@ class Pva(BasePva):
         """PHYSICS_READY callback: resolves site indices and stores model reference."""
         super()._initialize_impl()
 
-        site_map = self._backend_manager._cl_site_index_map
+        site_map = self._backend_manager.get_site_index_map()
         num_envs = self._num_envs
 
         if self._site_label not in site_map:
             raise ValueError(
-                f"Pva '{self.cfg.prim_path}': site label '{self._site_label}' "
-                "not found in NewtonManager._cl_site_index_map."
+                f"Pva '{self.cfg.prim_path}': site label '{self._site_label}' not found in the Newton site map."
             )
 
         global_idx, per_world = site_map[self._site_label]
@@ -237,7 +236,7 @@ class Pva(BasePva):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Release native handles and renew the model's ``body_qdd`` request, retaining the builder-owned site."""
+        """Release native handles; the site and ``body_qdd`` request persist on the builder."""
         super()._invalidate_initialize_callback(event)
         self._newton_model = None
         self._site_indices = None
@@ -255,5 +254,3 @@ class Pva(BasePva):
         ]:
             if buf is not None:
                 buf.zero_()
-
-        self._backend_manager.request_extended_state_attribute("body_qdd")
