@@ -58,8 +58,13 @@ class NewtonPolicyGhostPanel:
         """Environment-to-slot layout of the controller."""
         return self.controller.layout
 
-    def draw(self, imgui: Any) -> None:
-        """Draw the Policy Ghosts section and, when open, the checkpoint discovery window."""
+    def draw(self, imgui: Any, extra: Callable[[Any], None] | None = None) -> None:
+        """Draw the Policy Ghosts section and, when open, the checkpoint discovery window.
+
+        Args:
+            imgui: The ``imgui`` module.
+            extra: Optional callback that draws more controls at the end of the open section.
+        """
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
         ghosts_open = imgui.collapsing_header("Policy Ghosts")
         if imgui.is_item_hovered():
@@ -93,6 +98,9 @@ class NewtonPolicyGhostPanel:
                     self._restart(False)
                 if imgui.is_item_hovered():
                     imgui.set_tooltip("Restarts the viewer with only the reference environments")
+            if extra is not None:
+                imgui.separator()
+                extra(imgui)
         if self._window_open:
             self._draw_window(imgui)
 
@@ -228,12 +236,15 @@ class NewtonPolicyGhostPanel:
         imgui.end()
 
 
-def draw_policy_ghost_launcher(imgui: Any, restart: Callable[[bool], None]) -> None:
+def draw_policy_ghost_launcher(
+    imgui: Any, restart: Callable[[bool], None], extra: Callable[[Any], None] | None = None
+) -> None:
     """Draw the collapsed Policy Ghosts section of a run that started without the feature.
 
     Args:
         imgui: The ``imgui`` module.
         restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+        extra: Optional callback that draws more controls at the end of the open section.
     """
     imgui.set_next_item_open(False, imgui.Cond_.appearing)
     ghosts_open = imgui.collapsing_header("Policy Ghosts")
@@ -247,3 +258,6 @@ def draw_policy_ghost_launcher(imgui: Any, restart: Callable[[bool], None]) -> N
         )
         if imgui.button("Enable Policy Ghosts (restarts)"):
             restart(True)
+        if extra is not None:
+            imgui.separator()
+            extra(imgui)

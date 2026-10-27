@@ -13,7 +13,6 @@ import re
 import shutil
 import socket
 import subprocess
-import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -23,7 +22,6 @@ import numpy as np
 
 from isaaclab.paths import ISAACLAB_ROOT
 
-from .newton_replay import NewtonReplayPlayer, list_recordings
 from .newton_visualization_markers import render_newton_visualization_markers
 
 if TYPE_CHECKING:
@@ -53,9 +51,6 @@ def hover_tooltip(imgui: Any, text: str) -> None:
 _RED = (1.0, 0.35, 0.35, 1.0)
 _YELLOW = (1.0, 0.8, 0.2, 1.0)
 _GREEN = (0.45, 0.9, 0.5, 1.0)
-
-REPLAY_VIEWS = {"only": "Replay only", "overlay": "Overlay on live"}
-"""Ways to show a loaded animation, as view name to label."""
 
 
 def _ffmpeg_executable() -> str | None:
@@ -106,11 +101,6 @@ class NewtonRecordingPanel:
         self._video_temp: Path | None = None
         self._video_unsaved: Path | None = None
         """Finished clip that stays in a temporary file until :meth:`save_video` keeps it."""
-        self.replay = NewtonReplayPlayer(lambda: owner._viewer)
-        self.replay_folder = ""
-        """Folder the Open window lists; empty follows the output folder's ``scene`` subfolder."""
-        self._replay_window_open = False
-        self._replay_files: list[Path] = []
         self._video: subprocess.Popen | None = None
         self._video_frames = 0
         self._video_shape: tuple[int, int] | None = None
@@ -143,9 +133,7 @@ class NewtonRecordingPanel:
         expanded = imgui.collapsing_header("Recording  (REC)###recording" if active else "Recording###recording")
         if active:
             imgui.pop_style_color()
-        hover_tooltip(imgui, "Record a video or an animation, save a policy checkpoint, and play animations back")
-        if self._replay_window_open:
-            self._draw_replay_window(imgui)
+        hover_tooltip(imgui, "Record a video or an animation, and save a policy checkpoint")
         if not expanded:
             return
         imgui.separator()
@@ -185,7 +173,7 @@ class NewtonRecordingPanel:
         imgui.separator()
 
     def _draw_animation(self, imgui: Any) -> None:
-        """Draw the animation group: Record, Open, status, and the loaded animation's controls."""
+        """Draw the animation group: Record and its status."""
         imgui.text("Animation (.viser)")
         if self.recording_scene:
             if imgui.button("Stop##scene"):
@@ -195,14 +183,10 @@ class NewtonRecordingPanel:
             self.start_scene()
         if imgui.is_item_hovered() and not self.recording_scene:
             imgui.set_tooltip("Record the visible environments to a .viser file")
-        imgui.same_line()
-        if imgui.button("Open...##replay"):
-            self._open_replay_window()
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Load a .viser animation and play it in this window, next to the simulation")
         if self.recording_scene:
             imgui.text_colored(imgui.ImVec4(*_RED), f"REC  {self._scene_frames} frames")
-        self._draw_replay_controls(imgui)
+        else:
+            imgui.text_disabled("Open animations from Policy Ghosts")
         imgui.separator()
 
     def _draw_checkpoint(self, imgui: Any) -> None:
@@ -255,101 +239,9 @@ class NewtonRecordingPanel:
                 imgui.text_wrapped(self._message)
                 imgui.pop_style_color()
 
-    def _open_replay_window(self) -> None:
-        self._replay_window_open = True
-        self._replay_files = list_recordings(self._replay_dir())
-
-    def _replay_dir(self) -> str:
-        return self.replay_folder or str(resolve_output_dir(self.output_dir) / "scene")
-
-    def _draw_replay_window(self, imgui: Any) -> None:
-        """Draw the file browser listing the ``.viser`` animations below a folder."""
-        imgui.set_next_window_pos(imgui.ImVec2(400, 60), imgui.Cond_.first_use_ever)
-        imgui.set_next_window_size(imgui.ImVec2(520, 360), imgui.Cond_.first_use_ever)
-        expanded, self._replay_window_open = imgui.begin("Open Animation", self._replay_window_open)
-        if expanded:
-            changed, self.replay_folder = imgui.input_text("Folder##replay", self._replay_dir())
-            if changed or imgui.button("Refresh##replay"):
-                self._replay_files = list_recordings(self._replay_dir())
-            imgui.separator()
-            if not self._replay_files:
-                imgui.text_wrapped("No .viser files found. Record one with Animation > Record.")
-            for file in self._replay_files:
-                stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(file.stat().st_mtime))
-                label = f"{file.name}   {file.stat().st_size / 1e6:.1f} MB   {stamp}##{file}"
-                clicked, _ = imgui.selectable(
-                    label, str(file) == (self.replay.recording.path if self.replay.active else "")
-                )
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip(str(file))
-                if clicked:
-                    self.replay.load(str(file))
-                    self._replay_window_open = False
-        imgui.end()
-
-    def draw_transport(self, imgui: Any) -> None:
-        """Draw play, step, loop, scrub, and speed controls for the loaded animation."""
-        replay = self.replay
-        if not replay.active:
-            return
-        if imgui.button("Pause##replay" if replay.playing else "Play##replay"):
-            replay.playing = not replay.playing
-        hover_tooltip(imgui, "Play or pause the animation")
-        imgui.same_line()
-        if imgui.button("<##replay"):
-            replay.step(-1)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Previous frame")
-        imgui.same_line()
-        if imgui.button(">##replay"):
-            replay.step(1)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("Next frame")
-        imgui.same_line()
-        _c, replay.loop = imgui.checkbox("Loop##replay", replay.loop)
-        hover_tooltip(imgui, "Start over when the animation ends")
-        duration = replay.recording.duration
-        changed, value = imgui.slider_float(
-            "Time##replay", replay.time, 0.0, max(duration, 1e-3), f"%.2f / {duration:.2f} s"
-        )
-        hover_tooltip(imgui, "Drag to jump to a time. This pauses playback")
-        if changed:
-            replay.seek(value)
-            replay.playing = False
-        _c, replay.speed = imgui.slider_float("Speed##replay", replay.speed, 0.1, 4.0, "%.2fx")
-        hover_tooltip(imgui, "Playback speed relative to the recording")
-
-    def _draw_replay_controls(self, imgui: Any) -> None:
-        """Draw the view choice and display settings of the loaded animation."""
-        replay, owner = self.replay, self._owner
-        if replay.message:
-            imgui.text_wrapped(replay.message)
-        if not replay.active:
-            return
-        if owner.rtx_rendering:
-            imgui.text_disabled("Animations are drawn in the OpenGL view only")
-        views = list(REPLAY_VIEWS)
-        changed, index = imgui.combo("View##replay", views.index(owner.replay_view), list(REPLAY_VIEWS.values()))
-        if changed:
-            owner.set_replay_view(views[index])
-        if imgui.is_item_hovered():
-            imgui.set_tooltip(
-                "Replay only pauses and hides the simulation. Overlay lines up with the live robots only for the"
-                " same task, environment count, and seed. Overlay skips the animation's terrain and ground, which the"
-                " live scene already draws."
-            )
-        _c, replay.opacity = imgui.slider_float("Opacity##replay", replay.opacity, 0.05, 1.0)
-        hover_tooltip(imgui, "Make the animation translucent")
-        _c, offset = imgui.input_float3("Offset (m)##replay", replay.offset.tolist())
-        replay.offset[:] = offset
-        hover_tooltip(imgui, "Move the animation in the world [m]")
-        if imgui.button("Frame##replay"):
-            owner.frame_replay()
-        hover_tooltip(imgui, "Point the camera at the animation")
-        imgui.same_line()
-        if imgui.button("Exit Replay##replay"):
-            replay.unload()
-        hover_tooltip(imgui, "Remove the animation and restore the simulation")
+    def scene_folder(self) -> str:
+        """Folder the Add Animation window lists by default: the ``scene`` subfolder of the output folder."""
+        return str(resolve_output_dir(self.output_dir) / "scene")
 
     def _output_path(self, kind: str, suffix: str) -> Path:
         """Return the next file of ``kind`` from the output settings, creating its folder."""

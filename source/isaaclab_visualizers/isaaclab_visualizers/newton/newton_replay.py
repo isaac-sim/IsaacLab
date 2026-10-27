@@ -259,19 +259,26 @@ class NewtonReplayPlayer:
     call, which must run inside a viewer frame.
     """
 
-    def __init__(self, viewer_getter: Any):
+    def __init__(self, viewer_getter: Any, prefix: str = REPLAY_PREFIX):
         """Create the player.
 
         Args:
             viewer_getter: Callable returning the current :class:`NewtonViewerGL`, or None when it is closed.
+            prefix: Name prefix of every object this player adds to the viewer; unique per player.
         """
         self._viewer_getter = viewer_getter
+        self.prefix = prefix
         self.recording: ViserRecording | None = None
         self.playing = False
         self.loop = True
         self.speed = 1.0
         self.time = 0.0
         self.opacity = 1.0
+        self.color: tuple[float, float, float] | None = None
+        """Tint color, or None to keep the recording's colors."""
+        self.tint = 0.0
+        """How strongly :attr:`color` replaces the recording's colors and textures, in ``[0, 1]``."""
+        self.visible = True
         self.hide_static = False
         """Skip shapes that never move, which the live scene already draws."""
         self.offset = np.zeros(3, np.float32)
@@ -317,7 +324,7 @@ class NewtonReplayPlayer:
         """Remove the replay from the viewer."""
         viewer = self._viewer_getter()
         if viewer is not None:
-            for key in [key for key in viewer.objects if key.startswith(REPLAY_PREFIX)]:
+            for key in [key for key in viewer.objects if key.startswith(f"{self.prefix}/")]:
                 del viewer.objects[key]
         self.recording = self._registered = self._drawn = None
         self.playing = False
@@ -326,13 +333,6 @@ class NewtonReplayPlayer:
     def invalidate(self) -> None:
         """Publish the current frame again, for example after the viewer cleared its instance batches."""
         self._drawn = None
-
-    def step(self, frames: int) -> None:
-        """Pause and move by ``frames`` recorded frames."""
-        if self.recording is not None:
-            self.playing = False
-            frame = int(np.clip(self.recording.frame_at(self.time) + frames, 0, self.recording.num_frames - 1))
-            self.time = float(self.recording.times[frame])
 
     def seek(self, time_s: float) -> None:
         """Move to ``time_s`` [s] within the recording."""
@@ -367,7 +367,7 @@ class NewtonReplayPlayer:
                 self.time = 0.0 if self.loop else recording.duration
                 self.playing = self.loop
         frame = recording.frame_at(self.time)
-        state = (frame, self.opacity, self.hide_static, tuple(self.offset))
+        state = (frame, self.opacity, self.hide_static, tuple(self.offset), self.visible, self.color, self.tint)
         if state != self._drawn:
             self._publish(viewer, recording, frame)
             self._drawn = state
@@ -375,7 +375,7 @@ class NewtonReplayPlayer:
     def _register(self, viewer: NewtonViewerGL, recording: ViserRecording) -> None:
         for index, shape in enumerate(recording.shapes):
             viewer.log_mesh(
-                f"{REPLAY_PREFIX}/mesh_{index}",
+                f"{self.prefix}/mesh_{index}",
                 wp.array(shape.vertices, dtype=wp.vec3, device=viewer.device),
                 wp.array(shape.indices, dtype=wp.int32, device=viewer.device),
                 normals=None if shape.normals is None else wp.array(shape.normals, dtype=wp.vec3, device=viewer.device),
@@ -393,7 +393,8 @@ class NewtonReplayPlayer:
             xforms = shape.xforms[frame].copy()
             xforms[:, :3] += self.offset
             count = len(xforms)
-            textured = shape.texture is not None
+            tinted = self.color is not None and self.tint > 0.0
+            textured = shape.texture is not None and not (tinted and self.tint >= 0.99)
             # Material layout: roughness, metallic, checker, texture enable.
             material = (
                 0.5 if shape.roughness is None else shape.roughness,
@@ -401,20 +402,21 @@ class NewtonReplayPlayer:
                 0.0,
                 float(textured),
             )
+            colors = np.ones((count, 3), np.float32) if textured else shape.colors
+            if tinted:
+                colors = colors + (np.asarray(self.color, np.float32) - colors) * self.tint
             viewer.log_instances(
-                f"{REPLAY_PREFIX}/instances_{index}",
-                f"{REPLAY_PREFIX}/mesh_{index}",
+                f"{self.prefix}/instances_{index}",
+                f"{self.prefix}/mesh_{index}",
                 wp.array(xforms, dtype=wp.transform, device=viewer.device),
                 wp.array(
                     shape.scales if shape.frame_scales is None else shape.frame_scales[frame],
                     dtype=wp.vec3,
                     device=viewer.device,
                 ),
-                wp.array(
-                    np.ones((count, 3), np.float32) if textured else shape.colors, dtype=wp.vec3, device=viewer.device
-                ),
+                wp.array(colors, dtype=wp.vec3, device=viewer.device),
                 wp.array(np.tile(np.asarray(material, np.float32), (count, 1)), dtype=wp.vec4, device=viewer.device),
-                hidden=self.hide_static and shape.static,
+                hidden=not self.visible or (self.hide_static and shape.static),
                 opacities=None
                 if self.opacity >= 1.0
                 else wp.full(count, self.opacity, dtype=wp.float32, device=viewer.device),

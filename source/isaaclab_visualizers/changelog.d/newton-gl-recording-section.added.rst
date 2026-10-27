@@ -5,11 +5,10 @@
 * Added :class:`~isaaclab_visualizers.newton.NewtonRecordingCfg` (``NewtonGLBackendCfg.recording``) with the
   output folder, file prefix, auto-numbering, and timestamp options shared by all recordings, plus the video frame
   rate and a video length after which recording stops by itself.
-* Added animation playback to the Newton GL Recording section: "Open..." lists ``.viser`` recordings, and a loaded
-  animation plays next to the simulation with play, pause, scrub, speed, loop, opacity, and offset controls, and an
-  option to hide the simulation. The animation is drawn as separate shapes and does not touch the Newton model.
-* Loading an animation in the Newton GL window enters a Replay mode: the simulation is hidden and paused, the
-  Playback section shows the replay transport (play, step, loop, scrub, speed) with an Exit Replay button, a header
-  badge names the clip, and the camera frames it. The View choice switches between Replay only and Overlay on live, and
-  leaving the mode restores the previous pause and visibility state. Animations record the visualization markers, such
-  as velocity arrows, and replay them with their changing scales.
+* Added animation ghosts to the Newton visualizer's Policy Ghosts section: "Add Animation..." lists ``.viser``
+  recordings, and each one opens as a tinted ghost with its own opacity, tint, and offset next to the simulation.
+  Several animations can be open at once; they need no extra simulated environments and work without
+  ``--policy_ghosts``. They share one timeline with loop and speed controls, play and pause with the Playback
+  section's Pause Simulation button, and the timeline can be dragged when only animations are loaded. "Hide live
+  simulation" shows only the animations. Animations record the visualization markers, such as velocity arrows, and
+  replay them with their changing scales.

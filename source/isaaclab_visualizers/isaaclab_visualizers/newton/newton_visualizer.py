@@ -54,6 +54,7 @@ from isaaclab.visualizers.policy_ghost import PolicyGhostController
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
+from isaaclab_visualizers.newton.newton_animation_ghosts import AnimationGhostSet, draw_animation_section
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
@@ -186,6 +187,7 @@ class NewtonViewerGL(ViewerGL):
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
     _owner = None
     _policy_ghost_panel = None
+    _animation_ghosts = None
     _policy_ghost_restart = None
     _recording_panel = None
     image_matches_camera = False
@@ -373,13 +375,18 @@ class NewtonViewerGL(ViewerGL):
                 live_plots_cb(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
-            ghosts_offered = viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None
+            animations = viewer._animation_ghosts
+            ghosts_offered = (
+                viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None or animations
+            )
             if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
                 viewer._draw_policy_ghosts_unsupported(imgui)
             elif viewer._policy_ghost_panel is not None:
-                viewer._policy_ghost_panel.draw(imgui)
+                viewer._policy_ghost_panel.draw(imgui, animations.draw if animations else None)
             elif viewer._policy_ghost_restart is not None:
-                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
+                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart, animations.draw if animations else None)
+            elif animations:
+                draw_animation_section(imgui, animations)
 
             # --- Articulation Inspector (Newton's Selection API) ------------
             with _header_tooltips(
@@ -441,13 +448,13 @@ class NewtonViewerGL(ViewerGL):
         imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
         expanded = imgui.collapsing_header("Policy Ghosts")
         imgui.pop_style_color()
-        hover_tooltip(imgui, "Compare several checkpoints of this task in one window. OpenGL view only")
+        hover_tooltip(imgui, "Compare checkpoints and recorded animations in one window. OpenGL view only")
         if expanded:
             imgui.separator()
             imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
             imgui.text_wrapped(
-                "Policy Ghosts are not supported in the RTX view. "
-                "Switch Camera View > Renderer to OpenGL to compare checkpoints."
+                "Policy Ghosts and animations are not supported in the RTX view. "
+                "Switch Camera View > Renderer to OpenGL to compare checkpoints and animations."
             )
             imgui.pop_style_color()
 
@@ -647,13 +654,14 @@ class NewtonViewerGL(ViewerGL):
             imgui.text(f"Sim: {self._steps_per_second:.0f} steps/s ({self._real_time_factor:.2f}x real time)")
             hover_tooltip(imgui, "Physics steps per second. 1.00x means simulated time passes as fast as real time")
         badges = []
-        if owner is not None and owner.replay_mode:
-            badges.append((f"REPLAY {self._recording_panel.replay.name}", (0.5, 0.85, 1.0, 1.0)))
         if self._paused_training or self._paused:
             badges.append(("PAUSED", (1.0, 0.8, 0.2, 1.0)))
         if self._policy_ghost_panel is not None:
             ghosts = sum(slot.active for slot in self._policy_ghost_panel.layout.slots[1:])
             badges.append((f"{ghosts} ghost{'s' * (ghosts != 1)}", (0.5, 0.8, 1.0, 1.0)))
+        animations = len(self._animation_ghosts) if self._animation_ghosts is not None else 0
+        if animations:
+            badges.append((f"{animations} animation{'s' * (animations != 1)}", (0.5, 0.85, 1.0, 1.0)))
         for index, (text, color) in enumerate(badges):
             if index:
                 imgui.same_line()
@@ -665,48 +673,22 @@ class NewtonViewerGL(ViewerGL):
 
     def _render_training_controls(self, imgui):
         """Render the Isaac Lab playback controls inside the Playback section."""
-        owner, panel = self._owner, self._recording_panel
-        replaying = owner is not None and owner.replay_mode and panel is not None
-        if replaying:
-            imgui.text_colored(imgui.ImVec4(0.5, 0.85, 1.0, 1.0), f"REPLAY  {panel.replay.name}")
-            panel.draw_transport(imgui)
-            if imgui.button("Exit Replay"):
-                panel.replay.unload()
-            hover_tooltip(imgui, "Remove the animation and restore the simulation")
-            imgui.separator()
-        # Replay only pauses the simulation, so its controls would do nothing.
-        sim_idle = replaying and owner.replay_view == "only"
-        if sim_idle:
-            imgui.begin_disabled()
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
         hover_tooltip(
             imgui,
-            "Paused while only the animation is shown"
-            if sim_idle
-            else "Stop or resume stepping the simulation. The window keeps updating",
+            "Stop or resume stepping the simulation and playing animations. The window keeps updating",
         )
-        if sim_idle:
-            imgui.end_disabled()
 
         rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
         if imgui.button(rendering_label):
             self._paused = not self._paused
         hover_tooltip(imgui, "Freeze or resume the window image. The simulation keeps running")
 
-        if sim_idle:
-            imgui.begin_disabled()
         if imgui.button("Reset Episode"):
             self._reset_requested = True
-        hover_tooltip(
-            imgui,
-            "Not available while only the animation is shown"
-            if sim_idle
-            else "Reset every environment on the next step",
-        )
-        if sim_idle:
-            imgui.end_disabled()
+        hover_tooltip(imgui, "Reset every environment on the next step")
 
         _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():
@@ -1544,10 +1526,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
     _recording: NewtonRecordingPanel | None = None
+    _animation_ghosts: AnimationGhostSet | None = None
     _simulation_hidden = False
-    _replay_mode = False
-    _replay_view = "only"
-    _replay_saved: dict | None = None
 
     @property
     def visual_material_writer(self):
@@ -1647,6 +1627,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._num_envs = num_envs
         self._viewer._owner = self
         self._recording = self._viewer._recording_panel = NewtonRecordingPanel(self)
+        self._animation_ghosts = self._viewer._animation_ghosts = AnimationGhostSet(self, self._recording.scene_folder)
         self._apply_visible_worlds()
         self._viewer._paused = False
         self._viewer.picking_enabled = self._picking_enabled
@@ -1748,9 +1729,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
-            if self._recording is not None and self.current_image_view.camera is None:
-                self._recording.replay.update()
-                self._sync_replay_mode()
+            if self._animation_ghosts is not None and self.current_image_view.camera is None:
+                self._animation_ghosts.update()
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -1959,52 +1939,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             offsets = self._viewer.world_offsets.numpy() + self._policy_ghost_panel.controller.env_origin_offsets()
             self._viewer.world_offsets = wp.array(offsets, dtype=wp.vec3, device=self._viewer.world_offsets.device)
         self._apply_rtx_visible_envs()
-        if self._recording is not None:
-            self._recording.replay.invalidate()
+        if self._animation_ghosts is not None:
+            self._animation_ghosts.invalidate()
 
-    @property
-    def replay_mode(self) -> bool:
-        """Whether a loaded animation is the focus of the window."""
-        return self._replay_mode
-
-    @property
-    def replay_view(self) -> str:
-        """How the loaded animation is shown: ``"only"`` or ``"overlay"``."""
-        return self._replay_view
-
-    def _sync_replay_mode(self) -> None:
-        """Enter Replay mode when an animation finishes loading and leave it when it is unloaded."""
-        active = self._recording.replay.active
-        if active and not self._replay_mode:
-            self._replay_mode = True
-            self._replay_saved = {"paused": self._viewer._paused_training, "hidden": self._simulation_hidden}
-            self.set_replay_view("only")
-            self.frame_replay()
-        elif not active and self._replay_mode:
-            saved, self._replay_mode, self._replay_saved = self._replay_saved, False, None
-            self._viewer._paused_training = saved["paused"]
-            self.set_simulation_hidden(saved["hidden"])
-
-    def set_replay_view(self, view: str) -> None:
-        """Show the loaded animation alone or over the live simulation.
-
-        Args:
-            view: ``"only"`` pauses and hides the simulation, ``"overlay"`` draws the animation on top of the live
-                robots and resumes the simulation.
-        """
-        player = self._recording.replay
-        if not player.active or self._replay_saved is None:
-            return  # No animation is loaded yet, so there is no simulation state to restore.
-        self._replay_view = view
-        self._viewer._paused_training = True if view == "only" else self._replay_saved["paused"]
-        player.offset[:] = 0.0
-        player.hide_static = view != "only"
-        player.invalidate()
-        self.set_simulation_hidden(view == "only")
-
-    def frame_replay(self) -> None:
-        """Point the camera at the loaded animation."""
-        player = self._recording.replay
+    def frame_animation(self, player) -> None:
+        """Point the camera at one animation ghost."""
         if player.recording is None or self._viewer.model.up_axis != 2:
             return
         low, high = player.recording.bounds()
@@ -2013,7 +1952,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     @property
     def simulation_hidden(self) -> bool:
-        """Whether the simulation's environments are hidden, so only a replayed animation shows."""
+        """Whether the simulation's environments are hidden, so only animation ghosts show."""
         return self._simulation_hidden
 
     def set_simulation_hidden(self, hidden: bool) -> None:
