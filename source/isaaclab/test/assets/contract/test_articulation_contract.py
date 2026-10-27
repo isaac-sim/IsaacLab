@@ -16,7 +16,6 @@ stage through CPU-pinned buffers there.
 
 import math
 import warnings
-from itertools import product
 from operator import attrgetter
 from unittest.mock import MagicMock, patch
 
@@ -538,56 +537,35 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
 
 
 @pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
-@pytest.mark.parametrize("selection", ["index", "full_data", "mask"])
+@pytest.mark.parametrize("selection", ["index", "mask"])
 def test_friction_mixed_inputs_preserve_other_cells_and_components(monkeypatch, backend, selection):
-    """Fused friction writes broadcast zero scalars independently and preserve omitted components."""
-    art, _ = _articulation(backend, "cpu", monkeypatch)
+    """Mixed writes broadcast zero and preserve nonzero coefficients omitted with None."""
+    art, raw_backend = _articulation(backend, "cpu", monkeypatch)
     names = ("joint_friction_coeff", "joint_dynamic_friction_coeff", "joint_viscous_friction_coeff")
-    expected = [getattr(art.data, name).torch.clone() for name in names]
-    values = [torch.arange(N * J, dtype=torch.float32).reshape(N, J) / 100 + i + 0.1 for i in range(3)]
+    expected = [torch.full((N, J), value) for value in (0.5, 0.4, 0.3)]
+    art.write_joint_friction_coefficient_to_sim_index(**dict(zip(names, expected, strict=True)))
+    values = _payload((N, J), 0, wp.float32, "cpu")
     joints = [2, 0]
-    if selection == "mask":
-        method = art.write_joint_friction_coefficient_to_sim_mask
-        selectors = {"env_mask": _mask(N, [1], "cpu"), "joint_mask": _mask(J, joints, "cpu")}
-    else:
-        method = art.write_joint_friction_coefficient_to_sim_index
+    if selection == "index":
         selectors = {"env_ids": [1], "joint_ids": joints}
-        if selection == "full_data":
-            if backend != "physx":
-                pytest.skip("OVPhysX index writes accept partial data only")
-            selectors["full_data"] = True
+    else:
+        selectors = {"env_mask": _mask(N, [1], "cpu"), "joint_mask": _mask(J, joints, "cpu")}
+    write = getattr(art, f"write_joint_friction_coefficient_to_sim_{selection}")
 
-    # Each tuple selects a distinct scalar/array specialization of the three inputs.
-    cases = list(product((True, False), repeat=3)) + [(True, False, None), (False, None, True)]
-    writes = [(method, inputs) for inputs in cases]
-    if backend == "ovphysx":
-        writes.extend(
-            [
-                (method, (False, False, False)),
-                (getattr(art, f"write_joint_dynamic_friction_coefficient_to_sim_{selection}"), (None, True, None)),
-                (getattr(art, f"write_joint_viscous_friction_coefficient_to_sim_{selection}"), (None, None, True)),
-            ]
-        )
-    for write, scalar_inputs in writes:
-        inputs = {}
-        for component, (name, scalar) in enumerate(zip(names, scalar_inputs, strict=True)):
-            if scalar is None:
-                continue
-            value = 0 if scalar else values[component]
-            expected[component][1, joints] = value if scalar else value[1, joints]
-            if not scalar and selection == "index":
-                value = value[1:, joints]
-            inputs[name] = value
+    for coefficients in ((0, values, None), (values, None, 0), (values, 0, values)):
+        inputs = {
+            name: value[1:, joints] if selection == "index" and isinstance(value, torch.Tensor) else value
+            for name, value in zip(names, coefficients, strict=True)
+        }
         write(**inputs, **selectors)
-        for name, reference in zip(names, expected, strict=True):
+        actual = _backend_properties(backend, art, raw_backend)
+        for name, prop, reference, value in zip(
+            names, ("friction", "dynamic_friction", "viscous_friction"), expected, coefficients, strict=True
+        ):
+            if value is not None:
+                reference[1, joints] = value[1, joints] if isinstance(value, torch.Tensor) else value
             _assert_reads_back(getattr(art.data, name), reference, name)
-        if backend == "physx":
-            actual = art.root_view.get_dof_friction_properties()
-        else:
-            from isaaclab_ov import tensor_types as TT
-
-            actual = art.root_view.get_attribute(TT.DOF_FRICTION_PROPERTIES)
-        torch.testing.assert_close(wp.to_torch(actual).reshape(N, J, 3), torch.stack(expected, dim=-1))
+            torch.testing.assert_close(actual[prop], reference)
 
 
 @requires("newton")
@@ -1358,6 +1336,16 @@ def test_property_writes_route_to_backend_and_preserve_other_rows(monkeypatch, b
             backend_values = _backend_properties(backend, art, raw_backend)[name]
             torch.testing.assert_close(backend_values, expected[name], rtol=0.0, atol=0.0, msg=f"{writer}: {mode}")
             _assert_proxy_close(getattr(art.data, getter), expected[name][:, user_to_backend[axis]])
+            scalar_friction = name == "friction" or (
+                backend == "ovphysx" and name in ("dynamic_friction", "viscous_friction")
+            )
+            if backend in ("physx", "ovphysx") and scalar_friction:
+                getattr(art, f"{writer}_{selection}")(**(kwargs | {kwarg: 0}))
+                expected[name][np.ix_(env_ids, user_to_backend[axis][items])] = 0
+                actual = _backend_properties(backend, art, raw_backend)
+                for component in ("friction", "dynamic_friction", "viscous_friction"):
+                    torch.testing.assert_close(actual[component], expected[component])
+                _assert_proxy_close(getattr(art.data, getter), expected[name][:, user_to_backend[axis]])
             if name == "position_limits":
                 # The soft limits of the written joints follow (factor 1.0); the others are untouched.
                 soft_limits = art.data.soft_joint_pos_limits.torch

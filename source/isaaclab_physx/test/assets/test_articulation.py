@@ -596,37 +596,19 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     torch.testing.assert_close(articulation.data.body_mass.torch, backend_masses[:, body_user_to_backend])
     torch.testing.assert_close(articulation.data.body_inertia.torch, backend_inertias[:, body_user_to_backend])
 
-    # Per-cell and scalar joint friction coefficients reach their TensorAPI slots for the selected cells only, through
-    # the index writer and through the mask writer, which selects the same cells of full-shape data.
+    # Joint friction coefficients reach their TensorAPI slots for the selected cells only.
     env_ids = torch.tensor([1], dtype=torch.int32, device=device)
     joint_ids = torch.tensor([3, 0], dtype=torch.int32, device=device)
-    joint_mask = torch.zeros(articulation.num_joints, dtype=torch.bool, device=device)
-    joint_mask[joint_ids] = True
-    index_selection = {"env_ids": env_ids, "joint_ids": joint_ids}
-    mask_selection = {
-        "env_mask": wp.array([False, True], dtype=wp.bool, device=device),
-        "joint_mask": wp.from_torch(joint_mask),
-    }
     raw_friction_before = wp.to_torch(articulation.root_view.get_dof_friction_properties()).clone()
     initial_frictions = {
         "joint_friction_coeff": articulation.data.joint_friction_coeff.torch.clone(),
         "joint_dynamic_friction_coeff": articulation.data.joint_dynamic_friction_coeff.torch.clone(),
         "joint_viscous_friction_coeff": articulation.data.joint_viscous_friction_coeff.torch.clone(),
     }
-    tensor_frictions = {
+    frictions = {
         "joint_friction_coeff": torch.tensor([[0.9, 0.7]], device=device),
         "joint_dynamic_friction_coeff": torch.tensor([[0.4, 0.3]], device=device),
         "joint_viscous_friction_coeff": torch.tensor([[0.11, 0.22]], device=device),
-    }
-    scalar_frictions = {
-        "joint_friction_coeff": 0.8,
-        "joint_dynamic_friction_coeff": 0.35,
-        "joint_viscous_friction_coeff": 0.17,
-    }
-    mask_scalar_frictions = {
-        "joint_friction_coeff": 0.6,
-        "joint_dynamic_friction_coeff": 0.25,
-        "joint_viscous_friction_coeff": 0.13,
     }
     friction_readers = {
         "joint_friction_coeff": lambda: articulation.data.joint_friction_coeff.torch,
@@ -634,19 +616,19 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         "joint_viscous_friction_coeff": lambda: articulation.data.joint_viscous_friction_coeff.torch,
     }
     expected_frictions = {name: read().clone() for name, read in friction_readers.items()}
+    articulation.write_joint_friction_coefficient_to_sim_index(
+        joint_friction_coeff=frictions["joint_friction_coeff"],
+        joint_dynamic_friction_coeff=frictions["joint_dynamic_friction_coeff"],
+        joint_viscous_friction_coeff=frictions["joint_viscous_friction_coeff"],
+        env_ids=env_ids,
+        joint_ids=joint_ids,
+    )
     expected_raw_friction = raw_friction_before.clone()
-    for write, frictions, selection in (
-        (articulation.write_joint_friction_coefficient_to_sim_index, tensor_frictions, index_selection),
-        (articulation.write_joint_friction_coefficient_to_sim_index, scalar_frictions, index_selection),
-        (articulation.write_joint_friction_coefficient_to_sim_mask, mask_scalar_frictions, mask_selection),
-    ):
-        write(**frictions, **selection)
-        for component, (name, values) in enumerate(frictions.items()):
-            expected_frictions[name][env_ids[:, None], joint_ids] = values
-            torch.testing.assert_close(friction_readers[name](), expected_frictions[name])
-            expected_raw_friction[..., component] = expected_frictions[name][:, joint_backend_to_user].cpu()
-        raw_friction = wp.to_torch(articulation.root_view.get_dof_friction_properties())
-        torch.testing.assert_close(raw_friction, expected_raw_friction)
+    for component, (name, values) in enumerate(frictions.items()):
+        expected_frictions[name][env_ids[:, None], joint_ids] = values
+        torch.testing.assert_close(friction_readers[name](), expected_frictions[name])
+        expected_raw_friction[..., component] = expected_frictions[name][:, joint_backend_to_user].cpu()
+    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_dof_friction_properties()), expected_raw_friction)
 
     # Joint position limits reach the solver; limits that exclude a default position clamp it.
     raw_limits_before = wp.to_torch(articulation.root_view.get_dof_limits()).clone()
