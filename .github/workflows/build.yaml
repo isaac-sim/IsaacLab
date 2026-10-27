@@ -102,7 +102,7 @@ jobs:
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
-        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
+        triggered-jobs-push: "Docker base + cuRobo build jobs + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
         triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
         # config.yaml is included because it controls the base image names and tags
         # consumed by the Docker build jobs.
@@ -228,9 +228,8 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.changes.outputs.should_run == 'true'
+    # Also runs on push so PRs find the cuRobo deps image already built.
+    if: needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -441,11 +440,13 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
+        # Launch matrix only; the file's other tests already run in isaaclab (core) [1/3].
         # Dedicated sensor tests cover raycasting; keep these example launches available for manual runs.
-        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
+        test-k-expr: "test_standalone_script_runs_cleanly and not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
         ovrtx-shader-cache: restore
-        test-jobs: "4"
+        # Four concurrent Kit launches intermittently hang microduck_warehouse at startup.
+        test-jobs: "3"
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -476,7 +477,7 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
-        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
+        test-k-expr: "test_standalone_script_runs_cleanly and not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
         ovrtx-shader-cache: restore
         test-jobs: "4"
@@ -724,6 +725,8 @@ jobs:
         cache-tag: cache-curobo
         # SkillGen's simulator-driven dataset test remains available for manual runs.
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
+        # The planner files finish alongside test_pink_ik.py (~7 min).
+        test-jobs: "3"
         container-name: isaac-lab-curobo-test
 
     # Folded from the former standalone verify-curobo-non-root job: reuses
@@ -976,7 +979,6 @@ jobs:
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
         # Restored version directories and kernels must also be writable by the container user.
         chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
-
         container=""
         cleanup_container() {
           if [ -n "$container" ]; then
@@ -991,6 +993,13 @@ jobs:
           local attempt="$1"
           container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
           cleanup_container
+          # actions/cache restores the tree with the runner's ownership, while
+          # each benchmark container runs as uid 1000. A previous container can
+          # also add directories, so normalize ownership before every attempt.
+          docker run --rm --user root \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            "chown -R isaaclab:isaaclab /tmp/jit-cache"
           timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
@@ -1219,7 +1228,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        filter-pattern: "isaaclab_tasks,isaaclab_newton"
         # Warm every supported rigid core environment on Newton. MJWarp
         # specializes kernels per model config, so a small representative task
         # set leaves most of the cache to be compiled again by each PR test
@@ -1227,11 +1236,13 @@ jobs:
         # modes generate different kernels, which only the determinism suite
         # compiles, and the contributed environments are not core tasks; uncached,
         # both are the long poles of their PR jobs.
+        # Only the Newton solver-matrix file compiles Kamino's collision detector (~140 s cold).
         include-files: >-
           test_environments_newton.py,
           test_multi_agent_environments.py,
           test_environment_determinism.py,
-          test_contrib_environments_kitless.py
+          test_contrib_environments_kitless.py,
+          test_newton_manager_abstraction.py
         # Keep this warmer focused on rigid environments.
         test-k-expr: "not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
