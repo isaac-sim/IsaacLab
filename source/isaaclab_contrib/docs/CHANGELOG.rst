@@ -3,6 +3,26 @@ Changelog
 
 .. towncrier release notes start
 
+4.2.4 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton coupler and custom MJWarp--VBD coupling managers to store their solver, collision pipeline and
+  contacts on the manager's :class:`~isaaclab_newton.physics.NewtonBackend`.
+
+
+4.2.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed coupled solver body and shape selectors to expand ``{ENV_REGEX_NS}`` from the simulation's
+  clone template while preserving the original configuration for reuse.
+
+
 4.2.2 (2026-10-24)
 ~~~~~~~~~~~~~~~~~~
 

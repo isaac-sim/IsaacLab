@@ -3,6 +3,34 @@ Changelog
 
 .. towncrier release notes start
 
+29.0.3 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to read Newton state, contacts and replication outputs from the physics manager's
+  backend and replication outputs.
+
+Fixed
+^^^^^
+
+* Fixed the SO-101 stacking pipeline for Isaac Capture 1.7 by removing the retired
+  ``orientation_offset`` argument and calibration constant. Orientation follows the SDK's
+  engage-relative clutch model seeded from the configured home transform, with the existing
+  eight-element pose and analog-gripper action order preserved.
+
+
+29.0.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed task asset lookups, coupled solver selectors, and teleoperation paths to follow the
+  scene's clone template instead of assuming the default environment namespace.
+
+
 29.0.1 (2026-10-22)
 ~~~~~~~~~~~~~~~~~~~
 

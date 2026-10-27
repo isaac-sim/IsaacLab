@@ -145,7 +145,7 @@ def world_gravity(gravity: Vec3) -> Iterator[None]:
         gravity: Gravity applied to every world [m/s^2].
     """
     backend_manager = SimulationContext.instance().backend_manager
-    model = backend_manager.get_model()
+    model = backend_manager.backend.model
     world_gravity_view = wp.to_torch(model.gravity[: model.world_count])
     previous = world_gravity_view.clone()
     world_gravity_view.copy_(torch.tensor(gravity, device=previous.device))

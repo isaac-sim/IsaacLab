@@ -3,6 +3,28 @@ Changelog
 
 .. towncrier release notes start
 
+8.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced duplicated heading, quaternion rotation, interval, and Jacobian math with core Warp operations.
+* **Breaking:** :class:`~isaaclab_ov.physics.OvPhysxManager` takes its :class:`~isaaclab_ov.physics.OvPhysxCfg` at construction.
+
+
+7.1.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera bindings and partition assignments for custom clone namespaces,
+  nonzero source environments, and explicitly ordered camera paths.
+* Fixed native scene export and OVPhysX frame transforms to follow declared clone destinations
+  instead of assuming the default environment namespace.
+
+
 7.1.1 (2026-10-24)
 ~~~~~~~~~~~~~~~~~~
 
