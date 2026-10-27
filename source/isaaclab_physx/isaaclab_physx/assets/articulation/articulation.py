@@ -27,11 +27,11 @@ from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .actuator_control import PhysxActuatorControl
 from .articulation_data import ArticulationData
@@ -102,8 +102,8 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation."""
 
-    __backend_native_orderings__: tuple[str, ...] = ("physx",)
-    """PhysX tensor-view order already matches the ``"physx"`` convention."""
+    __backend_native_orderings__: tuple[str, ...] = ()
+    """None: Isaac Sim PhysX visits sibling links in authored joint-prim order, which can differ from ``"physx"``."""
 
     actuators: dict
     """Dictionary of actuator instances for the articulation.
@@ -285,7 +285,7 @@ class Articulation(BaseArticulation):
 
         # Compute processed actuator commands (native path is a no-op here) and
         # submit them to the backend through the collection's control adapter.
-        self.actuators.compute(SimulationManager.get_physics_dt())
+        self.actuators.compute(self._backend_manager.get_physics_dt())
         self.actuators.submit_commands()
 
         # tendon targets are applied as the offset property, so a commanded target rides the same
@@ -563,7 +563,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
-        SimulationManager.invalidate_transforms(kinematics=True)
+        self._backend_manager.invalidate_transforms(kinematics=True)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -661,7 +661,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
-        SimulationManager.invalidate_transforms(kinematics=True)
+        self._backend_manager.invalidate_transforms(kinematics=True)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -943,8 +943,8 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
             self.data._reset_velocity(from_com=False)
-        # set into simulation
-        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=sim_env_ids)
+        # PhysX root velocities are measured at the root link's center of mass.
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1062,7 +1062,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
-        SimulationManager.invalidate_transforms(kinematics=True)
+        self._backend_manager.invalidate_transforms(kinematics=True)
         self.root_view.set_dof_velocities(joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_state_to_sim_mask(
@@ -1167,7 +1167,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
-        SimulationManager.invalidate_transforms(kinematics=True)
+        self._backend_manager.invalidate_transforms(kinematics=True)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -3918,7 +3918,7 @@ class Articulation(BaseArticulation):
 
     def _initialize_impl(self):
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         if self.cfg.articulation_root_prim_path is not None:
             root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
@@ -3930,7 +3930,7 @@ class Articulation(BaseArticulation):
             resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
             _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- articulation
-        self._root_view = SimulationManager.views[SimulationManager, root_prim_path_expr] = (
+        self._root_view = self._backend_manager.views[root_prim_path_expr] = (
             self._physics_sim_view.create_articulation_view(path_expr_to_glob(root_prim_path_expr))
         )
         if self.root_view._backend is None:
@@ -3939,7 +3939,7 @@ class Articulation(BaseArticulation):
 
         # container for data access
         joint_dof_signs = self._resolve_joint_dof_signs()
-        self._data = ArticulationData(self.root_view, self.device)
+        self._data = ArticulationData(self.root_view, self.device, backend_manager=self._backend_manager)
         if -1 in joint_dof_signs:
             self._data._joint_dof_signs = wp.array(joint_dof_signs, dtype=wp.int32, device=self.device)
             self._data._has_reversed_joints = True
@@ -3968,9 +3968,9 @@ class Articulation(BaseArticulation):
             return
 
         sim_view_id = id(self._physics_sim_view)
-        if sim_view_id in SimulationManager._gpu_articulation_aliasing_warning_logged:
+        if sim_view_id in self._backend_manager._gpu_articulation_aliasing_warning_logged:
             return
-        tally = SimulationManager._gpu_articulation_aliasing_tally.setdefault(sim_view_id, {})
+        tally = self._backend_manager._gpu_articulation_aliasing_tally.setdefault(sim_view_id, {})
         tally[root_prim_path_expr] = (self.num_instances, self.num_bodies)
 
         total_articulation_count = sum(count for count, _ in tally.values())
@@ -3981,7 +3981,7 @@ class Articulation(BaseArticulation):
         ):
             return
 
-        SimulationManager._gpu_articulation_aliasing_warning_logged.add(sim_view_id)
+        self._backend_manager._gpu_articulation_aliasing_warning_logged.add(sim_view_id)
         logger.warning(
             "PhysX GPU articulations may corrupt articulation state when the scene has more than "
             f"{_GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD} articulation instances, any articulation has more than "
@@ -4036,7 +4036,7 @@ class Articulation(BaseArticulation):
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
-            articulation_kernels.update_soft_joint_pos_limits,
+            warp_math.scale_intervals,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 self.data.joint_pos_limits,

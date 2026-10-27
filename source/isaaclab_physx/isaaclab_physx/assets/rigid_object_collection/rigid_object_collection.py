@@ -25,7 +25,6 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -476,7 +475,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._backend_manager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -590,7 +589,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._backend_manager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -1032,13 +1031,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate the cached buffer
-        self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
+        # Invalidate derived caches; preserve the COM timestamp so unread or stale entries refresh from PhysX.
         self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from instance order (num_instances, num_bodies, 7) to view order (num_bodies*num_instances, 7) for
         # PhysX.
-        com_view_order = self.reshape_data_to_view_2d(self.data._body_com_pose_b.data, device="cpu")  # (B*I, 7)
+        com_view_order = self.reshape_data_to_view_2d(self.data._body_com_pose_b.data, device="cpu").view(wp.float32)
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
         self.root_view.set_coms(com_view_order, indices=view_ids)
 
@@ -1128,10 +1126,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        # Convert from instance order (num_instances, num_bodies) to view order for PhysX.
-        inertia_view_order = self.reshape_data_to_view_2d(self.data._body_inertia, device="cpu")
+        # Convert from instance order (num_instances, num_bodies, 9) to view order (num_bodies*num_instances, 9) for
+        # PhysX.
+        inertia_view_order = self.reshape_data_to_view_3d(self.data._body_inertia, 9, device="cpu")
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
         self.root_view.set_inertias(inertia_view_order, indices=view_ids)
+        # PhysX recomputes the principal-axis rotation when setting inertia.
+        self.data._body_com_pose_b.timestamp = -1.0
+        self.data._reset_body_com_pose_b_dependents()
 
     def set_inertias_mask(
         self,
@@ -1373,7 +1375,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
@@ -1398,7 +1400,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         logger.info(f"Body names: {self.body_names}")
 
         # container for data access
-        self._data = RigidObjectCollectionData(self.root_view, self.num_bodies, self.device)
+        self._data = RigidObjectCollectionData(
+            self.root_view, self.num_bodies, self.device, backend_manager=self._backend_manager
+        )
 
         # create buffers
         self._create_buffers()

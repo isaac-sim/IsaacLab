@@ -12,6 +12,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from ..prebundles import repoint_prebundle_packages
 from ..utils import (
     ISAAC_SIM_SOURCE_BUILD_MARKER,
     ISAACLAB_ROOT,
@@ -37,7 +38,7 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     isaacsim_exe.append(str(ISAACLAB_ROOT / "source"))
     isaacsim_exe.extend(sim_args)
 
-    run_command(isaacsim_exe, check=False)
+    run_command(isaacsim_exe, check=True)
 
 
 def command_new(new_args: list[str]) -> None:
@@ -73,7 +74,6 @@ def command_editor(editor_args: list[str], project_dir: Path | None = None) -> N
     parser.add_argument("--verbose", action="store_true", help="Print discovered extension paths.")
     args = parser.parse_args(editor_args)
 
-    # The installation CLI must start before Isaac Lab's runtime dependencies are installed.
     from ...utils.editor import setup_editor
 
     print_info("Setting up editor paths and settings...")
@@ -88,7 +88,7 @@ def command_build_docs(multi_version: bool = False) -> None:
 
     Args:
         multi_version: Build all selected Git refs and a root redirect instead of the current checkout.
-            ``DOCS_DEFAULT_REF`` selects the redirect target, defaulting to ``v3.0.0-EA``.
+            ``DOCS_DEFAULT_REF`` selects the redirect target, defaulting to ``main``.
     """
     print_info("Building documentation...")
     docs_dir = ISAACLAB_ROOT / "docs"
@@ -102,11 +102,15 @@ def command_build_docs(multi_version: bool = False) -> None:
     out_dir = docs_dir / "_build"
     cmd = [uv_exe, "run", "--extra", "dev", "--"]
     if multi_version:
-        default_ref = os.getenv("DOCS_DEFAULT_REF", "v3.0.0-EA")
+        default_ref = os.getenv("DOCS_DEFAULT_REF", "main")
         run_command(cmd + ["sphinx-multiversion", ".", str(out_dir), "--jobs=auto"], cwd=docs_dir)
         if not (out_dir / default_ref / "index.html").is_file():
             print_error(f"Default docs ref '{default_ref}' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF.")
             raise SystemExit(1)
+        run_command(
+            cmd + ["python", str(ISAACLAB_ROOT / "tools" / "docs" / "pin_historical_versions.py"), str(out_dir)],
+            cwd=docs_dir,
+        )
         template = (docs_dir / "_redirect" / "index.html").read_text(encoding="utf-8")
         (out_dir / "index.html").write_text(template.replace("__DOCS_DEFAULT_REF__", default_ref), encoding="utf-8")
     else:
@@ -182,7 +186,7 @@ def command_build_isaacsim(source_path: str) -> None:
         raise SystemExit(1) from error
     (release_dir / ISAAC_SIM_SOURCE_BUILD_MARKER).touch()
     print_info(f"Linked {link_path} -> {release_dir}")
-    _repoint_source_build_prebundles()
+    repoint_prebundle_packages()
 
     print_info("Isaac Sim is ready. Python commands now use the live source build through '_isaac_sim'.")
     print_info("Run Isaac Lab against it with:")
@@ -205,15 +209,6 @@ def _resolve_isaacsim_release_dir(isaacsim_root: Path) -> Path:
         print_error(f"Isaac Sim source builds are not supported on platform '{sys.platform}' with machine '{machine}'.")
         raise SystemExit(1)
     return isaacsim_root / "_build" / target / "release"
-
-
-def _repoint_source_build_prebundles() -> None:
-    """Keep Isaac Sim's prebundled packages from shadowing the active environment."""
-    # ``install`` imports ``command_editor`` from this module, so defer this import until
-    # both command modules are initialized. Reuse the same protection as the legacy installer.
-    from .install import _repoint_prebundle_packages
-
-    _repoint_prebundle_packages()
 
 
 def command_run_docker(args: list[str]) -> None:

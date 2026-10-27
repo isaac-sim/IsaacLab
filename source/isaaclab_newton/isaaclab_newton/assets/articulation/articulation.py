@@ -33,13 +33,12 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics import NewtonBuilderCfg
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
@@ -159,6 +158,9 @@ class Articulation(BaseArticulation):
         """
         super().__init__(cfg)
 
+        if cfg.enable_joint_wrench:
+            self._backend_manager.request_extended_state_attribute("body_parent_f")
+
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
         # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
@@ -168,7 +170,7 @@ class Articulation(BaseArticulation):
     def _register_callbacks(self) -> None:
         """Register Newton lifecycle callbacks required before model finalization."""
         super()._register_callbacks()
-        self._model_init_handle = SimulationManager.register_callback(
+        self._model_init_handle = self._backend_manager.register_callback(
             self._configure_joint_target_modes,
             PhysicsEvent.MODEL_INIT,
             name=f"articulation_target_modes_{self.cfg.prim_path}",
@@ -176,8 +178,7 @@ class Articulation(BaseArticulation):
 
     def _configure_joint_target_modes(self, _event) -> None:
         """Apply configured actuator modes to the shared builder before model allocation."""
-        sim = SimulationContext.instance()
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = SimulationContext.instance().backend_manager.builder
         root_prim_path_regex = _resolve_articulation_root_prim_path_expr(self.cfg)
         articulation_ids, _ = resolve_matching_names(
             root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
@@ -248,6 +249,11 @@ class Articulation(BaseArticulation):
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
         return self.root_view.is_fixed_base
+
+    @property
+    def num_base_dofs(self) -> int:
+        """Number of free DoFs of the floating base: 6 for a free root joint, otherwise 0."""
+        return self.data._num_base_dofs
 
     @property
     def num_joints(self) -> int:
@@ -437,13 +443,13 @@ class Articulation(BaseArticulation):
 
         # Compute processed actuator commands (native path is a no-op here) and
         # submit them to the backend through the collection's control adapter.
-        self.actuators.compute(SimulationManager.get_physics_dt())
+        self.actuators.compute(self._backend_manager.get_physics_dt())
         self.actuators.submit_commands()
 
         # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
         # outside the articulation view, so the manager owns how a buffered target reaches the solver.
         if self._fixed_tendon_target_dirty:
-            self._fixed_tendon_control.write_data_to_sim(SimulationManager.get_control())
+            self._fixed_tendon_control.write_data_to_sim(self._backend_manager.backend.control)
             self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
@@ -701,7 +707,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -750,7 +756,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -805,7 +811,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
@@ -857,7 +863,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
@@ -1575,7 +1581,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def _write_joint_float_property_to_sim_mask(
         self,
@@ -1610,7 +1616,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_stiffness_to_sim_index(
         self,
@@ -1849,7 +1855,7 @@ class Articulation(BaseArticulation):
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits.",
             )
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1924,7 +1930,7 @@ class Articulation(BaseArticulation):
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits.",
             )
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -2366,7 +2372,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -2414,7 +2420,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -2466,7 +2472,7 @@ class Articulation(BaseArticulation):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -2517,7 +2523,7 @@ class Articulation(BaseArticulation):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -2567,7 +2573,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -2615,7 +2621,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Operations - Tendons.
@@ -3111,7 +3117,7 @@ class Articulation(BaseArticulation):
         ):
             wp.to_torch(sim_bind)[rows, cols] = wp.to_torch(staged)[rows, cols]
         # the solver keeps its own copy of the tendon properties and only re-reads them when notified
-        SimulationManager.add_model_change(ModelFlags.TENDON_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
@@ -3396,22 +3402,15 @@ class Articulation(BaseArticulation):
     def _initialize_impl(self):
         root_prim_path_expr = _resolve_articulation_root_prim_path_expr(self.cfg)
         # -- articulation
-        self._root_view = SimulationManager.views[SimulationManager, root_prim_path_expr] = ArticulationView(
-            SimulationManager.get_model(),
+        self._root_view = self._backend_manager.views[root_prim_path_expr] = ArticulationView(
+            self._backend_manager.backend.model,
             re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
 
         # container for data access
-        self._data = ArticulationData(self.root_view, self.device)
-
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"articulation_rebind_{self.cfg.prim_path}",
-        )
+        self._data = ArticulationData(self.root_view, self.device, backend_manager=self._backend_manager)
 
         # create buffers
         self._create_buffers()
@@ -3429,20 +3428,17 @@ class Articulation(BaseArticulation):
         self.data.is_primed = True
 
     def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        """Clear lifecycle and post-step callbacks."""
         super()._clear_callbacks()
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
             self._model_init_handle = None
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None
         # Remove the post-step republish hook registered in ``_create_buffers`` so the
         # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
         # this articulation is gone (registered only for non-identity ordering).
         post_step_callback = getattr(self, "_post_step_callback", None)
         if post_step_callback is not None:
-            SimulationManager.unregister_post_step_callback(post_step_callback)
+            self._backend_manager.unregister_post_step_callback(post_step_callback)
             self._post_step_callback = None
 
     def _create_buffers(self):
@@ -3490,12 +3486,12 @@ class Articulation(BaseArticulation):
         self._post_step_callback = None
         if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
             self._post_step_callback = self._data._refresh_user_order_state
-            SimulationManager.register_post_step_callback(self._post_step_callback)
+            self._backend_manager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
-            articulation_kernels.update_soft_joint_pos_limits,
+            warp_math.scale_intervals,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 self.data.joint_pos_limits,
@@ -3557,6 +3553,9 @@ class Articulation(BaseArticulation):
         super()._invalidate_initialize_callback(event)
         self._root_view = None
 
+        if self.cfg.enable_joint_wrench:
+            self._backend_manager.request_extended_state_attribute("body_parent_f")
+
     """
     Internal helpers -- Actuators.
     """
@@ -3577,16 +3576,12 @@ class Articulation(BaseArticulation):
         """Process fixed and spatial tendons."""
         if self._root_view.tendon_count > 0:
             tendon_types = wp.to_torch(
-                self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
+                self._root_view.get_attribute("mujoco.tendon_type", self._backend_manager.backend.model)
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            # ``SimulationManager`` is bound to the base class, so ask the *active* solver's
-            # manager -- only it knows whether this solver transmits to tendons.
-            from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
-            manager = SimulationContext.instance().physics_manager
-            self._fixed_tendon_control = manager.create_fixed_tendon_control(self)
+            # Only the active solver's manager knows whether this solver transmits to tendons.
+            self._fixed_tendon_control = self._backend_manager.create_fixed_tendon_control(self)
 
     """
     Internal helpers -- Debugging.

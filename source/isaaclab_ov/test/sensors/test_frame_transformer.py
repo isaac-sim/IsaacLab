@@ -44,49 +44,24 @@ import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
-from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
+from isaaclab.sensors import (  # noqa: E402
+    BaseFrameTransformer,
+    ContactSensorCfg,
+    FrameTransformerCfg,
+    ImuCfg,
+    OffsetCfg,
+    PvaCfg,
+)
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.sim.views import FrameView  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
 from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
-from isaaclab.utils import configclass, replace  # noqa: E402
+from isaaclab.utils import configclass, instantiate, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # noqa: E402
 
 wp.init()
-
-pytestmark = pytest.mark.device_split
-
-
-# ---------------------------------------------------------------------------
-# Device-lock autouse fixture (mirrors test_contact_sensor.py)                #
-# ---------------------------------------------------------------------------
-
-_LOCKED_DEVICE: list[str | None] = [None]
-"""Device the session pins to on the first parametrized test that runs."""
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to.
-
-    The OVPhysX runtime fixes device mode when the process creates its first
-    ``ovphysx.PhysX`` instance and cannot switch modes without a process
-    restart. Pin the session to whichever device is first used.
-    """
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +121,7 @@ class _SceneCfg(InteractiveSceneCfg):
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
             mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
@@ -433,8 +408,10 @@ def test_frame_transformer_feet_wrt_base(device):
 
 
 # Neither axis selects a branch the other depends on, so each value is covered once.
-@pytest.mark.parametrize(("source_robot", "path_prefix"), [("Robot", "{ENV_REGEX_NS}"), ("Robot_1", "/World")])
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize(
+    ("device", "source_robot", "path_prefix"),
+    [("cpu", "Robot", "{ENV_REGEX_NS}"), ("cuda:0", "Robot_1", "/World")],
+)
 def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefix):
     """Test tracking bodies with same leaf name at different hierarchy levels.
 
@@ -672,13 +649,15 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
                 )
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_frame_transformer_nested_rigid_bodies(device):
-    """Test that a matched rigid body does not include nested rigid-body descendants."""
+    """Nested link selection and sensor-first reads honor articulation state writes."""
     with _ovphysx_sim_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
         scene_cfg.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        scene_cfg.robot.spawn.activate_contact_sensors = True
         scene_cfg.frame_transformer = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
             target_frames=[
@@ -686,6 +665,13 @@ def test_frame_transformer_nested_rigid_bodies(device):
             ],
         )
         scene = InteractiveScene(scene_cfg)
+        hand_prim, hand_path = sim_utils.resolve_matching_prims_from_source(
+            f"{scene.env_regex_ns}/Robot/(Geometry/.*/)?panda_hand"
+        )[0]
+        sim_utils.create_prim(f"{hand_prim.GetPath()}/SensorFrame", translation=(0.1, 0.0, 0.0))
+        scene.sensors["pva"] = instantiate(PvaCfg(prim_path=hand_path))
+        scene.sensors["imu"] = instantiate(ImuCfg(prim_path=hand_path))
+        scene.sensors["contact"] = instantiate(ContactSensorCfg(prim_path=hand_path, track_pose=True))
 
         sim.reset()
         scene.update(sim.get_physics_dt())
@@ -700,3 +686,49 @@ def test_frame_transformer_nested_rigid_bodies(device):
         torch.testing.assert_close(frame_data.source_quat_w.torch, robot.data.body_quat_w.torch[:, source_id])
         torch.testing.assert_close(frame_data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
         torch.testing.assert_close(frame_data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])
+
+        hand_id = robot.find_bodies("panda_hand")[0][0]
+        view = FrameView(f"{hand_path}/SensorFrame", device=device)
+        for index, name in enumerate(("frame_transformer", "pva", "imu", "contact", "view"), start=1):
+            # Each reader gets its own dirty state; asset getters run only after the reader under test.
+            joint_pos = robot.data.default_joint_pos.torch.clone()
+            joint_pos[:, 0] += 0.3 * index
+            joint_vel = torch.zeros_like(joint_pos)
+            joint_vel[:, 0] = 0.4 * index
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
+            if name == "view":
+                positions, orientations = view.get_world_poses()
+                offset = torch.tensor([[0.1, 0.0, 0.0]], device=device).repeat(scene.num_envs, 1)
+                expected = robot.data.body_pos_w.torch[:, hand_id] + math_utils.quat_apply(
+                    robot.data.body_quat_w.torch[:, hand_id], offset
+                )
+                torch.testing.assert_close(positions.torch, expected)
+                torch.testing.assert_close(orientations.torch, robot.data.body_quat_w.torch[:, hand_id])
+                continue
+            sensor = scene.sensors[name]
+            sensor.update(sim.get_physics_dt())
+            data = sensor.data
+            if name == "frame_transformer":
+                torch.testing.assert_close(data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
+                torch.testing.assert_close(data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])
+            elif name == "pva":
+                torch.testing.assert_close(data.pos_w.torch, robot.data.body_pos_w.torch[:, hand_id])
+                torch.testing.assert_close(data.quat_w.torch, robot.data.body_quat_w.torch[:, hand_id])
+                for measured, expected in (
+                    (data.lin_vel_b, robot.data.body_link_lin_vel_w),
+                    (data.ang_vel_b, robot.data.body_link_ang_vel_w),
+                ):
+                    expected_b = math_utils.quat_apply_inverse(
+                        robot.data.body_quat_w.torch[:, hand_id], expected.torch[:, hand_id]
+                    )
+                    torch.testing.assert_close(measured.torch, expected_b)
+            elif name == "imu":
+                expected = math_utils.quat_apply_inverse(
+                    robot.data.body_quat_w.torch[:, hand_id], robot.data.body_ang_vel_w.torch[:, hand_id]
+                )
+                torch.testing.assert_close(data.ang_vel_b.torch, expected)
+            else:
+                torch.testing.assert_close(data.pos_w.torch[:, 0], robot.data.body_pos_w.torch[:, hand_id])
+                torch.testing.assert_close(data.quat_w.torch[:, 0], robot.data.body_quat_w.torch[:, hand_id])
+        view.close()

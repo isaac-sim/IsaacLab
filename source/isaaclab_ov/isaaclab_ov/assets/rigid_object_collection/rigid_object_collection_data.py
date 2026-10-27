@@ -15,10 +15,11 @@ from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data i
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
+from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 
@@ -61,6 +62,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         root_view: OvPhysxView,
         num_bodies: int,
         device: str,
+        *,
+        backend_manager: OvPhysxManager | None = None,
     ):
         """Initializes the rigid object data.
 
@@ -70,8 +73,13 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 from the underlying ``RIGID_BODY_*`` type via ``key_aliases``).
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
+            backend_manager: The OVPhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view, num_bodies, device)
+        if backend_manager is None:
+            backend_manager = OvPhysxManager._deprecated_active("RigidObjectCollectionData()")
+        self._backend_manager = backend_manager
         # The view owns the fused bindings and the CPU/GPU device policy.
         self._view = root_view
         self.num_bodies = num_bodies
@@ -95,8 +103,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self.num_instances = pose_binding.count // num_bodies
         self._num_instances = self.num_instances
 
-        if SimulationManager._sim is not None and hasattr(SimulationManager._sim, "cfg"):
-            gravity = SimulationManager._sim.cfg.gravity
+        if self._backend_manager._sim is not None and hasattr(self._backend_manager._sim, "cfg"):
+            gravity = self._backend_manager._sim.cfg.gravity
         else:
             gravity = (0.0, 0.0, -9.81)
 
@@ -407,7 +415,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 device=self.device,
                 inputs=[
                     self.body_com_vel_w.warp,
-                    SimulationManager.get_physics_dt(),
+                    self._backend_manager.get_physics_dt(),
                     self._previous_body_com_vel,
                 ],
                 outputs=[
@@ -603,9 +611,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_lin_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_link_lin_vel_w],
                 outputs=[self._body_link_lin_vel_b.data],
             )
             self._body_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -623,9 +631,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_ang_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_link_ang_vel_w],
                 outputs=[self._body_link_ang_vel_b.data],
             )
             self._body_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -691,9 +699,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_lin_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_com_lin_vel_w],
                 outputs=[self._body_com_lin_vel_b.data],
             )
             self._body_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -711,9 +719,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_ang_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.body_com_ang_vel_w],
                 outputs=[self._body_com_ang_vel_b.data],
             )
             self._body_com_ang_vel_b.timestamp = self._sim_timestamp
@@ -784,9 +792,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
-                shared_kernels.quat_apply_inverse_2D_kernel,
+                warp_math.quat_rotate_inv[2],
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.GRAVITY_VEC_W, self.body_link_quat_w],
+                inputs=[self.body_link_quat_w, self.GRAVITY_VEC_W],
                 outputs=[self._projected_gravity_b.data],
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
@@ -808,7 +816,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.body_heading_w,
+                warp_math.heading[2],
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.FORWARD_VEC_B, self.body_link_quat_w],
                 outputs=[self._heading_w.data],
@@ -902,15 +910,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._default_body_vel = wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
 
         # Initialize ProxyArray wrappers.
-        self._pin_proxy_arrays()
-
-    def _pin_proxy_arrays(self) -> None:
-        """Create pinned :class:`ProxyArray` wrappers for all data buffers.
-
-        This is called once from :meth:`_create_buffers` during initialization.
-        OVPhysX tensor API buffers have stable GPU pointers across simulation steps,
-        so no rebinding is needed (unlike Newton).
-        """
         # Defaults
         self._default_body_pose_ta: ProxyArray | None = None
         self._default_body_vel_ta: ProxyArray | None = None

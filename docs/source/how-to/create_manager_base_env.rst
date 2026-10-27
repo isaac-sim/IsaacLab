@@ -1,6 +1,6 @@
 :orphan:
 
-.. seealso::
+.. Maintenance notes
 
    This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
    (:isaaclab-source:`skills/user/domain-randomization-events/ <skills/user/domain-randomization-events/SKILL.md>`).
@@ -14,21 +14,13 @@ Creating a Manager-Based Base Environment
 
 .. currentmodule:: isaaclab
 
-Environments bring together different aspects of the simulation such as
-the scene, observations and actions spaces, reset events etc. to create a
-coherent interface for various applications. In Isaac Lab, manager-based environments are
-implemented as :class:`envs.ManagerBasedEnv` and :class:`envs.ManagerBasedRLEnv` classes.
-The two classes are very similar, but :class:`envs.ManagerBasedRLEnv` is useful for
-reinforcement learning tasks and contains rewards, terminations, curriculum
-and command generation. The :class:`envs.ManagerBasedEnv` class is useful for
-traditional robot control and doesn't contain rewards and terminations.
+This tutorial builds a Cartpole environment with :class:`envs.ManagerBasedEnv`
+and :class:`envs.ManagerBasedEnvCfg`. The configuration brings together the scene,
+actions, observations, and reset events. Managers execute the configured terms.
 
-In this tutorial, we will look at the base class :class:`envs.ManagerBasedEnv` and its
-corresponding configuration class :class:`envs.ManagerBasedEnvCfg` for the manager-based workflow.
-We will use the
-cartpole environment from earlier to illustrate the different components
-in creating a new :class:`envs.ManagerBasedEnv` environment.
-
+For rewards and episode termination, continue with
+:ref:`tutorial-create-manager-rl-env`. See :ref:`feature-workflows` for the
+difference between direct and manager-based environments.
 
 The Code
 ~~~~~~~~
@@ -125,6 +117,10 @@ The resulting observation has shape ``(num_envs, history_length * combined_term_
 reshaped to ``(num_envs, history_length, combined_term_dim)``. The default ``"term"`` order keeps
 each term's history together; use it for policies trained with the existing layout.
 
+History is ordered from the oldest to the current step by default. For a policy whose deployment
+runtime expects the current step first, set ``history_newest_first=True`` on the group or on
+individual terms. Index 0 along the history dimension is then the current step, in both orders.
+
 Defining events
 ---------------
 
@@ -214,12 +210,6 @@ To run the base environment made in this tutorial, you can use the following com
 
          uv run python scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32 --viz kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32 --viz kit
-
 This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
 playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
 right corner of the screen named ``"Isaac Lab"``. This window contains different UI elements that
@@ -249,16 +239,6 @@ directory. For completeness, they can be run using the following commands:
 
          # Quadrupedal locomotion environment with a policy that interacts with the environment
          uv run python scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32 --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Floating cube environment with custom action term for PD control
-         ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32 --viz kit
-
-         # Quadrupedal locomotion environment with a policy that interacts with the environment
-         ./isaaclab.sh -p scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32 --viz kit
 
 In the following tutorial, we will look at the :class:`envs.ManagerBasedRLEnv` class and how to use it
 to create a Markovian Decision Process (MDP).

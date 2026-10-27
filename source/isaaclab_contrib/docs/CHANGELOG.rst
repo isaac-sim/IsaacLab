@@ -3,6 +3,98 @@ Changelog
 
 .. towncrier release notes start
 
+4.2.4 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton coupler and custom MJWarp--VBD coupling managers to store their solver, collision pipeline and
+  contacts on the manager's :class:`~isaaclab_newton.physics.NewtonBackend`.
+
+
+4.2.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed coupled solver body and shape selectors to expand ``{ENV_REGEX_NS}`` from the simulation's
+  clone template while preserving the original configuration for reuse.
+
+
+4.2.2 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept tactile queries explicitly invalidated after initialization and reset so reads
+  reflect the current scene state without waiting for another physics step.
+
+
+4.2.1 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed tactile contact-mesh and rigid-body bindings to use clone-plan source paths and destination
+  expressions, including custom environment namespaces. Removed the separate contact-component lookup.
+* Required exactly one SDF mesh in the tactile contact-object source instead of silently
+  choosing the first mesh when several matched.
+* Refreshed articulation kinematics before tactile force-field reads so tactile points
+  followed root or joint writes before the next physics step.
+
+
+4.2.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** The Newton coupler managers are used as instances, like the Newton managers they extend; subclasses
+  override their runtime hooks as instance methods.
+
+
+4.1.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed and adaptive relaxation settings to
+  :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` for stabilizing
+  lagged and staggered two-way proxy feedback and expressing one-way coupling
+  with zero relaxation from an initial state.
+
+
+4.0.1 (2026-10-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale action chunks driving freshly reset environments when
+  ``hold_pose_on_midchunk_reset`` was enabled for absolute joint-position policies.
+
+
+4.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added GR00T N1.7 support through RLinf's native model and processor loader, with configurable
+  ``gr00t_mapping.language`` and ``action_mapping.keys`` for observation and action conversion.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated both GR00T setups to the documented RLinf revision with per-generation model packages
+  and action registries. Existing RLinf 0.2 installations must rerun the shared installation step.
+
+
 3.1.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

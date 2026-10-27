@@ -3,7 +3,8 @@
 Augmented Imitation Learning
 ============================
 
-This section describes how to use Isaac Lab's imitation learning capabilities with the visual augmentation capabilities of `Cosmos <https://www.nvidia.com/en-us/ai/cosmos/>`_ models to generate demonstrations at scale to train visuomotor policies robust against visual variations.
+Use `Cosmos <https://www.nvidia.com/en-us/ai/cosmos/>`_ to add visual variation to
+Isaac Lab demonstrations, then train visuomotor policies on the augmented data.
 
 
 .. important::
@@ -12,12 +13,13 @@ This section describes how to use Isaac Lab's imitation learning capabilities wi
 Generating Demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We use the Isaac Lab Mimic feature that allows the generation of additional demonstrations automatically from a handful of annotated demonstrations.
+Isaac Lab Mimic generates additional demonstrations from a small annotated dataset.
 
 .. note::
     This section assumes you already have an annotated dataset of collected demonstrations. If you don't, you can follow the instructions in :ref:`teleoperation-imitation-learning` to collect and annotate your own demonstrations.
 
-In the following example, we will show you how to use Isaac Lab Mimic to generate additional demonstrations that can be used to train a visuomotor policy directly or can be augmented with visual variations using Cosmos (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0`` environment).
+Generate data with ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0``.
+You can train on it directly or augment its appearance with Cosmos.
 
 .. note::
     The ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0`` environment is similar to the standard visuomotor environment (``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0``), but with the addition of segmentation masks, depth maps, and normal maps in the generated dataset. These additional modalities are required to get the best results from the visual augmentation done using Cosmos.
@@ -29,15 +31,6 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
       .. code:: bash
 
           uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-          --device cpu --num_envs 10 --generation_num_trials 1000 \
-          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
-          --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
           --device cpu --num_envs 10 --generation_num_trials 1000 \
           --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
           --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
@@ -66,12 +59,6 @@ Cosmos Augmentation
           .. code:: bash
 
               uv pip install opencv-python
-
-       .. tab-item:: isaaclab.sh / isaaclab.bat
-
-          .. code:: bash
-
-              ./isaaclab.sh -p -m pip install opencv-python
 
     Without it, the conversion scripts fail to open or write the video files.
 
@@ -121,14 +108,6 @@ Example usage for the cube stacking task:
       .. code:: bash
 
           uv run --extra mimic python scripts/tools/hdf5_to_mp4.py \
-          --input_file datasets/mimic_dataset_1k.hdf5 \
-          --output_dir datasets/mimic_dataset_1k_mp4
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
           --input_file datasets/mimic_dataset_1k.hdf5 \
           --output_dir datasets/mimic_dataset_1k_mp4
 
@@ -207,9 +186,13 @@ In case you want to create your own prompts, we suggest you refer to the followi
 
 2. Try to keep the augmentation instructions as realistic and coherent as possible. The more unrealistic or unconventional the prompt is, the worse the model does at retaining key features of the input control video(s).
 
-3. Keep the augmentation instructions in-sync for each aspect. What we mean by this is that the augmentation for all the objects/regions of interest should be coherent and conventional with respect to each other. For example, it is better to have a prompt such as "The table is of old dark wood with faded polish and food stains and the background consists of a suburban home" instead of something like "The table is of old dark wood with faded polish and food stains and the background consists of a spaceship hurtling through space".
+3. Keep object and background descriptions consistent. For example, an old wooden
+   table fits naturally in a suburban home; an unrelated spaceship background may
+   produce a less coherent scene.
 
-4. It is vital to include details on key aspects of the input control video(s) that should be retained or left unchanged. In our prompts, we very clearly mention that the cube colors should be left unchanged such that the bottom cube is blue, the middle is red and the top is green. Note that we not only mention what should be left unchanged but also give details on what form that aspect currently has.
+4. State which details must stay unchanged and describe them explicitly. For this
+   task, preserve the cube colors: blue at the bottom, red in the middle, and green
+   at the top.
 
 Example command to use the Cosmos Transfer1 model for this usecase:
 
@@ -273,6 +256,11 @@ The ``mp4_to_hdf5.py`` script converts the visually augmented MP4 videos back to
 .. note::
     The input HDF5 file is used to preserve the non-visual data (such as robot states and actions) while replacing the visual data with the augmented versions.
 
+.. note::
+    If an augmented video has a different number of frames than the original demonstration, the new demonstration is
+    truncated to the shorter of the two so that all observations and actions stay aligned. A warning is emitted in
+    that case.
+
 .. important::
     The visually augmented MP4 files must follow the naming convention ``demo_{demo_id}_*.mp4``, where:
 
@@ -291,15 +279,6 @@ Example usage for the cube stacking task:
       .. code:: bash
 
           uv run --extra mimic python scripts/tools/mp4_to_hdf5.py \
-          --input_file datasets/mimic_dataset_1k.hdf5 \
-          --videos_dir datasets/cosmos_dataset_1k_mp4 \
-          --output_file datasets/cosmos_dataset_1k.hdf5
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/tools/mp4_to_hdf5.py \
           --input_file datasets/mimic_dataset_1k.hdf5 \
           --videos_dir datasets/cosmos_dataset_1k_mp4 \
           --output_file datasets/cosmos_dataset_1k.hdf5
@@ -347,14 +326,6 @@ Example usage for the cube stacking task:
           --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
           --output_file datasets/mimic_cosmos_dataset.hdf5
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/tools/merge_hdf5_datasets.py \
-          --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
-          --output_file datasets/mimic_cosmos_dataset.hdf5
-
 Model Training and Evaluation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -372,8 +343,7 @@ To install the robomimic framework, use the following commands:
    # resolve and verify Robomimic in the uv-managed environment
    uv run --extra mimic python -c "import robomimic"
 
-For a legacy environment, install the same dependencies with
-``./isaaclab.sh -i mimic``.
+To prepare the dependencies explicitly, run ``uv sync --extra mimic``.
 
 Training an agent
 ^^^^^^^^^^^^^^^^^
@@ -387,15 +357,6 @@ Using the generated data, we can now train a visuomotor BC agent for ``IsaacCont
       .. code:: bash
 
           uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
-          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
-          --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
-          --name bc_rnn_image_franka_stack_mimic_cosmos
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
           --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
           --name bc_rnn_image_franka_stack_mimic_cosmos
@@ -479,18 +440,6 @@ Example usage for the cube stacking task:
       .. code:: bash
 
           uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/robust_eval.py \
-          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
-          --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
-          --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
-          --log_file result \
-          --seeds 0 \
-          --num_rollouts 15
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
           --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
           --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \

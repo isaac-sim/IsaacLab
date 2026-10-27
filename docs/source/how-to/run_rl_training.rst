@@ -7,31 +7,20 @@ Training with an RL Agent
 
 .. currentmodule:: isaaclab
 
-In the previous tutorials, we covered how to define an RL task environment, register
-it into the ``gym`` registry, and interact with it using a random agent. We now move
-on to the next step: training an RL agent to solve the task.
+Train a Stable-Baselines3 policy to balance Cartpole using the task from
+:ref:`tutorial-register-rl-env-gym`.
 
-Although the :class:`envs.ManagerBasedRLEnv` conforms to the :class:`gymnasium.Env` interface,
-it is not exactly a ``gym`` environment. The input and outputs of the environment are
-not numpy arrays, but rather based on torch tensors with the first dimension being the
-number of environment instances.
-
-Additionally, most RL libraries expect their own variation of an environment interface.
-For example, `Stable-Baselines3`_ expects the environment to conform to its
-`VecEnv API`_ which expects a list of numpy arrays instead of a single tensor. Similarly,
-`RSL-RL`_, `RL-Games`_ and `SKRL`_ expect a different interface. Since there is no one-size-fits-all
-solution, we do not base the :class:`envs.ManagerBasedRLEnv` on any particular learning library.
-Instead, we implement wrappers to convert the environment into the expected interface.
-These are specified in the :mod:`isaaclab_rl` module.
-
-In this tutorial, we will use `Stable-Baselines3`_ to train an RL agent to solve the
-cartpole balancing task.
+Isaac Lab environments return batched PyTorch tensors, while each RL library expects
+its own environment interface. The wrappers in :mod:`isaaclab_rl` adapt observations,
+actions, and episode information to that interface. This tutorial uses the
+Stable-Baselines3 ``VecEnv`` wrapper; see :ref:`how-to-env-wrappers` for the other
+wrappers and :ref:`reinforcement-learning` for the training command reference.
 
 .. caution::
 
-  Wrapping the environment with the respective learning framework's wrapper should happen in the end,
-  i.e. after all other wrappers have been applied. This is because the learning framework's wrapper
-  modifies the interpretation of environment's APIs which may no longer be compatible with :class:`gymnasium.Env`.
+   Apply Gymnasium wrappers before the Isaac Lab wrapper for your RL library.
+   The RL wrapper changes the environment interface and may no longer support
+   Gymnasium wrappers.
 
 The Code
 --------
@@ -78,8 +67,8 @@ We train a PPO agent from Stable-Baselines3 to solve the cartpole balancing task
 Training the agent
 ~~~~~~~~~~~~~~~~~~
 
-There are three main ways to train the agent. Each of them has their own advantages and disadvantages.
-It is up to you to decide which one you prefer based on your use case.
+Train without a visualizer, watch the simulation live, or record a video using the
+options below.
 
 Headless execution
 """"""""""""""""""
@@ -97,19 +86,12 @@ Rendering can still be active for sensor/camera data capture when enabled by the
         uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
-
-
 Headless execution with off-screen render
 """""""""""""""""""""""""""""""""""""""""
 
-Since the above command does not open an interactive visualizer, it is not possible to monitor behavior
-live in a viewport window. To capture visual output during training, enable camera/sensor rendering
-in the workflow and pass ``--video`` to record the agent behavior.
+To inspect behavior from a training run without an interactive window, pass ``--video``.
+By default, it records the scene from a headless Newton GL visualizer. See
+:doc:`/source/how-to/record_video` to choose a different visualizer or a camera-sensor output.
 
 .. tab-set::
 
@@ -118,12 +100,6 @@ in the workflow and pass ``--video`` to record the agent behavior.
       .. code-block:: bash
 
         uv run --extra sb3,video isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
@@ -149,12 +125,6 @@ training command as follows:
 
         uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
-
 This will open the Kit visualizer window and you can see the agent training in the environment. However, this
 can slow down the training process because interactive visual feedback is enabled. As a workaround, you
 can switch between different render modes in the ``"Isaac Lab"`` window that is docked on the bottom-right
@@ -175,13 +145,6 @@ On a separate terminal, you can monitor the training progress by executing the f
          # execute from the root directory of the repository
          uv run python -m tensorboard.main --logdir logs/sb3/Isaac-Cartpole
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         # execute from the root directory of the repository
-         ./isaaclab.sh -p -m tensorboard.main --logdir logs/sb3/Isaac-Cartpole
-
 Playing the trained agent
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -195,13 +158,6 @@ Once the training is complete, you can visualize the trained agent by executing 
 
          # execute from the root directory of the repository
          uv run --extra sb3 isaaclab play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         # execute from the root directory of the repository
-         ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.

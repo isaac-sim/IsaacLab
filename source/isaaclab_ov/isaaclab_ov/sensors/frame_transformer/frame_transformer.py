@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 import logging
-import re
 import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -22,7 +20,6 @@ from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 import isaaclab_ov.tensor_types as TT
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .frame_transformer_data import FrameTransformerData
@@ -115,14 +112,6 @@ class FrameTransformer(BaseFrameTransformer):
         return self._target_frame_body_names
 
     """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        super().reset(None, env_mask)
-
-    """
     Implementation.
     """
 
@@ -189,7 +178,7 @@ class FrameTransformer(BaseFrameTransformer):
                 )
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
-                body_name = self._get_relative_body_path(matching_prim_path)
+                body_name = matching_prim_path
                 # Use leaf name of prim path if frame name isn't specified by user
                 frame_name = frame if frame is not None else matching_prim_path.rsplit("/", 1)[-1]
 
@@ -234,7 +223,7 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
         # --- OVPhysX: create one TT.RIGID_BODY_POSE view per unique tracked body ---
-        physx_instance = SimulationManager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError(
                 "OvPhysxManager has not been initialized yet."
@@ -248,7 +237,7 @@ class FrameTransformer(BaseFrameTransformer):
         num_unique_bodies = len(tracked_body_names)
 
         for body_slot, tracked_path in enumerate(tracked_prim_paths):
-            pattern = self._env_wildcardify(tracked_path)
+            pattern = path_expr_to_glob(tracked_path)
             view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
             try:
                 binding = view.binding_for(TT.RIGID_BODY_POSE)
@@ -258,24 +247,7 @@ class FrameTransformer(BaseFrameTransformer):
                     " Verify the prim has UsdPhysics.RigidBodyAPI."
                 ) from exc
 
-            if binding.count != self._num_envs:
-                # OVPhysX's InteractiveScene defaults to clone_usd=True on develop, so this branch is
-                # unexpected in current flows. Mirror ContactSensor's clone_usd=False fallback so the
-                # sensor stays correct if a future scene runs with clone_usd=False.
-                logger.warning(
-                    "FrameTransformer: binding.count=%d for pattern %r differs from self._num_envs=%d;"
-                    " overriding env count from binding (clone_usd=False scene).",
-                    binding.count,
-                    pattern,
-                    self._num_envs,
-                )
-                self._num_envs = binding.count
-                self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask_torch = wp.to_torch(self._reset_mask)
-                self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-                self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-                self._timestamp_last_update = wp.zeros_like(self._timestamp)
+            self._check_env_count(binding.count, pattern)
 
             read_buf = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
             dst_torch = torch.tensor(
@@ -294,11 +266,7 @@ class FrameTransformer(BaseFrameTransformer):
         # OVPhysX chooses the flat layout itself; _per_env_indices is the identity permutation.
         self._per_env_indices = list(range(self._num_envs * num_unique_bodies))
 
-        # tracked_prim_paths is already the env-0 representative list in insertion order.
-        sorted_prim_paths = tracked_prim_paths
-
-        # -- target frames: use relative prim path for unique identification
-        self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
+        self._target_frame_body_names = tracked_prim_paths.copy()
 
         # -- source frame: retain the concrete body resolved from the configured expression
         self._source_frame_body_name = tracked_body_names[0]
@@ -433,6 +401,7 @@ class FrameTransformer(BaseFrameTransformer):
         # Step 1: refresh each per-body RIGID_BODY_POSE view and gather rows into _raw_transforms.
         # read_into fills the structured (num_envs,) wp.transformf buffer directly via a cached
         # float32 reinterpret, so no manual .view(wp.transformf) is needed here.
+        self._backend_manager.update_kinematics()
         for view, read_buf, dst_indices in zip(self._body_views, self._body_read_bufs, self._body_dst_flat_indices):
             view.read_into(TT.RIGID_BODY_POSE, read_buf)
             wp.launch(
@@ -600,48 +569,3 @@ class FrameTransformer(BaseFrameTransformer):
         orientations = quat_from_angle_axis(angle, rotation_axis)
 
         return positions, orientations, lengths
-
-    @staticmethod
-    def _env_wildcardify(prim_path: str) -> str:
-        """Convert an env-0 prim path into an ovphysx fnmatch glob matching all envs.
-
-        Extends the two-substitution pattern used by
-        :class:`~isaaclab_ov.sensors.ContactSensor` with a third substitution
-        for concrete ``env_<N>`` paths produced by ``sim_utils.find_matching_prims``.
-        The three substitutions, in order:
-
-        1. ``{ENV_REGEX_NS}`` → ``*`` (placeholder form).
-        2. ``.*`` → ``*`` (IsaacLab regex form, e.g. ``env_.*``).
-        3. ``/envs/env_<digits>`` → ``/envs/env_*`` (concrete env-0 path form).
-
-        Args:
-            prim_path: An env-0 prim path (e.g. ``"/World/envs/env_0/Robot/LF_FOOT"``) or an
-                IsaacLab regex form (e.g. ``"{ENV_REGEX_NS}/Robot/LF_FOOT"`` or
-                ``"{ENV_REGEX_NS}/Robot/LF_FOOT"``).
-
-        Returns:
-            The same path with the env namespace replaced by an fnmatch wildcard
-            (``*`` for the ``{ENV_REGEX_NS}`` placeholder, ``env_*`` for concrete or
-            regex env paths). Assumes the standard IsaacLab ``/World/envs/env_<N>/...``
-            layout; non-standard scene structures will only get the first two
-            substitutions.
-        """
-        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", prim_path)
-        pattern = path_expr_to_glob(pattern)
-        pattern = re.sub(r"/envs/env_\d+(/|$)", r"/envs/env_*\1", pattern)
-        return pattern
-
-    @staticmethod
-    def _get_relative_body_path(prim_path: str) -> str:
-        """Strip the ``/envs/env_<id>/`` prefix from a prim path so paths can be compared across environments.
-
-        Args:
-            prim_path: Absolute USD prim path that may contain an ``/envs/env_<digits>/`` segment.
-
-        Returns:
-            The prim path with that segment collapsed to ``/envs/``, so prim paths from any env compare equal.
-        """
-        # the env slot may be a concrete id or a segment wildcard; try the wildcard spellings
-        # first so a bare ``[^/]+`` alternative cannot consume half of a character class.
-        pattern = re.compile(r"/envs/env_(?:\[\^/\][*+]|\.\*|[^/]+)/")
-        return pattern.sub("/envs/", prim_path)

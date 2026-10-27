@@ -6,6 +6,7 @@
 """Tests for the project template interactive prompts."""
 
 import importlib.util
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -44,15 +45,16 @@ def _external_specification(
         "task_name": "place_vial",
         "robot_name": "so101",
         "include_ui_extension": include_ui_extension,
-        "workflows": [{"name": "manager-based", "type": "single-agent"}] if initial_content == "cartpole" else [],
-        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}] if initial_content == "cartpole" else [],
+        "workflows": [{"name": "manager-based", "type": "single-agent"}] if initial_content != "blank" else [],
+        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}] if initial_content != "blank" else [],
     }
 
 
 def test_main_collects_canonical_external_project_choices():
     """The prompts must collect project layers and list flagship choices first."""
+    initial_content = "stubbed"
     handler = mock.Mock(spec=CLIHandler)
-    handler.input_select.side_effect = ["External", "Cartpole", "No"]
+    handler.input_select.side_effect = ["External", initial_content.title(), "No"]
     handler.input_path.return_value = "/tmp"
     handler.input_text.side_effect = ["test_project", "Test Author, Example Organization", "place_vial", "so101"]
     handler.input_checkbox.side_effect = lambda message, choices: [choices[0]]
@@ -71,7 +73,7 @@ def test_main_collects_canonical_external_project_choices():
     assert checkbox_calls[1].kwargs["choices"][0] == "rsl_rl"
     assert checkbox_calls[2].kwargs["choices"][0] == "PPO"
     content_prompt = handler.input_select.call_args_list[1]
-    assert content_prompt.kwargs["choices"] == ["Cartpole", "Blank"]
+    assert content_prompt.kwargs["choices"] == ["Cartpole", "Stubbed", "Blank"]
     assert content_prompt.kwargs["default"] == "Cartpole"
     ui_prompt = handler.input_select.call_args_list[2]
     assert ui_prompt.kwargs["choices"] == ["No", "Yes"]
@@ -80,7 +82,7 @@ def test_main_collects_canonical_external_project_choices():
     assert specification["task_name"] == "place_vial"
     assert specification["robot_name"] == "so101"
     assert specification["authors"] == ["Test Author", "Example Organization"]
-    assert specification["initial_content"] == "cartpole"
+    assert specification["initial_content"] == initial_content
     assert specification["include_ui_extension"] is False
     assert specification["isaaclab_version"] == "3.0.0"
     assert specification["isaaclab_source_path"] == _MODULE.ROOT_DIR
@@ -122,6 +124,14 @@ def test_main_skips_task_prompts_for_blank_project():
             },
         ),
         (["--initial_content", "blank"], {"workflows": [], "rl_libraries": []}),
+        (
+            ["--initial_content", "stubbed"],
+            {
+                "initial_content": "stubbed",
+                "workflows": [{"name": "manager-based", "type": "single-agent"}],
+                "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
+            },
+        ),
         (
             [
                 "--workflow",
@@ -209,6 +219,8 @@ def test_generation_arguments_require_non_interactive_opt_in(capsys):
 def test_generated_project_matches_canonical_uv_layout(tmp_path):
     """A generated project must use one uv project with a src package and tests."""
     specification = _external_specification(tmp_path)
+    # Wheel builds carry a local label; the requirement must accept patch releases of the public version.
+    specification["isaaclab_version"] = "3.0.0+build7.abc1234"
 
     with mock.patch.object(_GENERATOR, "_setup_git_repo"):
         _GENERATOR.generate(specification)
@@ -221,14 +233,14 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
         "requires": ["uv_build>=0.12.6,<0.13"],
         "build-backend": "uv_build",
     }
-    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]==3.0.0"]
+    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]~=3.0.0"]
     assert project_config["project"]["authors"] == [
         {"name": "Test Author"},
         {"name": "Example Organization"},
     ]
     assert project_config["project"]["entry-points"]["isaaclab.tasks"] == {"test_project": "test_project.tasks"}
     assert project_config["project"]["optional-dependencies"] == {
-        extra: [f"isaaclab[{extra}]==3.0.0"]
+        extra: [f"isaaclab[{extra}]~=3.0.0"]
         for extra in ("all", "isaacsim", "ov", "ovphysx", "ovrtx", "rerun", "viser")
     }
     assert project_config["dependency-groups"]["dev"] == [
@@ -300,6 +312,42 @@ def test_generated_project_uses_active_source_checkout(tmp_path):
     assert sources["torch"] == source_config["tool"]["uv"]["sources"]["torch"]
     assert "uses editable relative paths" in (project_dir / "README.md").read_text()
 
+    # Path consumers must be able to build the dependency-only root, not just resolve its TOML.
+    result = subprocess.run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--no-deps",
+            "--target",
+            str(tmp_path / "installed"),
+            "--editable",
+            str(expected_root),
+        ],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert list((tmp_path / "installed").glob("isaaclab_dev-*.dist-info"))
+
+
+def test_generation_warns_when_initial_commit_fails(tmp_path, monkeypatch, caplog):
+    """A missing git identity must be reported instead of silently leaving a repository without commits."""
+    git_config = tmp_path / "gitconfig"
+    git_config.write_text("[user]\n\tuseConfigOnly = true\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(git_config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    for variable in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"):
+        monkeypatch.delenv(variable, raising=False)
+
+    _GENERATOR.generate(_external_specification(tmp_path, initial_content="blank"))
+
+    assert "'git commit' failed" in caplog.text
+    assert 'git commit -q -m "Initial commit"' in caplog.text
+
 
 def test_installed_project_discovers_all_distribution_extras(tmp_path):
     """Wheel-generated projects must forward every extra declared in package metadata."""
@@ -332,7 +380,7 @@ def test_generated_blank_project_contains_no_example_task(tmp_path):
     compile((project_dir / "tests" / "test_registration.py").read_text(), "test_registration.py", "exec")
     with (project_dir / "pyproject.toml").open("rb") as file:
         project_config = tomllib.load(file)
-    assert project_config["project"]["dependencies"] == ["isaaclab==3.0.0"]
+    assert project_config["project"]["dependencies"] == ["isaaclab~=3.0.0"]
 
 
 def test_source_path_falls_back_to_absolute_path_across_windows_drives(monkeypatch):
@@ -359,6 +407,7 @@ def test_generated_project_can_opt_into_ui_extension(tmp_path):
         extension_config = tomllib.load(file)
     assert (task_dir / "env.py").is_file()
     assert (task_dir / "env_cfg.py").is_file()
+    assert "replicate_physics" not in (task_dir / "env_cfg.py").read_text()
     assert "test_project.tasks.place_vial_direct.config.so101.env:PlaceVialEnv" in registration_test
     assert extension_config["package"]["author"] == 'Test "Quoted" Author'
     assert extension_config["python"]["module"] == [{"name": "test_project.ui_extension_example"}]

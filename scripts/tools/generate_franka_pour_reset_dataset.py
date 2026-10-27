@@ -55,6 +55,7 @@ from isaaclab_tasks.contrib.franka_pour.reset_dataset_io import (
     reset_dataset_content_digest,
     reset_dataset_validate_runtime,
 )
+from isaaclab_tasks.utils import resolve_presets
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_OUTPUT = _REPO_ROOT / "datasets/franka_pour/reset_dataset.pt"
@@ -1510,7 +1511,7 @@ def main() -> None:
     add_launcher_args(parser)
     args = parser.parse_args()
 
-    env_cfg = FrankaPourResetDatasetEnvCfg()
+    env_cfg = resolve_presets(FrankaPourResetDatasetEnvCfg())
     env_cfg.scene.num_envs = 1
     env_cfg.sim.device = args.device
     env_cfg.seed = args.seed

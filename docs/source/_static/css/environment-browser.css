@@ -281,16 +281,16 @@ html[data-theme="dark"] .environment-browser {
 .environment-preview-panel {
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.9fr);
-    min-height: 16rem;
     overflow: hidden;
 }
 
 .environment-preview-stage {
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-content: start;
     min-width: 0;
     border-right: 1px solid var(--environment-border);
-    background: #111;
+    background: var(--pst-color-background);
 }
 
 .environment-preview-stage img,
@@ -298,13 +298,8 @@ html[data-theme="dark"] .environment-browser {
     display: block;
     width: 100%;
     height: auto;
-    min-height: 12rem;
     aspect-ratio: 16 / 9;
     object-fit: cover;
-}
-
-.environment-preview-stage video {
-    max-height: 34rem;
 }
 
 .environment-preview-stage img[hidden],
@@ -342,9 +337,10 @@ html[data-theme="dark"] .environment-browser {
 .environment-preview-details {
     display: grid;
     align-content: center;
-    gap: 0.7rem;
+    gap: 0.55rem;
     margin: 0;
-    padding: 1.4rem;
+    padding: 1rem;
+    font-size: 0.9rem;
 }
 
 .environment-preview-details div {
@@ -574,25 +570,6 @@ html[data-theme="dark"] .environment-browser {
     justify-content: space-between;
     gap: 0.75rem;
     margin: 0 0 0.5rem;
-}
-
-.environment-benchmark-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1rem;
-    margin-bottom: 0.75rem;
-    color: var(--environment-muted);
-    font-size: 0.75rem;
-}
-
-.environment-benchmark-legend:empty {
-    display: none;
-}
-
-.environment-benchmark-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
 }
 
 .environment-benchmark-results {
@@ -857,7 +834,6 @@ html[data-theme="dark"] .environment-browser {
     }
 
     .environment-preview-stage {
-        min-height: 12rem;
         border-right: 0;
         border-bottom: 1px solid var(--environment-border);
     }
@@ -918,11 +894,4 @@ html[data-theme="dark"] .environment-browser {
     color: var(--environment-muted);
     white-space: normal;
     font-size: 0.7rem;
-}
-
-.environment-benchmark-count {
-    margin-right: auto;
-    white-space: nowrap;
-    color: var(--environment-muted);
-    font-size: 0.85rem;
 }

@@ -10,7 +10,7 @@ kitless against the OVPhysX backend. Also times the blocking native
 ``LINK_INCOMING_JOINT_FORCE`` read in isolation.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_joint_wrench.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_joint_wrench.py --num_envs 4096
 """
 
 from __future__ import annotations

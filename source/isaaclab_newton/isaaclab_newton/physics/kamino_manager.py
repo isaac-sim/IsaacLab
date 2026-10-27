@@ -13,8 +13,6 @@ import warp as wp
 from newton import Model, eval_fk
 from newton.solvers import SolverKamino
 
-from isaaclab.physics import PhysicsManager
-
 from .kamino_manager_cfg import _KaminoSolverCfgBase
 from .newton_manager import NewtonManager
 
@@ -54,14 +52,15 @@ class NewtonKaminoManager(NewtonManager):
     internal collision detector handles contact generation.
     """
 
-    # Annotate the concrete solver type.
-    _solver: SolverKamino
-
     _builder_attribute_solvers = (SolverKamino,)
 
-    @classmethod
-    def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:
-        cfg = PhysicsManager._cfg
+    @property
+    def shares_materials(self) -> bool:
+        """Kamino's own collision detector reads one material table; Newton's pipeline reads each shape."""
+        return self._get_kamino_solver_cfg().use_collision_detector
+
+    def _get_kamino_solver_cfg(self) -> _KaminoSolverCfgBase:
+        cfg = self._cfg
         if cfg is None:
             raise RuntimeError("Physics manager is not initialized.")
         solver_cfg = getattr(cfg, "solver_cfg", None)
@@ -69,8 +68,7 @@ class NewtonKaminoManager(NewtonManager):
             raise TypeError(f"Expected a Kamino solver configuration, got {type(solver_cfg).__name__}.")
         return solver_cfg
 
-    @classmethod
-    def _eval_fk_impl(cls, world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
+    def _eval_fk_impl(self, world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
         """Update body states from joint coordinates.
 
         For the Kamino (maximal-coordinate) solver, body poses/velocities are the authoritative
@@ -86,25 +84,24 @@ class NewtonKaminoManager(NewtonManager):
             world_reset_mask: Per-world mask passed to :meth:`SolverKamino.reset` (``None`` means all).
             fk_mask: Per-articulation mask of articulations to update (``None`` means all).
         """
-        if cls._get_kamino_solver_cfg().use_fk_solver:
-            cls._solver.reset(
-                cls.backend.state_0,
+        if self._get_kamino_solver_cfg().use_fk_solver:
+            self.backend.solver.reset(
+                self.backend.state_0,
                 world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.from_joints(),
             )
         else:
-            backend = cls.backend
+            backend = self.backend
             eval_fk(backend.model, backend.state_0.joint_q, backend.state_0.joint_qd, backend.state_0, fk_mask)
 
             # Reset solver internals without performing Kamino's FK.
-            cls._solver.reset(
-                cls.backend.state_0,
+            self.backend.solver.reset(
+                self.backend.state_0,
                 world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.preserve(),
             )
 
-    @classmethod
-    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+    def _reset_solver_internals(self, world_mask: wp.array | None) -> None:
         """Skip the generic solver reset.
 
         :meth:`_eval_fk_impl` already performs the masked
@@ -115,13 +112,17 @@ class NewtonKaminoManager(NewtonManager):
         """
 
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: _KaminoSolverCfgBase) -> SolverKamino:
+    def _create_solver(
+        cls,
+        model: Model,
+        solver_cfg: _KaminoSolverCfgBase,
+        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+    ) -> SolverKamino:
         """Construct the configured Kamino solver."""
         return SolverKamino(model, solver_cfg.to_solver_config())
 
-    @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: _KaminoSolverCfgBase) -> None:
-        """Construct :class:`SolverKamino` and populate the base-class slots.
+    def _build_solver(self, model: Model, solver_cfg: _KaminoSolverCfgBase) -> None:
+        """Construct :class:`SolverKamino` and populate the solver slots.
 
         Sets :attr:`NewtonManager._needs_collision_pipeline` to ``True`` only
         when ``use_collision_detector=False`` (Kamino's internal detector
@@ -156,10 +157,10 @@ class NewtonKaminoManager(NewtonManager):
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
 
-        NewtonManager._solver = cls._create_solver(model, solver_cfg)
+        self.backend.solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
         # Initialize the output state's persistent Kamino buffers before capture. The input
         # state is initialized by _eval_fk_impl after solver construction.
-        cls._solver.reset(cls.backend.state_1, config=SolverKamino.ResetConfig.preserve())
-        NewtonManager._use_single_state = False
-        NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
-        NewtonManager._supports_rigid_body_force_input = True
+        self.backend.solver.reset(self.backend.state_1, config=SolverKamino.ResetConfig.preserve())
+        self._use_single_state = False
+        self._needs_collision_pipeline = not solver_cfg.use_collision_detector
+        self._supports_rigid_body_force_input = True

@@ -14,7 +14,7 @@ rough terrain on the Newton backend:
   refit (the refit is shared with the tiled-camera renderer in real scenes).
 
 Usage:
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
+    uv run python scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
 """
 
 import argparse
@@ -35,7 +35,7 @@ import time
 
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonQueries
 from isaaclab_newton.sensors import LegacyRayCaster, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
@@ -116,8 +116,10 @@ def _time_calls(fn, num_iterations: int, warmup: int, device: str) -> float:
 
 
 def main():
-    with launch_simulation(cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=1 / 200, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=1 / 200, device=args_cli.device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
+    )
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         scene = InteractiveScene(_make_scene_cfg(args_cli.num_envs))
         sim.reset()
@@ -151,13 +153,14 @@ def main():
         def run_bvh():
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
+        backend = sim.backend_manager.backend
+
         def run_bvh_with_refit():
-            NewtonManager._mark_sensor_state_dirty()
+            NewtonQueries._refit_bvh(backend)
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            NewtonManager._mark_sensor_state_dirty()
-            NewtonManager._update_sensor_tasks()
+            NewtonQueries._refit_bvh(backend)
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,
@@ -168,7 +171,7 @@ def main():
 
         print(
             f"\nnum_envs={args_cli.num_envs}, rays/env={num_rays}, total rays={total_rays},"
-            f" shapes in BVH={NewtonManager.get_model().bvh_shape_count_enabled},"
+            f" shapes in BVH={backend.model.bvh_shape_count_enabled},"
             f" iterations={args_cli.num_iterations}, device={device}"
         )
         print(f"{'benchmark':<40} {'ms/call':>10} {'Mrays/s':>10}")

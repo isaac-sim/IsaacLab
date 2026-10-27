@@ -20,7 +20,7 @@ on:
         default: 'ubuntu:24.04'
         type: string
       test_filter:
-        description: 'pytest -k filter expression (e.g. "uv" or "bugs")'
+        description: 'pytest -k filter expression (e.g. "workspace" or "wheel")'
         default: ''
 
 concurrency:
@@ -61,7 +61,6 @@ jobs:
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
             $'^uv\\.lock$\tuv lockfile'
-            $'(^|/)environment\\.ya?ml$\tConda environment file'
           )
 
           render_table() {
@@ -157,8 +156,19 @@ jobs:
         uses: ./.github/actions/install-ci-collect
         with:
           test-filter: ${{ inputs.test_filter }}
+      # GB10 allocates GPU memory from host RAM; page cache left by earlier jobs starves CUDA init.
+      - name: Runner Health and Page-Cache Drop (Pre)
+        run: |
+          .github/scripts/runner_health.sh pre-test
+          docker run --rm --privileged ubuntu:24.04 sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
+          .github/scripts/runner_health.sh after-cache-drop
       - name: Run Tests
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
+      - name: Runner Health (Post)
+        if: always()
+        continue-on-error: true
+        run: |
+          .github/scripts/runner_health.sh post-test

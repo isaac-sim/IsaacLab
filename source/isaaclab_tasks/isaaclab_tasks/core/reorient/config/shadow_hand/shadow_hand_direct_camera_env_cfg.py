@@ -16,6 +16,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
+from ...utils import CAMERA_VISUALIZER_CFG
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_direct_env_cfg import (
     ShadowHandEnvCfg,
@@ -76,7 +77,6 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     data_types: list[str] = []
     spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        spawn_path="/World/envs/env_0/Camera",
         focal_length=24.0,
         focus_distance=400.0,
         horizontal_aperture=20.955,
@@ -197,6 +197,11 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
         # scene
         self.scene.num_envs = 64
+        viewers = self.sim.visualizer_cfgs
+        for viewer in viewers if isinstance(viewers, list) else [viewers]:
+            viewer.eye = CAMERA_VISUALIZER_CFG.eye
+            viewer.lookat = CAMERA_VISUALIZER_CFG.lookat
+            viewer.focal_length = CAMERA_VISUALIZER_CFG.focal_length
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

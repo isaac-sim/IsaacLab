@@ -27,7 +27,6 @@ import hang_dump  # isort: skip
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
 from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
-from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 from _file_scheduler import JobContext, TestFileJob, run_test_files  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -89,13 +88,6 @@ and a Kit process has enough threads to exceed that; this is the whole dump.
 
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
-
-PROCESS_FAILURE_RETRIES_BY_FILE = {
-    "test_visualizer_integration_physx.py": 4,
-    "test_visualizer_integration_newton.py": 4,
-    "test_visualizer_tiled_integration_physx.py": 4,
-}
-"""Extra fresh-process attempts for visualizer tests that can enter stale render states."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -715,6 +707,15 @@ def _unslugify_queue_entry(entry_name):
     return entry_name.replace("__", "/")
 
 
+def _queue_shard():
+    """Name of this shard's ``inflight/`` and ``done/`` subdirs in the work queue.
+
+    ``ISAACLAB_TEST_QUEUE_SHARD`` when set, so two shards testing the same device index on
+    different physical GPUs report separately; otherwise the shard's device, e.g. ``cuda-1``.
+    """
+    return os.environ.get("ISAACLAB_TEST_QUEUE_SHARD") or resolve_test_sim_device().replace(":", "-")
+
+
 def _claim_queued_file(queue_dir):
     """Atomically claim one pending test from the work-queue directory.
 
@@ -738,7 +739,7 @@ def _claim_queued_file(queue_dir):
         The decoded test path for the claimed file, or ``None`` when the
         queue is empty.
     """
-    shard = resolve_test_sim_device().replace(":", "-")
+    shard = _queue_shard()
     pending_dir = os.path.join(queue_dir, "queue")
     inflight_dir = os.path.join(queue_dir, "inflight", shard)
     os.makedirs(inflight_dir, exist_ok=True)
@@ -775,7 +776,7 @@ def _mark_queued_file_done(queue_dir, test_path):
     The inflight residual is what the post-run reconciler uses to detect
     crashed shards: anything still in ``inflight/`` at job-end is an orphan.
     """
-    shard = resolve_test_sim_device().replace(":", "-")
+    shard = _queue_shard()
     entry = _slugify_test_path(test_path)
     src = os.path.join(queue_dir, "inflight", shard, entry)
     dst_dir = os.path.join(queue_dir, "done", shard)
@@ -810,101 +811,6 @@ def _read_test_report(report_file, file_name):
     tests = int(report.tests) if report.tests is not None else 0
     time_elapsed = float(report.time) if report.time is not None else 0.0
     return report, errors, failures, skipped, tests, time_elapsed
-
-
-def _retry_failed_test_in_fresh_process(
-    *,
-    test_file,
-    file_name,
-    cmd,
-    timeout,
-    env,
-    startup_deadline,
-    report_file,
-    journal_file,
-    report,
-    errors,
-    failures,
-    skipped,
-    tests,
-    time_elapsed,
-    returncode,
-    stdout_data,
-    stderr_data,
-    kill_reason,
-    wall_time,
-    pre_kill_diag,
-    options,
-):
-    """Retry selected failed test files in a fresh subprocess.
-
-    ``env`` must carry :data:`JOURNAL_ENV_VAR`, and ``journal_file`` must be the path it names:
-    each attempt starts from an empty journal so a retry that crashes is reconstructed from its
-    own verdicts rather than from the ones the previous attempt left behind.
-    """
-    has_test_failures = errors > 0 or failures > 0
-    process_failure_attempts = 0
-    max_process_failure_retries = PROCESS_FAILURE_RETRIES_BY_FILE.get(file_name, 0)
-
-    while has_test_failures and process_failure_attempts < max_process_failure_retries:
-        process_failure_attempts += 1
-        logger.warning(
-            f"⚠️  {test_file}: failed in subprocess"
-            f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
-        )
-        # The renderer log and hang dump go too: a retry that dies has both quoted in the rebuilt report,
-        # and a leftover from the previous attempt would be attributed to this one.
-        for stale_file in (report_file, journal_file, env.get(hang_dump.DUMP_PATH_ENV_VAR, ""), ovrtx_log.LOG_PATH):
-            if not stale_file:
-                continue
-            with contextlib.suppress(FileNotFoundError):
-                os.remove(stale_file)
-
-        (
-            returncode,
-            stdout_data,
-            stderr_data,
-            kill_reason,
-            retry_wall_time,
-            pre_kill_diag,
-        ) = capture_test_output_with_timeout(
-            cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file, options=options
-        )
-        _print_captured_output(file_name, options, stdout_data, stderr_data)
-        wall_time += retry_wall_time
-        if not os.path.exists(report_file):
-            # The attempt died before pytest wrote its report; the caller rebuilds the result from
-            # this attempt's journal.
-            break
-
-        try:
-            report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
-            has_test_failures = errors > 0 or failures > 0
-        except Exception as e:
-            logger.error(f"Error reading retry test report {report_file}: {e}")
-            has_test_failures = True
-            errors = 1
-            failures = 0
-            skipped = 0
-            tests = 0
-            time_elapsed = 0.0
-            break
-
-    return (
-        report,
-        errors,
-        failures,
-        skipped,
-        tests,
-        time_elapsed,
-        returncode,
-        stdout_data,
-        stderr_data,
-        kill_reason,
-        wall_time,
-        pre_kill_diag,
-        has_test_failures,
-    )
 
 
 @dataclass
@@ -1277,61 +1183,7 @@ def _run_one_pass(
             skipped=skipped,
         )
 
-    (
-        report,
-        errors,
-        failures,
-        skipped,
-        tests,
-        time_elapsed,
-        returncode,
-        stdout_data,
-        stderr_data,
-        kill_reason,
-        wall_time,
-        pre_kill_diag,
-        has_test_failures,
-    ) = _retry_failed_test_in_fresh_process(
-        test_file=ctx.test_file,
-        file_name=ctx.file_name,
-        cmd=cmd,
-        timeout=ctx.timeout,
-        env=pass_env,
-        startup_deadline=ctx.startup_deadline,
-        report_file=report_file,
-        journal_file=journal_file,
-        report=report,
-        errors=errors,
-        failures=failures,
-        skipped=skipped,
-        tests=tests,
-        time_elapsed=time_elapsed,
-        returncode=returncode,
-        stdout_data=stdout_data,
-        stderr_data=stderr_data,
-        kill_reason=kill_reason,
-        wall_time=wall_time,
-        pre_kill_diag=pre_kill_diag,
-        options=ctx.capture,
-    )
-
-    if not os.path.exists(report_file):
-        # A retry died before pytest wrote its report. Keeping the earlier attempt's parsed results
-        # would report the file as FAILED and drop the crash, so the retry's journal is what the
-        # result is rebuilt from — including the test that was in flight when the process died.
-        return _make_missing_report_result(
-            journal_file=journal_file,
-            prefix="retry_crash",
-            pass_file_label=pass_file_label,
-            log_label=f"{ctx.test_file}{suffix} (fresh-process retry)",
-            report_file=report_file,
-            returncode=returncode,
-            kill_reason=kill_reason,
-            stdout_data=stdout_data,
-            stderr_data=stderr_data,
-            wall_time=wall_time,
-            pre_kill_diag=pre_kill_diag,
-        )
+    has_test_failures = errors > 0 or failures > 0
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
     no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
@@ -1395,8 +1247,15 @@ def _run_one_pass(
 
 
 def _starts_renderer(test_content: str) -> bool:
-    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX."""
-    return "enable_cameras=True" in test_content or "ovrtx" in test_content.lower()
+    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX.
+
+    The direct scene runner selects a renderer from its case matrix.
+    """
+    return (
+        "enable_cameras=True" in test_content
+        or "ovrtx" in test_content.lower()
+        or "from rendering_runner import" in test_content
+    )
 
 
 def _test_file_job(test_file: str, max_slots: int) -> TestFileJob:
@@ -1510,13 +1369,6 @@ def _run_test_file(
 
     timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
-    # Read the test file once for device-split detection.
-    try:
-        with open(test_file) as fh:
-            test_content = fh.read()
-    except OSError:
-        test_content = ""
-
     # The first renderer in a fresh container compiles shaders (~600 s).
     # Give it extra time so that doesn't look like a test timeout.
     is_cold_cache_test = context.renderer_cold
@@ -1539,18 +1391,7 @@ def _run_test_file(
         capture=_CaptureOptions(echo=echo, workers=workers, on_started=context.mark_started),
     )
 
-    # On a multi-GPU shard, test_devices() already resolves to this shard's single
-    # GPU and mgpu_shard_select drops every other variant, so the device_split
-    # CPU/GPU two-pass (which exists to dodge the process-global device lock when
-    # CPU and GPU share one container) is unnecessary here — the CPU pass would
-    # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
-    if _inject_shard_select:
-        passes = [("", None)]
-    elif is_device_split_file(test_file, source=test_content):
-        logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
-        passes = DEVICE_SPLIT_PASSES
-    else:
-        passes = [("", None)]
+    passes = [("", None)]
 
     reports = []
     failed = False
@@ -1584,6 +1425,7 @@ def _collect_test_files(
     curobo_only,
 ):
     """Collect test files from source directories, applying all active filters."""
+    include_patterns = [pattern.strip() for pattern in filter_pattern.split(",") if pattern.strip()]
     test_files = []
     for source_dir in source_dirs:
         if not os.path.exists(source_dir):
@@ -1618,7 +1460,7 @@ def _collect_test_files(
 
                 full_path = os.path.join(root, file)
 
-                if filter_pattern and filter_pattern not in full_path:
+                if include_patterns and not any(pattern in full_path for pattern in include_patterns):
                     logger.debug(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
                     continue
                 if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):

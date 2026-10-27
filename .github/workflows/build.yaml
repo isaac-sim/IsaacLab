@@ -46,7 +46,7 @@
 #      -e TEST_FILTER_PATTERN="isaaclab_physx" \
 #      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
 #      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
-#      -c 'cd /workspace/isaaclab && ./isaaclab.sh -p -m pytest tools -v'
+#      -c 'cd /workspace/isaaclab && uv run --no-sync isaaclab -p -m pytest tools -v'
 #
 # Remember to REVERT all temporary changes before merging!
 # =============================================================================
@@ -102,7 +102,7 @@ jobs:
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
-        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
+        triggered-jobs-push: "Docker base + cuRobo build jobs + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
         triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
         # config.yaml is included because it controls the base image names and tags
         # consumed by the Docker build jobs.
@@ -114,9 +114,8 @@ jobs:
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
           ^conftest\.py$ :: Root pytest configuration
+          ^uv\.lock$ :: Dependency lockfile
           ^pyproject\.toml$ :: Root Python project (Docker copy)
-          ^environment\.yml$ :: Conda env (Docker copy)
-          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/build\.yaml$ :: This workflow file
           ^\.github/workflows/config\.yaml$ :: Shared CI config
           ^\.github/actions/ :: CI actions
@@ -229,9 +228,8 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.changes.outputs.should_run == 'true'
+    # Also runs on push so PRs find the cuRobo deps image already built.
+    if: needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -442,7 +440,13 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
+        # Launch matrix only; the file's other tests already run in isaaclab (core) [1/3].
+        # Dedicated sensor tests cover raycasting; keep these example launches available for manual runs.
+        test-k-expr: "test_standalone_script_runs_cleanly and not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        # Four concurrent Kit launches intermittently hang microduck_warehouse at startup.
+        test-jobs: "3"
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -473,11 +477,17 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
+        test-k-expr: "test_standalone_script_runs_cleanly and not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         result-file: "test-standalone-demos-non-kit-report.xml"
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
 
+  # Share runner/image startup across the short package suites. Keep per-file
+  # process isolation and the same four-slot budget within each combined job.
+  # RL stays separate because it installs extra dependencies the other suites do not need.
   test-isaaclab-rl:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
@@ -497,81 +507,10 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
-        extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
+        extra-pip-packages: "leapp==0.7.2 torchrl>=0.13"
         warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-rl-test
-
-  test-isaaclab-mimic:
-    name: isaaclab_mimic
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_mimic"
-        warp-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-mimic-test
-
-  test-isaaclab-contrib:
-    name: isaaclab_contrib
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_contrib"
-        warp-cache: restore
-        ovrtx-shader-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-contrib-test
-
-  test-isaaclab-teleop:
-    name: isaaclab_teleop
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_teleop"
-        warp-cache: restore
-        ovrtx-shader-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
     name: isaaclab_visualizers
@@ -591,7 +530,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_visualizers"
+        filter-pattern: "isaaclab_visualizers,test_visualizers_kit.py,test_visualizers_rtx.py"
         warp-cache: restore
         ovrtx-shader-cache: restore
         test-jobs: "4"
@@ -615,33 +554,57 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_assets"
+        filter-pattern: "isaaclab_assets,isaaclab_contrib,isaaclab_teleop,isaaclab_mimic,isaaclab_experimental"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-assets-test
 
+  # Preserve the required package check names without provisioning GPU runners.
+  # A failed or cancelled combined suite must fail each dependent check too.
+  test-isaaclab-mimic:
+    name: isaaclab_mimic
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
+
   test-isaaclab-experimental:
     name: isaaclab_experimental
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
     steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_experimental"
-        warp-cache: restore
-        test-jobs: "4"
-        container-name: isaac-lab-experimental-test
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
+
+  test-isaaclab-contrib:
+    name: isaaclab_contrib
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
+
+  test-isaaclab-teleop:
+    name: isaaclab_teleop
+    runs-on: ubuntu-latest
+    needs: [test-isaaclab-assets]
+    if: always() && needs.test-isaaclab-assets.result != 'skipped'
+    steps:
+    - name: Check combined package tests
+      env:
+        RESULT: ${{ needs.test-isaaclab-assets.result }}
+      run: test "$RESULT" = success
 
   test-isaaclab-newton:
     name: isaaclab_newton
@@ -700,7 +663,7 @@ jobs:
       github.event_name != 'push' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -762,6 +725,8 @@ jobs:
         cache-tag: cache-curobo
         # SkillGen's simulator-driven dataset test remains available for manual runs.
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
+        # The planner files finish alongside test_pink_ik.py (~7 min).
+        test-jobs: "3"
         container-name: isaac-lab-curobo-test
 
     # Folded from the former standalone verify-curobo-non-root job: reuses
@@ -780,15 +745,17 @@ jobs:
           exit 1
         fi
 
+  # No contributed environment needs cuRobo, so this job uses the base image and
+  # does not wait for the cuRobo image build.
   test-contrib-environments:
     name: test-contrib-environments
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build-curobo, config]
+    needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -796,11 +763,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        dockerfile-path: docker/Dockerfile.curobo
-        cache-tag: cache-curobo
         include-files: >-
           test_contrib_environments_kitless.py,
           test_contrib_environments_kit.py,
@@ -808,8 +773,8 @@ jobs:
         warp-cache: restore
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kit
-        # The three files run side by side; the kit and kitless files split across two workers each.
-        test-jobs: "5"
+        # Keep the shared GPU to one two-worker test file at a time.
+        test-jobs: "2"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
@@ -854,15 +819,12 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        filter-pattern: "isaaclab"
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
-          test_rendering_cartpole.py,
-          test_rendering_lift_kuka_hetero.py,
-          test_rendering_lift_kuka_homo.py,
-          test_rendering_franka_cloth.py,
-          test_rendering_franka_cable.py,
-          test_rendering_registered_tasks.py,
-          test_rendering_shadow_hand.py
+          test_rendering_kit.py,
+          test_rendering_architecture.py,
+          test_golden_image.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         ovrtx-shader-cache: restore
@@ -884,7 +846,7 @@ jobs:
     needs: [build, config]
     if: needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -898,19 +860,14 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        filter-pattern: "isaaclab"
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_cartpole_kitless.py,
-          test_rendering_lift_kuka_hetero_kitless.py,
-          test_rendering_lift_kuka_homo_kitless.py,
-          test_rendering_franka_cloth_kitless.py,
-          test_rendering_franka_soft_kitless.py,
-          test_rendering_franka_cable_kitless.py,
-          test_rendering_shadow_hand_kitless.py
+          test_rendering_kitless.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
@@ -931,7 +888,7 @@ jobs:
       github.event_name != 'pull_request' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -945,19 +902,14 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        filter-pattern: "isaaclab"
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
-          test_rendering_cartpole_kitless.py,
-          test_rendering_lift_kuka_hetero_kitless.py,
-          test_rendering_lift_kuka_homo_kitless.py,
-          test_rendering_franka_cloth_kitless.py,
-          test_rendering_franka_soft_kitless.py,
-          test_rendering_franka_cable_kitless.py,
-          test_rendering_shadow_hand_kitless.py
+          test_rendering_kitless.py
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
@@ -972,10 +924,10 @@ jobs:
     # Four legs x three samples, including one retry each: 372 minutes + setup/comparison buffer.
     timeout-minutes: 450
     needs: [build, config]
-    # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
-    # where it also records a baseline; pushes to main and release/** skip this job.
+    # Pull requests and manual dispatches run in gate mode. A push runs only on the
+    # repository default branch, where it also records a baseline; release pushes skip this job.
     if: >-
-      (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
+      (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -1027,7 +979,6 @@ jobs:
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
         # Restored version directories and kernels must also be writable by the container user.
         chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
-
         container=""
         cleanup_container() {
           if [ -n "$container" ]; then
@@ -1042,6 +993,13 @@ jobs:
           local attempt="$1"
           container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
           cleanup_container
+          # actions/cache restores the tree with the runner's ownership, while
+          # each benchmark container runs as uid 1000. A previous container can
+          # also add directories, so normalize ownership before every attempt.
+          docker run --rm --user root \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            "chown -R isaaclab:isaaclab /tmp/jit-cache"
           timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
@@ -1105,7 +1063,7 @@ jobs:
         fi
 
     - name: Save warm JIT cache
-      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
       uses: actions/cache/save@v4
       with:
         path: ${{ github.workspace }}/jit-cache
@@ -1163,12 +1121,12 @@ jobs:
             | tee -a "$GITHUB_STEP_SUMMARY"
         done < benchmark-legs.tsv
 
-    # Only develop records baselines, so the gate always compares a pull request
+    # Only the default branch records baselines, so the gate always compares a pull request
     # against the branch it will merge into rather than against a stale snapshot.
     # Writes are create-only under a name derived from the commit and run id. Each
     # leg is gated on its own status, so one leg's fault does not skip the rest.
     - name: Record baseline
-      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      if: ${{ always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
       timeout-minutes: 30
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
@@ -1257,9 +1215,9 @@ jobs:
     env:
       # Caches are branch-scoped: publishing only helps from a PR base branch
       # (the on.push.branches list). A dispatch from elsewhere runs as a dry run
-      # instead of burning quota in a scope no PR can read. Not
-      # default_branch - that is a release/* branch upstream, excluding main.
-      PUBLISHES_WARP_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+      # instead of burning quota in a scope no PR can read. The default branch
+      # and active release branches are the scopes that can serve future PRs.
+      PUBLISHES_WARP_CACHE: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -1270,16 +1228,23 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        filter-pattern: "isaaclab_tasks,isaaclab_newton"
         # Warm every supported rigid core environment on Newton. MJWarp
         # specializes kernels per model config, so a small representative task
         # set leaves most of the cache to be compiled again by each PR test
-        # shard. The multi-agent suite supplies Handover.
+        # shard. The multi-agent suite supplies Handover. Newton deterministic
+        # modes generate different kernels, which only the determinism suite
+        # compiles, and the contributed environments are not core tasks; uncached,
+        # both are the long poles of their PR jobs.
+        # Only the Newton solver-matrix file compiles Kamino's collision detector (~140 s cold).
         include-files: >-
           test_environments_newton.py,
-          test_multi_agent_environments.py
+          test_multi_agent_environments.py,
+          test_environment_determinism.py,
+          test_contrib_environments_kitless.py,
+          test_newton_manager_abstraction.py
         # Keep this warmer focused on rigid environments.
-        test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
+        test-k-expr: "not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
@@ -1300,7 +1265,7 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
     env:
-      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -1314,13 +1279,13 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # One combined job covers both sub-trees: Kit cartpole rendering warms
-        # kit/, kitless ovrtx cartpole rendering warms kitless/.
-        filter-pattern: "isaaclab_tasks"
+        # Warm both Kit and standalone RTX paths using the rendering subset below.
+        filter-pattern: "isaaclab"
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
-          test_rendering_cartpole.py,
-          test_rendering_cartpole_kitless.py
+          test_rendering_kit.py,
+          test_rendering_kitless.py
         # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
         # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
         # which populates neither tree. The nodes are pinned by exact ID rather

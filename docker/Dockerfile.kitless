@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -55,15 +57,10 @@ WORKDIR ${ISAACLAB_PATH}
 # installation remains cached when only scripts or application code changes.
 COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
 COPY source/ source/
-COPY isaaclab.sh ./
 
-# Installed from uv.lock rather than via ``isaaclab.sh --install``: only the lock applies
-# ``[tool.uv] override-dependencies``, which pins ``packaging>=20,<27`` against ovphysx's
-# ``packaging<24``. The pip-style path ignores that table and needs a duplicated overrides file
-# instead, which the lock makes unnecessary. ``all`` is exactly rl+visualizer+ov and excludes the
-# ``isaacsim`` extra; ``importers`` is the two standalone wheels. UV_PYTHON above pins the venv to
-# python3.12, matching the runtime stage's libpython3.12; isaaclab.sh resolves VIRTUAL_ENV first.
-# ``--no-managed-python`` is not usable here -- uv rejects it alongside a python-preference.
+# Install the locked dependency graph and its resolver overrides. The curated all extra
+# excludes Isaac Sim; importers adds the standalone importers. UV_PYTHON pins the
+# environment to the runtime stage's Python ABI.
 # OVRTX caches shaders, textures and derived data inside its own site-packages, and a
 # volume-mounted run executes as the runner's uid rather than the image's, so those paths must be
 # writable by a uid the image cannot know. Widened here rather than bind-mounted: the write targets
@@ -74,7 +71,6 @@ COPY isaaclab.sh ./
 # it was created with; otherwise it deletes and rebuilds it.
 RUN uv venv --seed "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers --extra test \
- && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
  && chmod -R a+rwX "${VIRTUAL_ENV}"/lib/python3.*/site-packages/ovrtx \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
@@ -124,10 +120,8 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
-# Git LFS is required because CI checks out with ``lfs: true`` and bind-mounts that tree in.
-# Any ``git`` call then invokes the LFS filter, and without the binary it fails with "the remote
-# end hung up unexpectedly" -- which surfaced as every kit-less case failing before it allocated a
-# single byte of GPU memory. Both images install the same verified Git LFS release below.
+# No image ships Git LFS: scanners flag the Go modules embedded in its upstream binary. Nothing
+# here needs it, since .dockerignore keeps .git out and CI's test launchers hide the mounted one.
 #
 # Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is
@@ -159,8 +153,8 @@ RUN apt-get update \
  && chown -R isaaclab:isaaclab "${HOME}" \
  && chmod 750 "${HOME}"
 
-COPY docker/scripts/install_git_lfs.sh /tmp/install_git_lfs.sh
-RUN /bin/bash /tmp/install_git_lfs.sh && rm /tmp/install_git_lfs.sh
+# Fail if the base image brings Git LFS: scanners flag the Go modules embedded in its binary.
+RUN if command -v git-lfs; then echo "git-lfs must not ship in this image" >&2; exit 1; fi
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx

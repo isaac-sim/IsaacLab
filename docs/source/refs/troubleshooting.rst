@@ -1,19 +1,16 @@
 Tricks and Troubleshooting
 ==========================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
-.. note::
-
-    The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
-    Please also check the `troubleshooting page on Omniverse
-    <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__ for more
-    assistance.
+Find fixes for installation, launch, simulation, and training problems below.
+For Kit-specific issues, see the `Omniverse troubleshooting guide
+<https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__.
 
 .. contents::
    :local:
@@ -40,15 +37,13 @@ install time. Most packages cannot be deselected at all.
        ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_rl``, ``isaaclab_visualizers``,
        ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
        ``isaaclab_tasks_experimental``
-     - Core packages. Every ``isaaclab install`` run installs them as editable packages and
-       there is no way to opt out, so the error points at the environment rather than at the
-       install command.
+     - Core packages installed by ``uv sync``. Check that your command uses the
+       checkout's uv environment.
    * - ``isaaclab_mimic``, ``isaaclab_teleop``
-     - Optional packages. ``isaaclab install`` (equivalently ``isaaclab install all``)
-       includes them; ``isaaclab install core`` does not.
+     - Optional integrations. Select the ``mimic`` or ``teleop`` extra for your workflow.
    * - ``rsl_rl``, ``rl_games``, ``skrl``, ``stable_baselines3``
-     - Reinforcement learning frameworks, installed by the ``rl`` feature. They are part of
-       the default install; ``isaaclab install 'rl[rsl-rl]'`` installs a single framework.
+     - ``rsl_rl`` is installed by default. Select ``rl-games``, ``skrl``, or ``sb3``
+       for the other frameworks, for example ``uv run --extra skrl isaaclab train ...``.
    * - ``isaacsim``
      - Isaac Sim itself, which is never installed implicitly. See
        :ref:`troubleshooting-isaacsim-missing`.
@@ -72,9 +67,8 @@ environment for your workflow.
 
 .. note::
 
-   The ``ov``, ``contrib`` and ``tetrahedralization`` features are deliberately excluded
-   from the default install and must be requested explicitly, for example
-   ``isaaclab install 'ov[ovrtx]'``.
+   Optional dependencies such as ``ovrtx``, ``rlinf``, and ``tetrahedralization`` require
+   an explicit extra, for example ``uv run --extra ovrtx isaaclab train ...``.
 
 .. _troubleshooting-isaacsim-missing:
 
@@ -86,15 +80,15 @@ was launched without it. Either install Isaac Sim:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -i isaacsim
+   uv sync --extra isaacsim
 
 or run a Newton-based task, which does not need Kit:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton
+   uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton_gl
 
-See :doc:`/source/setup/quickstart` for the full list of ``physics=`` and ``renderer=``
+See :doc:`/source/isaaclab/quickstart` for the full list of ``physics=`` and ``renderer=``
 selectors and the extras each one requires.
 
 Dependency version conflicts during installation
@@ -158,12 +152,6 @@ prompt when launching an Isaac Lab process:
 
           uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 GPU buffer capacity errors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -264,7 +252,7 @@ mode because Isaac Lab computes their effort directly.
 
 Joints not covered by an Isaac Lab actuator configuration retain their imported
 USD target modes. Thus, zero-gain USD drives no longer require
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
 to make a configured joint actuate in Newton. The option remains available for
 workflows that need to author placeholder drives independently of an Isaac Lab
 actuator configuration. See :ref:`import-new-asset-ensure-drives-exist` for
@@ -281,7 +269,7 @@ If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
 (e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
 
 1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` and install the OVRTX
-   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`modularized installation <installation-selective-install>`)
+   runtime with ``uv sync --extra ovrtx`` (see :ref:`modularized installation <installation-optional-extras>`)
 2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
    environment — their bundled USD libraries conflict with ovrtx's
 
@@ -302,7 +290,7 @@ The viser visualizer serves a web UI instead of opening a window
 
 ``--visualizer viser`` does not open a native window. Check the terminal for the served
 URL; the default port is ``8080``, configurable through
-:attr:`~isaaclab_visualizers.ViserVisualizerCfg.port`. The ``viser`` package ships in the
+:attr:`~isaaclab_visualizers.ViserBackendCfg.port`. The ``viser`` package ships in the
 ``viser`` extra.
 
 
@@ -402,13 +390,6 @@ For instance, to run a standalone script with verbose logging, you can use the f
 
           # Run the standalone script with info logging
           uv run python scripts/tutorials/00_sim/create_empty.py --info
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          # Run the standalone script with info logging
-          ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

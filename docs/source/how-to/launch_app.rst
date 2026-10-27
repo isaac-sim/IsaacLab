@@ -5,29 +5,22 @@ Deep-dive into the simulation launcher
 
 .. currentmodule:: isaaclab
 
-In this tutorial, we will dive into how a standalone script launches the simulator and configures it using
-CLI arguments and environment variables (envars). Particularly, we will demonstrate how to use
-:func:`app.add_launcher_args` and :func:`app.launch_simulation` to enable livestreaming and to configure
-the :class:`isaacsim.simulation_app.SimulationApp` instance that runs Isaac Sim, while also allowing
-user-provided options.
+Use :func:`app.add_launcher_args` and :func:`app.launch_simulation` to configure
+a standalone script through command-line arguments and environment variables. This
+example enables livestreaming and passes custom options to the Isaac Sim runtime.
 
 Launching is split into two steps. First, :func:`app.add_launcher_args` appends the launch-related options
 to the script's own :class:`argparse.ArgumentParser`. Then, the :func:`app.launch_simulation` context manager
 takes the simulation configuration and the parsed arguments, and starts only the runtime that they need.
-The default PhysX physics backend, Kit-based RTX cameras, the Kit visualizer (``--visualizer kit``) and
+The PhysX physics backend, Kit-based RTX cameras, the Kit visualizer (``--visualizer kit``) and
 livestreaming all run inside Isaac Sim (Kit), so for these :func:`~app.launch_simulation` starts a
 :class:`~isaacsim.simulation_app.SimulationApp`. A kitless configuration, for example Newton physics
 without a Kit visualizer, starts no Isaac Sim at all. The runtime is closed automatically when the
 ``with`` block exits.
 
-The :class:`~isaacsim.simulation_app.SimulationApp` has many extensions that must be loaded to enable
-different capabilities, and some of these extensions are order- and inter-dependent. Additionally, there are
-startup options such as ``headless`` which must be set at instantiation time, and which have an implied
-relationship with some extensions, e.g. the livestreaming extensions. The launcher handles these extensions
-and startup options in a portable manner across a variety of use cases. To achieve this, we offer CLI and
-envar flags which can be merged with user-defined CLI args, while passing forward arguments intended
-for :class:`~isaacsim.simulation_app.SimulationApp`.
-
+The launcher loads Isaac Sim extensions in the required order and applies startup
+options such as ``headless`` before creating :class:`~isaacsim.simulation_app.SimulationApp`.
+Its command-line options can be combined with arguments defined by your script.
 
 The Code
 --------
@@ -56,8 +49,7 @@ In this tutorial, a standard :class:`argparse.ArgumentParser` is instantiated an
 script-specific ``--size`` argument, as well as the arguments ``--height`` and ``--width``.
 The latter are ingested by :class:`~isaacsim.simulation_app.SimulationApp`.
 
-The argument ``--size`` is not used by the launcher, but merges seamlessly with the launcher
-interface. In-script arguments are merged with the launcher interface via the
+The script handles ``--size`` itself. Add the launcher options to the same parser with the
 :func:`~app.add_launcher_args` function, which appends the launcher arguments to the given
 :class:`~argparse.ArgumentParser`. This can then be processed into an :class:`argparse.Namespace` using the
 standard :meth:`argparse.ArgumentParser.parse_args` method.
@@ -93,42 +85,6 @@ custom arguments and the launcher options (abbreviated below).
       .. code-block:: console
 
          uv run python scripts/tutorials/00_sim/launch_app.py --help
-
-         usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--livestream {0,1,2}] [--xr]
-                              [--device DEVICE] [--visualizer VISUALIZER] [--verbose] [--info] [--experience EXPERIENCE]
-                              ...
-
-         Tutorial on configuring the simulator launch.
-
-         options:
-           -h, --help            show this help message and exit
-           --size SIZE           Side-length of cuboid
-           --width WIDTH         Width of the viewport and generated images. Defaults to 1280
-           --height HEIGHT       Height of the viewport and generated images. Defaults to 720
-
-         launcher arguments:
-           Arguments for the KitLauncher. For more details, please check the documentation.
-
-           --livestream {0,1,2}  Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment
-                                 variable.
-           --xr                  Enable XR mode for VR/AR applications.
-           --device DEVICE       The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID
-           --visualizer VISUALIZER, --viz VISUALIZER
-                                 Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).
-           --verbose             Enable verbose-level log output from the SimulationApp.
-           --info                Enable info-level log output from the SimulationApp.
-           --experience EXPERIENCE
-                                 The experience file to load when launching the SimulationApp. If an empty string is provided,
-                                 the experience file is determined from the resolved visualizer and XR settings. If a relative
-                                 path is provided, it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in
-                                 that order).
-           ...
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: console
-
-         ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --help
 
          usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--livestream {0,1,2}] [--xr]
                               [--device DEVICE] [--visualizer VISUALIZER] [--verbose] [--info] [--experience EXPERIENCE]
@@ -204,12 +160,6 @@ We will now run the example script:
 
                LIVESTREAM=2 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
 
@@ -220,12 +170,6 @@ We will now run the example script:
             .. code-block:: console
 
                LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
       .. note::
 
@@ -244,13 +188,6 @@ We will now run the example script:
 
                $env:LIVESTREAM = "2"
                uv run python scripts\tutorials\00_sim\launch_app.py --size 0.5
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: powershell
-
-               $env:LIVESTREAM = "2"
-               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
 to omitting ``--visualizer`` in this setup because headlessness is implied by our ``LIVESTREAM``
@@ -279,12 +216,6 @@ Now, let's look at how the launcher handles conflicting commands:
 
                LIVESTREAM=0 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
 
@@ -295,12 +226,6 @@ Now, let's look at how the launcher handles conflicting commands:
             .. code-block:: console
 
                LIVESTREAM=0 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=0 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
       .. note::
 
@@ -319,13 +244,6 @@ Now, let's look at how the launcher handles conflicting commands:
 
                $env:LIVESTREAM = "0"
                uv run python scripts\tutorials\00_sim\launch_app.py --size 0.5 --livestream 2
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: powershell
-
-               $env:LIVESTREAM = "0"
-               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --livestream 2
 
 This will cause the same behavior as in the previous run, because although we have set ``LIVESTREAM=0``
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
@@ -348,12 +266,6 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
 
                LIVESTREAM=2 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
 
@@ -364,12 +276,6 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
             .. code-block:: console
 
                LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
       .. note::
 
@@ -389,20 +295,13 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
                $env:LIVESTREAM = "2"
                uv run python scripts\tutorials\00_sim\launch_app.py --size 0.5 --width 1920 --height 1080
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: powershell
-
-               $env:LIVESTREAM = "2"
-               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --width 1920 --height 1080
-
 This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we
 want our simulation to be more performant. The process can be killed by pressing ``Ctrl+C`` in the launching
 terminal.
 
 For more details on headless mode and launching visualizers, see
-:doc:`/source/migration/migrating_to_isaaclab_3-0`.
+:doc:`/source/isaaclab/migrating`.
 
 
 .. _specification: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/api.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import sys
 from collections.abc import Callable
@@ -22,6 +23,7 @@ import gymnasium as gym
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
 from isaaclab.utils import validate
@@ -39,6 +41,8 @@ from .common import (
     pre_launch_video_config,
     video_playback_steps,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -85,14 +89,14 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
         env = gym.make(args_cli.task, cfg=env_cfg)
         cleanup.callback(lambda: close_env(env))
-        print(f"[INFO]: Gym observation space: {env.observation_space}")
-        print(f"[INFO]: Gym action space: {env.action_space}")
+        logger.info(f"Gym observation space: {env.observation_space}")
+        logger.info(f"Gym action space: {env.action_space}")
         env.reset()
         if policy == "zero":
             action_policy = create_zero_action_policy(env)
         else:
             action_policy = create_random_action_policy(env)
-        print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
+        logger.info(f"{policy.capitalize()} agent is running, press Ctrl+C to exit...")
 
         budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
         max_steps = min(budgets, default=None)
@@ -120,7 +124,7 @@ def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
     if action_manager is not None:
         return _create_manager_zero_action_policy(action_manager, unwrapped)
 
-    if hasattr(unwrapped, "action_spaces"):
+    if isinstance(unwrapped.cfg, DirectMARLEnvCfg):
         actions = {
             agent: sample_space(space, unwrapped.device, batch_size=unwrapped.num_envs, fill_value=0)
             for agent, space in unwrapped.action_spaces.items()
@@ -131,9 +135,16 @@ def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
     return lambda: actions
 
 
-def create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor]:
-    """Create a policy that samples uniform random actions in ``[-1, 1]``."""
-    device = env.unwrapped.device
+def create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor | dict[str, torch.Tensor]]:
+    """Create a policy that samples uniform random actions in ``[-1, 1]`` for each environment and agent."""
+    unwrapped = env.unwrapped
+    device = unwrapped.device
+    if isinstance(unwrapped.cfg, DirectMARLEnvCfg):
+        return lambda: {
+            agent: 2 * torch.rand((unwrapped.num_envs, *space.shape), device=device) - 1
+            for agent, space in unwrapped.action_spaces.items()
+        }
+
     return lambda: 2 * torch.rand(env.action_space.shape, device=device) - 1
 
 

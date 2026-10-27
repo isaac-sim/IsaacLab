@@ -33,14 +33,17 @@ SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
 from isaaclab import _deprioritize_prebundle_paths
 from isaaclab.app.loading_screen import report_activity
-from isaaclab.app.logging_utils import apply_python_logging_level
+from isaaclab.app.logging_utils import (
+    apply_python_logging_level,
+    ensure_console_handlers,
+    resolve_python_logging_level,
+)
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.app.sim_launcher import SimulationLauncher, fuse_kit_args
 from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils import has_kit
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -80,8 +83,8 @@ def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
 class _StoreAndMarkExplicit(argparse.Action):
     """Store the value and set ``<dest>_explicit``, for options whose default must stay a real value.
 
-    ``--device`` defaults to ``"cuda:0"`` because scripts read ``args_cli.device`` before launch, yet XR
-    needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
+    ``--device`` defaults to ``"cuda:0"`` (``"cpu"`` on macOS) because scripts read ``args_cli.device`` before
+    launch, yet XR needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -113,25 +116,6 @@ class KitLauncher(SimulationLauncher):
 
     """
 
-    @staticmethod
-    def _ensure_isaaclab_info_stream_handler() -> None:
-        """Add a stream handler for Isaac Lab INFO records hidden by Kit logging."""
-        handler_name = "isaaclab_info_stream"
-        root_logger = logging.getLogger()
-        if any(getattr(handler, "name", None) == handler_name for handler in root_logger.handlers):
-            return
-
-        class _IsaacLabInfoFilter(logging.Filter):
-            def filter(self, record: logging.LogRecord) -> bool:
-                return record.levelno == logging.INFO and record.name.startswith("isaaclab")
-
-        handler = logging.StreamHandler(sys.stdout)
-        handler.name = handler_name
-        handler.setLevel(logging.INFO)
-        handler.addFilter(_IsaacLabInfoFilter())
-        handler.setFormatter(logging.Formatter("[INFO]: %(message)s"))
-        root_logger.addHandler(handler)
-
     def __init__(self, launcher_args: argparse.Namespace | dict | None = None):
         """Create a `SimulationApp`_ instance based on the input settings.
 
@@ -158,8 +142,8 @@ class KitLauncher(SimulationLauncher):
         elif isinstance(launcher_args, argparse.Namespace):
             launcher_args = launcher_args.__dict__
 
-        # ``launch_simulation`` applied the Python logging level; keep it for after Kit installs its logging bridge.
-        self._python_logging_level = logging.getLogger().getEffectiveLevel()
+        # Re-applied after Kit installs its logging bridge, which resets the Python logging level.
+        self._python_logging_level = resolve_python_logging_level(launcher_args)
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
@@ -240,9 +224,9 @@ class KitLauncher(SimulationLauncher):
         signal.signal(signal.SIGINT, signal.default_int_handler)
 
     def close(self, exit_code: int = 0) -> None:
-        """Close the Kit app this launcher started; Kit fast shutdown exits with *exit_code*."""
+        """Close the Kit app this launcher started; another SIGINT forces exit."""
         if self._app is not None:
-            previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
             try:
                 # let callbacks queued by the closing simulation run before shutdown
                 self._app.update()
@@ -356,18 +340,20 @@ class KitLauncher(SimulationLauncher):
             "--device",
             type=str,
             action=_StoreAndMarkExplicit,
-            default="cuda:0",
-            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+            # macOS has no CUDA; checked without importing torch, which must load after Kit
+            default="cpu" if sys.platform == "darwin" else "cuda:0",
+            help=(
+                'The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID.'
+                ' Defaults to "cuda:0", or "cpu" on macOS.'
+            ),
         )
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=parse_visualizer_csv,
+            type=lambda value: value.split(","),
+            action=_StoreAndMarkExplicit,
             default=None,
-            help=(
-                "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
-                " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."
-            ),
+            help="Alias for visualizer=NAME (comma-separated names enable multiple viewers).",
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -447,7 +433,7 @@ class KitLauncher(SimulationLauncher):
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        self._kit_visualizer = "kit" in (launcher_args.get("visualizer") or ())
+        self._kit_visualizer = launcher_args.get("kit_visualizer", "kit" in (launcher_args.get("visualizer") or ()))
         self._resolve_livestream_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
         self._resolve_headless_settings()
@@ -532,8 +518,8 @@ class KitLauncher(SimulationLauncher):
                 "Video recording with `--video` requires MoviePy and its imageio-ffmpeg backend, "
                 "which are not installed by default. "
                 "Run uv commands with `uv run --extra video ...`, or install MoviePy into the "
-                'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
-                "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
+                'standalone uv environment with `uv pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
+                "and retry."
             )
         # Kit renders a recording only when the launch enabled camera rendering for it, i.e. a Kit visualizer or a
         # Kit camera records; a video recorded from a Newton visualizer needs no Kit viewport.
@@ -749,33 +735,21 @@ class KitLauncher(SimulationLauncher):
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
-        # Initialize SimulationApp
-        # hack sys module to make sure that the SimulationApp is initialized correctly
-        # this is to avoid the warnings from the simulation app about not ok modules
-        r = re.compile(".*lab.*")
-        found_modules = list(filter(r.match, list(sys.modules.keys())))
-        # remove Isaac Lab modules from sys.modules
-        hacked_modules = dict()
-        for key in found_modules:
-            hacked_modules[key] = sys.modules[key]
-            del sys.modules[key]
-
         # disable sys stdout and stderr to avoid printing the warning messages
         # this is mainly done to purge the print statements from the simulation app
+        stdout = sys.stdout
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
-        report_activity("Starting Isaac Sim")
-        self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
-        report_activity(None)
+        try:
+            report_activity("Starting Isaac Sim")
+            self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+            report_activity(None)
+        finally:
+            sys.stdout = stdout
 
-        sys.stdout = sys.__stdout__
-
-        # add Isaac Lab modules back to sys.modules
-        for key, value in hacked_modules.items():
-            sys.modules[key] = value
         # remove the threadCount argument from sys.argv if it was added for distributed training
         pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
         sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]
@@ -789,14 +763,11 @@ class KitLauncher(SimulationLauncher):
     def _load_extensions(self):
         """Load correct extensions based on KitLauncher's resolved config member variables."""
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
-        # Re-apply the intended Python logging level, then add a scoped stream handler for
-        # Isaac Lab INFO records that Kit's bridge does not mirror to the console.
+        # Re-apply the intended Python logging level, then keep the scoped stream handler for
+        # Isaac Lab INFO records that Kit's bridge does not mirror to the console. The bridge
+        # prints warnings, so the stderr fallback installed before Kit started is removed.
         apply_python_logging_level(self._python_logging_level)
-        if self._python_logging_level <= logging.WARNING:
-            KitLauncher._ensure_isaaclab_info_stream_handler()
-            # At WARNING, let Isaac Lab INFO records reach the scoped handler while the other
-            # root handlers stay at WARNING.
-            logging.getLogger().setLevel(min(self._python_logging_level, logging.INFO))
+        ensure_console_handlers(self._python_logging_level, fallback=False)
         settings = get_settings_manager()
 
         # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
@@ -867,18 +838,12 @@ def _ensure_isaac_sim_available() -> None:
     if KitLauncher.is_available():
         return
 
-    isaaclab_path = os.environ.get("ISAACLAB_PATH")
-    local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
+    local_sim = ISAACLAB_ROOT / "_isaac_sim"
     extra_hint = ""
-    if local_sim and os.path.isdir(local_sim):
-        launcher, source = ("isaaclab.bat", f'call "{local_sim}\\setup_conda_env.bat"')
-        if sys.platform != "win32":
-            launcher, source = ("./isaaclab.sh", f'source "{local_sim}/setup_conda_env.sh"')
+    if local_sim.is_dir():
         extra_hint = (
             f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
-            f"  Either run via `{launcher} ...` (which sources the Isaac Sim env automatically),\n"
-            f"  or in your current shell run:\n"
-            f"    {source}\n"
+            "  Run through `uv run isaaclab -p <script>` to load the source-build environment.\n"
         )
 
     try:
@@ -896,7 +861,7 @@ def _ensure_isaac_sim_available() -> None:
             "  The current Python environment does not expose the SimulationApp API.\n"
             f"{extra_hint}"
             "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
-            "    uv run isaaclab -i isaacsim\n"
+            "    uv sync --extra isaacsim\n"
             "\n"
             "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
         )
