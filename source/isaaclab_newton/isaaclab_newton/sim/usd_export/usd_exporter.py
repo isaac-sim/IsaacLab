@@ -125,7 +125,7 @@ class UsdExporter(BaseUsdExporter):
         joint_edits, drives = self._joint_edits(stage, model, builder)
         edits = [
             *joint_edits,
-            *self._mjc_actuator_edits(stage, drives),
+            *self._mjc_actuator_edits(stage, model, drives),
             *self._body_edits(stage, model, builder),
             *self._shape_edits(stage, model, builder, physics_cfg.default_shape_cfg),
             *self._gravity_edits(stage, gravity),
@@ -362,25 +362,35 @@ class UsdExporter(BaseUsdExporter):
         )
 
     @classmethod
-    def _mjc_actuator_edits(cls, stage: Usd.Stage, drives: dict[str, tuple[float, float]]) -> list[UsdEdit]:
+    def _mjc_actuator_edits(
+        cls, stage: Usd.Stage, model: newton.Model, drives: dict[str, tuple[float, float]]
+    ) -> list[UsdEdit]:
         """Edits giving the MuJoCo actuators of joints whose drive the export writes the joint's live gain.
 
-        Workaround: Newton's import sets a joint's stiffness to the gain of a MuJoCo position actuator targeting
-        it, and its damping to that of a velocity actuator. Assumes such an actuator, the one with an affine
-        bias, only duplicates the joint drive, as in assets converted from MJCF. An actuator whose gain becomes
-        zero is deactivated, since the import keeps it as a separate actuator.
+        Workaround: Newton's import turns a MuJoCo position or velocity actuator into the targeted joint's
+        drive, setting the joint's stiffness or damping to the actuator's gain. Only the actuators the import
+        converted this way are edited; Newton keeps the others as separate actuators. An actuator whose gain
+        becomes zero is deactivated, since the import would keep it as a separate actuator.
 
         Args:
             stage: The exported stage.
+            model: The live model, which records the actuators Newton's import converted.
             drives: Live stiffness and damping of the joints whose drive the export writes, keyed by joint path.
 
         Returns:
             The edits.
         """
+        mujoco = getattr(model, "mujoco", None)
+        if mujoco is None or not hasattr(mujoco, "ctrl_source"):
+            return []
+        joint_target = int(newton.solvers.SolverMuJoCo.CtrlSource.JOINT_TARGET)
+        converted = {
+            label for label, source in zip(mujoco.actuator_label, mujoco.ctrl_source.numpy()) if source == joint_target
+        }
         edits, deactivated = [], []
-        for prim in [prim for prim in stage.Traverse() if prim.GetTypeName() == "MjcActuator"]:
+        for prim in [prim for prim in stage.Traverse() if str(prim.GetPath()) in converted]:
             targets = [str(target) for target in prim.GetRelationship("mjc:target").GetTargets()]
-            if len(targets) != 1 or targets[0] not in drives or prim.GetAttribute("mjc:biasType").Get() != "affine":
+            if len(targets) != 1 or targets[0] not in drives:
                 continue
             # Unset parameters take MuJoCo's defaults.
             gain = list(prim.GetAttribute("mjc:gainPrm").Get() or [1.0] + [0.0] * 9)
