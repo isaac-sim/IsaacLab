@@ -215,7 +215,7 @@ class UsdExporter(BaseUsdExporter):
 
     def _joint_edits(
         self, stage: Usd.Stage, model: newton.Model, builder: newton.ModelBuilder
-    ) -> tuple[list[UsdEdit], bool, dict[str, tuple[float, float]]]:
+    ) -> tuple[list[UsdEdit], dict[str, tuple[float, float]]]:
         values = self._arrays(model, DOF_ATTRIBUTES)
         changed = self._changed(values, builder)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
@@ -225,59 +225,79 @@ class UsdExporter(BaseUsdExporter):
             # Free joints of floating bodies have no USD prim; their pose is exported by the body.
             if types[joint] == int(newton.JointType.FREE) or not prim:
                 continue
-            axes, table = self._dof_axes(model, joint)
-            if axes is None:
+            units = self._joint_prims(stage, model, joint, prim)
+            if units is None:
                 if starts[joint + 1] > starts[joint]:
                     unsupported.append(model.joint_label[joint])
                 continue
-            path = str(prim.GetPath())
-            dofs.update({dof: path for dof, _ in axes})
-            # Newton's importer actuates exactly the axes with a USD drive.
-            actuated = {dof: modes[dof] != int(newton.JointTargetMode.NONE) for dof, _ in axes}
-            for dof, axis in axes:
-                if not actuated[dof] and prim.HasAPI(UsdPhysics.DriveAPI, axis):
-                    raise NotImplementedError(f"Joint '{path}' has a USD drive the engine does not actuate.")
-            # A changed drive is written whole, since Isaac Lab's build can hold drive values other than the USD's.
-            driven = {name for name, (_, schema, _) in table.items() if schema and schema.startswith("PhysicsDriveAPI")}
-            drive = {dof: actuated[dof] and any(changed[name][dof] for name in driven) for dof, _ in axes}
-            if len(axes) == 1 and drive[axes[0][0]]:
-                dof = axes[0][0]
-                drives[path] = (float(values["joint_target_ke"][dof]), float(values["joint_target_kd"][dof]))
-            for name, (attribute, schema, angular_scale) in table.items():
-                if "{axis}" not in attribute:
-                    if any(changed[name][dof] for dof, _ in axes):
-                        edits.append(self._joint_value_edit(path, attribute, values[name], axes, angular_scale))
-                    continue
+            for prim, axes, table in units:
+                path = str(prim.GetPath())
+                dofs.update({dof: path for dof, _ in axes})
+                # Newton's importer actuates exactly the axes with a USD drive.
+                actuated = {dof: modes[dof] != int(newton.JointTargetMode.NONE) for dof, _ in axes}
                 for dof, axis in axes:
-                    if (changed[name][dof] and (name not in driven or actuated[dof])) or (
-                        drive[dof] and name in driven
-                    ):
-                        scale = 1.0 if axis == "linear" else angular_scale
-                        value = float(values[name][dof]) * scale
-                        edits.append(
-                            UsdEdit(
-                                path, attribute.format(axis=axis), value, schema=schema and schema.format(axis=axis)
+                    if not actuated[dof] and prim.HasAPI(UsdPhysics.DriveAPI, axis):
+                        raise NotImplementedError(f"Joint '{path}' has a USD drive the engine does not actuate.")
+                # A changed drive is written whole, since Isaac Lab's build can hold drive values other than the USD's.
+                driven = {
+                    name for name, (_, schema, _) in table.items() if schema and schema.startswith("PhysicsDriveAPI")
+                }
+                drive = {dof: actuated[dof] and any(changed[name][dof] for name in driven) for dof, _ in axes}
+                if len(axes) == 1 and drive[axes[0][0]]:
+                    dof = axes[0][0]
+                    drives[path] = (float(values["joint_target_ke"][dof]), float(values["joint_target_kd"][dof]))
+                for name, (attribute, schema, angular_scale) in table.items():
+                    if "{axis}" not in attribute:
+                        if any(changed[name][dof] for dof, _ in axes):
+                            edits.append(self._joint_value_edit(path, attribute, values[name], axes, angular_scale))
+                        continue
+                    for dof, axis in axes:
+                        if (changed[name][dof] and (name not in driven or actuated[dof])) or (
+                            drive[dof] and name in driven
+                        ):
+                            scale = 1.0 if axis == "linear" else angular_scale
+                            value = float(values[name][dof]) * scale
+                            edits.append(
+                                UsdEdit(
+                                    path, attribute.format(axis=axis), value, schema=schema and schema.format(axis=axis)
+                                )
                             )
-                        )
         if unsupported:
             logger.warning(f"Joints other than revolute, prismatic and rotational D6 are not exported: {unsupported}.")
         self._warn_target_modes(dofs, values["joint_target_ke"], values["joint_target_kd"], modes)
         return edits, drives
 
     @staticmethod
-    def _dof_axes(model: newton.Model, joint: int) -> tuple[list[tuple[int, str]] | None, dict]:
-        """The DOFs of a joint with their USD axis names, and the attribute table; None for unsupported joints."""
+    def _joint_prims(
+        stage: Usd.Stage, model: newton.Model, joint: int, prim: Usd.Prim
+    ) -> list[tuple[Usd.Prim, list[tuple[int, str]], dict]] | None:
+        """The USD joints of a model joint, each with its DOFs, their USD axis names and the attribute table.
+
+        Newton merges single-axis USD joints between the same two bodies into one D6 joint named after the
+        first; MuJoCo's per-DOF labels name the USD joint of each DOF. None for unsupported joints.
+        """
         start, joint_type = int(model.joint_qd_start.numpy()[joint]), int(model.joint_type.numpy()[joint])
         if joint_type == int(newton.JointType.REVOLUTE):
-            return [(start, "angular")], DOF_ATTRIBUTES
+            return [(prim, [(start, "angular")], DOF_ATTRIBUTES)]
         if joint_type == int(newton.JointType.PRISMATIC):
-            return [(start, "linear")], DOF_ATTRIBUTES
+            return [(prim, [(start, "linear")], DOF_ATTRIBUTES)]
+        if joint_type != int(newton.JointType.D6):
+            return None
         linear, angular = model.joint_dof_dim.numpy()[joint]
-        if joint_type != int(newton.JointType.D6) or linear:
-            return None, {}
+        dofs = range(start, start + int(linear + angular))
+        if prim.IsA(UsdPhysics.RevoluteJoint) or prim.IsA(UsdPhysics.PrismaticJoint):
+            labels = getattr(getattr(model, "mujoco", None), "joint_dof_label", None)
+            if labels is None:
+                raise NotImplementedError(f"Joint '{prim.GetPath()}' merges USD joints the model does not name.")
+            sources = [stage.GetPrimAtPath(labels[dof]) for dof in dofs]
+            return [
+                (source, [(dof, "angular" if source.IsA(UsdPhysics.RevoluteJoint) else "linear")], DOF_ATTRIBUTES)
+                for dof, source in zip(dofs, sources)
+            ]
+        if linear:
+            return None
         axes = model.joint_axis.numpy()
-        dofs = range(start, start + int(angular))
-        return [(dof, "rot" + "XYZ"[int(np.argmax(np.abs(axes[dof])))]) for dof in dofs], D6_DOF_ATTRIBUTES
+        return [(prim, [(dof, "rot" + "XYZ"[int(np.argmax(np.abs(axes[dof])))]) for dof in dofs], D6_DOF_ATTRIBUTES)]
 
     @classmethod
     def _joint_value_edit(

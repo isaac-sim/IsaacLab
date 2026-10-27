@@ -204,6 +204,36 @@ def test_model_without_joint_dofs_has_no_changed_values():
     assert changed["joint_armature"].shape == (0,)
 
 
+def test_merged_joint_dofs_map_to_their_usd_joints():
+    """Newton merges single-axis joints between two bodies into one D6 joint; each DOF maps to its own USD joint."""
+    from types import SimpleNamespace
+
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    stage = Usd.Stage.CreateInMemory()
+    for path in ("/Slide", "/HingeX", "/HingeY"):
+        (UsdPhysics.PrismaticJoint if path == "/Slide" else UsdPhysics.RevoluteJoint).Define(stage, path)
+
+    def array(values):
+        return SimpleNamespace(numpy=lambda: np.asarray(values))
+
+    model = SimpleNamespace(
+        joint_qd_start=array([0, 3]),
+        joint_type=array([int(newton.JointType.D6)]),
+        joint_dof_dim=array([[1, 2]]),
+        mujoco=SimpleNamespace(joint_dof_label=["/Slide", "/HingeX", "/HingeY"]),
+    )
+    units = UsdExporter._joint_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
+    assert [(str(prim.GetPath()), axes) for prim, axes, _ in units] == [
+        ("/Slide", [(0, "linear")]),
+        ("/HingeX", [(1, "angular")]),
+        ("/HingeY", [(2, "angular")]),
+    ]
+    del model.mujoco
+    with pytest.raises(NotImplementedError, match="merges USD joints"):
+        UsdExporter._joint_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
+
+
 def test_attribute_tables_cover_newton_importer():
     """Every attribute Newton's importer maps is exported or deliberately excluded."""
     from isaaclab_newton.sim.usd_export.usd_exporter import (
