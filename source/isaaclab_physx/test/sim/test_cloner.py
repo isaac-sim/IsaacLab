@@ -305,6 +305,7 @@ def test_physx_replicate_self_only_source_gets_one_body(device):
             )
             assert stats.nb_dynamic_rigids == num_envs
 
+
 def test_direct_clone_plan_multi_asset(sim):
     """Clone representative env sources directly and exercise both USD and PhysX."""
     num_clones = 32
