@@ -59,9 +59,17 @@ def test_teleop_workflow_help_exposes_task_preset_selectors(source_checkout_root
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
-def test_teleop_dispatches_to_an_existing_script(source_checkout_root: Path, command, script_parts):
-    """``isaaclab teleop`` forwards the remaining arguments to a script that exists."""
+def test_teleop_dispatches_to_its_workflow(source_checkout_root: Path, command, script_parts, monkeypatch):
+    """``isaaclab teleop`` runs packaged workflows in process and forwards replay to its script."""
+    import warp as wp
+
     args = [command, "--task", "IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "--xr"]
+    monkeypatch.setattr(wp.config, "enable_backward", True)
+    backward_at_run = []
+    workflow = mock.Mock(side_effect=lambda argv: backward_at_run.append(wp.config.enable_backward) or 0)
+    if command in TELEOP_MODULES:
+        cli_name = {"run": "run_teleop_se3_agent_cli", "record": "run_record_demos_cli"}[command]
+        monkeypatch.setattr(importlib.import_module("isaaclab_teleop.entrypoints"), cli_name, workflow)
 
     with (
         mock.patch.object(sys, "argv", ["isaaclab", "teleop", *args]),
@@ -69,9 +77,14 @@ def test_teleop_dispatches_to_an_existing_script(source_checkout_root: Path, com
     ):
         cli.cli()
 
-    script = source_checkout_root.joinpath(*script_parts)
-    run_python.assert_called_once_with(script, args[1:], check=True)
-    assert script.is_file()
+    if command in TELEOP_MODULES:
+        workflow.assert_called_once_with(args[1:])
+        run_python.assert_not_called()
+        assert backward_at_run == [False]
+    else:
+        script = source_checkout_root.joinpath(*script_parts)
+        run_python.assert_called_once_with(script, args[1:], check=True)
+        assert script.is_file()
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())

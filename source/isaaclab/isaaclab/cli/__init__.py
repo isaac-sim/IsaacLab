@@ -149,19 +149,27 @@ def teleop(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
-    workflow_scripts = {
-        "run": ISAACLAB_ROOT / "scripts" / "environments" / "teleoperation" / "teleop_se3_agent.py",
-        "record": ISAACLAB_ROOT / "scripts" / "tools" / "record_demos.py",
-        "replay": ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py",
-    }
     parser = argparse.ArgumentParser(description="Run an Isaac Lab teleoperation workflow.")
-    parser.add_argument("command", choices=tuple(workflow_scripts), help="Teleoperation workflow to run.")
+    parser.add_argument("command", choices=("run", "record", "replay"), help="Teleoperation workflow to run.")
     if args is None:
         args = sys.argv[1:]
     if not args or args[0] in ("-h", "--help"):
         parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
-    run_python_command(workflow_scripts[parsed_args.command], args[1:], check=True)
+    command = parser.parse_args(args[:1]).command
+    if command == "replay":
+        run_python_command(ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py", args[1:], check=True)
+        return
+
+    import warp as wp
+
+    # Teleoperation only runs inference. Warp fixes this option when each kernel module is imported, so set
+    # it before importing the workflow.
+    wp.config.enable_backward = False
+
+    from isaaclab_teleop.entrypoints import run_record_demos_cli, run_teleop_se3_agent_cli
+
+    run_workflow = run_teleop_se3_agent_cli if command == "run" else run_record_demos_cli
+    _exit_on_error(run_workflow(args[1:]))
 
 
 def benchmark(args: list[str] | None = None) -> None:
