@@ -178,7 +178,12 @@ def _replicate_newton(
     stage_info = None
     if simulation:
         ignore_paths.extend(inject_terrain_heightfields(stage, builder, root_paths=import_paths, device=sim.device))
-        stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
+        stage_info = builder.add_usd(
+            stage,
+            root_path=sim.cfg.physics_prim_path,
+            schema_resolvers=schema_resolvers,
+            allow_unsafe_torch_checkpoints=True,
+        )
 
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
