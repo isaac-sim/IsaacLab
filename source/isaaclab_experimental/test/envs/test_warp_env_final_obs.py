@@ -30,17 +30,19 @@ from isaaclab_tasks.utils import resolve_task_config
 
 _NUM_ENVS = 16
 _STEPS = 120
+# the environments read ``compute_final_obs`` on every step; each window holds resets
+_ENABLE_STEP = 75
 _CART_BOUND = 3.0
 _RESET_CART_POS = 0.5
 _TASK_IDS = ("Isaac-Cartpole", "Isaac-Cartpole-Direct")
 
 
-def _cartpole_cfg(task_id: str, compute_final_obs: bool):
+def _cartpole_cfg(task_id: str):
     """Cartpole with fixed reset states, so the stable and the Warp random draws agree."""
     env_cfg, _ = resolve_task_config(task_id, "", overrides=("physics=newton_mjwarp",))
     env_cfg.seed = 7
     env_cfg.scene.num_envs = _NUM_ENVS
-    env_cfg.compute_final_obs = compute_final_obs
+    env_cfg.compute_final_obs = False
     if task_id == "Isaac-Cartpole":
         env_cfg.events.reset_cart_position.params.update(
             position_range=(_RESET_CART_POS, _RESET_CART_POS), velocity_range=(0.0, 0.0)
@@ -54,9 +56,12 @@ def _cartpole_cfg(task_id: str, compute_final_obs: bool):
     return env_cfg
 
 
-def _rollout(task_id: str, frontend: str, compute_final_obs: bool) -> dict:
-    """Push every cart with a constant force and record the observations of every step."""
-    env_cfg = _cartpole_cfg(task_id, compute_final_obs)
+def _rollout(task_id: str, frontend: str) -> dict:
+    """Push every cart with a constant force and record the observations of every step.
+
+    The terminal observation is enabled from step :data:`_ENABLE_STEP` on.
+    """
+    env_cfg = _cartpole_cfg(task_id)
     sim_utils.create_new_stage()
     if frontend == "warp":
         env = WarpFrontend.build_env(env_cfg, task_id).unwrapped
@@ -68,6 +73,8 @@ def _rollout(task_id: str, frontend: str, compute_final_obs: bool) -> dict:
         # different pushes drive the carts out of bounds at different steps
         push = torch.linspace(-0.3, 0.3, _NUM_ENVS, device=env.device)[:, None]
         for step in range(_STEPS):
+            if step == _ENABLE_STEP:
+                env.cfg.compute_final_obs = True
             obs, _, terminated, truncated, extras = env.step(push)
             dones = terminated | truncated
             rollout["obs"].append(obs["policy"].clone())
@@ -86,17 +93,17 @@ def _rollout(task_id: str, frontend: str, compute_final_obs: bool) -> dict:
 
 
 @pytest.fixture(scope="module")
-def rollouts() -> dict[tuple[str, str, bool], dict]:
-    arms = [(task_id, frontend, True) for task_id in _TASK_IDS for frontend in ("stable", "warp")]
-    arms += [(task_id, "warp", False) for task_id in _TASK_IDS]
+def rollouts() -> dict[tuple[str, str], dict]:
+    arms = [(task_id, frontend) for task_id in _TASK_IDS for frontend in ("stable", "warp")]
     return {arm: _rollout(*arm) for arm in arms}
 
 
 @pytest.mark.parametrize("task_id", _TASK_IDS)
 def test_final_obs_is_the_observation_before_reset(task_id: str, rollouts: dict):
-    rollout = rollouts[(task_id, "warp", True)]
+    rollout = rollouts[(task_id, "warp")]
     cart = rollout["cart_index"]
-    reset_steps = torch.nonzero(rollout["dones"].any(dim=1)).squeeze(-1).tolist()
+    resets = rollout["dones"].any(dim=1)
+    reset_steps = [step for step in range(_ENABLE_STEP, _STEPS) if resets[step]]
     assert reset_steps, "no environment terminated; the terminal observation is not exercised"
     assert sorted(rollout["final_obs"]) == reset_steps
     for step in reset_steps:
@@ -110,9 +117,9 @@ def test_final_obs_is_the_observation_before_reset(task_id: str, rollouts: dict)
 
 @pytest.mark.parametrize("task_id", _TASK_IDS)
 def test_final_obs_is_absent_when_disabled(task_id: str, rollouts: dict):
-    rollout = rollouts[(task_id, "warp", False)]
-    assert rollout["dones"].any()
-    assert not any(rollout["final_obs_key"])
+    rollout = rollouts[(task_id, "warp")]
+    assert rollout["dones"][:_ENABLE_STEP].any()
+    assert not any(rollout["final_obs_key"][:_ENABLE_STEP])
 
 
 @pytest.mark.parametrize(
@@ -121,7 +128,7 @@ def test_final_obs_is_absent_when_disabled(task_id: str, rollouts: dict):
     [("Isaac-Cartpole", 0.0), ("Isaac-Cartpole-Direct", 1e-6)],
 )
 def test_final_obs_matches_stable(task_id: str, atol: float, rollouts: dict):
-    stable, warp = rollouts[(task_id, "stable", True)], rollouts[(task_id, "warp", True)]
+    stable, warp = rollouts[(task_id, "stable")], rollouts[(task_id, "warp")]
     assert torch.equal(warp["dones"], stable["dones"])
     torch.testing.assert_close(warp["obs"], stable["obs"], rtol=0.0, atol=atol)
     assert sorted(warp["final_obs"]) == sorted(stable["final_obs"])

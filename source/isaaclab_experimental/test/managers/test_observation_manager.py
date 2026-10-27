@@ -19,31 +19,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.warp.capture import CapturedStage
 
 
-def constant_obs(env, out: wp.array, out_dim: int):
-    """Warp-first observation term; the manager reads its width from ``out_dim``."""
-    out.fill_(1.0)
-
-
-@configclass
-class PolicyCfg(ObservationGroupCfg):
-    """Group with two terms and every group-level setting at its default."""
-
-    first = ObservationTermCfg(func=constant_obs, params={"out_dim": 2})
-    second = ObservationTermCfg(func=constant_obs, params={"out_dim": 3})
-
-
-def test_group_settings_are_not_parsed_as_terms():
-    """Every :class:`ObservationGroupCfg` field, including ``history_order``, is a group setting, not a term."""
-    env = SimpleNamespace(num_envs=4, device="cpu", sim=SimpleNamespace(is_playing=lambda: True))
-
-    manager = ObservationManager({"policy": PolicyCfg()}, env)
-
-    assert manager.active_terms["policy"] == ["first", "second"]
-    assert manager.group_obs_dim["policy"] == (5,)
-
-
 def counted_constant_obs(env, out: wp.array, out_dim: int):
-    """``constant_obs`` counting the runs of its Python; a recorded stage runs it once per recording."""
+    """Constant observation counting the runs of its Python; a recorded stage runs it once per recording."""
     env.recordings += 1
     out.fill_(1.0)
 

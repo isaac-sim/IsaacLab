@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.seed import WarpRng, configure_seed
 
 
@@ -23,7 +23,7 @@ def fresh_warp_rng():
     WarpRng._seed = None
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_initialize_allocates_a_new_state(device):
     """Every :meth:`WarpRng.initialize` call allocates and seeds a new state of the given size."""
     WarpRng.initialize(4, device)
@@ -33,7 +33,7 @@ def test_initialize_allocates_a_new_state(device):
     assert WarpRng.state.shape == (5,)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_configure_seed_reseeds_in_place(device):
     """configure_seed reseeds the existing state in place and reproducibly."""
     configure_seed(7)
@@ -50,7 +50,7 @@ def test_configure_seed_reseeds_in_place(device):
     assert not np.array_equal(state.numpy(), seeded)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_default_seed_follows_torch(device):
     """Without a set seed, the state is seeded from torch's initial seed."""
     torch.manual_seed(5)

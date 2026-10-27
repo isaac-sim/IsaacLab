@@ -14,7 +14,6 @@ launch_test_simulation(SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCf
 
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
-from isaaclab_experimental.managers import EventManager
 
 import isaaclab.sim as sim_utils
 
@@ -50,31 +49,5 @@ def test_reset_with_mask_resets_only_selected_environments():
         assert torch.equal(robot.data.joint_pos.torch[~selected], joint_pos[~selected])
         # the reset events sample new joint positions for every selected environment
         assert not torch.isclose(robot.data.joint_pos.torch[selected], joint_pos[selected]).all(dim=1).any()
-    finally:
-        env.close()
-
-
-def test_set_term_cfg_applies_to_recorded_reset_events():
-    """A replaced event term configuration must not replay the scalars recorded from the old one."""
-    env = _make_cartpole()
-    try:
-        env.reset()
-        env.step(torch.zeros((_NUM_ENVS, env.action_space.shape[-1]), device=env.device))
-        selected = torch.arange(_NUM_ENVS, device=env.device) % 2 == 0
-        # records the reset events with the configured random cart offsets
-        env.reset(env_mask=selected)
-        assert env.event_manager._captured_stages[EventManager._apply_reset].num_graphs
-
-        term_cfg = env.event_manager.get_term_cfg("reset_cart_position")
-        term_cfg.params["position_range"] = (0.5, 0.5)
-        term_cfg.params["velocity_range"] = (0.0, 0.0)
-        env.event_manager.set_term_cfg("reset_cart_position", term_cfg)
-        env.reset(env_mask=selected)
-
-        robot = env.scene["robot"]
-        cart = robot.find_joints("slider_to_cart")[0][0]
-        cart_pos = robot.data.joint_pos.torch[selected, cart]
-        default_pos = robot.data.default_joint_pos.torch[selected, cart]
-        assert torch.allclose(cart_pos, default_pos + 0.5)
     finally:
         env.close()

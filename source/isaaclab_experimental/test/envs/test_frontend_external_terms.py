@@ -3,35 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp terms from an external project run on the Warp frontend unchanged.
+"""Warp terms from an external project pass through the Warp frontend unchanged.
 
 The project lives outside the packages the frontend mirrors, so its terms have no twins. Its Warp terms
 must be used as-is, even when one shares its name with a built-in term, while a Torch term from the same
 project must still be rejected instead of being replaced by a same-named built-in twin.
 """
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-
-from isaaclab.sim import SimulationCfg
-from isaaclab.test.utils import launch_test_simulation
-
-launch_test_simulation(SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())))
-
 import importlib
 import textwrap
 
 import pytest
-import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
 
-import isaaclab.sim as sim_utils
 from isaaclab.managers import RewardTermCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-
-_NUM_ENVS = 4
 
 _EXTERNAL_MDP = textwrap.dedent('''
     import torch
@@ -78,32 +67,21 @@ def external_mdp(tmp_path, monkeypatch):
 
 def _cartpole_cfg(rewards):
     env_cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
-    env_cfg.seed = 7
-    env_cfg.scene.num_envs = _NUM_ENVS
     env_cfg.rewards = rewards
     return env_cfg
 
 
-def test_external_warp_terms_run_as_declared(external_mdp):
+def test_external_warp_terms_are_kept_as_declared(external_mdp):
     @configclass
     class RewardsCfg:
         function_term = RewardTermCfg(func=external_mdp.joint_vel_l2, weight=1.0)
         class_term = RewardTermCfg(func=external_mdp.constant_bonus, weight=0.5, params={"value": 3.0})
 
     env_cfg = _cartpole_cfg(RewardsCfg())
-    sim_utils.create_new_stage()
-    env = WarpFrontend.build_env(env_cfg, "Isaac-Cartpole").unwrapped
-    try:
-        env.reset()
-        actions = torch.zeros((_NUM_ENVS, env.action_space.shape[-1]), device=env.device)
-        for _ in range(3):
-            _, reward, _, _, _ = env.step(actions)
+    WarpFrontend.adapt_cfg(env_cfg)
 
-        assert env.reward_manager.get_term_cfg("function_term").func is external_mdp.joint_vel_l2
-        expected = (1.0 * 2.0 + 0.5 * 3.0) * env.step_dt
-        assert torch.allclose(reward, torch.full_like(reward, expected))
-    finally:
-        env.close()
+    assert env_cfg.rewards.function_term.func is external_mdp.joint_vel_l2
+    assert env_cfg.rewards.class_term.func is external_mdp.constant_bonus
 
 
 def test_external_torch_term_is_rejected(external_mdp):

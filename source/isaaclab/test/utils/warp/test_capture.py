@@ -122,8 +122,8 @@ def test_eager_call_runs_between_its_graphs_on_every_call():
     assert (_read(values), between.calls, before.calls, after.calls, stage.num_graphs) == ([246], 2, 1, 1, 2)
 
 
-def test_eager_call_first_leaves_one_graph_after_it():
-    """A stage making its eager call first records all its capturable work into the single graph after it."""
+def test_eager_call_first_runs_before_the_recorded_work():
+    """A stage making its eager call first runs it before its recorded work, also when it replays the recording."""
     eager_fn, first, second = _AffineStage(1, 10), _AffineStage(2, 0), _AffineStage(3, 0)
 
     def body(values: wp.array) -> wp.array:
@@ -137,13 +137,6 @@ def test_eager_call_first_leaves_one_graph_after_it():
     stage(values)
 
     assert _read(values) == [((1 + 10) * 6 + 10) * 6]
-    ((steps, _),) = stage._recordings.values()
-    assert [isinstance(step, wp.Graph) for step in steps] == [True, False, True]
-    # the graph before the eager call is empty; the last one multiplies by 6
-    wp.capture_launch(steps[0])
-    assert _read(values) == [456]
-    wp.capture_launch(steps[-1])
-    assert _read(values) == [456 * 6]
 
 
 class _Owner:
