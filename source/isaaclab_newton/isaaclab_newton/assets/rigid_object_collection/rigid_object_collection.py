@@ -22,7 +22,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -483,13 +483,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.transformf),
-            dim=(env_mask.shape[0], body_mask.shape[0]),
-            inputs=[body_poses, env_mask, body_mask],
-            outputs=[self.data.body_link_pose_w],
-            device=self.device,
-        )
+        write_2d_with_mask(body_poses, env_mask, body_mask, self.data.body_link_pose_w, self.device)
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
 

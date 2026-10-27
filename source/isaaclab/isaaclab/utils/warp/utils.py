@@ -11,6 +11,7 @@ from collections.abc import Sequence
 import torch
 import warp as wp
 
+from .kernels import fill_2d_buffer_with_mask_kernel, write_2d_data_to_buffer_with_mask_kernel
 from .proxy_array import ProxyArray
 
 ##
@@ -138,6 +139,47 @@ def _mask_needs_copy(mask: wp.array | torch.Tensor, device: str) -> bool:
     if isinstance(mask, torch.Tensor):
         return mask.dtype != torch.bool or str(mask.device) != str(wp.get_device(device))
     return True
+
+
+##
+# Masked writes.
+##
+
+
+def write_2d_with_mask(
+    data: float | torch.Tensor | wp.array,
+    env_mask: wp.array,
+    item_mask: wp.array,
+    out: wp.array,
+    device: str,
+) -> None:
+    """Write ``data`` into ``out`` where both masks are true, launching over the mask lengths.
+
+    A mask shorter than ``out`` writes only the rows or columns it covers. Callers resolve the masks and check the
+    data shape.
+
+    Args:
+        data: Values of shape ``(env_mask.shape[0], item_mask.shape[0])`` in the dtype of ``out``, as a ``wp.array``
+            or a ``torch.Tensor`` with the dtype's trailing dimensions, or one scalar for every selected entry.
+        env_mask: Boolean mask over the first dimension of ``out``.
+        item_mask: Boolean mask over the second dimension of ``out``.
+        out: Output array.
+        device: Warp device string (e.g. ``"cuda:0"``).
+    """
+    if isinstance(data, (int, float)):
+        kernel = fill_2d_buffer_with_mask_kernel(out.dtype)
+    else:
+        if isinstance(data, torch.Tensor) and data.ndim > 2:
+            # a vector-typed kernel argument needs contiguous components
+            data = data.contiguous()
+        kernel = write_2d_data_to_buffer_with_mask_kernel(out.dtype)
+    wp.launch(
+        kernel,
+        dim=(env_mask.shape[0], item_mask.shape[0]),
+        inputs=[data, env_mask, item_mask],
+        outputs=[out],
+        device=device,
+    )
 
 
 ##

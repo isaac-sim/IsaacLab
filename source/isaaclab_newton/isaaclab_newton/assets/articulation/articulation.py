@@ -33,7 +33,7 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -2712,15 +2712,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         self.assert_shape_and_dtype_mask(stiffness, (env_mask, fixed_tendon_mask), wp.float32, "stiffness")
-        wp.launch(
-            articulation_kernels.float_data_to_buffer_with_mask
-            if isinstance(stiffness, float)
-            else shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
-            inputs=[stiffness, env_mask, fixed_tendon_mask],
-            outputs=[self.data._fixed_tendon_stiffness],
-            device=self.device,
-        )
+        write_2d_with_mask(stiffness, env_mask, fixed_tendon_mask, self.data._fixed_tendon_stiffness, self.device)
 
     def set_fixed_tendon_damping_index(
         self,
@@ -2814,15 +2806,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         self.assert_shape_and_dtype_mask(damping, (env_mask, fixed_tendon_mask), wp.float32, "damping")
-        wp.launch(
-            articulation_kernels.float_data_to_buffer_with_mask
-            if isinstance(damping, float)
-            else shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
-            inputs=[damping, env_mask, fixed_tendon_mask],
-            outputs=[self.data._fixed_tendon_damping],
-            device=self.device,
-        )
+        write_2d_with_mask(damping, env_mask, fixed_tendon_mask, self.data._fixed_tendon_damping, self.device)
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
@@ -2938,16 +2922,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
         if isinstance(limit, float):
             raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
-        if isinstance(limit, torch.Tensor):
-            # a vec2f kernel argument needs contiguous components; a contiguous tensor is returned as is
-            limit = limit.contiguous()
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask_kernel(wp.vec2f),
-            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
-            inputs=[limit, env_mask, fixed_tendon_mask],
-            outputs=[self.data._fixed_tendon_pos_limits],
-            device=self.device,
-        )
+        write_2d_with_mask(limit, env_mask, fixed_tendon_mask, self.data._fixed_tendon_pos_limits, self.device)
 
     def set_fixed_tendon_rest_length_index(
         self,
