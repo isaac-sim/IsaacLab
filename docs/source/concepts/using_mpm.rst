@@ -426,6 +426,10 @@ then supply the desired transitions:
 
    cfg = FrankaPourResetDatasetEnvCfg()
    media = next(entry for entry in cfg.sim.physics.solver_cfg.entries if entry.name == "media")
+   # The default fill has 468 particles per world; keep every point contact
+   # available even when coarsening puts many particles in the same cell.
+   media.solver_cfg.collider_basis = "pic512"
+   media.solver_cfg.separate_worlds = True
    media.solver_cfg.voxel_size = 0.030
    cfg.mpm_resolution_min_episodes = 128
    cfg.mpm_resolution_stages = (
@@ -440,6 +444,12 @@ whose episodes are still running. Each distributed rank uses its own cohort.
 The policy observation/action layout and rewards are unchanged. Thresholds and
 resolution choices need task-specific validation; the control API does not
 establish a training speedup or policy-quality improvement.
+
+Coarsening increases particles per cell. When using a ``picN`` collider basis,
+check its point-contact capacity as well as the active-cell allocation; contacts
+beyond ``N`` particles in a cell are omitted. ``pic512`` bounds the default
+468-particle Franka fill with isolated worlds. A larger fill needs a new capacity
+check. Adequate storage alone does not establish contact-force or transfer accuracy.
 
 
 Limitations

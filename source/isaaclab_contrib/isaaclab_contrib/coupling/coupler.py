@@ -24,7 +24,7 @@ from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
-from newton.solvers import SolverBase
+from newton.solvers import SolverBase, SolverImplicitMPM
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
@@ -48,6 +48,7 @@ class NewtonCouplerManager(NewtonVBDManager):
     _runtime_mpm_target = NewtonMPMManager._runtime_mpm_target
     set_voxel_size = NewtonMPMManager.set_voxel_size
     set_particle_radius = NewtonMPMManager.set_particle_radius
+    _mpm_particle_owner_counts: dict[SolverImplicitMPM, int] | None = None
 
     @dataclass
     class _ResolvedEntry:
@@ -86,6 +87,7 @@ class NewtonCouplerManager(NewtonVBDManager):
 
     def _build_solver(self, model: Model, solver_cfg: CouplerCfg) -> None:
         """Resolve ownership and construct the selected coupled solver."""
+        self._mpm_particle_owner_counts = None
         if self.backend.contact_sensors:
             raise NotImplementedError(
                 "Newton contact sensors are not yet supported by coupled solvers because contact forces live "
@@ -125,6 +127,11 @@ class NewtonCouplerManager(NewtonVBDManager):
             self.backend.solver = self._build_admm_coupled_solver(model, entries, solver_cfg)
             needs_collision_pipeline = True
 
+        self._mpm_particle_owner_counts = {
+            self.backend.solver.solver(entry.config.name): len(entry.particles)
+            for entry in resolved_entries
+            if isinstance(entry.config.solver_cfg, MPMSolverCfg)
+        }
         self._use_single_state = False
         self._supports_contact_sensors = False
         self._needs_collision_pipeline = needs_collision_pipeline
@@ -244,6 +251,7 @@ class NewtonCouplerManager(NewtonVBDManager):
 
     def _solver_specific_clear(self) -> None:
         """Clear VBD hooks and cached nested-MPM solver references."""
+        self._mpm_particle_owner_counts = None
         super()._solver_specific_clear()
         NewtonMPMManager._solver_specific_clear(self)
 

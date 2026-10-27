@@ -183,6 +183,7 @@ class NewtonMPMManager(NewtonManager):
     """
     _implicit_mpm_solver_root: object | None = None
     _implicit_mpm_solver_cache: tuple[SolverImplicitMPM, ...] = ()
+    _mpm_particle_owner_counts: dict[SolverImplicitMPM, int] | None = None
 
     def set_voxel_size(self, voxel_size: float, *, entry_name: str | None = None) -> None:
         """Rebuild an MPM grid around the current particles between physics steps.
@@ -190,8 +191,9 @@ class NewtonMPMManager(NewtonManager):
         Particle state and material history are retained. Grid-backed warm starts
         are discarded. This allocates solver resources and schedules CUDA graph
         recapture, so use it at resolution transitions rather than every step.
-        Finer grids may require a larger active-cell capacity. Fixed grids cannot
-        be resized.
+        Finer grids may require a larger active-cell capacity; coarser grids may
+        require a larger ``picN`` collider basis to retain every point contact.
+        Fixed grids cannot be resized.
 
         Args:
             voxel_size: New uniform grid spacing [m], finite and positive.
@@ -220,12 +222,21 @@ class NewtonMPMManager(NewtonManager):
         """
         solver, _, _ = self._runtime_mpm_target(entry_name)
         parent = self.backend.model
-        if solver.model.particle_count != parent.particle_count:
-            raise ValueError("Runtime particle radius changes require an MPM entry owning all model particles.")
+        if isinstance(self.backend.solver, SolverCoupled):
+            owner_counts = self._mpm_particle_owner_counts
+            if owner_counts is None or solver not in owner_counts:
+                raise RuntimeError("Coupled MPM particle ownership is unavailable; rebuild the coupled solver.")
+            if owner_counts[solver] != parent.particle_count:
+                raise ValueError("Runtime particle radius changes require an MPM entry owning all model particles.")
         solver.set_particle_radius(radius)
         if solver.model is not parent:
             parent.particle_radius.fill_(radius)
             parent.particle_max_radius = radius
+            for name in self.backend.solver.entry_names():
+                view = self.backend.solver.view(name)
+                if view.particle_count:
+                    view.particle_radius.fill_(radius)
+                    view.particle_max_radius = radius
             self.backend.solver.notify_model_changed(ModelFlags.MODEL_PROPERTIES)
         self._invalidate_graph()
 
