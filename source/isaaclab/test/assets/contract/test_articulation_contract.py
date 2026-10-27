@@ -563,6 +563,16 @@ def test_tendon_mask_setters_reject_short_masks(monkeypatch, backend, writer, kw
             method(**{kwarg: _payload(shape, trailing, dtype, "cpu")}, **masks)
 
 
+@pytest.mark.parametrize("backend", backends("physx"))
+def test_tendon_position_limit_mask_accepts_strided_torch_limits(monkeypatch, backend):
+    """A torch view whose limit pairs are not adjacent in memory writes like contiguous data, as the index setter."""
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    limit = _payload((N, FT), 2, wp.vec2f, "cpu")
+    art.set_fixed_tendon_position_limit_mask(limit=torch.stack((limit, limit), dim=-1)[..., 0])
+    art.write_fixed_tendon_properties_to_sim_index()
+    _assert_reads_back(art.data.fixed_tendon_pos_limits, limit, "strided limit")
+
+
 # quantity -> (writer, keyword, trailing size). Joint partial writes are covered by the ordering contract.
 _PARTIAL_WRITES = {
     "root_pose": ("write_root_link_pose_to_sim", "root_pose", 7),

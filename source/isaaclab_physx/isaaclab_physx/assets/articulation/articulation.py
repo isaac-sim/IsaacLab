@@ -3089,6 +3089,9 @@ class Articulation(BaseArticulation):
         """
         if isinstance(limit, float):
             raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        if isinstance(limit, torch.Tensor):
+            # a vec2f launch argument needs each [lower, upper] pair adjacent in memory
+            limit = limit.contiguous()
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
