@@ -212,8 +212,8 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
 
 
 @pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
-def test_partial_reset_resamples_drift_of_selected_envs_only(sim):
-    """Slice resets and replayed masked resets resample the drift of the selected environments only."""
+def test_partial_reset_resamples_drift_of_selected_envs_only(sim, monkeypatch):
+    """Slice, host-mask and replayed masked resets resample the drift of the selected environments only."""
     scene_cfg = RaycastTestSceneCfg(num_envs=3)
     scene_cfg.raycast.drift_range = (0.01, 0.05)
     scene_cfg.raycast.ray_cast_drift_range = {"z": (0.1, 0.2)}
@@ -242,6 +242,14 @@ def test_partial_reset_resamples_drift_of_selected_envs_only(sim):
         assert not torch.allclose(sensor.ray_cast_drift.torch[0, 2], ray_cast_drift[0, 2])
     assert ((sensor.drift.torch >= 0.01) & (sensor.drift.torch <= 0.05)).all()
     assert ((sensor.ray_cast_drift.torch[:, 2] >= 0.1) & (sensor.ray_cast_drift.torch[:, 2] <= 0.2)).all()
+
+    # A host mask reaches the drift kernel on the sensor device. Strict launches reject a host array that
+    # GPUs with heterogeneous memory management would otherwise read silently.
+    monkeypatch.setattr(wp.config, "launch_array_access_mode", wp.config.LaunchArrayAccessMode.STRICT)
+    drift = sensor.drift.torch.clone()
+    sensor.reset(env_mask=wp.array([False, True, False], dtype=wp.bool, device="cpu"))
+    torch.testing.assert_close(sensor.drift.torch[[0, 2]], drift[[0, 2]])
+    assert not torch.allclose(sensor.drift.torch[1], drift[1])
 
 
 @configclass
