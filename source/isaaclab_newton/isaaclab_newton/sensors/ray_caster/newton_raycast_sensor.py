@@ -86,7 +86,7 @@ class _NewtonRayCasterPoseMixin:
         plan = self._sim.get_clone_plan()
         matched = cloner.path.match(self.cfg.prim_path, plan.env_template) if plan is not None else None
         if matched is not None and not matched.suffix:
-            self._sensor_site_label = self._backend_manager.cl_register_site(None, wp.transform(), per_world=True)
+            self._sensor_site_label = self._backend_manager.register_site(None, wp.transform(), per_world=True)
             return
 
         try:
@@ -103,17 +103,17 @@ class _NewtonRayCasterPoseMixin:
 
         body_expr = _CONCRETE_ENV_NS.sub(_ENV_SLOT_NS + "/", body_expr.replace("{}", "[^/]+"))
         site_transform = wp.transform(fixed_pos or (0.0, 0.0, 0.0), fixed_quat or (0.0, 0.0, 0.0, 1.0))
-        self._sensor_site_label = self._backend_manager.cl_register_site(body_expr, site_transform)
+        self._sensor_site_label = self._backend_manager.register_site(body_expr, site_transform)
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
         self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
-        site_map = self._backend_manager._cl_site_index_map
+        site_map = self._backend_manager.get_site_index_map()
         if self._sensor_site_label not in site_map:
             raise ValueError(
                 f"RayCaster target '{self.cfg.prim_path}' site label '{self._sensor_site_label}'"
-                " was not found in NewtonManager._cl_site_index_map."
+                " was not found in the Newton site map."
             )
         global_index, per_world = site_map[self._sensor_site_label]
         site_indices = (

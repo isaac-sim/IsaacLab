@@ -52,7 +52,7 @@ class NewtonVBDManager(NewtonManager):
                 )
             # Newton sizes persistent history from the pipeline before VBD construction.
             self._initialize_contacts()
-        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self.backend.solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
         self._use_single_state = False
         self._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
         self._update_joint_state = solver_cfg.update_joint_state and not solver_cfg.integrate_with_external_rigid_solver
@@ -61,7 +61,7 @@ class NewtonVBDManager(NewtonManager):
         """Publish standalone VBD joint state without changing coupled-solver ownership."""
         super()._run_solver_substeps(contacts)
         if (
-            isinstance(self._solver, SolverVBD)
+            isinstance(self.backend.solver, SolverVBD)
             and self._update_joint_state
             and self.backend.model.articulation_count > 0
             and self.backend.model.joint_coord_count > 0
@@ -71,6 +71,6 @@ class NewtonVBDManager(NewtonManager):
 
     def _simulate_physics_only(self) -> None:
         """Rebuild the VBD particle BVH before stepping physics."""
-        if self.backend.model.particle_count > 0 and hasattr(self._solver, "rebuild_bvh"):
-            self._solver.rebuild_bvh(self.backend.state_0)
+        if self.backend.model.particle_count > 0 and hasattr(self.backend.solver, "rebuild_bvh"):
+            self.backend.solver.rebuild_bvh(self.backend.state_0)
         super()._simulate_physics_only()

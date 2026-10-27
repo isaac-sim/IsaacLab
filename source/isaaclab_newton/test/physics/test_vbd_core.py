@@ -43,6 +43,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
         soft_contact_ke = 7.0
         soft_contact_kd = 8.0
         soft_contact_mu = 9.0
+        device = "cpu"
         world_count = 0
         articulation_count = 0
 
@@ -64,7 +65,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     builder = sim.get_or_create_backend(builder_cfg)
-    backend = sim.get_or_create_backend(cfg)
+    backend = sim.get_or_create_backend(cfg, dt=0.01)
     assert not {"_builder", "set_builder", "_model", "_state_0", "_state_1"}.intersection(vars(NewtonManager))
     assert not {"sync_transforms_to_fabric", "sync_transforms_to_usd"}.intersection(vars(NewtonManager))
     assert cfg.physics_cfg is physics_cfg
@@ -96,7 +97,7 @@ def test_vbd_colors_builder_before_finalization():
         mass=0.01,
         edge_ke=1.0,
     )
-    physics.NewtonVBDManager()._prepare_builder_for_finalize(builder)
+    physics.NewtonVBDManager(NewtonCfg())._prepare_builder_for_finalize(builder)
     colors = {int(particle): color for color, group in enumerate(builder.particle_color_groups) for particle in group}
     assert len(set(colors.values())) == builder.particle_count
 
@@ -109,9 +110,9 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     """
     physics = importlib.import_module("isaaclab_newton.physics")
     solver = object()
-    manager = physics.NewtonVBDManager()
+    manager = physics.NewtonVBDManager(NewtonCfg())
     monkeypatch.setattr(manager, "_create_solver", lambda model, cfg, deterministic_mode: solver)
-    monkeypatch.setattr(manager, "_solver", None)
+    monkeypatch.setattr(manager, "backend", SimpleNamespace(solver=None))
     monkeypatch.setattr(manager, "_use_single_state", True)
     monkeypatch.setattr(manager, "_needs_collision_pipeline", False)
     monkeypatch.setattr(manager, "_supports_rigid_body_force_input", True)
@@ -119,7 +120,7 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
     manager._build_solver(object(), solver_cfg)
 
-    assert manager._solver is solver
+    assert manager.backend.solver is solver
     assert manager._supports_rigid_body_force_input is False
 
 
@@ -163,8 +164,8 @@ def test_vbd_contact_history_initializes_matches_and_resets(device):
     model = builder.finalize(device=device)
     state_0, state_1 = model.state(), model.state()
 
-    manager = physics.NewtonVBDManager()
-    manager.backend = SimpleNamespace(model=model, state_0=state_0)
+    manager = physics.NewtonVBDManager(NewtonCfg())
+    manager.backend = SimpleNamespace(model=model, state_0=state_0, solver=None, collision_pipeline=None, contacts=None)
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_contact_history=True)
 
     collision_cfg = physics.NewtonCollisionPipelineCfg(broad_phase="nxn")
@@ -175,9 +176,9 @@ def test_vbd_contact_history_initializes_matches_and_resets(device):
     collision_cfg.contact_matching = "latest"
     manager._build_solver(model, solver_cfg)
     manager._initialize_contacts()
-    solver = manager._solver
-    pipeline = manager._collision_pipeline
-    contacts = manager._contacts
+    solver = manager.backend.solver
+    pipeline = manager.backend.collision_pipeline
+    contacts = manager.backend.contacts
 
     for _ in range(2):
         contacts.clear()
@@ -192,9 +193,9 @@ def test_vbd_contact_history_initializes_matches_and_resets(device):
     wp.capture_launch(capture.graph)
     assert state_1.body_q.numpy()[body, 2] > initial_height
 
-    manager._world_reset_mask = wp.ones(model.world_count + 1, dtype=wp.bool, device=device)
-    manager._fk_reset_mask = None
-    manager.kinematics_dirty = True
+    manager.backend.world_mask = wp.ones(model.world_count + 1, dtype=wp.bool, device=device)
+    manager.backend.fk_mask = wp.zeros(model.articulation_count, dtype=wp.bool, device=device)
+    manager.backend.kinematics_dirty = True
     manager._eval_fk = manager._eval_fk_impl
     manager._reset_solver_internals_delegate = manager._reset_solver_internals
     manager.forward()
@@ -289,10 +290,11 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
     def simulate_physics_only(self):
         events.append(("step", self))
 
-    manager = physics.NewtonVBDManager()
+    manager = physics.NewtonVBDManager(NewtonCfg())
     monkeypatch.setattr(NewtonManager, "_simulate_physics_only", simulate_physics_only)
-    monkeypatch.setattr(manager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state))
-    monkeypatch.setattr(manager, "_solver", Solver())
+    monkeypatch.setattr(
+        manager, "backend", SimpleNamespace(model=SimpleNamespace(particle_count=1), state_0=state, solver=Solver())
+    )
 
     manager._simulate_physics_only()
 

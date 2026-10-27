@@ -17,6 +17,7 @@ from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectD
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
@@ -509,9 +510,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
+                inputs=[self.root_link_quat_w, self.GRAVITY_VEC_W],
                 outputs=[self._projected_gravity_b.data],
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
@@ -532,7 +533,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.root_heading_w,
+                warp_math.heading[1],
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
@@ -553,9 +554,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_lin_vel_w, self.root_link_quat_w],
+                inputs=[self.root_link_quat_w, self.root_link_lin_vel_w],
                 outputs=[self._root_link_lin_vel_b.data],
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -574,9 +575,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_ang_vel_w, self.root_link_quat_w],
+                inputs=[self.root_link_quat_w, self.root_link_ang_vel_w],
                 outputs=[self._root_link_ang_vel_b.data],
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -595,9 +596,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_lin_vel_w, self.root_link_quat_w],
+                inputs=[self.root_link_quat_w, self.root_com_lin_vel_w],
                 outputs=[self._root_com_lin_vel_b.data],
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -616,9 +617,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_ang_vel_w, self.root_link_quat_w],
+                inputs=[self.root_link_quat_w, self.root_com_ang_vel_w],
                 outputs=[self._root_com_ang_vel_b.data],
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
