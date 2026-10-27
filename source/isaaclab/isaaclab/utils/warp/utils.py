@@ -38,11 +38,12 @@ def resolve_1d_mask(
     """Resolve ids/mask into a warp boolean mask.
 
     Callers provide pre-allocated ``all_mask`` (all-True) and ``scratch_mask`` (reusable
-    work buffer) so this function never allocates.
+    work buffer), so nothing is allocated for ``None``, a slice, a boolean mask on ``device``
+    or contiguous ``wp.int32`` ids on ``device``. Other selections are copied to ``device`` first.
 
     Args:
         ids: Index ids. Accepts ``Sequence[int]``, ``slice``, ``torch.Tensor``,
-            ``wp.array(dtype=wp.int32)``, or ``None`` (all elements).
+            ``wp.array`` of 32-bit or 64-bit integers, or ``None`` (all elements).
         mask: Direct boolean mask. ``wp.array`` is returned as-is, or copied when on another device;
             ``torch.Tensor`` is converted.
         all_mask: Pre-allocated all-True mask returned when both *ids* and *mask*
@@ -77,8 +78,8 @@ def resolve_1d_mask(
         if isinstance(mask, torch.Tensor):
             if mask.dtype != torch.bool:
                 mask = mask.to(dtype=torch.bool)
-            if str(mask.device) != device:
-                mask = mask.to(device)
+            if str(mask.device) != str(wp.get_device(device)):
+                mask = mask.to(wp.device_to_torch(device))
             return wp.from_torch(mask, dtype=wp.bool)
         raise TypeError(f"Unsupported mask type: {type(mask)}")
 
@@ -90,8 +91,12 @@ def resolve_1d_mask(
         raise ValueError("resolve_1d_mask needs a scratch_mask to write ids into.")
 
     if isinstance(ids, slice):
+        # a mask has no order, so a negative step selects what its reversed, positive-step range selects
+        selected = range(*ids.indices(scratch_mask.shape[0]))
+        if selected.step < 0:
+            selected = selected[::-1]
         scratch_mask.zero_()
-        wp.to_torch(scratch_mask)[ids] = True
+        wp.to_torch(scratch_mask)[selected.start : selected.stop : selected.step] = True
         return scratch_mask
 
     # --- Normalize to concrete type ---
@@ -114,9 +119,9 @@ def resolve_1d_mask(
     elif isinstance(ids, wp.array):
         if ids.shape[0] == 0:
             return scratch_mask
-        if ids.dtype != wp.int32:
-            raise TypeError(f"Unsupported wp.array dtype for ids: {ids.dtype}. Expected wp.int32 index array.")
-        ids_wp = ids
+        if ids.device != wp.get_device(device):
+            ids = ids.to(device)
+        ids_wp = _ids_as_dtype(ids, wp.int32)
     else:
         if len(ids) == 0:
             return scratch_mask
@@ -131,7 +136,7 @@ def _mask_needs_copy(mask: wp.array | torch.Tensor, device: str) -> bool:
     if isinstance(mask, wp.array):
         return mask.device != wp.get_device(device)
     if isinstance(mask, torch.Tensor):
-        return mask.dtype != torch.bool or str(mask.device) != device
+        return mask.dtype != torch.bool or str(mask.device) != str(wp.get_device(device))
     return True
 
 

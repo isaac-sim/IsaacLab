@@ -7,5 +7,6 @@
   :func:`~isaaclab.utils.warp.utils.resolve_ids` as well, so slices other than ``slice(None)`` are accepted.
 * Changed :func:`~isaaclab.utils.warp.utils.resolve_1d_mask` to make ``scratch_mask`` optional for callers that never
   pass ids. Ids without a ``scratch_mask`` raise a :class:`ValueError`.
-* Changed :func:`~isaaclab.utils.warp.utils.resolve_1d_mask` to copy a Warp mask on another device to ``device``, and
-  to accept a boolean torch mask on ``device`` inside a CUDA graph capture.
+* Changed :func:`~isaaclab.utils.warp.utils.resolve_1d_mask` to copy a Warp mask or Warp ids on another device to
+  ``device``, to accept 64-bit Warp ids and slices with a negative step, and to accept a boolean torch mask on
+  ``device``, including ``"cuda"`` for the current CUDA device, inside a CUDA graph capture.

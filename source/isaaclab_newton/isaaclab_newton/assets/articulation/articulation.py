@@ -2311,8 +2311,6 @@ class Articulation(BaseArticulation):
         """
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
-        if isinstance(env_ids, wp.array) and env_ids.dtype != wp.int32:
-            env_ids = wp.to_torch(env_ids)
         return resolve_1d_mask(
             ids=env_ids, all_mask=self._ALL_ENV_MASK, scratch_mask=self._scratch_env_mask, device=self.device
         )

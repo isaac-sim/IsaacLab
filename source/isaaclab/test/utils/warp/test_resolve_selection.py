@@ -83,7 +83,9 @@ def test_resolve_ids_from_a_mask(device, mask_type):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("ids_type", ["list", "slice", "torch_int64", "torch_int32", "warp_int32"])
+@pytest.mark.parametrize(
+    "ids_type", ["list", "slice", "reverse_slice", "torch_int64", "torch_int32", "warp_int32", "warp_int64"]
+)
 def test_resolve_1d_mask_from_ids(device, ids_type):
     """Ids of every type are written into the scratch mask, which is cleared first."""
     n = 12
@@ -94,9 +96,11 @@ def test_resolve_1d_mask_from_ids(device, ids_type):
     ids = {
         "list": selected,
         "slice": slice(1, 12, 3),
+        "reverse_slice": slice(None, None, -2),
         "torch_int64": torch.tensor(selected, dtype=torch.int64, device=torch_device),
         "torch_int32": torch.tensor(selected, dtype=torch.int32, device=torch_device),
         "warp_int32": wp.array(selected, dtype=wp.int32, device=device),
+        "warp_int64": wp.array(selected, dtype=wp.int64, device=device),
     }[ids_type]
     expected = [False] * n
     for i in range(n)[ids] if isinstance(ids, slice) else selected:
@@ -122,17 +126,29 @@ def test_resolve_1d_mask_needs_a_scratch_mask_only_for_ids(device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_resolve_1d_mask_copies_a_mask_on_another_device(device):
-    """A Warp mask on another device is copied to ``device``."""
+def test_resolve_1d_mask_copies_a_selection_on_another_device(device, monkeypatch):
+    """A Warp mask or Warp ids on another device are copied to ``device``.
+
+    The strict launch mode rejects a kernel argument on another device, which the default mode may read through
+    host-memory addressing or fault on.
+    """
+    monkeypatch.setattr(wp.config, "launch_array_access_mode", wp.config.LaunchArrayAccessMode.STRICT)
     all_mask = wp.ones(3, dtype=wp.bool, device=device)
+    scratch = wp.zeros(3, dtype=wp.bool, device=device)
     mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
     resolved = resolve_1d_mask(mask=mask, all_mask=all_mask, device=device)
     assert str(resolved.device) == device and resolved.numpy().tolist() == [True, False, True]
+    ids = wp.array([0, 2], dtype=wp.int32, device="cpu")
+    assert resolve_1d_mask(ids=ids, all_mask=all_mask, scratch_mask=scratch, device=device) is scratch
+    assert scratch.numpy().tolist() == [True, False, True]
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_resolve_1d_mask_in_a_graph_capture(device):
-    """Inside a capture, a boolean mask on device resolves; ids or a mask that needs a cast or copy raise."""
+    """Inside a capture, a boolean mask on device resolves; ids or a mask that needs a cast or copy raise.
+
+    ``"cuda"`` names the current CUDA device, so a mask on it needs no copy.
+    """
     all_mask = wp.ones(3, dtype=wp.bool, device=device)
     scratch = wp.zeros(3, dtype=wp.bool, device=device)
     mask_wp = wp.array([True, False, True], dtype=wp.bool, device=device)
@@ -142,6 +158,7 @@ def test_resolve_1d_mask_in_a_graph_capture(device):
     with wp.ScopedDevice(device), wp.ScopedCapture():
         assert resolve_1d_mask(mask=mask_wp, all_mask=all_mask, device=device) is mask_wp
         resolved = resolve_1d_mask(mask=mask_torch, all_mask=all_mask, device=device)
+        assert resolve_1d_mask(mask=mask_torch, all_mask=all_mask, device="cuda").ptr == resolved.ptr
         for selection in ({"mask": mask_int}, {"mask": mask_cpu}, {"ids": [0]}):
             with pytest.raises(RuntimeError, match="capturable"):
                 resolve_1d_mask(**selection, all_mask=all_mask, scratch_mask=scratch, device=device)
