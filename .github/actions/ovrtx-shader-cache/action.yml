@@ -11,9 +11,8 @@ description: >
 
   A composite action cannot span the caller's test step, so the phases are
   separate invocations selected by 'mode': 'restore' before the tests, then
-  either 'report' or 'save' after them. Every mode recomputes the keys with the
-  same .github/actions/run-package-tests/ci_caches.py, so the collection a job
-  reads and the one it writes cannot drift.
+  either 'report' or 'save' after them. Every mode recomputes the keys from the
+  same key.sh, so the collection a job reads and the one it writes cannot drift.
 
   kit/ is compiled by the RTX renderer inside the Isaac Sim image and kitless/ by
   the pip-installed ovrtx wheel, so each tree is a separate entry keyed by its own
@@ -67,17 +66,7 @@ runs:
       shell: bash
       env:
         ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
-        TREES: ${{ inputs.trees }}
-      run: |
-        set -euo pipefail
-        host_dir="${RUNNER_TEMP}/isaaclab-ovrtx-shader-cache"
-        python3 .github/actions/run-package-tests/ci_caches.py keys --isaacsim-version "$ISAACSIM_VERSION" \
-          "kit=${host_dir}/kit" "kitless=${host_dir}/kitless"
-        # The trees this job requested, for the report steps.
-        requested=()
-        [ "$TREES" != kitless ] && requested+=("kit=${host_dir}/kit")
-        [ "$TREES" != kit ] && requested+=("kitless=${host_dir}/kitless")
-        { echo "host-dir=${host_dir}"; echo "requested=${requested[*]}"; } >> "$GITHUB_OUTPUT"
+      run: bash "$GITHUB_ACTION_PATH/key.sh"
 
     - name: Restore OVRTX kit shader cache
       if: inputs.mode == 'restore' && inputs.trees != 'kitless'
@@ -101,19 +90,23 @@ runs:
       if: inputs.mode == 'restore'
       shell: bash
       env:
+        HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+        TREES: ${{ inputs.trees }}
         KIT_MATCHED_KEY: ${{ steps.restore-kit.outputs.cache-matched-key }}
         KITLESS_MATCHED_KEY: ${{ steps.restore-kitless.outputs.cache-matched-key }}
-      run: >-
-        python3 .github/actions/run-package-tests/ci_caches.py restored
-        ${{ inputs.publishes == 'true' && '--publishes' || '' }} ${{ steps.compute.outputs.requested }}
+        KIT_COLLECTION: ${{ steps.compute.outputs.kit-collection }}
+        KITLESS_COLLECTION: ${{ steps.compute.outputs.kitless-collection }}
+        PUBLISHES: ${{ inputs.publishes }}
+      run: bash "$GITHUB_ACTION_PATH/report.sh" restore
 
     - name: Report OVRTX shader cache growth
       if: always() && inputs.mode != 'restore'
       id: growth
       shell: bash
-      run: >-
-        python3 .github/actions/run-package-tests/ci_caches.py growth
-        ${{ inputs.mode == 'save' && '--publishes --require-files' || '' }} ${{ steps.compute.outputs.requested }}
+      env:
+        HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+        TREES: ${{ inputs.trees }}
+      run: bash "$GITHUB_ACTION_PATH/report.sh" growth
 
     # Each tree is gated on its own file count so a populated kit/ never carries
     # an empty kitless/ into a published snapshot. The count is empty rather than
@@ -146,3 +139,12 @@ runs:
       with:
         path: ${{ steps.compute.outputs.kitless-dir }}
         key: ${{ steps.compute.outputs.kitless-key }}
+
+    - name: Verify requested OVRTX shader cache tree(s) were populated
+      if: always() && inputs.mode == 'save'
+      shell: bash
+      env:
+        TREES: ${{ inputs.trees }}
+        KIT_FILES: ${{ steps.growth.outputs.kit-files }}
+        KITLESS_FILES: ${{ steps.growth.outputs.kitless-files }}
+      run: bash "$GITHUB_ACTION_PATH/verify.sh"

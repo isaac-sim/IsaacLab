@@ -13,16 +13,16 @@ description: >
 outputs:
   collection:
     description: 'Collection prefix shared by every entry that is mutually compatible'
-    value: ${{ steps.compute.outputs.warp-collection }}
+    value: ${{ steps.compute.outputs.collection }}
   key:
     description: 'Write key, unique per run so each cumulative snapshot gets its own immutable entry'
-    value: ${{ steps.compute.outputs.warp-key }}
+    value: ${{ steps.compute.outputs.key }}
   restore-keys:
     description: 'Collection prefix used to restore the newest compatible snapshot'
-    value: ${{ steps.compute.outputs.warp-restore-keys }}
+    value: ${{ steps.compute.outputs.restore-keys }}
   host-dir:
     description: 'Host directory holding the Warp cache; bind-mounted into the test container'
-    value: ${{ steps.compute.outputs.warp-dir }}
+    value: ${{ steps.compute.outputs.host-dir }}
 
 runs:
   using: composite
@@ -30,4 +30,22 @@ runs:
     - name: Compute Warp cache key
       id: compute
       shell: bash
-      run: python3 .github/actions/run-package-tests/ci_caches.py keys "warp=${RUNNER_TEMP}/isaaclab-warp-cache"
+      run: |
+        set -euo pipefail
+
+        # Warp, Newton and MuJoCo Warp decide whether a restored tree is usable.
+        # GPU architecture deliberately stays out: Warp puts the target in the
+        # artifact filename, so one collection accumulates every variant the
+        # runner fleet needs instead of splitting per GPU model.
+        versions="$(python3 .github/actions/warp-cache-key/collection_id.py)"
+        collection="warp-v2-${RUNNER_OS}-${RUNNER_ARCH}-${versions}"
+
+        # Cache entries are immutable, so a cumulative writeback needs a fresh
+        # key every run - including docs-only merges and reruns, where the source
+        # is unchanged but the cache may still have grown.
+        echo "collection=${collection}" >> "$GITHUB_OUTPUT"
+        echo "key=${collection}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+        echo "restore-keys=${collection}-" >> "$GITHUB_OUTPUT"
+        echo "host-dir=${RUNNER_TEMP}/isaaclab-warp-cache" >> "$GITHUB_OUTPUT"
+
+        echo "Warp cache collection: ${collection}"

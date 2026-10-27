@@ -5,10 +5,9 @@
 
 """Assert that Warp resolved its kernel cache to the directory CI mounted.
 
-Run inside the test container, or on the Windows CI runner, when
-``WARP_CACHE_PATH`` is set. A Warp that silently ignores the mount is
-indistinguishable from a working cache that never gets a hit, so this fails the
-job loudly instead.
+Run inside the test container when ``WARP_CACHE_PATH`` is set. A Warp that
+silently ignores the mount is indistinguishable from a working cache that never
+gets a hit, so this fails the job loudly instead.
 
 Lives under ``tools/`` rather than beside the action because ``.dockerignore``
 excludes ``.github/``, so a copy there would be missing from any container that
@@ -23,8 +22,7 @@ import warp as wp
 wp.init()
 
 expected = os.path.realpath(os.environ["WARP_CACHE_PATH"])
-# On Windows, Warp reports the path with the \\?\ prefix, which realpath keeps.
-actual = os.path.realpath(wp.config.kernel_cache_dir.removeprefix("\\\\?\\"))
+actual = os.path.realpath(wp.config.kernel_cache_dir)
 
 print(f"Warp version: {wp.config.version}")
 print(f"Warp kernel cache directory: {actual}")
