@@ -13,7 +13,7 @@ import pytest
 import torch
 
 pytest.importorskip("newton")
-from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizerBase
+from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer, NewtonVisualizerBase
 from pyglet.math import Vec3
 
 from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
@@ -212,3 +212,54 @@ def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
     assert viz._reset_tracking_camera(viz._followers[view])
 
     assert cfg.eye == (2.0, 0.0, 1.0)
+
+
+def _rtx_view():
+    camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0", renderer_cfg="ovrtx"))
+    return _View("/World/viewer_camera_0", camera=camera)
+
+
+def _switchable(views):
+    """A visualizer whose camera selection only records which view became current."""
+    base = _visualizer(views)
+    viz = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    viz.__dict__.update(base.__dict__)
+    viz._overlay_publisher = SimpleNamespace(hide_all=lambda renderers: viz.hidden.append(renderers))
+    viz._sim.get_or_create_backend = lambda cfg: cfg
+    viz.hidden, viz.current_image_view = [], views[0]
+
+    def select(index, keep_pose=False):
+        viz.current_image_view = viz._image_views[index]
+
+    viz._select_camera = select
+    return viz
+
+
+def test_switching_to_rtx_and_back_returns_to_the_perspective_view():
+    free, rtx = _view(PerspectiveCameraCfg()), _rtx_view()
+    viz = _switchable([free, rtx])
+
+    viz.set_rtx_rendering(True)
+    assert viz.current_image_view is rtx and viz.rtx_rendering
+
+    viz.set_rtx_rendering(False)
+    assert viz.current_image_view is free and not viz.rtx_rendering
+    assert viz.hidden == [("ovrtx",)]  # The overlay meshes are hidden when OVRTX stops drawing.
+
+
+def test_switching_to_rtx_while_a_tracking_camera_is_shown_returns_to_it():
+    free, task, rtx = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0)), _rtx_view()
+    viz = _switchable([free, task, rtx])
+    viz.current_image_view = task
+
+    viz.set_rtx_rendering(True)
+    viz.set_rtx_rendering(False)
+
+    assert viz.current_image_view is task
+
+
+def test_rtx_rendering_needs_the_viewer_camera_declared_at_launch():
+    viz = _switchable([_view(PerspectiveCameraCfg())])
+
+    with pytest.raises(RuntimeError, match="no OVRTX viewer camera"):
+        viz.set_rtx_rendering(True)
