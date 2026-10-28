@@ -540,6 +540,10 @@ Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** 
 sit side by side with the default viewport for dual monitoring. **Newton**
 provides a **Camera View** selector in the sidebar for switching between perspective and scene-camera
 views.
+Selecting a scene sensor in **Camera View** shows its channel: the **Channel** selector lists the
+sensor's outputs (RGB, depth, normals, or segmentation), and depth, normals, and segmentation are
+converted to colors for display. When the sensor is declared once per environment, **Tiled Envs**
+sets how many of its feeds are tiled into the window.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
 sources, tracking cameras that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
@@ -643,6 +647,22 @@ streaming views, and renderer-based sensor data capture.
        <p class="viz-cap">Recorded clip with ground-truth sensor views</p>
      </div>
    </div>
+
+.. _visualization-newton-recording:
+
+Newton Window Recording and Animations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **Recording** section of the Newton visualizer saves four things: an ``mp4`` video of the window, a
+``.viser`` **animation** of the visible environments (including visualization markers), a ``.png`` screenshot of the
+window without the HUD, and a ``.pt`` checkpoint of the policy being played. Files go to the output folder set by
+:class:`~isaaclab_visualizers.newton.NewtonRecordingCfg`.
+
+**Open...** lists the ``.viser`` animations below a folder and plays the chosen one as a tinted ghost over the
+simulation, remembering the folder for the next time. A transport bar along the bottom of the window has its own
+Play/Pause, a timeline to scrub, Loop, and Speed, independent of the simulation's pause. An animation recorded
+during a Policy Ghosts session has a ``.json`` file next to it, so that opening it lists each slot with a checkbox
+and its tint.
 
 .. _record_video_cli:
 

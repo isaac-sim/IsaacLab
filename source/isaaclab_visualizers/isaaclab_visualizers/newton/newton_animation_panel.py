@@ -103,6 +103,7 @@ class NewtonAnimationPanel:
                 if imgui.is_item_hovered():
                     imgui.set_tooltip(str(file))
                 if clicked:
+                    self.folder = str(file.parent)
                     self.open(str(file))
                     self._window_open = False
         imgui.end()

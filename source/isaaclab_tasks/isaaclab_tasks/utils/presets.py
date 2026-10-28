@@ -63,3 +63,4 @@ class MultiBackendVisualizerCfg(PresetCfg):
     default: list[VisualizerBackendCfg] = []
 
     _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset(VISUALIZER_ALIASES)

@@ -29,8 +29,8 @@ from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 
 @pytest.mark.parametrize("selection", ["kit", "newton", "newton_gl", "rerun", "viser", "none", "kit,newton_gl"])
-def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch):
-    """All selector spellings compose cameras and viewers before runtime selection."""
+def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch, recwarn):
+    """All selector spellings compose cameras and viewers before runtime selection, without a deprecation warning."""
     monkeypatch.setattr(physx_app.KitLauncher, "__init__", SimulationLauncher.__init__)
     monkeypatch.setattr(physx_app.KitLauncher, "close", SimulationLauncher.close)
     monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
@@ -47,6 +47,7 @@ def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch):
         physics, renderer = cfg.sim.physics, cfg.scene.tiled_camera.renderer_cfg
         expected = [] if selection == "none" else [name.replace("newton_gl", "newton") for name in selection.split(",")]
         assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
+        assert not [w for w in recwarn if issubclass(w.category, FutureWarning) and "newton_gl" in str(w.message)]
         with sim_launcher.launch_simulation(cfg, args):
             assert [viewer.backend.visualizer_type for viewer in cfg.sim.visualizer_cfgs] == expected
             assert all(viewer.eye == (20.0, 20.0, 20.0) for viewer in cfg.sim.visualizer_cfgs)
