@@ -811,9 +811,13 @@ drift apart:
         --num_envs 4 --checkpoint latest --viz newton --policy_ghosts
 
 You can also start from a normal ``play`` run: open **Policy Ghosts** in the viewer's left panel and choose
-**Enable Policy Ghosts (restarts)**. The command restarts with ``--policy_ghosts`` added, because the simulation
-fixes its environment count at startup; **Disable Policy Ghosts (restarts)** reverses it. Policy Ghosts stay off
-unless you ask for them, since they simulate several times the environments.
+**Enable Policy Ghosts**. When the run has at least ``--policy_ghost_envs`` (default 4) times
+``--policy_ghost_slots`` (default 3) environments, the ghosts take the first environments of the running simulation:
+the other environments are hidden and stop acting, and **Disable Policy Ghosts** resets every environment and returns to
+the plain view. A run with fewer environments shows **Enable Policy Ghosts (restarts)**, which relaunches with
+``--policy_ghosts`` added, because the simulation fixes its environment count at startup. This mode does not remove
+per-environment randomization such as startup events, so ghosts of a task that uses it can differ from the reference
+for reasons other than the checkpoint. Policy Ghosts stay off unless you ask for them.
 
 Open **Policy Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
 checkpoints of runs of this task that were written by training (those with a ``run.json``) under the
@@ -821,7 +825,7 @@ experiment's log directory; pass ``--policy_ghost_root`` to search another direc
 shows or hides it. Under **Settings**, each ghost has opacity and tint sliders; a tint of 1.0 replaces all of
 the robot's native colors and textures with the ghost color, and lower values blend it with the native colors.
 **Remove** frees the slot. ``--policy_ghost_slots`` sets the number of slots, including the reference, up to eight;
-the default is eight.
+the default is eight with ``--policy_ghosts`` and three for the in-place switch.
 
 * Every slot simulates ``--num_envs`` environments, even an empty one. With a few environments per
   slot the extra cost is small, since the step time is dominated by fixed overhead; it grows with the
