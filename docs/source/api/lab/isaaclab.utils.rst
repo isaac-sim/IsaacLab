@@ -314,6 +314,9 @@ For example::
     wp.launch(memory.make_masked_fill(wp.float32, 2), target.shape,
               [0.0, row_mask, column_mask, target])
 
+    # Pack typed components into existing storage in one tiled launch.
+    memory.concat(first, second, result)
+
 ``resolve_1d_indices`` preserves the order of valid nonnegative indices, returning
 contiguous int32 storage as required by Warp indexed views. It reuses contiguous int32
 arrays; strided/int64 arrays need a copy or cast. Keep normalized indices alive with the
@@ -324,6 +327,11 @@ indices require identical values. Simulator row-ID bookkeeping stays with the ba
 ``split_views`` returns component aliases without allocating storage. Prefer scalar slices
 for native copies of component data. Retained fused packing/splitting kernels avoid extra
 launches and can use better memory access patterns than multiple component copies.
+``concat`` owns scalar views and the tiled launch grid. It accepts rank-1 or rank-2
+composite arrays, preserves strides and uses the same specialization for contiguous
+arrays of either rank. It allocates no array storage. Input and output storage must
+not overlap. With ``record_cmd=True`` it returns a native Warp launch command; reuse
+that command for stable eager CUDA inputs to avoid rebuilding views on each call.
 
 For custom operations, cached factories return concrete kernels in isolated modules.
 Only requested layouts are constructed. Python caches kernel objects; Warp separately

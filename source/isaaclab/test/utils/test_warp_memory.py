@@ -11,6 +11,7 @@ import warp as wp
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import memory
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 pytestmark = pytest.mark.unit
 
@@ -18,20 +19,28 @@ pytestmark = pytest.mark.unit
 @pytest.mark.parametrize(
     ("first_type", "second_type", "result_type", "shape", "numpy_type"),
     [
-        (wp.transformf, wp.spatial_vectorf, wp.types.vector(13, wp.float32), (4,), np.float32),
-        (wp.vec2d, wp.vec3d, wp.types.vector(5, wp.float64), (2, 2), np.float64),
+        (wp.transformf, wp.spatial_vectorf, wp.types.vector(13, wp.float32), (65,), np.float32),
+        (wp.vec2d, wp.vec3d, wp.types.vector(5, wp.float64), (5, 13), np.float64),
     ],
 )
-def test_concatenation_and_split_preserve_component_order(first_type, second_type, result_type, shape, numpy_type):
-    with wp.ScopedDevice("cpu"):
+@pytest.mark.parametrize("device", test_devices(DeviceScope.ALL))
+def test_concatenation_and_split_preserve_component_order(
+    first_type, second_type, result_type, shape, numpy_type, device, monkeypatch
+):
+    monkeypatch.setattr(wp.config, "enable_backward", True)
+    with wp.ScopedDevice(device):
         size, first_size = len(result_type()), len(first_type())
-        expected = np.arange(1, 4 * size + 1, dtype=numpy_type).reshape(*shape, size)
-        first = wp.array(expected[..., :first_size].copy(), dtype=first_type)
-        second = wp.array(expected[..., first_size:].copy(), dtype=second_type)
-        output = wp.empty(shape, dtype=result_type)
-        kernel = memory.make_concat(first_type, second_type, result_type, len(shape))
-        wp.launch(kernel, shape, [first, second, output])
+        expected = np.arange(1, np.prod(shape) * size + 1, dtype=numpy_type).reshape(*shape, size)
+        first = wp.array(expected[..., :first_size].copy(), dtype=first_type, requires_grad=True)
+        second = wp.array(expected[..., first_size:].copy(), dtype=second_type, requires_grad=True)
+        output = wp.empty(shape, dtype=result_type, requires_grad=True)
+        with wp.Tape() as tape:
+            memory.concat(first, second, output)
         np.testing.assert_array_equal(output.numpy(), expected)
+        seed = expected * 2
+        tape.backward(grads={output: wp.array(seed, dtype=result_type)})
+        np.testing.assert_array_equal(first.grad.numpy(), seed[..., :first_size])
+        np.testing.assert_array_equal(second.grad.numpy(), seed[..., first_size:])
         # Independently supplied components, not a round trip of the concatenation result.
         first.zero_()
         second.zero_()
@@ -53,7 +62,7 @@ def test_transform_packing_and_component_views_preserve_strides_and_aliasing():
             # Both inputs are strided component views; output skips alternating transforms.
             full = wp.full(tuple(2 * n if i == len(shape) - 1 else n for i, n in enumerate(shape)), wp.transformf(99.0))
             output = full[::2] if len(shape) == 1 else full[:, ::2]
-            wp.launch(memory.make_concat(wp.vec3f, wp.quatf, wp.transformf, len(shape)), shape, [pos, quat, output])
+            memory.concat(pos, quat, output)
             np.testing.assert_array_equal(output.numpy(), expected.reshape((*shape, 7)))
             untouched = full[1::2] if len(shape) == 1 else full[:, 1::2]
             np.testing.assert_array_equal(untouched.numpy(), 99.0)
@@ -70,11 +79,19 @@ def test_transform_packing_and_component_views_preserve_strides_and_aliasing():
             memory.split_views(wp.zeros(3, dtype=wp.vec3f), (wp.vec3d,))
         for dtype in (wp.float32, wp.mat33f):
             with pytest.raises(TypeError, match="one-dimensional composite"):
-                memory.make_concat(dtype, wp.vec3f, wp.transformf, 1)
+                memory.concat(wp.empty(1, dtype=dtype), wp.empty(1, dtype=wp.vec3f), wp.empty(1, dtype=wp.transformf))
             with pytest.raises(TypeError, match="one-dimensional composite"):
                 memory.make_split(dtype, wp.vec3f, 1)
             with pytest.raises(TypeError, match="one-dimensional composite"):
                 memory.split_views(wp.empty(1, dtype=dtype), (wp.vec3f,))
+        with pytest.raises(ValueError, match="matching array shapes"):
+            memory.concat(wp.empty(1, dtype=wp.vec3f), wp.empty(2, dtype=wp.quatf), wp.empty(1, dtype=wp.transformf))
+        with pytest.raises(ValueError, match="rank 1 or 2"):
+            memory.concat(pos, quat, transforms)
+        with pytest.raises(ValueError, match="component count"):
+            memory.concat(wp.empty(1, dtype=wp.vec3f), wp.empty(1, dtype=wp.vec3f), wp.empty(1, dtype=wp.transformf))
+        empty = [wp.empty((2, 0), dtype=dtype) for dtype in (wp.vec3f, wp.quatf, wp.transformf)]
+        assert memory.concat(*empty, record_cmd=True) is None
 
 
 def test_spatial_split_and_pair_clear_preserve_masked_rows():
@@ -104,8 +121,11 @@ def test_generated_operations_replay_changed_strided_inputs_and_selectors(device
         pos, quat = memory.split_views(original, (wp.vec3f, wp.quatf))
         full = wp.full((1, 4), wp.transformf(99.0))
         output = full[:, ::2]
-        kernel = memory.make_concat(wp.vec3f, wp.quatf, wp.transformf, 2)
-        wp.launch(kernel, (1, 2), [pos, quat, output])
+        cache = _WarpLaunchCache(device)
+        cache.launch("concat", memory.concat, pos, quat, output)
+        pos.fill_(wp.vec3f(-3.0))
+        cache.launch("concat", memory.concat, pos, quat, output)
+        np.testing.assert_array_equal(output.numpy()[..., :3], -3.0)
         rows = wp.array([0, 99], dtype=wp.int64)[::2]
         columns = wp.array([2, 99, 0, 99], dtype=wp.int32)[::2]
         values = wp.array([[11.0, 12.0]], dtype=wp.float32)
@@ -122,7 +142,7 @@ def test_generated_operations_replay_changed_strided_inputs_and_selectors(device
         selected_copy()
         wp.launch(memory.make_masked_fill(wp.float32, 2), (2, 3), [8.0, row_mask, column_mask, target])
         with wp.ScopedCapture(device=device) as capture:
-            wp.launch(kernel, (1, 2), [pos, quat, output])
+            cache.launch("concat", memory.concat, pos, quat, output)
             selected_copy()
             wp.launch(memory.make_masked_fill(wp.float32, 2), (2, 3), [8.0, row_mask, column_mask, target])
         rows.fill_(1)
@@ -277,10 +297,10 @@ def test_memory_ownership_and_specialization(source_checkout_root):
     import ast
     import re
 
-    first = memory.make_concat(wp.vec3f, wp.quatf, wp.transformf, 2)
+    first = memory._make_concat(wp.float32, 3, 4, 2)
     before = first.module.hash_module()
-    second = memory.make_concat(wp.vec2d, wp.vec3d, wp.types.vector(5, wp.float64), 2)
-    assert first is memory.make_concat(wp.vec3f, wp.quatf, wp.transformf, 2)
+    second = memory._make_concat(wp.float64, 2, 3, 2)
+    assert first is memory._make_concat(wp.float32, 3, 4, 2)
     assert first.module is not second.module
     assert first.module.hash_module() == before
     for factory in (memory.make_masked_copy, memory.make_masked_fill):
@@ -294,7 +314,7 @@ def test_memory_ownership_and_specialization(source_checkout_root):
     source = source_checkout_root / "source"
     core = source / "isaaclab/isaaclab"
     owner = core / "utils/warp/memory.py"
-    for retired in ("make_write", "make_copy", "make_fill", "_selected_index"):
+    for retired in ("make_write", "make_copy", "make_fill", "make_concat", "_selected_index"):
         assert not hasattr(memory, retired)
     assert not hasattr(memory, "IndexKernelDispatcher")
     for node in ast.walk(ast.parse(owner.read_text())):
@@ -360,11 +380,18 @@ def test_memory_ownership_and_specialization(source_checkout_root):
             assert not any(name.lstrip("_").startswith(retired_prefixes) for name in definitions), file
             if backend != "ov":
                 assert not definitions & {"set_state_transforms_func", "set_state_velocities_func"}, file
-    factories = {"make_concat", "make_split", "make_clear_pair", "make_masked_copy", "make_masked_fill"}
+    factories = {"_make_concat", "make_split", "make_clear_pair", "make_masked_copy", "make_masked_fill"}
     for package in source.iterdir():
         for file in (package / package.name).rglob("*.py"):
             tree = ast.parse(file.read_text())
             for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    assert not (
+                        isinstance(node.func.value, ast.Name)
+                        and node.func.value.id in {"memory", "memory_kernels"}
+                        and node.func.attr in {"make_concat", "_make_concat"}
+                        and file != owner
+                    ), "Callers supply arrays to concat; memory owns tiling and specialization"
                 if isinstance(node, ast.Assign) and any(
                     isinstance(t, ast.Name) and t.id == "vec13f" for t in node.targets
                 ):

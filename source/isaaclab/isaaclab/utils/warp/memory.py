@@ -21,6 +21,8 @@ import warp as wp
 
 from .index_kernel import selector_dtype
 
+_CONCAT_TILE_SIZE = 32
+
 
 def _component_layout(dtypes: tuple) -> tuple[type, tuple[int, ...]]:
     """Validate one-dimensional composite elements and return their scalar type and sizes."""
@@ -33,42 +35,73 @@ def _component_layout(dtypes: tuple) -> tuple[type, tuple[int, ...]]:
 
 
 @cache
-def make_concat(first_dtype, second_dtype, result_dtype, ndim: int) -> wp.Kernel:
-    """Concatenate two typed elements in one launch, retaining each array's strides.
-
-    Elements must have a one-dimensional component layout (no scalars or matrices).
-    Inputs and output must have matching shapes, rank 1 or 2, and the same scalar
-    type. The output component count must equal the sum of the inputs' counts.
-    """
-    if ndim not in (1, 2):
-        raise ValueError(f"Expected rank 1 or 2, got {ndim}")
-    _, (first_size, second_size, result_size) = _component_layout((first_dtype, second_dtype, result_dtype))
-    if first_size + second_size != result_size:
-        raise ValueError("Output component count must equal the sum of the input counts")
+def _make_concat(dtype, first_size: int, second_size: int, ndim: int) -> wp.Kernel:
+    """Generate a tiled concatenation over scalar views, specializing only the layout."""
+    result_size = first_size + second_size
 
     @wp.kernel(module="unique")
     def concatenate(
-        first: wp.array(dtype=first_dtype, ndim=ndim),
-        second: wp.array(dtype=second_dtype, ndim=ndim),
-        result: wp.array(dtype=result_dtype, ndim=ndim),
+        first: wp.array(dtype=dtype, ndim=ndim + 1),
+        second: wp.array(dtype=dtype, ndim=ndim + 1),
+        result: wp.array(dtype=dtype, ndim=ndim + 1),
     ):
         if wp.static(ndim == 1):
             i = wp.tid()
-            a, b = first[i], second[i]
+            a, b, out = first, second, result
         else:
-            i, j = wp.tid()
-            a, b = first[i, j], second[i, j]
-        value = result_dtype()
-        for k in range(wp.static(first_size)):
-            value[k] = a[k]
-        for k in range(wp.static(second_size)):
-            value[first_size + k] = b[k]
-        if wp.static(ndim == 1):
-            result[i] = value
-        else:
-            result[i, j] = value
+            row, i = wp.tid()
+            a, b, out = first[row], second[row], result[row]
+        offset = (i * _CONCAT_TILE_SIZE, 0)
+        x = wp.tile_load(a, shape=(_CONCAT_TILE_SIZE, first_size), offset=offset)
+        y = wp.tile_load(b, shape=(_CONCAT_TILE_SIZE, second_size), offset=offset)
+        value = wp.tile_empty(shape=(_CONCAT_TILE_SIZE, result_size), dtype=dtype, storage="shared")
+        wp.tile_assign(value, x, offset=(0, 0))
+        wp.tile_assign(value, y, offset=(0, first_size))
+        wp.tile_store(out, value, offset=offset)
 
     return concatenate
+
+
+def concat(
+    first: wp.array, second: wp.array, result: wp.array, *, device=None, record_cmd: bool = False
+) -> wp.Launch | None:
+    """Concatenate composite elements in one tiled launch without allocating array storage.
+
+    Arrays must have the same shape (rank 1 or 2) and device. Elements must have a
+    one-dimensional component layout with matching scalar types. The output width
+    must equal the sum of the input widths. Strides are preserved; contiguous rank-2
+    arrays share the flattened path. Input and output storage must not overlap.
+
+    Like :func:`warp.launch_tiled`, return a recorded command when ``record_cmd`` is
+    true, otherwise launch immediately. Empty arrays launch no work and return None.
+    Recorded commands bind stable array storage.
+    """
+    if first.ndim not in (1, 2):
+        raise ValueError(f"Expected rank 1 or 2, got {first.ndim}")
+    if first.shape != second.shape or first.shape != result.shape:
+        raise ValueError("Concatenation requires matching array shapes")
+    if first.device != second.device or first.device != result.device:
+        raise ValueError("Concatenation requires matching array devices")
+    if device is not None and wp.get_device(device) != result.device:
+        raise ValueError("Launch device must match the array device")
+    dtype, (first_size, second_size, result_size) = _component_layout((first.dtype, second.dtype, result.dtype))
+    if first_size + second_size != result_size:
+        raise ValueError("Output component count must equal the sum of the input counts")
+    arrays = (first, second, result)
+    if first.ndim == 2 and all(array.is_contiguous for array in arrays):
+        arrays = tuple(array.reshape(array.size) for array in arrays)
+    first, second, result = (array.view(dtype) for array in arrays)
+    shape = first.shape[:-1]
+    dim = (*shape[:-1], (shape[-1] + _CONCAT_TILE_SIZE - 1) // _CONCAT_TILE_SIZE)
+    return wp.launch_tiled(
+        _make_concat(dtype, first_size, second_size, len(shape)),
+        dim=dim,
+        inputs=[first, second],
+        outputs=[result],
+        device=result.device,
+        block_dim=128,
+        record_cmd=record_cmd,
+    )
 
 
 @cache
