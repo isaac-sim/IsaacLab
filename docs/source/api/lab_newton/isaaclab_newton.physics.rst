@@ -61,7 +61,7 @@ Physics Manager
   :members:
 
 .. automodule:: isaaclab_newton.physics.newton_backend
-  :members: capture_graph, resolve_deterministic_mode
+  :members: capture_graph
 
 .. currentmodule:: isaaclab_newton.physics
 

@@ -495,9 +495,13 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            relaxed = sim is not None and has_kit() and (sim.has_gui or sim.has_offscreen_render)
-            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=relaxed)
+            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
         self._mark_transforms_changed()
+
+    def _relaxed_capture(self) -> bool:
+        """Whether Kit rendering requires relaxed CUDA graph capture."""
+        sim = self._sim
+        return sim is not None and has_kit() and (sim.has_gui or sim.has_offscreen_render)
 
     def _prepare_visualizer_for_capture(self) -> None:
         """Let the Newton visualizer register picking forces before the step is captured."""
