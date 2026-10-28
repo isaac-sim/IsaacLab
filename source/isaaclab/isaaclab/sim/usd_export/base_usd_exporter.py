@@ -394,18 +394,24 @@ class BaseUsdExporter(ABC):
         return UsdEdit(str(prim.GetPath()), _WORLD_POSE, matrix)
 
     def _gravity_edits(self, stage: Usd.Stage, gravity) -> list[UsdEdit]:
-        """Edits making the physics scene's USD gravity equal ``gravity`` [m/s^2]."""
+        """Edits making the physics scene's USD gravity, in stage units, equal ``gravity`` [m/s^2].
+
+        Nothing is written when the scene resolves to it already: USD's physics parsing, which importers use, reads an
+        unset direction as down the up axis and an unset magnitude as Earth gravity.
+        """
         scene_path = self.scene.physics_scene_path
-        scene = UsdPhysics.Scene(stage.GetPrimAtPath(scene_path))
-        direction, magnitude = scene.GetGravityDirectionAttr().Get(), scene.GetGravityMagnitudeAttr().Get()
+        _, scenes = UsdPhysics.LoadUsdPhysicsFromRange(stage, [scene_path]).get(UsdPhysics.ObjectType.Scene, ([], []))
+        meters_per_unit = UsdGeom.GetStageMetersPerUnit(stage)
         gravity = np.asarray(gravity, dtype=float)
-        if direction is not None and magnitude is not None and self._close(np.asarray(direction) * magnitude, gravity):
-            return []
+        if scenes:
+            resolved = np.asarray(scenes[0].gravityDirection) * scenes[0].gravityMagnitude * meters_per_unit
+            if self._close(resolved, gravity):
+                return []
         norm = float(np.linalg.norm(gravity))
         direction = gravity / norm if norm else np.array([0.0, 0.0, -1.0])
         return [
             UsdEdit(scene_path, "physics:gravityDirection", Gf.Vec3f(*direction.tolist()), "vector3f"),
-            UsdEdit(scene_path, "physics:gravityMagnitude", norm),
+            UsdEdit(scene_path, "physics:gravityMagnitude", norm / meters_per_unit),
         ]
 
     @classmethod

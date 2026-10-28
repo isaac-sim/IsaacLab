@@ -114,6 +114,40 @@ def test_gains_of_a_joint_without_a_usd_drive_add_no_drive():
     assert not [edit for edit in edits if edit.path == "/Robot/Hinge" and edit.attribute.startswith("drive:")]
 
 
+@pytest.mark.parametrize(
+    "meters_per_unit,stated,live,written",
+    [
+        (1.0, None, (0.0, 0.0, -9.81), False),
+        (0.01, None, (0.0, 0.0, -9.81), False),
+        (1.0, ((0.0, 0.0, -1.0), 9.81), (0.0, 0.0, -9.81), False),
+        (1.0, None, (0.2, -0.1, -4.0), True),
+    ],
+    ids=[
+        "unset resolves to the live gravity",
+        "unset on a centimeter stage",
+        "stated equals the live gravity",
+        "live gravity differs",
+    ],
+)
+def test_gravity_is_written_only_where_the_scene_resolves_to_another(meters_per_unit, stated, live, written):
+    """An unset scene gravity is Earth gravity down the up axis, as importers read it, so it is not restated."""
+    from pxr import Gf
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, "Z")
+    UsdGeom.SetStageMetersPerUnit(stage, meters_per_unit)
+    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
+    if stated is not None:
+        physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*stated[0]))
+        physics_scene.CreateGravityMagnitudeAttr(stated[1])
+    scene = _scene()
+    scene.physics_scene_path = "/physicsScene"
+
+    edits = _Exporter(scene)._gravity_edits(stage, live)
+
+    assert bool(edits) == written
+
+
 def test_values_the_usd_leaves_to_the_engine_are_not_written():
     """Mass properties and collider offsets the USD does not state are derived by the importer as by the engine."""
     stage = Usd.Stage.CreateInMemory()
