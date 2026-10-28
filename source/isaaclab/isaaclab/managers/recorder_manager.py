@@ -55,11 +55,9 @@ class RecorderManagerBaseCfg:
     """Whether to export episodes in the close call."""
 
     buffer_initial_capacity: int = 64
-    """Initial samples per world and field. Must be positive.
+    """Initial samples per world and field. Must be positive; storage grows as needed.
 
-    Fields allocate on first use and double their capacity when necessary, retaining all samples.
-    Resets reuse storage. Set this to the expected episode length (including decimation callbacks)
-    to avoid growth during recording. Each field has independent write indices.
+    Set to the expected episode length, including decimation callbacks, to avoid reallocations.
     """
 
     dataset_compression: bool = True
@@ -84,7 +82,7 @@ class RecorderTerm(ManagerTermBase):
     User-defined callbacks.
     """
 
-    def record_pre_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | dict | None]:
+    def record_pre_reset(self, env_ids: Sequence[int] | slice | None) -> tuple[str | None, torch.Tensor | dict | None]:
         """Record data at the beginning of env.reset() before reset is effective.
 
         Args:
@@ -99,7 +97,7 @@ class RecorderTerm(ManagerTermBase):
         """
         return None, None
 
-    def record_post_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | dict | None]:
+    def record_post_reset(self, env_ids: Sequence[int] | slice | None) -> tuple[str | None, torch.Tensor | dict | None]:
         """Record data at the end of env.reset().
 
         Args:
@@ -123,14 +121,9 @@ class RecorderTerm(ManagerTermBase):
     def record_post_step(self) -> tuple[str | None, torch.Tensor | dict | None]:
         """Record the completed physical transition.
 
-        In RL environments, this runs after rewards and terminations, before automatic reset.
-        The environment does not compute observations for recorders: `env.obs_buf` still holds
-        the preceding policy input. Terms needing observations of the completed transition must
-        explicitly call `env.observation_manager.compute_group(name, update_history=False)`.
-        For current measurements, configure that group without history or delay. Noise and
-        modifiers still run, so a noisy group can affect subsequent policy noise draws.
-
-        In non-RL manager-based environments, the normal observation update precedes this callback.
+        In RL environments, this runs before automatic reset and observation updates;
+        ``env.obs_buf`` still holds the preceding policy input. See :ref:`recorder-capture`
+        for recording current observations. Non-RL environments update observations first.
 
         Returns:
             A tuple of key and value to be recorded.
@@ -230,25 +223,13 @@ class RecorderManager(ManagerBase):
 
     @property
     def exported_successful_episode_count(self) -> int:
-        """Number of successful episodes.
-
-        Returns:
-            The number of successful episodes.
-        """
-        if not hasattr(self, "_exported_counts"):
-            return 0
-        return int(self._exported_counts[1].item())
+        """Number of successful episodes."""
+        return int(self._exported_counts[1].item()) if self.active_terms else 0
 
     @property
     def exported_failed_episode_count(self) -> int:
-        """Number of failed episodes.
-
-        Returns:
-            The number of failed episodes.
-        """
-        if not hasattr(self, "_exported_counts"):
-            return 0
-        return int(self._exported_counts[0].item())
+        """Number of failed episodes."""
+        return int(self._exported_counts[0].item()) if self.active_terms else 0
 
     """
     Operations.
@@ -279,10 +260,8 @@ class RecorderManager(ManagerBase):
     def get_episode(self, env_id: int) -> EpisodeData:
         """Return an owned snapshot of a world's current episode.
 
-        Leaves are tensors with a leading sample dimension, matching the exported dataset.
-        Reading synchronizes write indices and copies the recorded samples. Later recording,
-        reset, or snapshot mutation cannot affect the other copy. Add live data through
-        :meth:`add_to_episodes`, and set success through :meth:`set_success_to_episodes`.
+        Tensor leaves have a leading sample dimension. Reading copies data and may synchronize
+        the device. For live writes, use :meth:`add_to_episodes` and :meth:`set_success_to_episodes`.
         """
         episode = EpisodeData()
         if not self.active_terms or not 0 <= env_id < self._env.num_envs:
@@ -300,7 +279,7 @@ class RecorderManager(ManagerBase):
         return episode
 
     def add_to_episodes(self, key: str, value: torch.Tensor | dict, env_ids: Sequence[int] | slice | None = None):
-        """Append a batch to preallocated storage, advancing selected worlds' write indices.
+        """Append a batch to the selected episodes.
 
         Args:
             key: Field path, with nested keys separated by '/'.
@@ -372,16 +351,14 @@ class RecorderManager(ManagerBase):
             return
 
         if env_ids is None:
-            env_ids = self._env_ids
-        elif isinstance(env_ids, slice):
-            env_ids = self._env_ids[env_ids]
+            env_ids = slice(None)
 
         for term in self._terms.values():
             key, value = term.record_pre_reset(env_ids)
             self.add_to_episodes(key, value, env_ids)
 
         # Set task success values for the relevant episodes
-        success_results = torch.zeros(len(env_ids), dtype=bool, device=self._env.device)
+        success_results = torch.zeros_like(self._success[env_ids], dtype=torch.bool)
         # Check success indicator from termination terms
         if hasattr(self._env, "termination_manager"):
             if "success" in self._env.termination_manager.active_terms:
@@ -401,8 +378,8 @@ class RecorderManager(ManagerBase):
         if len(self.active_terms) == 0:
             return
 
-        if isinstance(env_ids, slice):
-            env_ids = self._env_ids[env_ids]
+        if env_ids is None:
+            env_ids = slice(None)
 
         for term in self._terms.values():
             key, value = term.record_post_reset(env_ids)
