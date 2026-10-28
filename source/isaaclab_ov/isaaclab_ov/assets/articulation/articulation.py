@@ -2742,7 +2742,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.FIXED_TENDON_STIFFNESS,
             self._data._fixed_tendon_stiffness.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_stiffness_mask(
@@ -2834,7 +2834,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.FIXED_TENDON_DAMPING,
             self._data._fixed_tendon_damping.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_damping_mask(
@@ -2928,7 +2928,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.FIXED_TENDON_LIMIT_STIFFNESS,
             self._data._fixed_tendon_limit_stiffness.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_limit_stiffness_mask(
@@ -3147,7 +3147,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.FIXED_TENDON_REST_LENGTH,
             self._data._fixed_tendon_rest_length.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_rest_length_mask(
@@ -3286,7 +3286,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.FIXED_TENDON_OFFSET,
             self._data._fixed_tendon_offset.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_position_target_mask(
@@ -3500,7 +3500,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_STIFFNESS,
             self._data._spatial_tendon_stiffness.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_stiffness_mask(
@@ -3590,7 +3590,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_DAMPING,
             self._data._spatial_tendon_damping.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_damping_mask(
@@ -3688,7 +3688,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_LIMIT_STIFFNESS,
             self._data._spatial_tendon_limit_stiffness.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_limit_stiffness_mask(
@@ -3780,7 +3780,7 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_OFFSET,
             self._data._spatial_tendon_offset.data,
-            indices=self._get_env_ids(env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_offset_mask(

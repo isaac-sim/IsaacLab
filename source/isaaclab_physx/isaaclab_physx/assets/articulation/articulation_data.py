@@ -2150,8 +2150,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "root_state_w",
                 memory_kernels.concat,
-                self.root_link_pose_w,
-                self.root_com_vel_w,
+                self.root_link_pose_w.warp,
+                self.root_com_vel_w.warp,
                 self._root_state_w.data,
             )
             self._root_state_w.timestamp = self._sim_timestamp
@@ -2173,8 +2173,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "root_link_state_w",
                 memory_kernels.concat,
-                self.root_link_pose_w,
-                self.root_link_vel_w,
+                self.root_link_pose_w.warp,
+                self.root_link_vel_w.warp,
                 self._root_link_state_w.data,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
@@ -2196,8 +2196,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "root_com_state_w",
                 memory_kernels.concat,
-                self.root_com_pose_w,
-                self.root_com_vel_w,
+                self.root_com_pose_w.warp,
+                self.root_com_vel_w.warp,
                 self._root_com_state_w.data,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
@@ -2224,8 +2224,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "body_state_w",
                 memory_kernels.concat,
-                self.body_link_pose_w,
-                self.body_com_vel_w,
+                self.body_link_pose_w.warp,
+                self.body_com_vel_w.warp,
                 self._body_state_w.data,
             )
             self._body_state_w.timestamp = self._sim_timestamp
@@ -2251,8 +2251,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "body_link_state_w",
                 memory_kernels.concat,
-                self.body_link_pose_w,
-                self.body_link_vel_w,
+                self.body_link_pose_w.warp,
+                self.body_link_vel_w.warp,
                 self._body_link_state_w.data,
             )
             self._body_link_state_w.timestamp = self._sim_timestamp
@@ -2280,8 +2280,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "body_com_state_w",
                 memory_kernels.concat,
-                self.body_com_pose_w,
-                self.body_com_vel_w,
+                self.body_com_pose_w.warp,
+                self.body_com_vel_w.warp,
                 self._body_com_state_w.data,
             )
             self._body_com_state_w.timestamp = self._sim_timestamp

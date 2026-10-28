@@ -2530,8 +2530,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "root_state_w",
                 memory_kernels.concat,
-                self.root_link_pose_w,
-                self.root_com_vel_w,
+                self.root_link_pose_w.warp,
+                self.root_com_vel_w.warp,
                 self._root_state_w_buf.data,
             )
             self._root_state_w_buf.timestamp = self._sim_timestamp
@@ -2555,8 +2555,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "root_link_state_w",
                 memory_kernels.concat,
-                self.root_link_pose_w,
-                self.root_link_vel_w,
+                self.root_link_pose_w.warp,
+                self.root_link_vel_w.warp,
                 self._root_link_state_w_buf.data,
             )
             self._root_link_state_w_buf.timestamp = self._sim_timestamp
@@ -2580,8 +2580,8 @@ class ArticulationData(BaseArticulationData):
             self._read_launch_cache.launch(
                 "root_com_state_w",
                 memory_kernels.concat,
-                self.root_com_pose_w,
-                self.root_com_vel_w,
+                self.root_com_pose_w.warp,
+                self.root_com_vel_w.warp,
                 self._root_com_state_w_buf.data,
             )
             self._root_com_state_w_buf.timestamp = self._sim_timestamp
