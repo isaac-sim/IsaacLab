@@ -1,5 +1,5 @@
 Contribution Guidelines
-================
+=======================
 
 .. Maintenance notes
 
