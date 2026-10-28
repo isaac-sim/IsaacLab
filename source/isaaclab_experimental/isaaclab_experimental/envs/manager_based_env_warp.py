@@ -38,6 +38,7 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
 from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp.utils import resolve_ids
 
 from isaaclab_experimental.managers import ActionManager, EventManager, ObservationManager
 from isaaclab_experimental.utils.warp import resolve_1d_mask
@@ -421,11 +422,8 @@ class ManagerBasedEnvWarp:
         Returns:
             A tuple containing the observations and extras.
         """
-        if env_mask is not None and self.recorder_manager.active_terms:
-            # the stable recorder manager hooks take indices; a mask takes precedence over the caller's ids
-            env_mask = self.resolve_env_mask(env_mask=env_mask)
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         env_mask = self.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_ids = self._reset_env_ids(env_mask)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -438,7 +436,7 @@ class ManagerBasedEnvWarp:
             self.cfg.seed = used_seed
 
         # reset state of scene
-        self._reset_mask(env_mask)
+        self._reset_mask(env_mask, env_ids)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -492,7 +490,7 @@ class ManagerBasedEnvWarp:
         if seed is not None:
             configure_seed(seed)
 
-        self._reset_mask(self.resolve_env_mask(env_ids=env_ids))
+        self._reset_mask(self.resolve_env_mask(env_ids=env_ids), env_ids)
 
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
@@ -602,20 +600,36 @@ class ManagerBasedEnvWarp:
     Helper functions.
     """
 
-    def _reset_mask(self, env_mask: wp.array):
+    def _reset_env_ids(self, env_mask: wp.array) -> torch.Tensor | None:
+        """Indices of the environments in a reset mask, for the stable managers that reset by index.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``.
+
+        Returns:
+            The indices, or None if none of those managers has active terms, so the reset does not wait for the
+            device.
+        """
+        if not self._resets_by_index():
+            return None
+        return resolve_ids(mask=env_mask, all_ids=None, device=self.device)
+
+    def _resets_by_index(self) -> bool:
+        """Whether a stable manager that resets by index has active terms."""
+        return bool(self.recorder_manager.active_terms)
+
+    def _reset_mask(self, env_mask: wp.array, env_ids: Sequence[int] | torch.Tensor | None):
         """Reset the environments selected by a boolean mask.
 
         Args:
             env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``.
+            env_ids: Indices of the same environments for the stable managers that reset by index, or None if
+                none of them has active terms (see :meth:`_reset_env_ids`).
         """
         # recorded reset stages read the environment-owned mask
         if env_mask is not self.reset_mask_wp:
             wp.copy(self.reset_mask_wp, env_mask)
         env_mask = self.reset_mask_wp
-        # the stable recorder manager resets by index
-        env_ids = (
-            wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1) if self.recorder_manager.active_terms else None
-        )
 
         # reset the internal buffers of the scene elements
         self.scene.reset(env_mask=env_mask)

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -257,19 +258,14 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # host synchronization per step decides whether it runs
         if self.reset_buf.any().item():
             reset_mask = self.termination_manager.dones_wp
-            # the stable recorder manager hooks take indices
-            reset_env_ids = (
-                wp.to_torch(reset_mask).nonzero(as_tuple=False).squeeze(-1)
-                if self.recorder_manager.active_terms
-                else None
-            )
+            reset_env_ids = self._reset_env_ids(reset_mask)
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             # the reset overwrites the persistent observation buffers, so keep a copy
             if self.cfg.compute_final_obs:
                 self.extras["final_obs"] = self.observation_manager.compute()
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
-            self._reset_mask(reset_mask)
+            self._reset_mask(reset_mask, reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
@@ -381,24 +377,25 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_mask(self, env_mask: wp.array):
+    def _resets_by_index(self) -> bool:
+        # the stable command and curriculum managers reset by index too
+        return (
+            bool(self.command_manager.active_terms or self.curriculum_manager.active_terms)
+            or super()._resets_by_index()
+        )
+
+    def _reset_mask(self, env_mask: wp.array, env_ids: Sequence[int] | torch.Tensor | None):
         """Reset the environments selected by a boolean mask.
 
         Args:
             env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``.
+            env_ids: Indices of the same environments for the stable managers that reset by index, or None if
+                none of them has active terms (see :meth:`_reset_env_ids`).
         """
         # recorded reset stages read the environment-owned mask
         if env_mask is not self.reset_mask_wp:
             wp.copy(self.reset_mask_wp, env_mask)
         env_mask = self.reset_mask_wp
-        # the stable command, curriculum and recorder managers reset by index
-        env_ids = (
-            wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            if self.command_manager.active_terms
-            or self.curriculum_manager.active_terms
-            or self.recorder_manager.active_terms
-            else None
-        )
 
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)
