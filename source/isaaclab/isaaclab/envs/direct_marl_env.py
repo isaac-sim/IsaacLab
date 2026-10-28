@@ -408,8 +408,8 @@ class DirectMARLEnv(gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and
             extras (keyed by the agent ID). Shape of individual tensors is (num_envs, ...).
         """
-        for agent_extras in self.extras.values():
-            agent_extras.pop("final_obs", None)
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs", None)
         actions = {agent: action.to(self.device) for agent, action in actions.items()}
 
         # add action noise
