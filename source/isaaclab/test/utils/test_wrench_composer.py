@@ -529,6 +529,19 @@ def test_generated_writers_replay_changed_inputs_under_cuda_capture(device):
             torque.warp.numpy(), [[[0, 0, 0], [0, 0, 6]], [[0, 0, -8], [0, 0, 0]], [[0, 0, 0], [0, 0, 0]]]
         )
 
+        # Selection values stay on the device: the same graph must visit different rows/columns.
+        env_ids.fill_(2)
+        body_ids.fill_(0)
+        env_mask.assign(np.array([True, False, False]))
+        body_mask.assign(np.array([False, True]))
+        wp.capture_launch(capture.graph)
+        np.testing.assert_allclose(
+            force.warp.numpy(), [[[0, 0, 0], [8, 0, 0]], [[8, 0, 0], [0, 0, 0]], [[0, 6, 0], [0, 0, 0]]]
+        )
+        np.testing.assert_allclose(
+            torque.warp.numpy(), [[[0, 0, 0], [0, 0, -8]], [[0, 0, -8], [0, 0, 0]], [[0, 0, 6], [0, 0, 0]]]
+        )
+
 
 def test_wrench_ownership_and_exclusive_writes(source_checkout_root):
     """Wrench kernels own composition and use ordinary writes for exclusive destinations."""
@@ -546,6 +559,13 @@ def test_wrench_ownership_and_exclusive_writes(source_checkout_root):
     assert not hasattr(wrench, "IndexKernelDispatcher")
     assert not hasattr(wrench, "set_wrench_index")
     assert not hasattr(wrench, "add_wrench_index")
+    assert not hasattr(wrench, "reset_wrench_composer_mask"), "Mask/index reset must share one factory"
+    reset = wrench.make_reset_wrench(wp.bool)
+    reset_hash = reset.module.hash_module()
+    indexed_reset = wrench.make_reset_wrench(wp.int64)
+    assert wrench.make_reset_wrench(wp.bool) is reset
+    assert reset.module is not indexed_reset.module
+    assert reset.module.hash_module() == reset_hash
 
     core = source_checkout_root / "source/isaaclab/isaaclab"
     owner = core / "utils/warp/wrench.py"
