@@ -587,6 +587,8 @@ When replacing a kernel launch with a host operation, validate the real callers 
 When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
+When a thread exclusively owns an output cell, use explicit read-add-write assignments.
+Warp array ``+=`` may lower to atomic addition; reserve atomics for concurrent reduction.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
@@ -681,19 +683,6 @@ Python factory caching reuses kernel objects; Warp separately owns compilation a
 Warm up the actual execution path before graph capture, including the needed selector dtypes.
 Later specializations must not invalidate kernels already compiled or captured. Check this alongside
 dependency direction, aliasing, selector widths, and replay with changed inputs.
-
-Shared Warp wrench composition
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-``isaaclab.utils.warp.wrench`` owns force, torque, and moment-arm composition. Use cached factories
-that define and return concrete kernels in isolated modules. Request index/mask and set/add variants
-where used, and keep destination-buffer selection in ``WrenchComposer``. Warm up the actual execution
-path before graph capture. Name factories ``make_<operation>`` and concrete launchable kernels with
-``_kernel`` where useful. Keep common math independent of domain-specific wrench policy.
-
-When a thread exclusively owns an output cell, use explicit read-add-write assignments.
-Warp array ``+=`` can lower to atomic addition; reserve atomics for concurrent reduction.
-Validate frame conventions, partial updates, and capture replay as well as ownership boundaries.
 
 Shared sensor capabilities and storage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
