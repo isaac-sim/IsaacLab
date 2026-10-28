@@ -18,7 +18,7 @@ from pxr import UsdGeom
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_ids
+from isaaclab.utils.warp.memory import resolve_ids
 
 from .cable_object_data import CableObjectData
 from .kernels import (
