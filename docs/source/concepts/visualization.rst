@@ -811,8 +811,9 @@ drift apart:
         --num_envs 4 --checkpoint latest --viz newton --policy_ghosts
 
 You can also start from a normal ``play`` run: open **Policy Ghosts** in the viewer's left panel and choose
-**Enable Policy Ghosts**. When the run has at least ``--policy_ghost_envs`` (default 4) times
-``--policy_ghost_slots`` (default 3) environments, the ghosts take the first environments of the running simulation:
+**Enable Policy Ghosts**. The section has **Envs per slot** (``--policy_ghost_envs``, default 4) and **Slots**
+(``--policy_ghost_slots``, default 3) fields. When their product does not exceed the environments the run simulates,
+the ghosts take the first environments of the running simulation:
 the other environments are hidden and stop acting, and **Disable Policy Ghosts** resets every environment and returns to
 the plain view. A run with fewer environments shows **Enable Policy Ghosts (restarts)**, which relaunches with
 ``--policy_ghosts`` added, because the simulation fixes its environment count at startup. This mode does not remove

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab_rl.entrypoints.policy_ghosts import PolicyGhostMode, PolicyGhostRestart
+from isaaclab_rl.entrypoints.policy_ghosts import PolicyGhostMode, PolicyGhostRestart, relaunch_argv
 
 pytestmark = pytest.mark.unit
 
@@ -101,3 +101,25 @@ def test_a_failed_switch_keeps_the_plain_playback_and_reports_why() -> None:
 
     assert not mode.active and "no checkpoint" in mode.message and log == ["plain"]
     assert not visualizer.events
+
+
+def test_the_layout_can_be_chosen_within_the_slot_limits() -> None:
+    mode, *_ = _mode(20)
+    mode.set_layout(0, 99)
+    assert (mode.slice_size, mode.num_slots) == (1, 8)
+    mode.set_layout(5, 1)
+    assert (mode.slice_size, mode.num_slots) == (5, 2) and mode.in_place and mode.pool_size == 20
+    mode.set_layout(11, 2)
+    assert not mode.in_place  # 22 environments do not fit in 20.
+
+
+def test_a_restart_carries_the_chosen_layout_into_the_command_line() -> None:
+    mode, *_ = _mode(4)
+    mode.set_layout(2, 3)
+    mode.request_restart()
+    restart = mode.restart
+    assert (restart.requested, restart.enable, restart.envs, restart.slots) == (True, True, 2, 3)
+    argv = ["python", "play", "--num_envs", "4", "--policy_ghost_slots=8", "--task", "T"]
+    assert relaunch_argv(argv, True, 2, 3) == [
+        "python", "play", "--num_envs", "2", "--policy_ghost_slots=3", "--task", "T", "--policy_ghosts"
+    ]  # fmt: skip

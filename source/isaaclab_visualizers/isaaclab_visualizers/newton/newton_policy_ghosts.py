@@ -278,8 +278,8 @@ def draw_policy_ghost_toggle(imgui: Any, mode: Any) -> None:
 
     Args:
         imgui: The ``imgui`` module.
-        mode: The playback's Policy Ghost mode. It provides ``in_place``, ``slice_size``, ``num_slots``,
-            ``message``, ``request_enable`` and a ``restart`` request.
+        mode: The playback's Policy Ghost mode. It provides ``pool_size``, ``slice_size``, ``num_slots``,
+            ``set_layout``, ``in_place``, ``message``, ``request_enable`` and ``request_restart``.
     """
     imgui.set_next_item_open(False, imgui.Cond_.appearing)
     ghosts_open = imgui.collapsing_header("Policy Ghosts")
@@ -288,21 +288,38 @@ def draw_policy_ghost_toggle(imgui: Any, mode: Any) -> None:
     if not ghosts_open:
         return
     imgui.separator()
-    if mode.in_place:
-        imgui.text_wrapped(
-            f"Compare checkpoints of this task: {mode.slice_size} environments in each of {mode.num_slots} slots."
-            " The other environments are hidden and stop acting until you switch Policy Ghosts off."
-        )
+    pool = mode.pool_size
+    limit = (
+        f"Slots x envs per slot must not exceed the {pool} environments this run simulates, because the checkpoints"
+        " take over the first environments of the running simulation."
+    )
+    changed_envs, envs = imgui.input_int("Envs per slot", mode.slice_size)
+    if imgui.is_item_hovered():
+        imgui.set_tooltip(f"Environments shown for each checkpoint. {limit}")
+    changed_slots, slots = imgui.input_int("Slots", mode.num_slots)
+    if imgui.is_item_hovered():
+        imgui.set_tooltip(f"Checkpoints compared, including the reference. {limit}")
+    if changed_envs or changed_slots:
+        mode.set_layout(envs, slots)
+    needed = mode.slice_size * mode.num_slots
+    fits = mode.in_place
+    color = imgui.ImVec4(0.8, 0.8, 0.8, 1.0) if fits else imgui.ImVec4(1.0, 0.35, 0.35, 1.0)
+    imgui.push_style_color(imgui.Col_.text, color)
+    imgui.text_wrapped(
+        f"Uses {needed} of this run's {pool} environments ({mode.num_slots} slots x {mode.slice_size} envs; at most"
+        f" {pool}). The other environments are hidden and stop acting until you switch Policy Ghosts off."
+    )
+    imgui.pop_style_color()
+    if fits:
         if imgui.button("Enable Policy Ghosts"):
             mode.request_enable()
         if imgui.is_item_hovered():
-            imgui.set_tooltip("Restarts the environments with the reference checkpoint in the first slot")
+            imgui.set_tooltip("Resets the environments with the reference checkpoint in the first slot")
     else:
-        imgui.text_wrapped(
-            f"Compare checkpoints of this task: {mode.slice_size} environments in each of {mode.num_slots} slots."
-            " This run has too few environments, so enabling restarts the viewer with enough of them."
-        )
+        imgui.text_wrapped("This run has too few environments, so enabling restarts the viewer with enough of them.")
         if imgui.button("Enable Policy Ghosts (restarts)"):
-            mode.restart.request(True)
+            mode.request_restart()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(f"Restarts with --num_envs {mode.slice_size} --policy_ghost_slots {mode.num_slots}")
     if mode.message:
         imgui.text_wrapped(mode.message)

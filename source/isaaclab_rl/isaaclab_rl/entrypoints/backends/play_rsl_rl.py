@@ -268,7 +268,7 @@ def run(argv: list[str]) -> None:
     restart = PolicyGhostRestart()
     _run(argv, restart)
     if restart.requested:
-        relaunch(restart.enable)
+        relaunch(restart.enable, restart.envs, restart.slots)
 
 
 def _run(argv: list[str], restart: PolicyGhostRestart) -> None:

@@ -60,29 +60,64 @@ class PolicyGhostRestart:
         """Whether the HUD asked for a restart."""
         self.enable = False
         """Whether the restarted process should run with Policy Ghosts."""
+        self.envs: int | None = None
+        """Environments per slot the restarted process should use, or None to keep ``--num_envs``."""
+        self.slots: int | None = None
+        """Slots the restarted process should use, or None to keep ``--policy_ghost_slots``."""
 
-    def request(self, enable: bool) -> None:
-        """Ask for playback to restart with Policy Ghosts enabled or disabled."""
+    def request(self, enable: bool, envs: int | None = None, slots: int | None = None) -> None:
+        """Ask for playback to restart with Policy Ghosts enabled or disabled.
+
+        Args:
+            enable: Whether the restarted process should run with Policy Ghosts.
+            envs: Environments per slot for the restarted process, when enabling.
+            slots: Slots, including the reference, for the restarted process, when enabling.
+        """
         self.requested = True
         self.enable = enable
+        self.envs, self.slots = envs, slots
 
 
 _POLICY_GHOST_VALUE_FLAGS = ("--policy_ghost_slots", "--policy_ghost_envs", "--policy_ghost_root")
 """Policy Ghost options that take a value and are dropped when the feature is disabled."""
 
 
-def relaunch_argv(argv: list[str], enable: bool) -> list[str]:
+def _with_flag(argv: list[str], flag: str, value: int) -> list[str]:
+    """Return ``argv`` with ``flag`` set to ``value``, replacing either ``flag value`` or ``flag=value``."""
+    result, skip, found = [], False, False
+    for arg in argv:
+        if skip:
+            skip = False
+        elif arg == flag:
+            result += [flag, str(value)]
+            skip, found = True, True
+        elif arg.startswith(f"{flag}="):
+            result.append(f"{flag}={value}")
+            found = True
+        else:
+            result.append(arg)
+    return result if found else [*result, flag, str(value)]
+
+
+def relaunch_argv(argv: list[str], enable: bool, envs: int | None = None, slots: int | None = None) -> list[str]:
     """Return a command line that runs the same playback with Policy Ghosts switched on or off.
 
     Args:
         argv: Original command line, including the executable at index 0.
         enable: Whether the new command line should enable Policy Ghosts.
+        envs: Environments per slot to run with when enabling, which sets ``--num_envs``.
+        slots: Slots to run with when enabling, which sets ``--policy_ghost_slots``.
 
     Returns:
         The command line with ``--policy_ghosts`` added or, with all Policy Ghost options, removed.
     """
     if enable:
-        return argv if "--policy_ghosts" in argv else [*argv, "--policy_ghosts"]
+        result = argv if "--policy_ghosts" in argv else [*argv, "--policy_ghosts"]
+        if envs is not None:
+            result = _with_flag(result, "--num_envs", envs)
+        if slots is not None:
+            result = _with_flag(result, "--policy_ghost_slots", slots)
+        return result
     result, skip = [], False
     for arg in argv:
         if skip:
@@ -108,9 +143,9 @@ def _launch_argv() -> list[str]:
     return [sys.executable, "-c", "from isaaclab.cli import cli; cli()", *current[1:]]
 
 
-def relaunch(enable: bool) -> None:
+def relaunch(enable: bool, envs: int | None = None, slots: int | None = None) -> None:
     """Replace the running process with the same command line and Policy Ghosts switched on or off."""
-    argv = relaunch_argv(_launch_argv(), enable)
+    argv = relaunch_argv(_launch_argv(), enable, envs, slots)
     sys.stdout.flush()
     sys.stderr.flush()
     os.execv(sys.executable, [sys.executable, *argv[1:]])
@@ -184,6 +219,25 @@ class PolicyGhostMode:
         self.message = ""
         """The reason the latest switch failed, or an empty string."""
         self._pending: bool | None = None
+
+    @property
+    def pool_size(self) -> int:
+        """Environments the running simulation has, which bound ``slice_size * num_slots``."""
+        return self._env.unwrapped.num_envs
+
+    def set_layout(self, slice_size: int, num_slots: int) -> None:
+        """Choose the environments per slot and the slots to use the next time Policy Ghosts are switched on.
+
+        Args:
+            slice_size: Environments per slot, at least 1.
+            num_slots: Slots including the reference, from 2 to :data:`MAX_POLICY_GHOST_SLOTS`.
+        """
+        self.slice_size = max(1, int(slice_size))
+        self.num_slots = max(2, min(int(num_slots), MAX_POLICY_GHOST_SLOTS))
+
+    def request_restart(self) -> None:
+        """Ask for the playback to restart with Policy Ghosts and the chosen environments per slot and slots."""
+        self.restart.request(True, self.slice_size, self.num_slots)
 
     @property
     def in_place(self) -> bool:

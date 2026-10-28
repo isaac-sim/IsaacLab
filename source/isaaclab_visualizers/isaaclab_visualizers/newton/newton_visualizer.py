@@ -302,12 +302,13 @@ class NewtonViewerGL(ViewerGL):
         sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, rendering pause, and reset controls, and any ``"side"`` UI callbacks.
-        2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
-        3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
+        2. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`; it decides which
+           environments the window shows, so it sits next to the playback controls.
+        3. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
+        4. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
-        4. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
-        5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        6. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`.
+        5. **Recording** (closed) — video, ``.viser`` animation, policy checkpoint, and their output settings.
+        6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
         7. **Articulation Inspector** (closed) — Newton's articulation selection panel.
         8. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
 
@@ -361,6 +362,21 @@ class NewtonViewerGL(ViewerGL):
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
 
+            # --- Policy Ghosts ----------------------------------------------
+            ghosts_offered = (
+                viewer._policy_ghost_panel is not None
+                or viewer._policy_ghost_toggle is not None
+                or viewer._policy_ghost_restart is not None
+            )
+            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
+                viewer._draw_policy_ghosts_unsupported(imgui)
+            elif viewer._policy_ghost_panel is not None:
+                viewer._policy_ghost_panel.draw(imgui)
+            elif viewer._policy_ghost_toggle is not None:
+                draw_policy_ghost_toggle(imgui, viewer._policy_ghost_toggle)
+            elif viewer._policy_ghost_restart is not None:
+                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
+
             # --- Camera View ------------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
             view_open = imgui.collapsing_header("Camera View")
@@ -381,21 +397,6 @@ class NewtonViewerGL(ViewerGL):
             live_plots_cb = viewer._live_plots_callback
             if live_plots_cb is not None:
                 live_plots_cb(imgui)
-
-            # --- Policy Ghosts ----------------------------------------------
-            ghosts_offered = (
-                viewer._policy_ghost_panel is not None
-                or viewer._policy_ghost_toggle is not None
-                or viewer._policy_ghost_restart is not None
-            )
-            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
-                viewer._draw_policy_ghosts_unsupported(imgui)
-            elif viewer._policy_ghost_panel is not None:
-                viewer._policy_ghost_panel.draw(imgui)
-            elif viewer._policy_ghost_toggle is not None:
-                draw_policy_ghost_toggle(imgui, viewer._policy_ghost_toggle)
-            elif viewer._policy_ghost_restart is not None:
-                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
 
             # --- Articulation Inspector (Newton's Selection API) ------------
             with _header_tooltips(
