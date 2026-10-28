@@ -228,56 +228,39 @@ Curriculum Manager
     :members:
     :exclude-members: __init__
 
+.. _recorder-capture:
+
 Recorder Manager
 ----------------
 
-Recorder terms select which tensors to capture at the existing pre/post step and reset callbacks.
-For an online consumer, a term can keep its latest batch in preallocated tensors and return
-``(None, None)`` from its callbacks. The training root obtains that term with
-``env.recorder_manager.get_term(name)`` and copies the batch into its own replay storage.
-The term owns the lifetime of its published tensors; consumers must copy them before the next capture.
+Tasks configure recorder terms to capture the state, controls and other fields their consumers need.
+Terms run at pre/post step and reset callbacks; reset callbacks receive slices or indices directly.
+Consumers own subsequent processing, replay and learning.
 
-The task's recorder-term configuration owns the captured schema: select the state, applied controls,
-context and terminal flags that the consumer needs. Core capture/storage remains independent of
-downstream applications. Consumers own data processing, replay and learning; recorder callbacks only
-capture and publish the configured data.
+Returning a field path and a batched tensor (or nested dictionary of tensors) retains samples.
+For online use without retention, publish the batch on the term and return ``(None, None)``.
+Consumers access it through ``env.recorder_manager.get_term(name)`` and copy data before the next capture.
+``EXPORT_NONE`` disables file export only; disabling the term removes capture itself.
 
-An export mode of ``EXPORT_NONE`` disables file export, not sample retention. To avoid episode buffers,
-a term must return ``(None, None)``. A task can offer its own ``record_to_episodes`` option that changes
-this return value while keeping capture identical. Disabling the term in the task configuration removes
-capture itself. These are three separate choices: capture, retain and export.
+Fields may have different sample rates. ``buffer_initial_capacity`` sets the initial samples per world
+and field; choose it with payload size and episode length in mind. Storage grows without dropping
+samples and is reused across resets.
 
-In an RL environment, post-step callbacks capture the completed physical transition after rewards
-and terminations, before automatic reset. Recorder dispatch does not compute observations.
-Physical-state terms read the scene directly; pre-step observation terms read the existing
-``env.obs_buf`` used by the policy.
+**Observation migration:** RL post-step callbacks run after rewards and terminations, before reset
+and observation updates. ``env.obs_buf`` still contains the preceding policy input. Read physical
+state from the scene or call ``env.observation_manager.compute_group("recording", update_history=False)``
+for current observations. Use a separate noiseless group without history or delay to avoid stale
+measurements and additional policy noise draws. History is not advanced, but noise and modifiers still
+run. Non-RL environments update their normal observations before post-step capture.
 
-**Migration:** Custom post-step terms must no longer assume that ``env.obs_buf`` has been refreshed;
-it still contains the preceding policy input. To capture observations of the completed transition,
-call ``env.observation_manager.compute_group("recording", update_history=False)`` explicitly
-inside the term. Configure that observation group without history or delay when current measurements
-are needed. This does not advance observation history, but noise and modifiers still run:
-use a separate noiseless group to avoid changing subsequent policy noise draws. No extra
-observation computation occurs just because a recorder is enabled. Non-RL manager-based environments
-already update their normal observations before post-step capture.
+**Storage migration:** ``get_episode(env_id)`` returns an owned tensor snapshot with a leading sample
+dimension; reading copies data and may synchronize the device. Modify live recording through
+``add_to_episodes`` and ``set_success_to_episodes``, not the snapshot. ``EpisodeData.add()`` and
+``pre_export()`` are removed: collect through the manager, or assign completed tensors to
+``episode.data``. HDF5 loading and playback keep the same tensor format.
 
-Returning a field path and a batched tensor (or nested dictionary of tensors) retains samples in
-the manager. Each field has a time-major allocation and independent per-world insertion indices,
-so reset and per-step fields can have different sample rates. ``buffer_initial_capacity`` controls
-the first allocation per field: choose it with the payload size and expected episode length in mind,
-especially for images. Storage grows without dropping samples and is reused across resets.
-
-``get_episode(env_id)`` returns an owned snapshot whose leaves are tensors with a leading sample
-dimension. Reading a snapshot can synchronize device indices and copy data. Changes to that snapshot
-do not change live recording; use ``add_to_episodes`` and ``set_success_to_episodes`` for live writes.
-File export materializes these snapshots; the hot capture path does not construct per-world episodes.
-
-``EpisodeData`` now holds tensor snapshots and playback cursors. The former ``add()`` and
-``pre_export()`` methods are removed: collect through ``RecorderManager.add_to_episodes()``,
-or assign nested tensors with leading sample dimensions to ``episode.data`` when constructing a
-completed episode directly. HDF5 loading and playback retain the same tensor format.
-The unused ``RecorderTerm.close(file_path)`` hook is also removed. Dataset handlers own file
-finalization; applications explicitly close any additional resources they own.
+The unused ``RecorderTerm.close(file_path)`` hook is removed. Dataset handlers finalize files;
+applications explicitly close any additional resources they own.
 
 .. autoclass:: RecorderManager
     :members:
