@@ -13,13 +13,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers
 from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
 from newton.geometry import ParticleSurface
 
 import isaaclab.sim as sim_utils
 
-from .physics import CoffeeMPMSolver
+from .physics import SolverCoffeeMPM
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -164,7 +164,7 @@ class CoffeeRendering:
         if not math.isfinite(diffusion_rate) or diffusion_rate < 0:
             raise ValueError("diffusion_rate must be finite and nonnegative.")
         self._backend_manager = env.sim.backend_manager
-        self._model = self._backend_manager.get_model()
+        self._model = self._backend_manager.backend.model
         self._env = env
         self._visualizers = [
             visualizer
@@ -180,11 +180,11 @@ class CoffeeRendering:
             )
         solvers = [
             solver
-            for solver in NewtonMPMManager._implicit_mpm_solvers(self._backend_manager)
-            if isinstance(solver, CoffeeMPMSolver)
+            for solver in implicit_mpm_solvers(self._backend_manager.backend.solver)
+            if isinstance(solver, SolverCoffeeMPM)
         ]
         if len(solvers) != 1 or solvers[0].grains is None:
-            raise ValueError("CoffeeRendering requires one CoffeeMPMSolver with grains_per_particle > 0.")
+            raise ValueError("CoffeeRendering requires one SolverCoffeeMPM with grains_per_particle > 0.")
         if not self._visualizers:
             raise ValueError("CoffeeRendering requires a coffee GL, RTX or Kit visualizer.")
         self._solver = solvers[0]
@@ -271,7 +271,7 @@ class CoffeeRendering:
         dt = 0.0 if self._appearance_time is None else max(now - self._appearance_time, 0.0)
         self._appearance_time = now
         self._surface_cache = None
-        state = self._backend_manager.get_state_0()
+        state = self._backend_manager.backend.state_0
         if self._water is not None:
             wp.copy(self._liquid_points, wp.indexedarray(state.particle_q, self._liquid_ids))
             # The coupled MPM view owns the converted particles' actual radii.

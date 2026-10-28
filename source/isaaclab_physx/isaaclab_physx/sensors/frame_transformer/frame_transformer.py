@@ -15,6 +15,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 from isaaclab import cloner
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
@@ -130,6 +131,8 @@ class FrameTransformer(BaseFrameTransformer):
 
     def _initialize_impl(self):
         super()._initialize_impl()
+        plan = self._sim.get_clone_plan()
+        env_template = plan.env_template if plan is not None else DEFAULT_ENV_TEMPLATE
 
         # resolve source frame offset
         source_frame_offset_pos = torch.tensor(self.cfg.source_frame_offset.pos, device=self.device)
@@ -189,7 +192,7 @@ class FrameTransformer(BaseFrameTransformer):
                 )
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
-                body_name = self._get_relative_body_path(matching_prim_path)
+                body_name = self._get_relative_body_path(matching_prim_path, env_template)
                 # Use leaf name of prim path if frame name isn't specified by user
                 frame_name = frame if frame is not None else matching_prim_path.rsplit("/", 1)[-1]
 
@@ -246,16 +249,15 @@ class FrameTransformer(BaseFrameTransformer):
         # by frame name correctly
         all_prim_paths = self._frame_physx_view.prim_paths
 
-        plan = self._sim.get_clone_plan()
         order = []
         for index, prim_path in enumerate(all_prim_paths):
-            match = cloner.path.match(prim_path, plan.env_template) if plan is not None else None
+            match = cloner.path.match(prim_path, env_template)
             order.append((int(match.instance), match.suffix, index) if match else (-1, prim_path, index))
         self._per_env_indices = [index for _, _, index in sorted(order)]
         sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices[: len(tracked_body_names)]]
 
         # -- target frames: use relative prim path for unique identification
-        self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
+        self._target_frame_body_names = [self._get_relative_body_path(path, env_template) for path in sorted_prim_paths]
 
         # -- source frame: retain the concrete body resolved from the configured expression
         self._source_frame_body_name = tracked_body_names[0]
@@ -546,8 +548,8 @@ class FrameTransformer(BaseFrameTransformer):
 
         return positions, orientations, lengths
 
-    def _get_relative_body_path(self, prim_path: str) -> str:
+    @staticmethod
+    def _get_relative_body_path(prim_path: str, env_template: str) -> str:
         """Use the same body key for declared expressions and concrete native copies."""
-        plan = self._sim.get_clone_plan()
-        match = cloner.path.match(prim_path, plan.env_template) if plan is not None else None
-        return plan.env_template.format("[^/]+") + match.suffix if match is not None else prim_path
+        match = cloner.path.match(prim_path, env_template)
+        return env_template.format("[^/]+") + match.suffix if match is not None else prim_path

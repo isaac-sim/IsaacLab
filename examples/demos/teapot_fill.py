@@ -224,7 +224,7 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
     from newton.geometry import ParticleSurface
 
-    model = sim.backend_manager.get_model()
+    model = sim.backend_manager.backend.model
     surface = ParticleSurface(
         voxel_size=SURFACE_VOXEL_SIZE,
         max_grid_cells=SURFACE_MAX_GRID_CELLS,

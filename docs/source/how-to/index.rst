@@ -256,6 +256,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Training MicroDuck </source/how-to/train_microduck>`
+
+         Train flat or rough walking and scale its recipe for distributed training.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Configuring an RL agent </source/how-to/configuring_rl_training>`
 
          Customize agent settings and training hyperparameters.

@@ -16,13 +16,13 @@ args = SimpleNamespace(no_shape_checks=False)
 
 
 def _load_runtime_symbols() -> None:
-    global ArticulationCfg, MockOvPhysxBindingSet, OvPhysxManager, RigidObjectCfg, RigidObjectCollectionCfg
+    global ArticulationCfg, MockOvPhysxBindingSet, OvPhysxCfg, OvPhysxManager, RigidObjectCfg, RigidObjectCollectionCfg
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 
-    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
     from isaaclab_ov.test.fixtures import MockOvPhysxBindingSet
 
 
@@ -74,7 +74,7 @@ def create_test_articulation(
     object.__setattr__(articulation, "_fixed_tendon_names", [])
     object.__setattr__(articulation, "_spatial_tendon_names", [])
 
-    backend_manager = OvPhysxManager()
+    backend_manager = OvPhysxManager(OvPhysxCfg())
     object.__setattr__(articulation, "_backend_manager", backend_manager)
     data = ArticulationData(mock_view, device, backend_manager=backend_manager)
     data._apply_ordering_maps_after_resolve()
@@ -128,7 +128,7 @@ def create_test_rigid_object(
     object.__setattr__(rigid_object, "_num_bodies", 1)
     object.__setattr__(rigid_object, "_body_names", ["base_link"])
 
-    backend_manager = OvPhysxManager()
+    backend_manager = OvPhysxManager(OvPhysxCfg())
     object.__setattr__(rigid_object, "_backend_manager", backend_manager)
     data = RigidObjectData(mock_view, device, check_shapes=not args.no_shape_checks, backend_manager=backend_manager)
     object.__setattr__(rigid_object, "_data", data)
@@ -173,7 +173,7 @@ def create_test_collection(
     object.__setattr__(collection, "_body_names_list", object_names)
     object.__setattr__(collection, "_object_names", object_names)
 
-    backend_manager = OvPhysxManager()
+    backend_manager = OvPhysxManager(OvPhysxCfg())
     object.__setattr__(collection, "_backend_manager", backend_manager)
     data = RigidObjectCollectionData(mock_view, num_bodies, device, backend_manager=backend_manager)
     object.__setattr__(collection, "_data", data)
@@ -200,20 +200,25 @@ def _create_data_target(component, config):
     if component == "articulation":
         from isaaclab_ov.assets.articulation.articulation_data import ArticulationData
 
-        data = ArticulationData(mock_view, config.device, backend_manager=OvPhysxManager())
+        data = ArticulationData(mock_view, config.device, backend_manager=OvPhysxManager(OvPhysxCfg()))
         data._apply_ordering_maps_after_resolve()
     elif component == "rigid_object":
         from isaaclab_ov.assets.rigid_object.rigid_object_data import RigidObjectData
 
         data = RigidObjectData(
-            mock_view, config.device, check_shapes=not args.no_shape_checks, backend_manager=OvPhysxManager()
+            mock_view,
+            config.device,
+            check_shapes=not args.no_shape_checks,
+            backend_manager=OvPhysxManager(OvPhysxCfg()),
         )
     else:
         from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection_data import (
             RigidObjectCollectionData,
         )
 
-        data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device, backend_manager=OvPhysxManager())
+        data = RigidObjectCollectionData(
+            mock_view, config.num_bodies, config.device, backend_manager=OvPhysxManager(OvPhysxCfg())
+        )
     return data, lambda _config: _refresh_data(data, component)
 
 

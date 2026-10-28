@@ -270,7 +270,8 @@ class NewtonSiteFrameView(BaseFrameView):
         self._scale_ta: ProxyArray | None = None
         self._count = 0
 
-        model = self._backend_manager.get_model()
+        backend = self._backend_manager.backend
+        model = None if backend is None else backend.model
         if model is not None:
             self._initialize_from_specs(model)
         else:
@@ -397,7 +398,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the Newton model becomes available."""
-        self._initialize_from_specs(self._backend_manager.get_model())
+        self._initialize_from_specs(self._backend_manager.backend.model)
 
     def _initialize_from_specs(self, model) -> None:
         """Initialize arrays directly from resolved specs and Newton body labels."""
@@ -418,11 +419,12 @@ class NewtonSiteFrameView(BaseFrameView):
             body_patterns, xform, scale, per_world, env_ids, spec_paths = spec
             if body_patterns is None:
                 if per_world:
-                    if self._backend_manager._world_xforms is None:
+                    world_xforms = self._backend_manager.get_world_xforms()
+                    if world_xforms is None:
                         raise RuntimeError(f"FrameView '{self._prim_path}' needs Newton cloned-world transforms.")
-                    world_ids = range(len(self._backend_manager._world_xforms)) if env_ids is None else env_ids
+                    world_ids = range(len(world_xforms)) if env_ids is None else env_ids
                     for world_id in world_ids:
-                        world_xform = self._backend_manager._world_xforms[world_id]
+                        world_xform = world_xforms[world_id]
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
                         site_scales.append(scale)
@@ -787,7 +789,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _get_legacy_shape_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get Newton legacy geometry scales from collision shapes."""
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
@@ -803,7 +805,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _set_legacy_shape_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set Newton legacy geometry scales on collision shapes."""
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)

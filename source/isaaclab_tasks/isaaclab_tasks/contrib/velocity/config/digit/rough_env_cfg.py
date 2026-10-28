@@ -40,12 +40,8 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=2**23,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    # ``class_type`` is reset to ``None`` because ``NewtonCfg.__post_init__`` re-derives it from
-    # ``solver_cfg`` and refuses an explicit value -- ``replace()`` would otherwise carry the
-    # already-derived value from the source instance forward as one.
     newton_mjwarp = replace(
         _ROUGH_NEWTON_MJWARP,
-        class_type=None,
         solver_cfg=replace(_ROUGH_NEWTON_MJWARP.solver_cfg, njmax=5000, nconmax=2000),
     )
     default = isaacsim_physx

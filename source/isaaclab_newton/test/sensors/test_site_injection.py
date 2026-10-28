@@ -8,7 +8,7 @@
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonMJWarpManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.sensors.frame_transformer.frame_transformer import FrameTransformer
 from newton import ModelBuilder
 
@@ -21,25 +21,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
-from isaaclab.utils.warp.math_ops import transform_to_vec_quat
-
-# ---------------------------------------------------------------------------
-# transform_to_vec_quat
-# ---------------------------------------------------------------------------
-
-
-class TestTransformToVecQuat:
-    """Error paths of the zero-copy view split utility; values are covered by the frame-transformer tests."""
-
-    def test_invalid_ndim_raises(self):
-        """Passing a 4D array raises the documented ValueError rather than a Warp view error."""
-        with pytest.raises(ValueError, match="ndim=4"):
-            transform_to_vec_quat(wp.zeros((1, 1, 1, 1), dtype=wp.transformf, device="cpu"))
-
-    def test_wrong_dtype_raises(self):
-        """Passing wrong dtype raises TypeError."""
-        with pytest.raises(TypeError):
-            transform_to_vec_quat(wp.zeros(3, dtype=wp.vec3f, device="cpu"))
 
 
 @pytest.mark.parametrize("replicated", [False, True])
@@ -48,25 +29,33 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(replicated):
     source = ModelBuilder() if replicated else main
     for leg in ("FL", "FR", "RL", "RR"):
         source.add_body(label=f"Robot/{leg}_foot")
-    manager = NewtonMJWarpManager()
+    manager = NewtonManager(NewtonCfg())
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
-    global_label = manager.cl_register_site(None, xform)
-    local_label = manager.cl_register_site("Robot/.*_foot", xform)
-    world_label = manager.cl_register_site(None, xform, per_world=True)
-    assert manager.cl_register_site(None, xform, per_world=True) == world_label
+    global_label = manager.register_site(None, xform)
+    local_label = manager.register_site("Robot/.*_foot", xform)
+    world_label = manager.register_site(None, xform, per_world=True)
+    assert manager.register_site(None, xform, per_world=True) == world_label
 
     sources = {"Robot": source} if replicated else {}
-    global_sites, body_sites, world_sites = manager._cl_inject_sites(main, sources)
+    global_sites, body_sites, world_sites = manager.inject_sites(main, sources)
     assert main.shape_body[global_sites[global_label]] == -1
     indices = body_sites[id(source)][local_label]
     assert [source.shape_body[index] for index in indices] == list(range(4))
     assert [source.shape_label[index] for index in indices] == [f"{name}/{local_label}" for name in source.body_label]
     assert world_sites == {world_label: xform}
-    assert not manager._cl_pending_sites
 
-    manager.cl_register_site("Robot/nonexistent", xform)
+    # Requests persist across hard resets, but resolved sites are never added to the retained builder again.
+    manager._site_index_map.update((label, (index, None)) for label, index in global_sites.items())
+    manager._site_index_map[local_label] = (None, [indices])
+    manager._site_index_map[world_label] = (None, [[0]])
+    shape_count = main.shape_count
+    assert manager.inject_sites(main, sources) == ({}, {}, {})
+    assert main.shape_count == shape_count
+    assert manager.register_site("Robot/.*_foot", xform) == local_label
+
+    manager.register_site("Robot/nonexistent", xform)
     with pytest.raises(ValueError, match="matched no builder bodies"):
-        manager._cl_inject_sites(main, sources)
+        manager.inject_sites(main, sources)
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +107,7 @@ class SiteSensorSceneCfg(InteractiveSceneCfg):
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.integration
 def test_hard_resets_keep_sensor_sites(num_envs, device):
-    """Site sensors stay on their bodies through hard resets, which leave one native IMU and frame transform sensor.
+    """Site sensors stay on their bodies through hard resets, which leave one native IMU sensor.
 
     Sensors registered their sites again on ``STOP`` and the kept builder received them a second time: the second
     ``sim.reset()`` of two environments failed, and in one environment the ray caster, which registers its site
@@ -149,8 +138,7 @@ def test_hard_resets_keep_sensor_sites(num_envs, device):
                 first_pass = readings
             for name, reading in readings.items():
                 torch.testing.assert_close(reading, first_pass[name], msg=lambda message: f"{name}: {message}")
-            manager = sim.backend_manager
-            assert len(manager._newton_imu_sensors) == len(manager._newton_frame_transform_sensors) == 1
+            assert len(sim.backend_manager.backend.imu_sensors) == 1
 
 
 # ---------------------------------------------------------------------------

@@ -46,8 +46,6 @@ from isaaclab.utils import configclass
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
 if TYPE_CHECKING:
-    from _rizon_sharpa_teapot_coupler import _NewtonTeapotCouplerManager
-
     from isaaclab.assets import Articulation, ArticulationCfg, RigidObject
 
 TABLETOP_CONTAINER_POS = (-0.355, 0.0, 0.90041)
@@ -614,7 +612,7 @@ class TeapotPourMotion:
         self._thumb_joints = joint_ids[7:12]
         self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
-        mj = SimulationContext.instance().backend_manager._solver.solver("robot").mj_model
+        mj = SimulationContext.instance().backend_manager.backend.solver.solver("robot").mj_model
         names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
         arm_q = mj.jnt_qposadr[joints[:7]]
@@ -923,7 +921,7 @@ def _interpolate_joints(
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: type[_NewtonTeapotCouplerManager] | str = "_rizon_sharpa_teapot_coupler:_NewtonTeapotCouplerManager"
+    class_type: type | str = "_rizon_sharpa_teapot_coupler:TeapotSolver"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:

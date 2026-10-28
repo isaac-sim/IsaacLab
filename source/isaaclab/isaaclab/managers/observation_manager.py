@@ -16,7 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import instantiate, modifiers, noise, to_dict
+from ..utils import instantiate, noise, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -51,15 +51,16 @@ class ObservationManager(ManagerBase):
     Observations can also have history. This means a running history is updated per sim step. History can be controlled
     per :class:`ObservationTermCfg` (See the :attr:`ObservationTermCfg.history_length` and
     :attr:`ObservationTermCfg.flatten_history_dim`). History can also be controlled via :class:`ObservationGroupCfg`
-    where group configuration overwrites per term configuration if set. History follows an oldest to newest ordering.
+    where group configuration overwrites per term configuration if set. History dim order is set by
+    :attr:`ObservationTermCfg.history_newest_first` or :attr:`ObservationGroupCfg.history_newest_first`.
 
     The observation manager can be used to compute observations for all the groups or for a specific group. The
     observations are computed by calling the registered functions for each term in the group. The functions are
     called in the order of the terms in the group. The functions are expected to return a tensor with shape
     (num_envs, ...).
 
-    If a noise model or custom modifier is registered for a term, the function is called to corrupt
-    the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+    If a noise model or custom tensor processor is registered for a term, it transforms
+    the observation and returns a tensor with the same shape as the observation.
     The observations are clipped and scaled as per the configuration settings.
 
     Returned observations are independent snapshots, including dictionary entries and history.
@@ -275,9 +276,9 @@ class ObservationManager(ManagerBase):
                     overloads = {}
                     # Iterate over the term's own parameters and add them to the overloads dictionary
                     for k, v in term_cfg.__dict__.items():
-                        # For now we do not add the noise modifier
+                        # For now we do not add the noise model
                         if k in [
-                            "modifiers",
+                            "tensor_processors",
                             "clip",
                             "scale",
                             "delay_min_lag",
@@ -285,6 +286,7 @@ class ObservationManager(ManagerBase):
                             "delay_hold_prob",
                             "history_length",
                             "flatten_history_dim",
+                            "history_newest_first",
                         ]:
                             overloads[k] = v
                     desc.update(overloads)
@@ -313,9 +315,10 @@ class ObservationManager(ManagerBase):
                         "delay_hold_prob",
                         "history_length",
                         "flatten_history_dim",
+                        "history_newest_first",
                     ]:
                         formatted_item["overloads"][k] = v
-                    elif k in ["modifiers", "description", "units"]:
+                    elif k in ["tensor_processors", "description", "units"]:
                         formatted_item["extras"][k] = v
                     else:
                         formatted_item[k] = v
@@ -338,9 +341,9 @@ class ObservationManager(ManagerBase):
                     self._group_obs_term_delay_buffer[group_name][term_name].reset(env_ids)
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
-        # call all modifiers that are classes
-        for mod in self._group_obs_class_instances:
-            mod.reset(env_ids=env_ids)
+        # call all tensor processors that are classes
+        for tensor_processor in self._group_obs_class_instances:
+            tensor_processor.reset(env_ids=env_ids)
 
         # nothing to log here
         return {}
@@ -382,14 +385,14 @@ class ObservationManager(ManagerBase):
         The following steps are performed for each observation term:
 
         1. Compute observation term by calling the function
-        2. Apply custom modifiers in the order specified in :attr:`ObservationTermCfg.modifiers`
+        2. Apply custom tensor processors in the order specified in :attr:`ObservationTermCfg.tensor_processors`
         3. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
         4. Apply clipping based on :attr:`ObservationTermCfg.clip`
         5. Apply scaling based on :attr:`ObservationTermCfg.scale`
         6. Apply delay based on :attr:`ObservationTermCfg.delay_min_lag` and :attr:`ObservationTermCfg.delay_max_lag`
         7. Append the delayed observation to history if requested
 
-        We apply noise to the computed term first to maintain the integrity of how noise affects the data
+        We apply noise before clipping and scaling to maintain the integrity of how noise affects the data
         as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
         could be artificially constrained or amplified, which might misrepresent how noise naturally occurs
         in the data.
@@ -419,7 +422,7 @@ class ObservationManager(ManagerBase):
         term_cfgs = self._group_obs_term_cfgs[group_name]
         obs_terms = zip(group_term_names, term_cfgs)
 
-        # evaluate terms: compute, add noise, clip, scale, custom modifiers
+        # evaluate terms: compute, apply custom tensor processors, add noise, clip, scale
         for term_name, term_cfg in obs_terms:
             output_spec = self._term_output_specs.get((group_name, term_name))
             owned = output_spec is not None
@@ -433,15 +436,15 @@ class ObservationManager(ManagerBase):
             else:
                 obs = term_cfg.func(self._env, **term_cfg.params)
             # apply post-processing
-            if term_cfg.modifiers is not None:
-                for modifier in term_cfg.modifiers:
+            if term_cfg.tensor_processors is not None:
+                for tensor_processor_cfg in term_cfg.tensor_processors:
                     owned = False
                     # Custom callbacks may modify or retain their input.
                     obs = obs.clone()
-                    if isinstance(modifier.func, modifiers.ModifierBase):
-                        obs = modifier.func(obs)
+                    if isinstance(tensor_processor_cfg.func, tensor_processors.TensorProcessor):
+                        obs = tensor_processor_cfg.func(obs)
                     else:
-                        obs = modifier.func(obs, **modifier.params)
+                        obs = tensor_processor_cfg.func(obs, **tensor_processor_cfg.params)
             # Noise callbacks must not modify their input, but may return borrowed storage.
             if isinstance(term_cfg.noise, noise.NoiseCfg):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
@@ -481,11 +484,14 @@ class ObservationManager(ManagerBase):
                     )
                     circular_buffer.append(obs)
 
-                if term_cfg.flatten_history_dim:
-                    obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
-                else:
-                    obs = circular_buffer.buffer
+                obs = circular_buffer.buffer
                 owned = False
+                if term_cfg.history_newest_first:
+                    # flip always copies, so the result no longer borrows the history storage
+                    obs = obs.flip(dims=[1])
+                    owned = True
+                if term_cfg.flatten_history_dim:
+                    obs = obs.reshape(self._env.num_envs, -1)
             # Secure borrowed storage before another term can overwrite it, including shared scratch buffers.
             group_obs[term_name] = obs if owned else obs.clone()
 
@@ -544,12 +550,17 @@ class ObservationManager(ManagerBase):
         if writes_output and out_param.default is not None:
             raise ValueError(f"Observation term '{group_name}/{term_name}' must declare keyword-only 'out=None'.")
         sample = term_cfg.func(self._env, **term_cfg.params)
+        if not isinstance(sample, torch.Tensor):
+            raise TypeError(
+                f"Observation term '{group_name}/{term_name}' must return a torch.Tensor."
+                f" Received: {type(sample).__name__}."
+            )
         shape = tuple(sample.shape)
         if writes_output:
             self._term_output_specs[group_name, term_name] = (shape, sample.dtype, sample.device)
         return shape
 
-    def _prepare_terms(self):
+    def _prepare_terms(self):  # noqa: C901
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
@@ -564,9 +575,9 @@ class ObservationManager(ManagerBase):
 
         self._group_obs_term_delay_buffer: dict[str, dict[str, DelayBuffer]] = {}
         self._group_obs_term_history_buffer: dict[str, dict] = {}
-        # create a list to store classes instances, e.g., for modifiers and noise models
+        # create a list to store class instances, e.g., for tensor processors and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
-        self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = []
+        self._group_obs_class_instances: list[tensor_processors.TensorProcessor | noise.NoiseModel] = []
 
         # make sure the simulation is playing since we compute obs dims which needs asset quantities
         if not self._env.sim.is_playing():
@@ -631,6 +642,7 @@ class ObservationManager(ManagerBase):
                     "history_length",
                     "flatten_history_dim",
                     "history_order",
+                    "history_newest_first",
                     "concatenate_dim",
                 ]:
                     continue
@@ -642,6 +654,7 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
+                term_cfg._migrate_modifiers()
                 term_cfg.validate_config()
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
@@ -653,6 +666,8 @@ class ObservationManager(ManagerBase):
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
                     term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
+                if group_cfg.history_newest_first is not None:
+                    term_cfg.history_newest_first = group_cfg.history_newest_first
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
@@ -676,39 +691,44 @@ class ObservationManager(ManagerBase):
                     # cast the scale into torch tensor
                     term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
 
-                # prepare modifiers for each observation
-                if term_cfg.modifiers is not None:
-                    # initialize list of modifiers for term
-                    for mod_cfg in term_cfg.modifiers:
-                        if not isinstance(mod_cfg, modifiers.ModifierCfg):
+                # prepare tensor processors for each observation
+                if term_cfg.tensor_processors is not None:
+                    # initialize list of tensor processors for term
+                    for tensor_processor_cfg in term_cfg.tensor_processors:
+                        if not isinstance(tensor_processor_cfg, tensor_processors.TensorProcessorCfg):
                             raise TypeError(
-                                f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
-                                f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
+                                f"Tensor processor configuration '{tensor_processor_cfg}' of observation term"
+                                f" '{term_name}' is not of"
+                                f" required type TensorProcessorCfg, Received: '{type(tensor_processor_cfg)}'"
                             )
 
-                        # construct stateful modifiers with the observation size
-                        if inspect.isclass(mod_cfg.func):
-                            mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
-                            if not isinstance(mod_cfg.func, modifiers.ModifierBase):
+                        # construct stateful tensor processors with the observation size
+                        if inspect.isclass(tensor_processor_cfg.func):
+                            tensor_processor_cfg.func = tensor_processor_cfg.func(
+                                cfg=tensor_processor_cfg, data_dim=obs_dims, device=self._env.device
+                            )
+                            if not isinstance(tensor_processor_cfg.func, tensor_processors.TensorProcessor):
                                 raise TypeError(
-                                    f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                    f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                    f"Tensor processor function '{tensor_processor_cfg.func}' for observation term"
+                                    f" '{term_name}' is not an instance of 'TensorProcessor'."
+                                    f" Received: '{type(tensor_processor_cfg.func)}'."
                                 )
-                            self._group_obs_class_instances.append(mod_cfg.func)
+                            self._group_obs_class_instances.append(tensor_processor_cfg.func)
 
                         # check if function is callable
-                        if not callable(mod_cfg.func):
+                        if not callable(tensor_processor_cfg.func):
                             raise AttributeError(
-                                f"Modifier '{mod_cfg}' of observation term '{term_name}' is not callable."
-                                f" Received: {mod_cfg.func}"
+                                f"Tensor processor '{tensor_processor_cfg}' of observation term '{term_name}'"
+                                " is not callable."
+                                f" Received: {tensor_processor_cfg.func}"
                             )
 
                         # TODO(jichuanh): improvement can be made in two ways:
-                        #                 1. modifier specific check can be done in the modifier class
+                        #                 1. checks specific to a tensor processor can be done in its class
                         #                 2. general param vs function matching check can be a common utility
                         # check if term's arguments are matched by params
-                        term_params = list(mod_cfg.params.keys())
-                        args = inspect.signature(mod_cfg.func).parameters
+                        term_params = list(tensor_processor_cfg.params.keys())
+                        args = inspect.signature(tensor_processor_cfg.func).parameters
                         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
                         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
                         args = args_without_defaults + args_with_defaults
@@ -717,8 +737,8 @@ class ObservationManager(ManagerBase):
                         if len(args) > 1:
                             if set(args[1:]) != set(term_params + args_with_defaults):
                                 raise ValueError(
-                                    f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
-                                    f" mandatory parameters: {args_without_defaults[1:]}"
+                                    f"Tensor processor '{tensor_processor_cfg}' of observation term '{term_name}'"
+                                    f" expects mandatory parameters: {args_without_defaults[1:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 
@@ -767,6 +787,13 @@ class ObservationManager(ManagerBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
                     # call reset (in-case above call to get obs dims changed the state)
                     term_cfg.func.reset()
+            # time-major output joins terms per history index, so all terms must share the direction
+            directions = {cfg.history_newest_first for cfg in self._group_obs_term_cfgs[group_name]}
+            if self._group_obs_time_major[group_name] and len(directions) > 1:
+                raise ValueError(
+                    f"Observation group '{group_name}' uses history_order='time' but its terms mix"
+                    " history_newest_first values. Set history_newest_first on the group instead."
+                )
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
