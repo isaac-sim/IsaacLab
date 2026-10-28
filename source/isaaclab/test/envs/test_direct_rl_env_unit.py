@@ -41,7 +41,7 @@ def test_every_step_final_observations_own_nested_tensor_leaves(multi_agent: boo
             events=None,
             possible_agents=["policy"],
         ),
-        extras={"policy": {}} if multi_agent else {},
+        extras={"policy": {}, "time_outs": torch.zeros(2, dtype=torch.bool)} if multi_agent else {},
         device="cpu",
         num_envs=2,
         physics_dt=0.01,

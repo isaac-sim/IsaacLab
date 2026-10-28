@@ -345,8 +345,8 @@ class DirectMARLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras (keyed by the agent ID).
         """
-        for agent_extras in self.extras.values():
-            agent_extras.pop("final_obs_every_step", None)
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs_every_step", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -399,8 +399,8 @@ class DirectMARLEnv(gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and
             extras (keyed by the agent ID). Shape of individual tensors is (num_envs, ...).
         """
-        for agent_extras in self.extras.values():
-            agent_extras.pop("final_obs_every_step", None)
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs_every_step", None)
         actions = {agent: action.to(self.device) for agent, action in actions.items()}
 
         # add action noise
