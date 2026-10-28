@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "VelocityLabels",
+    "VelocityState",
     "feet_air_time",
     "feet_air_time_positive_biped",
     "feet_air_time_variance",
@@ -18,9 +20,11 @@ __all__ = [
     "track_ang_vel_z_world_exp",
     "track_lin_vel_xy_yaw_frame_exp",
     "walking_yaw_momentum_l2",
+    "velocity_context",
 ]
 
 from .curriculums import terrain_levels_vel
+from .observations import VelocityLabels, VelocityState, velocity_context
 from .rewards import (
     feet_air_time,
     feet_air_time_positive_biped,
