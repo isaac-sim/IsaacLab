@@ -51,22 +51,28 @@ SiteEntry = tuple[int, None] | tuple[None, list[list[int]]]
 def _flag_worlds_and_articulations_masked(
     env_mask: wp.array(dtype=wp.bool),
     articulation_ids: wp.array2d(dtype=wp.int32),
+    clear_env_mask: bool,
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """Flag each masked world for a solver reset and its articulations for FK."""
-    world, articulation = wp.tid()
-    if env_mask[world]:
-        world_mask[world] = True
-        fk_mask[articulation_ids[world, articulation]] = True
-
-
-@wp.kernel(enable_backward=False)
-def _flag_worlds_masked(env_mask: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
-    """Flag each masked world for a solver reset."""
+    """Flag each masked world for a solver reset and its articulations for FK, optionally clearing the input."""
     world = wp.tid()
     if env_mask[world]:
         world_mask[world] = True
+        for articulation in range(articulation_ids.shape[1]):
+            fk_mask[articulation_ids[world, articulation]] = True
+        if clear_env_mask:
+            env_mask[world] = False
+
+
+@wp.kernel(enable_backward=False)
+def _flag_worlds_masked(env_mask: wp.array(dtype=wp.bool), clear_env_mask: bool, world_mask: wp.array(dtype=wp.bool)):
+    """Flag each masked world for a solver reset, optionally clearing the input."""
+    world = wp.tid()
+    if env_mask[world]:
+        world_mask[world] = True
+        if clear_env_mask:
+            env_mask[world] = False
 
 
 @wp.kernel(enable_backward=False)
@@ -179,7 +185,7 @@ class NewtonBackend:
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
         self.ids_mask = wp.zeros(self.model.world_count, dtype=wp.bool, device=self.device)
-        """Environment mask written by :meth:`mask_from_ids`; overwritten by every call."""
+        """Environment mask written by :meth:`mask_from_ids`; the invalidation that consumes it clears it again."""
         self.transforms_may_change_on_graph_replay = False
         """Whether state was written inside an outer CUDA graph capture; :meth:`forward` then always runs."""
         self.model_changes: set[int] = set()
@@ -270,15 +276,16 @@ class NewtonBackend:
     def mask_from_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
         """Return a mask selecting ``env_ids``, written into :attr:`ids_mask`.
 
+        Pass the mask to :meth:`invalidate_fk` or :meth:`invalidate_body_state`, which clear it again for the next call.
+
         Args:
             env_ids: Environment indices, int32 or int64.
 
         Returns:
-            :attr:`ids_mask`, valid until the next call.
+            :attr:`ids_mask`.
         """
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids)
-        self.ids_mask.zero_()
         wp.launch(
             _MASK_FROM_IDS.select(env_ids),
             dim=env_ids.shape[0],
@@ -301,11 +308,13 @@ class NewtonBackend:
         if env_mask is None or articulation_ids is None:
             self.world_mask[: self.model.world_count].fill_(True)
             self.fk_mask.fill_(True)
+            if env_mask is self.ids_mask:
+                self.ids_mask.zero_()
             return
         wp.launch(
             _flag_worlds_and_articulations_masked,
-            dim=articulation_ids.shape,
-            inputs=[env_mask, articulation_ids],
+            dim=articulation_ids.shape[0],
+            inputs=[env_mask, articulation_ids, env_mask is self.ids_mask],
             outputs=[self.world_mask, self.fk_mask],
             device=self.device,
         )
@@ -323,7 +332,7 @@ class NewtonBackend:
         wp.launch(
             _flag_worlds_masked,
             dim=env_mask.shape[0],
-            inputs=[env_mask],
+            inputs=[env_mask, env_mask is self.ids_mask],
             outputs=[self.world_mask],
             device=self.device,
         )
