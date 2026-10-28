@@ -37,7 +37,6 @@ from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
 )
 
-from . import newton_backend as nb
 from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
 from .newton_builder import create_builder
 from .newton_scene_data import NewtonSceneDataBackend
@@ -167,9 +166,9 @@ class NewtonManager(PhysicsManager):
         SimulationContext.instance().close_backend(backend)
 
     def forward(self) -> None:
-        """Update articulation kinematics without stepping physics; see :func:`newton_backend.forward`."""
+        """Update articulation kinematics without stepping physics; see :meth:`NewtonBackend.forward`."""
         if self.backend is not None:
-            nb.forward(self.backend)
+            self.backend.forward()
 
     def video_capture_backend(self) -> str:
         """Newton GL headless perspective video capture."""
@@ -197,8 +196,8 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
         backend = self.backend
-        physics_steps = backend.decimation if nb.handles_decimation(backend) else 1
-        captured = nb.step(backend)
+        physics_steps = backend.decimation if backend.handles_decimation() else 1
+        captured = backend.step()
         self._sim_time += backend.dt * physics_steps
         self._mark_transforms_changed()
         solver_cfg = self._cfg.solver_cfg
@@ -360,23 +359,23 @@ class NewtonManager(PhysicsManager):
         env_ids: wp.array | None = None,
         articulation_ids: wp.array | None = None,
     ) -> None:
-        """Mark environments as needing FK recomputation and solver reset; see :func:`newton_backend.invalidate_fk`.
+        """Mark environments as needing FK recomputation and solver reset; see :meth:`NewtonBackend.invalidate_fk`.
 
         Called by asset write methods that modify joint coordinates or root transforms. The masks are consumed by the
         next forward, raw-state, rendering, or physics-step boundary.
         """
         self._mark_transforms_changed()
-        nb.invalidate_fk(self.backend, env_mask, env_ids, articulation_ids)
+        self.backend.invalidate_fk(env_mask, env_ids, articulation_ids)
 
     def invalidate_body_state(
         self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
     ) -> None:
         """Mark selected maximal-coordinate body state as changed without requesting FK.
 
-        See :func:`newton_backend.invalidate_body_state`.
+        See :meth:`NewtonBackend.invalidate_body_state`.
         """
         self._mark_transforms_changed()
-        nb.invalidate_body_state(self.backend, env_ids, env_mask)
+        self.backend.invalidate_body_state(env_ids, env_mask)
 
     def _drain_stale_cuda_error(self) -> None:
         """Clear a stale CUDA error latched on the device before (re)initialization.
@@ -483,7 +482,7 @@ class NewtonManager(PhysicsManager):
         cloner.replicate(self._sim.get_clone_plan())
 
     def initialize_solver(self) -> None:
-        """Build the solver, its contacts and the initial body state; see :func:`newton_backend.init_solver`."""
+        """Build the solver, its contacts and the initial body state; see :meth:`NewtonBackend.init_solver`."""
         backend = self.backend
         sim = self._sim
         plan = sim.get_clone_plan() if sim is not None else None
@@ -497,7 +496,7 @@ class NewtonManager(PhysicsManager):
             device=self.get_device(),
         ):
             relaxed = sim is not None and has_kit() and (sim.has_gui or sim.has_offscreen_render)
-            nb.init_solver(backend, None if plan is None else plan.env_template, relaxed_capture=relaxed)
+            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=relaxed)
         self._mark_transforms_changed()
 
     def _prepare_visualizer_for_capture(self) -> None:
@@ -530,8 +529,8 @@ class NewtonManager(PhysicsManager):
         return SimulationContext.instance().get_scene_data_provider()
 
     def activate_newton_actuator_path(self) -> None:
-        """Run the model's Newton actuators inside the step; see :func:`newton_backend.activate_actuators`."""
-        nb.activate_actuators(self.backend)
+        """Run the model's Newton actuators inside the step; see :meth:`NewtonBackend.activate_actuators`."""
+        self.backend.activate_actuators()
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before the initial FK and any CUDA graph capture."""
@@ -584,18 +583,18 @@ class NewtonManager(PhysicsManager):
                 self.backend.post_step_callbacks.remove(callback)
 
     def set_decimation(self, decimation: int) -> None:
-        """Set the decimation count; see :func:`newton_backend.set_decimation`.
+        """Set the decimation count; see :meth:`NewtonBackend.set_decimation`.
 
         When all actuators are graphable the entire decimation loop is captured as a single CUDA graph, right after
         the next requested step runs eagerly.
         """
         self._decimation = max(1, decimation)
         if self.backend is not None:
-            nb.set_decimation(self.backend, self._decimation)
+            self.backend.set_decimation(self._decimation)
 
     def handles_decimation(self) -> bool:
-        """Whether :meth:`step` executes the full decimation loop; see :func:`newton_backend.handles_decimation`."""
-        return nb.handles_decimation(self.backend)
+        """Whether :meth:`step` executes the full decimation loop; see :meth:`NewtonBackend.handles_decimation`."""
+        return self.backend.handles_decimation()
 
     def add_contact_sensor(
         self,
@@ -605,9 +604,8 @@ class NewtonManager(PhysicsManager):
         contact_partners_shape_expr: str | list[str] | None = None,
         verbose: bool = False,
     ) -> SensorContact:
-        """Add a contact sensor between bodies or shapes; see :func:`newton_backend.add_contact_sensor`."""
-        return nb.add_contact_sensor(
-            self.backend,
+        """Add a contact sensor between bodies or shapes; see :meth:`NewtonBackend.add_contact_sensor`."""
+        return self.backend.add_contact_sensor(
             body_names_expr,
             shape_names_expr,
             contact_partners_body_expr,
@@ -616,5 +614,5 @@ class NewtonManager(PhysicsManager):
         )
 
     def add_imu_sensor(self, sites: list[int]) -> SensorIMU:
-        """Add an IMU sensor at sites; see :func:`newton_backend.add_imu_sensor`."""
-        return nb.add_imu_sensor(self.backend, sites)
+        """Add an IMU sensor at sites; see :meth:`NewtonBackend.add_imu_sensor`."""
+        return self.backend.add_imu_sensor(sites)

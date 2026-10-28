@@ -36,7 +36,7 @@ import time
 
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, newton_backend
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sensors import LegacyRayCaster, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
@@ -158,11 +158,11 @@ def main():
         versions = itertools.count(1 << 32)
 
         def run_bvh_with_refit():
-            newton_backend.refit_bvh(backend, next(versions))
+            backend.refit_bvh(next(versions))
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            newton_backend.refit_bvh(backend, next(versions))
+            backend.refit_bvh(next(versions))
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,

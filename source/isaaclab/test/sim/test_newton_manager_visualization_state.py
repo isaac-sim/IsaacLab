@@ -119,6 +119,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     import warp as wp
     from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSolverCfg
     from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
+    from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
@@ -134,7 +135,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     backend = NewtonSceneDataBackend(owner)
     provider = SceneDataProvider(backend)
 
-    newton_backend = SimpleNamespace(
+    newton_backend = backend_stub(
         cfg=owner._cfg,
         model=SimpleNamespace(body_count=1, world_count=1),
         state_0=state,

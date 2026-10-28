@@ -24,6 +24,7 @@ ordered-state republish recorded into a captured graph.
 """
 
 from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
 from isaaclab.sim import FrameView, SimulationCfg
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
@@ -447,7 +448,7 @@ def test_task_space_allocation_and_capture(device, first_property):
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
-    backend_manager.backend = SimpleNamespace(
+    backend_manager.backend = backend_stub(
         model=model,
         state_0=state,
         control=control,
@@ -498,7 +499,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
-    backend_manager.backend = SimpleNamespace(
+    backend_manager.backend = backend_stub(
         model=model,
         state_0=state,
         control=control,

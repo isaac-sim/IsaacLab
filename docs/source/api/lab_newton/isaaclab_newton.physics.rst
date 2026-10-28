@@ -60,13 +60,8 @@ Physics Manager
 .. autoclass:: NewtonCloneRecord
   :members:
 
-Backend Functions
------------------
-
 .. automodule:: isaaclab_newton.physics.newton_backend
-  :members: resolve_deterministic_mode, init_solver, allocate_contacts, invalidate_fk, invalidate_body_state, forward,
-    notify_model_changes, activate_actuators, add_contact_sensor, add_imu_sensor,
-    handles_decimation, set_decimation, invalidate_graph, step, capture_graph, refit_bvh
+  :members: capture_graph, resolve_deterministic_mode
 
 .. currentmodule:: isaaclab_newton.physics
 

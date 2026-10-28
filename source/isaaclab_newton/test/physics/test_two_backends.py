@@ -18,7 +18,6 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     create_builder,
 )
-from isaaclab_newton.physics import newton_backend as nb
 
 DEVICE = "cuda:0"
 DT = 0.01
@@ -29,13 +28,13 @@ def _pendulums(physics_cfg: NewtonCfg, steps: int, *, captured=False) -> NewtonB
     builder = _pendulum_builder(physics_cfg)
     physics_cfg.solver_cfg.class_type.prepare_builder(physics_cfg.solver_cfg, builder)
     backend = NewtonBackend(NewtonBackendCfg(physics_cfg=physics_cfg, device=DEVICE), builder, dt=DT)
-    nb.init_solver(backend)
+    backend.init_solver()
     if not captured:
         backend.capture = None
-        nb.invalidate_graph(backend)
+        backend.invalidate_graph()
     # Without Newton actuators, an active actuator path lets one step run the whole decimation loop.
     backend.actuators_active = True
-    nb.set_decimation(backend, steps)
+    backend.set_decimation(steps)
     return backend
 
 
@@ -78,13 +77,13 @@ def test_backends_with_different_solvers_step_side_by_side(captured):
     start = [_angles(backend) for backend in pair]
 
     for _ in range(5):
-        nb.step(pair[0])
+        pair[0].step()
     np.testing.assert_array_equal(_angles(pair[1]), start[1])
     for _ in range(5):
-        nb.step(pair[1])
+        pair[1].step()
     for _ in range(5):
-        nb.step(alone[0])
-        nb.step(alone[1])
+        alone[0].step()
+        alone[1].step()
 
     assert type(pair[0].solver) is not type(pair[1].solver)
     for backend, reference, initial in zip(pair, alone, start, strict=True):
@@ -97,7 +96,7 @@ def test_reset_masks_stay_with_their_backend():
     """Invalidating one world of one backend recomputes only that world's body state."""
     pair = [_pendulums(cfg, steps) for cfg, steps in _configs()]
     for backend in pair:
-        nb.step(backend)
+        backend.step()
     body_q = [backend.state_0.body_q.numpy().copy() for backend in pair]
     target, other = pair
 
@@ -106,11 +105,11 @@ def test_reset_masks_stay_with_their_backend():
     target.state_0.joint_q.assign(joint_q)
     env_mask = wp.array([True, False, False, False], dtype=wp.bool, device=DEVICE)
     articulation_ids = wp.array(np.arange(4, dtype=np.int32).reshape(4, 1), dtype=wp.int32, device=DEVICE)
-    nb.invalidate_fk(target, env_mask, articulation_ids=articulation_ids)
+    target.invalidate_fk(env_mask, articulation_ids=articulation_ids)
 
     assert not other.world_mask.numpy().any() and not other.fk_mask.numpy().any()
-    nb.forward(target)
-    nb.forward(other)
+    target.forward()
+    other.forward()
 
     moved = np.any(target.state_0.body_q.numpy() != body_q[0], axis=1)
     assert moved.tolist() == [True, False, False, False]

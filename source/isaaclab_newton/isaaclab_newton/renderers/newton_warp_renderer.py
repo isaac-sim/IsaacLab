@@ -593,7 +593,7 @@ class NewtonWarpRenderer(BaseRenderer):
         # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
         use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
-        newton_backend.refit_bvh(backend, timestamp, use_cuda_graph=use_graph)
+        backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
         if not use_graph:
             self._launch_render(render_data)
         else:
