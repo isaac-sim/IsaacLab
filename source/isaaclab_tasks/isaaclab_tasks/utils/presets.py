@@ -9,7 +9,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
-from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.viser import ViserBackendCfg
 
@@ -56,11 +56,11 @@ class MultiBackendVisualizerCfg(PresetCfg):
     """Built-in visualizers selected with ``visualizer=NAME``; no viewer opens by default."""
 
     kit: KitBackendCfg = KitBackendCfg()
-    newton_gl: NewtonGLBackendCfg = NewtonGLBackendCfg()
-    newton_rtx: NewtonRTXBackendCfg = NewtonRTXBackendCfg()
+    newton: NewtonGLBackendCfg = NewtonGLBackendCfg()
     rerun: RerunBackendCfg = RerunBackendCfg()
     viser: ViserBackendCfg = ViserBackendCfg()
     none: list[VisualizerBackendCfg] = []
     default: list[VisualizerBackendCfg] = []
 
     _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset(VISUALIZER_ALIASES)

@@ -64,7 +64,7 @@ parser.add_argument("--mpm_iterations", type=int, default=100, help="Maximum MPM
 parser.add_argument("--rigid_substeps", type=int, default=4, help="MuJoCo-Warp substeps per coupled step.")
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable CUDA graph capture for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 
@@ -193,7 +193,7 @@ def create_sim_cfg():
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
         visualizer_cfgs=VisualizerCfg(
-            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=SNOW_COLOR)),
+            backend=MultiBackendVisualizerCfg(newton=NewtonGLBackendCfg(particle_color=SNOW_COLOR)),
         ),
         physics=NewtonCfg(
             solver_cfg=solver_cfg,

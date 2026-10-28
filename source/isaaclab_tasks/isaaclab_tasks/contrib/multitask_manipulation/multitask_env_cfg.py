@@ -491,7 +491,7 @@ class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(-3.0, 3.0, 2.5), lookat=(0.0, 0.0, 0.5))
 
     def validate_config(self) -> None:
-        """Validate the minimum batch size required to instantiate all task views."""
+        """Validate the minimum batch size required to instantiate all tracking cameras."""
         if self.scene.num_envs < 3:
             raise ValueError("IsaacContrib-Multitask-Manipulation requires at least three environments, one per task.")
 

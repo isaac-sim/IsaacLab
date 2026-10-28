@@ -558,7 +558,7 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
 
         Returns:
             ``"kit"`` for backends that use Kit/Replicator (e.g. :class:`~isaaclab_physx.physics.PhysxManager`),
-            ``"newton_gl"`` for backends that use a headless Newton GL viewer
+            ``"newton"`` for backends that use a headless Newton GL viewer
             (e.g. :class:`~isaaclab_newton.physics.NewtonManager`),
             or ``None`` if the backend does not support perspective video capture.
         """

@@ -29,7 +29,7 @@ parser.add_argument("--num_segments", type=int, default=20, help="Number of segm
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument("--physics", default="newton_vbd", choices=["newton_vbd"], help="Physics backend.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 if args_cli.num_cables < 1:

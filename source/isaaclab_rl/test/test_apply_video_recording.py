@@ -95,23 +95,22 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
     [
         # --video records from the first capture-capable visualizer --viz selects, in its window
         (
-            dict(visualizer=["viser", "kit", "newton_gl"]),
-            ("viz:kit", [("viser", False), ("kit", False), ("newton_gl", False)]),
+            dict(visualizer=["viser", "kit", "newton"]),
+            ("viz:kit", [("viser", False), ("kit", False), ("newton", False)]),
         ),
         # ...else from a headless newton_gl, also next to streaming-only visualizers
-        (dict(), ("viz:newton_gl", [("newton_gl", True)])),
-        (dict(visualizer=["viser"]), ("viz:newton_gl", [("viser", False), ("newton_gl", True)])),
+        (dict(), ("viz:newton", [("newton", True)])),
+        (dict(visualizer=["viser"]), ("viz:newton", [("viser", False), ("newton", True)])),
         # viz:<type> records from the selected visualizer, else from a headless one added for the recording
-        (dict(video="viz:newton_rtx", visualizer=["newton_rtx"]), ("viz:newton_rtx", [("newton_rtx", False)])),
-        (dict(video="viz:newton_rtx"), ("viz:newton_rtx", [("newton_rtx", True)])),
+        (dict(video="viz:newton_gl", visualizer=["newton"]), ("viz:newton", [("newton", False)])),
         (dict(video="kit"), ("viz:kit", [("kit", True)])),
         (
-            dict(video="viz:newton_gl:streaming_view"),
-            ("viz:newton_gl:streaming_view", [("newton_gl", True)]),
+            dict(video="viz:newton:streaming_view"),
+            ("viz:newton:streaming_view", [("newton", True)]),
         ),
         (
-            dict(video="viz:newton_gl:streaming_view", visualizer=["newton_gl"]),
-            ("viz:newton_gl:streaming_view", [("newton_gl", False)]),
+            dict(video="viz:newton:streaming_view", visualizer=["newton"]),
+            ("viz:newton:streaming_view", [("newton", False)]),
         ),
         # a scene sensor needs no visualizer
         (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
@@ -124,7 +123,6 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         "viz-none",
         "viz-streaming-only",
         "type-selected",
-        "type-added",
         "kit-added",
         "camera-view-headless",
         "camera-view-windowed",
@@ -167,7 +165,7 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
     assert (kit_args is not None) == ("kit" in dict(visualizers))
     if kit_args is not None:
         assert (kit_args["kit_visualizer"], kit_args["enable_cameras"]) == (not dict(visualizers)["kit"], True)
-    assert (OVRTXRendererCfg.launcher_type in launches) == ("newton_rtx" in source)
+    assert OVRTXRendererCfg.launcher_type not in launches
     # a launch with a SimulationCfg leaves no selection behind for configs built afterwards
     assert type(env_cfg.sim)(physics=NewtonCfg()).visualizer_cfgs.backend == []
 

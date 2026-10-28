@@ -60,7 +60,7 @@ the end effector in Manual mode.
        <video autoplay loop muted playsinline preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
        </video>
-       <div class="viz-label">Newton GL</div>
+       <div class="viz-label">Newton (OpenGL)</div>
      </div>
      <div class="viz-hero-wrap viz-crop-viser">
        <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
@@ -74,7 +74,7 @@ the end effector in Manual mode.
        <video autoplay loop muted playsinline preload="auto" class="viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
-       <div class="viz-label">Newton RTX</div>
+       <div class="viz-label">Newton (RTX)</div>
      </div>
      <div class="viz-hero-wrap viz-crop-kit">
        <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup">
@@ -105,7 +105,7 @@ the end effector in Manual mode.
    });
    </script>
 
-   <p class="viz-cap">Note: Newton RTX has no velocity arrows, since it doesn't yet support visualization markers.</p>
+   <p class="viz-cap">Note: the Newton (RTX) clip was recorded without visualization markers, so it shows no velocity arrows.</p>
 
 
 Quick Start
@@ -120,8 +120,8 @@ alias.
 
       .. code-block:: bash
 
-          # Newton GL: lightweight OpenGL viewport
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
+          # Newton: lightweight OpenGL viewport, switchable to RTX rendering
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
 
           # Viser: browser-based viewer
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
@@ -130,7 +130,7 @@ alias.
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit
 
           # Multiple visualizers simultaneously (comma-separated, no spaces)
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton_rtx
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton
 
 .. note::
 
@@ -148,8 +148,8 @@ For combining visualizers, running headless, and other common use cases, see `Us
 Visualizer presets
 ~~~~~~~~~~~~~~~~~~
 
-Task commands accept ``visualizer=newton_gl``, ``visualizer=kit``, or
-``visualizer=rerun,newton_gl``. ``--viz`` and ``--visualizer`` are aliases for the same
+Task commands accept ``visualizer=newton``, ``visualizer=kit``, or
+``visualizer=rerun,newton``. ``--viz`` and ``--visualizer`` are aliases for the same
 selection. ``visualizer=none`` disables viewers. Selection happens during configuration
 composition, before choosing process runtimes or creating the scene.
 
@@ -191,13 +191,13 @@ Compose standalone declarations during initial configuration, then call the core
        ...
 
 One ``VisualizerCfg`` supplies the common settings for every selected backend. Selecting
-``rerun,newton_gl`` creates both viewers; no outer list or repeated common settings is needed.
+``rerun,newton`` creates both viewers; no outer list or repeated common settings is needed.
 Backend-specific options are available when needed, but ordinary configuration uses the unchanged
 ``MultiBackendVisualizerCfg()`` declaration.
 
 Use a list of ``VisualizerCfg`` declarations for different views or window sizes. Backend selection
 applies to each declaration independently. For example, a task with these two views opens four
-windows with ``--viz=newton_gl,newton_rtx``: one GL and one RTX window per view.
+windows with ``--viz=newton,rerun``: one Newton and one Rerun window per view.
 
 .. code-block:: python
 
@@ -217,13 +217,13 @@ Task entry points perform this selection through ``resolve_task_config``:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole visualizer=rerun,newton_gl
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole visualizer=rerun,newton
 
-``--viz rerun,newton_gl`` is equivalent. Task composition selects the backends inside
+``--viz rerun,newton`` is equivalent. Task composition selects the backends inside
 ``VisualizerCfg.backend`` before launch; launch creates each viewer with the shared settings.
 Viewer implementations are imported only when constructed.
 
-For ``--video`` without a selected capture-capable viewer, launch selects a headless Newton GL
+For ``--video`` without a selected capture-capable viewer, launch selects a headless Newton
 producer. ``visualizer=none`` disables windows; recording still runs its producer on demand.
 Use ``--video sensor:<name>`` to record a scene camera without a visualizer producer.
 
@@ -238,12 +238,10 @@ Visualizer Overview
 
    * - Visualizer
      - Description
-   * - **Newton GL**
-     - Lightweight, strong feature support; Recommended
+   * - **Newton**
+     - Lightweight, strong feature support, OpenGL or RTX rendering; Recommended
    * - **Viser**
      - Web-based, supports recording and replay; Recommended
-   * - **Newton RTX**
-     - High-quality RTX rendering; experimental, missing some features
    * - **Rerun**
      - Web-based, supports recording and replay; limited UI toggles
    * - **Kit**
@@ -251,16 +249,17 @@ Visualizer Overview
 
 .. tab-set::
 
-   .. tab-item:: Newton GL
+   .. tab-item:: Newton
 
-      The Newton GL visualizer is a lightweight OpenGL window with minimal startup overhead.
+      The Newton visualizer is a lightweight OpenGL window with minimal startup overhead. Its **Renderer**
+      selector switches the view to RTX (see below). ``newton_gl`` is an accepted alias of ``newton``.
 
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
            <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_gl_allegro.mp4" type="video/mp4">
          </video>
-         <p class="viz-cap">Isaac-Reorient-Cube-Allegro in Newton GL Visualizer<br>Each Allegro hand reorients
+         <p class="viz-cap">Isaac-Reorient-Cube-Allegro in Newton Visualizer<br>Each Allegro hand reorients
          its cube to match the target shown by the marker above it</p>
 
       .. raw:: html
@@ -291,6 +290,32 @@ Visualizer Overview
 
       Try :ref:`Domino cascade <interactive-demo-dominoes>` for a compact 24-slab version running
       locally in the browser, with friction and a repeatable toppling pulse.
+
+      **RTX rendering**
+
+      The **Renderer** selector in the Camera View section switches the main view to the OVRTX path tracer for
+      photorealistic rendering without a Kit process. It appears when the scene has the OVRTX viewer camera, which launch
+      declares when ``ovrtx`` is installed and the physics is not PhysX. Set
+      ``NewtonGLBackendCfg(initial_renderer="rtx")`` to start in RTX. RTX rendering is slightly slower than OpenGL.
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_rtx_h1_stairs.mp4" type="video/mp4">
+         </video>
+         <p class="viz-cap">Isaac-Velocity-Rough-H1 in the Newton Visualizer with RTX rendering<br>Each H1 humanoid climbs a
+         staircase sub-terrain</p>
+
+      Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
+      the RTX view. Policy Ghost tint and overlay, model overlays, and rigid-body dragging apply to the OpenGL view only.
+
+      .. warning::
+
+         OVRTX is a kitless renderer and cannot be used in the same process as Kit
+         (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
+         RTX rendering. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
+         ``--viz newton``, or switch to ``--viz viser``, ``--viz rerun``,
+         or ``--viz kit`` with a Kit-compatible physics backend.
 
       .. dropdown:: NewtonGLBackendCfg source
          :icon: code
@@ -370,59 +395,6 @@ Visualizer Overview
          .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
             :language: python
             :pyobject: VisualizerCfg
-
-   .. tab-item:: Newton RTX
-
-      The **experimental** Newton RTX visualizer, launched with ``--viz newton_rtx``, uses the
-      OVRTX path-tracer for photorealistic rendering without a Kit process. It is slightly
-      slower than the Newton GL visualizer due to the cost of high-quality RTX rendering.
-
-      .. raw:: html
-
-         <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_rtx_h1_stairs.mp4" type="video/mp4">
-         </video>
-         <p class="viz-cap">Isaac-Velocity-Rough-H1 in Newton RTX Visualizer<br>Each H1 humanoid climbs a
-         staircase sub-terrain</p>
-
-      **Visualizer-specific features:**
-
-      - OVRTX path-traced rendering for photorealistic, physically-based lighting
-
-      .. note::
-
-         The following features are not yet supported and will be added in a future release:
-         live plots and rigid-body dragging. Visualization markers, camera selection, scene-camera
-         display, pause controls, and headless recording are supported.
-
-      .. dropdown:: NewtonRTXBackendCfg source
-         :icon: code
-
-         .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
-            :language: python
-            :pyobject: NewtonRTXBackendCfg
-
-      .. dropdown:: Shared window options
-         :icon: code
-
-         .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
-            :language: python
-            :pyobject: WindowCfg
-
-      .. dropdown:: VisualizerCfg source (shared settings)
-         :icon: code
-
-         .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
-            :language: python
-            :pyobject: VisualizerCfg
-
-      .. warning::
-
-         Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as Kit
-         (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
-         Newton RTX. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
-         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
-         or ``--viz kit`` with a Kit-compatible physics backend.
 
    .. tab-item:: Rerun
 
@@ -563,14 +535,18 @@ Multiple visualizers can display the same sensor with different tile selections.
    </div>
 
 Attach a camera to a robot body to follow its motion, or select an existing view such as the Galbot
-task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton GL, Newton RTX,
+task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton,
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
-sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
-provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
+sit side by side with the default viewport for dual monitoring. **Newton**
+provides a **Camera View** selector in the sidebar for switching between perspective and scene-camera
 views.
+Selecting a scene sensor in **Camera View** shows its channel: the **Channel** selector lists the
+sensor's outputs (RGB, depth, normals, or segmentation), and depth, normals, and segmentation are
+converted to colors for display. When the sensor is declared once per environment, **Tiled Envs**
+sets how many of its feeds are tiled into the window.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
-sources, troubleshooting, migration from generated cameras, and step-by-step examples.
+sources, tracking cameras that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
 
 
 Visualization Markers
@@ -605,7 +581,7 @@ There are 2 types of visualization markers:
 - Goal shapes: cuboid, sphere, and multi-state position-goal markers
 - Center of mass markers
 
-In the Newton GL visualizer's HUD, built-in marker types that aren't currently active are
+In the Newton visualizer's HUD, built-in marker types that aren't currently active are
 shown greyed out.
 
 **Custom Markers:**
@@ -618,8 +594,7 @@ shown greyed out.
 
 .. note::
 
-   Visualization markers are supported on Kit, Newton GL, Rerun, and Viser; not yet
-   supported on Newton RTX (experimental).
+   Visualization markers are supported on Kit, Newton (OpenGL and RTX), Rerun, and Viser.
 
 
 Live Plots
@@ -634,7 +609,7 @@ Live plots stream per-step scalar data into the visualizer.
        <video autoplay loop muted playsinline controls preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/liveplot_newton_gl.mp4" type="video/mp4">
        </video>
-       <p class="viz-cap">Newton GL visualizer, with 3 plots opened</p>
+       <p class="viz-cap">Newton visualizer, with 3 plots opened</p>
      </div>
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
@@ -645,8 +620,7 @@ Live plots stream per-step scalar data into the visualizer.
    </div>
 
 Live Plot windows start hidden or collapsed, except for Rerun, where the Live Plots can be
-collapsed by selecting the "eye" icon. Supported on Kit, Newton GL, Rerun, and Viser; not
-yet supported on Newton RTX (experimental).
+collapsed by selecting the "eye" icon. Supported on Kit, Newton, Rerun, and Viser.
 
 **What's plotted:** per-episode total reward and episode length, plus any active manager
 term for manager-based environments (e.g. ``joint_pos``).
@@ -674,6 +648,22 @@ streaming views, and renderer-based sensor data capture.
      </div>
    </div>
 
+.. _visualization-newton-recording:
+
+Newton Window Recording and Animations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **Recording** section of the Newton visualizer saves four things: an ``mp4`` video of the window, a
+``.viser`` **animation** of the visible environments (including visualization markers), a ``.png`` screenshot of the
+window without the HUD, and a ``.pt`` checkpoint of the policy being played. Files go to the output folder set by
+:class:`~isaaclab_visualizers.newton.NewtonRecordingCfg`.
+
+**Open...** lists the ``.viser`` animations below a folder and plays the chosen one as a tinted ghost over the
+simulation, remembering the folder for the next time. A transport bar along the bottom of the window has its own
+Play/Pause, a timeline to scrub, Loop, and Speed, independent of the simulation's pause. An animation recorded
+during a Policy Ghosts session has a ``.json`` file next to it, so that opening it lists each slot with a checkbox
+and its tint.
+
 .. _record_video_cli:
 
 Pass ``--video [SOURCE]`` on the command line for a quick recording, or define multiple
@@ -688,20 +678,16 @@ visualizers open a window; a visualizer that only records runs headless:
      - Records from
    * - ``--video`` (same as ``--video viz``)
      - the first capture-capable visualizer ``--viz`` selected, in its window; if none is selected, or only
-       streaming ones such as ``viser`` or ``rerun``, a headless ``newton_gl``
-   * - ``--video viz:newton_rtx``
-     - a ``newton_rtx``: the ``--viz``-selected one if selected, else an extra headless one
-   * - ``--video --viz newton_rtx``
-     - the selected ``newton_rtx`` window
-   * - ``--video viz:newton_gl --viz viser``
-     - ``viser`` runs; an extra headless ``newton_gl`` is added only for recording
+       streaming ones such as ``viser`` or ``rerun``, a headless ``newton``
+   * - ``--video viz:newton --viz viser``
+     - ``viser`` runs; an extra headless ``newton`` is added only for recording
    * - ``--video sensor:wrist_camera[:rgb|depth|...]``
      - that scene sensor; no visualizer is added
 
 A Hydra override after ``--video`` is never taken as its source: ``--video presets=newton_mjwarp``
 records from ``viz`` and applies the preset.
 
-Kit, Newton GL, and Newton RTX visualizers can be recorded from; the web-based visualizers Viser and
+The Kit and Newton visualizers can be recorded from; the web-based visualizers Viser and
 Rerun cannot.
 
 See :doc:`/source/how-to/record_video` for the full guide and tutorial.
@@ -774,7 +760,7 @@ Common Recipes
 
 **Headless training with video recording**
 
-Run without a window and record clips from a headless Newton GL visualizer, or name another
+Run without a window and record clips from a headless Newton visualizer, or name another
 capture source, e.g. ``--video viz:kit``:
 
 .. tab-set::
@@ -791,26 +777,25 @@ See :doc:`/source/how-to/record_video` for clip length, interval, and multi-sour
 
 **Combining an interactive view with a headless recording source**
 
-Watch training live in Kit while recording from a separate headless Newton GL angle by running with
-``--viz kit --video viz:newton_gl`` and giving each visualizer its own camera. See
+Watch training live in Kit while recording from a separate headless Newton angle by running with
+``--viz kit --video viz:newton`` and giving each visualizer its own camera. See
 :ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
-**Following a moving robot (Kit)**
+**Following a moving robot**
 
-Lock the Kit camera to a moving asset instead of updating ``eye``/``lookat`` yourself every
-step, running with ``--viz kit``:
+Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitBackendCfg
-
-    from isaaclab.visualizers import VisualizerCfg
-
-    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     sim_cfg.visualizer_cfgs = VisualizerCfg(
-        eye=(4.0, 4.0, 2.0),
-        backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="asset", origin_track_path="robot")),
+        cameras=[
+            TrackingCameraCfg(
+                track_path="robot",  # or "robot/panda_hand" to track a specific body
+                eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
+            ),
+        ],
     )
 
 **Sharing a live view with a remote teammate**
@@ -833,10 +818,55 @@ without screen-sharing, running with ``--viz viser``:
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
 
+**Comparing checkpoints with Policy Ghosts**
+
+Newton can overlay several checkpoints of one task in a single viewport. The ``--checkpoint``
+drives the reference robots; ghosts of other checkpoints are tinted, translucent copies that start
+from the same terrain, spawn pose, and commands, so differences in behavior show up as the robots
+drift apart:
+
+.. code-block:: bash
+
+    uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-AnymalD \
+        --num_envs 4 --checkpoint latest --viz newton --policy_ghosts
+
+You can also start from a normal ``play`` run: open **Policy Ghosts** in the viewer's left panel and choose
+**Enable Policy Ghosts**. The section has **Envs per slot** (``--policy_ghost_envs``, default 4) and **Slots**
+(``--policy_ghost_slots``, default 3) fields. When their product does not exceed the environments the run simulates,
+the ghosts take the first environments of the running simulation:
+the other environments are hidden and stop acting, and **Disable Policy Ghosts** resets every environment and returns to
+the plain view. A run with fewer environments shows **Enable Policy Ghosts (restarts)**, which relaunches with
+``--policy_ghosts`` added, because the simulation fixes its environment count at startup. This mode does not remove
+per-environment randomization such as startup events, so ghosts of a task that uses it can differ from the reference
+for reasons other than the checkpoint. Policy Ghosts stay off unless you ask for them.
+
+Open **Policy Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
+checkpoints of runs of this task that were written by training (those with a ``run.json``) under the
+experiment's log directory; pass ``--policy_ghost_root`` to search another directory. Each loaded checkpoint has a checkbox that
+shows or hides it. Under **Settings**, each ghost has opacity and tint sliders; a tint of 1.0 replaces all of
+the robot's native colors and textures with the ghost color, and lower values blend it with the native colors.
+**Remove** frees the slot. ``--policy_ghost_slots`` sets the number of slots, including the reference, up to eight;
+the default is eight with ``--policy_ghosts`` and three for the in-place switch.
+
+* Every slot simulates ``--num_envs`` environments, even an empty one. With a few environments per
+  slot the extra cost is small, since the step time is dominated by fixed overhead; it grows with the
+  total environment count (slots times ``--num_envs``).
+* Randomization that cannot be mirrored between slots is disabled: startup and interval events,
+  curriculum terms, and observation noise. Reset events and commands are copied from the reference.
+* Identical checkpoints do not stay exactly on top of each other; physics differences grow
+  to centimeters over a few seconds on rough terrain.
+* Policy Ghosts support RSL-RL and manager-based environments only.
+
+**Choosing how many environments are drawn**
+
+Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
+environments are drawn. It changes only what is rendered, not the simulation. With Policy Ghosts, it
+counts environments per slot.
+
 Resolution Rules
 ~~~~~~~~~~~~~~~~
 
-``--viz`` (comma-separated, e.g. ``--viz kit,newton_gl``) selects which visualizers run, and
+``--viz`` (comma-separated, e.g. ``--viz kit,newton``) selects which visualizers run, and
 ``SimulationCfg.visualizer_cfgs`` configures them. Each selected type uses its configured settings,
 or else that type's default config. Concrete visualizer configs run as given when no CLI selection
 is supplied. ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=[])``;
@@ -862,18 +892,18 @@ only needed for independently configured views, such as a different camera angle
    * - no ``--viz``
      - ``VisualizerCfg()`` (the default)
      - No visualizer launches; no window, no capture source.
-   * - ``--viz kit,newton_gl``
+   * - ``--viz kit,newton``
      - ``VisualizerCfg(max_visible_envs=16)``
-     - Launch Kit and Newton GL, both showing at most 16 environments.
+     - Launch Kit and Newton, both showing at most 16 environments.
    * - ``--video`` without ``--viz``
      - ``VisualizerCfg()``
-     - Launch Newton GL without a window, only as the ``--video`` recording source.
+     - Launch Newton without a window, only as the ``--video`` recording source.
    * - no ``--viz``
      - ``VisualizerCfg(backend=MultiBackendVisualizerCfg())``
      - No visualizer launches; backend alternatives remain inactive until selected.
-   * - ``visualizer=rerun,newton_gl``
+   * - ``visualizer=rerun,newton``
      - ``VisualizerCfg(max_visible_envs=16, backend=MultiBackendVisualizerCfg())``
-     - Launch Rerun and Newton GL, both showing at most 16 environments.
+     - Launch Rerun and Newton, both showing at most 16 environments.
 
 For migration context, see :doc:`/source/isaaclab/migrating`.
 
@@ -904,7 +934,7 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
 Scene Background
 ~~~~~~~~~~~~~~~~
 
-Kit and Newton RTX use the scene's authored lights and HDR background by default. Configure the
+Kit and the Newton visualizer in RTX mode use the scene's authored lights and HDR background by default. Configure the
 environment once on the scene, without repeating its HDR path or intensity in the visualizer:
 
 .. code-block:: python
@@ -914,7 +944,7 @@ environment once on the scene, without repeating its HDR path or intensity in th
 
 ``VisualizerCfg.background_color`` defaults to ``None``. An explicit normalized RGB color changes
 only the visible background; the scene lights continue to illuminate objects and contribute
-reflections. Newton GL uses its procedural sky when no color override is supplied:
+reflections. The Newton OpenGL view uses its procedural sky when no color override is supplied:
 
 .. code-block:: python
 
@@ -936,14 +966,11 @@ Performance
 
    * - Visualizer
      - Tips
-   * - Newton GL
-     - Lowest overhead; lower ``window.fps`` to limit wall-clock render frequency.
+   * - Newton
+     - Lowest overhead in OpenGL; lower ``window.fps`` to limit wall-clock render frequency.
    * - Viser
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
        environments (see :ref:`visualization-partial-visualization`).
-   * - Newton RTX
-     - Native Newton RTX rendering; reduce configured perspective resolution or lower ``window.fps``.
-       Environment selection limits sensor display tiles; the perspective view shows the full scene.
    * - Rerun
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
    * - Kit
@@ -957,42 +984,36 @@ Limitations
 **Backend feature support:**
 
 .. list-table::
-   :widths: 34 11 11 12 11 11
+   :widths: 40 15 15 15 15
    :header-rows: 1
 
    * - Feature
-     - Newton GL
-     - Newton RTX
+     - Newton
      - Viser
      - Rerun
      - Kit
    * - Visualization markers
      - ✓
-     - ✗
      - ✓
      - ✓
      - ✓
    * - Live plots
      - ✓
-     - ✗
      - ✓
      - ✓
      - ✓
    * - Streaming camera panel
      - ✓
-     - ✗
      - ✓
      - ✓
      - ✓
    * - Video recording, ``--video``
-     - ✓
      - ✓
      - ✗
      - ✗
      - ✓
    * - Pause rendering
      - ✓
-     - ✗
      - ✓
      - ✓
      - ✓
@@ -1001,23 +1022,18 @@ Limitations
      - ✓
      - ✓
      - ✓
-     - ✓
-   * - Keyboard input, ``key_event_source``
-     - ✓
-     - ✓
-     - ✗
-     - ✗
-     - ✓
+
+In Newton's RTX view, Policy Ghost tint and overlay, model overlays, and rigid-body dragging are not available.
 
 **Lighting differences across visualizers**
 
 Each backend lights the scene differently, so the same environment can look noticeably
-different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
+different across visualizers. Kit renders the scene's actual authored USD lights. The Newton OpenGL view
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonGLBackendCfg.sky_upper_color`,
-``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX renders the
+``sky_lower_color``, ``light_color``), independent of scene USD lights. The Newton RTX view renders the
 authored scene through Isaac Lab's OVRTX renderer, shared with cameras using the same
-``OVRTXRendererCfg``. Newton GL displays the rendered GPU image and handles window controls;
+``OVRTXRendererCfg``. The Newton window displays the rendered GPU image and handles window controls;
 Newton's ``ViewerRTX`` is not constructed. Scene transforms, deformable geometry, and material
 updates follow the camera renderer's normal synchronization. Perspective resolution stays
 fixed when the window is resized; the window scales the image for presentation.
@@ -1031,16 +1047,16 @@ Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 **Kit: incompatible with ovphysx / ovrtx presets**
 
 ``--viz kit`` cannot be used with ``presets=ovphysx`` or ``presets=ovrtx`` in the same process.
-Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
+Use ``--viz newton``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
 
-**Newton RTX: incompatible with Kit**
+**Newton RTX rendering: incompatible with Kit**
 
-``--viz newton_rtx`` raises a ``RuntimeError`` at startup if the active physics backend is
+Starting Newton in RTX (``initial_renderer="rtx"``) raises a ``RuntimeError`` at startup if the active physics backend is
 ``isaacsim_physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
 a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
-``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton_rtx``, or switch
-to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
+``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton``, or switch
+to ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
 physics backend.
 
 **Rerun: large environment performance**
@@ -1061,9 +1077,9 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
 Rerun may show a blank browser tab for up to about 10 seconds while it connects
 and receives scene data. Wait for the first frame; no action is needed.
 
-**Newton GL: CUDA/OpenGL interoperability warnings**
+**Newton: CUDA/OpenGL interoperability warnings**
 
-In some configurations, the Newton GL visualizer emits warnings about CUDA/OpenGL
+In some configurations, the Newton visualizer emits warnings about CUDA/OpenGL
 interoperability:
 
 .. code-block:: text
@@ -1075,12 +1091,12 @@ interoperability:
 The visualizer still functions correctly but falls back to CPU copy operations, which reduces
 performance.
 
-**Newton GL: OpenGL context failures**
+**Newton: OpenGL context failures**
 
 If pyglet reports that ``glCreateShader`` is not exported or that OpenGL 2.0 is required, the
 process is running without a GPU-backed display context (for example, in a service session or
 a remote desktop without GPU acceleration). Run from a GPU-backed interactive display session,
-or omit ``--viz newton_gl`` for headless execution.
+or omit ``--viz newton`` for headless execution.
 
 .. raw:: html
 

@@ -12,7 +12,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 .. code-block:: bash
 
     # Kitless run with the Newton OpenGL viewer.
-    uv run python scripts/environments/state_machine/lift_franka_soft.py --viz newton_gl
+    uv run python scripts/environments/state_machine/lift_franka_soft.py --viz newton
 
     # Headless.
     uv run python scripts/environments/state_machine/lift_franka_soft.py

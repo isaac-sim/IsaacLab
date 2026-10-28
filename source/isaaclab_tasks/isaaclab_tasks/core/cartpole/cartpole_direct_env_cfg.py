@@ -15,7 +15,7 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -70,4 +70,13 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_vel = -0.005
 
     def __post_init__(self):
-        self.sim.visualizer_cfgs = VisualizerCfg(eye=(8.0, 0.0, 5.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(
+            eye=(8.0, 0.0, 5.0),
+            cameras=[
+                TrackingCameraCfg(
+                    eye=(8.0, 0.0, 2.5),
+                    lookat=(0.0, 0.0, 2.5),
+                    focal_length=24.0,
+                ),
+            ],
+        )

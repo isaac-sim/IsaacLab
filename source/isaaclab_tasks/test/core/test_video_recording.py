@@ -179,11 +179,11 @@ def test_headless_kit_physx_recorders_share_visualizer():
 
 
 def test_newton_records_clip_and_warns_for_kit_capture(caplog):
-    """On Newton physics, source='viz:newton_gl' writes a non-black clip and source='viz:kit' warns.
+    """On Newton physics, source='viz:newton' writes a non-black clip and source='viz:kit' warns.
 
     Newton GL renders asynchronously, so the motion check is skipped: consecutive render_rgb_array() calls may
     return the same framebuffer. Kit capture needs cubric to see Newton transforms, so the recorder warns and
-    points to 'viz:newton_gl' instead of failing.
+    points to 'viz:newton' instead of failing.
     """
     from isaaclab_visualizers.kit import KitBackendCfg
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
@@ -196,11 +196,11 @@ def test_newton_records_clip_and_warns_for_kit_capture(caplog):
         ]
         env_cfg.video_recorders = [
             _recorder_cfg(output_dir, "viz:kit", prefix="kit"),
-            _recorder_cfg(output_dir, "viz:newton_gl", prefix="newton"),
+            _recorder_cfg(output_dir, "viz:newton", prefix="newton"),
         ]
         with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
             _run_cartpole(env_cfg)
-        assert any("source='viz:newton_gl'" in r.message for r in caplog.records)
+        assert any("source='viz:newton'" in r.message for r in caplog.records)
         _assert_clip_nonblack(os.path.join(output_dir, "newton_0000.mp4"), "newton")
 
 

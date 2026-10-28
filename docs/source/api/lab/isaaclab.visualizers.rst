@@ -21,12 +21,15 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :nosignatures:
 
    BaseVisualizer
-   KeyEventSource
-   KeyboardSubscription
+   PolicyGhostCheckpoint
+   PolicyGhostController
+   PolicyGhostLayout
+   PolicyGhostSlot
    VisualizerCfg
    VisualizerBackendCfg
    WindowCfg
    PerspectiveCameraCfg
+   TrackingCameraCfg
    SceneCameraCfg
    ImageViewCfg
    ImageView
@@ -34,13 +37,21 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
 .. autoclass:: BaseVisualizer
    :show-inheritance:
 
-.. autoclass:: KeyEventSource
-   :members: closed, add_key_listener, close
+.. autoclass:: PolicyGhostCheckpoint
+   :members:
+   :show-inheritance:
 
-.. autoclass:: KeyboardSubscription
-   :members: closed, close
+.. autoclass:: PolicyGhostController
+   :members:
+   :show-inheritance:
 
-.. autofunction:: add_key_callbacks
+.. autoclass:: PolicyGhostLayout
+   :members:
+   :show-inheritance:
+
+.. autoclass:: PolicyGhostSlot
+   :members:
+   :show-inheritance:
 
 .. autoclass:: VisualizerCfg
    :show-inheritance:
@@ -49,6 +60,9 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :show-inheritance:
 
 .. autoclass:: PerspectiveCameraCfg
+   :show-inheritance:
+
+.. autoclass:: TrackingCameraCfg
    :show-inheritance:
 
 .. autoclass:: SceneCameraCfg

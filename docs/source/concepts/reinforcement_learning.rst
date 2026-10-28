@@ -27,7 +27,7 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole \
-       --checkpoint latest --num_envs 32 --viz newton_gl
+       --checkpoint latest --num_envs 32 --viz newton
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 

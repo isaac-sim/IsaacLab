@@ -31,12 +31,19 @@ from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
 from ..utils.device import reserve_cuda_graph_memory
-from ..utils.images import sensor_key_for_gt_type
+from ..utils.images import resolve_display_channels, sensor_key_for_gt_type
 from ..utils.string import clear_resolve_matching_names_cache, string_to_callable
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
-from ..visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, migrate_visualizer_cfgs
+from ..visualizers.visualizer_cfg import (
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
+    TrackingCameraCfg,
+    VisualizerCfg,
+    migrate_visualizer_cfgs,
+    with_free_view,
+)
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -420,28 +427,39 @@ class SimulationContext:
             if config_filter is not None and not config_filter(visualizer.cfg):
                 continue
             cameras = []
+            # Only the Newton GL window renders task views, from its viewer camera.
+            task_views = visualizer.cfg.backend.visualizer_type == "newton"
             if visualizer.cfg.view is None:
-                cameras = list(visualizer.cfg.cameras or [
+                declared = [
+                    camera
+                    for camera in visualizer.cfg.cameras or []
+                    if task_views or not (isinstance(camera, TrackingCameraCfg))
+                ]
+                cameras = declared or [
                     PerspectiveCameraCfg(
                         eye=visualizer.cfg.eye, lookat=visualizer.cfg.lookat, focal_length=visualizer.cfg.focal_length
                     )
-                ])  # fmt: skip
+                ]
+            if task_views:
+                cameras = with_free_view(
+                    cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length
+                )
             if visualizer.cfg.view is None and visualizer.cfg.streaming_view:
                 sensors = self._scene_data_provider.get_camera_sensors()
                 env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
                 for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
-                if visualizer.cfg.cameras is None:
+                # task views only add to the scene cameras the visualizer would find on its own
+                task_views_only = bool(visualizer.cfg.cameras) and all(
+                    isinstance(camera, TrackingCameraCfg) for camera in visualizer.cfg.cameras
+                )
+                if visualizer.cfg.cameras is None or task_views_only:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
                         for camera in sensors.values():
-                            available = frozenset(camera.cfg.data_types)
-                            has_requested_channels = all(
-                                sensor_key_for_gt_type(gt, available, required=False) is not None
-                                for gt in visualizer.cfg.streaming_gt_types
-                            )
-                            if has_requested_channels:
+                            # A sensor without the requested channels still shows its own, such as depth only.
+                            if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
                 for index, source in enumerate(cameras):
                     if not isinstance(source, SceneCameraCfg):
@@ -464,6 +482,8 @@ class SimulationContext:
                             f"Declare a CameraCfg in the scene; available paths: {available_paths}."
                         )
                     cameras[index] = camera
+            # task views come last, after the free view and the scene cameras
+            cameras.sort(key=lambda camera: isinstance(camera, TrackingCameraCfg))
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
@@ -547,7 +567,7 @@ class SimulationContext:
     @staticmethod
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
-        return cfg.backend.visualizer_type == "newton_gl" and cfg.backend.enable_picking and not cfg.headless
+        return cfg.backend.visualizer_type == "newton" and cfg.backend.enable_picking and not cfg.headless
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.

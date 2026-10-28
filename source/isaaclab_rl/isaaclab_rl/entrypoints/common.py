@@ -147,7 +147,7 @@ def add_video_args(parser: argparse.ArgumentParser, *, action: str) -> None:
         metavar="SOURCE",
         help=(
             f"Record videos during {action}. SOURCE defaults to 'viz': the first capture-capable visualizer --viz"
-            " selects, else a headless newton_gl. 'viz:<type>' (kit, newton_gl, newton_rtx) records from that"
+            " selects, else a headless newton. 'viz:<type>' (kit, newton) records from that"
             " visualizer (a bare type is shorthand for 'viz:<type>'), added headless when --viz does not select it;"
             " 'sensor:<name>[:<channel>]' records from a scene camera. Recorders declared in the environment config"
             " take precedence."
@@ -539,6 +539,32 @@ def create_isaaclab_env(
 
         env = multi_agent_to_single_agent(env)
     return env
+
+
+def describe_run(env: gym.Env, task: str, mode: str, log_dir: str | None) -> None:
+    """Show the task and run in the HUD header of every visualizer that has one.
+
+    Args:
+        env: Environment, possibly wrapped, whose simulation owns the visualizers.
+        task: Task name.
+        mode: ``"play"`` or ``"train"``.
+        log_dir: Run log directory, or None when the run has none.
+    """
+    for visualizer in env.unwrapped.sim.visualizers:
+        if hasattr(visualizer, "set_run_info"):
+            visualizer.set_run_info(task, mode, os.path.basename(log_dir) if log_dir else None)
+
+
+def offer_checkpoint_saver(env: gym.Env, save: Callable[[str], None]) -> None:
+    """Enable the Checkpoint button in the HUD of every visualizer that has one.
+
+    Args:
+        env: Environment, possibly wrapped, whose simulation owns the visualizers.
+        save: Callable that writes the run's policy checkpoint to the given path.
+    """
+    for visualizer in env.unwrapped.sim.visualizers:
+        if hasattr(visualizer, "attach_checkpoint_saver"):
+            visualizer.attach_checkpoint_saver(save)
 
 
 def close_env(env: gym.Env) -> None:

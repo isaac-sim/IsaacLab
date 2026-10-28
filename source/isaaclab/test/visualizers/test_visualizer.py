@@ -38,7 +38,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
     [
         ("isaaclab_visualizers.kit", "KitBackendCfg", "KitVisualizer"),
         ("isaaclab_visualizers.newton", "NewtonGLBackendCfg", "NewtonGLVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonRTXBackendCfg", "NewtonRTXVisualizer"),
         ("isaaclab_visualizers.rerun", "RerunBackendCfg", "RerunVisualizer"),
         ("isaaclab_visualizers.viser", "ViserBackendCfg", "ViserVisualizer"),
     ],
@@ -84,10 +83,10 @@ def test_visualizer_cfg_validates_presentation():
     for fps in (0.0, -1.0, float("inf"), float("nan")):
         with pytest.raises(ValueError, match="WindowCfg.fps"):
             validate(WindowCfg(fps=fps))
-    cfg = VisualizerCfg(view=ImageViewCfg(source="camera"), backend=[VisualizerBackendCfg(visualizer_type="newton_gl")])
+    cfg = VisualizerCfg(view=ImageViewCfg(source="camera"), backend=[VisualizerBackendCfg(visualizer_type="newton")])
     validate(cfg)
     cfg.backend.append(VisualizerBackendCfg(visualizer_type="viser"))
-    with pytest.raises(ValueError, match="requires a Newton GL or RTX"):
+    with pytest.raises(ValueError, match="requires the Newton visualizer"):
         validate(cfg)
 
 

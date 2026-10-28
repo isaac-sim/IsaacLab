@@ -81,7 +81,7 @@ def main() -> int:
     )
     parser.add_argument("--output_dir", type=Path, default=Path("logs/demos/sharpa_rj45"))
     add_launcher_args(parser)
-    parser.set_defaults(visualizer=["newton_gl"])
+    parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
     if args.num_steps <= 0:
         parser.error("--num_steps must be positive")

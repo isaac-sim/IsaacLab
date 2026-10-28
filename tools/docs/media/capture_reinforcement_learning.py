@@ -12,7 +12,7 @@ import os
 import sys
 
 import gymnasium as gym
-from isaaclab_visualizers.newton import NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
@@ -67,7 +67,7 @@ def _configure_capture(env_cfg: object):
     if output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source="viz:newton_rtx",
+                source="viz:newton",
                 output_dir=output_dir,
                 output_filename_prefix=os.environ.get("RL_PROGRESS_VIDEO_PREFIX", "progress"),
                 fps=50,
@@ -84,7 +84,7 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg):
             focal_length=40.0,
             window=WindowCfg(size=(480, 270)),
             headless=True,
-            backend=NewtonRTXBackendCfg(),
+            backend=NewtonGLBackendCfg(initial_renderer="rtx"),
         )
     ]
 

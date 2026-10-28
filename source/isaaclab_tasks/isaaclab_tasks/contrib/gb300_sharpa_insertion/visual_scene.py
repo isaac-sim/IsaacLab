@@ -42,7 +42,10 @@ def configure_visual_scene(cfg: GB300SharpaInsertionEnvCfg) -> str:
         "ISAACLAB_SHARPA_RJ45_VISUAL_ROOT", f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45"
     ).rstrip("/")
     rack_path = f"{root}/Environments/GB300/external.usd"
-    if any(viz.backend.visualizer_type in ("kit", "newton_rtx") for viz in cfg.sim.visualizer_cfgs):
+    if any(
+        viz.backend.visualizer_type == "kit" or getattr(viz.backend, "initial_renderer", None) == "rtx"
+        for viz in cfg.sim.visualizer_cfgs
+    ):
         usd_only = ("isaaclab.cloner:UsdReplicateContext",)
         cfg.scene.visual_scene = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/VisualScene",
@@ -68,7 +71,7 @@ def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str) -> None:
 
     from pxr import Usd, UsdGeom, UsdShade
 
-    viewers = [viz for viz in env.sim.visualizers if viz.cfg.backend.visualizer_type == "newton_gl"]
+    viewers = [viz for viz in env.sim.visualizers if viz.cfg.backend.visualizer_type == "newton"]
     if not viewers:
         return
     stage = Usd.Stage.Open(retrieve_file_path(rack_path))
