@@ -28,7 +28,8 @@ RIZON_SHARPA_RELATIVE_PATH = (
 )
 RIZON_SHARPA_USD_NAME = "rizon4s_sharpa_no_spheres_generated.usd"
 RIZON_SHARPA_USD_PATH = (
-    f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45/Robots/Rizon4sSharpa/{RIZON_SHARPA_USD_NAME}"
+    f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45/Robots/Rizon4sSharpa/"
+    "textures_512_2d4d295061de/rizon4s_sharpa_textures_512.usda"
 )
 RIZON_SHARPA_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
 RIZON_SHARPA_BUNDLE_SIZE_BYTES = 379_258_308
@@ -36,10 +37,6 @@ RIZON_SHARPA_ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
 
 # The measured socket geometry uses this CAD revision as its SDF cache key.
 GB300_SIMREADY_EXTERNAL_USD_SHA256 = "5e0b7b3b58d005b24909b8d2e735c49997f8dbea72352b51911326343ef1e7bb"
-GB300_SWITCH_FRONT_USD_PATH = (
-    "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Environments/RizonSharpaRJ45/"
-    "Environments/GB300/switch_front_c0ddcdf9d4ef.usdc"
-)
 
 # Fabrics-Sim authors this fixed child from measured knuckle geometry. Its
 # canonical axes are X toward the knuckles and Z out of the palm. The native

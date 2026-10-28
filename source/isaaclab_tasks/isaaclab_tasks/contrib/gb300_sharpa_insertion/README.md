@@ -21,10 +21,8 @@ The defaults above use `--backdrop auto`. In Newton GL, `--backdrop datacenter`
 loads one full rack without the facility.
 
 The default GL front is a prepared, self-contained USD with three material meshes;
-startup does not crop or rebuild the rack. It currently lives on the internal
-`isaac-dev.ov.nvidia.com` Nucleus server and requires access to that server until
-promotion to the public asset bundle. A local visual root uses the same
-`Environments/GB300/switch_front_c0ddcdf9d4ef.usdc` layout.
+startup does not crop or rebuild the rack. It uses the same asset root as the rack,
+including alternate visual roots, at `Environments/GB300/switch_front_c0ddcdf9d4ef.usdc`.
 
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK
 and action manager. Native hydroelastic hand–housing/clip contact is enabled;
@@ -37,9 +35,11 @@ There are no rewards, training presets, policy checkpoints or automatic episode 
 
 - Visuals: `Environments/RizonSharpaRJ45` on the standard Isaac Lab asset server. Set
   `ISAACLAB_SHARPA_RJ45_VISUAL_ROOT` to an alternate bundle root.
-- Robot: `Robots/Rizon4sSharpa` in the same bundle, loaded through the native USD resolver by default.
-  Set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` to a local USD bundle with its complete textures
-  for offline use. Explicit local bundles retain the revision and integrity checks in `assets.py`.
+- Robot: `Robots/Rizon4sSharpa/textures_512_2d4d295061de/rizon4s_sharpa_textures_512.usda`
+  in the same bundle. This small layer references the existing robot USD and supplies prepared
+  512-pixel textures; geometry and physics are reused. Set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`
+  to use a local copy of the original USD bundle and its full-resolution textures for offline use.
+  Explicit local bundles retain the revision and integrity checks in `assets.py`.
 - Connector: Newton's canonical `rj45_plug.usd`; set `ISAACLAB_RJ45_PLUG_USD`
   if it is absent from the installation. The resolver reports its pinned download URL.
 - The prerequisite [Newton dependency update](https://github.com/isaac-sim/IsaacLab/pull/8524) includes the merged

@@ -17,7 +17,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
-from .assets import GB300_SWITCH_FRONT_USD_PATH
 from .workcell import (
     FLOOR_OFFSET_M,
     GB300_PRESENTATION_ROTATION_XYZW,
@@ -74,9 +73,7 @@ def add_gl_visuals(env: GB300SharpaInsertionEnv, rack_path: str, *, front_only: 
 
     path = rack_path
     if front_only:
-        path = GB300_SWITCH_FRONT_USD_PATH
-        if "ISAACLAB_SHARPA_RJ45_VISUAL_ROOT" in os.environ:
-            path = f"{rack_path.rsplit('/', 1)[0]}/{path.rsplit('/', 1)[1]}"
+        path = f"{rack_path.rsplit('/', 1)[0]}/switch_front_c0ddcdf9d4ef.usdc"
     stage = Usd.Stage.Open(retrieve_file_path(path))
     transform = np.eye(4)
     transform[:3, :3] = ((0, 1, 0), (-1, 0, 0), (0, 0, 1))
