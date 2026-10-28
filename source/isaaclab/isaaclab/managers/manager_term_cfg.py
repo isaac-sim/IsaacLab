@@ -238,12 +238,17 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     Observation history initializes to empty, but is filled with the first append after reset or initialization.
     Subsequent history only adds a single entry to the history buffer. If flatten_history_dim is set to True,
     the source data of shape (N, H, D, ...) where N is the batch dimension and H is the history length will
-    be reshaped to a 2-D tensor of shape (N, H*D*...). Otherwise, the data will be returned as is.
+    be reshaped to a 2-D tensor of shape (N, H*D*...). Otherwise, the data will be returned as is. The order along
+    the history dimension is set by :attr:`history_newest_first`.
     """
 
     flatten_history_dim: bool = True
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
+
+    history_newest_first: bool = False
+    """If True, index 0 along the history dim is the current step; if False (default), index 0 is oldest.
+    Only used when :attr:`history_length` > 0."""
 
     modifiers: list[TensorProcessorCfg] | None = None
     """Deprecated alias for :attr:`tensor_processors`, to be removed in a future release.
@@ -332,6 +337,9 @@ class ObservationGroupCfg:
     The ``"time"`` option applies when :attr:`history_length` is positive, :attr:`flatten_history_dim` and
     :attr:`concatenate_terms` are true, and :attr:`concatenate_dim` is ``-1``.
     """
+
+    history_newest_first: bool | None = None
+    """If set, overrides :attr:`ObservationTermCfg.history_newest_first` for all terms in the group."""
 
 
 ##
