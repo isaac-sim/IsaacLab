@@ -245,6 +245,8 @@ class PhysxUsdExporter(BaseUsdExporter):
         states it per collider; the USD then reproduces it.
         """
         values = np.asarray(values)
+        if len(values) == 0:  # a body without colliders
+            return None
         if not np.all(values == values[0]):
             logger.debug(f"The {name} of body '{path}' differs between its shapes; keeping its USD values.")
             return None

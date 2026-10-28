@@ -136,14 +136,16 @@ def test_converted_usd_in_the_temporary_directory_is_refused(tmp_path, monkeypat
 
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     converted = tmp_path / "IsaacLab" / "usd_0" / "robot.usda"
+    rewritten = tmp_path / "isaaclab_usd_0123" / "assets" / "robot.usda"
     authored = tmp_path / "scene" / "table.usda"
-    for layer in (converted, authored):
+    for layer in (converted, rewritten, authored):
         layer.parent.mkdir(parents=True)
         Sdf.Layer.CreateNew(str(layer)).Save()
     export = str(tmp_path / "export" / "env.usda")
 
-    with pytest.raises(ValueError, match="persistent 'usd_dir'"):
-        BaseUsdExporter._keep_temporary_file(str(converted), export)
+    for layer in (converted, rewritten):
+        with pytest.raises(ValueError, match="temporary directory"):
+            BaseUsdExporter._keep_temporary_file(str(layer), export)
     assert BaseUsdExporter._keep_temporary_file(str(authored), export) == str(authored)
 
 
@@ -191,3 +193,8 @@ def test_newton_compact_inertia_is_updated_with_the_inertia():
     edits = PhysxUsdExporter._mass_edits(body, 1.0, np.zeros(3), np.diag([2.0, 3.0, 3.0]))
     compact = next(edit.value for edit in edits if edit.attribute == "newton:inertia")
     np.testing.assert_allclose(compact, [2.0, 3.0, 3.0, 0.0, 0.0, 0.0])
+
+
+def test_body_without_colliders_has_no_collider_values():
+    """A rigid body with mass but no collision shapes reports empty per-shape arrays."""
+    assert PhysxUsdExporter._uniform(np.zeros((0, 3)), "/Body", "material") is None
