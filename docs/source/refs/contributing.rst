@@ -580,7 +580,10 @@ See the `Lazy Loading & Module Exports`_ section for details.
 
 Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
 parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
-``data``. Use explicit native access only where the receiving API requires it.
+``data``. Use explicit native access only where the receiving API requires it. In particular,
+host operations such as ``memory.concat`` that inspect Warp shapes, strides, and views require
+``proxy.warp``; they do not perform the automatic argument conversion of ``wp.launch``.
+When replacing a kernel launch with a host operation, validate the real callers as well as the kernel.
 When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
@@ -643,6 +646,42 @@ Specialize structural choices; numerical values remain runtime inputs. Name fact
 Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a device operation and
 an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
 Verify ownership and dependency direction as well as numerical behavior and capture replay.
+
+
+Shared Warp memory operations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use native ``wp.copy``, ``array.fill_`` and ``array.zero_`` for ordinary data movement.
+Represent selections with ``wp.indexedarray`` and component layouts with scalar slices/views.
+Do not add project-owned kernels or forwarding wrappers for operations Warp already provides.
+``isaaclab.utils.warp.memory`` owns selector normalization, component views, boolean-masked
+updates and fused operations justified by measured launch or memory-access costs. Callers
+supply frequency through shapes, strides and selectors; memory must not own body, joint,
+environment or physical-quantity concepts. Native solver mappings and simulator row-ID
+bookkeeping belong to backends. Delete superseded implementations and unused aliases.
+
+Warp indexed views require contiguous int32 index arrays. Normalize supported Torch/Warp
+selectors with ``resolve_1d_indices``: existing contiguous int32 storage is reused, while
+strided or int64 selectors require a copy/cast. Keep the result alive with the view and
+warm conversions before capture; conversion during CUDA capture requires the memory pool.
+Select both source and destination views for full-shaped sources. Do not compact dynamic
+boolean masks into indices in captured paths; use the small masked copy/fill kernels.
+
+For a required custom kernel, use a cached factory that defines and returns a concrete ``wp.Kernel``, following the
+`MuJoCo Warp factory pattern <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/collision_driver.py>`_.
+Name factories ``make_<operation>``; use ``functools.cache`` for hashable type/rank arguments
+and ``@wp.kernel(module="unique")`` to isolate each specialization. Keep copy and fill signatures
+explicit. Do not return a dispatcher from a kernel factory or eagerly enumerate layout/type products.
+
+Call the factory where the configuration is known. Repeated calls reuse the same kernel; they do
+not redefine it. If a named variant improves readability, define only a used variant next to its
+factory in the owning kernel module, then import it. Do not scatter variant constants across
+implementation modules. Keep semantic configuration at the caller and preserve array strides.
+
+Python factory caching reuses kernel objects; Warp separately owns compilation and its disk cache.
+Warm up the actual execution path before graph capture, including the needed selector dtypes.
+Later specializations must not invalidate kernels already compiled or captured. Check this alongside
+dependency direction, aliasing, selector widths, and replay with changed inputs.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^

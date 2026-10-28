@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+4.1.2 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to ask the solver configuration's ``class_type`` whether the solver accepts applied body forces.
+
+
 4.1.1 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~
 
