@@ -355,8 +355,8 @@ def kuka_allegro_grasp_pair_pose(
 
     Args:
         joint_positions: KUKA arm positions [rad], shape ``(..., 7)``.
-        pair_ids: Pair IDs in ``[0, 2]``, broadcastable to ``joint_positions``
-            without its final joint dimension.
+        pair_ids: Pair IDs in ``[0, len(tool_offsets_by_pair) - 1]``, broadcastable
+            to ``joint_positions`` without its final joint dimension.
         tool_offsets_by_pair: Palm-frame grasp centers for each pair [m].
 
     Returns:

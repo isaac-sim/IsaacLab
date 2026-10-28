@@ -11,7 +11,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import modifiers
+from isaaclab.utils import tensor_processors
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -120,7 +120,9 @@ class CameraObservationsCfg:
                 "normalize": False,
                 "channel_first": True,
             },
-            modifiers=[modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 1.0 / 255.0})],
+            tensor_processors=[
+                tensor_processors.TensorProcessorCfg(func=tensor_processors.scale, params={"multiplier": 1.0 / 255.0})
+            ],
             noise=mdp.EpisodeCameraNoiseCfg(),
             clip=(0.0, 1.0),
         )

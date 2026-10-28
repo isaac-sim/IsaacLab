@@ -13,7 +13,7 @@ from rsl_rl.algorithms import Distillation
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg
-from isaaclab.utils import modifiers
+from isaaclab.utils import tensor_processors
 from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -84,8 +84,8 @@ def test_camera_actor_has_only_deployable_observations(stack_cfgs):
     assert image.func is mdp.image_rgb
     assert image.params["normalize"] is False
     assert image.params["channel_first"] is True
-    assert image.modifiers[0].func is modifiers.scale
-    assert image.modifiers[0].params["multiplier"] == pytest.approx(1.0 / 255.0)
+    assert image.tensor_processors[0].func is tensor_processors.scale
+    assert image.tensor_processors[0].params["multiplier"] == pytest.approx(1.0 / 255.0)
     assert not hasattr(cfg.observations.policy, "object")
     assert runner.obs_groups["actor"] == ["policy", "base_image"]
     assert runner.obs_groups["critic"] == ["privileged"]
