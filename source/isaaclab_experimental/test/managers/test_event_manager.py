@@ -11,8 +11,9 @@ from types import SimpleNamespace
 import pytest
 import warp as wp
 from isaaclab_experimental.managers import EventManager, EventTermCfg, ManagerTermBase
+from isaaclab_experimental.utils.warp import WarpCapturable
 
-from isaaclab.utils.warp.capture import CapturedStage, WarpCapturable
+from isaaclab.utils.warp.capture import CapturedStage
 
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")

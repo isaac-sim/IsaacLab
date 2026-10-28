@@ -47,6 +47,7 @@ import isaaclab_tasks_experimental.core as tasks_experimental_core
 import isaaclab_tasks_experimental.core.locomotion.mdp.rewards as warp_loco_rew
 import isaaclab_tasks_experimental.core.velocity.mdp.rewards as warp_velocity_rew
 import isaaclab_tasks_experimental.core.velocity.mdp.terminations as warp_velocity_term
+from isaaclab_experimental.utils.warp import is_warp_capturable
 from parity_helpers import (
     DEVICE,
     NUM_BODIES,
@@ -70,7 +71,6 @@ from parity_helpers import (
 import isaaclab.envs.mdp.rewards as stable_rew
 import isaaclab.envs.mdp.terminations as stable_term
 from isaaclab.managers.manager_term_cfg import RewardTermCfg, TerminationTermCfg
-from isaaclab.utils.warp.capture import is_warp_capturable
 
 import isaaclab_tasks.core.velocity.mdp.rewards as stable_velocity_rew
 import isaaclab_tasks.core.velocity.mdp.terminations as stable_velocity_term

@@ -21,7 +21,9 @@ from isaaclab.assets import AssetBase
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
 from isaaclab.managers.manager_term_cfg import ActionTermCfg
 from isaaclab.utils import instantiate
-from isaaclab.utils.warp.capture import captured, eager, is_warp_capturable
+from isaaclab.utils.warp.capture import captured, eager
+
+from isaaclab_experimental.utils.warp import is_warp_capturable
 
 from .manager_base import ManagerBase, ManagerTermBase, split_terms
 

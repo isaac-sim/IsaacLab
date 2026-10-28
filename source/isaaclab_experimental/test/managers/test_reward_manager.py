@@ -12,9 +12,10 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental.managers import ManagerTermBase, RewardManager
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 from isaaclab.managers import RewardTermCfg
-from isaaclab.utils.warp.capture import CapturedStage, WarpCapturable
+from isaaclab.utils.warp.capture import CapturedStage
 
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")

@@ -413,7 +413,7 @@ experimental packages:
 
    from isaaclab.managers import SceneEntityCfg
    from isaaclab_experimental.managers import ManagerTermBase
-   from isaaclab.utils.warp.capture import WarpCapturable
+   from isaaclab_experimental.utils.warp import WarpCapturable
 
 Term configurations keep the stable config classes (for example
 :class:`~isaaclab.managers.RewardTermCfg` and the command configurations in :mod:`isaaclab.envs.mdp`);
@@ -608,7 +608,7 @@ built-in warp term has the same name.
 
    import warp as wp
 
-   from isaaclab.utils.warp.capture import WarpCapturable
+   from isaaclab_experimental.utils.warp import WarpCapturable
 
 
    @wp.kernel
