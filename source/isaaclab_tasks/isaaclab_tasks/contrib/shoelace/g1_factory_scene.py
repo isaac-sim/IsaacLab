@@ -9,8 +9,8 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 
-# Highest point of the source workbench; keep its feet on the ground when scaling.
-PACKING_TABLE_SCALE = 0.78 / 0.9940513388652052
+# Authored tabletop height with the workstation at its native scale [m].
+PACKING_TABLE_HEIGHT = 0.9940513388652052
 
 
 @sim_utils.clone
@@ -34,9 +34,7 @@ def spawn_packing_workstation(
     if not tray.IsValid():
         raise ValueError("PackingTable asset is missing its container_h20 tray.")
     # World tray center (0.70, 0.23), relative to the table root at (0, 0.10).
-    tray.GetAttribute("xformOp:translate").Set(
-        Gf.Vec3d(0.70 / PACKING_TABLE_SCALE, 0.13 / PACKING_TABLE_SCALE, 0.9940513388652052)
-    )
+    tray.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.70, 0.13, PACKING_TABLE_HEIGHT))
     tray.GetAttribute("xformOp:scale").Set(Gf.Vec3f(0.9, 0.9, 0.75))
     # The source uses MDL materials; explicit USD preview surfaces also render in Newton GL.
     colors = {

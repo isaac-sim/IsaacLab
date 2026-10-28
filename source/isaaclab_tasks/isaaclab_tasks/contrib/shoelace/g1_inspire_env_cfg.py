@@ -20,7 +20,7 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG
 
 from . import mdp
-from .g1_factory_scene import PACKING_TABLE_SCALE, spawn_packing_workstation
+from .g1_factory_scene import PACKING_TABLE_HEIGHT, spawn_packing_workstation
 from .g1_inspire_hand import INDEX_CLOSED, PAD_OFFSETS, TCP_BODY_OFFSETS, THUMB_PITCH, THUMB_YAW, spawn_g1_shoelace
 from .mdp.collision_ik_cfg import G1CollisionAwareIKActionCfg
 from .mdp.inspire_hand_cfg import InspireFingerActionCfg
@@ -74,7 +74,8 @@ def _robot_cfg() -> ArticulationCfg:
             "/[LR]_(thumb|index)_[^/]+/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
         },
     )
-    robot.init_state.pos = (0.0, -0.38, 0.795)
+    # Preserve the trained hand-to-shoe geometry at the native tabletop height.
+    robot.init_state.pos = (0.0, -0.38, PACKING_TABLE_HEIGHT + 0.015)
     robot.init_state.rot = (0.0, 0.0, 0.7071067811865476, 0.7071067811865476)
     # Mirror the left pregrasp through the robot's sagittal plane. The original left
     # pose was fitted 60 mm above its nominal tail; asymmetric tails need not align equally.
@@ -153,7 +154,6 @@ class G1ShoelaceSceneCfg(ShoelaceSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             func=spawn_packing_workstation,
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            scale=(PACKING_TABLE_SCALE,) * 3,
             make_uninstanceable=True,
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.10, 0.0)),
@@ -161,8 +161,8 @@ class G1ShoelaceSceneCfg(ShoelaceSceneCfg):
 
     def __post_init__(self) -> None:
         """Raise the complete shoe assembly and bind both hands' contact bodies."""
-        self.shoelace_asset.init_state.pos = (0.0, 0.0, 0.78)
-        self.shoe.init_state.pos = (0.0, 0.0, 0.78)
+        self.shoelace_asset.init_state.pos = (0.0, 0.0, PACKING_TABLE_HEIGHT)
+        self.shoe.init_state.pos = (0.0, 0.0, PACKING_TABLE_HEIGHT)
         self.finger_tail_contacts.robot_prim_names = ("Robot", "Robot")
         self.finger_tail_contacts.finger_body_names = (
             ("L_thumb_distal", "L_index_intermediate"),
@@ -303,8 +303,8 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
         self.sim.visualizer_cfgs = [
             VisualizerCfg(
                 backend=NewtonGLBackendCfg(),
-                eye=(1.6, 1.8, 1.5),
-                lookat=(0.0, 0.0, 0.7),
+                eye=(1.6, 1.8, PACKING_TABLE_HEIGHT + 0.72),
+                lookat=(0.0, 0.0, PACKING_TABLE_HEIGHT - 0.08),
                 focal_length=20.0,
                 max_visible_envs=1,
                 background_color=(0.20, 0.24, 0.29),
