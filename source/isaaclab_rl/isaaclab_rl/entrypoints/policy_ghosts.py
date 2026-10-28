@@ -19,9 +19,15 @@ import numpy as np
 import torch
 
 from isaaclab.envs.utils.policy_ghost_sync import PolicyGhostSync
-from isaaclab.visualizers.policy_ghost import PolicyGhostCheckpoint, PolicyGhostController, PolicyGhostLayout
+from isaaclab.visualizers.policy_ghost import (
+    PolicyGhostCheckpoint,
+    PolicyGhostController,
+    PolicyGhostLayout,
+    PolicyGhostMetrics,
+)
 
 from .common import _compatible_runs, _natural_sort_key, normalize_task_name
+from .policy_ghost_metrics import PolicyGhostMetricsTracker
 
 if TYPE_CHECKING:
     pass
@@ -343,6 +349,9 @@ class PolicyGhostSession(PolicyGhostController):
         self._sync = PolicyGhostSync(env.unwrapped, slice_size, num_slots)
         self._policies: list[PolicyGhostPolicy | None] = [None] * num_slots
         self._restart_pending = False
+        self._metrics = PolicyGhostMetricsTracker(
+            slice_size, num_slots, env.num_envs, env.unwrapped.step_dt, env.unwrapped.device
+        )
         try:
             self._load(0, reference)
             self._obs = env.get_observations()
@@ -386,6 +395,10 @@ class PolicyGhostSession(PolicyGhostController):
         self._policies[slot_index] = None
         self.layout.slots[slot_index].checkpoint = None
         self.layout.slots[slot_index].label = ""
+        self._metrics.set_active(slot_index, False)
+
+    def slot_metrics(self, slot_index: int) -> PolicyGhostMetrics | None:  # noqa: D102
+        return self._metrics.metrics(slot_index)
 
     def env_origin_offsets(self) -> np.ndarray:  # noqa: D102
         return self._sync.env_origin_offsets()
@@ -396,6 +409,7 @@ class PolicyGhostSession(PolicyGhostController):
         if self._restart_pending:
             self._restart_pending = False
             self._obs, _ = self._env.reset()
+            self._metrics.reset()
             for policy in self._policies:
                 if policy is not None:
                     policy.reset(torch.ones(size, dtype=torch.bool, device=self._env.unwrapped.device))
@@ -405,7 +419,8 @@ class PolicyGhostSession(PolicyGhostController):
             if policy is not None:
                 chunk = slice(slot.index * size, (slot.index + 1) * size)
                 actions[chunk] = policy(self._obs[chunk])
-        self._obs, _, dones, _ = self._env.step(actions)
+        self._obs, rewards, dones, _ = self._env.step(actions)
+        self._metrics.update(rewards, dones)
         for slot in self.layout.slots:
             policy = self._policies[slot.index]
             if policy is not None:
@@ -421,3 +436,4 @@ class PolicyGhostSession(PolicyGhostController):
         slot = self.layout.slots[slot_index]
         slot.checkpoint = checkpoint
         slot.label = f"{checkpoint.run} / {checkpoint.name}"
+        self._metrics.set_active(slot_index, True)

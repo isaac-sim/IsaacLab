@@ -14,6 +14,7 @@ __all__ = [
     "PolicyGhostCheckpoint",
     "PolicyGhostController",
     "PolicyGhostLayout",
+    "PolicyGhostMetrics",
     "PolicyGhostSlot",
     "SceneCameraCfg",
     "TrackingCameraCfg",
@@ -31,6 +32,7 @@ from .policy_ghost import (
     PolicyGhostCheckpoint,
     PolicyGhostController,
     PolicyGhostLayout,
+    PolicyGhostMetrics,
     PolicyGhostSlot,
 )
 from .visualizer_cfg import (

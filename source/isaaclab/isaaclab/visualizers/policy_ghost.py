@@ -84,6 +84,20 @@ class PolicyGhostSlot:
         return self.checkpoint is not None and self.visible
 
 
+@dataclass(frozen=True)
+class PolicyGhostMetrics:
+    """Statistics of the episodes a slot finished most recently."""
+
+    episodes: int
+    """Number of episodes the statistics average over."""
+
+    mean_return: float
+    """Mean undiscounted return of those episodes."""
+
+    mean_length: float
+    """Mean episode length [s]."""
+
+
 @dataclass
 class PolicyGhostLayout:
     """How environments map to slots: slot ``s`` owns envs ``[s * slice_size, (s + 1) * slice_size)``."""
@@ -146,6 +160,10 @@ class PolicyGhostController(ABC):
     @abstractmethod
     def remove_ghost(self, slot_index: int) -> None:
         """Empty a ghost slot; the reference slot cannot be removed."""
+
+    def slot_metrics(self, slot_index: int) -> PolicyGhostMetrics | None:
+        """Return the episode statistics of a slot, or None when the controller does not track them yet."""
+        return None
 
     @abstractmethod
     def env_origin_offsets(self) -> np.ndarray:

@@ -201,6 +201,13 @@ class NewtonPolicyGhostPanel:
         imgui.same_line()
         role = "Reference" if slot.index == 0 else f"Ghost {slot.index}"
         imgui.text(f"{role}: {slot.label}")
+        metrics = self.controller.slot_metrics(slot.index)
+        if metrics is not None:
+            imgui.text_disabled(
+                f"{metrics.episodes} episodes · return {metrics.mean_return:.1f} · length {metrics.mean_length:.1f} s"
+            )
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Mean over this slot's latest finished episodes, since it was loaded")
         if slot.index > 0:
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
             if imgui.tree_node("Settings"):
