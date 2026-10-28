@@ -62,6 +62,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
     viz._sim = SimpleNamespace(get_physics_step_count=lambda: 10, get_physics_dt=lambda: 0.1)
     viz._image_views = list(views)
     viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if viz._is_task_view(view)}
+    viz.rtx_rendering, viz._rtx_pose_view, viz._perspective_poses = False, None, {}
     return viz
 
 
@@ -87,10 +88,11 @@ def test_views_are_numbered_only_when_several_share_a_name():
 
 
 def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern():
-    sensor = _View("/World/envs/env_[^/]+/Robot/wrist_camera", camera=object())
+    camera = SimpleNamespace(cfg=SimpleNamespace(data_types=["rgba"]))
+    sensor = _View("/World/envs/env_[^/]+/Robot/wrist_camera", camera=camera)
     viz = _visualizer([_view(PerspectiveCameraCfg()), sensor])
 
-    assert viz._view_labels([0, 1]) == ["Perspective", "wrist_camera (sensor)"]
+    assert viz._view_labels([0, 1]) == ["Perspective", "wrist_camera (RGB sensor)"]
 
 
 def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_sensors():
@@ -163,3 +165,50 @@ def test_an_invalid_followed_asset_is_reported_not_raised():
 
     assert not viz._set_tracking_path(viz._followers[view], "ghost")
     assert "unknown scene asset" in viz._tracking_error
+
+
+def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
+    free, task = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=0))
+    viz = _visualizer([free, task])
+    viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
+    viz.current_image_view = free
+    viz._viewer.camera.fov = 0.0
+    camera = viz._viewer.camera
+    camera.pos, camera.pitch, camera.yaw = (1.0, 2.0, 3.0), -10.0, 45.0
+
+    viz._remember_perspective_pose()
+    camera.pos, camera.pitch, camera.yaw = (9.0, 9.0, 9.0), 0.0, 0.0  # A Tracking Camera or sensor moved it.
+    viz.cfg.focal_length = 50.0
+
+    assert viz._restore_perspective_pose(free)
+    assert (tuple(camera.pos), camera.pitch, camera.yaw, viz.cfg.focal_length) == ((1.0, 2.0, 3.0), -10.0, 45.0, 12.0)
+    assert not viz._restore_perspective_pose(task)  # A view that was never left has nothing to restore.
+
+
+def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
+    view = _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    rtx = _View("/World/viewer_camera_0_rtx", camera=object())
+    viz = _visualizer([view])
+    cfg = view.cfg.source
+    viz._tracking_defaults = {
+        view: {
+            "eye": cfg.eye,
+            "lookat": cfg.lookat,
+            "focal_length": cfg.focal_length,
+            "track_path": cfg.track_path,
+            "follow_heading": cfg.follow_heading,
+            "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
+            "env": 0,
+        }
+    }
+    viz.current_image_view, viz.rtx_rendering, viz._rtx_pose_view = (
+        rtx,
+        True,
+        view,
+    )  # RTX is showing the Tracking Camera.
+    viz._tracking_error = ""
+
+    cfg.eye = (9.0, 9.0, 9.0)
+    assert viz._reset_tracking_camera(viz._followers[view])
+
+    assert cfg.eye == (2.0, 0.0, 1.0)

@@ -878,6 +878,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._tracking_defaults: dict[object, dict] = {}
         """What the task declared for each task view, for Reset to Task Default."""
         self._tracking_error = ""
+        self._perspective_poses: dict[object, tuple] = {}
+        """Last pose and focal length of each free Perspective view, kept while another source is shown."""
         self._sensor_tiles: dict[object, tuple[int, ...]] = {}
         """Environments each multi-environment scene camera tiles, by image view."""
         self._rtx_appearance: RtxAppearance | None = None
@@ -1367,7 +1369,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _reset_tracking_camera(self, follower: CameraFollower) -> bool:
         """Restore the camera's declared pose, optics, and target; returns whether anything changed."""
-        defaults = self._tracking_defaults.get(self.current_image_view)
+        defaults = self._tracking_defaults.get(self._pose_source_view())  # In RTX the Tracking view is not current.
         if defaults is None:
             return False
         cfg = follower.cfg
@@ -1437,12 +1439,49 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Switch the camera source; a free or Tracking Camera source keeps the OVRTX renderer when it is on."""
         view = self._image_views[index]
         if self.rtx_rendering and view.camera is None:
+            self._remember_perspective_pose()
             self._rtx_pose_view = view if self._is_task_view(view) else None
             if self._rtx_pose_view is not None:
                 self._apply_view_pose(view)
+            else:
+                self._restore_perspective_pose(view)
             self.current_image_view.invalidate()
             return
         self._select_camera(index)
+
+    def _free_view_in_use(self):
+        """Return the free Perspective view whose pose the viewer camera holds, or None when another source has it."""
+        view = self._pose_source_view()
+        if view is not None and view.camera is not None and self.rtx_rendering:
+            # The OVRTX camera follows the free view when no Tracking Camera drives it.
+            view = next((v for v in self._image_views if v.camera is None and not self._is_task_view(v)), None)
+        if view is None or view.camera is not None or self._is_task_view(view):
+            return None
+        return view
+
+    def _remember_perspective_pose(self) -> None:
+        """Save the free Perspective view's pose before another source takes over the viewer camera."""
+        view = self._free_view_in_use()
+        if view is not None and self._viewer is not None:
+            camera = self._viewer.camera
+            pos = camera.pos
+            self._perspective_poses[view] = (
+                (float(pos[0]), float(pos[1]), float(pos[2])),
+                camera.pitch,
+                camera.yaw,
+                self.cfg.focal_length,
+            )
+
+    def _restore_perspective_pose(self, view) -> bool:
+        """Put the viewer camera back where the free Perspective *view* was left; False when it was never left."""
+        saved = self._perspective_poses.get(view)
+        if saved is None:
+            return False
+        pos, pitch, yaw, focal = saved
+        self._viewer.set_camera(PygletVec3(*pos), pitch, yaw)
+        self.cfg.focal_length = focal
+        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees(focal)
+        return True
 
     def _apply_view_pose(self, view) -> bool:
         """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
@@ -1468,6 +1507,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             index: Image view to display.
             keep_pose: Continue from the viewer's current camera instead of the source's configured pose.
         """
+        self._remember_perspective_pose()
         self.current_image_view = self._image_views[index]
         if index != self.rtx_view_index:
             self._rtx_pose_view = None
@@ -1479,7 +1519,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self.current_image_view.render = self._capture_frame
             if camera.is_task_view:
                 self._apply_view_pose(self.current_image_view)
-            elif not keep_pose:
+            elif not keep_pose and not self._restore_perspective_pose(self.current_image_view):
                 self.set_camera_view(camera.eye, camera.lookat)
                 self.cfg.focal_length = camera.focal_length
                 self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
@@ -1579,6 +1619,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._pending_mesh_submissions.clear()
         self._followers.clear()
         self._tracking_defaults.clear()
+        self._perspective_poses.clear()
         self._sensor_tiles.clear()
         if self._rtx_appearance is not None:
             self._rtx_appearance.close()
