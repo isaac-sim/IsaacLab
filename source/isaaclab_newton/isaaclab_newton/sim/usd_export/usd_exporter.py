@@ -300,17 +300,19 @@ class UsdExporter(BaseUsdExporter):
                     drives[path] = (float(values["joint_target_ke"][dof]), float(values["joint_target_kd"][dof]))
                 for name, (attribute, schema, angular_scale) in table.items():
                     attribute = self._limit_gain_attribute(prim, name, attribute)
+                    live = (
+                        values[name] + reference if name in ("joint_limit_lower", "joint_limit_upper") else values[name]
+                    )
                     if "{axis}" not in attribute:
                         if any(changed[name][dof] for dof, _ in axes):
-                            edits.append(self._joint_value_edit(path, attribute, values[name], axes, angular_scale))
+                            edits.append(self._joint_value_edit(path, attribute, live, axes, angular_scale))
                         continue
                     for dof, axis in axes:
                         if (changed[name][dof] and (name not in driven or actuated[dof])) or (
                             drive[dof] and name in driven
                         ):
                             scale = 1.0 if axis == "linear" else angular_scale
-                            offset = reference[dof] if name in ("joint_limit_lower", "joint_limit_upper") else 0.0
-                            value = (float(values[name][dof]) + offset) * scale
+                            value = float(live[dof]) * scale
                             edits.append(
                                 UsdEdit(
                                     path, attribute.format(axis=axis), value, schema=schema and schema.format(axis=axis)
@@ -616,6 +618,10 @@ class UsdExporter(BaseUsdExporter):
                     setattr(cfg, key, current)
                 if dataclasses.is_dataclass(current):
                     cls._load_fields(current, value, path, f"{prefix}{key}/")
+                    continue
+                if current is None or isinstance(current, dict):
+                    # A mapping field holds data, e.g. solver keyword arguments, not a configuration.
+                    setattr(cfg, key, value)
                     continue
             update_class_from_dict(cfg, {key: value})
 

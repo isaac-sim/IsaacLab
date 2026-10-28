@@ -16,8 +16,21 @@ from newton.usd import PrimType, SchemaResolverNewton
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 
-def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=None, num_substeps=1):
-    """Initialize the fixture scene, export it, and capture the live model and its rollout for comparison."""
+def _export(
+    tmp_path,
+    solver_cfg,
+    device,
+    num_envs=1,
+    env_id=0,
+    hinge_actuator=None,
+    num_substeps=1,
+    edit_robot=None,
+    before_export=None,
+):
+    """Initialize the fixture scene, export it, and capture the live model and its rollout for comparison.
+
+    ``edit_robot`` edits the robot's USD before the scene is built; ``before_export`` changes the initialized scene.
+    """
     from isaaclab_newton.physics import NewtonCfg
 
     from isaaclab.scene import InteractiveScene
@@ -25,6 +38,10 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
     from isaaclab.test.utils.usd_export import make_export_scene_cfg
 
     cfg = make_export_scene_cfg(tmp_path, num_envs=num_envs)
+    if edit_robot is not None:
+        robot = Usd.Stage.Open(cfg.robot.spawn.usd_path)
+        edit_robot(robot)
+        robot.GetRootLayer().Save()
     if hinge_actuator is not None:
         cfg.robot.actuators = {"hinge": hinge_actuator}
     sim_cfg = SimulationCfg(
@@ -37,6 +54,8 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(cfg)
         sim.reset()
+        if before_export is not None:
+            before_export(scene)
         scene.export_to_usd(output, env_id=env_id)
         manager = sim.backend_manager
         live = _capture(manager.backend.model, manager.backend.state_0.body_q, env_id)
@@ -252,14 +271,16 @@ def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
 
 
 def test_loading_restores_nested_solver_configurations():
-    """An optional nested configuration the file states is created from its declared type."""
+    """An optional nested configuration the file states is created from its declared type, with its mappings."""
     from isaaclab_newton.physics import KaminoDynamicsCfg, KaminoPADMMSolverCfg
     from isaaclab_newton.sim.usd_export import UsdExporter
 
-    exported = KaminoPADMMSolverCfg(dynamics=KaminoDynamicsCfg(preconditioning=False)).to_dict()
+    dynamics = KaminoDynamicsCfg(preconditioning=False, linear_solver_kwargs={"maxiter": 9})
+    exported = KaminoPADMMSolverCfg(dynamics=dynamics).to_dict()
     loaded = KaminoPADMMSolverCfg()
     UsdExporter._load_fields(loaded, json.loads(json.dumps(exported, default=str)), "export.usda")
-    assert loaded.dynamics is not None and loaded.dynamics.preconditioning is False
+    assert loaded.dynamics.preconditioning is False
+    assert loaded.dynamics.linear_solver_kwargs == {"maxiter": 9}
 
 
 def test_loading_does_not_import_modules_the_file_names(tmp_path):
@@ -381,31 +402,24 @@ def test_importing_runs_the_solver_preparation(monkeypatch):
     assert len(prepared) == 1
 
 
-def test_joint_limits_are_written_with_the_mujoco_reference():
-    """Newton's import subtracts a joint's MuJoCo reference from its USD limits; the export adds it back."""
-    from isaaclab_newton.sim.usd_export import UsdExporter
-    from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
+def test_changed_limits_are_written_with_the_mujoco_reference(tmp_path):
+    """Newton's import subtracts a joint's MuJoCo reference from its USD limits, so a changed limit imports as live."""
+    import torch
+    from isaaclab_newton.physics import MJWarpSolverCfg
 
-    stage = Usd.Stage.CreateInMemory()
-    UsdPhysics.Scene.Define(stage, "/physicsScene")
-    UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
-    for name in ("Base", "Link"):
-        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(stage, f"/Robot/{name}").GetPrim())
-    UsdPhysics.FixedJoint.Define(stage, "/Robot/Root").CreateBody1Rel().SetTargets(["/Robot/Base"])
-    hinge = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Hinge")
-    hinge.CreateBody0Rel().SetTargets(["/Robot/Base"])
-    hinge.CreateBody1Rel().SetTargets(["/Robot/Link"])
-    hinge.CreateLowerLimitAttr().Set(5.0)
-    hinge.CreateUpperLimitAttr().Set(60.0)
-    hinge.GetPrim().CreateAttribute("mjc:ref", Sdf.ValueTypeNames.Double).Set(10.0)
-    builder = newton.ModelBuilder()
-    newton.solvers.SolverMuJoCo.register_custom_attributes(builder)
-    builder.add_usd(stage, schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx(), SchemaResolverMjc()])
-    model = builder.finalize(device="cpu")
+    def add_reference(stage):
+        stage.GetPrimAtPath("/Robot/Hinge").CreateAttribute("mjc:ref", Sdf.ValueTypeNames.Double).Set(10.0)
 
-    dof = model.joint_qd_start.numpy()[model.joint_label.index("/Robot/Hinge")]
-    lower = model.joint_limit_lower.numpy()[dof] + UsdExporter._limit_reference(model)[dof]
-    assert np.degrees(lower) == pytest.approx(5.0, abs=1e-4)
+    def change_limits(scene):
+        scene["robot"].write_joint_position_limit_to_sim_index(limits=torch.tensor([[[-0.6, 0.9]]], device="cuda:0"))
+
+    output, _, _, _ = _export(
+        tmp_path, MJWarpSolverCfg(), "cuda:0", edit_robot=add_reference, before_export=change_limits
+    )
+    model = _newton_import(output, "mujoco", "cpu")
+    dof = model.joint_qd_start.numpy()[model.joint_label.index("/World/envs/env_0/Robot/Hinge")]
+    assert model.joint_limit_lower.numpy()[dof] == pytest.approx(-0.6, abs=1e-5)
+    assert model.joint_limit_upper.numpy()[dof] == pytest.approx(0.9, abs=1e-5)
 
 
 def test_kamino_constraint_gains_are_stated_on_the_scene():
