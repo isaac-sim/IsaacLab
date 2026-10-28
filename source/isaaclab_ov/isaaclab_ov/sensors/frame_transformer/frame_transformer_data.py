@@ -154,19 +154,13 @@ class FrameTransformerData(BaseFrameTransformerData):
         self._target_frame_names = target_frame_names
         self._source_pose_w = wp.zeros(num_envs, dtype=wp.transformf, device=device)
         self._source_pos_w = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
-        self._source_quat_w = wp.zeros(num_envs, dtype=wp.quatf, device=device)
+        self._source_quat_w = wp.full(num_envs, wp.quat_identity(), device=device)
         self._target_pose_w = wp.zeros((num_envs, num_target_frames), dtype=wp.transformf, device=device)
         self._target_pos_w = wp.zeros((num_envs, num_target_frames), dtype=wp.vec3f, device=device)
-        self._target_quat_w = wp.zeros((num_envs, num_target_frames), dtype=wp.quatf, device=device)
+        self._target_quat_w = wp.full((num_envs, num_target_frames), wp.quat_identity(), device=device)
         self._target_pose_source = wp.zeros((num_envs, num_target_frames), dtype=wp.transformf, device=device)
         self._target_pos_source = wp.zeros((num_envs, num_target_frames), dtype=wp.vec3f, device=device)
-        self._target_quat_source = wp.zeros((num_envs, num_target_frames), dtype=wp.quatf, device=device)
-
-        # Initialize quaternions to identity (w=1). wp.zeros gives (0,0,0,0) not (0,0,0,1).
-
-        wp.to_torch(self._source_quat_w)[:, 3] = 1.0
-        wp.to_torch(self._target_quat_w)[:, :, 3] = 1.0
-        wp.to_torch(self._target_quat_source)[:, :, 3] = 1.0
+        self._target_quat_source = wp.full((num_envs, num_target_frames), wp.quat_identity(), device=device)
 
         # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
         self._target_pose_source_ta: ProxyArray | None = None
