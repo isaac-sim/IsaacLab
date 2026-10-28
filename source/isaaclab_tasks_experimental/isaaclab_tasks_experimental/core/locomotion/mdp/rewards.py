@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 from isaaclab_experimental.managers.manager_base import ManagerTermBase
-from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp.math import rotate_vec_to_body_frame
 
 if TYPE_CHECKING:
     from isaaclab_experimental.managers.manager_term_cfg import RewardTermCfg

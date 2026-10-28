@@ -26,7 +26,7 @@ from ...utils.math import (
     quat_from_matrix,
 )
 from ...utils.warp import ProxyArray
-from ...utils.warp.utils import resolve_ids
+from ...utils.warp.memory import resolve_ids
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
