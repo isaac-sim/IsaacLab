@@ -265,6 +265,7 @@ class UsdExporter(BaseUsdExporter):
         values = self._arrays(model, DOF_ATTRIBUTES)
         changed = self._changed(values, builder)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
+        reference = self._limit_reference(model)
         edits, dofs, unsupported, drives = [], {}, [], {}
         for joint in self._selected(model.joint_world):
             prim = stage.GetPrimAtPath(model.joint_label[joint])
@@ -303,7 +304,8 @@ class UsdExporter(BaseUsdExporter):
                             drive[dof] and name in driven
                         ):
                             scale = 1.0 if axis == "linear" else angular_scale
-                            value = float(values[name][dof]) * scale
+                            offset = reference[dof] if name in ("joint_limit_lower", "joint_limit_upper") else 0.0
+                            value = (float(values[name][dof]) + offset) * scale
                             edits.append(
                                 UsdEdit(
                                     path, attribute.format(axis=axis), value, schema=schema and schema.format(axis=axis)
@@ -549,6 +551,14 @@ class UsdExporter(BaseUsdExporter):
                 value = owner.GetAttribute(attribute).Get()
                 if value is not None:
                     getattr(builder, array)[shape] = float(value)
+
+    @staticmethod
+    def _limit_reference(model: newton.Model) -> np.ndarray:
+        """Per DOF, MuJoCo's joint reference, which Newton's import subtracts from the USD limits."""
+        mujoco = getattr(model, "mujoco", None)
+        if mujoco is not None and hasattr(mujoco, "dof_ref"):
+            return mujoco.dof_ref.numpy().astype(float)
+        return np.zeros(model.joint_dof_count)
 
     @classmethod
     def _limit_gain_attribute(cls, prim: Usd.Prim, name: str, attribute: str) -> str:

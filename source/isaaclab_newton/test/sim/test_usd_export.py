@@ -382,6 +382,33 @@ def test_importing_runs_the_solver_preparation(monkeypatch):
     assert len(prepared) == 1
 
 
+def test_joint_limits_are_written_with_the_mujoco_reference():
+    """Newton's import subtracts a joint's MuJoCo reference from its USD limits; the export adds it back."""
+    from isaaclab_newton.sim.usd_export import UsdExporter
+    from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
+    for name in ("Base", "Link"):
+        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(stage, f"/Robot/{name}").GetPrim())
+    UsdPhysics.FixedJoint.Define(stage, "/Robot/Root").CreateBody1Rel().SetTargets(["/Robot/Base"])
+    hinge = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Hinge")
+    hinge.CreateBody0Rel().SetTargets(["/Robot/Base"])
+    hinge.CreateBody1Rel().SetTargets(["/Robot/Link"])
+    hinge.CreateLowerLimitAttr().Set(5.0)
+    hinge.CreateUpperLimitAttr().Set(60.0)
+    hinge.GetPrim().CreateAttribute("mjc:ref", Sdf.ValueTypeNames.Double).Set(10.0)
+    builder = newton.ModelBuilder()
+    newton.solvers.SolverMuJoCo.register_custom_attributes(builder)
+    builder.add_usd(stage, schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx(), SchemaResolverMjc()])
+    model = builder.finalize(device="cpu")
+
+    dof = model.joint_qd_start.numpy()[model.joint_label.index("/Robot/Hinge")]
+    lower = model.joint_limit_lower.numpy()[dof] + UsdExporter._limit_reference(model)[dof]
+    assert np.degrees(lower) == pytest.approx(5.0, abs=1e-4)
+
+
 def test_attribute_tables_cover_newton_importer():
     """Every attribute Newton's importer maps is exported or deliberately excluded."""
     from isaaclab_newton.sim.usd_export.usd_exporter import (
