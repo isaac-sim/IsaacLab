@@ -58,7 +58,7 @@ _BACKEND_MIRROR_NAMES = frozenset(
 )
 
 # RL libraries listed in a stable order across generated docs.
-_RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf", "torchrl")
+_RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf", "supermimic", "torchrl")
 _ALGORITHM_LABELS = {"": "PPO", "ppo": "PPO", "amp": "AMP", "ippo": "IPPO", "mappo": "MAPPO"}
 
 # Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated
@@ -223,7 +223,9 @@ def parse_rl_libraries_from_kwargs(kwargs: dict) -> dict[str, list[str]]:
 
     agents: dict[str, set[str]] = collections.defaultdict(set)
     for value, library, algo_suffix in entries:
-        algorithm = _ALGORITHM_LABELS.get(algo_suffix.lower())
+        algorithm = (
+            "MBRL" if library == "supermimic" and not algo_suffix else _ALGORITHM_LABELS.get(algo_suffix.lower())
+        )
         if algorithm is None:
             # Registry suffixes can name recipes or preset variants, not algorithms.
             continue

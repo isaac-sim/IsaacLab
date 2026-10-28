@@ -73,7 +73,7 @@ def command_list_envs(args: list[str] | None = None) -> None:
     for index, spec in enumerate(task_specs, start=1):
         libraries = [
             library
-            for library in ("rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl")
+            for library in ("rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "supermimic", "torchrl")
             if spec.kwargs.get(f"{library}_cfg_entry_point") is not None
         ]
         row = [index, spec.id, spec.entry_point, spec.kwargs["env_cfg_entry_point"], ", ".join(libraries) or "(none)"]
