@@ -65,6 +65,9 @@ D6_DOF_ATTRIBUTES = {
 }
 """:data:`DOF_ATTRIBUTES` of a rotational D6 joint, whose axes are ``rotX``, ``rotY`` and ``rotZ``."""
 
+JOINT_WIDE_LIMIT_GAINS = {"joint_limit_ke": _JOINT["limit_ke"].name, "joint_limit_kd": _JOINT["limit_kd"].name}
+"""Joint-wide limit gain attributes, which Newton reads ahead of a D6 joint's per-axis ones."""
+
 SHAPE_ATTRIBUTES = {
     "shape_margin": _SHAPE["margin"].name,
     "shape_gap": _SHAPE["gap"].name,
@@ -280,6 +283,7 @@ class UsdExporter(BaseUsdExporter):
                     dof = axes[0][0]
                     drives[path] = (float(values["joint_target_ke"][dof]), float(values["joint_target_kd"][dof]))
                 for name, (attribute, schema, angular_scale) in table.items():
+                    attribute = self._limit_gain_attribute(prim, name, attribute)
                     if "{axis}" not in attribute:
                         if any(changed[name][dof] for dof, _ in axes):
                             edits.append(self._joint_value_edit(path, attribute, values[name], axes, angular_scale))
@@ -535,6 +539,14 @@ class UsdExporter(BaseUsdExporter):
                 value = owner.GetAttribute(attribute).Get()
                 if value is not None:
                     getattr(builder, array)[shape] = float(value)
+
+    @classmethod
+    def _limit_gain_attribute(cls, prim: Usd.Prim, name: str, attribute: str) -> str:
+        """The attribute a limit gain is written to: the joint-wide one when stated, which Newton reads first."""
+        joint_wide = JOINT_WIDE_LIMIT_GAINS.get(name)
+        if "{axis}" in attribute and joint_wide and cls._stated(prim, joint_wide) is not None:
+            return joint_wide
+        return attribute
 
     @classmethod
     def _force_range_edits(cls, stage: Usd.Stage, edits: list[UsdEdit]) -> list[UsdEdit]:

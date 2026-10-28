@@ -317,6 +317,19 @@ def test_raised_effort_limit_widens_the_mujoco_force_range():
     assert not UsdExporter._force_range_edits(stage, [UsdEdit("/Hinge", "drive:angular:physics:maxForce", 3.0)])
 
 
+def test_d6_limit_gains_go_to_a_stated_joint_wide_attribute():
+    """Newton reads a joint-wide limit gain ahead of per-axis ones, so a joint stating it is written there."""
+    from isaaclab_newton.sim.usd_export import UsdExporter
+    from isaaclab_newton.sim.usd_export.usd_exporter import D6_DOF_ATTRIBUTES
+
+    stage = Usd.Stage.CreateInMemory()
+    joint = UsdPhysics.Joint.Define(stage, "/Ball").GetPrim()
+    per_axis = D6_DOF_ATTRIBUTES["joint_limit_ke"][0]
+    assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == per_axis
+    joint.CreateAttribute("newton:limitStiffness", Sdf.ValueTypeNames.Float).Set(100.0)
+    assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == "newton:limitStiffness"
+
+
 def test_attribute_tables_cover_newton_importer():
     """Every attribute Newton's importer maps is exported or deliberately excluded."""
     from isaaclab_newton.sim.usd_export.usd_exporter import (
