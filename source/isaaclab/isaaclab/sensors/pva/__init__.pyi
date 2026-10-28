@@ -5,14 +5,12 @@
 
 __all__ = [
     "BasePva",
-    "BasePvaData",
     "Pva",
     "PvaCfg",
     "PvaData",
 ]
 
 from .base_pva import BasePva
-from .base_pva_data import BasePvaData
 from .pva import Pva
 from .pva_cfg import PvaCfg
 from .pva_data import PvaData

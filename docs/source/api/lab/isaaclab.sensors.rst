@@ -277,7 +277,6 @@ The following classes are part of the public :mod:`isaaclab.sensors` API.
    BaseJointWrenchSensor
    BaseJointWrenchSensorData
    BasePva
-   BasePvaData
    ImuData
    MultiMeshRayCasterCameraData
    TiledCamera
@@ -308,9 +307,6 @@ The following classes are part of the public :mod:`isaaclab.sensors` API.
    :show-inheritance:
 
 .. autoclass:: BasePva
-   :show-inheritance:
-
-.. autoclass:: BasePvaData
    :show-inheritance:
 
 .. autoclass:: ImuData

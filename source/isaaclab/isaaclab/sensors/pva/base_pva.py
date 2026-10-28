@@ -5,13 +5,14 @@
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
 
 from ..sensor_base import SensorBase
-from .base_pva_data import BasePvaData
+from .kernels import pva_reset_kernel
+from .pva_data import PvaData
 
 if TYPE_CHECKING:
     from .pva_cfg import PvaCfg
@@ -30,7 +31,7 @@ class BasePva(SensorBase):
 
     .. note::
 
-        Accelerations are read directly from the physics solver on every backend and transported
+        When enabled, accelerations are read directly from the physics solver and transported
         from the body center of mass to the sensor frame, so they do not depend on the sensor
         update period.
 
@@ -52,28 +53,46 @@ class BasePva(SensorBase):
     __backend_name__: str = "base"
     """The name of the backend for the PVA sensor."""
 
+    supported_data_types = frozenset({"pose"})
+    """Output groups implemented by the concrete backend; extensions may add groups."""
+
+    def __init__(self, cfg: PvaCfg):
+        # Validate before SensorBase registers callbacks or enables debug visualization.
+        self._initialize_handle = self._invalidate_initialize_handle = self._prim_deletion_handle = None
+        self._debug_vis_handle = None
+        requested = frozenset(cfg.data_types)
+        unsupported = requested - self.supported_data_types
+        if unsupported:
+            raise ValueError(f"PVA backend {self.__backend_name__!r} does not support outputs {sorted(unsupported)}")
+        if "pose" not in requested:
+            raise ValueError("PVA data_types must include 'pose'")
+        if cfg.debug_vis and "acceleration" not in requested:
+            raise ValueError("PVA debug visualization requires the 'acceleration' output")
+        super().__init__(cfg)
+
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        """Reset enabled measurements and timing for the selected environments."""
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(None, env_mask)
+        wp.launch(pva_reset_kernel, self._num_envs, [env_mask, self._data.buffers], device=self._device)
+
+    def set_debug_vis(self, debug_vis: bool) -> bool:
+        if debug_vis and "acceleration" not in self.cfg.data_types:
+            raise ValueError("PVA debug visualization requires the 'acceleration' output")
+        return super().set_debug_vis(debug_vis)
+
+    def _invalidate_initialize_callback(self, event):
+        super()._invalidate_initialize_callback(event)
+        self._data_dirty = False
+        if self._data.buffers.pose_w:
+            wp.launch(pva_reset_kernel, self._num_envs, [self._ALL_ENV_MASK, self._data.buffers], device=self._device)
+
     """
     Properties
     """
 
     @property
-    @abstractmethod
-    def data(self) -> BasePvaData:
-        raise NotImplementedError
-
-    """
-    Implementation - Abstract methods to be implemented by backend-specific subclasses.
-    """
-
-    @abstractmethod
-    def _initialize_impl(self):
-        """Initializes the sensor handles and internal buffers.
-
-        Subclasses should call ``super()._initialize_impl()`` first to initialize
-        the common sensor infrastructure from :class:`SensorBase`.
-        """
-        super()._initialize_impl()
-
-    @abstractmethod
-    def _update_buffers_impl(self, env_mask: wp.array):
-        raise NotImplementedError
+    def data(self) -> PvaData:
+        """Refresh and return the enabled measurements."""
+        self._update_outdated_buffers()
+        return self._data

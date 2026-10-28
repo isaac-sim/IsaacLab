@@ -19,10 +19,9 @@ from isaaclab_physx.sensors.imu.imu import Imu
 from isaaclab_physx.sensors.imu.imu_data import ImuData
 from isaaclab_physx.sensors.pva import pva as pva_module
 from isaaclab_physx.sensors.pva.pva import Pva
-from isaaclab_physx.sensors.pva.pva_data import PvaData
 
 from isaaclab.sensors.imu import BaseImu
-from isaaclab.sensors.pva import BasePva
+from isaaclab.sensors.pva import BasePva, PvaData
 
 pytestmark = [
     pytest.mark.isaacsim_ci,
@@ -151,6 +150,7 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
         sensor._recorded_gravity_w = gravity_sink["value"]
     else:
         sensor._data = PvaData()
+        sensor._update_kernel = pva_module.make_pva_update(sensor._data.data_types)
         sensor._data.create_buffers(num_envs=2, device=device)
         sensor._gravity_vec_w = wp.vec3f(0.0, 0.0, -1.0)
         sensor._recorded_gravity_w = gravity_sink["value"]
@@ -170,7 +170,7 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
 
     assert update_cmd is not None
     torch.testing.assert_close(
-        wp.to_torch(sensor._data._lin_acc_b)[:, 0],
+        sensor._data.lin_acc_b.torch[:, 0],
         torch.tensor([2.0, 2.0], device=sensor.device),
     )
 
@@ -183,7 +183,7 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
     # replays must still call the PhysX getters: they are what refresh the underlying buffers
     assert rigid_view.get_counts == {"transforms": 2, "velocities": 2, "accelerations": 2, "coms": 2}
     torch.testing.assert_close(
-        wp.to_torch(sensor._data._lin_acc_b)[:, 0],
+        sensor._data.lin_acc_b.torch[:, 0],
         torch.tensor([2.0, 16.0], device=sensor.device),
     )
 
@@ -210,7 +210,7 @@ def test_sensor_falls_back_when_recording_fails(monkeypatch, sensor_type):
     assert not sensor._use_recorded_launch
     assert sensor._update_cmd is None
     torch.testing.assert_close(
-        wp.to_torch(sensor._data._lin_acc_b)[:, 0],
+        sensor._data.lin_acc_b.torch[:, 0],
         torch.tensor([2.0, 2.0], device=sensor.device),
     )
 
@@ -257,7 +257,7 @@ def test_sensor_replayed_launch_applies_new_gravity(sensor_type):
     wp.synchronize_device(sensor.device)
     # Guard the point of the test: the eager path would not exercise set_param_by_name.
     assert sensor._update_cmd is not None
-    before = wp.to_torch(sensor._data._lin_acc_b).clone()
+    before = sensor._data.lin_acc_b.torch.clone()
 
     # Solver accelerations are constant across updates in this harness, so the gravity
     # term is the only one that changes.
@@ -267,7 +267,7 @@ def test_sensor_replayed_launch_applies_new_gravity(sensor_type):
 
     if sensor_type == "imu":
         # Sensor frames are identity in this harness, so the delta is exactly the bias delta (-dg).
-        after = wp.to_torch(sensor._data._lin_acc_b)
+        after = sensor._data.lin_acc_b.torch
         delta_g = torch.tensor((0.0, 3.72, 0.0), device=sensor.device) - torch.tensor(
             (0.0, 0.0, -9.81), device=sensor.device
         )
@@ -275,6 +275,6 @@ def test_sensor_replayed_launch_applies_new_gravity(sensor_type):
     else:
         # PVA projects the unit gravity direction into the (identity) sensor frame.
         torch.testing.assert_close(
-            wp.to_torch(sensor._data._projected_gravity_b),
+            sensor._data.projected_gravity_b.torch,
             torch.tensor((0.0, 1.0, 0.0), device=sensor.device).repeat(2, 1),
         )

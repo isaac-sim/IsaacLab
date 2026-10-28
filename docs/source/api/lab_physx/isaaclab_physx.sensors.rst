@@ -25,7 +25,6 @@ The following classes are part of the public :mod:`isaaclab_physx.sensors` API.
    MultiMeshRayCaster
    MultiMeshRayCasterCamera
    Pva
-   PvaData
    RayCaster
    RayCasterCamera
 
@@ -63,9 +62,6 @@ The following classes are part of the public :mod:`isaaclab_physx.sensors` API.
    :show-inheritance:
 
 .. autoclass:: Pva
-   :show-inheritance:
-
-.. autoclass:: PvaData
    :show-inheritance:
 
 .. autoclass:: RayCaster
