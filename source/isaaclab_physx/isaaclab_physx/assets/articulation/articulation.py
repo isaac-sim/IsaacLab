@@ -26,9 +26,10 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import kernels as warp_kernels
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids, write_2d_with_mask
+from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -544,7 +545,6 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_kernel(env_ids),
             dim=env_ids.shape[0],
@@ -638,7 +638,6 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
         wp.launch(
@@ -813,7 +812,6 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_kernel(env_ids),
             dim=env_ids.shape[0],
@@ -920,7 +918,6 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_kernel(env_ids),
@@ -1246,7 +1243,6 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -1338,8 +1334,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 stiffness,
@@ -1352,41 +1348,16 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "stiffness")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._joint_stiffness, [env_ids, joint_ids])
         if isinstance(stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._joint_stiffness,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            selected.fill_(stiffness)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_stiffness,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(stiffness, dtype=wp.float32) if isinstance(stiffness, torch.Tensor) else stiffness
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, joint_ids])
+            wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_stiffness_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_stiffness, self.data._joint_stiffness_backend
         )
@@ -1446,8 +1417,8 @@ class Articulation(BaseArticulation):
         """
         # Note This function isn't setting the values for actuator models. (#128)
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 damping, (self.num_instances, self.num_joints), wp.float32, "damping", axis_sizes=(env_ids.shape[0],)
@@ -1456,41 +1427,16 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(damping, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "damping")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._joint_damping, [env_ids, joint_ids])
         if isinstance(damping, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._joint_damping,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            selected.fill_(damping)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_damping,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(damping, dtype=wp.float32) if isinstance(damping, torch.Tensor) else damping
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, joint_ids])
+            wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_damping_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_damping, self.data._joint_damping_backend
         )
@@ -1612,7 +1558,6 @@ class Articulation(BaseArticulation):
         if report_clamping:
             self._clamped_default_count.zero_()
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
@@ -1713,8 +1658,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 limits, (self.num_instances, self.num_joints), wp.float32, "limits", axis_sizes=(env_ids.shape[0],)
@@ -1723,41 +1668,16 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._joint_vel_limits, [env_ids, joint_ids])
         if isinstance(limits, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._joint_vel_limits,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            selected.fill_(limits)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_vel_limits,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(limits, dtype=wp.float32) if isinstance(limits, torch.Tensor) else limits
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, joint_ids])
+            wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_vel_limits_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_vel_limits, self.data._joint_vel_limits_backend
         )
@@ -1824,8 +1744,8 @@ class Articulation(BaseArticulation):
         """
         # Note This function isn't setting the values for actuator models. (#128)
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 limits, (self.num_instances, self.num_joints), wp.float32, "limits", axis_sizes=(env_ids.shape[0],)
@@ -1834,41 +1754,16 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._joint_effort_limits, [env_ids, joint_ids])
         if isinstance(limits, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._joint_effort_limits,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            selected.fill_(limits)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_effort_limits,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(limits, dtype=wp.float32) if isinstance(limits, torch.Tensor) else limits
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, joint_ids])
+            wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_effort_limits_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_effort_limits, self.data._joint_effort_limits_backend
         )
@@ -1931,8 +1826,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 armature, (self.num_instances, self.num_joints), wp.float32, "armature", axis_sizes=(env_ids.shape[0],)
@@ -1941,41 +1836,16 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(armature, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "armature")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._joint_armature, [env_ids, joint_ids])
         if isinstance(armature, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    armature,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._joint_armature,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            selected.fill_(armature)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    armature,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_armature,
-                    sim_env_ids,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(armature, dtype=wp.float32) if isinstance(armature, torch.Tensor) else armature
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, joint_ids])
+            wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_armature_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_armature, self.data._joint_armature_backend
         )
@@ -2106,7 +1976,6 @@ class Articulation(BaseArticulation):
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
             articulation_kernels.write_joint_friction_data_to_buffer_kernel(env_ids, joint_ids),
@@ -2237,7 +2106,6 @@ class Articulation(BaseArticulation):
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
             articulation_kernels.write_joint_friction_param_to_buffer_kernel(env_ids, joint_ids),
@@ -2348,7 +2216,6 @@ class Articulation(BaseArticulation):
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
             articulation_kernels.write_joint_friction_param_to_buffer_kernel(env_ids, joint_ids),
@@ -2740,8 +2607,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "stiffness"
@@ -2750,36 +2617,14 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(
                 stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness"
             )
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._fixed_tendon_stiffness, [env_ids, fixed_tendon_ids])
         if isinstance(stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_stiffness,
-                ],
-                device=self.device,
-            )
+            selected.fill_(stiffness)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_stiffness,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(stiffness, dtype=wp.float32) if isinstance(stiffness, torch.Tensor) else stiffness
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, fixed_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the stiffness to the simulation.
 
     def set_fixed_tendon_stiffness_mask(
@@ -2837,42 +2682,20 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(damping, (self.num_instances, self.num_fixed_tendons), wp.float32, "damping")
         else:
             self.assert_shape_and_dtype(damping, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._fixed_tendon_damping, [env_ids, fixed_tendon_ids])
         if isinstance(damping, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_damping,
-                ],
-                device=self.device,
-            )
+            selected.fill_(damping)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    fixed_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_damping,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(damping, dtype=wp.float32) if isinstance(damping, torch.Tensor) else damping
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, fixed_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the damping to the simulation.
 
     def set_fixed_tendon_damping_mask(
@@ -2930,8 +2753,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 limit_stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "limit_stiffness"
@@ -2940,36 +2763,18 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(
                 limit_stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "limit_stiffness"
             )
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._fixed_tendon_limit_stiffness, [env_ids, fixed_tendon_ids])
         if isinstance(limit_stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    limit_stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_limit_stiffness,
-                ],
-                device=self.device,
-            )
+            selected.fill_(limit_stiffness)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    limit_stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_limit_stiffness,
-                ],
-                device=self.device,
+            values = (
+                wp.from_torch(limit_stiffness, dtype=wp.float32)
+                if isinstance(limit_stiffness, torch.Tensor)
+                else limit_stiffness
             )
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, fixed_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the limit stiffness to the simulation.
 
     def set_fixed_tendon_limit_stiffness_mask(
@@ -3104,8 +2909,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 rest_length, (self.num_instances, self.num_fixed_tendons), wp.float32, "rest_length"
@@ -3114,36 +2919,16 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(
                 rest_length, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "rest_length"
             )
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._fixed_tendon_rest_length, [env_ids, fixed_tendon_ids])
         if isinstance(rest_length, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    rest_length,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_rest_length,
-                ],
-                device=self.device,
-            )
+            selected.fill_(rest_length)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    rest_length,
-                    env_ids,
-                    fixed_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_rest_length,
-                ],
-                device=self.device,
+            values = (
+                wp.from_torch(rest_length, dtype=wp.float32) if isinstance(rest_length, torch.Tensor) else rest_length
             )
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, fixed_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the rest length to the simulation.
 
     def set_fixed_tendon_rest_length_mask(
@@ -3255,42 +3040,20 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(offset, (self.num_instances, self.num_fixed_tendons), wp.float32, "offset")
         else:
             self.assert_shape_and_dtype(offset, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "offset")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._fixed_tendon_offset, [env_ids, fixed_tendon_ids])
         if isinstance(offset, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    offset,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_offset,
-                ],
-                device=self.device,
-            )
+            selected.fill_(offset)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    offset,
-                    env_ids,
-                    fixed_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_offset,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(offset, dtype=wp.float32) if isinstance(offset, torch.Tensor) else offset
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, fixed_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the offset to the simulation.
 
     def set_fixed_tendon_position_target_mask(
@@ -3445,8 +3208,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        spatial_tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 stiffness, (self.num_instances, self.num_spatial_tendons), wp.float32, "stiffness"
@@ -3455,36 +3218,14 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(
                 stiffness, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "stiffness"
             )
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._spatial_tendon_stiffness, [env_ids, spatial_tendon_ids])
         if isinstance(stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    spatial_tendon_ids,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_stiffness,
-                ],
-                device=self.device,
-            )
+            selected.fill_(stiffness)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    spatial_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_stiffness,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(stiffness, dtype=wp.float32) if isinstance(stiffness, torch.Tensor) else stiffness
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, spatial_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the stiffness to the simulation.
 
     def set_spatial_tendon_stiffness_mask(
@@ -3542,42 +3283,20 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        spatial_tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(damping, (self.num_instances, self.num_spatial_tendons), wp.float32, "damping")
         else:
             self.assert_shape_and_dtype(damping, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "damping")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._spatial_tendon_damping, [env_ids, spatial_tendon_ids])
         if isinstance(damping, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    spatial_tendon_ids,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_damping,
-                ],
-                device=self.device,
-            )
+            selected.fill_(damping)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    spatial_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_damping,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(damping, dtype=wp.float32) if isinstance(damping, torch.Tensor) else damping
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, spatial_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the damping to the simulation.
 
     def set_spatial_tendon_damping_mask(
@@ -3636,8 +3355,8 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        spatial_tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 limit_stiffness, (self.num_instances, self.num_spatial_tendons), wp.float32, "limit_stiffness"
@@ -3646,36 +3365,18 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(
                 limit_stiffness, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "limit_stiffness"
             )
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._spatial_tendon_limit_stiffness, [env_ids, spatial_tendon_ids])
         if isinstance(limit_stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    limit_stiffness,
-                    env_ids,
-                    spatial_tendon_ids,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_limit_stiffness,
-                ],
-                device=self.device,
-            )
+            selected.fill_(limit_stiffness)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    limit_stiffness,
-                    env_ids,
-                    spatial_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_limit_stiffness,
-                ],
-                device=self.device,
+            values = (
+                wp.from_torch(limit_stiffness, dtype=wp.float32)
+                if isinstance(limit_stiffness, torch.Tensor)
+                else limit_stiffness
             )
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, spatial_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the limit stiffness to the simulation.
 
     def set_spatial_tendon_limit_stiffness_mask(
@@ -3737,42 +3438,20 @@ class Articulation(BaseArticulation):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        spatial_tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
         if full_data:
             self.assert_shape_and_dtype(offset, (self.num_instances, self.num_spatial_tendons), wp.float32, "offset")
         else:
             self.assert_shape_and_dtype(offset, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "offset")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._spatial_tendon_offset, [env_ids, spatial_tendon_ids])
         if isinstance(offset, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    offset,
-                    env_ids,
-                    spatial_tendon_ids,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_offset,
-                ],
-                device=self.device,
-            )
+            selected.fill_(offset)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, spatial_tendon_ids),
-                dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[
-                    offset,
-                    env_ids,
-                    spatial_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._spatial_tendon_offset,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(offset, dtype=wp.float32) if isinstance(offset, torch.Tensor) else offset
+            if full_data:
+                values = wp.indexedarray(values, [env_ids, spatial_tendon_ids])
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the offset to the simulation.
 
     def set_spatial_tendon_offset_mask(
@@ -3988,7 +3667,7 @@ class Articulation(BaseArticulation):
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
-            articulation_kernels.update_soft_joint_pos_limits,
+            warp_math.scale_intervals,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 self.data.joint_pos_limits,
@@ -4510,7 +4189,7 @@ class Articulation(BaseArticulation):
         Returns:
             A boolean warp array on the device.
         """
-        return resolve_1d_mask(mask=mask, all_mask=all_mask, device=self.device)
+        return resolve_1d_mask(mask=mask, all_mask=all_mask)
 
     """
     Deprecated methods.

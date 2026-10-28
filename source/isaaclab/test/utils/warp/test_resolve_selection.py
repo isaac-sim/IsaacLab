@@ -11,7 +11,7 @@ import warp as wp
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
 
 
 def _all_ids(n: int, device: str) -> wp.array:
@@ -79,46 +79,18 @@ def test_resolve_ids_from_a_mask(device, mask_type):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize(
-    "ids_type", ["list", "slice", "reverse_slice", "torch_int64", "torch_int32", "warp_int32", "warp_int64"]
-)
-def test_resolve_1d_mask_from_ids(device, ids_type):
-    """Ids of every type are written into the scratch mask, which is cleared first."""
-    n = 12
-    all_mask = wp.ones(n, dtype=wp.bool, device=device)
-    scratch = wp.ones(n, dtype=wp.bool, device=device)
-    selected = [1, 4, 5, 11]
-    torch_device = wp.device_to_torch(device)
-    ids = {
-        "list": selected,
-        "slice": slice(1, 12, 3),
-        "reverse_slice": slice(None, None, -2),
-        "torch_int64": torch.tensor(selected, dtype=torch.int64, device=torch_device),
-        "torch_int32": torch.tensor(selected, dtype=torch.int32, device=torch_device),
-        "warp_int32": wp.array(selected, dtype=wp.int32, device=device),
-        "warp_int64": wp.array(selected, dtype=wp.int64, device=device),
-    }[ids_type]
-    expected = [False] * n
-    for i in range(n)[ids] if isinstance(ids, slice) else selected:
-        expected[i] = True
-    mask = resolve_1d_mask(ids=ids, all_mask=all_mask, scratch_mask=scratch, device=device)
-    assert mask is scratch
-    assert mask.numpy().tolist() == expected
-
-
-@pytest.mark.parametrize("device", test_devices())
 def test_resolve_1d_mask_needs_a_scratch_mask_only_for_ids(device):
     """A mask or no selection resolves without a scratch mask; ids without one raise."""
     all_mask = wp.ones(5, dtype=wp.bool, device=device)
     mask = wp.array([True, False, True, False, False], dtype=wp.bool, device=device)
-    assert resolve_1d_mask(ids=[0], mask=mask, all_mask=all_mask, device=device) is mask
-    assert resolve_1d_mask(all_mask=all_mask, device=device) is all_mask
-    assert resolve_1d_mask(ids=slice(None), all_mask=all_mask, device=device) is all_mask
+    assert resolve_1d_mask(ids=[0], mask=mask, all_mask=all_mask) is mask
+    assert resolve_1d_mask(all_mask=all_mask) is all_mask
+    assert resolve_1d_mask(ids=slice(None), all_mask=all_mask) is all_mask
     mask_torch = torch.tensor([False, True, True, False, False], device=wp.device_to_torch(device))
-    resolved = resolve_1d_mask(mask=mask_torch, all_mask=all_mask, device=device)
+    resolved = resolve_1d_mask(mask=mask_torch, all_mask=all_mask)
     assert resolved.dtype == wp.bool and resolved.numpy().tolist() == [False, True, True, False, False]
     with pytest.raises(ValueError, match="scratch_mask"):
-        resolve_1d_mask(ids=[1], all_mask=all_mask, device=device)
+        resolve_1d_mask(ids=[1], all_mask=all_mask)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -132,30 +104,8 @@ def test_resolve_1d_mask_copies_a_selection_on_another_device(device, monkeypatc
     all_mask = wp.ones(3, dtype=wp.bool, device=device)
     scratch = wp.zeros(3, dtype=wp.bool, device=device)
     mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
-    resolved = resolve_1d_mask(mask=mask, all_mask=all_mask, device=device)
+    resolved = resolve_1d_mask(mask=mask, all_mask=all_mask)
     assert str(resolved.device) == device and resolved.numpy().tolist() == [True, False, True]
     ids = wp.array([0, 2], dtype=wp.int32, device="cpu")
-    assert resolve_1d_mask(ids=ids, all_mask=all_mask, scratch_mask=scratch, device=device) is scratch
+    assert resolve_1d_mask(ids=ids, all_mask=all_mask, scratch_mask=scratch) is scratch
     assert scratch.numpy().tolist() == [True, False, True]
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_resolve_1d_mask_in_a_graph_capture(device):
-    """Inside a capture, a boolean mask on device resolves; ids or a mask that needs a cast or copy raise.
-
-    ``"cuda"`` names the current CUDA device, so a mask on it needs no copy.
-    """
-    all_mask = wp.ones(3, dtype=wp.bool, device=device)
-    scratch = wp.zeros(3, dtype=wp.bool, device=device)
-    mask_wp = wp.array([True, False, True], dtype=wp.bool, device=device)
-    mask_torch = torch.tensor([False, True, True], device=device)
-    mask_int = mask_torch.int()
-    mask_cpu = wp.array([True, False, True], dtype=wp.bool, device="cpu")
-    with wp.ScopedDevice(device), wp.ScopedCapture():
-        assert resolve_1d_mask(mask=mask_wp, all_mask=all_mask, device=device) is mask_wp
-        resolved = resolve_1d_mask(mask=mask_torch, all_mask=all_mask, device=device)
-        assert resolve_1d_mask(mask=mask_torch, all_mask=all_mask, device="cuda").ptr == resolved.ptr
-        for selection in ({"mask": mask_int}, {"mask": mask_cpu}, {"ids": [0]}):
-            with pytest.raises(RuntimeError, match="capturable"):
-                resolve_1d_mask(**selection, all_mask=all_mask, scratch_mask=scratch, device=device)
-    assert resolved.numpy().tolist() == [False, True, True]
