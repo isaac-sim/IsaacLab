@@ -714,7 +714,7 @@ class IsaacRtxRenderer(BaseRenderer):
             hdr_source = hdr_proxy.warp if hdr_proxy is not None else render_data._hdr_scratch_wp
             render_data.ppisp_pipeline.apply(hdr_source, output_data[str(RenderBufferKind.RGBA)].warp)
 
-    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
+    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> bool:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
 
         This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
@@ -727,6 +727,7 @@ class IsaacRtxRenderer(BaseRenderer):
         assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
         for output_name in camera_data.info:
             camera_data.info[output_name] = render_data.renderer_info.get(output_name)
+        return True
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators, destroy the owned tiled render product, and drop held refs.

@@ -16,6 +16,7 @@ from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
+    from ...utils.tensor_processors import TensorProcessorCfg
     from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
@@ -231,6 +232,21 @@ class CameraCfg(SensorBaseCfg):
     package is imported only when this option is enabled.
     """
 
+    tensor_processors: list[TensorProcessorCfg] = []
+    """Processors that compute camera outputs from render outputs. Defaults to an empty list.
+
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class, constructed at the first
+    published capture with the configuration and the named camera buffers. After each published capture, processors
+    run in order on the render outputs and earlier processors' outputs, and their outputs are added to
+    :attr:`CameraData.output`. The renderer produces every input that no earlier processor produces, so a processor
+    can filter an output in place. Camera resets and teardown reach the processors' ``reset`` and ``close``.
+
+    With ``update_period > 0``, environments capture on different steps, so a call can mix new rows with rows that
+    still hold the previous capture. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a
+    boolean mask of shape ``(N,)`` marking the environments with a new capture. The name is reserved and the mask
+    is not published as a camera output.
+    """
+
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
 
@@ -268,10 +284,25 @@ class CameraCfg(SensorBaseCfg):
         if supported_specs is None:
             return
         supported = {str(kind) for kind in supported_specs}
-        unsupported = sorted(set(self.data_types) - supported)
+        unsupported = sorted(set(_render_data_types(self)) - supported)
         if unsupported:
             raise ValueError(
                 f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
                 f"but the camera is configured with unsupported types: {unsupported}. "
                 "Choose supported data types or select a different renderer."
             )
+
+
+CAPTURE_MASK_NAME = "env_mask"
+"""Processor input holding the boolean mask of environments with a new capture."""
+
+
+def _render_data_types(cfg: CameraCfg) -> list[str]:
+    """Return the data types that no processor produces and the inputs that no earlier processor produces."""
+    produced, inputs = set(), []
+    for processor_cfg in cfg.tensor_processors:
+        if CAPTURE_MASK_NAME in processor_cfg.outputs:
+            raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
+        inputs += [name for name in processor_cfg.inputs if name not in produced and name != CAPTURE_MASK_NAME]
+        produced.update(processor_cfg.outputs)
+    return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))

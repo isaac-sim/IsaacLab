@@ -663,13 +663,14 @@ class NewtonWarpRenderer(BaseRenderer):
         # Remap the shape-index buffer into the requested segmentation outputs.
         render_data._convert_segmentation()
 
-    def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
+    def read_output(self, render_data: RenderData, camera_data: CameraData) -> bool:
         """Publish segmentation metadata; pixel outputs alias the camera buffers bound in :meth:`set_outputs`.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
         # Publish the segmentation id-to-label metadata (idToLabels / idToSemantics) alongside the
         # pixel buffers.
         for output_name, info in render_data.segmentation_info().items():
             camera_data.info[output_name] = info
+        return True
 
     def cleanup(self, render_data: RenderData | None):
         """Release the camera's buffers and captured query.
