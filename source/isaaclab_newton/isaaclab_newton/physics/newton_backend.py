@@ -308,7 +308,7 @@ class NewtonBackend:
         if env_mask is None or articulation_ids is None:
             self.world_mask[: self.model.world_count].fill_(True)
             self.fk_mask.fill_(True)
-            if env_mask is self.ids_mask:
+            if env_mask is not None and env_mask is self.ids_mask:
                 self.ids_mask.zero_()
             return
         wp.launch(
