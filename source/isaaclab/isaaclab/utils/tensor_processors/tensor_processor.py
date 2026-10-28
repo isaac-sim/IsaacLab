@@ -81,3 +81,19 @@ class TensorProcessor(ABC):
             Processed data with the structure defined by the implementation.
         """
         raise NotImplementedError
+
+    def preview(self, data: TensorProcessorData) -> TensorProcessorData:
+        """Process a prospective sample without changing live processor state.
+
+        Observation managers use this method for terminal capture before autoreset.
+        The default delegates to ``__call__`` for compatibility with stateless and custom
+        processors. Stateful processors should override it to leave their histories unchanged
+        and return storage independent of that history.
+
+        Args:
+            data: The data to process, with the same structure as an ordinary sample.
+
+        Returns:
+            The prospective processed sample.
+        """
+        return self(data)

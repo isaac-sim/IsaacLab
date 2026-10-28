@@ -17,6 +17,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -60,6 +61,8 @@ class DirectMARLEnv(gym.Env):
         "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
+
+    _is_observation_preview: bool = False
 
     def __init__(self, cfg: DirectMARLEnvCfg, render_mode: str | None = None, **kwargs):
         """Initialize the environment.
@@ -247,6 +250,15 @@ class DirectMARLEnv(gym.Env):
     """
 
     @property
+    def is_observation_preview(self) -> bool:
+        """Whether observations are being read without committing stateful observation history.
+
+        Stateful observation terms should return a prospective sample without updating their
+        internal state while this is True. It is False during ordinary observation computation.
+        """
+        return self._is_observation_preview
+
+    @property
     def num_envs(self) -> int:
         """The number of instances of the environment that are running."""
         return self.scene.num_envs
@@ -396,6 +408,8 @@ class DirectMARLEnv(gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and
             extras (keyed by the agent ID). Shape of individual tensors is (num_envs, ...).
         """
+        for agent_extras in self.extras.values():
+            agent_extras.pop("final_obs", None)
         actions = {agent: action.to(self.device) for agent, action in actions.items()}
 
         # add action noise
@@ -431,28 +445,18 @@ class DirectMARLEnv(gym.Env):
         self.reset_buf[:] = math.prod(self.terminated_dict.values()) | math.prod(self.time_out_dict.values())
         self.reward_dict = self._get_rewards()
 
+        # Consume UI resets before capture and reset each environment at most once.
+        if self.sim.consume_reset_request():
+            for terminated in self.terminated_dict.values():
+                terminated |= ~self.reset_buf
+            self.reset_buf[:] = True
+
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
-            # capture the per-agent terminal observation before reset and expose it for Same-Step
-            # autoreset. apply the same observation noise as the returned obs so the bootstrapped
-            # terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                terminal_obs = self._compute_observations()
-                for agent, obs in terminal_obs.items():
-                    self.extras[agent]["final_obs"] = obs
+                self._capture_final_obs()
             self._reset_idx(reset_env_ids)
-
-        # -- handle episode reset requested from visualizer UI controls
-        if self.sim.consume_reset_request():
-            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-            if len(reset_env_ids) > 0:
-                index_fill_(not_yet_reset, reset_env_ids, False)
-            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1)
-            if len(manual_reset_ids) > 0:
-                for agent in self.terminated_dict:
-                    index_fill_(self.terminated_dict[agent], manual_reset_ids, True)
-                self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
         if self.cfg.events:
@@ -665,6 +669,17 @@ class DirectMARLEnv(gym.Env):
             agent: sample_space(self.action_spaces[agent], self.sim.device, batch_size=self.num_envs, fill_value=0)
             for agent in self.cfg.possible_agents
         }
+
+    def _capture_final_obs(self) -> None:
+        """Preview and own every agent's observation before resetting shared task state."""
+        was_preview = self.is_observation_preview
+        self._is_observation_preview = True
+        try:
+            observations = tree_map(lambda value: value.clone(), self._compute_observations())
+            for agent, obs in observations.items():
+                self.extras[agent]["final_obs"] = obs
+        finally:
+            self._is_observation_preview = was_preview
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.

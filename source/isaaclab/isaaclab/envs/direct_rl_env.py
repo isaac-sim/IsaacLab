@@ -18,6 +18,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -66,6 +67,8 @@ class DirectRLEnv(gym.Env):
         "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
+
+    _is_observation_preview: bool = False
 
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
         """Initialize the environment.
@@ -272,6 +275,15 @@ class DirectRLEnv(gym.Env):
     """
 
     @property
+    def is_observation_preview(self) -> bool:
+        """Whether observations are being read without committing stateful observation history.
+
+        Stateful observation terms should return a prospective sample without updating their
+        internal state while this is True. It is False during ordinary observation computation.
+        """
+        return self._is_observation_preview
+
+    @property
     def num_envs(self) -> int:
         """The number of instances of the environment that are running."""
         return self.scene.num_envs
@@ -393,6 +405,7 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        self.extras.pop("final_obs", None)
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -426,6 +439,11 @@ class DirectRLEnv(gym.Env):
         self.reset_buf = self.reset_terminated | self.reset_time_outs
         self.reward_buf = self._get_rewards()
 
+        # Include UI-requested boundaries in the same pre-reset capture and reset pass.
+        if self.sim.consume_reset_request():
+            self.reset_terminated |= ~self.reset_buf
+            self.reset_buf[:] = True
+
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self._reset_envs_from_buffer()
         if reset_env_ids is None:
@@ -442,19 +460,6 @@ class DirectRLEnv(gym.Env):
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
-
-        # -- handle episode reset requested from visualizer UI controls
-        if self.sim.consume_reset_request():
-            if reset_env_ids is None:
-                manual_reset_ids = torch.arange(self.num_envs, device=self.device, dtype=torch.int32)
-            else:
-                not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-                if len(reset_env_ids) > 0:
-                    index_fill_(not_yet_reset, reset_env_ids, False)
-                manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
-            if len(manual_reset_ids) > 0:
-                index_fill_(self.reset_terminated, manual_reset_ids, True)
-                self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
         if self.cfg.events:
@@ -659,6 +664,15 @@ class DirectRLEnv(gym.Env):
         # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
         self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
 
+    def _capture_final_obs(self) -> None:
+        """Preview and own observations before reset and interval events mutate task state."""
+        was_preview = self.is_observation_preview
+        self._is_observation_preview = True
+        try:
+            self.extras["final_obs"] = tree_map(lambda value: value.clone(), self._compute_observations())
+        finally:
+            self._is_observation_preview = was_preview
+
     def _reset_envs_from_buffer(self) -> torch.Tensor | None:
         """Reset environments marked in the reset buffer.
 
@@ -679,7 +693,7 @@ class DirectRLEnv(gym.Env):
             # apply the same observation noise as the returned obs (policy space only) so the
             # bootstrapped terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                self.extras["final_obs"] = self._compute_observations()
+                self._capture_final_obs()
             self._reset_idx(reset_env_ids)
         return reset_env_ids
 

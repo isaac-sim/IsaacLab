@@ -157,3 +157,29 @@ def test_delay_buffer_cuda_graph(delay_buffer, device):
                 expected[1].clamp_(min=4)
             torch.testing.assert_close(result, expected)
             torch.testing.assert_close(read, expected)
+
+
+def test_preview_preserves_sampled_lags_and_uncommitted_history():
+    """Stochastic previews use a prospective lag without committing lag or ring state."""
+    import copy
+
+    buffer = DelayBuffer(3, 2, "cpu", min_lag=0, hold_prob=0.0)
+    data = torch.ones(2, 1)
+    for value in (10, 20, 30, 40):
+        buffer.compute(data * value)
+    reference = copy.deepcopy(buffer)
+    untouched = copy.deepcopy(buffer)
+    saved_lags = buffer.time_lags.clone()
+    saved_rng = torch.random.get_rng_state()
+    preview = buffer.compute(data * 50, update_history=False, preview=True)
+    torch.random.set_rng_state(saved_rng)
+    expected = reference.compute(data * 50)
+    torch.testing.assert_close(preview, expected)
+    torch.testing.assert_close(buffer.num_pushes, torch.full((2,), 4))
+    torch.testing.assert_close(buffer.time_lags, saved_lags)
+    # A preview cannot change the next committed result, given the same RNG draw.
+    torch.random.set_rng_state(saved_rng)
+    actual = buffer.compute(data * 60)
+    torch.random.set_rng_state(saved_rng)
+    expected = untouched.compute(data * 60)
+    torch.testing.assert_close(actual, expected)

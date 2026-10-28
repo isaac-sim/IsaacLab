@@ -285,7 +285,9 @@ class CameraFrameStack:
         if self._buffer is not None:
             self._buffer.reset(env_ids)
 
-    def __call__(self, images: torch.Tensor, normalize: Callable[..., torch.Tensor] | None = None) -> torch.Tensor:
+    def __call__(
+        self, images: torch.Tensor, normalize: Callable[..., torch.Tensor] | None = None, *, preview: bool = False
+    ) -> torch.Tensor:
         """Process the latest camera frame.
 
         Args:
@@ -293,6 +295,7 @@ class CameraFrameStack:
             normalize: Normalizer called as ``normalize(images, channel_dim=..., output_channel_dim=...)``
                 that returns a new tensor, e.g. :func:`normalize_rgb` or a :func:`functools.partial`
                 of it. Defaults to None, which keeps the raw values.
+            preview: Include the latest frame without changing live history or reset state.
 
         Returns:
             The observation. Shape is ``(B, H, W, K * C)`` or ``(B, K * C, H, W)`` for ``K`` stacked frames.
@@ -307,8 +310,13 @@ class CameraFrameStack:
             frame = images.movedim(-1, self._channel_dim)
         else:
             frame = normalize(images, channel_dim=-1, output_channel_dim=self._channel_dim)
-        self._buffer.append(frame)
-        stacked = self._buffer.stacked
+        if preview:
+            history = self._buffer.peek_append(frame)
+            channel_dim = self._channel_dim % frame.ndim
+            stacked = history.movedim(1, channel_dim).flatten(channel_dim, channel_dim + 1)
+        else:
+            self._buffer.append(frame)
+            stacked = self._buffer.stacked
         if defer_normalize:
             return normalize(stacked, channel_dim=self._channel_dim, output_channel_dim=None)
         # ``stacked`` views the ring buffer, which the next step overwrites
