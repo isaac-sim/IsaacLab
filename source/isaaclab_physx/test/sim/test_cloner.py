@@ -262,109 +262,79 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
     assert attach_excluded == [f"/World/envs/env_{i}/Object" for i in (0, 2, 4, 7, 11)]
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_physx_replicate_self_only_source_gets_one_body(device):
-    """A source whose only target is its own environment is simulated once.
-
-    The cube exists only in ``env_0`` and the sphere is replicated from ``env_1`` to the other
-    environments; in three environments, this is the default ``sequential`` layout of two variants.
-    A hidden second cube in ``env_0`` would add a body. The second scene replicates other paths in
-    the same process, so PhysX must hide the paths of its own registration, not those of the first.
-    """
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def test_direct_clone_plan_multi_asset(device):
+    """Clone three asset types without hidden bodies or stale exclusions between scenes."""
     from omni.physx import get_physx_statistics_interface
     from omni.physx.bindings._physx import PhysicsSceneStats
     from pxr import PhysicsSchemaTools
 
-    for num_envs in (3, 5):
+    # Four environments leave two sources self-only; seven replicate every source with a new exclusion set.
+    for num_clones in (4, 7):
         with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim:
             sim_utils.create_prim("/World/envs", "Xform")
-            for i in range(num_envs):
-                sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(2.0 * i, 0.0, 0.0))
+            for i in range(num_clones):
+                sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
+
             cfg = sim_utils.MultiAssetSpawnerCfg(
-                assets_cfg=[sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)), sim_utils.SphereCfg(radius=0.05)],
-                rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                assets_cfg=[
+                    sim_utils.ConeCfg(
+                        radius=0.3,
+                        height=0.6,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+                        mass_props=sim_utils.MassCfg(mass=100.0),
+                    ),
+                    sim_utils.CuboidCfg(
+                        size=(0.3, 0.3, 0.3),
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
+                    ),
+                    sim_utils.SphereCfg(
+                        radius=0.3,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
+                    ),
+                ],
+                rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
                 mass_props=sim_utils.MassCfg(mass=1.0),
                 collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             )
-            sources = ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
-            destinations = ("/World/envs/env_{}/Object",) * 2
+            sources, destinations, clone_mask = _make_flat_clone_plan(
+                num_variants=len(cfg.assets_cfg),
+                num_clones=num_clones,
+                destination="/World/envs/env_{}/Object",
+            )
             cfg.spawn_paths = list(sources)
-            cfg.func("/World/unused", cfg)
+            prim = cfg.func("/World/unused", cfg)
+            assert prim.IsValid()
 
             stage = sim_utils.get_current_stage()
-            env_ids = np.arange(num_envs, dtype=np.int64)
-            mapping = np.array([[True] + [False] * (num_envs - 1), [False] + [True] * (num_envs - 1)])
-            physx_replicate(stage, sources, destinations, env_ids, mapping)
-            usd_replicate(stage, sources, destinations, env_ids, mapping)
+            env_ids = np.arange(num_clones, dtype=np.int64)
+            physx_replicate(stage, sources, destinations, env_ids, clone_mask)
+            usd_replicate(stage, sources, destinations, env_ids, clone_mask)
+
+            primitive_prims = sim_utils.get_all_matching_child_prims(
+                "/World/envs", predicate=lambda prim: prim.GetTypeName() in ["Cone", "Cube", "Sphere"]
+            )
+
+            for i, primitive_prim in enumerate(primitive_prims):
+                modulus = i % 3
+                if modulus == 0:
+                    assert primitive_prim.GetTypeName() == "Cone"
+                elif modulus == 1:
+                    assert primitive_prim.GetTypeName() == "Cube"
+                else:
+                    assert primitive_prim.GetTypeName() == "Sphere"
+
             sim.reset()
+            physics_sim_view = sim.backend_manager.get_physics_sim_view()
+            physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
+            assert physx_view.count == num_clones
 
             stats = PhysicsSceneStats()
             scene_path = PhysicsSchemaTools.sdfPathToInt(sim.cfg.physics_prim_path)
             assert get_physx_statistics_interface().get_physx_scene_statistics(
                 sim_utils.get_current_stage_id(), scene_path, stats
             )
-            assert stats.nb_dynamic_rigids == num_envs
-
-
-def test_direct_clone_plan_multi_asset(sim):
-    """Clone representative env sources directly and exercise both USD and PhysX."""
-    num_clones = 32
-    sim_utils.create_prim("/World/envs", "Xform")
-    for i in range(num_clones):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
-
-    cfg = sim_utils.MultiAssetSpawnerCfg(
-        assets_cfg=[
-            sim_utils.ConeCfg(
-                radius=0.3,
-                height=0.6,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                mass_props=sim_utils.MassCfg(mass=100.0),
-            ),
-            sim_utils.CuboidCfg(
-                size=(0.3, 0.3, 0.3),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-            ),
-            sim_utils.SphereCfg(
-                radius=0.3,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-            ),
-        ],
-        rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
-        mass_props=sim_utils.MassCfg(mass=1.0),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    )
-    sources, destinations, clone_mask = _make_flat_clone_plan(
-        num_variants=len(cfg.assets_cfg),
-        num_clones=num_clones,
-        destination="/World/envs/env_{}/Object",
-    )
-    cfg.spawn_paths = list(sources)
-    prim = cfg.func("/World/unused", cfg)
-    assert prim.IsValid()
-
-    stage = sim_utils.get_current_stage()
-    env_ids = np.arange(num_clones, dtype=np.int64)
-    physx_replicate(stage, sources, destinations, env_ids, clone_mask)
-    usd_replicate(stage, sources, destinations, env_ids, clone_mask)
-
-    primitive_prims = sim_utils.get_all_matching_child_prims(
-        "/World/envs", predicate=lambda prim: prim.GetTypeName() in ["Cone", "Cube", "Sphere"]
-    )
-
-    for i, primitive_prim in enumerate(primitive_prims):
-        modulus = i % 3
-        if modulus == 0:
-            assert primitive_prim.GetTypeName() == "Cone"
-        elif modulus == 1:
-            assert primitive_prim.GetTypeName() == "Cube"
-        else:
-            assert primitive_prim.GetTypeName() == "Sphere"
-
-    sim.reset()
-    physics_sim_view = sim.backend_manager.get_physics_sim_view()
-    physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
-    assert physx_view.count == num_clones
+            assert stats.nb_dynamic_rigids == num_clones
 
 
 def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_count=False):

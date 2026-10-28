@@ -84,15 +84,9 @@ def physx_replicate(
 
 
 _EXCLUDED_PATHS: list[str] = []
-"""Paths hidden from the PhysX stage parse, returned by every replicator's ``attach_fn``.
-
-The Python binding of ``register_replicator`` (omni.physx 110.4) calls only the first ``attach_fn`` of a process
-and keeps the list it returned: later attaches read that list object again instead of calling their own
-``attach_fn``. Returning one list object and replacing its contents at each registration gives every attach its
-own exclusions. This assumes that Isaac Lab makes the first replicator attach of the process and that each
-registration attaches before the next one; multiple replicators per process are not supported in 110.4
-(https://github.com/NVIDIA-Omniverse/PhysX/issues/590#issuecomment-6436165383).
-"""
+# PhysX 110.4 caches the first attach callback's list; preserve its identity across registrations.
+# Assumes Isaac Lab attaches first and each registration attaches before the next one.
+# Multiple replicators are unsupported: https://github.com/NVIDIA-Omniverse/PhysX/issues/590#issuecomment-6436165383
 
 
 def _replicate_instances(
@@ -110,20 +104,13 @@ def _replicate_instances(
     if len(env_ids) <= 1:
         return
 
-    native_paths: list[str] = []
-
     for (src, destination), world_ids in copies:
         if not len(world_ids) or world_ids[0] == -1:
             continue
         worlds = tuple(map(int, env_ids[world_ids]))
         if len(worlds) == 1 and src == destination.format(worlds[0]):
-            # The replicator builds each source along with its copies, so a source that is its own only
-            # target would be built twice, and such self-copies have triggered intermittent heap corruption
-            # in multi-GPU runs. The source already exists in USD: leave it to the PhysX stage parse.
             has_usd_only_sources = True
             continue
-        native_paths.append(src)
-        native_paths.extend(destination.format(world) for world in worlds)
         if exclude_self_replication:
             matched = cloner.path.match(src, destination)
             if matched is not None and matched.instance.isdigit():
@@ -139,15 +126,15 @@ def _replicate_instances(
 
     current_worlds: tuple[int, ...] = ()
     current_template: str = ""
-    prefixes = [destination.partition("{}")[0] for _, destination, _ in physx_queue]
-    env_namespaces = [prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes]
-    excluded_paths = (
-        list(dict.fromkeys(native_paths))
-        if has_usd_only_sources
-        else list(dict.fromkeys((*[source for source, _, _ in physx_queue], *env_namespaces)))
-    )
-
-    _EXCLUDED_PATHS[:] = excluded_paths
+    excluded_paths = []
+    for src, destination, worlds in physx_queue:
+        excluded_paths.append(src)
+        if has_usd_only_sources:
+            excluded_paths.extend(destination.format(world) for world in worlds)
+        else:
+            prefix = destination.partition("{}")[0]
+            excluded_paths.append(prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0])
+    _EXCLUDED_PATHS[:] = dict.fromkeys(excluded_paths)
 
     def attach_fn(_stage_id: int):
         return _EXCLUDED_PATHS
