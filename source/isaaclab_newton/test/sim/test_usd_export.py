@@ -131,7 +131,9 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
 
     if device.startswith("cuda") and not wp.is_cuda_available():
         pytest.skip("MuJoCo Warp requires CUDA.")
-    solver_cfg = XPBDSolverCfg(iterations=7) if solver == "xpbd" else MJWarpSolverCfg(iterations=17)
+    solver_cfg = (
+        XPBDSolverCfg(iterations=7) if solver == "xpbd" else MJWarpSolverCfg(iterations=17, enable_multiccd=True)
+    )
     output, live, solver_type, motion = _export(tmp_path, solver_cfg, device, num_envs, env_id)
 
     _, loaded_solver, dt = UsdExporter.load_usd(output, device=device)
@@ -143,6 +145,8 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
         # MuJoCo reads its options from the physics scene, so the default solver runs the configured one.
         imported_solver = newton.solvers.SolverMuJoCo(model)
         assert imported_solver.mjw_model.opt.iterations == 17
+        # Configuration flags have their own USD names; disable flags are stated inverted.
+        assert bool(model.mujoco.flag_multiccd.numpy()[0]) and bool(model.mujoco.flag_contact.numpy()[0])
         moved = _rollout(model, imported_solver)
         for label, position in motion.items():
             np.testing.assert_allclose(moved[label], position, atol=1e-4, err_msg=label)

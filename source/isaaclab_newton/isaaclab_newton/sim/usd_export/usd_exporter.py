@@ -86,6 +86,13 @@ MATERIAL_ATTRIBUTES = {
 SHAPE_CONTACT_ATTRIBUTES = {_MATERIAL[key].name: _SHAPE[key].name for key in ("ke", "kd", "kf", "ka")}
 """Material contact gain -> collider attribute, used by colliders without a physics material."""
 
+MUJOCO_FLAG_FIELDS = {
+    "enable_multiccd": ("flag_multiccd", False),
+    "disable_contacts": ("flag_contact", True),
+    "disable_sensors": ("flag_sensor", True),
+}
+"""MuJoCo solver configuration field -> Newton's flag attribute, and whether the field inverts the flag."""
+
 SHAPE_DEFAULTS = {
     "margin": ("shape_margin", _SHAPE["margin"].name),
     "gap": ("shape_gap", _SHAPE["gap"].name),
@@ -466,6 +473,8 @@ class UsdExporter(BaseUsdExporter):
         types = {bool: "bool", int: "int", float: "float", str: "token"}
         for name, attribute in self._scene_solver_options(solver_cfg).items():
             value = getattr(solver_cfg, name)
+            if name in MUJOCO_FLAG_FIELDS and MUJOCO_FLAG_FIELDS[name][1] and value is not None:
+                value = not value
             if value is not None:
                 edits.append(UsdEdit(path, attribute, value, types[type(value)]))
         if self._manager(solver_cfg)._registers_builder_attributes_from_solver(newton.solvers.SolverKamino):
@@ -494,7 +503,14 @@ class UsdExporter(BaseUsdExporter):
             for attribute in builder.custom_attributes.values()
             if attribute.namespace == "mujoco" and attribute.frequency in scene and attribute.usd_attribute_name
         }
-        return {name: attributes[name] for name in solver_cfg.to_dict() if name in attributes}
+        fields = solver_cfg.to_dict()
+        options = {name: attributes[name] for name in fields if name in attributes}
+        options |= {
+            name: attributes[flag]
+            for name, (flag, _) in MUJOCO_FLAG_FIELDS.items()
+            if name in fields and flag in attributes
+        }
+        return options
 
     @staticmethod
     def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
