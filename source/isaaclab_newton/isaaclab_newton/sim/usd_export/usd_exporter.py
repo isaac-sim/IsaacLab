@@ -178,7 +178,7 @@ class UsdExporter(BaseUsdExporter):
 
         Returns:
             The model, the solver configured as in training (None if the file records none), and the
-            physics step size [s] (None if the file records none).
+            solver step size [s]: the physics step divided by the training substeps (None if the file records none).
         """
         stage = cls.open_stage(path)
         settings = json.loads(stage.GetRootLayer().customLayerData.get(SETTINGS_KEY, "{}"))
@@ -193,7 +193,10 @@ class UsdExporter(BaseUsdExporter):
         force = settings.get("force_position_velocity_actuation", False)
         model = cls.import_model(stage, solver_cfg, device, force, allow_unsafe_torch_checkpoints)
         solver = cls._manager(solver_cfg)._create_solver(model, solver_cfg) if solver_cfg is not None else None
-        return model, solver, settings.get("dt")
+        # The scene states the solver step rate (physics rate times substeps), as Newton's import reads it.
+        scene = next((prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.Scene)), None)
+        rate = scene.GetAttribute(_SCENE["time_steps_per_second"].name).Get() if scene else None
+        return model, solver, 1.0 / rate if rate else settings.get("dt")
 
     @classmethod
     def import_model(

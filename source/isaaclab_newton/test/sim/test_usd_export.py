@@ -16,7 +16,7 @@ from newton.usd import PrimType, SchemaResolverNewton
 from pxr import Sdf, Usd, UsdPhysics
 
 
-def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=None):
+def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=None, num_substeps=1):
     """Initialize the fixture scene, export it, and capture the live model and its rollout for comparison."""
     from isaaclab_newton.physics import NewtonCfg
 
@@ -28,7 +28,10 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
     if hinge_actuator is not None:
         cfg.robot.actuators = {"hinge": hinge_actuator}
     sim_cfg = SimulationCfg(
-        device=device, dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=solver_cfg)
+        device=device,
+        dt=1 / 120,
+        gravity=(0.2, -0.1, -4.0),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps),
     )
     output = str(tmp_path / "exported.usda")
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -165,6 +168,18 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
             _assert_pose_equal(loaded[name, label], value)
         else:
             np.testing.assert_allclose(loaded[name, label], value, rtol=1e-4, atol=1e-7, err_msg=f"{label} {name}")
+
+
+def test_loading_returns_the_solver_step(tmp_path):
+    """With substeps, the file states the solver step rate, and loading returns the solver step size."""
+    from isaaclab_newton.physics import XPBDSolverCfg
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu", num_substeps=2)
+
+    assert Usd.Stage.Open(output).GetPrimAtPath("/physicsScene").GetAttribute("newton:timeStepsPerSecond").Get() == 240
+    _, _, dt = UsdExporter.load_usd(output)
+    assert dt == pytest.approx(1 / 240)
 
 
 def test_export_references_assets_and_keeps_one_environment(tmp_path):
