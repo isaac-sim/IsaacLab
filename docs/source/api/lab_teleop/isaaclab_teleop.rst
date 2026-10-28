@@ -153,8 +153,12 @@ Entrypoints
 
 .. automodule:: isaaclab_teleop.entrypoints
 
+.. autofunction:: isaaclab_teleop.entrypoints.run_cli
+
 .. autofunction:: isaaclab_teleop.entrypoints.run_teleop_se3_agent_cli
 
 .. autofunction:: isaaclab_teleop.entrypoints.run_record_demos_cli
+
+.. autofunction:: isaaclab_teleop.entrypoints.run_replay_demos_cli
 
 .. autofunction:: isaaclab_teleop.entrypoints.run_teleop_replay_agent_cli

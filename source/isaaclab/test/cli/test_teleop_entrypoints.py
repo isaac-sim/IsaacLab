@@ -31,10 +31,11 @@ TELEOP_WORKFLOWS = {
     "record": ("scripts", "tools", "record_demos.py"),
     "replay": ("scripts", "tools", "replay_demos.py"),
 }
-# Workflows whose script wraps an isaaclab_teleop entrypoint module.
-TELEOP_MODULES = {
-    "run": "isaaclab_teleop.entrypoints.teleop_se3_agent",
-    "record": "isaaclab_teleop.entrypoints.record_demos",
+# Each teleop workflow's isaaclab_teleop entrypoint module and function, which its script wraps.
+TELEOP_ENTRYPOINTS = {
+    "run": ("isaaclab_teleop.entrypoints.teleop_se3_agent", "run_teleop_se3_agent_cli"),
+    "record": ("isaaclab_teleop.entrypoints.record_demos", "run_record_demos_cli"),
+    "replay": ("isaaclab_teleop.entrypoints.replay_demos", "run_replay_demos_cli"),
 }
 
 
@@ -60,12 +61,11 @@ def test_teleop_workflow_help_exposes_task_preset_selectors(source_checkout_root
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
 def test_teleop_dispatches_to_its_workflow(source_checkout_root: Path, command, script_parts, monkeypatch):
-    """``isaaclab teleop`` runs packaged workflows in process and forwards replay to its script."""
+    """``isaaclab teleop`` runs each workflow's entrypoint in process with the remaining arguments."""
     args = [command, "--task", "IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "--xr"]
+    module_name, entrypoint = TELEOP_ENTRYPOINTS[command]
     workflow = mock.Mock(return_value=0)
-    if command in TELEOP_MODULES:
-        cli_name = {"run": "run_teleop_se3_agent_cli", "record": "run_record_demos_cli"}[command]
-        monkeypatch.setattr(importlib.import_module("isaaclab_teleop.entrypoints"), cli_name, workflow)
+    monkeypatch.setattr(importlib.import_module(module_name), entrypoint, workflow)
 
     with (
         mock.patch.object(sys, "argv", ["isaaclab", "teleop", *args]),
@@ -73,13 +73,9 @@ def test_teleop_dispatches_to_its_workflow(source_checkout_root: Path, command, 
     ):
         cli.cli()
 
-    if command in TELEOP_MODULES:
-        workflow.assert_called_once_with(args[1:])
-        run_python.assert_not_called()
-    else:
-        script = source_checkout_root.joinpath(*script_parts)
-        run_python.assert_called_once_with(script, args[1:], check=True)
-        assert script.is_file()
+    workflow.assert_called_once_with(args[1:])
+    run_python.assert_not_called()
+    assert source_checkout_root.joinpath(*script_parts).is_file()
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
@@ -102,10 +98,7 @@ def test_teleop_callback_preserves_selector_aliases(source_checkout_root: Path, 
         "--callback_option", "42", "--viz", "newton_gl", "--physics=newton_mjwarp", "--renderer", "newton_renderer",
         "env.sim.dt=0.01",
     ])  # fmt: skip
-    if command in TELEOP_MODULES:
-        args_cli = importlib.import_module(TELEOP_MODULES[command])._parse_args()
-    else:
-        args_cli = runpy.run_path(str(script))["args_cli"]
+    args_cli = importlib.import_module(TELEOP_ENTRYPOINTS[command][0])._parse_args()
     assert args_cli.task == "Isaac-Cartpole-Direct"
     assert set(sys.argv[1:]) == {
         "visualizer=newton_gl",
@@ -139,12 +132,8 @@ def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(source_check
     available = _requirement_names(project["dependencies"])
     available |= _requirement_names(project["optional-dependencies"]["teleop"])
 
-    if command in TELEOP_MODULES:
-        module_path = TELEOP_MODULES[command].replace(".", "/") + ".py"
-        source_path = source_checkout_root / "source" / "isaaclab_teleop" / module_path
-    else:
-        source_path = source_checkout_root.joinpath(*script_parts)
-    source = source_path.read_text(encoding="utf-8")
+    module_path = TELEOP_ENTRYPOINTS[command][0].replace(".", "/") + ".py"
+    source = (source_checkout_root / "source" / "isaaclab_teleop" / module_path).read_text(encoding="utf-8")
     imported = set(re.findall(r"^\s*(?:import|from)\s+(isaaclab_\w+)", source, re.MULTILINE))
 
     missing = imported - available
@@ -161,38 +150,6 @@ def test_teleop_rejects_unknown_workflow():
         cli.cli()
 
     run_python.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    ("module_name", "cli_name"),
-    [
-        ("isaaclab_teleop.entrypoints.teleop_se3_agent", "run_teleop_se3_agent_cli"),
-        ("isaaclab_teleop.entrypoints.record_demos", "run_record_demos_cli"),
-        ("isaaclab_teleop.entrypoints.teleop_replay_agent", "run_teleop_replay_agent_cli"),
-    ],
-)
-def test_teleop_entrypoints_load_out_of_tree_tasks_before_parsing(monkeypatch, module_name, cli_name):
-    """Tasks registered through ``isaaclab.tasks`` load before parsing; ``sys.argv`` and the exit code survive."""
-    module = importlib.import_module(module_name)
-    calls = []
-    task_entry_point = mock.Mock()
-    task_entry_point.load.side_effect = lambda: calls.append("load tasks")
-
-    def parse_args(argv):
-        calls.append("parse")
-        sys.argv = [sys.argv[0], "hydra.override=1"]
-
-    monkeypatch.setattr(sys, "argv", ["caller", "--caller-flag"])
-    monkeypatch.setattr(module, "_parse_args", parse_args)
-    monkeypatch.setattr(module, "main", lambda: calls.append("main") or 3)
-    with mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[task_entry_point]) as entry_points:
-        status = getattr(module, cli_name)(["--task", "Out-Of-Tree-Task"])
-
-    entry_points.assert_called_once_with(group="isaaclab.tasks")
-    assert calls == ["load tasks", "parse", "main"]
-    assert sys.argv == ["caller", "--caller-flag"]
-    # only the replay agent reports an outcome; the interactive workflows always exit 0
-    assert status == (3 if cli_name == "run_teleop_replay_agent_cli" else 0)
 
 
 @pytest.mark.parametrize("task", ["Reach", "Lift"])

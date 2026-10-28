@@ -1,3 +1,2 @@
-* Changed ``isaaclab teleop run`` and ``isaaclab teleop record`` to call
-  :mod:`isaaclab_teleop.entrypoints` in process, like ``isaaclab train``, instead of launching the
-  scripts under ``scripts/``.
+* Changed ``isaaclab teleop`` to call :func:`isaaclab_teleop.entrypoints.run_cli` in process, like
+  ``isaaclab train``, instead of launching the scripts under ``scripts/``.

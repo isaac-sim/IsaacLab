@@ -149,21 +149,9 @@ def teleop(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
-    parser = argparse.ArgumentParser(description="Run an Isaac Lab teleoperation workflow.")
-    parser.add_argument("command", choices=("run", "record", "replay"), help="Teleoperation workflow to run.")
-    if args is None:
-        args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    command = parser.parse_args(args[:1]).command
-    if command == "replay":
-        run_python_command(ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py", args[1:], check=True)
-        return
+    from isaaclab_teleop.entrypoints import run_cli
 
-    from isaaclab_teleop.entrypoints import run_record_demos_cli, run_teleop_se3_agent_cli
-
-    run_workflow = run_teleop_se3_agent_cli if command == "run" else run_record_demos_cli
-    _exit_on_error(run_workflow(args[1:]))
+    _exit_on_error(run_cli(args))
 
 
 def benchmark(args: list[str] | None = None) -> None:
