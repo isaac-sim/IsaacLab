@@ -14,15 +14,13 @@ import torch
 import warp as wp
 
 from .warp import ProxyArray
+from .warp.index_kernel import selector_dtype
 from .warp.wrench import (
     add_raw_wrench_buffers,
-    add_wrench_index,
-    add_wrench_mask,
     compose_wrench_to_body_frame,
+    make_reset_wrench,
+    make_write_wrench,
     reset_wrench_composer_mask,
-    reset_wrench_index,
-    set_wrench_index,
-    set_wrench_mask,
 )
 
 if TYPE_CHECKING:
@@ -274,7 +272,7 @@ class WrenchComposer:
 
         global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            add_wrench_index.select(env_ids, body_ids),
+            make_write_wrench(selector_dtype(env_ids), selector_dtype(body_ids), accumulate=True),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -339,7 +337,7 @@ class WrenchComposer:
 
         global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            set_wrench_index.select(env_ids, body_ids),
+            make_write_wrench(selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -401,7 +399,7 @@ class WrenchComposer:
 
         global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            add_wrench_mask,
+            make_write_wrench(accumulate=True),
             dim=(self.num_envs, self.num_bodies),
             inputs=[
                 env_mask,
@@ -468,7 +466,7 @@ class WrenchComposer:
 
         global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            set_wrench_mask,
+            make_write_wrench(),
             dim=(self.num_envs, self.num_bodies),
             inputs=[
                 env_mask,
@@ -633,7 +631,7 @@ class WrenchComposer:
             env_ids = self._resolve_env_ids(env_ids)
 
             wp.launch(
-                reset_wrench_index.select(env_ids),
+                make_reset_wrench(selector_dtype(env_ids)),
                 dim=(env_ids.shape[0], self.num_bodies),
                 inputs=[
                     env_ids,

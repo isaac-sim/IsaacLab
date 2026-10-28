@@ -686,9 +686,10 @@ dependency direction, aliasing, selector widths, and replay with changed inputs.
 Shared Warp wrench composition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``isaaclab.utils.warp.wrench`` owns force, torque, and moment-arm composition. Generate bounded
-index/mask and set/add variants before launch, and keep destination-buffer selection in
-``WrenchComposer``. Name factories ``make_<operation>`` and concrete launchable kernels with
+``isaaclab.utils.warp.wrench`` owns force, torque, and moment-arm composition. Use cached factories
+that define and return concrete kernels in isolated modules. Request index/mask and set/add variants
+where used, and keep destination-buffer selection in ``WrenchComposer``. Warm up the actual execution
+path before graph capture. Name factories ``make_<operation>`` and concrete launchable kernels with
 ``_kernel`` where useful. Keep common math independent of domain-specific wrench policy.
 
 When a thread exclusively owns an output cell, use explicit read-add-write assignments.

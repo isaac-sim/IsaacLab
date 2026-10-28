@@ -5,21 +5,25 @@
 
 """Kernels owned by WrenchComposer; routing and buffer ownership remain on the host."""
 
-from typing import Any
+from functools import cache
 
 import warp as wp
 
-from .index_kernel import IndexKernelDispatcher
 
-
-def _make_write_wrench(indexed: bool, accumulate: bool) -> wp.Kernel:
+@cache
+def make_write_wrench(env_dtype=wp.bool, body_dtype=wp.bool, *, accumulate: bool = False) -> wp.Kernel:
     """Generate a writer; selector layout and write operation are compile-time choices."""
-    selector_dtype = Any if indexed else wp.bool
+    indexed = env_dtype != wp.bool
+    if indexed:
+        if env_dtype not in (wp.int32, wp.int64) or body_dtype not in (wp.int32, wp.int64):
+            raise TypeError("Indexed wrench writes require signed integer selectors")
+    elif body_dtype != wp.bool:
+        raise TypeError("Masked wrench writes require boolean selectors")
 
-    @wp.kernel
+    @wp.kernel(module="unique")
     def write_wrench(
-        env_selection: wp.array(dtype=selector_dtype),
-        body_selection: wp.array(dtype=selector_dtype),
+        env_selection: wp.array(dtype=env_dtype),
+        body_selection: wp.array(dtype=body_dtype),
         forces: wp.array2d(dtype=wp.vec3f),
         torques: wp.array2d(dtype=wp.vec3f),
         positions: wp.array2d(dtype=wp.vec3f),
@@ -56,13 +60,6 @@ def _make_write_wrench(indexed: bool, accumulate: bool) -> wp.Kernel:
                         torque_buffer[env, body] = moment
 
     return write_wrench
-
-
-# Declare all variants and integer overloads before the first launch or graph capture.
-set_wrench_index = IndexKernelDispatcher(_make_write_wrench(True, False), ("env_selection", "body_selection"))
-add_wrench_index = IndexKernelDispatcher(_make_write_wrench(True, True), ("env_selection", "body_selection"))
-set_wrench_mask = _make_write_wrench(False, False)
-add_wrench_mask = _make_write_wrench(False, True)
 
 
 @wp.kernel
@@ -126,34 +123,39 @@ def compose_wrench_to_body_frame(
     )
 
 
-@wp.kernel
-def reset_wrench_composer_index(
-    env_ids: wp.array(dtype=Any),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    out_force_b: wp.array2d(dtype=wp.vec3f),
-    out_torque_b: wp.array2d(dtype=wp.vec3f),
-):
-    """Zero all 7 wrench composer buffers at the specified environment indices.
+@cache
+def make_reset_wrench(dtype) -> wp.Kernel:
+    """Return a reset kernel for the requested signed index type."""
+    if dtype not in (wp.int32, wp.int64):
+        raise TypeError("Wrench reset requires signed integer selectors")
 
-    Dispatched with ``dim=(len(env_ids), num_bodies)``.
-    """
-    tid_env, tid_body = wp.tid()
-    ei = wp.int32(env_ids[tid_env])
-    z = wp.vec3f(0.0)
-    global_force_w[ei, tid_body] = z
-    global_torque_w[ei, tid_body] = z
-    global_force_at_com_w[ei, tid_body] = z
-    local_force_b[ei, tid_body] = z
-    local_torque_b[ei, tid_body] = z
-    out_force_b[ei, tid_body] = z
-    out_torque_b[ei, tid_body] = z
+    @wp.kernel(module="unique")
+    def reset(
+        env_ids: wp.array(dtype=dtype),
+        global_force_w: wp.array2d(dtype=wp.vec3f),
+        global_torque_w: wp.array2d(dtype=wp.vec3f),
+        global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
+        local_force_b: wp.array2d(dtype=wp.vec3f),
+        local_torque_b: wp.array2d(dtype=wp.vec3f),
+        out_force_b: wp.array2d(dtype=wp.vec3f),
+        out_torque_b: wp.array2d(dtype=wp.vec3f),
+    ):
+        """Zero all 7 wrench composer buffers at the specified environment indices.
 
+        Dispatched with ``dim=(len(env_ids), num_bodies)``.
+        """
+        tid_env, tid_body = wp.tid()
+        ei = wp.int32(env_ids[tid_env])
+        z = wp.vec3f(0.0)
+        global_force_w[ei, tid_body] = z
+        global_torque_w[ei, tid_body] = z
+        global_force_at_com_w[ei, tid_body] = z
+        local_force_b[ei, tid_body] = z
+        local_torque_b[ei, tid_body] = z
+        out_force_b[ei, tid_body] = z
+        out_torque_b[ei, tid_body] = z
 
-reset_wrench_index = IndexKernelDispatcher(reset_wrench_composer_index, ("env_ids",))
+    return reset
 
 
 @wp.kernel

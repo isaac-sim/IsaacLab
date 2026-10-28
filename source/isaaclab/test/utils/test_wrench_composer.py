@@ -515,7 +515,7 @@ def test_generated_writers_replay_changed_inputs_under_cuda_capture(device):
                 method(local_force, positions=local_position, env_mask=env_mask, body_mask=body_mask)
             return composer.out_force_b, composer.out_torque_b
 
-        write_and_compose()  # Compile and bind every specialization before capture.
+        write_and_compose()  # Warm up the specializations used by this execution path.
         with wp.ScopedCapture(device=device) as capture:
             force, torque = write_and_compose()
         global_force.fill_(wp.vec3f(0, 3, 0))
@@ -533,6 +533,19 @@ def test_generated_writers_replay_changed_inputs_under_cuda_capture(device):
 def test_wrench_ownership_and_exclusive_writes(source_checkout_root):
     """Wrench kernels own composition and use ordinary writes for exclusive destinations."""
     import ast
+
+    from isaaclab.utils.warp import wrench
+
+    first = wrench.make_write_wrench(wp.int32, wp.int64)
+    before = first.module.hash_module()
+    assert isinstance(first, wp.Kernel)
+    assert wrench.make_write_wrench(wp.int32, wp.int64) is first
+    second = wrench.make_write_wrench(wp.int64, wp.int32, accumulate=True)
+    assert first.module is not second.module
+    assert first.module.hash_module() == before
+    assert not hasattr(wrench, "IndexKernelDispatcher")
+    assert not hasattr(wrench, "set_wrench_index")
+    assert not hasattr(wrench, "add_wrench_index")
 
     core = source_checkout_root / "source/isaaclab/isaaclab"
     owner = core / "utils/warp/wrench.py"
