@@ -21,8 +21,8 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids, write_2d_with_mask
+from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -473,14 +473,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
         # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
         body_mask = resolve_1d_mask(
             ids=body_ids,
             mask=body_mask,
             all_mask=self._ALL_BODY_MASK,
             scratch_mask=self._scratch_body_mask,
-            device=self.device,
         )
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
         write_2d_with_mask(body_poses, env_mask, body_mask, self.data.body_link_pose_w, self.device)
@@ -581,14 +580,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
         # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
         body_mask = resolve_1d_mask(
             ids=body_ids,
             mask=body_mask,
             all_mask=self._ALL_BODY_MASK,
             scratch_mask=self._scratch_body_mask,
-            device=self.device,
         )
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
         wp.launch(
@@ -703,14 +701,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
         # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
         body_mask = resolve_1d_mask(
             ids=body_ids,
             mask=body_mask,
             all_mask=self._ALL_BODY_MASK,
             scratch_mask=self._scratch_body_mask,
-            device=self.device,
         )
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
@@ -827,14 +824,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
         # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
         body_mask = resolve_1d_mask(
             ids=body_ids,
             mask=body_mask,
             all_mask=self._ALL_BODY_MASK,
             scratch_mask=self._scratch_body_mask,
-            device=self.device,
         )
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
@@ -979,24 +975,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Write to consolidated buffer
-        wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_index_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                coms,
-                env_ids,
-                body_ids,
-            ],
-            outputs=[
-                self.data._sim_bind_body_com_pos_b,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._sim_bind_body_com_pos_b, [env_ids, body_ids])
+        values = wp.from_torch(coms, dtype=wp.vec3f) if isinstance(coms, torch.Tensor) else coms
+        wp.copy(selected, values)
         self.data._reset_body_com_pose_b_dependents()
         # Tell the physics engine that some of the body properties have been updated
         self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
@@ -1037,16 +1023,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_mask,
+            memory.make_masked_copy(wp.vec3f, 2),
             dim=(env_mask.shape[0], body_mask.shape[0]),
-            inputs=[
-                coms,
-                env_mask,
-                body_mask,
-            ],
-            outputs=[
-                self.data._sim_bind_body_com_pos_b,
-            ],
+            inputs=[coms, env_mask, body_mask],
+            outputs=[self.data._sim_bind_body_com_pos_b],
             device=self.device,
         )
         self.data._reset_body_com_pose_b_dependents()

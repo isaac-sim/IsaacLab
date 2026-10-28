@@ -285,6 +285,76 @@ Warp CUDA graph capture
    :members:
    :show-inheritance:
 
+Warp device math
+^^^^^^^^^^^^^^^^
+
+``isaaclab.utils.warp.math`` provides device-callable functions and generated array kernels for
+quaternion, rigid-body, interval, and Jacobian math. Quaternions use ``xyzw`` order, and spatial
+vectors contain linear components before angular components. Tensor operations, broadcasting,
+and Torch autograd remain in ``isaaclab.utils.math``.
+
+.. automodule:: isaaclab.utils.warp.math
+   :members:
+
+Warp memory operations
+^^^^^^^^^^^^^^^^^^^^^^
+
+Use Warp's native array operations for ordinary data movement. The shared
+``isaaclab.utils.warp.memory`` module supplies selector normalization, component views,
+boolean-masked updates and fused packing/splitting. Callers own attribute frequencies:
+resolve them into shapes, strides and selections. The module has no body, joint or
+coordinate-domain registry. Physical equations and solver mappings remain in their owners.
+
+For example::
+
+    import warp as wp
+    from isaaclab.utils.warp import memory
+
+    rows = memory.resolve_1d_indices(rows)
+    columns = memory.resolve_1d_indices(columns)
+    selected = wp.indexedarray(target, [rows, columns])
+    wp.copy(selected, source)  # compact source matching selected.shape
+    selected.fill_(0.0)
+    wp.copy(selected, wp.indexedarray(full_source, [rows, columns]))
+
+    # Dynamic boolean masks stay on the device without compaction.
+    wp.launch(memory.make_masked_fill(wp.float32, 2), target.shape,
+              [0.0, row_mask, column_mask, target])
+
+    # Pack typed components into existing storage in one tiled launch.
+    memory.concat(first, second, result)
+
+``resolve_1d_indices`` preserves the order of valid nonnegative indices, returning
+contiguous int32 storage as required by Warp indexed views. It reuses contiguous int32
+arrays; strided/int64 arrays need a copy or cast. Keep normalized indices alive with the
+view. Warm conversions before CUDA graph capture; capture-time allocation requires the
+Warp memory pool. Source and destination data may remain strided. Overlapping destination
+indices require identical values. Simulator row-ID bookkeeping stays with the backend.
+
+``split_views`` returns component aliases without allocating storage. Prefer scalar slices
+for native copies of component data. Retained fused packing/splitting kernels avoid extra
+launches and can use better memory access patterns than multiple component copies.
+``concat`` owns scalar views and the tiled launch grid. It accepts rank-1 or rank-2
+composite arrays, preserves strides and uses the same specialization for contiguous
+arrays of either rank. It allocates no array storage. Input and output storage must
+not overlap. With ``record_cmd=True`` it returns a native Warp launch command; reuse
+that command for stable eager CUDA inputs to avoid rebuilding views on each call.
+
+For custom operations, cached factories return concrete kernels in isolated modules.
+Only requested layouts are constructed. Python caches kernel objects; Warp separately
+caches compilation. Warm the execution path before capture. Later specializations must
+not invalidate kernels already compiled or captured.
+
+``resolve_1d_mask`` owns selection normalization for sensors and experimental environments.
+Same-device signed integer arrays, boolean masks and slices are capturable; host sequences
+and device transfers are eager-only; temporary GPU index uploads synchronize their stream
+before releasing storage. It preserves integer widths, negative indices and array
+strides. Invalid device indices are ignored without synchronization. Scratch storage is reused,
+so callers must not retain a scratch result across another resolution using the same buffer.
+
+.. automodule:: isaaclab.utils.warp.memory
+   :members:
+
 Warp Fabric kernels
 ^^^^^^^^^^^^^^^^^^^
 

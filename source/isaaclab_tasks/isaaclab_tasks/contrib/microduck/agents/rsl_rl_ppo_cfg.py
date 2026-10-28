@@ -19,8 +19,8 @@ class MicroDuckPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO runner for the MicroDuck velocity-tracking tasks."""
 
     num_steps_per_env = MICRODUCK_STEPS_PER_ITERATION
-    max_iterations = 50000
-    save_interval = 250
+    max_iterations = "${microduck_scale:50000,${env.ngpus},${env.nnodes}}"
+    save_interval = "${microduck_scale:250,${env.ngpus},${env.nnodes}}"
     experiment_name = preset(default="microduck_velocity_flat", backlash="microduck_velocity_flat_backlash")
     obs_groups = {"actor": ["policy"], "critic": ["critic"]}
     actor = RslRlMLPModelCfg(

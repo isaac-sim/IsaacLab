@@ -1231,6 +1231,23 @@ def test_sample_gaussian_parameters():
             math_utils.sample_gaussian(mean, std, (3,), "cpu")
 
 
+def test_sample_triangle_distribution():
+    """Samples follow the symmetric triangular distribution on ``[lower, upper]`` with its mode at the midpoint."""
+    lower, upper, num_bins = -2.0, 3.0, 10
+    torch.manual_seed(0)
+    samples = math_utils.sample_triangle(lower, upper, (500, 400), "cpu")
+    assert samples.shape == (500, 400)
+    assert samples.min() >= lower and samples.max() <= upper
+    # compare bin masses with the analytic CDF: F(u) = 2u^2 for u <= 0.5 and 1 - 2(1 - u)^2 above,
+    # where u is the sample normalized to [0, 1]
+    edges = torch.linspace(0.0, 1.0, num_bins + 1, dtype=torch.float64)
+    cdf = torch.where(edges <= 0.5, 2.0 * edges**2, 1.0 - 2.0 * (1.0 - edges) ** 2)
+    expected_mass = cdf[1:] - cdf[:-1]
+    normalized = ((samples - lower) / (upper - lower)).to(torch.float64).flatten()
+    actual_mass = torch.histc(normalized, bins=num_bins, min=0.0, max=1.0) / normalized.numel()
+    torch.testing.assert_close(actual_mass, expected_mass, atol=0.005, rtol=0.0)
+
+
 def test_apply_delta_pose_zero_rotation_gradients():
     """A translation-only command preserves orientation and has finite gradients at zero rotation."""
     source_pos = torch.tensor([[1.0, 2.0, 3.0]])

@@ -18,13 +18,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.kernels.state_kernels import (
-    body_ang_vel_from_root,
-    body_lin_vel_from_root,
-    rotate_vec_to_body_frame,
-)
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root, rotate_vec_to_body_frame
 
 from isaaclab_experimental.managers import ManagerTermBase
 from isaaclab_experimental.utils.warp import WarpCapturable

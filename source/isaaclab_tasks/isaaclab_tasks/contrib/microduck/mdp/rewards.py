@@ -65,6 +65,29 @@ def track_angular_velocity(
     return zero_non_finite(torch.exp(-(z_error + xy_error) / std**2))
 
 
+def track_linear_velocity_heading(
+    env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Track horizontal root-link velocity in the heading frame with tolerance ``std`` [m/s]."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    actual = math_utils.quat_apply_inverse(
+        math_utils.yaw_quat(asset.data.root_link_quat_w.torch), asset.data.root_link_lin_vel_w.torch
+    )
+    error = torch.sum(torch.square(command[:, :2] - actual[:, :2]), dim=1)
+    return zero_non_finite(torch.exp(-error / std**2))
+
+
+def track_angular_velocity_world(
+    env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Track world-frame yaw rate with tolerance ``std`` [rad/s]."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    error = torch.square(command[:, 2] - asset.data.root_link_ang_vel_w.torch[:, 2])
+    return zero_non_finite(torch.exp(-error / std**2))
+
+
 """
 Posture rewards.
 """
@@ -82,7 +105,7 @@ class joint_deviation_exp(ManagerTermBase):
     """Reward staying near the default joint positions, with a per-joint tolerance that widens once the robot moves.
 
     The tolerance is ``std_standing`` [rad] while the command magnitude is below ``walking_threshold``, and
-    ``std_walking`` [rad] otherwise.
+    ``std_walking`` [rad] otherwise. With ``standing_only=True``, walking commands receive zero reward.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -103,6 +126,7 @@ class joint_deviation_exp(ManagerTermBase):
         std_walking: dict[str, float],
         walking_threshold: float,
         asset_cfg: SceneEntityCfg,
+        standing_only: bool = False,
     ) -> torch.Tensor:
         """Compute the posture reward."""
         asset: Articulation = env.scene[asset_cfg.name]
@@ -111,7 +135,8 @@ class joint_deviation_exp(ManagerTermBase):
         joint_pos = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
         default_joint_pos = asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
         error_squared = torch.square(joint_pos - default_joint_pos)
-        return zero_non_finite(torch.exp(-torch.mean(error_squared / std**2, dim=1)))
+        reward = zero_non_finite(torch.exp(-torch.mean(error_squared / std**2, dim=1)))
+        return reward * standing.squeeze(1) if standing_only else reward
 
 
 """

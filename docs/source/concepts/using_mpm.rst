@@ -290,8 +290,8 @@ individually. Under a coupler, automatic resets go through the coupled
 solver's reset, which passes the per-world reset mask to every entry, including
 the MPM entry. Tasks that need an exact history reset, such as Franka Pour, use
 independent MPM worlds (``separate_worlds=True``) and call
-:meth:`~isaaclab_newton.physics.NewtonMPMManager.reset_solver_state` after
-writing their complete state. In a coupled run, this also resets the coupled
+:func:`~isaaclab_newton.physics.reset_mpm_solver_state` on the physics
+manager's backend after writing their complete state. In a coupled run, this also resets the coupled
 solver's history.
 
 Try the :ref:`interactive MPM demo <interactive-demo-mpm>` to compare material
@@ -371,11 +371,9 @@ How MPM fits into the Newton backend
 ------------------------------------
 
 Selecting :class:`~isaaclab_newton.physics.MPMSolverCfg` as the ``solver_cfg`` of
-:class:`~isaaclab_newton.physics.NewtonCfg` installs
-:class:`~isaaclab_newton.physics.NewtonMPMManager`, a specialization of the
-Newton manager that constructs Newton's ``SolverImplicitMPM``. The solver
+:class:`~isaaclab_newton.physics.NewtonCfg` constructs Newton's ``SolverImplicitMPM``. The solver
 represents material as particles and solves its rheology implicitly on a
-background voxel grid. The MPM manager configures the Newton manager as
+background voxel grid. The MPM configuration sets up the Newton backend as
 follows:
 
 * It advances particles in place on a single Newton state rather than double

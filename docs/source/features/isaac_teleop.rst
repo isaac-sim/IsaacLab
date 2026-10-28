@@ -11,10 +11,10 @@ shared device interfaces and configurable retargeting pipelines.
 
 .. note::
 
-   **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab currently pins
-   the 1.4 release, whose Python distribution and import package are still named ``isaacteleop``.
-   Upstream renamed both to ``isaaccapture`` in 1.6, so the ``isaacteleop`` commands and imports in
-   this documentation are intentional. See the `Isaac Capture migration guide
+   **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab installs
+   ``isaaccapture==1.7.68a1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
+   compatibility import used in this documentation; new integrations should use ``isaaccapture``.
+   See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
 
 Isaac Capture replaces the previous native XR teleop stack (``isaaclab.devices.openxr``) in Isaac
@@ -303,7 +303,8 @@ interchangeable, and :func:`~isaaclab_teleop.poll_control_events` stays authorit
    A clientless CloudXR runtime advertises no HMD, so the standalone OpenXR session needs a device
    profile that reports a system without a connected client. The scripts default ``--cloudxr_env``
    to :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` when ``--xr`` is omitted (and to ``cloudxrjs``
-   when it is passed); see :ref:`isaac-teleop-cloudxr-profiles`.
+   when it is passed); see :ref:`isaac-teleop-cloudxr-profiles`. Keyboard, gamepad and SpaceMouse
+   sessions use the same standalone profile (see :ref:`isaac-teleop-keyboard`).
 
 .. _isaac-teleop-so101-leader-example:
 
@@ -343,9 +344,9 @@ Prerequisites
      sudo apt-get update
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-  Then clone, check out the release branch matching the ``isaacteleop`` version Isaac Lab is
-  pinned to (``isaacteleop~=1.4.145`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
-  plugin's wire format matches the ``isaacteleop`` package Isaac Lab installs), configure, build,
+  Then clone, check out the release branch matching the ``isaaccapture`` version Isaac Lab is
+  pinned to (``isaaccapture==1.7.68a1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  plugin's wire format matches the ``isaaccapture`` package Isaac Lab installs), configure, build,
   and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
   version needs its own build directory if building multiple at once:
@@ -354,7 +355,7 @@ Prerequisites
 
      git clone https://github.com/NVIDIA/IsaacCapture.git
      cd IsaacCapture
-     git checkout release/1.4.x
+     git checkout release/1.7.x
 
      cmake -B build                       # configure (default: Python 3.11)
      cmake --build build --parallel       # build
@@ -611,7 +612,7 @@ Source Nodes
 Available Retargeters
 ~~~~~~~~~~~~~~~~~~~~~
 
-Retargeters are provided by the ``isaacteleop`` package from the
+Retargeters are provided by the ``isaaccapture`` package from the
 `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ repository. The retargeters listed below
 are those used by the built-in Isaac Lab environments. Isaac Capture may offer additional
 retargeters not listed here -- refer to the
@@ -748,13 +749,83 @@ These environments use the Isaac Capture XR pipeline with motion controllers or 
    ideal for tasks that need a gripper or simple hand mapping. **Hand tracking** captures 26
    wrist and finger joints per hand, required for dexterous retargeting to complex robot hands.
 
-Keyboard and SpaceMouse Environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _isaac-teleop-keyboard:
+
+Keyboard, SpaceMouse, and Gamepad Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. note::
 
-   Keyboard and SpaceMouse teleoperation uses the legacy native Isaac Lab teleop stack
-   (``isaaclab.devices``), not Isaac Capture. These environments do not require an XR headset.
+   Keyboard, SpaceMouse, and Gamepad teleoperation run through Isaac Capture like every other
+   input device, driven by a keyboard, spacemouse, or gamepad
+   :class:`~isaaclab_teleop.IsaacTeleopDevice` pipeline instead of an XR headset -- see
+   :func:`~isaaclab_teleop.se3_keyboard_teleop_cfg`, :func:`~isaaclab_teleop.se3_spacemouse_teleop_cfg`,
+   and :func:`~isaaclab_teleop.se3_gamepad_teleop_cfg`. These environments do not require an XR
+   headset. The corresponding legacy configs (:class:`~isaaclab.devices.Se3KeyboardCfg`, ...) are
+   deprecated in Isaac Lab 3.2. Existing ``teleop_devices`` declarations translate once into the
+   equivalent Isaac Capture configuration before launch. They need Isaac Lab's ``teleop`` extra,
+   which installs Isaac Capture on Linux.
+
+**Keyboard input and window focus.** The keyboard runs inside the Isaac Lab process and reads the
+keys typed into whichever visualizer window has focus, like any desktop app: click the window and
+type. It needs no ``input`` group membership, ignores keys typed into other apps, and releases
+held keys when the window loses focus. Like every Isaac Capture session, a keyboard session opens an
+OpenXR session: without ``--xr`` the scripts launch a CloudXR runtime with the standalone profile
+(see :ref:`isaac-teleop-standalone`), so no headset is needed.
+
+The scripts resolve the requested device once before scene startup through
+``isaaclab_teleop.device_selection.select_teleop_cfg`` and create it through
+``create_teleop_device`` after the environment initializes. Keyboard, gamepad and SpaceMouse always run
+through Isaac Capture; devices without an Isaac Capture pipeline, such as OpenXR hand tracking, keep
+their native implementation. An Isaac Capture initialization error is reported without selecting a different device.
+
+**Configuration migration (Isaac Lab 3.2).** The old keyboard, gamepad and SpaceMouse implementation classes have
+been removed. Compatibility is limited to translating their configuration records; there are no old
+input handlers, constructor adapters or automatic fallbacks. Prefer the Isaac Capture builders for new configs.
+For example, replace ``Se3KeyboardCfg(pos_sensitivity=0.2)`` with
+``se3_keyboard_teleop_cfg(pos_sensitivity=0.2)``. Code that constructed ``Se3Keyboard(cfg)`` directly
+should instead pass the Isaac Capture config to :func:`~isaaclab_teleop.create_isaac_teleop_device`, enter
+the returned context manager, and call ``request_start()`` for a standalone session. Supply
+``use_kit_xr_bridge=False`` and ``cloudxr_env_file=CLOUDXR_STANDALONE_ENV`` for headset-free input.
+The factory requires the live ``visualizers=sim.visualizers`` sequence for window keyboard input.
+Replay and annotation hotkeys use :func:`~isaaclab.visualizers.add_key_callbacks` directly and do not
+start an Isaac Capture session.
+
+For direct use of :func:`~isaaclab_teleop.create_isaac_teleop_device` or
+:class:`~isaaclab_teleop.IsaacTeleopDevice`, pass ``visualizers=sim.visualizers`` to supply
+window input explicitly. The session keeps this live sequence so later windows can join;
+omitting it creates a session without window input. ``teleop_se3_agent.py`` and
+``record_demos.py`` start Kit only when ``--xr`` or the task needs it, so
+``--viz newton_rtx`` works with a Newton-physics task, e.g.
+``--task Isaac-Reach-Franka --viz newton_rtx physics=newton_mjwarp presets=diffik``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Visualizer
+     - Keyboard input
+   * - ``--viz kit``
+     - Keys typed into the Kit window, including keys typed into Kit's own UI (e.g. a text field).
+   * - ``--viz newton_gl`` / ``--viz newton_rtx``
+     - Keys typed into the Newton viewer window, except keys typed into its UI. While a keyboard
+       pipeline runs, the viewer's WASD/QE and arrow-key camera movement is turned off; the mouse
+       still moves the camera.
+   * - ``--viz viser`` / ``--viz rerun`` / ``--viz none``
+     - None.
+
+**SpaceMouse and Gamepad.** Both are read by an Isaac Capture plugin that their configs start
+with the session, so they also run headset-free from a single command. The ``gamepad`` plugin
+reads the first connected joystick (``/dev/input/jsN``), which udev lets the logged-in user read
+without the ``input`` group. The ``spacemouse`` plugin reads the SpaceMouse's HID device
+(``/dev/hidrawN``), which needs a udev rule (see
+:ref:`SpaceMouse permissions <isaac-teleop-spacemouse-permissions>`). Their buttons are sampled
+once per frame, so a very quick tap (pressed and released within one frame, more likely when the
+simulation runs slowly) can be missed; press again if the gripper or reset does not respond.
+
+The ``B`` / ``P`` / ``R`` start/pause/reset keys work with every pipeline, including XR, SpaceMouse
+and Gamepad ones: :class:`~isaaclab_teleop.IsaacTeleopDevice` reads them straight from the focused
+visualizer window, so each press fires once whatever the retargeting mode.
 
 The device button layouts below apply to all environments in this section. Per-environment
 differences (gripper enabled/disabled, sensitivity) are noted in the environment table that
@@ -790,9 +861,15 @@ follows.
    * - Gripper toggle
      - ``K``
      - Open / close gripper or suction (disabled in Reach envs).
+   * - Start/resume teleoperation
+     - ``B``
+     - Resume after a pause.
+   * - Pause teleoperation
+     - ``P``
+     - Pause without resetting.
    * - Reset
-     - ``L``
-     - Clear accumulated delta pose and gripper state.
+     - ``R``
+     - Reset the environment.
 
 **SpaceMouse**
 
@@ -814,7 +891,7 @@ follows.
      - Open / close gripper or suction (disabled in Reach envs).
    * - Reset
      - Right button
-     - Clear accumulated delta pose and gripper state.
+     - Reset the environment.
 
 **Gamepad** (Reach environments only)
 
@@ -838,7 +915,7 @@ follows.
      - Right stick (left/right)
      - Rotate about Z axis.
    * - Gripper toggle
-     - X button
+     - West button (X on Xbox, Square on PlayStation)
      - Open / close gripper (disabled in Reach envs).
 
 .. list-table::
@@ -1171,7 +1248,8 @@ times spike. This favors lower latency over CloudXR's pose-wait smoothing.
 :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` is the default when running **without** ``--xr``
 (see :ref:`isaac-teleop-standalone`). It pins an emulated ``quest3`` device profile so a CloudXR
 runtime with no client still advertises an OpenXR system, working around
-``XR_ERROR_FORM_FACTOR_UNAVAILABLE``.
+``XR_ERROR_FORM_FACTOR_UNAVAILABLE``. Keyboard, gamepad and SpaceMouse sessions without ``--xr``
+use it too.
 
 Override at launch time
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -1683,9 +1761,9 @@ the registered task ID, but not the command-line selector values:
        --dataset_file ./datasets/dataset.hdf5 \
        physics=isaacsim_physx presets=diffik
 
-Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
-(e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
-the input device:
+Some environments declare their input devices in ``teleop_devices`` instead of ``isaac_teleop``
+(e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select the
+input device; keyboard and spacemouse run through Isaac Capture when ``isaacteleop`` is installed:
 
 .. tab-set::
 
@@ -1701,11 +1779,11 @@ the input device:
 The workflow is:
 
 #. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`)
-   or ``teleop_devices`` for legacy devices (keyboard, spacemouse).
+   or ``teleop_devices`` for keyboard and spacemouse.
 #. Run ``record_demos.py`` with the task name and any ``physics=``, ``renderer=``, or ``presets=``
    selectors required by the task.
 #. For XR tasks: start AR, connect your XR device, and teleoperate.
-   For legacy tasks: use the configured input device directly.
+   For keyboard/spacemouse: use the input device directly.
 #. Demonstrations are recorded to HDF5 files.
 #. Use the recorded data with Isaac Lab Mimic or other imitation learning frameworks.
 

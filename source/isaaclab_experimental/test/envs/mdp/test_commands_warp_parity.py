@@ -24,7 +24,6 @@ wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
 from isaaclab_experimental.envs.mdp.commands import NullCommand, UniformPoseCommand, UniformVelocityCommand
-from isaaclab_experimental.utils.warp import resolve_1d_mask
 from parity_helpers import (
     DEVICE,
     NUM_BODIES,
@@ -42,6 +41,7 @@ from parity_helpers import (
 import isaaclab.envs.mdp.commands.velocity_command as stable_velocity_command
 from isaaclab.envs.mdp.commands.commands_cfg import NullCommandCfg, UniformPoseCommandCfg, UniformVelocityCommandCfg
 from isaaclab.utils.seed import WarpRng
+from isaaclab.utils.warp.memory import resolve_1d_mask
 
 _DT = 0.02
 
@@ -62,7 +62,7 @@ def _command_env(robot) -> SimpleNamespace:
         num_envs=NUM_ENVS,
         device=DEVICE,
         resolve_env_mask=lambda env_ids=None, env_mask=None: resolve_1d_mask(
-            ids=env_ids, mask=env_mask, all_mask=all_mask, scratch_mask=scratch_mask, device=DEVICE
+            ids=env_ids, mask=env_mask, all_mask=all_mask, scratch_mask=scratch_mask
         ),
         sim=SimpleNamespace(vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda term: None)),
     )

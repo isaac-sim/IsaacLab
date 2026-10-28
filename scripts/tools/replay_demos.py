@@ -303,18 +303,12 @@ def replay_dataset(
     success_term,
 ):
     """Create the environment and replay the selected episodes of the dataset."""
-    # the keyboard device needs the Kit runtime, which is running at this point
-    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+    from isaaclab.visualizers import add_key_callbacks
 
     num_envs = args_cli.num_envs
 
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
-
-    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
-    teleop_interface.add_callback("N", play_cb)
-    teleop_interface.add_callback("B", pause_cb)
-    print('Press "B" to pause and "N" to resume the replayed actions.')
 
     # Determine if state validation should be conducted
     state_validation_enabled = False
@@ -331,7 +325,8 @@ def replay_dataset(
 
     # reset before starting
     env.reset()
-    teleop_interface.reset()
+    add_key_callbacks(env.sim.visualizers, {"N": play_cb, "B": pause_cb})
+    print('Press "B" to pause and "N" to resume the replayed actions.')
 
     episode_names = list(dataset_file_handler.get_episode_names())
     replayed_episode_count, recorded_episode_count, failed_demo_ids = replay_episodes_loop(
