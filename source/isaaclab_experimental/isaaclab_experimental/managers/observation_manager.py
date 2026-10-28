@@ -775,6 +775,8 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
+                # migrated here so the deprecation warning points at the code that built the manager
+                term_cfg._migrate_modifiers()
                 term_dim = self._prepare_term(group_name, term_name, term_cfg, group_cfg)
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
