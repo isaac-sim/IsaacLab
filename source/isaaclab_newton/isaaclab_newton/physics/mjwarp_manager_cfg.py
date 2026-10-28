@@ -73,9 +73,12 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """Dictionary mapping joint names to specific gear ratios, overriding the `default_actuator_gear`."""
 
     update_data_interval: int = 1
-    """Frequency (in simulation steps) at which to update the MuJoCo Data object from the Newton state.
+    """Frequency (in solver substeps) at which to update the MuJoCo Data object from the Newton state.
 
-    If 0, Data is never updated after initialization.
+    If 0, periodic state imports are disabled after initialization. With MuJoCo Warp, authored
+    state writes that flag the manager's reset mask are still synchronized for the affected
+    worlds at the next forward or physics-step boundary, independently of this interval.
+    The native MuJoCo CPU backend only synchronizes template world 0 when it is flagged.
     """
 
     save_to_mjcf: str | None = None

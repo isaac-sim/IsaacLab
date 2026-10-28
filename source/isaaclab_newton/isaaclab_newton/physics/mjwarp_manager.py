@@ -114,12 +114,15 @@ class NewtonMJWarpManager(NewtonManager):
         solver substep warm-starts from the NaN — the world is then permanently
         dead.  See https://github.com/newton-physics/newton/issues/1266.
 
-        With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
-        and its reset path is not mask-aware — it clears the buffers for every
-        world.  Since this hook can fire with an all-``False`` mask (e.g. on
-        every forward boundary after a graph-captured write), the CPU path is
-        gated on at least one world actually being flagged so warm-starting is
-        not defeated on every step.
+        When state imports are sparse or disabled, also push the authored
+        joint state into MuJoCo for the flagged worlds. ``reset(flags=0)``
+        only clears history; otherwise the next substep can overwrite the
+        authored state before importing it.
+
+        With ``use_mujoco_cpu=True`` the solver owns a single ``MjData`` for
+        template world 0. Gate the CPU path on that world's mask entry so
+        other worlds' resets cannot clear its history or copy uninitialized
+        coordinate-conversion buffers into it.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
@@ -128,11 +131,16 @@ class NewtonMJWarpManager(NewtonManager):
         """
         if world_mask is None:
             return
-        if cls._solver.use_mujoco_cpu and not world_mask.numpy().any():
+        if cls._solver.use_mujoco_cpu and not world_mask.numpy()[0]:
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
         cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
+        if cls._solver.update_data_interval != 1:
+            # Newton has no public masked import. With sleeping disabled,
+            # reset(flags=0) skips it, so reuse the pinned solver's conversion.
+            data = cls._solver.mj_data if cls._solver.use_mujoco_cpu else cls._solver.mjw_data
+            cls._solver._update_mjc_data(data, cls.backend.model, cls.backend.state_0, world_mask=world_mask)
 
     @classmethod
     def _log_solver_debug(cls) -> None:
