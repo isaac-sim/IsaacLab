@@ -23,7 +23,7 @@ def test_custom_coupling_is_opt_in() -> None:
 
         # Importing the library modules must not register the task.
         import isaaclab_contrib.custom_coupling
-        import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager
+        import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver
 
         assert custom_id not in gym.registry
 
