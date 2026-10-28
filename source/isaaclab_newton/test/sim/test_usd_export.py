@@ -409,6 +409,25 @@ def test_joint_limits_are_written_with_the_mujoco_reference():
     assert np.degrees(lower) == pytest.approx(5.0, abs=1e-4)
 
 
+def test_kamino_constraint_gains_are_stated_on_the_scene():
+    """Kamino reads its constraint stabilization gains from the physics scene, so the export states all three."""
+    from types import SimpleNamespace
+
+    from isaaclab_newton.physics import KaminoConstraintsCfg, KaminoPADMMSolverCfg
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    exporter = UsdExporter.__new__(UsdExporter)
+    physics = SimpleNamespace(num_substeps=1)
+    exporter.scene = SimpleNamespace(
+        physics_scene_path="/physicsScene",
+        sim=SimpleNamespace(cfg=SimpleNamespace(physics=physics), get_physics_dt=lambda: 0.01),
+    )
+    cfg = KaminoPADMMSolverCfg(constraints=KaminoConstraintsCfg(alpha=0.1, beta=0.2, gamma=0.3))
+    edits = {edit.attribute: edit.value for edit in exporter._scene_edits(cfg)}
+    assert edits["newton:kamino:constraints:beta"] == pytest.approx(0.2)
+    assert edits["newton:kamino:constraints:gamma"] == pytest.approx(0.3)
+
+
 def test_attribute_tables_cover_newton_importer():
     """Every attribute Newton's importer maps is exported or deliberately excluded."""
     from isaaclab_newton.sim.usd_export.usd_exporter import (
