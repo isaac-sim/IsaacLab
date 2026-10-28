@@ -80,13 +80,23 @@ class FingerTailContacts:
         model: Finalized Newton model containing the robot and cable collision shapes.
         body_chains: Left and right cable body indices grouped by environment.
         backend_manager: Newton physics manager that owns the model and contact buffer.
+        robot_prim_names: Robot prim names in left/right arm order; both may name one humanoid.
+        finger_body_names: Two contact bodies per hand, in left/right arm order.
 
     Attributes:
         signed_distance: Finger-tail surface distances [m], shape [N, 4], or ``None`` before initialization.
     """
 
     def __init__(
-        self, model: Model, body_chains: list[tuple[list[int], list[int]]], backend_manager: NewtonManager
+        self,
+        model: Model,
+        body_chains: list[tuple[list[int], list[int]]],
+        backend_manager: NewtonManager,
+        robot_prim_names: tuple[str, str] = ("RobotLeft", "RobotRight"),
+        finger_body_names: tuple[tuple[str, str], tuple[str, str]] = (
+            ("panda_leftfinger", "panda_rightfinger"),
+            ("panda_leftfinger", "panda_rightfinger"),
+        ),
     ) -> None:
         self._backend_manager = backend_manager
         # Columns are finger slot, environment index, and matching tail arm; -1 means unused.
@@ -96,8 +106,8 @@ class FingerTailContacts:
         body_world = model.body_world.numpy()
         fingers: dict[tuple[int, int, int], list[int]] = {}
         for body, label in enumerate(model.body_label):
-            for arm, robot in enumerate(("RobotLeft", "RobotRight")):
-                for finger, name in enumerate(("panda_leftfinger", "panda_rightfinger")):
+            for arm, robot in enumerate(robot_prim_names):
+                for finger, name in enumerate(finger_body_names[arm]):
                     if f"/{robot}/" in label and label.rsplit("/", 1)[-1] == name:
                         fingers.setdefault((int(body_world[body]), arm, finger), []).append(body)
 
@@ -185,7 +195,9 @@ class FingerTailContactSensor(SensorBase):
         chains = _find_chains(model.body_label, model.body_world.numpy(), self._num_envs, "edge_body")
         if any(not left or not right for left, right in chains):
             raise RuntimeError("Finger-tail contact sensor requires both shoelace segment chains in every world")
-        self._contacts = FingerTailContacts(model, chains, self._backend_manager)
+        self._contacts = FingerTailContacts(
+            model, chains, self._backend_manager, self.cfg.robot_prim_names, self.cfg.finger_body_names
+        )
         self._contacts.initialize()
 
     def _update_buffers_impl(self, env_mask: wp.array) -> None:

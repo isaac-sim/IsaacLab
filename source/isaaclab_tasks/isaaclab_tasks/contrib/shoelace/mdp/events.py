@@ -81,6 +81,36 @@ def reset_arm_joints(
     robot.actuators.target_command.set_position_index(value=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
+def mirror_arm_joints(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | slice,
+    source_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg,
+    mirror_signs: tuple[float, ...],
+) -> None:
+    """Mirror an already-reset arm's state and synchronize the other arm's position targets.
+
+    Run after the source arm reset. Both entity selections must preserve corresponding joint order.
+    This retains reset noise while making its realization symmetric, including partial resets.
+
+    Args:
+        env: Environment containing the two arms.
+        env_ids: Environments to reset.
+        source_cfg: Arm whose reset positions and velocities are mirrored.
+        asset_cfg: Arm receiving the mirrored state.
+        mirror_signs: Axial reflection signs in the selections' common joint order.
+    """
+    source: Articulation = env.scene[source_cfg.name]
+    target: Articulation = env.scene[asset_cfg.name]
+    joint_pos = source.data.joint_pos.torch[env_ids][:, source_cfg.joint_ids]
+    signs = joint_pos.new_tensor(mirror_signs)
+    joint_pos = joint_pos * signs
+    joint_vel = source.data.joint_vel.torch[env_ids][:, source_cfg.joint_ids] * signs
+    target.write_joint_position_to_sim_index(position=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    target.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    target.actuators.target_command.set_position_index(value=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+
+
 def reset_shoe_position(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | slice,

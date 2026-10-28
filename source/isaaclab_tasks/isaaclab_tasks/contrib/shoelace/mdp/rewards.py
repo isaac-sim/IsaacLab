@@ -15,7 +15,14 @@ import torch
 
 from isaaclab.managers import ManagerTermBase
 
-from .grasp import bilateral_score, filter_grasps, hamacher_product, shoelace_grasp_quality
+from .grasp import (
+    _finger_contact_quality,
+    bilateral_score,
+    filter_grasps,
+    grasp_geometry,
+    hamacher_product,
+    shoelace_grasp_quality,
+)
 from .observations import tails_to_tcp
 from .utils import tail_outward_x, tail_x_separation
 
@@ -65,6 +72,31 @@ def shoelace_success_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
     return env.termination_manager.get_term("success").float() / env.step_dt
 
 
+def binary_gripper_switch_rate(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Count open/close command changes per second across the two binary grippers.
+
+    Negative actions close and nonnegative actions open. Changes in action magnitude within one
+    state are free. The first command after reset establishes the state without a switching cost.
+    RewardManager cancels the timestep division, so the weight is the cost per hand per switch.
+
+    Args:
+        env: Task environment with scalar ``left_gripper`` and ``right_gripper`` action terms.
+
+    Returns:
+        Binary command switching rates [1/s], shape [N].
+    """
+    indices = {}
+    start = 0
+    for name, dim in zip(env.action_manager.active_terms, env.action_manager.action_term_dim, strict=True):
+        indices[name] = start
+        start += dim
+    grippers = [indices["left_gripper"], indices["right_gripper"]]
+    closed = env.action_manager.action[:, grippers] < 0
+    was_closed = env.action_manager.prev_action[:, grippers] < 0
+    switches = (closed != was_closed).float().sum(dim=1)
+    return switches * (env.episode_length_buf > 1) / env.step_dt
+
+
 class dense_task_reward(ManagerTermBase):
     """Stateful progress reward for acquiring and pulling the two free tails.
 
@@ -111,14 +143,14 @@ class dense_task_reward(ManagerTermBase):
         contact_std: float,
         relative_speed_std: float,
         grasp_filter_time_constant: float,
-        open_position: float,
-        closed_position: float,
         success_x_separation: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg] | None = None,
-        robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg] | None = None,
+        finger_cfgs: tuple[SceneEntityCfg, ...] | None = None,
         *,
         acquisition_weight: float = 0.6,
         approach_fraction: float = 0.5,
+        approach_robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg] | None = None,
+        approach_saturation_radius: float = 0.0,
         bilateral_pull_fraction: float = 0.8,
         bilateral_approach_fraction: float = 0.5,
         bilateral_grasp_fraction: float = 0.7,
@@ -141,17 +173,22 @@ class dense_task_reward(ManagerTermBase):
 
         Args:
             env: The task environment.
-            reach_std: Tail-to-TCP approach-distance width [m].
+            reach_std: Coarse approach-distance width [m].
             contact_std: Contact-distance width [m]; gaps and deep penetration reduce grasp quality.
-            relative_speed_std: Tail-TCP slip-speed width [m/s].
+            relative_speed_std: Worst-finger relative-speed width [m/s].
             grasp_filter_time_constant: Grasp-quality low-pass time constant [s].
-            open_position: Driven finger-joint position when open [m].
-            closed_position: Driven finger-joint position when closed [m].
             success_x_separation: X-separation target for the pull scale [m]; success is checked separately.
             cable_cfgs: Required left and right cable scene entities.
-            robot_cfgs: Required left and right robot hand and finger scene entities.
+            finger_cfgs: Required opposing surface-reference bodies for each hand.
             acquisition_weight: Acquisition fraction in [0, 1]; pulling receives the remainder.
             approach_fraction: Approach share of acquisition in [0, 1]; grasps receive the remainder.
+            approach_robot_cfgs: Optional TCP bodies in left/right arm order, using
+                ``env.cfg.tcp_body_offsets`` like the TCP observations. When supplied, coarse
+                approach uses tail-to-TCP distance; otherwise it uses the live capture segment.
+                Physical grasp scoring always uses the actual finger surfaces and contacts.
+            approach_saturation_radius: Approach-distance radius [m] inside which coarse approach
+                potential stays at its boundary value. Fine alignment and closure use pregrasp shaping.
+                Zero preserves the original curve; distances outside the radius are unchanged.
             bilateral_pull_fraction: Bilateral share of pulling in [0, 1]; zero disables the bonus.
             bilateral_approach_fraction: Bilateral share of approach in [0, 1]; zero gives the per-arm mean.
             bilateral_grasp_fraction: Bilateral share of grasp acquisition in [0, 1]; zero gives the per-arm mean.
@@ -167,8 +204,8 @@ class dense_task_reward(ManagerTermBase):
         Raises:
             ValueError: If scene entities, reward budgets, or the separation target are invalid.
         """
-        if cable_cfgs is None or robot_cfgs is None:
-            raise ValueError("dense_task_reward requires cable_cfgs and robot_cfgs")
+        if cable_cfgs is None or finger_cfgs is None:
+            raise ValueError("dense_task_reward requires cable_cfgs and finger_cfgs")
         if not 0.0 <= acquisition_weight <= 1.0 or not 0.0 <= approach_fraction <= 1.0:
             raise ValueError("acquisition_weight and approach_fraction must be in [0, 1]")
         if not all(
@@ -178,20 +215,25 @@ class dense_task_reward(ManagerTermBase):
             raise ValueError("Bilateral approach, grasp, and pull fractions must be in [0, 1]")
         if not math.isfinite(success_x_separation) or success_x_separation <= 0.0:
             raise ValueError("success_x_separation must be finite and positive")
+        if not math.isfinite(approach_saturation_radius) or approach_saturation_radius < 0.0:
+            raise ValueError("approach_saturation_radius must be finite and nonnegative")
         if not 0.0 < pull_grasp_threshold <= 1.0:
             raise ValueError("pull_grasp_threshold must be in (0, 1]")
 
         # Per-arm tensors follow robot order (left, right), which is opposite to the cable naming.
-        tail_vectors = tails_to_tcp(env, cable_cfgs, robot_cfgs).reshape(env.num_envs, 2, 3)
-        tail_distances = torch.linalg.vector_norm(tail_vectors, dim=-1)
+        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs)
+        tail_distances = geometry["capture_distance"]
+        approach_distance = tail_distances
+        if approach_robot_cfgs is not None:
+            approach_distance = (
+                tails_to_tcp(env, cable_cfgs, approach_robot_cfgs).reshape(env.num_envs, 2, 3).norm(dim=-1)
+            )
         per_gripper_grasp, grasp_finite = shoelace_grasp_quality(
             env,
             contact_std,
             relative_speed_std,
-            open_position,
-            closed_position,
             cable_cfgs,
-            robot_cfgs,
+            finger_cfgs,
             contact_penetration_tolerance,
         )
         x_separation = tail_x_separation(env, cable_cfgs)
@@ -199,12 +241,13 @@ class dense_task_reward(ManagerTermBase):
         # Per-environment numerical mask for reward inputs; this does not assess grasp or task success.
         finite = (
             torch.isfinite(tail_distances).all(dim=1)
+            & torch.isfinite(approach_distance).all(dim=1)
             & grasp_finite
             & torch.isfinite(x_separation)
             & torch.isfinite(outward_x).all(dim=1)
         )
 
-        approach = 1.0 - torch.tanh(tail_distances / max(reach_std, 1.0e-6))
+        approach = 1.0 - torch.tanh(approach_distance.clamp_min(approach_saturation_radius) / max(reach_std, 1.0e-6))
         filtered_per_gripper_grasp = filter_grasps(
             self._filtered_per_gripper_grasp,
             per_gripper_grasp,
@@ -248,7 +291,9 @@ class dense_task_reward(ManagerTermBase):
         self._best_pull_progress.copy_(torch.where(finite.unsqueeze(1), best_progress, self._best_pull_progress))
 
         metric_values = {
-            "approach_distance_m": tail_distances.mean(dim=1),
+            "approach_distance_m": approach_distance.mean(dim=1),
+            "capture_distance_m": tail_distances.mean(dim=1),
+            "surface_midpoint_distance_m": geometry["surface_midpoint_distance"].mean(dim=1),
             "grasp_left": filtered_per_gripper_grasp[:, 0],
             "grasp_right": filtered_per_gripper_grasp[:, 1],
             "grasp_both": bilateral_grasp,
@@ -297,7 +342,7 @@ class grasp_hold_reward(ManagerTermBase):
     Unlike the dense potential difference, this score remains positive during stable grasping.
     The manager multiplies it by ``step_dt`` and its weight, making the weight a maximum reward
     per second. An optional episode budget reduces the rate after enough quality-weighted grasp time.
-    Invalid contact, closure, or slip inputs earn zero without advancing filters or budgets.
+    Invalid contact, geometry, or slip inputs earn zero without advancing filters or budgets.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv) -> None:
@@ -321,10 +366,8 @@ class grasp_hold_reward(ManagerTermBase):
         contact_std: float,
         relative_speed_std: float,
         grasp_filter_time_constant: float,
-        open_position: float,
-        closed_position: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-        robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
+        finger_cfgs: tuple[SceneEntityCfg, ...],
         bilateral_grasp_fraction: float = 0.8,
         *,
         contact_penetration_tolerance: float = 0.0,
@@ -336,12 +379,10 @@ class grasp_hold_reward(ManagerTermBase):
         Args:
             env: Task environment.
             contact_std: Finger-tail contact-distance width [m].
-            relative_speed_std: Tail-TCP slip-speed width [m/s].
+            relative_speed_std: Worst-finger relative-speed width [m/s].
             grasp_filter_time_constant: Grasp-quality low-pass time constant [s].
-            open_position: Driven finger-joint position when open [m].
-            closed_position: Driven finger-joint position when closed [m].
             cable_cfgs: Left and right cable scene entities.
-            robot_cfgs: Left and right hand and finger scene entities.
+            finger_cfgs: Opposing surface-reference bodies for each hand.
             bilateral_grasp_fraction: Bilateral share in [0, 1]; the remainder rewards each arm independently.
             contact_penetration_tolerance: Accepted contact-solver penetration [m]. Positive gaps and
                 penetration beyond this tolerance still reduce grasp quality.
@@ -365,10 +406,8 @@ class grasp_hold_reward(ManagerTermBase):
             env,
             contact_std,
             relative_speed_std,
-            open_position,
-            closed_position,
             cable_cfgs,
-            robot_cfgs,
+            finger_cfgs,
             contact_penetration_tolerance,
         )
         filtered = filter_grasps(
@@ -385,9 +424,9 @@ class grasp_hold_reward(ManagerTermBase):
 
 
 class pregrasp_progress_reward(ManagerTermBase):
-    """Bridge coarse approach and physical grasping with fine TCP alignment and gated closure.
+    """Bridge approach and physical grasping with capture geometry, aperture progress and soft contact.
 
-    This is a positional pregrasp heuristic, not evidence of contact or tail-orientation alignment.
+    This is an acquisition heuristic, not evidence of physical retention or force closure.
     Each arm earns progress independently; stationary states pay zero and releases remove closure
     credit. The contact-based grasp and retention terms remain responsible for physical grasp quality.
     """
@@ -409,59 +448,39 @@ class pregrasp_progress_reward(ManagerTermBase):
         env: ManagerBasedRLEnv,
         alignment_std: float,
         closure_radius: float,
-        open_position: float,
-        closed_position: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-        robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-        alignment_weight: float = 0.75,
+        finger_cfgs: tuple[SceneEntityCfg, ...],
+        alignment_weight: float = 0.6,
         closure_weight: float = 0.25,
+        contact_weight: float = 0.15,
+        contact_std: float = 0.0015,
+        contact_penetration_tolerance: float = 0.001,
     ) -> torch.Tensor:
-        """Return the signed rate of fine alignment and nearby actual closure [1/s].
+        """Return geometry/contact potential progress [1/s], without joint-angle assumptions.
 
-        Args:
-            env: Task environment.
-            alignment_std: Gaussian width for TCP-to-tail-center distance [m].
-            closure_radius: TCP-centered radius beyond which closure earns no credit [m].
-                The gate is ``max(1 - (distance / radius)**2, 0)**2`` and is smooth at its boundary.
-            open_position: Driven finger-joint position when open [m].
-            closed_position: Driven finger-joint position when closed [m].
-            cable_cfgs: Left and right cable scene entities.
-            robot_cfgs: Left and right hand and finger scene entities.
-            alignment_weight: Nonnegative fine-alignment potential budget, averaged over the two arms.
-            closure_weight: Nonnegative gated-closure potential budget, averaged over the two arms.
-                Zero disables closure shaping without changing the alignment budget.
-
-        Returns:
-            Signed progress rates [1/s], shape [N]. The manager's ``step_dt`` multiplication cancels
-            the timestep division. The potential is bounded by the sum of the two component weights.
-            Invalid inputs pay zero and preserve history; the first valid sample after reset pays zero.
-
-        Raises:
-            ValueError: If widths are not finite and positive, component weights are not finite and
-                nonnegative, or the open position does not exceed the closed position.
+        Alignment measures distance to the segment between the two surface points. Closing uses
+        actual aperture relative to the ready aperture and target diameter. An asymmetric closure
+        can move the TCP while retaining capture. Leaving the capture region removes credit.
+        First-finger contact earns a soft acquisition signal; physical retention uses the stricter
+        shared grasp score.
+        Reset seeds the potential without credit; reopening/contact loss removes previous credit.
         """
-        if not all(math.isfinite(value) and value > 0.0 for value in (alignment_std, closure_radius)):
-            raise ValueError("alignment_std and closure_radius must be finite and positive")
-        if not all(math.isfinite(value) and value >= 0.0 for value in (alignment_weight, closure_weight)):
-            raise ValueError("alignment_weight and closure_weight must be finite and nonnegative")
-        if (
-            not all(math.isfinite(value) for value in (open_position, closed_position))
-            or open_position <= closed_position
-        ):
-            raise ValueError("Gripper positions must be finite with open_position greater than closed_position")
-
-        vectors = tails_to_tcp(env, cable_cfgs, robot_cfgs).reshape(env.num_envs, 2, 3)
-        distance = torch.linalg.vector_norm(vectors, dim=-1)
-        positions = torch.stack(
-            [env.scene[cfg.name].data.joint_pos.torch[:, cfg.joint_ids[0]] for cfg in robot_cfgs], dim=1
-        )
-        finite = torch.isfinite(distance).all(dim=1) & torch.isfinite(positions).all(dim=1)
-        closure = ((open_position - positions) / (open_position - closed_position)).clamp(0.0, 1.0)
-        alignment = torch.exp(-torch.square(distance / alignment_std))
-        # A compact positional gate cannot reward closing far away, even before contact is observable.
-        closure_gate = (1.0 - torch.square(distance / closure_radius)).clamp_min(0.0).square()
-        potential = (alignment_weight * alignment + closure_weight * closure_gate * closure).mean(dim=1)
-
+        if not all(math.isfinite(value) and value > 0 for value in (alignment_std, closure_radius, contact_std)):
+            raise ValueError("Pregrasp widths must be finite and positive")
+        if not all(math.isfinite(value) and value >= 0 for value in (alignment_weight, closure_weight, contact_weight)):
+            raise ValueError("Pregrasp weights must be finite and nonnegative")
+        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs)
+        distance = geometry["capture_distance"]
+        opened = distance.new_tensor(env.cfg.grasp_open_apertures)
+        closure = ((opened - geometry["aperture"]) / (opened - env.cfg.grasp_target_diameter)).clamp(0.0, 1.0)
+        alignment = torch.exp(-(distance / alignment_std).square())
+        gate = (1.0 - (distance / closure_radius).square()).clamp_min(0.0).square()
+        contact, contact_finite = _finger_contact_quality(env, contact_std, contact_penetration_tolerance)
+        contact *= torch.exp(-(geometry["pad_distance"] / env.cfg.grasp_pad_distance_std).square())
+        potential = (
+            alignment_weight * alignment + closure_weight * gate * closure + contact_weight * contact.mean(dim=2)
+        ).mean(dim=1)
+        finite = geometry["finite"] & contact_finite & torch.isfinite(potential)
         valid = finite & torch.isfinite(self._previous_potential)
         progress = torch.where(valid, potential - self._previous_potential, 0.0)
         self._previous_potential.copy_(torch.where(finite, potential, self._previous_potential))

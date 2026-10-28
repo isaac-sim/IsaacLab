@@ -12,21 +12,77 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from .observations import finger_tail_signed_distance, tail_tcp_relative_speed
+from .observations import finger_point_state_w, finger_tail_signed_distance
+from .utils import tail_state
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import SceneEntityCfg
 
 
+def grasp_geometry(
+    env: ManagerBasedRLEnv,
+    cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
+    finger_cfgs: tuple[SceneEntityCfg, ...],
+) -> dict[str, torch.Tensor]:
+    """Measure a two-surface grasp without assuming a gripper joint type or fixed TCP.
+
+    Capture distance measures the tail centre's distance to the segment joining the surface points.
+    Relative speed uses each point separately against the mean free-tail velocity; it is an
+    approximation at reference points, not a contact-resolved slip or force-closure measurement.
+    Scalar fields have shape [N, 2]; pad distance has shape [N, 2, 2]. Units are metres and m/s.
+    """
+    points, velocities = finger_point_state_w(env, finger_cfgs)
+    tails, tail_velocities = tail_state(env, cable_cfgs)
+    span = points[:, :, 1] - points[:, :, 0]
+    aperture = span.norm(dim=-1)
+    axis = span / aperture.unsqueeze(-1).clamp_min(1.0e-6)
+    delta = tails - points.mean(dim=2)
+    axial = (delta * axis).sum(dim=-1)
+    lateral = delta - axial.unsqueeze(-1) * axis
+    outside = (axial.abs() - 0.5 * aperture).clamp_min(0.0)
+    distance = (lateral.square().sum(dim=-1) + outside.square()).sqrt()
+    relative_velocity = tail_velocities.unsqueeze(2) - velocities
+    slip = relative_velocity.norm(dim=-1).amax(dim=2)
+    pad_distance = ((tails.unsqueeze(2) - points).norm(dim=-1) - env.cfg.grasp_target_diameter / 2).clamp_min(0.0)
+    finite = (
+        torch.isfinite(points).all(dim=(1, 2, 3))
+        & torch.isfinite(velocities).all(dim=(1, 2, 3))
+        & torch.isfinite(tails).all(dim=(1, 2))
+        & torch.isfinite(tail_velocities).all(dim=(1, 2))
+        & (aperture > 1.0e-6).all(dim=1)
+    )
+    return {
+        "aperture": aperture,
+        "capture_distance": distance,
+        "surface_midpoint_distance": delta.norm(dim=-1),
+        "relative_speed": slip,
+        "pad_distance": pad_distance,
+        "finite": finite,
+    }
+
+
+def _finger_contact_quality(
+    env: ManagerBasedRLEnv, contact_std: float, contact_penetration_tolerance: float
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Score available contact candidates, tolerating bounded penetration but excluding the no-candidate sentinel."""
+    if not math.isfinite(contact_std) or contact_std <= 0:
+        raise ValueError("Contact width must be finite and positive")
+    if not math.isfinite(contact_penetration_tolerance) or contact_penetration_tolerance < 0:
+        raise ValueError("Contact penetration tolerance must be finite and nonnegative")
+    signed = finger_tail_signed_distance(env).reshape(env.num_envs, 2, 2)
+    error = signed.clamp_min(0.0) + (-signed - contact_penetration_tolerance).clamp_min(0.0)
+    observed = signed < env.cfg.finger_contact_distance_cap - 1.0e-7
+    quality = torch.exp(-(error / contact_std).square()) * observed
+    return quality, torch.isfinite(signed).all(dim=(1, 2))
+
+
 def shoelace_grasp_quality(
     env: ManagerBasedRLEnv,
     contact_std: float,
     relative_speed_std: float,
-    open_position: float,
-    closed_position: float,
     cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-    robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
+    finger_cfgs: tuple[SceneEntityCfg, ...],
     contact_penetration_tolerance: float = 0.0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute shared unfiltered grasp quality for acquisition, retention, and success.
@@ -34,39 +90,36 @@ def shoelace_grasp_quality(
     Args:
         env: Shoelace environment with current finger-tail contact observations.
         contact_std: Finger-tail surface-distance width [m].
-        relative_speed_std: Tail-to-TCP relative-speed width [m/s].
-        open_position: Open finger joint position [m].
-        closed_position: Closed finger joint position [m].
+        relative_speed_std: Worst-finger relative-speed width [m/s].
         cable_cfgs: Left and right cable scene entities.
-        robot_cfgs: Left and right robot entities with resolved finger joint and hand body indices.
+        finger_cfgs: Four surface reference bodies, in left/right hand and opposing-finger order.
         contact_penetration_tolerance: Allowed contact-solver penetration [m].
 
     Returns:
         Raw grasp qualities in robot-arm order, shape [N, 2], and finite-input flags, shape [N].
-        Quality combines two-finger contact, actual closure, and low relative slip, not measured force closure.
+        Quality combines two-finger contact, aperture/capture geometry, and worst-finger relative speed.
+        It does not measure force closure or certify physical retention.
 
     Raises:
         ValueError: If contact penetration tolerance is not finite and nonnegative.
     """
     if not math.isfinite(contact_penetration_tolerance) or contact_penetration_tolerance < 0.0:
         raise ValueError("contact_penetration_tolerance must be finite and nonnegative")
-    signed_distance = finger_tail_signed_distance(env).reshape(env.num_envs, 2, 2)
-    relative_speed = tail_tcp_relative_speed(env, cable_cfgs, robot_cfgs)
-    positions = torch.stack(
-        [env.scene[cfg.name].data.joint_pos.torch[:, cfg.joint_ids[0]] for cfg in robot_cfgs], dim=1
-    )
-    closure = ((open_position - positions) / max(open_position - closed_position, 1.0e-6)).clamp(0.0, 1.0)
-    finite = (
-        torch.isfinite(signed_distance).all(dim=(1, 2))
-        & torch.isfinite(relative_speed).all(dim=1)
-        & torch.isfinite(closure).all(dim=1)
-    )
-    # Tolerate bounded solver penetration under load, without rewarding gaps or deeper penetration.
-    contact_error = signed_distance.clamp_min(0.0) + (-signed_distance - contact_penetration_tolerance).clamp_min(0.0)
-    finger_contact = torch.exp(-torch.square(contact_error / max(contact_std, 1.0e-6)))
+    if not all(math.isfinite(value) and value > 0 for value in (contact_std, relative_speed_std)):
+        raise ValueError("Grasp widths must be finite and positive")
+    finger_contact, contact_finite = _finger_contact_quality(env, contact_std, contact_penetration_tolerance)
+    geometry = grasp_geometry(env, cable_cfgs, finger_cfgs)
+    finite = geometry["finite"] & contact_finite
     contact = hamacher_product(finger_contact[:, :, 0], finger_contact[:, :, 1])
-    grasp = hamacher_product(contact, closure)
-    motion_match = 1.0 - torch.tanh(relative_speed / max(relative_speed_std, 1.0e-6))
+    aperture_error = (geometry["aperture"] - env.cfg.grasp_target_diameter).clamp_min(0.0)
+    aperture = torch.exp(-(aperture_error / env.cfg.grasp_aperture_std).square())
+    capture = torch.exp(-(geometry["capture_distance"] / env.cfg.grasp_capture_std).square())
+    near_pad = torch.exp(-(geometry["pad_distance"] / env.cfg.grasp_pad_distance_std).square())
+    shape_quality = hamacher_product(
+        hamacher_product(aperture, capture), hamacher_product(near_pad[:, :, 0], near_pad[:, :, 1])
+    )
+    grasp = hamacher_product(contact, shape_quality)
+    motion_match = 1.0 - torch.tanh(geometry["relative_speed"] / relative_speed_std)
     return hamacher_product(grasp, motion_match), finite
 
 

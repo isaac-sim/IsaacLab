@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import math
+
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -46,14 +48,14 @@ ROBOT_CFGS = (
     SceneEntityCfg("robot_right", joint_names=["panda_finger_joint1"], body_names=["panda_hand"]),
 )
 _FINGER_FRICTION = {"/.*panda_(left|right)finger/.*": physics.FINGER_MU}
-_GRIPPER_PARAMS = {
-    "open_position": physics.GRIPPER_OPEN_POSITION,
-    "closed_position": physics.GRIPPER_CLOSED_POSITION,
-    "cable_cfgs": CABLE_CFGS,
-    "robot_cfgs": ROBOT_CFGS,
-}
+FINGER_CFGS = tuple(
+    SceneEntityCfg(robot, body_names=[body])
+    for robot in ("robot_left", "robot_right")
+    for body in ("panda_leftfinger", "panda_rightfinger")
+)
 _GRASP_PARAMS = {
-    **_GRIPPER_PARAMS,
+    "cable_cfgs": CABLE_CFGS,
+    "finger_cfgs": FINGER_CFGS,
     "contact_std": 5.0e-4,
     "contact_penetration_tolerance": 1.0e-3,
     "relative_speed_std": 0.08,
@@ -75,6 +77,10 @@ def _franka_cfg(
         articulation_props=robot.spawn.articulation_props,
         variants=robot.spawn.variants,
         friction_overrides=_FINGER_FRICTION.copy(),
+        collision_props={
+            "/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
+            "/.*panda_(left|right)finger/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+        },
     )
     robot.init_state.pos = position
     robot.init_state.rot = rotation
@@ -183,8 +189,8 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot_right", joint_names=["panda_joint.*"])},
             scale=0.05,
         )
-        gripper_close_error = ObsTerm(
-            func=mdp.gripper_close_error,
+        finger_tracking_error = ObsTerm(
+            func=mdp.gripper_closing_tracking_error,
             params={"robot_cfgs": ROBOT_CFGS},
             clip=(0.0, physics.GRIPPER_OPEN_POSITION - physics.GRIPPER_CLOSED_POSITION),
             scale=1.0 / (physics.GRIPPER_OPEN_POSITION - physics.GRIPPER_CLOSED_POSITION),
@@ -200,9 +206,14 @@ class ObservationsCfg:
             scale=1.0 / physics.CONTACT_DISTANCE_CAP,
             history_length=physics.CONTACT_OBSERVATION_HISTORY_LENGTH,
         )
-        tail_tcp_relative_speed = ObsTerm(
-            func=mdp.tail_tcp_relative_speed,
-            params={"cable_cfgs": CABLE_CFGS, "robot_cfgs": ROBOT_CFGS},
+        finger_tail_relative_velocity = ObsTerm(
+            func=mdp.finger_tail_relative_velocity,
+            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": FINGER_CFGS},
+            scale=10.0,
+        )
+        pad_to_tail = ObsTerm(
+            func=mdp.pad_to_tail,
+            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": FINGER_CFGS},
             scale=10.0,
         )
         last_action = ObsTerm(func=env_mdp.last_action)
@@ -273,11 +284,15 @@ class RewardsCfg:
         func=mdp.pregrasp_progress_reward,
         weight=1.0,
         params={
-            **_GRIPPER_PARAMS,
+            "cable_cfgs": CABLE_CFGS,
+            "finger_cfgs": FINGER_CFGS,
             "alignment_std": 0.015,
             "closure_radius": 0.01,
-            "alignment_weight": 0.75,
+            "alignment_weight": 0.6,
             "closure_weight": 0.25,
+            "contact_weight": 0.15,
+            "contact_std": 0.0015,
+            "contact_penetration_tolerance": 0.001,
         },
     )
     # Reward retained contact-based, closed-finger, low-slip grasps even without further task progress.
@@ -385,11 +400,50 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     ui_window_class_type = None
 
+    tcp_body_offsets: tuple[tuple[tuple[float, float, float], ...], tuple[tuple[float, float, float], ...]] = (
+        (physics.TCP_OFFSET,),
+        (physics.TCP_OFFSET,),
+    )
+    """Local point offsets for each hand's resolved TCP bodies; their world positions are averaged [m]."""
+
+    finger_body_offsets: tuple[tuple[float, float, float], ...] = ((0.0, -0.00002, 0.04525),) * 4
+    """Opposing surface reference points in finger body frames [m]; Franka pad-face centres."""
+    grasp_open_apertures: tuple[float, float] = (0.01996, 0.01996)
+    """Surface-point distances at the ready/open pose [m], used only for acquisition progress."""
+    grasp_target_diameter: float = 0.003
+    """Target cable diameter [m], matching the active USD widths."""
+    grasp_pad_distance_std: float = 0.006
+    """Reference-point localization width for free-tail contact acquisition [m]."""
+    grasp_aperture_std: float = 0.002
+    """Width for excessive surface-point spacing above target diameter [m]."""
+    grasp_capture_std: float = 0.002
+    """Strict retention width for the tail leaving the segment between opposing surfaces [m]."""
+    finger_contact_distance_cap: float = physics.CONTACT_DISTANCE_CAP
+    """No-candidate sentinel of the finger contact sensor [m]."""
+
     cable_inertia_regularization: float = physics.CABLE_INERTIA_REGULARIZATION
     """Isotropic inertia added to each dynamic cable segment [kg*m^2], without changing its mass."""
 
     def validate_config(self) -> None:
         """Resolve environment-count-dependent contact capacity and validate the Newton backend."""
+        if len(self.finger_body_offsets) != 4 or any(len(offset) != 3 for offset in self.finger_body_offsets):
+            raise ValueError("Exactly four three-dimensional surface offsets are required")
+        if not all(math.isfinite(v) for offset in self.finger_body_offsets for v in offset):
+            raise ValueError("Surface offsets must be finite")
+        if not all(
+            math.isfinite(v) and v > 0
+            for v in (
+                self.grasp_target_diameter,
+                self.grasp_pad_distance_std,
+                self.grasp_aperture_std,
+                self.grasp_capture_std,
+            )
+        ):
+            raise ValueError("Grasp geometry widths and target diameter must be finite and positive")
+        if len(self.grasp_open_apertures) != 2 or not all(
+            math.isfinite(v) and v > self.grasp_target_diameter for v in self.grasp_open_apertures
+        ):
+            raise ValueError("Each ready aperture must exceed the target diameter")
         if not isinstance(self.sim.physics, NewtonCfg):
             raise TypeError("The dual-Franka shoelace task requires Newton physics")
         collision = self.sim.physics.collision_cfg

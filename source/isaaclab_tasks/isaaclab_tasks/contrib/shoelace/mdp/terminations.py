@@ -65,10 +65,8 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
         contact_std: float,
         relative_speed_std: float,
         grasp_filter_time_constant: float,
-        open_position: float,
-        closed_position: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-        robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
+        finger_cfgs: tuple[SceneEntityCfg, ...],
         contact_penetration_tolerance: float = 0.0,
         maximum_throat_segments_per_arm: int = 15,
         minimum_tail_outward_distance: float = 0.09,
@@ -81,12 +79,10 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
             minimum_pull_distance: Required new outward record distance under bilateral grasps per tail [m].
             grasp_threshold: Minimum raw and filtered quality for each grasp, in (0, 1].
             contact_std: Finger-tail surface-distance width [m].
-            relative_speed_std: Tail-to-TCP relative-speed width [m/s].
+            relative_speed_std: Worst-finger relative-speed width [m/s].
             grasp_filter_time_constant: Exponential grasp filter time constant [s].
-            open_position: Open finger joint position [m].
-            closed_position: Closed finger joint position [m].
             cable_cfgs: Left and right cable scene entities.
-            robot_cfgs: Left and right robot entities with resolved finger joint and hand body indices.
+            finger_cfgs: Opposing surface-reference bodies for both hands.
             contact_penetration_tolerance: Allowed contact-solver penetration [m].
             maximum_throat_segments_per_arm: Maximum free capsule centers in the throat for either arm's cable.
             minimum_tail_outward_distance: Minimum signed outward X offset of each tail from the seam midpoint [m].
@@ -119,10 +115,8 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
             env,
             contact_std,
             relative_speed_std,
-            open_position,
-            closed_position,
             cable_cfgs,
-            robot_cfgs,
+            finger_cfgs,
             contact_penetration_tolerance,
         )
         finite = geometry_finite & grasp_finite & torch.isfinite(outward_x).all(dim=1)
