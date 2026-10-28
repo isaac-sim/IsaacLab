@@ -170,7 +170,9 @@ class UsdExporter(BaseUsdExporter):
     ) -> tuple[newton.Model, newton.solvers.SolverBase | None, float | None]:
         """Load a USD file exported from a Newton scene.
 
-        Referenced remote assets are downloaded first, as Isaac Lab does when spawning them.
+        Referenced remote assets are downloaded first, as Isaac Lab does when spawning them. The solver is built from
+        the training configuration recorded in the file's layer metadata, so it overrides solver options a consumer
+        later edits on the physics scene; Newton's own import reads the scene's options.
 
         Args:
             path: Exported USD file.
