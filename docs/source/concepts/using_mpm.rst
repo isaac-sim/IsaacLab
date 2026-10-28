@@ -389,8 +389,7 @@ follows:
 Runtime grid spacing and particle radius
 ----------------------------------------
 
-After initialization, change full-MPM resolution through the simulation's
-backend manager, between physics steps:
+Change full-MPM resolution after initialization, between physics steps:
 
 .. code-block:: python
 
@@ -398,22 +397,17 @@ backend manager, between physics steps:
    manager.set_voxel_size(0.012, entry_name="media")
    manager.set_particle_radius(0.003, entry_name="media")
 
-Omit ``entry_name`` for standalone MPM or a coupled solver with exactly one MPM
-entry. Voxel resizing rebuilds a sparse or dense grid around the current
-particles and discards grid warm starts. Fixed grids cannot be resized. Finer
-grids may require a larger ``max_active_cell_count``. The manager invalidates
-its CUDA graph and captures it again on the next physics step when enabled.
-Particle positions, velocities, masses, and material history are preserved.
+Omit ``entry_name`` for standalone MPM or a single coupled MPM entry. Resizing
+rebuilds sparse or dense grids around the current particles and discards grid
+warm starts; fixed grids cannot be resized. Both setters preserve positions,
+velocities, material history, count, and masses, and schedule CUDA graph
+recapture after the next step when enabled. Radius changes alter reference
+density, ``mass / (8 * radius**3)``; they do not split, merge, or resample
+particles. A coupled radius update requires ownership of all parent particles
+and updates their proxy views too.
 
-Uniform radius changes preserve particle count and masses. MPM's reference
-volume is ``8 * radius**3``, so changing radius changes reference density at
-fixed mass. This is a support-size change, not particle splitting, merging, or
-resampling. Coupled radius changes require the MPM entry to own all model
-particles so parent and local model radii remain consistent.
-
-Franka Pour also provides an optional terminal-success curriculum. It is
-disabled by default. Configure the initial grid before creating the environment,
-then supply the desired transitions:
+Franka Pour's optional terminal-success curriculum is disabled by default.
+Configure its initial grid and transitions before creating the environment:
 
 .. code-block:: python
 
@@ -424,30 +418,27 @@ then supply the desired transitions:
 
    cfg = FrankaPourResetDatasetEnvCfg()
    media = next(entry for entry in cfg.sim.physics.solver_cfg.entries if entry.name == "media")
-   # The default fill has 468 particles per world; keep every point contact
-   # available even when coarsening puts many particles in the same cell.
+   # Bound point contacts for the default 468-particle fill in isolated worlds.
    media.solver_cfg.collider_basis = "pic512"
    media.solver_cfg.separate_worlds = True
    media.solver_cfg.voxel_size = 0.030
-   cfg.mpm_resolution_min_episodes = 128
    cfg.mpm_resolution_stages = (
        PourMPMResolutionStageCfg(success_rate=0.70, voxel_size=0.020),
        PourMPMResolutionStageCfg(success_rate=0.85, voxel_size=0.015),
    )
 
-A stage may also set ``particle_radius``. A transition applies globally when a
-completed-episode cohort meets its success threshold, including environments
-whose episodes are still running. Each distributed rank uses its own cohort.
-``curriculum_freeze=True`` freezes the reset sampler and these transitions.
-The policy observation/action layout and rewards are unchanged. Thresholds and
-resolution choices need task-specific validation; the control API does not
-establish a training speedup or policy-quality improvement.
+A stage may also set ``particle_radius``. After at least
+``mpm_resolution_min_episodes`` completed episodes (default 128), a qualifying
+success fraction advances one stage at a reset boundary. Each rank decides
+independently; the change affects all its environments, including active
+episodes. ``curriculum_freeze=True`` stops these transitions and the reset
+sampler. Observation/action layouts and rewards are unchanged.
 
-Coarsening increases particles per cell. When using a ``picN`` collider basis,
-check its point-contact capacity as well as the active-cell allocation; contacts
-beyond ``N`` particles in a cell are omitted. ``pic512`` bounds the default
-468-particle Franka fill with isolated worlds. A larger fill needs a new capacity
-check. Adequate storage alone does not establish contact-force or transfer accuracy.
+Finer grids may need more active-cell capacity; coarsening increases particles
+per cell and can exceed a ``picN`` collider basis, omitting contacts beyond
+``N``. Recheck both capacities for other fills. Storage sufficiency does not
+guarantee contact accuracy, training speedup, or improved policy quality;
+validate the schedule for the task.
 
 
 Limitations

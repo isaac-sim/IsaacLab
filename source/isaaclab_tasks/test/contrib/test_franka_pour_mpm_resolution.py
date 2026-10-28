@@ -54,8 +54,9 @@ def test_resolution_requires_completed_success_cohorts_and_respects_freeze():
     assert curriculum(env, [2, 3])["success_rate"] == 0.25
     assert not changes
     env.episode_succeeded[:] = torch.tensor([True, True, True, False])
-    assert curriculum(env, slice(None))["stage"] == 1.0
-    assert curriculum(env, slice(None))["last_transition_policy_step"] == 7.0
+    metrics = curriculum(env, slice(None))
+    assert metrics["stage"] == 1.0
+    assert metrics["last_transition_policy_step"] == 7.0
     assert changes == [("voxel", 0.020, "media")]
     cfg.curriculum_freeze = True
     env.episode_succeeded.fill_(True)

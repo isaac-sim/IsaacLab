@@ -55,6 +55,12 @@ def test_runtime_resolution_preserves_current_native_state(coupled):
                     particles=[1, 0],
                     in_place=True,
                     solver_cfg=config,
+                ),
+                CouplerEntryCfg(name="other", solver_cfg=XPBDSolverCfg(iterations=1)),
+            ],
+            proxies=[
+                CouplerProxyMappingCfg(
+                    source="media", destination="other", particles=[1], mode="staggered", collision_pipeline=None
                 )
             ],
         )
@@ -97,9 +103,12 @@ def test_runtime_resolution_preserves_current_native_state(coupled):
     manager._graph = object()
     manager.set_particle_radius(0.015, **kwargs)
     assert manager._graph is None
-    np.testing.assert_allclose(model.particle_radius.numpy(), 0.015)
-    np.testing.assert_allclose(selected.model.particle_radius.numpy(), 0.015)
-    assert model.particle_max_radius == selected.model.particle_max_radius == 0.015
+    particle_models = [model]
+    if coupled:
+        particle_models.extend(solver.view(name) for name in solver.entry_names())
+    for particle_model in particle_models:
+        np.testing.assert_allclose(particle_model.particle_radius.numpy(), 0.015)
+        assert particle_model.particle_max_radius == 0.015
     np.testing.assert_allclose(selected._mpm_model.particle_volume.numpy(), 8 * 0.015**3)
     np.testing.assert_allclose(selected._mpm_model.particle_density.numpy(), masses / (8 * 0.015**3))
     np.testing.assert_array_equal(state.mpm.particle_Jp.numpy(), np.full(2, 0.9, dtype=np.float32))
@@ -149,40 +158,3 @@ def test_runtime_radius_rejects_foreign_particle_proxies_before_mutation():
         np.testing.assert_array_equal(array.numpy(), expected)
     np.testing.assert_array_equal(selected._mpm_model.particle_volume.numpy(), volume)
     assert manager._graph is graph
-
-
-def test_runtime_radius_updates_outgoing_particle_proxies():
-    """Keep sibling proxy radii consistent when the MPM entry owns every particle."""
-    builder = newton.ModelBuilder(gravity=(0.0, 0.0, 0.0))
-    SolverImplicitMPM.register_custom_attributes(builder)
-    for x in (0.0, 0.1):
-        builder.add_particle(pos=(x, 0.0, 0.0), vel=(0.0, 0.0, 0.0), mass=0.01, radius=0.02)
-    model = builder.finalize(device="cpu")
-    manager = _build_coupled_manager(
-        model,
-        [
-            CouplerEntryCfg(
-                name="media",
-                particles=[1, 0],
-                in_place=True,
-                solver_cfg=MPMSolverCfg(grid_type="dense", grid_padding=1, voxel_size=0.1, max_iterations=1),
-            ),
-            CouplerEntryCfg(name="other", solver_cfg=XPBDSolverCfg(iterations=1)),
-        ],
-        proxies=[
-            CouplerProxyMappingCfg(
-                source="media", destination="other", particles=[1], mode="staggered", collision_pipeline=None
-            )
-        ],
-    )
-    before = model.particle_mass.numpy().copy()
-    manager._graph = object()
-
-    manager.set_particle_radius(0.03, entry_name="media")
-
-    root = manager.backend.solver
-    for particle_model in (model, *(root.view(name) for name in root.entry_names())):
-        np.testing.assert_allclose(particle_model.particle_radius.numpy(), 0.03)
-        assert particle_model.particle_max_radius == 0.03
-    np.testing.assert_array_equal(model.particle_mass.numpy(), before)
-    assert manager._graph is None
