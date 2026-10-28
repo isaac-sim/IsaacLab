@@ -38,20 +38,14 @@ def grasp_geometry(
     aperture = span.norm(dim=-1)
     axis = span / aperture.unsqueeze(-1).clamp_min(1.0e-6)
     delta = tails - points.mean(dim=2)
-    axial = (delta * axis).sum(dim=-1)
-    lateral = delta - axial.unsqueeze(-1) * axis
-    outside = (axial.abs() - 0.5 * aperture).clamp_min(0.0)
-    distance = (lateral.square().sum(dim=-1) + outside.square()).sqrt()
-    relative_velocity = tail_velocities.unsqueeze(2) - velocities
-    slip = relative_velocity.norm(dim=-1).amax(dim=2)
+    axial = (delta * axis).sum(dim=-1, keepdim=True)
+    outside = (axial.abs() - 0.5 * aperture.unsqueeze(-1)).clamp_min(0.0)
+    distance = torch.cat((delta - axial * axis, outside), dim=-1).norm(dim=-1)
+    slip = (tail_velocities.unsqueeze(2) - velocities).norm(dim=-1).amax(dim=2)
     pad_distance = ((tails.unsqueeze(2) - points).norm(dim=-1) - env.cfg.grasp_target_diameter / 2).clamp_min(0.0)
-    finite = (
-        torch.isfinite(points).all(dim=(1, 2, 3))
-        & torch.isfinite(velocities).all(dim=(1, 2, 3))
-        & torch.isfinite(tails).all(dim=(1, 2))
-        & torch.isfinite(tail_velocities).all(dim=(1, 2))
-        & (aperture > 1.0e-6).all(dim=1)
-    )
+    finite = (aperture > 1.0e-6).all(dim=1)
+    for value in (points, velocities, tails, tail_velocities):
+        finite &= torch.isfinite(value.flatten(1)).all(dim=1)
     return {
         "aperture": aperture,
         "capture_distance": distance,

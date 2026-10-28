@@ -83,14 +83,15 @@ def project_bounded_step(
     This bounded iteration is not an exact QP solver. The caller must validate the
     resulting target with nonlinear geometry and reject infeasible updates.
     """
-    result = torch.maximum(torch.minimum(delta, upper), lower)
+    result = delta.clamp(min=lower, max=upper)
     norm_sq = gradient.square().sum(dim=-1).clamp_min(1.0e-12)
+    norm = norm_sq.sqrt()
+    batch = torch.arange(delta.shape[0], device=delta.device)
     for _ in range(iterations):
         violation = required - torch.einsum("nkj,nj->nk", gradient, result)
-        index = (violation.clamp_min(0.0) / norm_sq.sqrt()).argmax(dim=-1)
-        selected = gradient.gather(1, index[:, None, None].expand(-1, 1, delta.shape[-1])).squeeze(1)
-        amount = violation.gather(1, index[:, None]).clamp_min(0.0) / norm_sq.gather(1, index[:, None])
-        result = torch.maximum(torch.minimum(result + amount * selected, upper), lower)
+        index = (violation.clamp_min(0.0) / norm).argmax(dim=-1)
+        amount = violation[batch, index].clamp_min(0.0) / norm_sq[batch, index]
+        result = (result + amount[:, None] * gradient[batch, index]).clamp(min=lower, max=upper)
     return result
 
 
@@ -155,7 +156,7 @@ class G1CollisionAwareIKAction(DifferentialInverseKinematicsAction):
         self._ancestor_mask = torch.arange(7, device=self.device)[None, :] <= self._sphere_links[:, None]
         self._box_center = tensor(cfg.torso_center)
         self._box_half_extents = tensor(cfg.torso_half_extents)
-        self._fractions = tensor([0.5**i for i in range(cfg.backtrack_steps)] + [0.0])
+        self._fractions = tensor([0.5**i for i in range(cfg.backtrack_steps)])
 
     def forward_kinematics(self, joint_pos: torch.Tensor) -> tuple[torch.Tensor, ...]:
         """Return link poses and joint origins/axes in the torso frame, for arbitrary batches."""

@@ -24,7 +24,7 @@ from .grasp import (
     shoelace_grasp_quality,
 )
 from .observations import tails_to_tcp
-from .utils import tail_outward_x, tail_x_separation
+from .utils import tail_outward_x
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -231,8 +231,8 @@ class dense_task_reward(ManagerTermBase):
             contact_penetration_tolerance,
             geometry=geometry,
         )
-        x_separation = tail_x_separation(env, cable_cfgs)
         outward_x = tail_outward_x(env, cable_cfgs)
+        x_separation = outward_x.sum(dim=1).abs()
         # Per-environment numerical mask for reward inputs; this does not assess grasp or task success.
         finite = (
             torch.isfinite(tail_distances).all(dim=1)
