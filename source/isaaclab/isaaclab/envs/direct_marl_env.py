@@ -17,6 +17,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -440,7 +441,7 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.final_obs_every_step or (self.cfg.compute_final_obs and len(reset_env_ids) > 0):
             terminal_obs = self._compute_observations()
             for agent, obs in terminal_obs.items():
-                self.extras[agent]["final_obs"] = obs.clone() if self.cfg.final_obs_every_step else obs
+                self.extras[agent]["final_obs"] = tree_map(torch.clone, obs) if self.cfg.final_obs_every_step else obs
                 if self.cfg.final_obs_every_step:
                     self.extras[agent]["final_obs_every_step"] = True
         if len(reset_env_ids) > 0:

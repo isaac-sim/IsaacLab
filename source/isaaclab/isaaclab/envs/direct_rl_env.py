@@ -18,6 +18,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -430,7 +431,7 @@ class DirectRLEnv(gym.Env):
 
         # -- reset envs that terminated/timed-out and log the episode information
         if self.cfg.final_obs_every_step:
-            self.extras["final_obs"] = {name: obs.clone() for name, obs in self._compute_observations().items()}
+            self.extras["final_obs"] = tree_map(torch.clone, self._compute_observations())
             self.extras["final_obs_every_step"] = True
         reset_env_ids = self._reset_envs_from_buffer()
         if reset_env_ids is None:
