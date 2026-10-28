@@ -5,9 +5,10 @@
 
 """Literal unit tests for :class:`isaaclab.utils.wrench_composer.WrenchComposer`.
 
-Every case uses a two-environment, two-body composer on CPU with hand-computed expected values. A body rotated a
+CPU cases use a two-environment, two-body composer with hand-computed expected values. A body rotated a
 quarter turn about +Z maps a world vector ``(x, y, z)`` to the body vector ``(y, -x, z)``; a half turn maps it to
-``(-x, -y, z)``. Real-solver delivery is covered by ``test_wrench_composer_integration.py``.
+``(-x, -y, z)``. A CUDA case checks replay of generated writers. Real-solver delivery is covered by
+``test_wrench_composer_integration.py``.
 """
 
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -32,6 +34,8 @@ _METHODS = [
     "set_forces_and_torques_index",
     "set_forces_and_torques_mask",
 ]
+
+
 # ``(env, body)`` cell -> literal 3-vector or quaternion
 _Cells = dict[tuple[int, int], tuple[float, ...]]
 
@@ -483,3 +487,82 @@ def test_invalid_selection_and_empty_wrench_input_are_reported() -> None:
         with pytest.warns(UserWarning, match="No forces or torques"):
             getattr(composer, method)()
     assert not composer.active
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_generated_writers_replay_changed_inputs_under_cuda_capture(device):
+    """Real composer kernels replay all write variants without touching an unselected environment."""
+    com, quat = _poses(shape=(3, 2))
+    asset = SimpleNamespace(
+        num_instances=3, num_bodies=2, device=device, data=_AssetData(com.to(device), quat.to(device))
+    )
+    composer = WrenchComposer(asset)
+    with wp.ScopedDevice(device):
+        composer.local_force_b.fill_(wp.vec3f(7.0))
+        env_ids = wp.array([0], dtype=wp.int64)
+        body_ids = wp.array([1], dtype=wp.int32)
+        global_force = wp.array([[[0, 2, 0]]], dtype=wp.vec3f)
+        global_position = wp.array([[[1, 0, 0]]], dtype=wp.vec3f)
+        local_force = wp.full((3, 2), wp.vec3f(3, 0, 0))
+        local_position = wp.full((3, 2), wp.vec3f(0, 1, 0))
+        env_mask = wp.array([False, True, False], dtype=wp.bool)
+        body_mask = wp.array([True, False], dtype=wp.bool)
+
+        def write_and_compose():
+            for method in (composer.set_forces_and_torques_index, composer.add_forces_and_torques_index):
+                method(global_force, positions=global_position, env_ids=env_ids, body_ids=body_ids, is_global=True)
+            for method in (composer.set_forces_and_torques_mask, composer.add_forces_and_torques_mask):
+                method(local_force, positions=local_position, env_mask=env_mask, body_mask=body_mask)
+            return composer.out_force_b, composer.out_torque_b
+
+        write_and_compose()  # Warm up the specializations used by this execution path.
+        with wp.ScopedCapture(device=device) as capture:
+            force, torque = write_and_compose()
+        global_force.fill_(wp.vec3f(0, 3, 0))
+        local_force.fill_(wp.vec3f(4, 0, 0))
+        wp.capture_launch(capture.graph)
+        wp.capture_launch(capture.graph)
+        np.testing.assert_allclose(
+            force.warp.numpy(), [[[0, 0, 0], [0, 6, 0]], [[8, 0, 0], [0, 0, 0]], [[7, 7, 7], [7, 7, 7]]]
+        )
+        np.testing.assert_allclose(
+            torque.warp.numpy(), [[[0, 0, 0], [0, 0, 6]], [[0, 0, -8], [0, 0, 0]], [[0, 0, 0], [0, 0, 0]]]
+        )
+
+
+def test_wrench_ownership_and_exclusive_writes(source_checkout_root):
+    """Wrench kernels own composition and use ordinary writes for exclusive destinations."""
+    import ast
+
+    from isaaclab.utils.warp import wrench
+
+    first = wrench.make_write_wrench(wp.int32, wp.int64)
+    before = first.module.hash_module()
+    assert isinstance(first, wp.Kernel)
+    assert wrench.make_write_wrench(wp.int32, wp.int64) is first
+    second = wrench.make_write_wrench(wp.int64, wp.int32, accumulate=True)
+    assert first.module is not second.module
+    assert first.module.hash_module() == before
+    assert not hasattr(wrench, "IndexKernelDispatcher")
+    assert not hasattr(wrench, "set_wrench_index")
+    assert not hasattr(wrench, "add_wrench_index")
+
+    core = source_checkout_root / "source/isaaclab/isaaclab"
+    owner = core / "utils/warp/wrench.py"
+    assert owner.is_file()
+    tree = ast.parse(owner.read_text())
+    for node in ast.walk(tree):
+        assert not (isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Subscript))
+        if isinstance(node, ast.FunctionDef) and node.name.lstrip("_").startswith("make_"):
+            assert not node.name.endswith("_kernel"), node.name
+        modules = [a.name for a in node.names] if isinstance(node, ast.Import) else []
+        if isinstance(node, ast.ImportFrom):
+            modules.append(node.module or "")
+        assert not any(
+            m.startswith(("isaaclab_newton", "isaaclab_physx", "isaaclab_ov", "newton", "isaacsim")) for m in modules
+        )
+    generic = ast.parse((core / "utils/warp/kernels.py").read_text())
+    assert not any(
+        isinstance(n, ast.FunctionDef) and ("wrench" in n.name or "_forces_to_dual_buffers_" in n.name)
+        for n in generic.body
+    )

@@ -14,15 +14,13 @@ import torch
 import warp as wp
 
 from .warp import ProxyArray
-from .warp.kernels import (
-    add_forces_to_dual_buffers_index_kernel,
-    add_forces_to_dual_buffers_mask,
+from .warp.index_kernel import selector_dtype
+from .warp.wrench import (
     add_raw_wrench_buffers,
     compose_wrench_to_body_frame,
-    reset_wrench_composer_index_kernel,
+    make_reset_wrench,
+    make_write_wrench,
     reset_wrench_composer_mask,
-    set_forces_to_dual_buffers_index_kernel,
-    set_forces_to_dual_buffers_mask,
 )
 
 if TYPE_CHECKING:
@@ -272,8 +270,9 @@ class WrenchComposer:
         else:
             self._has_local_wrench = True
 
+        global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            add_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
+            make_write_wrench(selector_dtype(env_ids), selector_dtype(body_ids), accumulate=True),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -281,12 +280,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                global_force if is_global else self._local_force_b,
+                self._global_torque_w if is_global else self._local_torque_b,
             ],
             device=self.device,
         )
@@ -340,8 +335,9 @@ class WrenchComposer:
         else:
             self._has_local_wrench = True
 
+        global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            set_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
+            make_write_wrench(selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -349,12 +345,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                global_force if is_global else self._local_force_b,
+                self._global_torque_w if is_global else self._local_torque_b,
             ],
             device=self.device,
         )
@@ -405,8 +397,9 @@ class WrenchComposer:
         else:
             self._has_local_wrench = True
 
+        global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            add_forces_to_dual_buffers_mask,
+            make_write_wrench(accumulate=True),
             dim=(self.num_envs, self.num_bodies),
             inputs=[
                 env_mask,
@@ -414,12 +407,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                global_force if is_global else self._local_force_b,
+                self._global_torque_w if is_global else self._local_torque_b,
             ],
             device=self.device,
         )
@@ -475,8 +464,9 @@ class WrenchComposer:
         else:
             self._has_local_wrench = True
 
+        global_force = self._global_force_w if positions is not None else self._global_force_at_com_w
         wp.launch(
-            set_forces_to_dual_buffers_mask,
+            make_write_wrench(),
             dim=(self.num_envs, self.num_bodies),
             inputs=[
                 env_mask,
@@ -484,12 +474,8 @@ class WrenchComposer:
                 forces,
                 torques,
                 positions,
-                self._global_force_w,
-                self._global_torque_w,
-                self._global_force_at_com_w,
-                self._local_force_b,
-                self._local_torque_b,
-                is_global,
+                global_force if is_global else self._local_force_b,
+                self._global_torque_w if is_global else self._local_torque_b,
             ],
             device=self.device,
         )
@@ -645,7 +631,7 @@ class WrenchComposer:
             env_ids = self._resolve_env_ids(env_ids)
 
             wp.launch(
-                reset_wrench_composer_index_kernel(env_ids),
+                make_reset_wrench(selector_dtype(env_ids)),
                 dim=(env_ids.shape[0], self.num_bodies),
                 inputs=[
                     env_ids,

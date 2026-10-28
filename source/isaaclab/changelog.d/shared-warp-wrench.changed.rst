@@ -1,0 +1,1 @@
+* Consolidated wrench composition in a semantic Warp owner with cached, on-demand set/add and index/mask writers. Each factory returns a concrete kernel in an isolated module, preserving explicit writes for exclusively owned output cells.
