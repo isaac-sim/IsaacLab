@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton backends driven through the backend functions without the Newton manager.
-
-Covers backends with different solvers stepped side by side, eagerly or from their own CUDA graphs.
-"""
+"""Newton backends with different solvers, built and stepped side by side without a manager."""
 
 from __future__ import annotations
-
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -25,18 +20,15 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics import newton_backend as nb
 
-from isaaclab.sim import SimulationContext
-
 DEVICE = "cuda:0"
 DT = 0.01
 
 
-def _pendulums(monkeypatch, physics_cfg: NewtonCfg, steps: int, *, captured=False) -> NewtonBackend:
+def _pendulums(physics_cfg: NewtonCfg, steps: int, *, captured=False) -> NewtonBackend:
     """A backend of one pendulum per world that advances ``steps`` physics steps per call."""
     builder = _pendulum_builder(physics_cfg)
     physics_cfg.solver_cfg.class_type.prepare_builder(physics_cfg.solver_cfg, builder)
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(get_or_create_backend=lambda _: builder))
-    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=physics_cfg, device=DEVICE), dt=DT)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=physics_cfg, device=DEVICE), builder, dt=DT)
     nb.init_solver(backend)
     if not captured:
         backend.capture = None
@@ -79,10 +71,10 @@ def _angles(backend: NewtonBackend) -> np.ndarray:
 
 
 @pytest.mark.parametrize("captured", [False, True], ids=["eager", "captured"])
-def test_backends_with_different_solvers_step_side_by_side(monkeypatch, captured):
+def test_backends_with_different_solvers_step_side_by_side(captured):
     """Each backend advances only its own model and matches a backend stepped alone."""
-    pair = [_pendulums(monkeypatch, cfg, steps, captured=captured) for cfg, steps in _configs()]
-    alone = [_pendulums(monkeypatch, cfg, steps) for cfg, steps in _configs()]
+    pair = [_pendulums(cfg, steps, captured=captured) for cfg, steps in _configs()]
+    alone = [_pendulums(cfg, steps) for cfg, steps in _configs()]
     start = [_angles(backend) for backend in pair]
 
     for _ in range(5):
@@ -99,3 +91,28 @@ def test_backends_with_different_solvers_step_side_by_side(monkeypatch, captured
         assert (backend.graph is not None) is captured
         assert np.all(np.abs(_angles(backend) - initial) > 1e-3)
         np.testing.assert_allclose(_angles(backend), _angles(reference), atol=1e-5)
+
+
+def test_reset_masks_stay_with_their_backend():
+    """Invalidating one world of one backend recomputes only that world's body state."""
+    pair = [_pendulums(cfg, steps) for cfg, steps in _configs()]
+    for backend in pair:
+        nb.step(backend)
+    body_q = [backend.state_0.body_q.numpy().copy() for backend in pair]
+    target, other = pair
+
+    joint_q = target.state_0.joint_q.numpy()
+    joint_q[:] = 0.0
+    target.state_0.joint_q.assign(joint_q)
+    env_mask = wp.array([True, False, False, False], dtype=wp.bool, device=DEVICE)
+    articulation_ids = wp.array(np.arange(4, dtype=np.int32).reshape(4, 1), dtype=wp.int32, device=DEVICE)
+    nb.invalidate_fk(target, env_mask, articulation_ids=articulation_ids)
+
+    assert not other.world_mask.numpy().any() and not other.fk_mask.numpy().any()
+    nb.forward(target)
+    nb.forward(other)
+
+    moved = np.any(target.state_0.body_q.numpy() != body_q[0], axis=1)
+    assert moved.tolist() == [True, False, False, False]
+    np.testing.assert_array_equal(other.state_0.body_q.numpy(), body_q[1])
+    assert not target.world_mask.numpy().any() and not target.fk_mask.numpy().any()

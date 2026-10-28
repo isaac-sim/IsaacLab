@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton simulation data and the functions that step it.
-
-:class:`NewtonBackend` holds everything bound to one finalized :class:`newton.Model`. The functions in this module take
-the backend explicitly, in the style of ``mj_step(m, d)``, and read no class or module state, so several backends can
-be built and stepped side by side.
-"""
+"""Newton simulation data and the functions that initialize, step and query it."""
 
 from __future__ import annotations
 
@@ -54,48 +49,49 @@ SiteEntry = tuple[int, None] | tuple[None, list[list[int]]]
 
 
 @wp.kernel(enable_backward=False)
-def _or_reset_masks_from_mask(
+def _flag_worlds_and_articulations_masked(
     env_mask: wp.array(dtype=wp.bool),
-    articulation_ids: wp.array2d(dtype=int),
+    articulation_ids: wp.array2d(dtype=wp.int32),
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
-    world, arti = wp.tid()
+    """Flag each masked world for a solver reset and its articulations for FK."""
+    world, articulation = wp.tid()
     if env_mask[world]:
         world_mask[world] = True
-        fk_mask[articulation_ids[world, arti]] = True
+        fk_mask[articulation_ids[world, articulation]] = True
 
 
 @wp.kernel(enable_backward=False)
-def _scatter_reset_masks_from_ids(
+def _flag_worlds_and_articulations_indexed(
     env_ids: wp.array(dtype=Any),
-    articulation_ids: wp.array2d(dtype=int),
+    articulation_ids: wp.array2d(dtype=wp.int32),
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """Scatter-set world_mask and fk_mask from sparse env_ids."""
-    i, arti = wp.tid()
+    """Flag each selected world for a solver reset and its articulations for FK."""
+    i, articulation = wp.tid()
     world = wp.int32(env_ids[i])
     world_mask[world] = True
-    fk_mask[articulation_ids[world, arti]] = True
-
-
-_SCATTER_RESET_MASKS_FROM_IDS = IndexKernelDispatcher(_scatter_reset_masks_from_ids, ("env_ids",))
+    fk_mask[articulation_ids[world, articulation]] = True
 
 
 @wp.kernel(enable_backward=False)
-def _or_world_reset_mask_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
-    """Mark masked worlds for solver reset without requesting FK."""
+def _flag_worlds_masked(env_mask: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
+    """Flag each masked world for a solver reset."""
     world = wp.tid()
     if env_mask[world]:
         world_mask[world] = True
 
 
 @wp.kernel(enable_backward=False)
-def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
-    """Mark selected worlds for solver reset without requesting FK."""
-    world_mask[env_ids[wp.tid()]] = True
+def _flag_worlds_indexed(env_ids: wp.array(dtype=Any), world_mask: wp.array(dtype=wp.bool)):
+    """Flag each selected world for a solver reset."""
+    world_mask[wp.int32(env_ids[wp.tid()])] = True
+
+
+_FLAG_WORLDS_AND_ARTICULATIONS_INDEXED = IndexKernelDispatcher(_flag_worlds_and_articulations_indexed, ("env_ids",))
+_FLAG_WORLDS_INDEXED = IndexKernelDispatcher(_flag_worlds_indexed, ("env_ids",))
 
 
 # ----- Data ------------------------------------------------------------------------------
@@ -120,20 +116,20 @@ class NewtonCloneRecord:
 class NewtonBackend:
     """Everything bound to one finalized Newton model.
 
-    The simulation registry owns the backend; physics, renderers, sensors and visualizers borrow it. A render-only
-    backend (non-Newton physics) holds only the model and :attr:`state_0`. A simulation backend also holds what
-    :func:`init_solver` binds and :func:`step` advances. A hard reset closes it and finalizes a new one.
+    A render-only backend (non-Newton physics) holds only the model and :attr:`state_0`.
     """
 
-    def __init__(self, cfg: NewtonBackendCfg, *, dt: float | None = None):
-        """Finalize the simulation's shared builder and allocate the buffers bound to its model.
+    def __init__(self, cfg: NewtonBackendCfg, builder: ModelBuilder | None = None, *, dt: float | None = None):
+        """Finalize a builder and allocate the buffers bound to its model.
 
         Args:
             cfg: Physics settings and device. :class:`NewtonCfg` physics makes this a simulation backend; any other
                 physics makes it render-only.
+            builder: Builder to finalize. Defaults to the simulation's shared builder for ``cfg.physics_cfg``.
             dt: Duration of one physics step [s]. Required for a simulation backend.
         """
-        builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
+        if builder is None:
+            builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         """Finalized Newton model; :attr:`model.num_envs` is its world count."""
         self.model.num_envs = self.model.world_count
@@ -198,6 +194,8 @@ class NewtonBackend:
         """Articulations whose forward kinematics must be evaluated."""
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
+        self.transforms_may_change_on_graph_replay = False
+        """Whether state was written inside an outer CUDA graph capture; :func:`forward` then always runs."""
         self.model_changes: set[int] = set()
         """Model-property categories to notify the solver of at the next step."""
         self.warned_model_changes: set[int] = set()
@@ -218,6 +216,8 @@ class NewtonBackend:
         """Add forces [N, N·m] to the input state of every solver substep."""
         self.post_step_callbacks: list[Callable[[], None]] = []
         """Run once after the last solver substep of a :func:`step`."""
+        self.solver_init_callbacks: list[Callable[[], None]] = []
+        """Run once by :func:`init_solver`, after the solver exists and before the initial FK."""
         self.decimation = 1
         """Physics steps per environment step."""
         self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
@@ -242,7 +242,7 @@ class NewtonBackend:
             self.graph_capture_pending = False
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
-            self.state_force_callbacks, self.post_step_callbacks = [], []
+            self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
             self.world_mask = self.fk_mask = None
 
 
@@ -272,10 +272,7 @@ def resolve_deterministic_mode(cfg: NewtonCfg) -> wp.DeterministicMode:
 
 
 def init_solver(backend: NewtonBackend, env_template: str | None = None, *, relaxed_capture: bool = False) -> None:
-    """Build the solver and its contacts, compute body state from the initial joint state, and resolve capture.
-
-    Consumers bind views, sensors and model properties before this, so solvers that copy model data at construction
-    see the authored model. Initialization does not advance physics.
+    """Build the solver and its contacts, run the solver-init callbacks, and evaluate the initial FK.
 
     Args:
         backend: Simulation backend without a solver.
@@ -295,6 +292,9 @@ def init_solver(backend: NewtonBackend, env_template: str | None = None, *, rela
     allocate_contacts(backend)
     state_0 = backend.state_0
     backend.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
+    callbacks, backend.solver_init_callbacks = backend.solver_init_callbacks, []
+    for callback in callbacks:
+        callback()
     solver_cls.eval_fk(solver_cfg, solver, state_0, None, None)
     backend.capture = None
     if backend.cfg.use_cuda_graph and backend.device.is_cuda:
@@ -367,16 +367,20 @@ def invalidate_fk(
     outputs = [backend.world_mask, backend.fk_mask]
     if articulation_ids is not None and env_mask is not None:
         wp.launch(
-            _or_reset_masks_from_mask,
-            articulation_ids.shape,
-            [env_mask, articulation_ids],
-            outputs,
+            _flag_worlds_and_articulations_masked,
+            dim=articulation_ids.shape,
+            inputs=[env_mask, articulation_ids],
+            outputs=outputs,
             device=backend.device,
         )
     elif articulation_ids is not None and env_ids is not None:
-        kernel = _SCATTER_RESET_MASKS_FROM_IDS.select(env_ids)
-        dim = (env_ids.shape[0], articulation_ids.shape[1])
-        wp.launch(kernel, dim, [env_ids, articulation_ids], outputs, device=backend.device)
+        wp.launch(
+            _FLAG_WORLDS_AND_ARTICULATIONS_INDEXED.select(env_ids),
+            dim=(env_ids.shape[0], articulation_ids.shape[1]),
+            inputs=[env_ids, articulation_ids],
+            outputs=outputs,
+            device=backend.device,
+        )
     else:
         backend.world_mask[: backend.model.world_count].fill_(True)
         backend.fk_mask.fill_(True)
@@ -385,7 +389,7 @@ def invalidate_fk(
 def invalidate_body_state(
     backend: NewtonBackend, env_ids: wp.array | None = None, env_mask: wp.array | None = None
 ) -> None:
-    """Flag worlds whose maximal-coordinate body state was written, without requesting FK.
+    """Flag worlds whose maximal-coordinate body state was written for a solver reset, without requesting FK.
 
     Args:
         backend: Simulation backend.
@@ -395,28 +399,27 @@ def invalidate_body_state(
     backend.kinematics_dirty = True
     if env_mask is not None:
         wp.launch(
-            _or_world_reset_mask_from_mask, env_mask.shape[0], [env_mask], [backend.world_mask], device=backend.device
+            _flag_worlds_masked,
+            dim=env_mask.shape[0],
+            inputs=[env_mask],
+            outputs=[backend.world_mask],
+            device=backend.device,
         )
     elif env_ids is not None:
         wp.launch(
-            _scatter_world_reset_mask_from_ids, env_ids.shape[0], [env_ids], [backend.world_mask], device=backend.device
+            _FLAG_WORLDS_INDEXED.select(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[env_ids],
+            outputs=[backend.world_mask],
+            device=backend.device,
         )
     else:
         backend.world_mask[: backend.model.world_count].fill_(True)
 
 
-def forward(backend: NewtonBackend, *, force: bool = False) -> None:
-    """Reset solver internals and recompute body state for the flagged worlds, then clear the flags.
-
-    Like ``mj_forward``, this makes derived state consistent with authored state without advancing time. It runs only
-    when state was authored since the last call or when forced; the work is masked, so forcing it changes nothing
-    unflagged.
-
-    Args:
-        backend: Simulation backend with a solver.
-        force: Run even without known authored state, e.g. when outer graph replays may have authored it.
-    """
-    if not (force or backend.kinematics_dirty):
+def forward(backend: NewtonBackend) -> None:
+    """Reset solver internals and evaluate FK for the flagged worlds and articulations, then clear the flags."""
+    if not (backend.kinematics_dirty or backend.transforms_may_change_on_graph_replay):
         return
     if backend.solver is None:
         raise RuntimeError("Newton state was authored before the solver was initialized (init_solver).")
@@ -440,7 +443,6 @@ def notify_model_changes(backend: NewtonBackend) -> None:
             backend.warned_model_changes.add(change)
         flags |= change
     with wp.ScopedDevice(backend.device):
-        # Refresh shared solver constants once after applying all pending property changes.
         backend.solver.notify_model_changed(flags)
     backend.model_changes.clear()
 
@@ -449,11 +451,7 @@ def notify_model_changes(backend: NewtonBackend) -> None:
 
 
 def activate_actuators(backend: NewtonBackend) -> None:
-    """Run the model's Newton actuators inside the step. Idempotent.
-
-    Together with the actuators' graph safety, activation lets one :func:`step` run the whole decimation loop (see
-    :func:`handles_decimation`).
-    """
+    """Run the model's Newton actuators inside the step. Idempotent."""
     backend.actuators_active = True
     model = backend.model
     if backend.actuators is not None or not model.actuators:
@@ -510,10 +508,10 @@ def add_contact_sensor(
     with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:", synchronize="both"):
         sensor = SensorContact(
             backend.model,
-            sensing_bodies=compile_label_pattern(body_names_expr),
-            sensing_shapes=compile_label_pattern(shape_names_expr),
-            counterpart_bodies=compile_label_pattern(contact_partners_body_expr),
-            counterpart_shapes=compile_label_pattern(contact_partners_shape_expr),
+            sensing_bodies=_compile_label_pattern(body_names_expr),
+            sensing_shapes=_compile_label_pattern(shape_names_expr),
+            counterpart_bodies=_compile_label_pattern(contact_partners_body_expr),
+            counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr),
             measure_total=True,
             verbose=verbose,
         )
@@ -539,7 +537,7 @@ def add_imu_sensor(backend: NewtonBackend, sites: list[int]) -> SensorIMU:
     return sensor
 
 
-def compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
+def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
     """Compile Isaac Lab selector expressions for Newton's full label matching."""
     if not expr:
         return None
@@ -550,21 +548,12 @@ def compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | Non
 
 
 def handles_decimation(backend: NewtonBackend) -> bool:
-    """Whether one :func:`step` runs the whole decimation loop.
-
-    This is the case once an articulation runs its Newton actuators in the step (:func:`activate_actuators`) and every
-    actuator can be recorded into a CUDA graph.
-    """
+    """Whether one :func:`step` runs the whole decimation loop: Newton actuators are active and all graph-safe."""
     return backend.actuators_active and (backend.actuators is None or backend.actuators.is_all_graphable)
 
 
 def set_decimation(backend: NewtonBackend, decimation: int) -> None:
-    """Set the physics steps of one environment step, and recapture a step that runs them all.
-
-    Args:
-        backend: Simulation backend.
-        decimation: Physics steps per environment step.
-    """
+    """Set the physics steps per environment step."""
     backend.decimation = max(1, decimation)
     if handles_decimation(backend):
         invalidate_graph(backend)
@@ -576,23 +565,19 @@ def invalidate_graph(backend: NewtonBackend) -> None:
     backend.graph_capture_pending = backend.capture is not None
 
 
-def step(backend: NewtonBackend, *, force_forward: bool = False) -> bool:
+def step(backend: NewtonBackend) -> bool:
     """Advance one physics step, or the whole decimation loop when :func:`handles_decimation`.
 
-    Notifies model changes and runs :func:`forward` for authored state first (``force_forward`` is passed as its
-    ``force``). When the decimation loop runs here,
-    Newton actuators and the actuator callbacks run inside the step for every physics step (:func:`_simulate_full`).
-    Otherwise they run eagerly once, before collision, substeps and sensors (:func:`_simulate_physics_only`). The first
-    step after :func:`invalidate_graph` runs eagerly, so lazy solver allocations happen outside the recording, and is
-    then captured with :attr:`NewtonBackend.capture` for later steps.
+    Without the decimation loop, Newton actuators and their callbacks run eagerly before the step. The first step after
+    :func:`invalidate_graph` runs eagerly and is then captured for later steps.
 
     Returns:
         Whether the step has a captured graph.
     """
     notify_model_changes(backend)
-    forward(backend, force=force_forward)
+    forward(backend)
     if handles_decimation(backend):
-        simulate = partial(_simulate_full, backend)
+        simulate = _simulate_full
     else:
         for callback in backend.pre_actuator_callbacks:
             callback()
@@ -600,24 +585,21 @@ def step(backend: NewtonBackend, *, force_forward: bool = False) -> bool:
             backend.actuators.step(backend.state_0, backend.control, backend.dt)
         for callback in backend.post_actuator_callbacks:
             callback()
-        simulate = partial(_simulate_physics_only, backend)
+        simulate = _simulate_physics_only
     if backend.graph is not None:
         wp.capture_launch(backend.graph)
         return True
     with wp.ScopedDevice(backend.device):
-        simulate()
+        simulate(backend)
     if backend.graph_capture_pending:
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-            backend.graph = backend.capture(simulate)
+            backend.graph = backend.capture(lambda: simulate(backend))
         backend.graph_capture_pending = False
     return backend.graph is not None
 
 
 def _simulate_full(backend: NewtonBackend) -> None:
-    """Run ``decimation x (collide, actuators, substeps)``, then post-step callbacks and sensors.
-
-    Every Newton actuator must be graph-safe, so the whole loop can be captured as one CUDA graph.
-    """
+    """Run ``decimation x (collide, actuators, substeps)``, then post-step callbacks and sensors."""
     solver_cfg, pipeline, actuators = backend.cfg.solver_cfg, backend.collision_pipeline, backend.actuators
     contacts = backend.contacts if pipeline is not None else None
     decimation = backend.decimation
@@ -661,10 +643,9 @@ def _stage_body_forces(backend: NewtonBackend) -> None:
 
 
 def _run_solver_substeps(backend: NewtonBackend, contacts: Contacts | None) -> None:
-    """Run the solver substeps of one physics step, alternating double-buffered states.
+    """Run the solver substeps of one physics step, ending in :attr:`NewtonBackend.state_0`.
 
-    The staged body forces overwrite the input state's ``body_f`` before every substep, so state-force callbacks add
-    on top of them. Every physics step ends in :attr:`NewtonBackend.state_0`.
+    Each substep restores the staged body forces, then state-force callbacks add to them.
     """
     solver_cfg, solver = backend.cfg.solver_cfg, backend.solver
     solver_cls = solver_cfg.class_type
@@ -707,7 +688,7 @@ def _update_sensors(backend: NewtonBackend, contacts: Contacts | None) -> None:
 
 
 def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-    """Record work without an eager warmup or graph replay, using Warp's public capture API.
+    """Record ``fn`` into a CUDA graph without running it.
 
     Args:
         device: CUDA device.
@@ -742,48 +723,29 @@ def _paused_gc():
             gc.collect()
 
 
-def run_query(
-    backend: NewtonBackend,
-    timestamp: int,
-    query: Callable[[], None],
-    graph: tuple[tuple[int, ...], wp.Graph] | None,
-    *,
-    use_cuda_graph: bool = True,
-) -> tuple[tuple[int, ...], wp.Graph] | None:
-    """Refresh shared BVHs once per publication and run a consumer-owned query graph.
+def refit_bvh(backend: NewtonBackend, timestamp: int, *, use_cuda_graph: bool = True) -> None:
+    """Refit the model's shape and particle BVHs to :attr:`NewtonBackend.state_0` once per state ``timestamp``.
 
     Args:
-        backend: Shared model, state, and acceleration structures.
-        timestamp: Sum of the monotonic SDP transform and geometry timestamps for this state.
-        query: Camera or ray-cast work using the supplied backend.
-        graph: This consumer's previous captured query and pointer layout, or None.
-        use_cuda_graph: Whether to capture GPU queries. CPU queries always run eagerly.
-
-    Returns:
-        The consumer's captured query and pointer layout, or None for eager execution.
+        backend: Backend whose BVHs ray casters and cameras share.
+        timestamp: Monotonic version of the state, e.g. the sum of the scene-data transform and geometry timestamps.
+        use_cuda_graph: Whether to replay the refit from a CUDA graph on CUDA devices.
     """
-    model, state = backend.model, backend.state_0
-    pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
-    cached = backend.bvh_refit
-    if cached.timestamp != timestamp:
-        if model.device.is_cuda and use_cuda_graph:
-            if cached.data is None or cached.data[0] != pointers:
-                cached.data = pointers, capture_graph(model.device, partial(refit_bvh, backend), relaxed=has_kit())
-            wp.capture_launch(cached.data[1])
-        else:
-            refit_bvh(backend)
-        cached.timestamp = timestamp
-    if not model.device.is_cuda or not use_cuda_graph:
-        query()
-        return None
-    if graph is None or graph[0] != pointers:
-        graph = pointers, capture_graph(model.device, query, relaxed=has_kit())
-    wp.capture_launch(graph[1])
-    return graph
+    cache = backend.bvh_refit
+    if cache.timestamp == timestamp:
+        return
+    cache.timestamp = timestamp
+    if not (use_cuda_graph and backend.device.is_cuda):
+        _refit_bvh(backend)
+        return
+    state = backend.state_0
+    pointers = state.body_q.ptr, 0 if state.particle_q is None else state.particle_q.ptr
+    if cache.data is None or cache.data[0] != pointers:
+        cache.data = pointers, capture_graph(backend.device, lambda: _refit_bvh(backend), relaxed=has_kit())
+    wp.capture_launch(cache.data[1])
 
 
-def refit_bvh(backend: NewtonBackend) -> None:
-    """Refit the shape and particle BVHs of the backend's model to its current state."""
+def _refit_bvh(backend: NewtonBackend) -> None:
     model, state = backend.model, backend.state_0
     if model.shape_count:
         model.bvh_refit_shapes(state)

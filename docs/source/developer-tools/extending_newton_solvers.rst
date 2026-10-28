@@ -42,12 +42,10 @@ custom force, impulse, or state transfer.
 Responsibilities and Boundaries
 -------------------------------
 
-:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model. The functions in
-:mod:`~isaaclab_newton.physics.newton_backend` take the backend explicitly, in the style of ``mj_step(m, d)``, and read
-no class or module state: ``init_solver``, ``step``, ``forward``, ``invalidate_fk``, ``add_contact_sensor``,
-``run_query``, ``capture_graph``, and so on. Several backends with different solvers can therefore be built and stepped
-side by side. The :class:`~isaaclab_newton.physics.NewtonManager` adapts one backend to the Isaac Lab lifecycle. The
-backend's solver
+:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model, and the functions in
+:mod:`~isaaclab_newton.physics.newton_backend` (``init_solver``, ``step``, ``forward``, ``invalidate_fk``, ...) take it
+as their first argument, so backends with different solvers can be built and stepped side by side. The
+:class:`~isaaclab_newton.physics.NewtonManager` runs one backend through the Isaac Lab lifecycle. The backend's solver
 (:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is Newton's solver, built with
 ``solver_cfg.class_type.build(solver_cfg, model, mode)``. The Isaac Lab solver is never instantiated and holds no state:
 each method is a class method that takes the configuration and Newton's solver. A coupled solver builds each entry's

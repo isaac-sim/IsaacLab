@@ -18,6 +18,7 @@ from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
+from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, newton_backend
@@ -343,13 +344,18 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        self._graph = newton_backend.run_query(
-            self.backend,
-            provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
-            self._launch_raycast,
-            self._graph,
-            use_cuda_graph=self.cfg.use_cuda_graph,
-        )
+        use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda
+        timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
+        newton_backend.refit_bvh(backend, timestamp, use_cuda_graph=use_graph)
+        if not use_graph:
+            self._launch_raycast()
+            return
+        state = backend.state_0
+        pointers = state.body_q.ptr, 0 if state.particle_q is None else state.particle_q.ptr
+        if self._graph is None or self._graph[0] != pointers:
+            graph = newton_backend.capture_graph(backend.device, self._launch_raycast, relaxed=has_kit())
+            self._graph = pointers, graph
+        wp.capture_launch(self._graph[1])
 
     def _invalidate_initialize_callback(self, event) -> None:
         self._graph = None

@@ -1231,6 +1231,7 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
         world_mask=wp.zeros(2, dtype=wp.bool, device=device),
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
         staged_body_f=None,
         model_changes=set(),
         actuators_active=False,
@@ -1238,6 +1239,7 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
         post_actuator_callbacks=[],
         state_force_callbacks=[],
         post_step_callbacks=[],
+        solver_init_callbacks=[],
         decimation=1,
         capture=None,
         graph=None,
@@ -1253,7 +1255,7 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
     manager = _recording_manager(events, single_state=use_single_state, num_substeps=2)
     manager.register_state_force_callback(lambda state: events.append(("force", state.name)))
 
-    newton_backend._run_solver_substeps(manager.backend, contacts=None)
+    newton_backend.step(manager.backend)
 
     if use_single_state:
         assert events == [
@@ -1282,9 +1284,10 @@ def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0(
     manager = _recording_manager(events, single_state=False, num_substeps=1)
     manager.register_pre_actuator_callback(lambda: events.append(("pre",)))
     manager.register_post_step_callback(lambda: events.append(("post",)))
-    manager.backend.decimation = 2
+    manager.backend.actuators_active = True
+    manager.set_decimation(2)
 
-    newton_backend._simulate_full(manager.backend)
+    newton_backend.step(manager.backend)
 
     step = [("pre",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1"), ("clear", "state_0")]
     assert events == step * 2 + [("post",)]
