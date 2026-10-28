@@ -330,7 +330,7 @@ def test_heterogeneous_scene_lists_environments_in_order(device, setup_scene):
     """Environment rows follow the environment index when variants are spawned into different environments.
 
     With two variants in four environments, the default ``sequential`` strategy spawns the second variant's source
-    into ``env_1`` before ``env_2`` exists. Views of a homogeneous asset in the same scene must still list
+    into ``env_2`` before ``env_1`` exists. Views of a homogeneous asset in the same scene must still list
     ``env_0`` to ``env_3`` in order, at the environment origins.
     """
     _, sim = setup_scene
