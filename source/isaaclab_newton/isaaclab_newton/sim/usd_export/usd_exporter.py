@@ -7,9 +7,11 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import math
+import sys
 from collections import Counter
 
 import newton
@@ -24,6 +26,7 @@ from isaaclab.sim.usd_export.base_usd_exporter import (
     BaseUsdExporter,
     UsdEdit,
 )
+from isaaclab.utils.dict import update_class_from_dict
 from isaaclab.utils.string import string_to_callable
 
 from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonShapeCfg, NewtonSolverCfg
@@ -193,11 +196,11 @@ class UsdExporter(BaseUsdExporter):
             solver_type = cls._solver_configurations().get(settings["solver_type"])
             if solver_type is None:
                 raise ValueError(f"'{settings['solver_type']}' in '{path}' is not a Newton solver configuration.")
-            default_manager = solver_type().to_dict().get("class_type")
-            if settings["solver"].get("class_type", default_manager) != default_manager:
-                raise ValueError(f"'{settings['solver']['class_type']}' in '{path}' is not a Newton physics manager.")
             solver_cfg = solver_type()
-            solver_cfg.from_dict(settings["solver"])
+            cls._load_fields(solver_cfg, settings["solver"], path)
+            # File-writing debug output is the training machine's, not the loader's.
+            if hasattr(solver_cfg, "save_to_mjcf"):
+                solver_cfg.save_to_mjcf = None
         force = settings.get("force_position_velocity_actuation", False)
         model = cls.import_model(stage, solver_cfg, device, force, allow_unsafe_torch_checkpoints)
         solver = cls._manager(solver_cfg)._create_solver(model, solver_cfg) if solver_cfg is not None else None
@@ -568,6 +571,43 @@ class UsdExporter(BaseUsdExporter):
                     UsdEdit(edit.path, "mjc:actuatorfrcrange:max", float(edit.value)),
                 ]
         return widened
+
+    @classmethod
+    def _load_fields(cls, cfg, payload: dict, path: str, prefix: str = ""):
+        """Set the file's values on the declared fields of a trusted configuration.
+
+        A field holding code, such as the manager class, keeps its trusted value and must not be changed by the file;
+        an unset nested configuration is created from its declared type.
+        """
+        fields = {field.name: field for field in dataclasses.fields(cfg)}
+        default = type(cfg)().to_dict()
+        for key, value in payload.items():
+            if key not in fields:
+                raise ValueError(f"'{prefix}{key}' in '{path}' is not a field of {type(cfg).__name__}.")
+            current = getattr(cfg, key)
+            if key == "class_type" or callable(current):
+                if value != default.get(key):
+                    raise ValueError(f"'{value}' in '{path}' is not a Newton physics manager.")
+                continue
+            if isinstance(value, dict):
+                if current is None:
+                    current = cls._nested_configuration(cfg, fields[key])
+                    setattr(cfg, key, current)
+                if dataclasses.is_dataclass(current):
+                    cls._load_fields(current, value, path, f"{prefix}{key}/")
+                    continue
+            update_class_from_dict(cfg, {key: value})
+
+    @staticmethod
+    def _nested_configuration(cfg, field: dataclasses.Field):
+        """A default instance of the configuration class a field declares (``X`` or ``X | None``), or None."""
+        names = field.type.replace(" ", "").split("|") if isinstance(field.type, str) else [field.type]
+        namespace = vars(sys.modules[type(cfg).__module__])
+        for name in names:
+            kind = namespace.get(name) if isinstance(name, str) else name
+            if isinstance(kind, type) and dataclasses.is_dataclass(kind):
+                return kind()
+        return None
 
     @staticmethod
     def _solver_configurations() -> dict[str, type[NewtonSolverCfg]]:

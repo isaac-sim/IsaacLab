@@ -134,12 +134,17 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
 
     if device.startswith("cuda") and not wp.is_cuda_available():
         pytest.skip("MuJoCo Warp requires CUDA.")
+    debug_output = tmp_path / "training.xml"
     solver_cfg = (
-        XPBDSolverCfg(iterations=7) if solver == "xpbd" else MJWarpSolverCfg(iterations=17, enable_multiccd=True)
+        XPBDSolverCfg(iterations=7)
+        if solver == "xpbd"
+        else MJWarpSolverCfg(iterations=17, enable_multiccd=True, save_to_mjcf=str(debug_output))
     )
     output, live, solver_type, motion = _export(tmp_path, solver_cfg, device, num_envs, env_id)
 
+    debug_output.unlink(missing_ok=True)
     _, loaded_solver, dt = UsdExporter.load_usd(output, device=device)
+    assert not debug_output.exists()  # loading does not write the training run's debug output
     assert type(loaded_solver) is solver_type
     assert dt == pytest.approx(1 / 120)
     model = _newton_import(output, solver, device)
@@ -224,9 +229,13 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     "settings",
     [
         {"solver_type": "builtins:dict", "solver": {}},
-        {"solver_type": "isaaclab_newton.physics:XPBDSolverCfg", "solver": {"class_type": "builtins:dict"}},
+        {
+            "solver_type": "isaaclab_newton.physics.xpbd_manager_cfg:XPBDSolverCfg",
+            "solver": {"class_type": "builtins:dict"},
+        },
+        {"solver_type": "isaaclab_newton.physics.xpbd_manager_cfg:XPBDSolverCfg", "solver": {"__dict__": {}}},
     ],
-    ids=["solver type", "manager type"],
+    ids=["solver type", "manager type", "undeclared field"],
 )
 def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
     """A file names the solver classes that loading instantiates; any other class is refused, not called."""
@@ -237,8 +246,19 @@ def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
     layer.customLayerData = {SETTINGS_KEY: json.dumps(settings)}
     layer.Save()
 
-    with pytest.raises(ValueError, match="is not a Newton"):
+    with pytest.raises(ValueError, match="is not a"):
         UsdExporter.load_usd(layer.realPath)
+
+
+def test_loading_restores_nested_solver_configurations():
+    """An optional nested configuration the file states is created from its declared type."""
+    from isaaclab_newton.physics import KaminoDynamicsCfg, KaminoPADMMSolverCfg
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    exported = KaminoPADMMSolverCfg(dynamics=KaminoDynamicsCfg(preconditioning=False)).to_dict()
+    loaded = KaminoPADMMSolverCfg()
+    UsdExporter._load_fields(loaded, json.loads(json.dumps(exported, default=str)), "export.usda")
+    assert loaded.dynamics is not None and loaded.dynamics.preconditioning is False
 
 
 def test_loading_does_not_import_modules_the_file_names(tmp_path):
@@ -248,14 +268,20 @@ def test_loading_does_not_import_modules_the_file_names(tmp_path):
     from isaaclab_newton.sim.usd_export import UsdExporter
     from isaaclab_newton.sim.usd_export.usd_exporter import SETTINGS_KEY
 
-    sys.modules.pop("this", None)
-    layer = Sdf.Layer.CreateNew(str(tmp_path / "export.usda"))
-    layer.customLayerData = {SETTINGS_KEY: json.dumps({"solver_type": "this:Cfg", "solver": {}})}
-    layer.Save()
-
-    with pytest.raises(ValueError, match="is not a Newton solver configuration"):
-        UsdExporter.load_usd(layer.realPath)
-    assert "this" not in sys.modules
+    xpbd = "isaaclab_newton.physics.xpbd_manager_cfg:XPBDSolverCfg"
+    cases = (
+        {"solver_type": "this:Cfg", "solver": {}},
+        {"solver_type": xpbd, "solver": {"__dict__": {"class_type": "this:Cfg"}}},
+        {"solver_type": xpbd, "solver": {"class_type": "this:Cfg"}},
+    )
+    for index, settings in enumerate(cases):
+        sys.modules.pop("this", None)
+        layer = Sdf.Layer.CreateNew(str(tmp_path / f"export_{index}.usda"))
+        layer.customLayerData = {SETTINGS_KEY: json.dumps(settings)}
+        layer.Save()
+        with pytest.raises(ValueError, match="is not a"):
+            UsdExporter.load_usd(layer.realPath)
+        assert "this" not in sys.modules
 
 
 def test_model_without_joint_dofs_has_no_changed_values():
