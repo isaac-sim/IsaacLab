@@ -67,6 +67,18 @@ on:
       - develop
       - 'release/**'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      config_ref:
+        description: 'Git ref whose .github/workflows/config.yaml supplies the CI image pins'
+        required: false
+        type: string
+        default: ''
+      ci_image_repository:
+        description: 'Repository name used for the temporary CI image tag'
+        required: false
+        type: string
+        default: 'isaac-lab-ci'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
@@ -133,6 +145,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
+        ref: ${{ inputs.config_ref }}
         fetch-depth: 1
         sparse-checkout: .github/workflows/config.yaml
         sparse-checkout-cone-mode: false
@@ -144,9 +157,11 @@ jobs:
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "ovphysx_wheelhouse_image=$(yq -r '.ovphysx_wheelhouse_image // ""' "$f")" >> "$GITHUB_OUTPUT"
-    # NOTE: this ci_image_tag formula is intentionally duplicated in arm-ci.yml's
-    # config job — the two images are independent (x86 here vs -arm64 there), so
-    # they are not shared. Keep the two formulas in sync if either changes.
+        echo "config_hash=$(sha256sum "$f" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+    # NOTE: the default ci_image_tag formula is intentionally duplicated in
+    # arm-ci.yml's config job. Reusable x86 runs can select another repository
+    # and append a referenced-config identity; the independent ARM image cannot.
+    # Keep the shared ref/SHA portion in sync if either formula changes.
     - id: image_tag
       shell: bash
       env:
@@ -154,6 +169,9 @@ jobs:
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REF_NAME: ${{ github.ref_name }}
         SHA: ${{ github.sha }}
+        CI_IMAGE_REPOSITORY: ${{ inputs.ci_image_repository || 'isaac-lab-ci' }}
+        CONFIG_REF: ${{ inputs.config_ref }}
+        CONFIG_HASH: ${{ steps.load.outputs.config_hash }}
       run: |
         set -euo pipefail
 
@@ -165,8 +183,15 @@ jobs:
 
         # Sanitize the ref name for use as a Docker tag suffix.
         sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
-        echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
-        echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
+        config_suffix=""
+        if [ -n "$CONFIG_REF" ]; then
+          # A referenced config can advance independently of the tested source
+          # commit. Include its identity so a rerun never reuses a stale image.
+          config_suffix="-${CONFIG_HASH:0:12}"
+        fi
+        ci_image_tag="${CI_IMAGE_REPOSITORY}:${sanitized_ref}-${SHA}${config_suffix}"
+        echo "ci_image_tag=$ci_image_tag" >> "$GITHUB_OUTPUT"
+        echo "CI image tag: $ci_image_tag"
 
   test-dockerfile-contract:
     name: dockerfile-contract
@@ -979,7 +1004,6 @@ jobs:
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
         # Restored version directories and kernels must also be writable by the container user.
         chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
-
         container=""
         cleanup_container() {
           if [ -n "$container" ]; then
@@ -994,6 +1018,13 @@ jobs:
           local attempt="$1"
           container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
           cleanup_container
+          # actions/cache restores the tree with the runner's ownership, while
+          # each benchmark container runs as uid 1000. A previous container can
+          # also add directories, so normalize ownership before every attempt.
+          docker run --rm --user root \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            "chown -R isaaclab:isaaclab /tmp/jit-cache"
           timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \

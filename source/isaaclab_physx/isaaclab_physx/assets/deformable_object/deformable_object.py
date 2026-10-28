@@ -21,7 +21,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_ids
+from isaaclab.utils.warp.memory import resolve_ids
 
 from .deformable_object_data import DeformableObjectData
 from .kernels import (

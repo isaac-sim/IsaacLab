@@ -3,6 +3,32 @@ Changelog
 
 .. towncrier release notes start
 
+10.0.1 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed FrameTransformer initialization and numeric environment ordering for manually authored
+  environments without a clone plan.
+
+
+10.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced duplicated heading, quaternion rotation, interval, and Jacobian math with core Warp operations.
+* **Breaking:** :class:`~isaaclab_physx.physics.PhysxManager` takes its :class:`~isaaclab_physx.physics.PhysxCfg` at construction.
+
+Fixed
+^^^^^
+
+* Fixed the Kit launcher hiding modules whose name contains ``lab`` from other threads while Isaac Sim starts,
+  and not restoring the previous ``sys.stdout`` afterwards.
+
+
 9.0.3 (2026-10-25)
 ~~~~~~~~~~~~~~~~~~
 

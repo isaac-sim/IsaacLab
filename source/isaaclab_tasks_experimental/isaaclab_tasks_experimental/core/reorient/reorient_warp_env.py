@@ -14,6 +14,7 @@ from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab_experimental.utils.warp_capture import captured
 
 from isaaclab.utils.seed import WarpRng
+from isaaclab.utils.warp.math import quat_error_magnitude
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
@@ -267,7 +268,7 @@ def get_dones(
     goal_dist = wp.length(object_pos - in_hand_pos[env_id])
     out_of_reach[env_id] = goal_dist >= fall_dist
 
-    error = rotation_distance(object_rot, goal_rot[env_id])
+    error = quat_error_magnitude(object_rot, goal_rot[env_id])
     reached = error <= success_tolerance
     orientation_error[env_id] = error
     goal_reached[env_id] = reached
@@ -538,14 +539,6 @@ def unscale(x: wp.float32, lower: wp.float32, upper: wp.float32) -> wp.float32:
 @wp.func
 def randomize_rotation(rand0: wp.float32, rand1: wp.float32, x_axis: wp.vec3f, y_axis: wp.vec3f) -> wp.quatf:
     return wp.quat_from_axis_angle(x_axis, rand0 * wp.pi) * wp.quat_from_axis_angle(y_axis, rand1 * wp.pi)
-
-
-@wp.func
-def rotation_distance(object_rot: wp.quatf, target_rot: wp.quatf) -> wp.float32:
-    """Angle [rad] between two ``(x, y, z, w)`` orientations, as :func:`~isaaclab.utils.math.quat_error_magnitude`."""
-    quat_diff = object_rot * wp.quat_inverse(target_rot)
-    v_norm = wp.length(wp.vec3f(quat_diff[0], quat_diff[1], quat_diff[2]))
-    return wp.float32(2.0) * wp.asin(wp.min(v_norm, wp.float32(1.0)))
 
 
 class ReorientDirectWarpEnv(DirectRLEnvWarp):
