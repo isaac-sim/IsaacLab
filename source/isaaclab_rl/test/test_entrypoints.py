@@ -962,3 +962,58 @@ def test_sac_configuration_tracks_native_constructor() -> None:
             assert getattr(cfg, name) == parameter.default, name
     with pytest.raises(KeyError, match="unknown_option"):
         cfg.from_dict({"unknown_option": True})
+
+
+def test_supermimic_configurations_track_native_constructors() -> None:
+    """Typed model and learning fields match native constructors without exposing injected dimensions."""
+    import inspect
+    from dataclasses import fields
+
+    from rsl_rl.algorithms import SuperMimic
+    from rsl_rl.models import SuperMimicActor
+    from rsl_rl.modules import WorldModel
+
+    from isaaclab_rl.rsl_rl import RslRlSuperMimicActorCfg, RslRlSuperMimicAlgorithmCfg, RslRlWorldModelCfg
+
+    cases = (
+        (
+            RslRlSuperMimicAlgorithmCfg(),
+            SuperMimic,
+            {"self", "actor", "world_model", "critic", "storage", "task", "obs_groups", "device", "multi_gpu_cfg"},
+            {"class_name", "task_cfg", "replay_buffer_size", "max_replay_memory_fraction"},
+        ),
+        (
+            RslRlSuperMimicActorCfg(),
+            SuperMimicActor,
+            {"self", "task", "obs_groups", "obs_dim", "goal_dim", "num_envs", "num_actions"},
+            {"class_name"},
+        ),
+        (
+            RslRlWorldModelCfg(),
+            WorldModel,
+            {"self", "representation", "feature_dim", "num_actions", "context_dim", "num_labels"},
+            {"class_name"},
+        ),
+    )
+    for cfg, native_class, injected, construction in cases:
+        parameters = inspect.signature(native_class.__init__).parameters
+        assert {field.name for field in fields(cfg)} - construction == set(parameters) - injected
+        for name, parameter in parameters.items():
+            if name not in injected:
+                assert getattr(cfg, name) == parameter.default, name
+        with pytest.raises(KeyError, match="unknown_option"):
+            cfg.from_dict({"unknown_option": True})
+
+
+def test_rsl_rl_configures_physical_successors_before_env_creation() -> None:
+    """Runner configs select capture on the env config and preserve the caller's explicit opt-in."""
+    from isaaclab_rl.entrypoints.backends._rsl_rl import _configure_rsl_rl_env_cfg
+    from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg
+
+    env_cfg = DirectRLEnvCfg()
+    _configure_rsl_rl_env_cfg(env_cfg, RslRlSacRunnerCfg())
+    assert env_cfg.compute_final_obs and not env_cfg.final_obs_every_step
+    _configure_rsl_rl_env_cfg(env_cfg, RslRlSuperMimicRunnerCfg())
+    assert env_cfg.final_obs_every_step
+    _configure_rsl_rl_env_cfg(env_cfg, RslRlBaseRunnerCfg())
+    assert env_cfg.final_obs_every_step

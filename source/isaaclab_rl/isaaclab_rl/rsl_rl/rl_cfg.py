@@ -264,6 +264,9 @@ class RslRlBaseRunnerCfg:
     compute_final_obs: bool = False
     """Whether the environment must capture pre-reset observations."""
 
+    final_obs_every_step: bool = False
+    """Whether the environment must capture physical observations before interval events on every step."""
+
     torch_compile_mode: Literal["default", "max-autotune-no-cudagraphs"] | None = None
     """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
 

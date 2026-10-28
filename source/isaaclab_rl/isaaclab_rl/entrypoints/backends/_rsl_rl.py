@@ -19,6 +19,8 @@ def _configure_rsl_rl_env_cfg(env_cfg: Any, agent_cfg: RslRlBaseRunnerCfg) -> No
     """Enable terminal observations requested by the agent before creating the environment."""
     if agent_cfg.compute_final_obs:
         env_cfg.compute_final_obs = True
+    if agent_cfg.final_obs_every_step:
+        env_cfg.final_obs_every_step = True
 
 
 def _create_rsl_rl_runner(
