@@ -12,15 +12,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 
-from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
+from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData, vec13f
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager
-
-from ..kernels import vec13f
 
 if TYPE_CHECKING:
     import torch
@@ -291,6 +290,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
+                wp.launch,
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[self.root_com_vel_w, self.root_link_pose_w, self.body_com_pos_b],
@@ -313,6 +313,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_pose_w",
+                wp.launch,
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[self.root_link_pose_w, self.body_com_pos_b],
@@ -462,6 +463,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._body_com_pose_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
+                wp.launch,
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, 1),
                 inputs=[self.body_com_pos_b],
@@ -485,6 +487,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
+                wp.launch,
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
@@ -508,6 +511,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
+                wp.launch,
                 warp_math.heading[1],
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
@@ -530,6 +534,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_link_lin_vel_w.warp],
@@ -552,6 +557,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_link_ang_vel_w.warp],
@@ -574,6 +580,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_com_lin_vel_w.warp],
@@ -596,6 +603,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_com_ang_vel_w.warp],
@@ -1033,10 +1041,10 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_state_w.data,
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -1057,10 +1065,10 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
-                outputs=[self._root_link_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_link_vel_w.warp,
+                self._root_link_state_w.data,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -1081,10 +1089,10 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_com_state_w.data],
+                memory_kernels.concat,
+                self.root_com_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_com_state_w.data,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -1108,10 +1116,10 @@ class RigidObjectData(BaseRigidObjectData):
             self._default_root_state_ta = ProxyArray(self._default_root_state)
         self._read_launch_cache.launch(
             "default_root_state",
-            shared_kernels.concat_root_pose_and_vel_to_state,
-            dim=self._num_instances,
-            inputs=[self._default_root_pose, self._default_root_vel],
-            outputs=[self._default_root_state],
+            memory_kernels.concat,
+            self._default_root_pose,
+            self._default_root_vel,
+            self._default_root_state,
         )
         return self._default_root_state_ta
 
@@ -1131,10 +1139,10 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_state_w.data,
             )
             self._root_state_w.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -1157,10 +1165,10 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
-                outputs=[self._root_link_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_link_vel_w.warp,
+                self._root_link_state_w.data,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -1182,10 +1190,10 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_com_state_w.data],
+                memory_kernels.concat,
+                self.root_com_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_com_state_w.data,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:

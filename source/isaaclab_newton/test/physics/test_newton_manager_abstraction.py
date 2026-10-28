@@ -832,6 +832,39 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
     np.testing.assert_allclose(solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_captured_model_refresh_follows_the_reset_mask(device):
+    """An outer capture refreshes MuJoCo's model constants only when the replay's mask selects a world."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False)
+    builder = ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.begin_world()
+    body = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+    joint = builder.add_joint_fixed(-1, body)
+    builder.add_articulation([joint])
+    builder.end_world()
+    backend = newton_backend.NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
+    backend.init_solver()
+    mask = wp.array([False], dtype=wp.bool, device=device)
+
+    def refresh():
+        backend.mark_model_changed(ModelFlags.JOINT_PROPERTIES, env_mask=mask)
+        backend.forward()
+
+    graph = newton_backend.capture_graph(device, refresh)
+    for position in (1.0, 2.0):
+        backend.model.joint_X_p.assign(
+            wp.array([wp.transform(wp.vec3(position, 0.0, 0.0), wp.quat_identity())], dtype=wp.transform, device=device)
+        )
+        before = backend.solver.mjw_data.mocap_pos.numpy().copy()
+        mask.fill_(False)
+        graph.launch()
+        np.testing.assert_array_equal(backend.solver.mjw_data.mocap_pos.numpy(), before)
+        mask.fill_(True)
+        graph.launch()
+        np.testing.assert_allclose(backend.solver.mjw_data.mocap_pos.numpy()[0, 0], [position, 0.0, 0.0])
+
+
 def _backend_with_masks(cfg: NewtonCfg, world_mask: wp.array, fk_mask: wp.array, solver: object) -> SimpleNamespace:
     """Backend stand-in holding authored-state masks and a solver, without a model."""
     return backend_stub(

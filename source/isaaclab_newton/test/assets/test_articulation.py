@@ -390,10 +390,11 @@ def test_partial_fk_uses_articulation_worlds_for_reordered_view_rows(index_dtype
     for world in range(3):
         builder.begin_world()
         for index in range(2 if world < 2 else 1):
-            link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)))
-            builder.add_articulation([builder.add_joint_revolute(-1, link)], label=f"world_{world}_{index}")
+            label = f"world_{world}_{index}"
+            link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)), label=label)
+            builder.add_articulation([builder.add_joint_revolute(-1, link)], label=label)
         builder.end_world()
-    link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)))
+    link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)), label="global")
     builder.add_articulation([builder.add_joint_revolute(-1, link)], label="global")
     cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
     backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
@@ -401,14 +402,20 @@ def test_partial_fk_uses_articulation_worlds_for_reordered_view_rows(index_dtype
     try:
         initial = backend.state_0.body_q.numpy().copy()
         backend.state_0.joint_q.fill_(0.5)
-        articulation_ids = wp.array([[4, 5], [0, 1], [2, 3]], dtype=wp.int32, device="cpu")
+        view_rows = (("world_2_0", "global"), ("world_0_0", "world_0_1"), ("world_1_0", "world_1_1"))
+        articulation_ids = wp.array(
+            [[backend.model.articulation_label.index(label) for label in row] for row in view_rows],
+            dtype=wp.int32,
+            device="cpu",
+        )
         backend.invalidate_fk(env_ids=_selector([2, 0], index_dtype), articulation_ids=articulation_ids)
 
         np.testing.assert_array_equal(backend.world_mask.numpy(), [False, True, True, False])
         backend.forward()
 
         changed = np.any(backend.state_0.body_q.numpy() != initial, axis=1)
-        np.testing.assert_array_equal(changed, [False, False, True, True, True, True])
+        expected = {"world_1_0", "world_1_1", "world_2_0", "global"}
+        np.testing.assert_array_equal(changed, [label in expected for label in backend.model.body_label])
         assert not backend.world_mask.numpy().any() and not backend.fk_mask.numpy().any()
     finally:
         backend.close()

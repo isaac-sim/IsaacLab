@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+0.3.1 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Warp observation manager to skip the group-level
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` setting when parsing observation terms,
+  matching the stable observation manager.
+
+
 0.3.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~
 
