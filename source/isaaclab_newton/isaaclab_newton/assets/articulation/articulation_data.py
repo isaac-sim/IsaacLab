@@ -14,9 +14,11 @@ from newton import JointType
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.rigid_object.base_rigid_object_data import vec13f
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 from isaaclab.utils.warp.utils import capture_unsafe
 
@@ -27,8 +29,6 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
     gather_joint_coordinates,
 )
 from isaaclab_newton.physics import NewtonManager
-
-from ..kernels import vec13f
 
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
@@ -471,6 +471,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._read_launch_cache.launch(
                 "joint_pos_limits",
+                wp.launch,
                 articulation_kernels.concat_joint_pos_limits_lower_and_upper,
                 dim=(self._num_instances, self._num_joints),
                 inputs=[joint_pos_limits_lower, joint_pos_limits_upper],
@@ -666,6 +667,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
+                wp.launch,
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[self.root_com_vel_w, self.root_link_pose_w, self._sim_bind_body_com_pos_b],
@@ -690,6 +692,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_pose_w",
+                wp.launch,
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[self.root_link_pose_w, self._sim_bind_body_com_pos_b],
@@ -764,6 +767,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
+                wp.launch,
                 shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[self.body_com_vel_w, self.body_link_pose_w, self.body_com_pos_b],
@@ -790,6 +794,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
+                wp.launch,
                 shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[self.body_link_pose_w, self.body_com_pos_b],
@@ -844,6 +849,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_joint_wrench.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_joint_wrench",
+                wp.launch,
                 articulation_kernels.update_body_joint_wrench,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
@@ -922,6 +928,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
+                wp.launch,
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[self.body_com_pos_b],
@@ -961,6 +968,7 @@ class ArticulationData(BaseArticulationData):
         joint_ordering = self.joint_ordering
         self._read_launch_cache.launch(
             "body_com_jacobian_w",
+            wp.launch,
             articulation_kernels.gather_jacobian_rows,
             dim=jacobian.shape,
             inputs=[
@@ -993,6 +1001,7 @@ class ArticulationData(BaseArticulationData):
         jacobian = self._body_link_jacobian_w_ta.warp
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
+            wp.launch,
             warp_math.shift_jacobian_reference,
             dim=jacobian.shape[:2] + (jacobian.shape[3],),
             inputs=[
@@ -1045,6 +1054,7 @@ class ArticulationData(BaseArticulationData):
         joint_ordering = self.joint_ordering
         self._read_launch_cache.launch(
             "mass_matrix",
+            wp.launch,
             articulation_kernels.gather_mass_matrix_rows,
             dim=mass_matrix.shape,
             inputs=[
@@ -1171,6 +1181,7 @@ class ArticulationData(BaseArticulationData):
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
+                wp.launch,
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
@@ -1195,6 +1206,7 @@ class ArticulationData(BaseArticulationData):
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
+                wp.launch,
                 warp_math.heading[1],
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
@@ -1219,6 +1231,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_link_lin_vel_w.warp],
@@ -1242,6 +1255,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_link_ang_vel_w.warp],
@@ -1265,6 +1279,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_com_lin_vel_w.warp],
@@ -1288,6 +1303,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
+                wp.launch,
                 warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
                 inputs=[self.root_link_quat_w.warp, self.root_com_ang_vel_w.warp],
@@ -2078,6 +2094,7 @@ class ArticulationData(BaseArticulationData):
             return
         self._read_launch_cache.launch(
             "joint_state_ordering",
+            wp.launch,
             ordering_kernels.reorder_joint_state_backend_to_user,
             dim=(self._num_instances, self._num_joints),
             inputs=[self._sim_bind_joint_pos, self._sim_bind_joint_vel, self.joint_ordering.user_to_backend],
@@ -2096,6 +2113,7 @@ class ArticulationData(BaseArticulationData):
         if self.has_body_ordering:
             self._read_launch_cache.launch(
                 "body_state_ordering",
+                wp.launch,
                 ordering_kernels.reorder_body_state_backend_to_user,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
@@ -2343,10 +2361,10 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=(self._num_instances),
-                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_state_w.data,
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -2367,10 +2385,10 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
-                outputs=[self._root_link_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_link_vel_w.warp,
+                self._root_link_state_w.data,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -2391,10 +2409,10 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_com_state_w.data],
+                memory_kernels.concat,
+                self.root_com_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_com_state_w.data,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -2421,10 +2439,10 @@ class ArticulationData(BaseArticulationData):
             self._default_root_state_ta = ProxyArray(self._default_root_state)
         self._read_launch_cache.launch(
             "default_root_state",
-            shared_kernels.concat_root_pose_and_vel_to_state,
-            dim=self._num_instances,
-            inputs=[self._default_root_pose, self._default_root_vel],
-            outputs=[self._default_root_state],
+            memory_kernels.concat,
+            self._default_root_pose,
+            self._default_root_vel,
+            self._default_root_state,
         )
         return self._default_root_state_ta
 
@@ -2450,10 +2468,10 @@ class ArticulationData(BaseArticulationData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_link_pose_w.warp, self.body_com_vel_w.warp],
-                outputs=[self._body_state_w.data],
+                memory_kernels.concat,
+                self.body_link_pose_w.warp,
+                self.body_com_vel_w.warp,
+                self._body_state_w.data,
             )
             self._body_state_w.timestamp = self._sim_timestamp
 
@@ -2480,10 +2498,10 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_link_pose_w.warp, self.body_link_vel_w.warp],
-                outputs=[self._body_link_state_w.data],
+                memory_kernels.concat,
+                self.body_link_pose_w.warp,
+                self.body_link_vel_w.warp,
+                self._body_link_state_w.data,
             )
             self._body_link_state_w.timestamp = self._sim_timestamp
 
@@ -2512,10 +2530,10 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_com_pose_w.warp, self.body_com_vel_w.warp],
-                outputs=[self._body_com_state_w.data],
+                memory_kernels.concat,
+                self.body_com_pose_w.warp,
+                self.body_com_vel_w.warp,
+                self._body_com_state_w.data,
             )
             self._body_com_state_w.timestamp = self._sim_timestamp
 
