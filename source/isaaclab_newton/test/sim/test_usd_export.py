@@ -13,7 +13,7 @@ import pytest
 import warp as wp
 from newton.usd import PrimType, SchemaResolverNewton
 
-from pxr import Sdf, Usd, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 
 def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=None, num_substeps=1):
@@ -354,6 +354,32 @@ def test_d6_limit_gains_go_to_a_stated_joint_wide_attribute():
     assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == per_axis
     joint.CreateAttribute("newton:limitStiffness", Sdf.ValueTypeNames.Float).Set(100.0)
     assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == "newton:limitStiffness"
+
+
+def test_importing_without_a_solver_returns_a_model():
+    """A file without solver settings imports as a model only, with no manager to construct."""
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(stage, "/Box").GetPrim())
+    model = UsdExporter.import_model(stage)
+    assert model.body_count == 1
+
+
+def test_importing_runs_the_solver_preparation(monkeypatch):
+    """Import runs the selected manager's preparation before finalizing, as Isaac Lab's build does."""
+    from isaaclab_newton.physics import NewtonVBDManager, VBDSolverCfg
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    prepared = []
+    monkeypatch.setattr(
+        NewtonVBDManager, "_prepare_builder_for_finalize", classmethod(lambda cls, b: prepared.append(b))
+    )
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    UsdExporter.import_model(stage, VBDSolverCfg())
+    assert len(prepared) == 1
 
 
 def test_attribute_tables_cover_newton_importer():

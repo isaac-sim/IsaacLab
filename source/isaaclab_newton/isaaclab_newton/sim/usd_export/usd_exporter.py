@@ -13,6 +13,7 @@ import logging
 import math
 import sys
 from collections import Counter
+from types import SimpleNamespace
 
 import newton
 import numpy as np
@@ -235,20 +236,24 @@ class UsdExporter(BaseUsdExporter):
         Returns:
             The finalized model.
         """
-        manager = cls._manager(solver_cfg)(NewtonCfg(solver_cfg=solver_cfg))
+        manager_type = cls._manager(solver_cfg)
+        # Without a solver there is no concrete manager; terrain conversion only uses the manager's device.
+        manager = manager_type(NewtonCfg(solver_cfg=solver_cfg)) if solver_cfg is not None else SimpleNamespace()
         builder = newton.ModelBuilder()
-        manager._register_builder_attributes(builder, solver_cfg)
+        manager_type._register_builder_attributes(builder, solver_cfg)
         # Tagged terrains become heightfields, as in Isaac Lab; the importer does not read their colliders.
-        terrains = manager._inject_terrain_heightfields(stage, builder, root_paths=("/",), device=device)
+        terrains = NewtonManager._inject_terrain_heightfields(manager, stage, builder, root_paths=("/",), device=device)
         for shape, label in enumerate(builder.shape_label):
             cls._apply_authored_contacts(stage.GetPrimAtPath(label), builder, shape)
         builder.add_usd(
             stage,
-            schema_resolvers=manager._get_usd_import_schema_resolvers(),
+            schema_resolvers=manager_type._get_usd_import_schema_resolvers(),
             ignore_paths=terrains,
             force_position_velocity_actuation=force_position_velocity_actuation,
             allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoints,
         )
+        # The solver's own preparation, as Isaac Lab runs it before finalizing (e.g. VBD coloring).
+        manager_type._prepare_builder_for_finalize(builder)
         return builder.finalize(device=device)
 
     def _selected(self, worlds) -> np.ndarray:
