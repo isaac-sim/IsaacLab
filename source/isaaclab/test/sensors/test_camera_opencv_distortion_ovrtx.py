@@ -38,7 +38,7 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 
 if not _MISSING_MODULES:
     import torch
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
 

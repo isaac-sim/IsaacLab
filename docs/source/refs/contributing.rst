@@ -125,22 +125,25 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
-Browser-demo bundles and exporter sources are distributed through the permanent
+Browser-demo runtime archives are distributed through the permanent
 `interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
-Reuse the ``interactive-releases`` publishing branch and upload commit-named archives to that same release.
-Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
+Upload reviewed, commit-named archives to that same release. Keep earlier release assets,
+then update the reviewed archive URL and SHA-256 together in
 ``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
-The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
-under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
-assets and preserve older links. The development source tree contains the staging script, documentation links,
-and small thumbnails. Run the staging step from the repository root:
+The current archive contains the generated gallery, physics bundles, policy assets, and licenses.
+Exporter sources remain in the private browser-demo project and are not included in this archive.
+The docs workflow downloads the archive, verifies its checksum, and stages only its ``site/`` directory
+under ``docs/_build/demos/`` before publishing Pages. This contains one current gallery under
+``interactive/``; earlier gallery entry points redirect there without retaining older physics builds.
+The documentation source tree contains the staging script, documentation links, and thumbnails used on
+the Demos page. Gallery thumbnails stay in the runtime archive.
+Run the staging step from the repository root:
 
 .. code-block:: bash
 
    bash .github/actions/_lib/stage-browser-demos.sh
 
-The staging step also resolves demo links relative to each documentation version. To preview the
-complete site locally, serve ``docs/_build`` over HTTP:
+To preview the complete site locally, serve ``docs/_build`` over HTTP:
 
 .. code-block:: bash
 
@@ -150,6 +153,25 @@ Open ``http://localhost:8000/current/index.html`` for the docs or
 ``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
 ``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
 The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+
+Use ``isaaclab-demos`` to embed the gallery in a guide without copying its catalog or simulator bundles
+into the documentation sources:
+
+.. code-block:: rst
+
+   .. isaaclab-demos:: stiffness, cloth_bending
+      :title: Explore cloth stiffness
+      :physics: vbd
+      :activity: tuning
+
+Use stable gallery IDs, or omit the IDs for the full gallery. The ``title``, ``physics``
+(``rigid``, ``vbd``, ``mpm``), and ``activity`` (``tuning``, ``policy``, ``scripted``) options are optional.
+The embed loads near the viewport and starts a simulation only when the reader chooses a demo.
+It follows the documentation theme and provides a link to open the same selection in a separate tab.
+By default, embeds use the staged gallery on the documentation's own host, with links relative to
+each documentation page. To use a separate gallery host, set the Sphinx ``isaaclab_demo_base_url``
+configuration value to an absolute HTTP or HTTPS URL. For a local development server, pass
+``-D isaaclab_demo_base_url=http://localhost:8805/lab/`` to Sphinx.
 
 .. caution::
 
@@ -196,29 +218,106 @@ The documentation is generated in ``docs/_build/current``. Open
 HTML output and its Sphinx cache so deleted pages and cached warnings cannot be carried over.
 
 
-Contributing assets
--------------------
+.. _contributing-assets-and-environments:
 
-Large asset files should not be added directly to the Isaac Lab repository. Instead, host them in a
-separate repository and link to them from the relevant documentation.
+Contributing assets and environments
+------------------------------------
 
-Please checkout the `Isaac Sim Assets <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_overview.html>`__
-for more information on what is presently available.
+We welcome asset and environment contributions that expand what the Isaac Lab framework can demonstrate. To keep
+the repository focused and maintainable, an asset or environment is a good fit when it is the smallest clear example
+of a framework capability that current Isaac Lab examples do not cover. Projects that build on capabilities already
+represented in Isaac Lab are best maintained as community-owned projects, and their reusable framework improvements
+can still be proposed separately.
 
-.. attention::
+Choose the contribution location
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-  We are currently working on a better way to contribute assets. We will update this section once we
-  have a solution. In the meantime, please follow the steps mentioned below.
+.. list-table::
+   :header-rows: 1
+   :widths: 22 34 44
 
-To host your own assets, the current solution is:
+   * - Location
+     - Purpose
+     - Appropriate content
+   * - Isaac Lab core
+     - Stable reference implementations maintained as part of the framework contract.
+     - Reusable APIs and the smallest canonical asset or environment needed to demonstrate them.
+   * - In-repository ``contrib`` packages
+     - Incubation for a new capability that may graduate to core after its API and maintenance requirements
+       stabilize.
+     - Capability-driven work with a named owner, an evaluation period, and a promotion or removal plan. This is
+       intended for focused capability development. See :doc:`/source/experimental-features/bleeding-edge`.
+   * - Community-owned project
+     - The default location for downstream projects and integrations.
+     - Robot ports, task or reward variants, research reproductions, vendor examples, application workflows,
+       trained policies, datasets, and combinations of capabilities already demonstrated in Isaac Lab.
 
-1. Create a separate repository for the assets and add it over there
-2. Make sure the assets are licensed for use and distribution
-3. Include images of the assets in the README file of the repository
-4. Send a pull request with a link to the repository
+If a downstream project exposes a missing reusable primitive, propose that primitive separately while keeping the
+complete robot or application in the community-owned project.
 
-We will then verify the assets and their licensing and determine how to integrate them. If you have
-questions, please open an issue in the repository.
+Before opening a pull request
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Start with a `GitHub Discussion <https://github.com/isaac-sim/IsaacLab/discussions>`__ or
+`proposal issue <https://github.com/isaac-sim/IsaacLab/issues/new?template=proposal.md>`__. Include:
+
+* the missing capability and the current examples reviewed before claiming the gap;
+* the proposed location: core, time-bounded ``contrib`` incubation, or a community-owned project;
+* supported physics backends, renderers, operating modes, and known limitations;
+* asset sources, licenses, immutable hosting, and reproducible conversion or authoring instructions;
+* evidence that the capability works as claimed;
+* the individual or organization responsible for triage and compatibility updates; and
+* for ``contrib`` work, an exit plan that allows an unmaintained contribution to be promoted, relocated, or
+  removed.
+
+Maintainers may consolidate, relocate, or remove an in-repository example when its capability is covered elsewhere
+or its ownership and dependencies are no longer sustainable.
+
+Requirements for in-repository environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An environment proposed for core or ``contrib`` must meet all of these requirements:
+
+* Demonstrate a Newton, PhysX, rendering, or application capability that no current Isaac Lab environment covers.
+* Exercise a reusable framework path rather than only a robot-specific reward, scene, policy, or benchmark.
+* Be the smallest clear example of the capability and reuse existing assets and task terms wherever possible.
+* Declare and validate the supported physics backend and renderer combinations. Unsupported combinations must be
+  omitted from registration or fail with a clear message.
+* Document the capability and name a support owner.
+
+Projects that adapt an existing reach, lift, locomotion, or manipulation task to another robot are usually a better
+fit for a community-owned project. The same applies to new reward formulations, scene layouts, training
+configurations, checkpoints, paper reproductions, vendor workflows, or high-performing policies when the underlying
+framework capabilities are already represented.
+
+Requirements for in-repository assets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An asset proposed for core or ``contrib`` should demonstrate a capability that current examples do not cover, such
+as tendons, closed-loop kinematics, mobile or floating bases, unusual articulations, deformable or coupled bodies, or
+new sensor or actuator integrations. Differences in brand, appearance, dimensions, degree-of-freedom count, or
+commercial popularity alone are better suited to a community-owned project.
+
+Accepted assets need clear provenance, redistribution-compatible licensing, immutable versioned hosting,
+reproducible conversion or authoring instructions, and an upstream owner. Keep large binaries externally hosted and
+link to an immutable version. See the
+`Isaac Sim asset documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_overview.html>`__
+for existing assets and asset-format guidance.
+
+Create a community-owned project
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For work that does not meet the in-repository capability gate, use the :ref:`template generator <template-generator>`
+to create a standalone project outside the Isaac Lab checkout:
+
+.. code-block:: bash
+
+   uv run isaaclab --new
+
+Choose **External**. Use **Cartpole** for a runnable task baseline, **Stubbed** for a task skeleton, or **Blank** when
+adding Isaac Lab support to an existing project. The project should own its code, assets, documentation, releases,
+support, compatibility declarations, and versioned dependencies. It should also document installation and use its
+own issue tracker for support.
 
 
 Maintaining package changelogs and versions
