@@ -173,18 +173,29 @@ def test_thruster_collection_passes_ids_and_mask_unit():
     assert resets == [(None, env_mask), ([1], None)]
 
 
-def test_reset_with_only_mask_restores_masked_thrust_targets_unit(monkeypatch):
-    """A mask-only reset, as the scene forwards it, reaches the articulation and restores the masked envs only."""
-    parent_masks = []
-    monkeypatch.setattr(Articulation, "reset", lambda self, env_ids=None, env_mask=None: parent_masks.append(env_mask))
+@pytest.mark.parametrize("selection", ["ids", "mask", "all"])
+def test_reset_restores_selected_thrust_targets_unit(selection, monkeypatch):
+    """Resets by ids, by mask and of all envs reach the articulation and restore the selected thrust targets only."""
+    parent_resets = []
+    monkeypatch.setattr(
+        Articulation, "reset", lambda self, env_ids=None, env_mask=None: parent_resets.append((env_ids, env_mask))
+    )
     m = Multirotor.__new__(Multirotor)
+    m._device = "cpu"
+    m._ALL_ENV_MASK = wp.ones(4, dtype=wp.bool, device="cpu")
+    m._reset_env_mask = wp.zeros(4, dtype=wp.bool, device="cpu")
     m._data = types.SimpleNamespace(thrust_target=torch.ones(4, 2), default_thruster_rps=torch.zeros(4, 2))
-    env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
+    kwargs = {
+        "ids": {"env_ids": [0, 2]},
+        "mask": {"env_mask": wp.array([True, False, True, False], dtype=wp.bool, device="cpu")},
+        "all": {},
+    }[selection]
 
-    m.reset(env_mask=env_mask)
+    m.reset(**kwargs)
 
-    assert parent_masks == [env_mask]
-    torch.testing.assert_close(m._data.thrust_target, torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]))
+    assert parent_resets == [(kwargs.get("env_ids"), kwargs.get("env_mask"))]
+    expected = torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]) if kwargs else torch.zeros(4, 2)
+    torch.testing.assert_close(m._data.thrust_target, expected)
 
 
 def generate_multirotor(
