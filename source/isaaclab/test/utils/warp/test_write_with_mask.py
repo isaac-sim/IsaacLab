@@ -10,7 +10,7 @@ import torch
 import warp as wp
 
 from isaaclab.test.utils import test_devices
-from isaaclab.utils.warp.utils import write_2d_with_mask
+from isaaclab.utils.warp.memory import write_2d_with_mask
 
 
 @pytest.mark.parametrize("device", test_devices())

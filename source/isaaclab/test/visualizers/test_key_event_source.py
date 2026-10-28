@@ -11,10 +11,11 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.visualizers import KeyEventSource
+from isaaclab.visualizers import KeyEventSource, add_key_callbacks
 
 pytestmark = [pytest.mark.unit]
 
@@ -138,3 +139,30 @@ def test_source_does_not_own_backend_lifecycle_or_controller_state():
     assert all(not hasattr(source, name) for name in forbidden)
     subscription = source.add_key_listener(lambda code, pressed: None, lambda: None)
     assert not hasattr(subscription, "_closed"), "Subscription lifetime is owned by its source reference."
+
+
+def test_script_hotkeys_track_presses_focus_and_subscription_lifetime():
+    """Shared windows fire a hotkey once; focus loss releases held keys and cleanup stops delivery."""
+    source = KeyEventSource()
+    windows = [SimpleNamespace(key_event_source=source), SimpleNamespace(key_event_source=None)]
+    pressed = []
+    remove = add_key_callbacks(
+        windows + windows[:1],
+        {key: lambda key=key: pressed.append(key) for key in ("n", "1", "Escape")},
+    )
+    source._emit_key("KeyN", True)
+    source._emit_key("KeyN", True)
+    source._emit_key("KeyN", False)
+    source._emit_key("Digit1", True)
+    source._emit_key("Escape", True)
+    source._emit_key("KeyM", True)
+    assert pressed == ["n", "1", "Escape"]
+    source._emit_key("KeyN", True)
+    source._emit_focus_lost()
+    source._emit_key("KeyN", True)
+    assert pressed == ["n", "1", "Escape", "n", "n"]
+    remove()
+    remove()
+    source._emit_focus_lost()
+    source._emit_key("KeyN", True)
+    assert pressed == ["n", "1", "Escape", "n", "n"]

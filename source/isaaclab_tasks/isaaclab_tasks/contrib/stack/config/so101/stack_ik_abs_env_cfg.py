@@ -31,31 +31,14 @@ from isaaclab_assets.robots.so101 import SO101_HIGH_PD_CFG  # isort: skip
 _SO101_GRIPPER_OFFSET = SO101_GRIPPER_OPEN  # [rad] closedness c=0 -> open
 _SO101_GRIPPER_SCALE = SO101_GRIPPER_CLOSE - SO101_GRIPPER_OPEN  # [rad] c=1 -> close
 
-# Clutch EE reset-origin home: the ``base_T_ee`` transform [m] for the gripper's pose in the
-# robot base frame at the seated reset pose. The clutch seeds its home from this on reset / first
-# engage (no live end-effector is read; the base rebase is handled upstream by
-# ``target_frame_prim_path`` and the EE state forward is the clutch's own running home). The robot
-# ``init_state`` MUST forward-kinematics to this value, or engaging snaps the arm -- this is the
-# forward kinematics of the seated ``_SO101_STACK_INIT_JOINT_POS`` measured in sim, so re-measure
-# (read ``ee_frame.data.target_pos_source`` at reset) if those init joints change. Only the
-# translation drives the IK position command; the orientation command is the live controller grip
-# orientation composed with the clutch's fixed calibration offset, not this transform's rotation.
+# Clutch reset-origin target: the ``base_T_ee`` transform [m] in the robot base frame.
+# The home position matches the seated ``_SO101_STACK_INIT_JOINT_POS`` measured in sim; re-measure
+# ``ee_frame.data.target_pos_source`` at reset if those joints change. The rotation block defines
+# the home orientation target. Capture 1.7 seeds both channels from this transform on reset and
+# applies controller motion relative to each engage, retaining the commanded pose on re-clutch.
+# The base rebase is handled upstream by ``target_frame_prim_path``; no live EE pose is read here.
 _BASE_T_GRIPPER_HOME = np.eye(4, dtype=np.float32)
 _BASE_T_GRIPPER_HOME[:3, 3] = (0.01918, -0.18852, 0.18887)
-
-# Fixed controller-grip -> gripper_link orientation calibration offset [x, y, z, w] (xyzw),
-# passed to the clutch as a body-frame right multiply. ``None`` uses the clutch default (Rz(pi)).
-# Derivation: with ``q_grip`` the controller grip orientation and ``q_G0`` the gripper_link
-# orientation in the base frame (both xyzw) at the reset pose, the offset is
-# ``quat_inv(q_grip) (x) q_G0`` (xyzw); tuning it here needs no Teleop rebuild.
-# Set to RPY (roll, pitch, yaw) = (-90, 0, 60) degrees (intrinsic XYZ), i.e.
-# ``Rotation.from_euler("XYZ", [-90, 0, 60], degrees=True).as_quat()``.
-_SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (
-    -0.61237244,
-    0.35355339,
-    0.35355339,
-    0.61237244,
-)
 
 
 def _build_so101_stack_pipeline():
@@ -67,10 +50,11 @@ def _build_so101_stack_pipeline():
 
     The SO-101 is 5-DOF and driven by a full-SE3-pose IK over all 5 arm joints (shoulder_pan,
     shoulder_lift, elbow_flex, wrist_flex, wrist_roll): the clutch emits the controller pose
-    (position + grip orientation composed with a fixed calibration offset) and the IK tracks
+    (position + engage-relative orientation) and the IK tracks
     position exactly while best-effort tracking orientation (soft-weighted). The gripper jaw
     tracks the trigger proportionally (analog), and the EE position is clutch-rebased around a
-    captured origin so engaging teleop does not teleport the arm.
+    captured origin. Orientation is also relative to the engage pose, seeded from the configured
+    home rotation, so re-engaging retains the last commanded pose.
 
     Returns:
         OutputCombiner with a single "action" output containing the flattened
@@ -110,11 +94,6 @@ def _build_so101_stack_pipeline():
         name="ee_pose",
         input_device=ControllersSource.RIGHT,
         home_base_T_ee=_BASE_T_GRIPPER_HOME,
-        orientation_offset=(
-            np.array(_SO101_ORIENTATION_OFFSET_XYZW, dtype=np.float64)
-            if _SO101_ORIENTATION_OFFSET_XYZW is not None
-            else None
-        ),
     )
     connected_clutch = clutch.connect(
         {

@@ -169,6 +169,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     task=args_cli.task,
                     checkpoint_pattern=r".*",
                     other_dirs=["checkpoints"],
+                    latest_checkpoint_pattern=r"agent_.*",
                     metadata={
                         "agent": agent_cfg_entry_point,
                         "algorithm": algorithm,

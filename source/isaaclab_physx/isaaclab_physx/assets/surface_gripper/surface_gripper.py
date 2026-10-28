@@ -16,7 +16,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
-from isaaclab.utils.warp.utils import resolve_ids
+from isaaclab.utils.warp.memory import resolve_ids
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView

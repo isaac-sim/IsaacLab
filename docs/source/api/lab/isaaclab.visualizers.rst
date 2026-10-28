@@ -40,6 +40,8 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
 .. autoclass:: KeyboardSubscription
    :members: closed, close
 
+.. autofunction:: add_key_callbacks
+
 .. autoclass:: VisualizerCfg
    :show-inheritance:
 

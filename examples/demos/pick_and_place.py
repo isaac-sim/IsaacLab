@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from contextlib import ExitStack
 
 import torch
 import warp as wp
@@ -38,14 +39,13 @@ from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.devices import Se3KeyboardCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass, index_fill_, instantiate, replace
+from isaaclab.utils import configclass, index_fill_, replace
 from isaaclab.utils.math import sample_uniform
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, add_key_callbacks
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
@@ -321,36 +321,54 @@ def main() -> None:
     """Run the interactive surface-gripper demo."""
     env_cfg = PickAndPlaceEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
-    with launch_simulation(env_cfg, args_cli):
+    with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
         pick_and_place = PickAndPlaceEnv(env_cfg)
+        cleanup.callback(pick_and_place.close)
         pick_and_place.reset()
         actions = torch.zeros((pick_and_place.num_envs, 4), device=pick_and_place.device)
         teleop = None
         if pick_and_place.sim.has_gui:
-            teleop_cfg = Se3KeyboardCfg(pos_sensitivity=10.0, sim_device=pick_and_place.device)
-            teleop = instantiate(teleop_cfg)
-            teleop.add_callback("N", lambda: pick_and_place.auto_aim(cube=True))
-            teleop.add_callback("M", lambda: pick_and_place.auto_aim(cube=False))
+            from isaaclab_teleop import CLOUDXR_STANDALONE_ENV, create_isaac_teleop_device, se3_keyboard_teleop_cfg
+
+            teleop_cfg = se3_keyboard_teleop_cfg(pos_sensitivity=10.0, sim_device=pick_and_place.device)
+            teleop = cleanup.enter_context(
+                create_isaac_teleop_device(
+                    teleop_cfg,
+                    visualizers=pick_and_place.sim.visualizers,
+                    use_kit_xr_bridge=False,
+                    cloudxr_env_file=CLOUDXR_STANDALONE_ENV,
+                )
+            )
+            teleop.request_start()
+            cleanup.callback(
+                add_key_callbacks(
+                    pick_and_place.sim.visualizers,
+                    {"N": lambda: pick_and_place.auto_aim(cube=True), "M": lambda: pick_and_place.auto_aim(cube=False)},
+                )
+            )
             print(teleop)
             print("Pick up the purple cube and drop it on the red sphere, in ALL environments at once.")
             print("\tW/S and A/D move the gantries, Q/E latch them UP/DOWN, K toggles the grippers.")
             print("\tN/M make the grippers track the cube/target position.")
         step_count = 0
-        try:
-            while pick_and_place.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
-                if teleop is not None:
-                    cmd = teleop.advance()
-                    actions[:, :2] = cmd[:2]
-                    # Latch the gantry height effort; the z joint moves up for negative effort
-                    if cmd[2] != 0:
-                        actions[:, 2] = -200.0 if cmd[2] > 0 else 100.0
-                    # Se3Keyboard reports +1 for open, the surface gripper uses -1 for open
-                    actions[:, 3] = -cmd[6]
-                with torch.inference_mode():
-                    pick_and_place.step(actions)
-                step_count += 1
-        finally:
-            pick_and_place.close()
+        teleoperation_active = True
+        while pick_and_place.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+            if teleop is not None:
+                cmd = teleop.advance()
+                if teleop.last_control_events.is_active is not None:
+                    teleoperation_active = teleop.last_control_events.is_active
+                if cmd is None or not teleoperation_active:
+                    pick_and_place.sim.render()
+                    continue
+                actions[:, :2] = cmd[:2]
+                # Latch the gantry height effort; the z joint moves up for negative effort
+                if cmd[2] != 0:
+                    actions[:, 2] = -200.0 if cmd[2] > 0 else 100.0
+                # Capture reports +1 for open, the surface gripper uses -1 for open.
+                actions[:, 3] = -cmd[6]
+            with torch.inference_mode():
+                pick_and_place.step(actions)
+            step_count += 1
 
 
 if __name__ == "__main__":

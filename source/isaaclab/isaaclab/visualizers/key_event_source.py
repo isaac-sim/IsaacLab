@@ -8,7 +8,11 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .base_visualizer import BaseVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +123,56 @@ class KeyEventSource:
         for subscription in list(self._subscriptions):
             if not subscription.closed:
                 _call(subscription._on_focus_lost)
+
+
+def add_key_callbacks(
+    visualizers: Sequence[BaseVisualizer], callbacks: Mapping[str, Callable[[], None]]
+) -> Callable[[], None]:
+    """Call ``callbacks[key]`` when ``key`` is pressed in a visualizer window, e.g. for a script's hotkeys.
+
+    Keys are letters or digits (``"N"``, ``"1"``) or W3C ``KeyboardEvent.code`` strings (``"Escape"``).
+    Key repeat is not a press, and a press reported by several visualizers (Kit visualizers share the
+    app window) fires once. The callbacks end when the visualizers close, or when the returned
+    function is called.
+
+    Args:
+        visualizers: The windows to read, usually ``sim.visualizers``.
+        callbacks: The function to call for each key. Takes no arguments.
+
+    Returns:
+        A function that removes the callbacks.
+    """
+    by_code = {}
+    for key, callback in callbacks.items():
+        if len(key) == 1 and key.isalpha():
+            key = f"Key{key.upper()}"
+        elif len(key) == 1 and key.isdigit():
+            key = f"Digit{key}"
+        by_code[key] = callback
+    # shared by every window, so a press several visualizers report fires once
+    held: set[str] = set()
+
+    def on_key(code: str, pressed: bool) -> None:
+        if not pressed:
+            held.discard(code)
+        elif code not in held:
+            held.add(code)
+            if code in by_code:
+                by_code[code]()
+
+    subscriptions = []
+    for visualizer in visualizers:
+        source = visualizer.key_event_source
+        if source is not None:
+            subscriptions.append(source.add_key_listener(on_key, held.clear))
+    if not subscriptions:
+        logger.info("No visualizer window reports keys, so the key callbacks are inactive")
+
+    def remove() -> None:
+        for subscription in subscriptions:
+            subscription.close()
+
+    return remove
 
 
 def _call(callback: Callable, *args) -> None:

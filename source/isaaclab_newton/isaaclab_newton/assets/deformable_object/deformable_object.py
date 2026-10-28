@@ -17,7 +17,7 @@ import warp as wp
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
 
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -407,7 +407,7 @@ class DeformableObject(BaseDeformableObject):
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
         """Resolve an environment mask to a warp bool array."""
-        return resolve_1d_mask(mask=mask, all_mask=full_mask, device=self.device)
+        return resolve_1d_mask(mask=mask, all_mask=full_mask)
 
     def _iter_particle_states(self):
         """Yield active Newton states."""
