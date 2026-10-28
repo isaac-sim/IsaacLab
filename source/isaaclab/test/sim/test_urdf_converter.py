@@ -49,10 +49,6 @@ _REPO_FRANKA_URDF = os.path.join(
 # Kept beside the tests so they are hermetic and run on either importer backend.
 _MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
 
-# Fixed-joint-only fixture: the importer writes no PhysX data for it, so its "Physics" variant set
-# offers no "physx" variant, so requesting it must fail.
-_FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
-
 
 # Create a fixture for setup and teardown
 @pytest.fixture
@@ -631,12 +627,13 @@ def test_physics_variant_raises_again_on_retry(tmp_path):
     os.makedirs(output_dir, exist_ok=True)
 
     config = UrdfConverterCfg(
-        asset_path=_FIXED_ONLY_URDF,
+        asset_path=_REPO_FRANKA_URDF,
         fix_base=True,
         usd_dir=output_dir,
-        physics_variant="physx",
+        physics_variant="not_a_variant",
     )
 
     for _ in range(2):
-        with pytest.raises(ValueError, match="no 'physx' physics variant"):
+        with pytest.raises(ValueError, match="no 'not_a_variant' physics variant"):
             UrdfConverter(config)
+        assert not os.path.exists(os.path.join(output_dir, ".asset_hash"))
