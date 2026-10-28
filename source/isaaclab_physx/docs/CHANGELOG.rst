@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+10.0.1 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed FrameTransformer initialization and numeric environment ordering for manually authored
+  environments without a clone plan.
+
+
 10.0.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -3,6 +3,31 @@ Changelog
 
 .. towncrier release notes start
 
+5.3.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``"warp"`` as an ``ml_framework`` option to :func:`~isaaclab_rl.skrl.import_skrl_runner` and to the
+  ``--ml_framework`` argument of the skrl train/play entrypoints, enabling training with skrl's Warp
+  implementation. Install it with the ``skrl`` extra.
+
+Changed
+^^^^^^^
+
+* Changed the minimum supported skrl version to 2.1.1, which is required for the Warp ML framework.
+* Changed the skrl train/play run summary to show the selected ML framework.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint latest`` loading the best-reward checkpoint instead of the newest one for skrl runs and for
+  rl_games runs whose config name sorts after ``last_``, such as ``shadow_hand`` or ``reach_franka``. The selector
+  now picks the newest periodic or ``score_to_win`` checkpoint and falls back to the previous behavior when there
+  are none.
+
+
 5.2.2 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~
 
