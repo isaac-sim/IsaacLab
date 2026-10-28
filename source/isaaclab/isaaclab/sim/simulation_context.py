@@ -39,6 +39,7 @@ from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
     PerspectiveCameraCfg,
     SceneCameraCfg,
+    TrackingCameraCfg,
     VisualizerCfg,
     migrate_visualizer_cfgs,
     with_free_view,
@@ -193,7 +194,7 @@ class SimulationContext:
         # TODO: Remove this workaround once the CUDA driver bug in isaac-sim/IsaacLab#8342 is fixed.
         reserve_cuda_graph_memory(self.cfg.device)
 
-        self.backend_manager: PhysicsManager = self._physics.class_type()
+        self.backend_manager: PhysicsManager = instantiate(self._physics)
         """Physics backend manager selected by ``cfg.physics``, owned by this context."""
         # Must be set before backend_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
@@ -432,7 +433,7 @@ class SimulationContext:
                 declared = [
                     camera
                     for camera in visualizer.cfg.cameras or []
-                    if task_views or not (isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view)
+                    if task_views or not (isinstance(camera, TrackingCameraCfg))
                 ]
                 cameras = declared or [
                     PerspectiveCameraCfg(
@@ -450,8 +451,7 @@ class SimulationContext:
                     sensor_key_for_gt_type(gt_type)
                 # task views only add to the scene cameras the visualizer would find on its own
                 task_views_only = bool(visualizer.cfg.cameras) and all(
-                    isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view
-                    for camera in visualizer.cfg.cameras
+                    isinstance(camera, TrackingCameraCfg) for camera in visualizer.cfg.cameras
                 )
                 if visualizer.cfg.cameras is None or task_views_only:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
@@ -466,7 +466,7 @@ class SimulationContext:
                         continue
                     path = expand_env_regex_ns(source.prim_path, env_template)
                     pattern = path.replace("%d", "[^/]+").replace("{}", "[^/]+")
-                    pattern = pattern.replace("/World/envs/*", "/World/envs/env_[^/]+")
+                    pattern = re.sub(r"(?<=/)\*(?=/|$)", "[^/]+", pattern)
                     for camera in sensors.values():
                         if camera.cfg.prim_path == path:
                             break
@@ -483,7 +483,7 @@ class SimulationContext:
                         )
                     cameras[index] = camera
             # task views come last, after the free view and the scene cameras
-            cameras.sort(key=lambda camera: isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view)
+            cameras.sort(key=lambda camera: isinstance(camera, TrackingCameraCfg))
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)

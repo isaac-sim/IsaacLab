@@ -542,7 +542,7 @@ provides a **Camera View** selector in the sidebar for switching between perspec
 views.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
-sources, troubleshooting, migration from generated cameras, and step-by-step examples.
+sources, tracking cameras that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
 
 
 Visualization Markers
@@ -672,6 +672,63 @@ Rerun cannot.
 
 See :doc:`/source/how-to/record_video` for the full guide and tutorial.
 
+Keyboard Input
+~~~~~~~~~~~~~~
+
+A visualizer with a local window reports the keys typed into it through
+:attr:`~isaaclab.visualizers.BaseVisualizer.key_event_source`, for example to drive a robot from
+the keyboard. Each key press and release arrives as a W3C ``KeyboardEvent.code`` string such as
+``"KeyW"``:
+
+- :class:`~isaaclab_visualizers.kit.KitVisualizer` reports physical key positions, independent of
+  the keyboard layout. Keys typed into Kit's own UI, such as a text field, are reported too.
+- :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` report layout-mapped keys: a code names
+  the key that types the same character on a US layout. Presses typed into the window's UI are
+  withheld. Presses and releases pair up reliably on a US layout; on other layouts, changing Shift
+  while holding a digit or punctuation key can leave it held until the window loses focus.
+
+The Viser and Rerun visualizers, and any visualizer running headless, have no keyboard source and
+return ``None``. A headless Viser server still takes input from connected browsers, but not through
+``key_event_source``.
+
+Each Newton window has its own source. Kit visualizers share the Kit application window, so each of
+them reports the same keys; a consumer that listens to every visualizer must accept a key from more
+than one source.
+
+The visualizer connects native keyboard and focus events when its window initializes and
+disconnects them before the window closes. A subscription only adds or removes a listener;
+it does not initialize window resources. The source owns no held-key state or camera policy.
+
+Close the subscription when you are done with it. A consumer that uses the camera's motion keys
+also turns off keyboard camera movement with
+:meth:`~isaaclab.visualizers.BaseVisualizer.set_camera_keys_enabled`; a Newton window then stops
+moving its camera with WASD/QE and the arrow keys, and Kit's viewport, whose camera keys only act
+while the right mouse button is held, is unaffected:
+
+.. code-block:: python
+
+   visualizer = sim.visualizers[0]
+   source = visualizer.key_event_source
+   if source is not None:
+       held = set()
+
+       def on_key(code: str, pressed: bool) -> None:
+           (held.add if pressed else held.discard)(code)
+
+       visualizer.set_camera_keys_enabled(False)
+       try:
+           with source.add_key_listener(on_key, held.clear):
+               ...  # use held while stepping the simulation
+       finally:
+           visualizer.set_camera_keys_enabled(True)
+
+Subscribe, unsubscribe and close on the thread that steps the visualizer; callbacks run there too,
+in event order. Events arrive as the window reports them: key repeat can arrive as further presses,
+and a release can arrive without its press, so a listener tracks the keys it holds.
+``on_focus_lost`` runs when the window stops delivering keys, because it lost focus, its UI took
+the keyboard, or the visualizer closed; treat every held key as released.
+
 
 .. _visualization-configuration:
 
@@ -704,22 +761,21 @@ Watch training live in Kit while recording from a separate headless Newton angle
 ``--viz kit --video viz:newton`` and giving each visualizer its own camera. See
 :ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
-**Following a moving robot (Kit)**
+**Following a moving robot**
 
-Lock the Kit camera to a moving asset instead of updating ``eye``/``lookat`` yourself every
-step, running with ``--viz kit``:
+Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitBackendCfg
-
-    from isaaclab.visualizers import VisualizerCfg
-
-    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     sim_cfg.visualizer_cfgs = VisualizerCfg(
-        eye=(4.0, 4.0, 2.0),
-        backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="asset", origin_track_path="robot")),
+        cameras=[
+            TrackingCameraCfg(
+                track_path="robot",  # or "robot/panda_hand" to track a specific body
+                eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
+            ),
+        ],
     )
 
 **Sharing a live view with a remote teammate**

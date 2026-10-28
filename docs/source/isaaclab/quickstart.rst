@@ -90,8 +90,8 @@ and is a good starting point for GPU-based training.
      - PPO, SAC, and A2C workflows
      - ``uv run --extra rl-games isaaclab train --rl_library rl_games ...``
    * - ``skrl``
-     - Broad algorithm support with PyTorch and JAX
-     - ``--extra skrl`` for PyTorch; ``--extra skrl-jax`` for JAX
+     - Broad algorithm support with PyTorch, JAX, and NVIDIA Warp
+     - ``--extra skrl`` for PyTorch and NVIDIA Warp; ``--extra skrl-jax`` for JAX
    * - ``sb3``
      - Stable-Baselines3 and CPU-oriented experiments
      - ``uv run --extra sb3 isaaclab train --rl_library sb3 ...``

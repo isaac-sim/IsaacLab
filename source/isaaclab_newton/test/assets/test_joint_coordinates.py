@@ -19,7 +19,7 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
     gather_joint_coordinates,
     scatter_joint_coordinates,
 )
-from isaaclab_newton.physics import NewtonMJWarpManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 from newton.selection import ArticulationView
 from scipy.spatial.transform import Rotation
 
@@ -83,7 +83,7 @@ def test_identity_quaternion_gathers_to_zero_rotation_vector(sign: float) -> Non
 
 
 @pytest.mark.parametrize("ball_joint", [False, True])
-def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
+def test_joint_commands_preserve_coordinate_layout(ball_joint):
     """DOF commands reach native coordinate targets without touching either world's free root."""
     source = newton.ModelBuilder()
     base, middle, tip = [source.add_link(mass=1.0, inertia=wp.mat33(np.eye(3))) for _ in range(3)]
@@ -98,10 +98,10 @@ def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
     state, control = model.state(), model.control()
     assert model.joint_coord_count != model.joint_dof_count
     assert control.joint_target_q.shape == state.joint_q.shape
-    backend_manager = NewtonMJWarpManager()
-    monkeypatch.setattr(backend_manager, "get_model", lambda: model)
-    monkeypatch.setattr(backend_manager, "get_state_0", lambda: state)
-    monkeypatch.setattr(backend_manager, "get_control", lambda: control)
+    backend_manager = NewtonManager(NewtonCfg())
+    backend_manager.backend = SimpleNamespace(
+        model=model, state_0=state, control=control, solver=None, actuators=None, kinematics_dirty=False
+    )
     view = ArticulationView(model, "Robot", exclude_joint_types=[newton.JointType.FREE])
     data = ArticulationData(view, "cpu", backend_manager=backend_manager)
     data._apply_ordering_maps_after_resolve()
@@ -121,7 +121,9 @@ def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
         _joint_vel_target_sim=wp.zeros((2, num_dofs), device="cpu"),
         _joint_effort_target_sim=wp.zeros((2, num_dofs), device="cpu"),
     )
-    articulation = SimpleNamespace(data=data, _ALL_ENV_MASK=wp.array([True, True], dtype=wp.bool, device="cpu"))
+    articulation = SimpleNamespace(
+        data=data, _backend_manager=backend_manager, _ALL_ENV_MASK=wp.array([True, True], dtype=wp.bool, device="cpu")
+    )
     NewtonActuatorControl(articulation).submit_commands(collection)
     np.testing.assert_allclose(control.joint_target_q.numpy().reshape(2, -1), expected, atol=1e-6)
 

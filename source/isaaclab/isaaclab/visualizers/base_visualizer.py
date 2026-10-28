@@ -23,9 +23,11 @@ from ..utils import validate
 from ..utils.backend_utils import FactoryBase
 from ..utils.images import resolve_display_channels
 from .image_view import ImageView
+from .key_event_source import KeyEventSource
 from .visualizer_cfg import (
     ImageViewCfg,
     PerspectiveCameraCfg,
+    TrackingCameraCfg,
     VisualizerBackendCfg,
     VisualizerCfg,
     migrate_visualizer_cfgs,
@@ -72,6 +74,7 @@ class BaseVisualizer(ABC):
         self._sim_time = 0.0
         self.current_image_view: ImageView | None = None
         self._image_views: list[ImageView] = []
+        self._key_event_source: KeyEventSource | None = None
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -122,7 +125,7 @@ class BaseVisualizer(ABC):
                 num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
                 env_ids = sorted(random.sample(pool, num_tiles))
         task_views_only = bool(self.cfg.cameras) and all(
-            isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view for camera in self.cfg.cameras
+            isinstance(camera, TrackingCameraCfg) for camera in self.cfg.cameras
         )
         automatic_sources = (
             self.cfg.cameras is None or task_views_only
@@ -240,6 +243,29 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         return FactoryBase._get_backend(sim=self._sim) if self._sim is not None else None
+
+    @property
+    def key_event_source(self) -> KeyEventSource | None:
+        """Keyboard input from this visualizer's local window, or ``None`` when there is none.
+
+        Consumers subscribe to the keys pressed and released while the window has focus, e.g. for
+        keyboard teleoperation or script hotkeys. The source connects when the visualizer initializes
+        its window, and the visualizer closes it before releasing that window. ``None``
+        before initialization, after close, and for backends or modes with no local window that can
+        report keys (the default).
+        """
+        return self._key_event_source
+
+    def set_camera_keys_enabled(self, enabled: bool) -> None:
+        """Enable or disable moving this visualizer's camera with the keyboard.
+
+        A keyboard consumer such as keyboard teleoperation disables it, so the motion keys it uses
+        (e.g. WASD/QE and the arrow keys) do not also move the camera. Mouse camera control is
+        unaffected. Visualizers whose camera takes no keyboard input ignore it (the default).
+
+        Args:
+            enabled: Whether keyboard camera movement is enabled.
+        """
 
     def supports_markers(self) -> bool:
         """Check if visualizer supports VisualizationMarkers.
@@ -432,3 +458,12 @@ class BaseVisualizer(ABC):
     def stop(self) -> None:
         """Handle simulation stop. No-op by default."""
         pass
+
+    def _close_key_event_source(self) -> None:
+        """Close window input before native teardown; cleanup failures must not retain the window."""
+        source, self._key_event_source = self._key_event_source, None
+        if source is not None:
+            try:
+                source.close()
+            except Exception:
+                logger.exception("[%s] Keyboard input cleanup failed", type(self).__name__)

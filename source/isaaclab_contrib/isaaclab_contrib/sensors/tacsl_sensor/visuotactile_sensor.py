@@ -165,7 +165,9 @@ class VisuoTactileSensor(SensorBase):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets the sensor internals."""
         # reset the timestamps
-        super().reset(env_ids, env_mask)
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=env_mask)
+        self._invalidate_buffers(env_mask)
 
         # Reset camera sensor if enabled
         if self._camera_sensor:
@@ -178,6 +180,7 @@ class VisuoTactileSensor(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor-related handles and internal buffers."""
         super()._initialize_impl()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
         # Obtain the backend simulation view.
         self._physics_sim_view = self._backend_manager.get_physics_sim_view()

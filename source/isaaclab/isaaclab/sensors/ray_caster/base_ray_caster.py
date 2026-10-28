@@ -107,7 +107,9 @@ class BaseRayCaster(SensorBase):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
-        super().reset(env_ids, env_mask)
+        reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=reset_mask)
+        self._invalidate_buffers(reset_mask)
         # Drift buffers start at zero, so zero ranges (the defaults) need no resampling.
         sample_drift = any(self.cfg.drift_range)
         ray_cast_range_list = tuple(
@@ -171,6 +173,7 @@ class BaseRayCaster(SensorBase):
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
         self._initialize_rays_impl()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     def _initialize_pose_tracking(self) -> None:
         """Initialize backend-specific sensor pose tracking.

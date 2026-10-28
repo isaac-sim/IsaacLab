@@ -16,7 +16,7 @@ pytest.importorskip("newton")
 from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizerBase
 from pyglet.math import Vec3
 
-from isaaclab.visualizers import PerspectiveCameraCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
 from isaaclab.visualizers.camera_follower import CameraFollower
 
 
@@ -67,7 +67,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
 
 
 def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_camera():
-    free, task = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
     viz = _visualizer([free, task])
 
     assert viz._view_labels([0, 1]) == ["Perspective", "Tracking Camera"]
@@ -75,8 +75,8 @@ def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_cam
 
 
 def test_views_are_numbered_only_when_several_share_a_name():
-    views = [_view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=0))]
-    views += [_view(PerspectiveCameraCfg(env_index=1))]
+    views = [_view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))]
+    views += [_view(TrackingCameraCfg(env_index=1))]
     viz = _visualizer(views)
 
     assert viz._view_labels([0, 1, 2, 3]) == [
@@ -97,7 +97,7 @@ def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern()
 
 def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_sensors():
     sensor = _View("/World/envs/env_[^/]+/Camera", camera=object())
-    tracking, free = _view(PerspectiveCameraCfg(env_index=0)), _view(PerspectiveCameraCfg())
+    tracking, free = _view(TrackingCameraCfg(env_index=0)), _view(PerspectiveCameraCfg())
     viz = _visualizer([sensor, tracking, free])
 
     order = sorted(range(3), key=lambda i: viz._source_rank(viz._image_views[i]))
@@ -106,7 +106,7 @@ def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_senso
 
 
 def test_a_task_view_moves_the_viewer_camera_to_the_followed_environment():
-    view = _view(PerspectiveCameraCfg(env_index=1, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    view = _view(TrackingCameraCfg(env_index=1, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
     viz = _visualizer([view])
 
     assert viz._apply_view_pose(view)
@@ -117,7 +117,7 @@ def test_a_task_view_moves_the_viewer_camera_to_the_followed_environment():
 
 
 def test_switching_the_followed_environment_re_aims_the_camera():
-    view = _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
+    view = _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
     viz = _visualizer([view])
 
     viz._followers[view].set_env(1)
@@ -127,7 +127,7 @@ def test_switching_the_followed_environment_re_aims_the_camera():
 
 
 def test_resetting_the_tracking_camera_restores_what_the_task_declared():
-    view = _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    view = _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
     viz = _visualizer([view])
     cfg = view.cfg.source
     viz._tracking_defaults = {
@@ -153,7 +153,7 @@ def test_resetting_the_tracking_camera_restores_what_the_task_declared():
 
 
 def test_an_invalid_followed_asset_is_reported_not_raised():
-    view = _view(PerspectiveCameraCfg(env_index=0))
+    view = _view(TrackingCameraCfg(env_index=0))
     viz = _visualizer([view])
     viz._tracking_error = ""
 
@@ -168,7 +168,7 @@ def test_an_invalid_followed_asset_is_reported_not_raised():
 
 
 def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
-    free, task = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(env_index=0))
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
     viz = _visualizer([free, task])
     viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
     viz.current_image_view = free
@@ -186,7 +186,7 @@ def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
 
 
 def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
-    view = _view(PerspectiveCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    view = _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
     rtx = _View("/World/viewer_camera_0_rtx", camera=object())
     viz = _visualizer([view])
     cfg = view.cfg.source

@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -18,7 +19,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonMJWarpManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 from isaaclab_visualizers.newton import (
     NewtonGLBackendCfg,
     NewtonGLVisualizer,
@@ -37,7 +38,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import validate
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, TrackingCameraCfg, VisualizerCfg, WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -96,7 +97,7 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(mo
         particle_world=object(),
     )
     state = SimpleNamespace(particle_q=object())
-    backend_manager = SimpleNamespace(get_model=lambda: model, get_state_0=lambda: state)
+    backend_manager = SimpleNamespace(backend=SimpleNamespace(model=model, state_0=state))
 
     viewer = _Viewer()
     visualizer = _make_newton_visualizer(viewer, cfg=VisualizerCfg(enable_markers=False, backend=NewtonGLBackendCfg()))
@@ -259,7 +260,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     )
     sim = object.__new__(SimulationContext)
     sim._scene_data_provider, sim._backend_registry, sim._physics_step_count = provider, [], 0
-    sim.backend_manager = NewtonMJWarpManager()
+    sim.backend_manager = NewtonManager(NewtonCfg())
     viewers = []
     for ids in ([0, 2], [1, 3]):
         cfg = VisualizerCfg(
@@ -658,7 +659,10 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._viewer = viewer
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
-        model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}
+        model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)),
+        state_0=state,
+        geometry_offsets={},
+        contacts=None,
     )
     provider = scene_data_provider or _SceneDataProvider()
     provider.poses = state.body_q
@@ -668,12 +672,12 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
         get_scene_data_provider=lambda: provider,
         get_physics_step_count=lambda: visualizer._sim_time,
         is_rendering=True,
-        backend_manager=NewtonMJWarpManager(),
+        backend_manager=NewtonManager(NewtonCfg()),
     )
     from isaaclab.visualizers import ImageView, ImageViewCfg
 
     view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
-    view.render = visualizer._capture_frame
+    view.render = partial(visualizer._capture_view, view)
     visualizer.current_image_view, visualizer._image_views = view, [view]
     if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
@@ -763,8 +767,7 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
     contacts = object()
     viewer = _Viewer()
     visualizer = _make_newton_visualizer(viewer, state=state)
-
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", lambda: contacts)
+    visualizer.backend.contacts = contacts
 
     visualizer.step(0.1)
 
@@ -785,8 +788,6 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
     visualizer.rendering = SimpleNamespace(draw=lambda viewer: viewer.events.append("coffee"))
     points = wp.zeros(3, dtype=wp.vec3)
     indices = wp.zeros(3, dtype=wp.int32)
-
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", lambda: None)
 
     normals = wp.zeros(3, dtype=wp.vec3)
 
@@ -874,8 +875,8 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     visualizer.current_image_view.read = Mock(return_value=image)
     provider = visualizer._sim.get_scene_data_provider()
     provider.get_transforms = Mock(wraps=provider.get_transforms)
-    contacts, markers = Mock(return_value=None), Mock()
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", contacts)
+    markers = Mock()
+    visualizer.backend.contacts = contacts = object()
     monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
 
     visualizer.step(0.1)
@@ -886,7 +887,7 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     assert name == "Streaming View" and displayed is image and fullscreen
     visualizer.current_image_view.read.assert_called_once()
     provider.get_transforms.assert_not_called()
-    contacts.assert_not_called()
+    assert viewer.logged_contacts is None
     markers.assert_not_called()
 
     viewer.paused = False
@@ -894,7 +895,7 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     visualizer.step(0.1)
     assert viewer.events[-3:] == ["begin_frame", "log_state", "end_frame"]
     provider.get_transforms.assert_called_once()
-    contacts.assert_called_once()
+    assert viewer.logged_contacts[0] is contacts
 
 
 @pytest.mark.rendering
@@ -1204,7 +1205,6 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
         monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "physx"))
     scene_data_provider = _SceneDataProvider({"contact_forces": sensor})
     visualizer = _make_newton_visualizer(viewer, scene_data_provider, state=state)
-    monkeypatch.setattr(visualizer._sim.backend_manager, "get_contacts", lambda: None)
     visualizer.backend.model.num_envs = 2
     visualizer._env_ids = [1]
     visualizer.step(0.1)
@@ -1447,7 +1447,7 @@ def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
     free, rtx, tracking = (
         view(PerspectiveCameraCfg()),
         view(PerspectiveCameraCfg(), rtx_camera),
-        view(PerspectiveCameraCfg(env_index=0)),
+        view(TrackingCameraCfg(env_index=0)),
     )
     visualizer = object.__new__(NewtonGLVisualizer)
     visualizer._image_views = [free, rtx, tracking]

@@ -5,22 +5,20 @@
 
 from __future__ import annotations
 
-import re
 from collections import deque
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from weakref import WeakValueDictionary, ref
 
 import numpy as np
 import warp as wp
 
+from .. import cloner
 from .. import sim as sim_utils
+from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from ..sensors import camera, contact_sensor
 from ..utils.buffers import TimestampedBuffer
 from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
-
-if TYPE_CHECKING:
-    from pxr import Usd
 
 REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
     "kit": (True, False),
@@ -207,11 +205,47 @@ class SceneDataProvider:
 
         Returns:
             Dictionary with keys ``order`` (list of template prim paths using
-            ``env_%d``), ``positions`` and ``orientations`` (per-camera, per-env
+            ``%d`` for the environment index), ``positions`` and ``orientations`` (per-camera, per-env
             lists, with ``None`` for absent envs), and ``num_envs``. Returns
             ``None`` when no USD stage is available.
         """
-        return _walk_camera_prims(sim_utils.SimulationContext.instance().stage)
+        from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+        sim = sim_utils.SimulationContext.instance()
+        if sim.stage is None:
+            return None
+        plan = sim.get_clone_plan()
+        env_template = plan.env_template if plan is not None else DEFAULT_ENV_TEMPLATE
+        num_envs = len(plan.topology.world_prototype_layout) if plan is not None else 0
+        instances = {}
+        stage_prims = deque([sim.stage.GetPseudoRoot()])
+        while stage_prims:
+            prim = stage_prims.popleft()
+            prim_path = str(prim.GetPath())
+            world_id, template_path = 0, prim_path
+            match = cloner.path.match(prim_path, env_template)
+            if match is not None and match.instance.isdigit():
+                world_id = int(match.instance)
+                template_path = env_template.format("%d") + match.suffix
+                num_envs = max(num_envs, world_id + 1)
+            imageable = UsdGeom.Imageable(prim)
+            if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
+                continue
+            if prim.IsA(UsdGeom.Camera):
+                instances.setdefault(template_path, []).append((world_id, prim))
+            stage_prims.extend(prim.GetFilteredChildren(Usd.TraverseInstanceProxies()))
+
+        positions, orientations = [], []
+        for cameras in instances.values():
+            world_positions, world_orientations = [None] * num_envs, [None] * num_envs
+            for world_id, prim in cameras:
+                if world_id < num_envs:
+                    pos, ori = sim_utils.resolve_prim_pose(prim)
+                    world_positions[world_id] = list(map(float, pos))
+                    world_orientations[world_id] = list(map(float, ori))
+            positions.append(world_positions)
+            orientations.append(world_orientations)
+        return dict(order=list(instances), positions=positions, orientations=orientations, num_envs=num_envs)
 
     def init_output(
         self,
@@ -625,77 +659,3 @@ class ConversionKernels:
         idx = ConversionKernels.get_output_index(tid, mapping)
         if idx > -1:
             output.matrices[idx] = input.matrices[tid]
-
-
-_ENV_PATH_RE = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
-
-
-def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
-    """Walk ``stage`` and collect per-environment camera transforms.
-
-    Args:
-        stage: USD stage to traverse, or ``None``.
-
-    Returns:
-        Dictionary with keys ``order`` (template prim paths using ``env_%d``),
-        ``positions``, ``orientations`` (per-camera, per-env, with ``None`` for
-        absent envs), and ``num_envs``. Returns ``None`` when ``stage`` is ``None``.
-    """
-    if stage is None:
-        return None
-
-    from pxr import UsdGeom  # noqa: PLC0415
-
-    shared_paths: list[str] = []
-    instances: dict[str, list[tuple[int, str]]] = {}
-    num_envs = -1
-
-    stage_prims = deque([stage.GetPseudoRoot()])
-    while stage_prims:
-        prim = stage_prims.popleft()
-        prim_path = prim.GetPath().pathString
-
-        world_id = 0
-        template_path = prim_path
-        if match := _ENV_PATH_RE.match(prim_path):
-            world_id = int(match.group("id"))
-            template_path = match.group("root") + "%d" + match.group("path")
-            if world_id > num_envs:
-                num_envs = world_id
-
-        imageable = UsdGeom.Imageable(prim)
-        if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
-            continue
-
-        if prim.IsA(UsdGeom.Camera):
-            instances.setdefault(template_path, []).append((world_id, prim_path))
-            if template_path not in shared_paths:
-                shared_paths.append(template_path)
-
-        if hasattr(UsdGeom, "TraverseInstanceProxies"):
-            child_prims = prim.GetFilteredChildren(UsdGeom.TraverseInstanceProxies())
-        else:
-            child_prims = prim.GetChildren()
-        if child_prims:
-            stage_prims.extend(child_prims)
-
-    num_envs += 1
-    positions: list[list[list[float] | None]] = []
-    orientations: list[list[list[float] | None]] = []
-
-    for template_path in shared_paths:
-        per_world_pos: list[list[float] | None] = [None] * num_envs
-        per_world_ori: list[list[float] | None] = [None] * num_envs
-        for world_id, prim_path in instances.get(template_path, []):
-            if world_id < 0 or world_id >= num_envs:
-                continue
-            prim = stage.GetPrimAtPath(prim_path)
-            if not prim.IsValid():
-                continue
-            pos, ori = sim_utils.resolve_prim_pose(prim)
-            per_world_pos[world_id] = [float(pos[0]), float(pos[1]), float(pos[2])]
-            per_world_ori[world_id] = [float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3])]
-        positions.append(per_world_pos)
-        orientations.append(per_world_ori)
-
-    return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}

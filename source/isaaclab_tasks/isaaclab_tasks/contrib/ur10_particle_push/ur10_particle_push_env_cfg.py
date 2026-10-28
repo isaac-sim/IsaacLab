@@ -17,7 +17,6 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -35,11 +34,9 @@ from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 from isaaclab_assets.robots.universal_robots import UR10_CFG
 
@@ -617,10 +614,9 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 120.0,
         render_interval=decimation,
+        # the viewport starts on the first view, framing environment 0; a free view follows it
         visualizer_cfgs=VisualizerCfg(
-            eye=(1.7, 1.5, 1.0),
-            lookat=(0.55, 0.0, 0.0),
-            backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
+            cameras=[TrackingCameraCfg(eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
         ),
     )
     actions: ActionsCfg = ActionsCfg()
@@ -978,7 +974,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                             njmax=256,
                             nconmax=512,
                         ),
-                        bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Table"],
+                        bodies=[r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Table"],
                         # Let Newton derive body and global static shape visibility without explicit ownership.
                         include_body_shapes=False,
                         # Refine rigid integration with three substeps per coupled interval.
@@ -1004,12 +1000,12 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                             project_outside_colliders=False,
                         ),
                         bodies=[
-                            r"/World/envs/env_.*/MPMWorkSurface",
-                            r"/World/envs/env_.*/MPMBinFloor",
-                            r"/World/envs/env_.*/MPMBinFront",
-                            r"/World/envs/env_.*/MPMBinBack",
-                            r"/World/envs/env_.*/MPMBinLeft",
-                            r"/World/envs/env_.*/MPMBinRight",
+                            r"{ENV_REGEX_NS}/MPMWorkSurface",
+                            r"{ENV_REGEX_NS}/MPMBinFloor",
+                            r"{ENV_REGEX_NS}/MPMBinFront",
+                            r"{ENV_REGEX_NS}/MPMBinBack",
+                            r"{ENV_REGEX_NS}/MPMBinLeft",
+                            r"{ENV_REGEX_NS}/MPMBinRight",
                         ],
                         shape_label_patterns=[GROUND_PLANE_SHAPE_PATTERN],
                         all_particles=True,
@@ -1024,7 +1020,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerProxyMappingCfg(
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
-                        bodies=[r"/World/envs/env_.*/Robot/ee_link/Paddle"],
+                        bodies=[r"{ENV_REGEX_NS}/Robot/ee_link/Paddle"],
                         mode="lagged",
                         mass_scale=self.proxy_mass_scale,
                         collision_pipeline=None,

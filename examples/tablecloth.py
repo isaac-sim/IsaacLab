@@ -1368,15 +1368,15 @@ def main() -> None:
             usd_path,
             step_dt,
             speeds,
-            state=sim.backend_manager.get_state_0(),
-            control=sim.backend_manager.get_control(),
+            state=sim.backend_manager.backend.state_0,
+            control=sim.backend_manager.backend.control,
             substeps=substeps,
         )
         sim.backend_manager.activate_newton_actuator_path()
         sim.backend_manager.register_post_actuator_callback(controller.interpolate_arm_targets)
         sim.backend_manager.set_decimation(substeps)
         sim.backend_manager.register_post_step_callback(controller.compute)
-        grasp = _GraspMonitor(sim.backend_manager.get_model(), sim.backend_manager.get_state_0(), controller)
+        grasp = _GraspMonitor(sim.backend_manager.backend.model, sim.backend_manager.backend.state_0, controller)
         sim.backend_manager.register_post_step_callback(grasp.compute)
         # Include per-phase frame rounding, the slowest pull and a one-second hold.
         duration = sum(H2_PHASE_DURATIONS) + len(H2_PHASE_DURATIONS) * step_dt

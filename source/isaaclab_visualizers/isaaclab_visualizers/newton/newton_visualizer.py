@@ -16,6 +16,7 @@ import sys
 import time
 import webbrowser
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -53,12 +54,13 @@ from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TI
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
 from isaaclab.visualizers.policy_ghost import PolicyGhostController
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, TrackingCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
+from .newton_key_event_source import NewtonKeyEventSource
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
 from .newton_recording import NewtonRecordingPanel, hover_tooltip
 from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
@@ -189,6 +191,10 @@ class NewtonViewerGL(ViewerGL):
 
     _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
+    camera_keys_suspended = False
+    """Set while keyboard camera movement is disabled (see :meth:`NewtonVisualizerBase.set_camera_keys_enabled`)."""
+    keyboard_frame_hook: Callable[[], object] | None = None
+    """Called after every frame while a :class:`NewtonKeyEventSource` listens, to track ImGui keyboard ownership."""
     _owner = None
     _policy_ghost_panel = None
     _policy_ghost_restart = None
@@ -769,6 +775,8 @@ class NewtonViewerGL(ViewerGL):
             super().end_frame()
         finally:
             self._fullscreen_image_active = False
+        if self.keyboard_frame_hook is not None:
+            self.keyboard_frame_hook()
         if self._close_requested:
             self.close()
 
@@ -792,6 +800,12 @@ class NewtonViewerGL(ViewerGL):
                 self._owner._update_state()
             )  # An image frame does not log state; cast against fresh poses.
         super().on_mouse_press(x, y, button, modifiers)
+
+    def _update_camera(self, dt: float):
+        """Move the camera from held keys, unless keyboard camera movement is disabled."""
+        if self.camera_keys_suspended:
+            return
+        super()._update_camera(dt)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply configured model-particle appearance while preserving Newton's point logging.
@@ -874,6 +888,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
+        self._camera_keys_enabled = True
         self._overlay_publisher = None
         self._followers: dict[object, CameraFollower] = {}
         self._rtx_pose_view = None
@@ -893,6 +908,34 @@ class NewtonVisualizerBase(BaseVisualizer):
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
         super().initialize(sim, cameras=cameras)
+        # each perspective view renders itself, so a recorder can capture one the window does not show
+        scene = self._sim.get_scene_data_provider().get_interactive_scene()
+        for view in self._image_views:
+            if view.camera is not None:
+                continue
+            if view.render is not None:
+                raise ValueError("A perspective image view must have exactly one rendering owner.")
+            view.render = partial(self._capture_view, view)
+            source = view.cfg.source
+            if self._is_tracking_view(view) and scene is not None:
+                # fail at initialization, not on a frame: a bad env_index or track_path raises here
+                self._followers[view] = follower = CameraFollower(source, scene, self._env_ids)
+                self._tracking_defaults[view] = {
+                    "eye": source.eye,
+                    "lookat": source.lookat,
+                    "focal_length": source.focal_length,
+                    "track_path": source.track_path,
+                    "follow_heading": source.follow_heading,
+                    "heading_smoothing_time_constant": source.heading_smoothing_time_constant,
+                    "env": follower.env,
+                }
+                if self._env_ids is not None and follower.env not in self._env_ids:
+                    logger.warning(
+                        "[NewtonVisualizer] A tracking camera frames environment %d, which is not among the visible "
+                        "environments %s, so it will show an empty scene.",
+                        follower.env,
+                        list(self._env_ids),
+                    )
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
@@ -911,6 +954,13 @@ class NewtonVisualizerBase(BaseVisualizer):
             )  # fmt: skip
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer._view_controls = self._draw_streaming_view_controls
+        self._viewer.camera_keys_suspended = not self._camera_keys_enabled
+        if not self._runtime_headless:
+            # keyboard input is optional: a failure here must not stop the visualizer from starting
+            try:
+                self._key_event_source = NewtonKeyEventSource(self._viewer)
+            except Exception:
+                logger.exception("[%s] Keyboard input is unavailable", type(self).__name__)
 
     def log_mesh(
         self,
@@ -973,6 +1023,11 @@ class NewtonVisualizerBase(BaseVisualizer):
         if index is None or self._sim is None:
             return ()
         return (self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg),)
+
+    @staticmethod
+    def _is_tracking_view(view) -> bool:
+        """Whether *view* is a perspective view tied to an environment or an asset."""
+        return isinstance(view.cfg.source, TrackingCameraCfg)
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
@@ -1392,9 +1447,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         follower.set_env(defaults["env"])
         return self._set_tracking_path(follower, defaults["track_path"]) or True
 
-    def _view_labels(self, indices: list[int]) -> list[str]:
+    def _view_labels(self, indices: list[int] | None = None) -> list[str]:
         """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
-        views = [self._image_views[i] for i in indices]
+        views = self._image_views if indices is None else [self._image_views[i] for i in indices]
         free = [v for v in views if v.camera is None and not self._is_task_view(v)]
         tracking = [v for v in views if self._is_task_view(v)]
         labels = []
@@ -1440,11 +1495,11 @@ class NewtonVisualizerBase(BaseVisualizer):
     @staticmethod
     def _is_task_view(view) -> bool:
         """Whether *view* is a perspective view tied to an environment or an asset."""
-        return isinstance(view.cfg.source, PerspectiveCameraCfg) and view.cfg.source.is_task_view
+        return isinstance(view.cfg.source, TrackingCameraCfg)
 
     def _pose_source_view(self):
         """Return the view whose camera settings are shown: the one driving the OVRTX camera, or the current view."""
-        if self.rtx_rendering and self._rtx_pose_view is not None:
+        if getattr(self, "rtx_rendering", False) and self._rtx_pose_view is not None:
             return self._rtx_pose_view
         return self.current_image_view
 
@@ -1465,7 +1520,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _free_view_in_use(self):
         """Return the free Perspective view whose pose the viewer camera holds, or None when another source has it."""
         view = self._pose_source_view()
-        if view is not None and view.camera is not None and self.rtx_rendering:
+        if view is not None and view.camera is not None and getattr(self, "rtx_rendering", False):
             # The OVRTX camera follows the free view when no Tracking Camera drives it.
             view = next((v for v in self._image_views if v.camera is None and not self._is_task_view(v)), None)
         if view is None or view.camera is not None or self._is_task_view(view):
@@ -1527,10 +1582,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
-            if self.current_image_view.render is not None and self.current_image_view.render != self._capture_frame:
-                raise ValueError("A perspective image view must have exactly one rendering owner.")
-            self.current_image_view.render = self._capture_frame
-            if camera.is_task_view:
+            if isinstance(camera, TrackingCameraCfg):
                 self._apply_view_pose(self.current_image_view)
             elif not keep_pose and not self._restore_perspective_pose(self.current_image_view):
                 self.set_camera_view(camera.eye, camera.lookat)
@@ -1587,6 +1639,23 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera.set_world_poses(positions + translation, quat_mul(orientations, rotation), convention="opengl")
         self.current_image_view.invalidate()
 
+    def _capture_view(self, view, output: wp.array | None) -> wp.array:
+        """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
+        current = self.current_image_view
+        if view is current:
+            return self._capture_frame(output)
+        camera = self._viewer.camera
+        saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
+        self.current_image_view = view
+        try:
+            self._last_render_step = -1
+            return self._capture_frame(output)
+        finally:
+            self.current_image_view = current
+            camera.fov = saved[3]
+            self._viewer.set_camera(*saved[:3])
+            self._last_render_step = -1
+
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
     ) -> None:
@@ -1638,10 +1707,23 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._rtx_appearance.close()
             self._rtx_appearance = None
         for view in self._image_views:
-            if view.render == self._capture_frame:
+            owned = isinstance(view.render, partial) and view.render.func == self._capture_view
+            if owned:
                 view.render = None
                 view.invalidate()
+        self._followers.clear()
+        self._tracking_defaults.clear()
         super().close()
+
+    def set_camera_keys_enabled(self, enabled: bool) -> None:
+        """Enable or disable the window's WASD/QE and arrow-key camera movement.
+
+        Mouse camera control and the viewer's other hotkeys keep working. The setting also applies to a
+        window opened later by :meth:`initialize`.
+        """
+        self._camera_keys_enabled = enabled
+        if self._viewer is not None:
+            self._viewer.camera_keys_suspended = not enabled
 
     def supports_markers(self) -> bool:
         """Return whether visualization markers are enabled for this viewer."""
@@ -1706,6 +1788,16 @@ class NewtonVisualizerBase(BaseVisualizer):
             else self._sim.get_physics_step_count()
         )
         return self.current_image_view.read_rgb(frame_id)
+
+    def render_tracking_rgb_array(self) -> np.ndarray:
+        """Download the first perspective view that is tied to an environment or an asset, whatever the window shows."""
+        view = next((v for v in self._image_views if self._is_tracking_view(v)), None)
+        if view is None:
+            raise RuntimeError(
+                "No perspective view is tied to an environment or an asset. Declare "
+                "TrackingCameraCfg(env_index=..., track_path=...) in the visualizer's cameras."
+            )
+        return view.read_rgb(self._sim.get_physics_step_count())
 
 
 class NewtonGLVisualizer(NewtonVisualizerBase):
@@ -1794,7 +1886,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._transform_mapping = sim.get_scene_data_provider().create_mapping(list(self.backend.model.body_label))
         scene_data_provider = self._sim.get_scene_data_provider()
         newton_backend_active = self.physics_backend == "newton"
-        picking_supported = newton_backend_active and sim.backend_manager._supports_rigid_body_force_input
+        physics_backend = sim.backend_manager.backend if newton_backend_active else None
+        picking_supported = (
+            physics_backend is not None
+            and physics_backend.solver is not None
+            and physics_backend.cfg.solver_cfg.class_type.applies_body_forces(
+                physics_backend.cfg.solver_cfg, physics_backend.solver
+            )
+        )
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:
             logger.warning(
@@ -1906,7 +2005,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
+                    contacts = self.backend.contacts if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)
                     else:
@@ -2192,6 +2291,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Release picking and scene references without destroying Kit's shared GL context."""
         if self._is_closed:
             return
+        self._close_key_event_source()
         try:
             if self._recording is not None:
                 self._recording.close()

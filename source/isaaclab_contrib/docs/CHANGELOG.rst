@@ -3,6 +3,50 @@ Changelog
 
 .. towncrier release notes start
 
+4.2.4 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton coupler and custom MJWarp--VBD coupling managers to store their solver, collision pipeline and
+  contacts on the manager's :class:`~isaaclab_newton.physics.NewtonBackend`.
+
+
+4.2.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed coupled solver body and shape selectors to expand ``{ENV_REGEX_NS}`` from the simulation's
+  clone template while preserving the original configuration for reuse.
+
+
+4.2.2 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept tactile queries explicitly invalidated after initialization and reset so reads
+  reflect the current scene state without waiting for another physics step.
+
+
+4.2.1 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed tactile contact-mesh and rigid-body bindings to use clone-plan source paths and destination
+  expressions, including custom environment namespaces. Removed the separate contact-component lookup.
+* Required exactly one SDF mesh in the tactile contact-object source instead of silently
+  choosing the first mesh when several matched.
+* Refreshed articulation kinematics before tactile force-field reads so tactile points
+  followed root or joint writes before the next physics step.
+
+
 4.2.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~
 

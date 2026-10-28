@@ -77,7 +77,6 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     data_types: list[str] = []
     spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        spawn_path="/World/envs/env_0/Camera",
         focal_length=24.0,
         focus_distance=400.0,
         horizontal_aperture=20.955,
@@ -203,6 +202,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
             viewer.eye = CAMERA_VISUALIZER_CFG.eye
             viewer.lookat = CAMERA_VISUALIZER_CFG.lookat
             viewer.focal_length = CAMERA_VISUALIZER_CFG.focal_length
+            viewer.cameras = [camera.replace() for camera in CAMERA_VISUALIZER_CFG.cameras]
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

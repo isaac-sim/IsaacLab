@@ -20,7 +20,6 @@ from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, Ne
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
-from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -38,11 +37,9 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
@@ -533,10 +530,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
 
     scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5)
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
+        # the viewport starts on the first view, framing environment 0; a free view follows it
         visualizer_cfgs=VisualizerCfg(
-            eye=(1.4, 1.4, 0.9),
-            lookat=(0.5, 0.0, 0.1),
-            backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
+            cameras=[TrackingCameraCfg(eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1))],
         )
     )
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()
@@ -612,9 +608,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             nconmax=400,
                         ),
                         bodies=[
-                            r"/World/envs/env_.*/Robot",
-                            r"/World/envs/env_.*/SourceCup",
-                            r"/World/envs/env_.*/TargetCup",
+                            r"{ENV_REGEX_NS}/Robot",
+                            r"{ENV_REGEX_NS}/SourceCup",
+                            r"{ENV_REGEX_NS}/TargetCup",
                         ],
                         include_static_shapes=True,
                         substeps=3,
@@ -650,7 +646,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerProxyMappingCfg(
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
-                        bodies=[r"/World/envs/env_.*/SourceCup", r"/World/envs/env_.*/TargetCup"],
+                        bodies=[r"{ENV_REGEX_NS}/SourceCup", r"{ENV_REGEX_NS}/TargetCup"],
                         # Represent the supported or grasp-constrained 50 g cup as 50 kg only in
                         # MPM's proxy view so the roughly 140 g payload cannot create unphysical recoil.
                         mass_scale=1000.0,
@@ -813,7 +809,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         """Configure frozen single-world dataset playback."""
         super().play_mode()
         self.scene.num_envs = 1
-        self.sim.visualizer_cfgs.eye = (0.9, 0.65, 0.5)
+        self.sim.visualizer_cfgs.cameras[0].eye = (0.9, 0.65, 0.5)
         self.curriculum_freeze = True
 
 

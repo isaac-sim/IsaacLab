@@ -39,7 +39,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -140,7 +140,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=50,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_[^/]+/Robot"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -154,8 +154,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_hand",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -636,9 +636,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.visualizer_cfgs = VisualizerCfg(
             eye=(0.75, 0.25, 0.65),
             lookat=(0.0, 0.75, 0.4),
-            cameras=[
-                PerspectiveCameraCfg(env_index=0, eye=(1.8, -1.8, 1.5), lookat=(0.35, 0.0, 0.35), focal_length=28.0)
-            ],
+            cameras=[TrackingCameraCfg(eye=(1.8, -1.8, 1.5), lookat=(0.35, 0.0, 0.35), focal_length=28.0)],
         )
 
     def play_mode(self):

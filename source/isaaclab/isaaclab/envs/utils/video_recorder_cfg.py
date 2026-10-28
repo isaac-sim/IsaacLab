@@ -39,14 +39,18 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
         return kind, "", ""
     if kind == "viz":
         reject_removed_visualizer(name)
-    if kind == "viz" and parts[1:] in ([], ["streaming_view"]) and name in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES):
+    if (
+        kind == "viz"
+        and parts[1:] in ([], ["streaming_view"], ["tracking"])
+        and name in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES)
+    ):
         return kind, VISUALIZER_ALIASES.get(name, name), sub
     if kind == "sensor" and 1 <= len(parts) <= 2 and name and sub in ("", *SENSOR_CHANNELS):
         return kind, name, sub
     raise ValueError(
-        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view' or "
-        f"'sensor:<name>[:<channel>]', with <type> one of {', '.join(VISUALIZER_TYPES)} and <channel> one of "
-        f"{', '.join(SENSOR_CHANNELS)}."
+        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view', "
+        f"'viz:<type>:tracking' or 'sensor:<name>[:<channel>]', with <type> one of "
+        f"{', '.join(VISUALIZER_TYPES)} and <channel> one of {', '.join(SENSOR_CHANNELS)}."
     )
 
 
@@ -69,6 +73,9 @@ class VideoRecorderCfg:
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
       ``streaming_view=True`` on its config, e.g. :class:`~isaaclab_visualizers.kit.KitBackendCfg`).
+    * ``"viz:<type>:tracking"``        – the first perspective view of that visualizer that is tied to an
+      environment or an asset (:class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or
+      ``track_path``), whichever view its window shows. Only Newton GL supports it.
     * ``"sensor:<name>"``              – scene sensor, RGB channel (default); no visualizer is added.
     * ``"sensor:<name>:<channel>"``    – scene sensor channel: ``rgb``, ``depth`` (colorized via the turbo
       colormap), ``segmentation`` or ``normals`` (colorized).

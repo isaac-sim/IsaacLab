@@ -29,6 +29,7 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    VisualizerBackendCfg
    WindowCfg
    PerspectiveCameraCfg
+   TrackingCameraCfg
    SceneCameraCfg
    ImageViewCfg
    ImageView
@@ -59,6 +60,9 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :show-inheritance:
 
 .. autoclass:: PerspectiveCameraCfg
+   :show-inheritance:
+
+.. autoclass:: TrackingCameraCfg
    :show-inheritance:
 
 .. autoclass:: SceneCameraCfg

@@ -37,7 +37,7 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -358,9 +358,9 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(
+        self.sim.visualizer_cfgs = VisualizerCfg(
             cameras=[
-                PerspectiveCameraCfg(
+                TrackingCameraCfg(
                     eye=(1.8, -3.0, 1.1),
                     lookat=(0.15, 0.0, 0.0),
                     focal_length=26.0,

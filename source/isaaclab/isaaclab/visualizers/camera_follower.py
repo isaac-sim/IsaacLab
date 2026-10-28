@@ -8,37 +8,51 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
 if TYPE_CHECKING:
     from ..scene import InteractiveScene
-    from .visualizer_cfg import PerspectiveCameraCfg
+    from .visualizer_cfg import TrackingCameraCfg
 
 _RESET_JUMP = 1.0
 """Distance [m] an asset moves between two updates only when its environment resets."""
 
-_RESET_YAW_RATE = 10.0
-"""Yaw rate [rad/s] no robot turns at, so a heading that changes faster means its environment reset."""
+_RESET_YAW_JUMP = 1.5
+"""Heading change [rad] between two updates that a robot only makes when its environment resets.
+
+A fixed angle, unlike a rate, does not misfire when two updates are a few milliseconds apart."""
 
 
 class CameraFollower:
-    """Turns a :class:`~isaaclab.visualizers.PerspectiveCameraCfg` tied to an environment into world poses.
+    """Turns a :class:`~isaaclab.visualizers.TrackingCameraCfg` tied to an environment into world poses.
 
-    A view that only has :attr:`~isaaclab.visualizers.PerspectiveCameraCfg.env_index` stays fixed relative to that
-    environment's origin. A view with :attr:`~isaaclab.visualizers.PerspectiveCameraCfg.track_path` follows the
+    A view that only has :attr:`~isaaclab.visualizers.TrackingCameraCfg.env_index` stays fixed relative to that
+    environment's origin. A view with :attr:`~isaaclab.visualizers.TrackingCameraCfg.track_path` follows the
     asset's position, and its yaw when ``follow_heading`` is set, with the heading filtered over time.
     """
 
-    def __init__(self, cfg: PerspectiveCameraCfg, scene: InteractiveScene) -> None:
+    def __init__(self, cfg: TrackingCameraCfg, scene: InteractiveScene, env_ids: Sequence[int] | None = None) -> None:
+        """Bind *cfg* to *scene*.
+
+        Args:
+            cfg: The tracking camera. Its ``env_index`` None selects the middle environment.
+            scene: The scene to read environment origins and assets from.
+            env_ids: The visible environments, or None when all are; the middle one is picked from these.
+        """
         self.cfg = cfg
         self._scene = scene
         self._env = 0
         self._yaw: float | None = None
         self._last_position: list[float] | None = None
         self._time: float | None = None
-        self.set_env(cfg.env_index or 0)
+        if cfg.env_index is not None:
+            self.set_env(cfg.env_index)
+        else:
+            ids = list(env_ids) if env_ids else range(scene.num_envs)
+            self.set_env(ids[(len(ids) - 1) // 2])
         self._asset = None
         self._body_index: int | None = None
         self._body_name = ""
@@ -142,9 +156,9 @@ class CameraFollower:
         yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
         last, self._last_position = self._last_position, position
         reset = self._yaw is None or last is None or math.dist(position, last) > _RESET_JUMP
-        if not reset and dt > 0.0:
+        if not reset:
             # an environment can reset in place with a new heading
-            reset = abs(math.remainder(yaw - self._yaw, math.tau)) / dt > _RESET_YAW_RATE
+            reset = abs(math.remainder(yaw - self._yaw, math.tau)) > _RESET_YAW_JUMP
         tau = self.cfg.heading_smoothing_time_constant
         if tau > 0.0 and not reset:
             yaw = self._yaw + -math.expm1(-dt / tau) * math.remainder(yaw - self._yaw, math.tau)

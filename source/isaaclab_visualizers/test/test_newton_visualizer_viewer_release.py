@@ -36,6 +36,7 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     monkeypatch.setattr(newton_visualizer.ViewerGL, "close", lambda self: events.append("close"))
     viewer = object.__new__(newton_visualizer.NewtonViewerGL)
     viewer._close_requested = False
+    viewer.keyboard_frame_hook = lambda: events.append("keyboard")
     if requested:
         viewer.request_close()
     viewer.renderer = Mock()
@@ -43,4 +44,4 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
 
     viewer.end_frame()
 
-    assert events == (["frame", "context", "close"] if requested else ["frame"])
+    assert events == (["frame", "keyboard", "context", "close"] if requested else ["frame", "keyboard"])
