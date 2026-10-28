@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Training configurations and task-local AMP components for Asimov-1."""
+"""Training configurations for the Asimov-1 velocity task."""
