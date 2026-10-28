@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from isaaclab_newton.kernels.state_kernels import body_ang_vel_from_root, body_lin_vel_from_root
 
 from isaaclab.envs.mdp.commands._debug_vis import _VelocityCommandDebugVis
 from isaaclab.utils.seed import WarpRng
+from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root
 
 from isaaclab_experimental.managers import CommandTerm
 from isaaclab_experimental.utils.warp import wrap_to_pi
