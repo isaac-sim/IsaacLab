@@ -597,8 +597,7 @@ class NewtonWarpRenderer(BaseRenderer):
         if not use_graph:
             self._launch_render(render_data)
         else:
-            state = backend.state_0
-            pointers = state.body_q.ptr, 0 if state.particle_q is None else state.particle_q.ptr
+            pointers = backend.state_pointers()
             if render_data.graph is None or render_data.graph[0] != pointers:
                 graph = newton_backend.capture_graph(
                     backend.device, partial(self._launch_render, render_data), relaxed=has_kit()

@@ -197,11 +197,9 @@ class NewtonManager(PhysicsManager):
             return
         backend = self.backend
         physics_steps = backend.decimation if backend.handles_decimation() else 1
-        captured = backend.step()
+        backend.step()
         self._sim_time += backend.dt * physics_steps
         self._mark_transforms_changed()
-        solver_cfg = self._cfg.solver_cfg
-        solver_cfg.class_type.check_step(solver_cfg, backend.solver, captured, self._cfg.debug_mode)
 
     def close(self) -> None:
         """Clean up Newton physics resources."""

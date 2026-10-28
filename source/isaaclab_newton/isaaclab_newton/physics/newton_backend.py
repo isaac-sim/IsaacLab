@@ -457,7 +457,8 @@ class NewtonBackend:
         """Advance one physics step, or the whole decimation loop when :meth:`handles_decimation`.
 
         Without the decimation loop, Newton actuators and their callbacks run eagerly before the step. The first step
-        after :meth:`invalidate_graph` runs eagerly and is then captured for later steps.
+        after :meth:`invalidate_graph` runs eagerly and is then captured for later steps. The solver then checks the
+        step for asynchronous failures (:meth:`NewtonSolver.check_step`).
 
         Returns:
             Whether the step has a captured graph.
@@ -476,13 +477,24 @@ class NewtonBackend:
             simulate = self._simulate_physics_only
         if self.graph is not None:
             wp.capture_launch(self.graph)
-            return True
-        with wp.ScopedDevice(self.device):
-            simulate()
-        if self.capture is not None:
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                self.graph = self.capture(simulate)
-        return self.graph is not None
+        else:
+            with wp.ScopedDevice(self.device):
+                simulate()
+            if self.capture is not None:
+                with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                    self.graph = self.capture(simulate)
+        captured = self.graph is not None
+        solver_cfg = self.cfg.solver_cfg
+        solver_cfg.class_type.check_step(solver_cfg, self.solver, captured, self.cfg.debug_mode)
+        return captured
+
+    def state_pointers(self) -> tuple[int, int]:
+        """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
+
+        Captured queries read these arrays, so they are recaptured when an address changes.
+        """
+        state = self.state_0
+        return tuple(0 if array is None else array.ptr for array in (state.body_q, state.particle_q))
 
     def refit_bvh(self, timestamp: int, *, use_cuda_graph: bool = True) -> None:
         """Refit the model's shape and particle BVHs to :attr:`state_0` once per state ``timestamp``.
@@ -498,8 +510,7 @@ class NewtonBackend:
         if not (use_cuda_graph and self.device.is_cuda):
             self._refit_bvh()
             return
-        state = self.state_0
-        pointers = state.body_q.ptr, 0 if state.particle_q is None else state.particle_q.ptr
+        pointers = self.state_pointers()
         if cache.data is None or cache.data[0] != pointers:
             cache.data = pointers, capture_graph(self.device, self._refit_bvh, relaxed=has_kit())
         wp.capture_launch(cache.data[1])

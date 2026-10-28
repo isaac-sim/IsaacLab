@@ -350,8 +350,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         if not use_graph:
             self._launch_raycast()
             return
-        state = backend.state_0
-        pointers = state.body_q.ptr, 0 if state.particle_q is None else state.particle_q.ptr
+        pointers = backend.state_pointers()
         if self._graph is None or self._graph[0] != pointers:
             graph = newton_backend.capture_graph(backend.device, self._launch_raycast, relaxed=has_kit())
             self._graph = pointers, graph

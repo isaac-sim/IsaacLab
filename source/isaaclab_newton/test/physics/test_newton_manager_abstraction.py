@@ -42,6 +42,7 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     MPMSolver,
     MPMSolverCfg,
+    NewtonBackend,
     NewtonBuilderCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -72,7 +73,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 resolve_deterministic_mode = newton_backend._resolve_deterministic_mode
 
@@ -264,6 +265,21 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch, cloth,
         renderer.render(render_data)
         assert len(refits) == expected
     backend.close()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_bvh_refit_captures_a_model_without_rigid_bodies(device):
+    """A particle-only model has no ``body_q``; its refit is still captured and replayed once per publication."""
+    builder = ModelBuilder()
+    for position in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        builder.add_particle(pos=wp.vec3(position), vel=wp.vec3(), mass=1.0)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=object(), device=device), builder)
+    assert backend.state_0.body_q is None
+
+    backend.refit_bvh(1)
+    backend.refit_bvh(2)
+
+    assert backend.bvh_refit.data[0] == backend.state_pointers()
 
 
 def test_newton_shape_cfg_defaults_match_newton_shape_config():
@@ -741,12 +757,14 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     manager.backend.init_solver()
 
     for _ in range(2):
-        manager.step()
+        manager.backend.step()
 
     assert (manager.backend.graph is not None) is supported
     assert len(replays) == int(supported)
     # The capturing step ran eagerly first, so both steps advanced physics exactly once.
     assert events.count(("step", "state_0", "state_0")) == 2
+    # The solver checks every step, including one stepped without the manager.
+    assert [event for event in events if event[0] == "check"] == [("check", supported)] * 2
 
 
 # ---------------------------------------------------------------------------
@@ -1215,6 +1233,10 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
         def eval_fk(cls, cfg, solver, state, worlds, articulations):
             events.append("fk")
 
+        @classmethod
+        def check_step(cls, cfg, solver, captured, debug):
+            events.append(("check", captured))
+
     RecordingSolver.single_state = single_state
     manager = NewtonManager(NewtonCfg())
     solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
@@ -1273,6 +1295,7 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
             ("force", "state_0"),
             ("step", "state_0", "state_0"),
             ("clear", "state_0"),
+            ("check", False),
         ]
     else:
         assert events == [
@@ -1282,6 +1305,7 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
             ("force", "state_1"),
             ("step", "state_1", "state_0"),
             ("clear", "state_0"),
+            ("check", False),
         ]
 
 
@@ -1298,7 +1322,7 @@ def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0(
     manager.backend.step()
 
     step = [("pre",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1"), ("clear", "state_0")]
-    assert events == step * 2 + [("post",)]
+    assert events == step * 2 + [("post",), ("check", False)]
 
 
 @wp.kernel
