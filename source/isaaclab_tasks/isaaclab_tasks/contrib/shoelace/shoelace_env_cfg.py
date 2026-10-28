@@ -189,8 +189,8 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot_right", joint_names=["panda_joint.*"])},
             scale=0.05,
         )
-        finger_tracking_error = ObsTerm(
-            func=mdp.gripper_closing_tracking_error,
+        gripper_close_error = ObsTerm(
+            func=mdp.gripper_close_error,
             params={"robot_cfgs": ROBOT_CFGS},
             clip=(0.0, physics.GRIPPER_OPEN_POSITION - physics.GRIPPER_CLOSED_POSITION),
             scale=1.0 / (physics.GRIPPER_OPEN_POSITION - physics.GRIPPER_CLOSED_POSITION),
@@ -206,14 +206,9 @@ class ObservationsCfg:
             scale=1.0 / physics.CONTACT_DISTANCE_CAP,
             history_length=physics.CONTACT_OBSERVATION_HISTORY_LENGTH,
         )
-        finger_tail_relative_velocity = ObsTerm(
-            func=mdp.finger_tail_relative_velocity,
-            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": FINGER_CFGS},
-            scale=10.0,
-        )
-        pad_to_tail = ObsTerm(
-            func=mdp.pad_to_tail,
-            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": FINGER_CFGS},
+        tail_tcp_relative_speed = ObsTerm(
+            func=mdp.tail_tcp_relative_speed,
+            params={"cable_cfgs": CABLE_CFGS, "robot_cfgs": ROBOT_CFGS},
             scale=10.0,
         )
         last_action = ObsTerm(func=env_mdp.last_action)

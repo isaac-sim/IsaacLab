@@ -150,7 +150,6 @@ class dense_task_reward(ManagerTermBase):
         acquisition_weight: float = 0.6,
         approach_fraction: float = 0.5,
         approach_robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg] | None = None,
-        approach_saturation_radius: float = 0.0,
         bilateral_pull_fraction: float = 0.8,
         bilateral_approach_fraction: float = 0.5,
         bilateral_grasp_fraction: float = 0.7,
@@ -186,9 +185,6 @@ class dense_task_reward(ManagerTermBase):
                 ``env.cfg.tcp_body_offsets`` like the TCP observations. When supplied, coarse
                 approach uses tail-to-TCP distance; otherwise it uses the live capture segment.
                 Physical grasp scoring always uses the actual finger surfaces and contacts.
-            approach_saturation_radius: Approach-distance radius [m] inside which coarse approach
-                potential stays at its boundary value. Fine alignment and closure use pregrasp shaping.
-                Zero preserves the original curve; distances outside the radius are unchanged.
             bilateral_pull_fraction: Bilateral share of pulling in [0, 1]; zero disables the bonus.
             bilateral_approach_fraction: Bilateral share of approach in [0, 1]; zero gives the per-arm mean.
             bilateral_grasp_fraction: Bilateral share of grasp acquisition in [0, 1]; zero gives the per-arm mean.
@@ -215,8 +211,6 @@ class dense_task_reward(ManagerTermBase):
             raise ValueError("Bilateral approach, grasp, and pull fractions must be in [0, 1]")
         if not math.isfinite(success_x_separation) or success_x_separation <= 0.0:
             raise ValueError("success_x_separation must be finite and positive")
-        if not math.isfinite(approach_saturation_radius) or approach_saturation_radius < 0.0:
-            raise ValueError("approach_saturation_radius must be finite and nonnegative")
         if not 0.0 < pull_grasp_threshold <= 1.0:
             raise ValueError("pull_grasp_threshold must be in (0, 1]")
 
@@ -235,6 +229,7 @@ class dense_task_reward(ManagerTermBase):
             cable_cfgs,
             finger_cfgs,
             contact_penetration_tolerance,
+            geometry=geometry,
         )
         x_separation = tail_x_separation(env, cable_cfgs)
         outward_x = tail_outward_x(env, cable_cfgs)
@@ -247,7 +242,7 @@ class dense_task_reward(ManagerTermBase):
             & torch.isfinite(outward_x).all(dim=1)
         )
 
-        approach = 1.0 - torch.tanh(approach_distance.clamp_min(approach_saturation_radius) / max(reach_std, 1.0e-6))
+        approach = 1.0 - torch.tanh(approach_distance / max(reach_std, 1.0e-6))
         filtered_per_gripper_grasp = filter_grasps(
             self._filtered_per_gripper_grasp,
             per_gripper_grasp,
@@ -465,7 +460,7 @@ class pregrasp_progress_reward(ManagerTermBase):
         shared grasp score.
         Reset seeds the potential without credit; reopening/contact loss removes previous credit.
         """
-        if not all(math.isfinite(value) and value > 0 for value in (alignment_std, closure_radius, contact_std)):
+        if not all(math.isfinite(value) and value > 0 for value in (alignment_std, closure_radius)):
             raise ValueError("Pregrasp widths must be finite and positive")
         if not all(math.isfinite(value) and value >= 0 for value in (alignment_weight, closure_weight, contact_weight)):
             raise ValueError("Pregrasp weights must be finite and nonnegative")

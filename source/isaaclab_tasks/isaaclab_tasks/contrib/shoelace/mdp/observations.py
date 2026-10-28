@@ -126,6 +126,10 @@ def gripper_closing_tracking_error(
     return torch.cat(errors, dim=-1)
 
 
+# Preserve the published dual-Franka observation helper name.
+gripper_close_error = gripper_closing_tracking_error
+
+
 def tails_to_tcp(
     env: ManagerBasedEnv,
     cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],

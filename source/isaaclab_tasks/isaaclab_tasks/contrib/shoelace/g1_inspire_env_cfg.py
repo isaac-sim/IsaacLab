@@ -12,21 +12,23 @@ import isaaclab.envs.mdp as env_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
-from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.utils import clone, configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG
 
-from . import shoelace_constants as physics
+from . import mdp
 from .g1_factory_scene import PACKING_TABLE_SCALE, spawn_packing_workstation
 from .g1_inspire_hand import INDEX_CLOSED, PAD_OFFSETS, TCP_BODY_OFFSETS, THUMB_PITCH, THUMB_YAW, spawn_g1_shoelace
 from .mdp.collision_ik_cfg import G1CollisionAwareIKActionCfg
 from .mdp.inspire_hand_cfg import InspireFingerActionCfg
 from .mdp.rewards import binary_gripper_switch_rate
 from .shoelace_assets import ShoelaceUsdCfg
-from .shoelace_env_cfg import ObservationsCfg, RewardsCfg, ShoelaceEnvCfg, ShoelaceSceneCfg, TerminationsCfg
+from .shoelace_env_cfg import CABLE_CFGS, ObservationsCfg, RewardsCfg, ShoelaceEnvCfg, ShoelaceSceneCfg, TerminationsCfg
+
+_POLICY_DEFAULTS = ObservationsCfg.PolicyCfg()
 
 _ARM_JOINTS = r"{side}_(shoulder_.*|elbow|wrist_.*)_joint"
 _ARM_MIRROR_SIGNS = {
@@ -66,7 +68,7 @@ def _robot_cfg() -> ArticulationCfg:
         articulation_props=robot.spawn.articulation_props,
         fix_root_link=True,
         make_uninstanceable=True,
-        friction_overrides={"/[LR]_(thumb|index)_[^/]+/.*": physics.FINGER_MU},
+        friction_overrides={"/[LR]_(thumb|index)_[^/]+/.*": 90.0},
         collision_props={
             "/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
             "/[LR]_(thumb|index)_[^/]+/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
@@ -183,7 +185,12 @@ class G1ShoelaceObservationsCfg(ObservationsCfg):
     """Expose actual thumb/index configurations, target errors and uncapped pad-to-tail vectors."""
 
     @configclass
-    class PolicyCfg(ObservationsCfg.PolicyCfg):
+    class PolicyCfg(ObservationGroupCfg):
+        # Keep the pretrained G1 concatenation order independent of the Franka policy.
+        left_joint_pos = clone(_POLICY_DEFAULTS.left_joint_pos)
+        right_joint_pos = clone(_POLICY_DEFAULTS.right_joint_pos)
+        left_joint_vel = clone(_POLICY_DEFAULTS.left_joint_vel)
+        right_joint_vel = clone(_POLICY_DEFAULTS.right_joint_vel)
         finger_tracking_error = ObservationTermCfg(
             func=f"{__package__}.mdp.inspire_hand:inspire_finger_tracking_error",
             params={
@@ -192,6 +199,19 @@ class G1ShoelaceObservationsCfg(ObservationsCfg):
             },
             clip=(-1.0, 1.0),
         )
+        tails_to_tcp = clone(_POLICY_DEFAULTS.tails_to_tcp)
+        finger_tail_signed_distance = clone(_POLICY_DEFAULTS.finger_tail_signed_distance)
+        finger_tail_relative_velocity = ObservationTermCfg(
+            func=mdp.finger_tail_relative_velocity,
+            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": _FINGER_CFGS},
+            scale=10.0,
+        )
+        pad_to_tail = ObservationTermCfg(
+            func=mdp.pad_to_tail,
+            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": _FINGER_CFGS},
+            scale=10.0,
+        )
+        last_action = clone(_POLICY_DEFAULTS.last_action)
         finger_joint_pos = ObservationTermCfg(
             func=env_mdp.joint_pos,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["[LR]_(thumb|index)_.*_joint"])},
@@ -201,6 +221,9 @@ class G1ShoelaceObservationsCfg(ObservationsCfg):
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["[LR]_(thumb|index)_.*_joint"])},
             scale=0.1,
         )
+
+        enable_corruption = False
+        concatenate_terms = True
 
     policy: PolicyCfg = PolicyCfg()
 
@@ -267,8 +290,6 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
         }
         policy.tails_to_tcp.params["robot_cfgs"] = tuple(clone(cfg) for cfg in _ROBOT_CFGS)
         self.rewards.dense_task.params["approach_robot_cfgs"] = tuple(clone(cfg) for cfg in _ROBOT_CFGS)
-        for name in ("pad_to_tail", "finger_tail_relative_velocity"):
-            getattr(policy, name).params["finger_cfgs"] = tuple(clone(cfg) for cfg in _FINGER_CFGS)
         for term in (
             self.rewards.pregrasp,
             self.rewards.dense_task,
@@ -277,6 +298,7 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
         ):
             term.params["finger_cfgs"] = tuple(clone(cfg) for cfg in _FINGER_CFGS)
         self.events.reset_shoe.params["position_range"] = {"x": (-0.01, 0.01), "y": (-0.01, 0.01)}
+        self.sim.physics.solver_cfg.iterations = 8
         self.sim.physics.solver_cfg.entries[0].bodies = [r"{ENV_REGEX_NS}/(Robot|ShoelaceScene/Shoe)"]
         self.sim.visualizer_cfgs = [
             VisualizerCfg(

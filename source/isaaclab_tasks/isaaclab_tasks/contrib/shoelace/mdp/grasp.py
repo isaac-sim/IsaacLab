@@ -84,6 +84,8 @@ def shoelace_grasp_quality(
     cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
     finger_cfgs: tuple[SceneEntityCfg, ...],
     contact_penetration_tolerance: float = 0.0,
+    *,
+    geometry: dict[str, torch.Tensor] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute shared unfiltered grasp quality for acquisition, retention, and success.
 
@@ -94,6 +96,7 @@ def shoelace_grasp_quality(
         cable_cfgs: Left and right cable scene entities.
         finger_cfgs: Four surface reference bodies, in left/right hand and opposing-finger order.
         contact_penetration_tolerance: Allowed contact-solver penetration [m].
+        geometry: Geometry already computed for the same state and entity selections, if available.
 
     Returns:
         Raw grasp qualities in robot-arm order, shape [N, 2], and finite-input flags, shape [N].
@@ -101,14 +104,13 @@ def shoelace_grasp_quality(
         It does not measure force closure or certify physical retention.
 
     Raises:
-        ValueError: If contact penetration tolerance is not finite and nonnegative.
+        ValueError: If widths are not finite and positive or penetration tolerance is invalid.
     """
-    if not math.isfinite(contact_penetration_tolerance) or contact_penetration_tolerance < 0.0:
-        raise ValueError("contact_penetration_tolerance must be finite and nonnegative")
-    if not all(math.isfinite(value) and value > 0 for value in (contact_std, relative_speed_std)):
-        raise ValueError("Grasp widths must be finite and positive")
+    if not math.isfinite(relative_speed_std) or relative_speed_std <= 0:
+        raise ValueError("Relative speed width must be finite and positive")
     finger_contact, contact_finite = _finger_contact_quality(env, contact_std, contact_penetration_tolerance)
-    geometry = grasp_geometry(env, cable_cfgs, finger_cfgs)
+    if geometry is None:
+        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs)
     finite = geometry["finite"] & contact_finite
     contact = hamacher_product(finger_contact[:, :, 0], finger_contact[:, :, 1])
     aperture_error = (geometry["aperture"] - env.cfg.grasp_target_diameter).clamp_min(0.0)
