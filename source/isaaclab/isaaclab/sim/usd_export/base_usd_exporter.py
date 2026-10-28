@@ -360,6 +360,12 @@ class BaseUsdExporter(ABC):
             cls._value_edit(prim, "physics:centerOfMass", com, "point3f", "PhysicsMassAPI"),
         ]
         inertia = np.asarray(inertia, dtype=float).reshape(3, 3)
+        compact = cls._stated(prim, "newton:inertia")
+        if compact is not None and len(compact):
+            # Newton reads this compact tensor [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] ahead of the diagonal inertia.
+            value = [inertia[0, 0], inertia[1, 1], inertia[2, 2], inertia[0, 1], inertia[0, 2], inertia[1, 2]]
+            if not cls._close(np.asarray(compact, dtype=float), value):
+                edits.append(UsdEdit(str(prim.GetPath()), "newton:inertia", [float(v) for v in value], "double[]"))
         moments = cls._stated(prim, "physics:diagonalInertia")
         axes = cls._stated(prim, "physics:principalAxes") or Gf.Quatf(1)
         if moments is not None:

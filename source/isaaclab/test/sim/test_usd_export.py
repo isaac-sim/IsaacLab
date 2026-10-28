@@ -178,3 +178,16 @@ def test_center_of_mass_of_a_scaled_body_is_written_unscaled():
     edits = PhysxUsdExporter._mass_edits(body.GetPrim(), 1.0, np.array([0.04, -0.04, 0.06]), np.eye(3))
     com = next(edit.value for edit in edits if edit.attribute == "physics:centerOfMass")
     np.testing.assert_allclose(np.asarray(com), [0.02, -0.02, 0.03], rtol=1e-6)
+
+
+def test_newton_compact_inertia_is_updated_with_the_inertia():
+    """Newton reads ``newton:inertia`` ahead of the diagonal inertia, so a changed inertia updates it too."""
+    stage = Usd.Stage.CreateInMemory()
+    body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
+    UsdPhysics.MassAPI.Apply(body)
+    body.AddAppliedSchema("NewtonMassAPI")
+    body.CreateAttribute("newton:inertia", Sdf.ValueTypeNames.DoubleArray).Set([1.0, 2.0, 2.0, 0.0, 0.0, 0.0])
+
+    edits = PhysxUsdExporter._mass_edits(body, 1.0, np.zeros(3), np.diag([2.0, 3.0, 3.0]))
+    compact = next(edit.value for edit in edits if edit.attribute == "newton:inertia")
+    np.testing.assert_allclose(compact, [2.0, 3.0, 3.0, 0.0, 0.0, 0.0])
