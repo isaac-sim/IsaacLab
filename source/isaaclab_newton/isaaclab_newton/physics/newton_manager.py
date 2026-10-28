@@ -186,9 +186,8 @@ class NewtonManager(PhysicsManager):
 
     def _flag_outer_capture(self) -> None:
         """Flag writes recorded into an outer CUDA graph capture."""
-        backend = self.backend
-        if backend is not None and backend.device.is_capturing:
-            backend.transforms_may_change_on_graph_replay = True
+        if self.backend.device.is_capturing:
+            self.backend.transforms_may_change_on_graph_replay = True
 
     def step(self) -> None:
         """Advance physics by one environment step, or one physics step when the environment runs decimation."""
@@ -351,8 +350,7 @@ class NewtonManager(PhysicsManager):
 
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver at the next step."""
-        if self.backend is not None:
-            self.backend.model_changes.add(change)
+        self.backend.model_changes.add(change)
 
     def invalidate_fk(
         self,
@@ -366,8 +364,7 @@ class NewtonManager(PhysicsManager):
         next forward, raw-state, rendering, or physics-step boundary.
         """
         self._mark_transforms_changed()
-        if self.backend is not None:
-            nb.invalidate_fk(self.backend, env_mask, env_ids, articulation_ids)
+        nb.invalidate_fk(self.backend, env_mask, env_ids, articulation_ids)
 
     def invalidate_body_state(
         self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
@@ -377,8 +374,7 @@ class NewtonManager(PhysicsManager):
         See :func:`newton_backend.invalidate_body_state`.
         """
         self._mark_transforms_changed()
-        if self.backend is not None:
-            nb.invalidate_body_state(self.backend, env_ids, env_mask)
+        nb.invalidate_body_state(self.backend, env_ids, env_mask)
 
     def _drain_stale_cuda_error(self) -> None:
         """Clear a stale CUDA error latched on the device before (re)initialization.
@@ -516,7 +512,7 @@ class NewtonManager(PhysicsManager):
         self, asset: BaseArticulation, body_names: tuple[str, ...]
     ) -> VisualShapeColorWriter:
         """Compile selected articulation-body shape addresses for the active Newton model."""
-        model = None if self.backend is None else self.backend.model
+        model = self.backend.model
         view = asset.root_view
         if not isinstance(view, ArticulationView):
             root_expr = asset.cfg.prim_path
@@ -533,8 +529,7 @@ class NewtonManager(PhysicsManager):
 
     def activate_newton_actuator_path(self) -> None:
         """Run the model's Newton actuators inside the step; see :func:`newton_backend.activate_actuators`."""
-        if self.backend is not None:
-            nb.activate_actuators(self.backend)
+        nb.activate_actuators(self.backend)
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before the initial FK and any CUDA graph capture."""
@@ -598,7 +593,7 @@ class NewtonManager(PhysicsManager):
 
     def handles_decimation(self) -> bool:
         """Whether :meth:`step` executes the full decimation loop; see :func:`newton_backend.handles_decimation`."""
-        return self.backend is not None and nb.handles_decimation(self.backend)
+        return nb.handles_decimation(self.backend)
 
     def add_contact_sensor(
         self,
@@ -620,6 +615,4 @@ class NewtonManager(PhysicsManager):
 
     def add_imu_sensor(self, sites: list[int]) -> SensorIMU:
         """Add an IMU sensor at sites; see :func:`newton_backend.add_imu_sensor`."""
-        if self.backend is None:
-            raise RuntimeError("add_imu_sensor called before model finalization (start_simulation).")
         return nb.add_imu_sensor(self.backend, sites)
