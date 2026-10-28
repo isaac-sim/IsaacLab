@@ -3,6 +3,57 @@ Changelog
 
 .. towncrier release notes start
 
+12.0.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.NewtonManager.shares_materials`, which reports whether contacts read one
+  material table shared by all environments. It is ``True`` only for Kamino with its own collision detector.
+* Added :class:`~isaaclab_newton.physics.NewtonSolver`, whose stateless class methods build Newton's solver
+  from a solver configuration and step, reset and collide it through Newton's :class:`~newton.solvers.SolverBase`
+  API. Each solver configuration's ``class_type`` selects a subclass, e.g.
+  :class:`~isaaclab_newton.physics.MJWarpSolver`, that overrides only where its solver differs.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the per-solver managers ``NewtonMJWarpManager``, ``NewtonXPBDManager``, ``NewtonVBDManager``,
+  ``NewtonFeatherstoneManager``, ``NewtonKaminoManager`` and ``NewtonMPMManager``;
+  :class:`~isaaclab_newton.physics.NewtonManager` runs every solver. Custom solvers subclass the matching
+  :class:`~isaaclab_newton.physics.NewtonSolver`, e.g.
+  :class:`~isaaclab_newton.physics.MJWarpSolver`, instead of overriding manager hooks.
+* **Breaking:** :attr:`~isaaclab_newton.physics.NewtonSolverCfg.class_type` now selects the
+  :class:`~isaaclab_newton.physics.NewtonSolver` instead of a manager class; set
+  :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to select a manager.
+* **Breaking:** Removed ``NewtonManager.create_builder``, ``create_fixed_tendon_control`` and
+  ``NewtonMPMManager.reset_solver_state``; use :func:`~isaaclab_newton.physics.create_builder`,
+  :meth:`NewtonSolver.fixed_tendon_control
+  <isaaclab_newton.physics.NewtonSolver.fixed_tendon_control>` and
+  :func:`~isaaclab_newton.physics.reset_mpm_solver_state`.
+* **Breaking:** Renamed the ``*_manager`` and ``*_manager_cfg`` solver modules to ``*_solver`` and ``*_solver_cfg``,
+  e.g. ``mjwarp_manager`` to ``mjwarp_solver``; import from ``isaaclab_newton.physics``.
+* Changed VBD to register its Newton custom builder attributes, like the other solvers.
+* Changed the check that rejects :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg` with MuJoCo contacts to
+  apply to any solver that does not use Newton's collision pipeline, e.g. Kamino's own collision detector and MPM.
+* Changed :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to reject ``None``; omit it to use
+  :class:`~isaaclab_newton.physics.NewtonManager`.
+* Changed MJWarp under a determinism request to build with its sensor stage disabled instead of raising when
+  :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` is ``False``; the configuration is no longer
+  modified. Tasks whose sensors read attributes only that stage fills (IMU/PVA ``body_qdd``, joint wrench
+  ``body_parent_f``) still raise.
+* Changed MJWarp with :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu` to step eagerly instead of
+  capturing a CUDA graph.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.envs.mdp.randomize_rigid_body_material` sharing sampled materials across all
+  environments for Kamino with Newton's collision pipeline, the default. Only Kamino's own collision detector
+  shares material groups; with Newton's pipeline each environment and shape is sampled as for the other solvers.
+
+
 11.0.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~~
 
