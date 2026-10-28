@@ -703,15 +703,19 @@ def test_mpm_cuda_graph_capture_supports_static_topology(overrides, expected):
 
 
 def test_mpm_status_check_runs_only_after_graph_capture():
-    """Sparse-grid asynchronous failures are queried only after graph replay."""
-    calls = []
+    """Standalone replay surfaces sparse-grid failures; the eager status hook avoids a host read."""
+    cfg = NewtonCfg(solver_cfg=MPMSolverCfg(), use_cuda_graph=False)
+    backend = newton_backend.NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), ModelBuilder(), dt=0.01)
     solver = object.__new__(SolverImplicitMPM)
-    solver.check_sparse_grid_rebuild_status = lambda: calls.append("check")
+    solver.model = backend.model
+    solver._grid_status = wp.full(1, wp.Volume.REBUILD_VOXEL_CAPACITY_EXCEEDED, dtype=wp.uint32, device="cpu")
+    solver._grid_accumulated_status = None
+    backend.solver = solver
+    backend.graph = SimpleNamespace(launch=lambda: None)
 
-    MPMSolver.check_step(MPMSolverCfg(), solver, False, False)
-    MPMSolver.check_step(MPMSolverCfg(), solver, True, False)
-
-    assert calls == ["check"]
+    MPMSolver.check_step(cfg.solver_cfg, solver, False, False)
+    with pytest.raises(RuntimeError, match="active voxels"):
+        backend.step()
 
 
 def test_nested_mpm_solver_discovery_selects_implicit_mpm_entries():
@@ -869,6 +873,7 @@ def _backend_with_masks(cfg: NewtonCfg, world_mask: wp.array, fk_mask: wp.array,
     """Backend stand-in holding authored-state masks and a solver, without a model."""
     return backend_stub(
         cfg=cfg,
+        device=world_mask.device,
         state_0=object(),
         world_mask=world_mask,
         fk_mask=fk_mask,

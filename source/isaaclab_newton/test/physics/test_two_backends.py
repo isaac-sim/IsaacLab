@@ -18,6 +18,7 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     create_builder,
 )
+from isaaclab_newton.physics.newton_backend import capture_graph
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
@@ -70,26 +71,33 @@ def _angles(backend: NewtonBackend) -> np.ndarray:
     return backend.state_0.joint_q.numpy().copy()
 
 
-@pytest.mark.parametrize("captured", [False, True], ids=["eager", "captured"])
+@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_backends_with_different_solvers_step_side_by_side(device, captured):
+def test_backends_with_different_solvers_step_side_by_side(device, execution):
     """Each backend advances only its own model and matches a backend stepped alone."""
-    pair = [_pendulums(cfg, steps, device, captured=captured) for cfg, steps in _configs()]
+    pair = [_pendulums(cfg, steps, device, captured=execution != "eager") for cfg, steps in _configs()]
     alone = [_pendulums(cfg, steps, device) for cfg, steps in _configs()]
     start = [_angles(backend) for backend in pair]
+    step_calls = [backend.step for backend in pair]
+    if execution == "outer_capture":
+        graphs = [capture_graph(device, backend.step) for backend in pair]
+        step_calls = [graph.launch for graph in graphs]
+        for backend, initial in zip(pair, start, strict=True):
+            np.testing.assert_array_equal(_angles(backend), initial)
+            assert backend.graph is None
 
     for _ in range(5):
-        pair[0].step()
+        step_calls[0]()
     np.testing.assert_array_equal(_angles(pair[1]), start[1])
     for _ in range(5):
-        pair[1].step()
+        step_calls[1]()
     for _ in range(5):
         alone[0].step()
         alone[1].step()
 
     assert type(pair[0].solver) is not type(pair[1].solver)
     for backend, reference, initial in zip(pair, alone, start, strict=True):
-        assert (backend.graph is not None) is captured
+        assert (backend.graph is not None) is (execution == "backend_capture")
         assert np.all(np.abs(_angles(backend) - initial) > 1e-3)
         np.testing.assert_allclose(_angles(backend), _angles(reference), atol=1e-5)
 
