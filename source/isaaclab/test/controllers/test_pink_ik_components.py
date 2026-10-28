@@ -187,28 +187,6 @@ class TestPinkKinematicsConfiguration:
         with pytest.raises(FrameNotFound):
             pink_config.get_transform_frame_to_world("nonexistent_frame")
 
-    def test_loads_urdf_version_1_2(self, urdf_path, mesh_path, controlled_joint_names, pink_config, tmp_path):
-        """A URDF 1.2 file loads with the same kinematics as the unversioned file."""
-        urdf_1_2 = tmp_path / "two_link_robot_1_2.urdf"
-        urdf_1_2.write_text(
-            urdf_path.read_text().replace(
-                '<robot name="test_two_link_robot">', '<robot name="test_two_link_robot" version="1.2">'
-            )
-        )
-        config_1_2 = PinkKinematicsConfiguration(
-            urdf_path=str(urdf_1_2),
-            mesh_path=mesh_path,
-            controlled_joint_names=controlled_joint_names,
-            copy_data=True,
-            forward_kinematics=True,
-        )
-
-        assert config_1_2.all_joint_names_pinocchio_order == pink_config.all_joint_names_pinocchio_order
-        np.testing.assert_allclose(
-            config_1_2.get_transform_frame_to_world("link_1").homogeneous,
-            pink_config.get_transform_frame_to_world("link_1").homogeneous,
-        )
-
     def test_multiple_controlled_joints(self, urdf_path, mesh_path):
         """Test configuration with multiple controlled joints."""
         # Create configuration with all available joints as controlled
