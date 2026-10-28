@@ -41,7 +41,6 @@ dependencies = [
     "prettytable>=3.3.0",
     "psutil",
     "protobuf>=4.25.8,!=5.26.0",
-    "hidapi>=0.14.0",
     "gymnasium>=1.2.0",
     "trimesh>=4.6.8",  # lower bound inherited from newton[importers]
     "pyglet>=2.1.6,<3",
@@ -75,7 +74,8 @@ dependencies = [
     "tensorboard",
     "numba>=0.63.1",
     # ----- rl utilities -----
-    "hydra-core",
+    # rc2 is the tested floor for ConfigStore replace=True; switch to stable 1.4 when released.
+    "hydra-core>=1.4.0rc2",
     "h5py>=3.15.0",
     "packaging",
     "rich",
@@ -84,7 +84,7 @@ dependencies = [
     "gitpython>=3.1.60",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
     # Pin the current Newton development revision until it is included in a release.
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@71eeba16a717d4dcf0b9dd7056a7b6f863054dc3",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@42f7def118c2c4299ce493457bafd4e8a22a696e",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -150,9 +150,8 @@ dev = [
 
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 
-skrl = ["skrl>=2.1.0"]
-
-skrl-jax = ["jax[cuda13] ; sys_platform == 'linux'", "skrl[jax]>=2.1.0"]
+skrl = ["skrl[torch,warp]>=2.1.1"]
+skrl-jax = ["jax[cuda13] ; sys_platform == 'linux'", "skrl[jax]>=2.1.1"]
 
 rl-games = [
     "aiohttp>=3.14.3",  # security floor; allow Isaac Sim kernels to select their exact version
@@ -196,7 +195,7 @@ mimic = [
 teleop = [
     "isaaclab-teleop",
     "isaaclab-mimic",
-    "isaacteleop[retargeters,ui,cloudxr]~=1.4.145 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "isaaccapture[retargeters,ui,cloudxr]==1.7.68a1 ; platform_system == 'Linux'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
 rlinf = [
@@ -413,7 +412,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.15.0",
     "mujoco-warp~=3.15.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@71eeba16a717d4dcf0b9dd7056a7b6f863054dc3",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@42f7def118c2c4299ce493457bafd4e8a22a696e",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.

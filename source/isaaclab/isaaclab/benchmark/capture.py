@@ -270,18 +270,18 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     # Config identities keep this lookup independent of optional simulator imports.
     # Ordering preserves the existing Kamino-before-MJWarp primary backend label.
     physics_names = {
-        "isaaclab_newton.physics.kamino_manager_cfg._KaminoSolverCfgBase": "newton_kamino",
-        "isaaclab_newton.physics.mjwarp_manager_cfg.MJWarpSolverCfg": "newton_mjwarp",
+        "isaaclab_newton.physics.kamino_solver_cfg._KaminoSolverCfgBase": "newton_kamino",
+        "isaaclab_newton.physics.mjwarp_solver_cfg.MJWarpSolverCfg": "newton_mjwarp",
         "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
         "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
-        "isaaclab_newton.physics.featherstone_manager_cfg.FeatherstoneSolverCfg": "newton_featherstone",
-        "isaaclab_newton.physics.xpbd_manager_cfg.XPBDSolverCfg": "newton_xpbd",
-        "isaaclab_newton.physics.vbd_manager_cfg.VBDSolverCfg": "newton_vbd",
-        "isaaclab_newton.physics.mpm_manager_cfg.MPMSolverCfg": "newton_mpm",
+        "isaaclab_newton.physics.featherstone_solver_cfg.FeatherstoneSolverCfg": "newton_featherstone",
+        "isaaclab_newton.physics.xpbd_solver_cfg.XPBDSolverCfg": "newton_xpbd",
+        "isaaclab_newton.physics.vbd_solver_cfg.VBDSolverCfg": "newton_vbd",
+        "isaaclab_newton.physics.mpm_solver_cfg.MPMSolverCfg": "newton_mpm",
         "isaaclab_newton.physics.newton_manager_cfg.NewtonCfg": "newton",
         "isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
         "isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
-        "isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg": "custom",
+        "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg": "custom",
     }
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
     solvers = set()

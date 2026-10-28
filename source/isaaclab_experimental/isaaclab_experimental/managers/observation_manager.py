@@ -765,6 +765,7 @@ class ObservationManager(ManagerBase):
                     "history_length",
                     "flatten_history_dim",
                     "history_order",
+                    "history_newest_first",
                     "concatenate_dim",
                 ]:
                     continue
