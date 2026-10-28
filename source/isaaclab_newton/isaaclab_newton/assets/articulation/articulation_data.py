@@ -209,7 +209,12 @@ class ArticulationData(BaseArticulationData):
         )
 
     def _reset_velocity(
-        self, from_com: bool = True, *, env_ids: wp.array | None = None, env_mask: wp.array | None = None
+        self,
+        from_com: bool = True,
+        *,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        invalidate: bool = True,
     ) -> None:
         """Reset the velocity of the articulation.
 
@@ -221,6 +226,8 @@ class ArticulationData(BaseArticulationData):
             from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
                 link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
                 velocity was written directly so it is not clobbered. Defaults to True.
+            invalidate: Flag the selection for FK. Set ``False`` when :meth:`_reset_pose` already flagged it.
+                Defaults to True.
         """
         # Invalidate the derived root link velocity only when it was not the quantity just written.
         reset_timestamps(
@@ -242,9 +249,10 @@ class ArticulationData(BaseArticulationData):
             ]
         )
         self._body_state_dirty = True
-        self._backend_manager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
+        if invalidate:
+            self._backend_manager.invalidate_fk(
+                env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+            )
 
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from body-frame center-of-mass offsets."""
