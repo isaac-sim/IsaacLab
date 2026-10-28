@@ -6,6 +6,7 @@
 from types import SimpleNamespace
 
 import gymnasium as gym
+import pytest
 import torch
 
 from isaaclab.envs.utils.marl import multi_agent_to_single_agent
@@ -23,9 +24,11 @@ class _FakeMultiAgentEnv:
     }
     render_mode = None
 
-    def __init__(self, compute_final_obs=False):
+    def __init__(self, compute_final_obs=False, final_obs_every_step=False):
         self.unwrapped = self
-        self.cfg = SimpleNamespace(state_space=2, compute_final_obs=compute_final_obs)
+        self.cfg = SimpleNamespace(
+            state_space=2, compute_final_obs=compute_final_obs, final_obs_every_step=final_obs_every_step
+        )
         self.extras = {agent: {} for agent in self.possible_agents}
         self.state_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,))
         self.sim = object()
@@ -46,6 +49,8 @@ class _FakeMultiAgentEnv:
             # per-agent terminal observations, distinguishable from the returned (post-reset) observations
             for agent, obs in self.obs_dict.items():
                 self.extras[agent]["final_obs"] = obs + 100.0
+                if self.cfg.final_obs_every_step:
+                    self.extras[agent]["final_obs_every_step"] = True
         rewards = {agent: torch.zeros(2) for agent in self.possible_agents}
         dones = {agent: torch.zeros(2, dtype=torch.bool) for agent in self.possible_agents}
         return self.obs_dict, rewards, dones, dones, self.extras
@@ -97,9 +102,10 @@ def test_multi_agent_to_single_agent_state_observation_tracks_steps():
     torch.testing.assert_close(env.obs_buf["policy"], step_obs["policy"])
 
 
-def test_multi_agent_to_single_agent_concatenates_final_obs():
+@pytest.mark.parametrize("every_step", [False, True])
+def test_multi_agent_to_single_agent_concatenates_final_obs(every_step):
     """Per-agent terminal observations should surface as the single-agent ``extras["final_obs"]`` entry."""
-    source_env = _FakeMultiAgentEnv(compute_final_obs=True)
+    source_env = _FakeMultiAgentEnv(compute_final_obs=True, final_obs_every_step=every_step)
     env = multi_agent_to_single_agent(source_env)
 
     extras = env.step(torch.zeros(2, 2))[4]
@@ -109,6 +115,12 @@ def test_multi_agent_to_single_agent_concatenates_final_obs():
     torch.testing.assert_close(env.extras["final_obs"]["policy"], expected)
     # the per-agent extras of the wrapped environment are left untouched
     assert "final_obs" not in source_env.extras
+    assert extras.get("final_obs_every_step") is (True if every_step else None)
+    if every_step:
+        # Every agent must attest that all rows were captured before flattening advertises it.
+        source_env.cfg.final_obs_every_step = False
+        source_env.extras["agent_1"].pop("final_obs_every_step")
+        assert "final_obs_every_step" not in env.step(torch.zeros(2, 2))[4]
 
 
 def test_multi_agent_to_single_agent_omits_final_obs_when_unavailable():
@@ -116,5 +128,8 @@ def test_multi_agent_to_single_agent_omits_final_obs_when_unavailable():
     env = multi_agent_to_single_agent(_FakeMultiAgentEnv())
     assert "final_obs" not in env.step(torch.zeros(2, 2))[4]
 
-    env = multi_agent_to_single_agent(_FakeMultiAgentEnv(compute_final_obs=True), state_as_observation=True)
-    assert "final_obs" not in env.step(torch.zeros(2, 2))[4]
+    env = multi_agent_to_single_agent(
+        _FakeMultiAgentEnv(compute_final_obs=True, final_obs_every_step=True), state_as_observation=True
+    )
+    extras = env.step(torch.zeros(2, 2))[4]
+    assert "final_obs" not in extras and "final_obs_every_step" not in extras

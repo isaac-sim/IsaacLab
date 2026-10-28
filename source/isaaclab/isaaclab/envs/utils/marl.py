@@ -134,7 +134,10 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
                 return extras
             final_obs = {agent: extras[agent]["final_obs"] for agent in self.env.possible_agents}
             # shallow copy so the per-agent extras of the wrapped environment stay untouched
-            return {**extras, "final_obs": self._convert_observations(final_obs)}
+            converted = {**extras, "final_obs": self._convert_observations(final_obs)}
+            if all(extras[agent].get("final_obs_every_step") is True for agent in self.env.possible_agents):
+                converted["final_obs_every_step"] = True
+            return converted
 
         def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
             obs, extras = self.env.reset(seed, options)
