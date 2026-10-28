@@ -27,7 +27,7 @@ from isaaclab.utils.assets import retrieve_file_path
 
 import isaaclab_tasks  # noqa: F401
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
 from ..common import resolve_published_checkpoint, resolve_seed
 from ._rsl_rl import _create_rsl_rl_runner
 from .export_common import (
@@ -163,7 +163,8 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
         policy = runner.get_inference_policy(device="cpu")
         if not isinstance(policy, MLPModel):
             raise TypeError("LEAPP export requires an MLPModel policy, including its CNN and RNN variants.")
-        required_obs_groups = set(policy.obs_groups) | set(getattr(policy, "obs_groups_2d", ()))
+        obs_set = "student" if isinstance(agent_cfg, RslRlDistillationRunnerCfg) else "actor"
+        required_obs_groups = set(runner.cfg["obs_groups"][obs_set])
         policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
         recurrent = is_actor_recurrent_policy(policy)
 
