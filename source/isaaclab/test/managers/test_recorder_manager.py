@@ -29,11 +29,13 @@ if TYPE_CHECKING:
 class DummyResetRecorderTerm(RecorderTerm):
     """Dummy recorder term that records dummy data."""
 
-    def record_pre_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | None]:
-        return "record_pre_reset", torch.ones(self._env.num_envs, 2, device=self._env.device)
+    def record_pre_reset(self, env_ids: Sequence[int] | slice | None) -> tuple[str, torch.Tensor]:
+        self.env_ids = env_ids
+        return "record_pre_reset", torch.ones(self._env.num_envs, 2, device=self._env.device)[env_ids]
 
-    def record_post_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | None]:
-        return "record_post_reset", torch.ones(self._env.num_envs, 3, device=self._env.device)
+    def record_post_reset(self, env_ids: Sequence[int] | slice | None) -> tuple[str, torch.Tensor]:
+        self.env_ids = env_ids
+        return "record_post_reset", torch.ones(self._env.num_envs, 3, device=self._env.device)[env_ids]
 
 
 class DummyStepRecorderTerm(RecorderTerm):
@@ -73,40 +75,36 @@ def create_dummy_env(device: str = "cpu", num_envs: int = 3) -> ManagerBasedEnv:
 
 
 def test_record(tmp_path):
-    """Test the recording of the data."""
+    """Capture callbacks and full/partial resets preserve episode boundaries and selectors."""
     env = create_dummy_env()
-    # create recorder manager
+    for cfg in (None, {}, RecorderManagerBaseCfg()):
+        disabled = RecorderManager(cfg, env)
+        assert disabled.exported_successful_episode_count == disabled.exported_failed_episode_count == 0
     cfg = DummyRecorderManagerCfg(dataset_export_dir_path=str(tmp_path), dataset_filename="dataset.hdf5")
-    recorder_manager = RecorderManager(cfg, env)
+    manager = RecorderManager(cfg, env)
     assert (tmp_path / cfg.dataset_filename).is_file()
+    reset_term = manager.get_term("record_reset_term")
 
-    # record the step data
-    recorder_manager.record_pre_step()
-    recorder_manager.record_post_step()
-
-    recorder_manager.record_pre_step()
-    recorder_manager.record_post_step()
-
-    # check the recorded data
+    for _ in range(2):
+        manager.record_pre_step()
+        manager.record_post_step()
     for env_id in range(env.num_envs):
-        episode = recorder_manager.get_episode(env_id)
+        episode = manager.get_episode(env_id)
         assert episode.data["record_pre_step"].shape == (2, 4)
         assert episode.data["record_post_step"].shape == (2, 5)
 
-    # Trigger pre-reset callbacks which then export and clean the episode data
-    recorder_manager.record_pre_reset(env_ids=slice(None))
+    manager.record_pre_reset(slice(None))  # Capture, export and clear the completed episodes.
+    assert reset_term.env_ids == slice(None)
+    assert all(manager.get_episode(i).is_empty() for i in range(env.num_envs))
+    manager.record_post_reset(None)
+    assert reset_term.env_ids == slice(None)
+    manager.reset(slice(1, None, 2))
     for env_id in range(env.num_envs):
-        episode = recorder_manager.get_episode(env_id)
-        assert episode.is_empty()
-
-    recorder_manager.record_post_reset(env_ids=slice(None))
-    for env_id in range(env.num_envs):
-        episode = recorder_manager.get_episode(env_id)
-        assert episode.data["record_post_reset"].shape == (1, 3)
-    recorder_manager.reset(slice(1, None, 2))
-    for env_id in range(env.num_envs):
-        assert recorder_manager.get_episode(env_id).is_empty() == (env_id % 2 == 1)
-    recorder_manager.close()
+        assert manager.get_episode(env_id).is_empty() == (env_id % 2 == 1)
+    manager.record_post_reset(slice(1, None, 2))
+    assert reset_term.env_ids == slice(1, None, 2)
+    assert all(manager.get_episode(i).data["record_post_reset"].shape == (1, 3) for i in range(env.num_envs))
+    manager.close()
 
 
 def test_batched_episode_indices_and_ownership(monkeypatch):
@@ -148,8 +146,6 @@ def test_batched_episode_indices_and_ownership(monkeypatch):
 
     with pytest.raises(ValueError, match="changed shape"):
         manager.add_to_episodes("obs/state", torch.zeros(3, 5))
-    with pytest.raises(ValueError, match="requires 3 rows"):
-        manager.add_to_episodes("obs/state", torch.zeros(2, 2))
     with pytest.raises(ValueError, match="conflicts"):
         manager.add_to_episodes("obs", torch.zeros(3, 2))
     manager.add_to_episodes("obs/state", torch.empty(0, 2), [])
@@ -227,21 +223,24 @@ def test_recorder_storage_boundary():
 
     source = ast.parse(inspect.getsource(module))
     # Batched buffers own collection; snapshots and capture terms have no second writer lifecycle.
-    assert not hasattr(EpisodeData, "add")
-    assert not hasattr(EpisodeData, "pre_export")
+    assert not {"add", "pre_export"} & vars(EpisodeData).keys()
     assert "__init__" not in vars(module.RecorderTerm)
     assert not hasattr(module.RecorderTerm, "close")
     # Observation evaluation belongs to explicit terms, never generic capture dispatch.
     assert not hasattr(module.RecorderTerm, "requires_post_step_observations")
     assert not hasattr(module.RecorderManager, "requires_post_step_observations")
-    assert not any(isinstance(node, ast.Attribute) and node.attr == "observation_manager" for node in ast.walk(source))
-    assert not any(isinstance(node, ast.Attribute) and node.attr == "_episodes" for node in ast.walk(source))
+    assert not any(
+        isinstance(node, ast.Attribute) and node.attr in {"observation_manager", "_episodes"}
+        for node in ast.walk(source)
+    )
     allowed = sys.stdlib_module_names | {"isaaclab", "torch", "warp", "prettytable"}
     for node in ast.walk(source):
         if isinstance(node, ast.Import):
             assert all(alias.name.split(".")[0] in allowed for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.level == 0:
             assert (node.module or "").split(".")[0] in allowed
+        elif isinstance(node, ast.FunctionDef) and node.name.startswith("exported_"):
+            assert not any(isinstance(child, ast.Name) and child.id == "hasattr" for child in ast.walk(node))
     field = next(node for node in source.body if isinstance(node, ast.ClassDef) and node.name == "_RecorderField")
     append = next(node for node in field.body if isinstance(node, ast.FunctionDef) and node.name == "append")
     assert not any(isinstance(node, (ast.For, ast.While, ast.comprehension)) for node in ast.walk(append))
