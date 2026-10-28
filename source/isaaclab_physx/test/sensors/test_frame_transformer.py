@@ -19,6 +19,8 @@ from isaaclab_physx.sensors.frame_transformer.frame_transformer import FrameTran
 from isaaclab_physx.sensors.frame_transformer.frame_transformer_data import FrameTransformerData
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+from pxr import PhysxSchema, UsdGeom, UsdPhysics
+
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObjectCfg
@@ -381,6 +383,36 @@ def test_frame_transformer_feet_wrt_base(sim):
 
 
 @pytest.mark.isaacsim_ci
+def test_frame_transformer_without_clone_plan(sim):
+    """Manually authored environments retain matching frame keys and numeric row order."""
+    source_positions = [(3.0 * index, 0.0, 1.0) for index in range(12)]
+    target_positions = [(x, y + 1.0, z) for x, y, z in source_positions]
+    for index, (source, target) in enumerate(zip(source_positions, target_positions, strict=True)):
+        for name, position in (("Source", source), ("Target", target)):
+            body = UsdGeom.Xform.Define(sim.stage, f"/World/envs/env_{index}/{name}/body")
+            body.AddTranslateOp().Set(position)
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            mass = UsdPhysics.MassAPI.Apply(body.GetPrim())
+            mass.CreateMassAttr(1.0)
+            mass.CreateDiagonalInertiaAttr((1.0, 1.0, 1.0))
+            PhysxSchema.PhysxRigidBodyAPI.Apply(body.GetPrim()).CreateDisableGravityAttr(True)
+    sensor = instantiate(FrameTransformerCfg(
+        prim_path="/World/envs/env_[^/]+/Source/body",
+        target_frames=[FrameTransformerCfg.FrameCfg(prim_path="/World/envs/env_[^/]+/Target/body")],
+    ))  # fmt: skip
+
+    sim.reset()
+    assert sim.get_clone_plan() is None
+    sensor.update(sim.get_physics_dt())
+    data = sensor.data
+    torch.testing.assert_close(data.source_pos_w.torch, torch.tensor(source_positions, device=sim.device))
+    torch.testing.assert_close(data.target_pos_w.torch[:, 0], torch.tensor(target_positions, device=sim.device))
+    torch.testing.assert_close(
+        data.target_pos_source.torch[:, 0], torch.tensor((0.0, 1.0, 0.0), device=sim.device).expand(12, -1)
+    )
+
+
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize(("source_robot", "path_prefix"), [("Robot_1", "{ENV_REGEX_NS}"), ("Robot", "/World")])
 def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
     """Test tracking bodies with same leaf name at different hierarchy levels.
@@ -655,6 +687,8 @@ def _make_frame_transformer(use_recorded_launch: bool = True):
     sensor.cfg = SimpleNamespace(prim_path="/World/Source")
     sensor._device = device
     sensor._num_envs = 1
+    sensor._ALL_ENV_MASK = wp.ones(sensor._num_envs, dtype=wp.bool, device=device)
+    sensor._reset_mask = wp.zeros(sensor._num_envs, dtype=wp.bool, device=device)
     sensor._num_target_frames = 1
     sensor._frame_physx_view = transform_view
     sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)

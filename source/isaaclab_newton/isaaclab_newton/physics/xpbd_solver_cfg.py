@@ -7,14 +7,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
-
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
 
 
 @configclass
@@ -32,8 +27,7 @@ class XPBDSolverCfg(NewtonSolverCfg):
 
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.xpbd_manager:NewtonXPBDManager"
-    """Manager class for the XPBD solver."""
+    class_type: type | str = "{DIR}.xpbd_solver:XPBDSolver"
 
     solver_type: str = "xpbd"
     """Solver type. Can be "xpbd"."""

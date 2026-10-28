@@ -17,7 +17,7 @@ task_config:
 env_creation:
   - "scene.interactive_scene:__init__"
   - "envs.*:reset"
-  - "physics.mjwarp_manager:_create_solver"
+  - "physics.mjwarp_solver:build"
   - "cloner.*:replicate"
   - "cloner.*:usd_replicate"
   - "cloner.*:filter_collisions"

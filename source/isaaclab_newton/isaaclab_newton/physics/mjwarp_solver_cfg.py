@@ -8,14 +8,10 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
-
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
 
 
 @configclass
@@ -28,8 +24,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     .. _MuJoCo Warp documentation: https://github.com/google-deepmind/mujoco_warp
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.mjwarp_manager:NewtonMJWarpManager"
-    """Manager class for the MuJoCo Warp solver."""
+    class_type: type | str = "{DIR}.mjwarp_solver:MJWarpSolver"
 
     solver_type: str = "mujoco_warp"
     """Solver type. Can be "mujoco_warp"."""
@@ -61,9 +56,8 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     disable_sensors: bool = False
     """Whether to disable MuJoCo Warp's internal sensor computation.
 
-    This must be ``True`` when :attr:`NewtonCfg.deterministic_mode` requests a
-    determinism guarantee. Isaac Lab sensors use Newton state directly and do
-    not depend on MuJoCo Warp's internal sensor data.
+    A determinism guarantee (:attr:`NewtonCfg.deterministic_mode`) disables it automatically. Isaac Lab sensors use
+    Newton state directly and do not depend on MuJoCo Warp's internal sensor data.
     """
 
     default_actuator_gear: float | None = None
