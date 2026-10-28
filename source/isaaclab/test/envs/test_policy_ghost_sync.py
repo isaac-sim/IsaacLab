@@ -24,9 +24,9 @@ class _Scene:
 
     terrain = None
 
-    def __init__(self) -> None:
-        self.env_origins = torch.zeros(NUM_ENVS, 3)
-        self.root_pos = torch.zeros(NUM_ENVS, 3)
+    def __init__(self, num_envs: int = NUM_ENVS) -> None:
+        self.env_origins = torch.zeros(num_envs, 3)
+        self.root_pos = torch.zeros(num_envs, 3)
 
     def get_state(self, is_relative: bool = False) -> dict:
         return {"articulation": {"robot": {"root_pose": self.root_pos.clone()}}}
@@ -38,23 +38,24 @@ class _Scene:
 class _CommandManager:
     """Command manager with one term that draws an independent random command per environment."""
 
-    def __init__(self) -> None:
-        self.term = SimpleNamespace(command=torch.zeros(NUM_ENVS, 3), label="velocity")
+    def __init__(self, num_envs: int = NUM_ENVS) -> None:
+        self.num_envs = num_envs
+        self.term = SimpleNamespace(command=torch.zeros(num_envs, 3), label="velocity")
         self.active_terms = ["velocity"]
 
     def get_term(self, name: str) -> SimpleNamespace:
         return self.term
 
     def compute(self, dt: float) -> None:
-        self.term.command[:] = torch.randn(NUM_ENVS, 3)
+        self.term.command[:] = torch.randn(self.num_envs, 3)
 
 
-def _make_env() -> SimpleNamespace:
+def _make_env(num_envs: int = NUM_ENVS) -> SimpleNamespace:
     env = SimpleNamespace(
-        num_envs=NUM_ENVS,
+        num_envs=num_envs,
         device="cpu",
-        scene=_Scene(),
-        command_manager=_CommandManager(),
+        scene=_Scene(num_envs),
+        command_manager=_CommandManager(num_envs),
         event_manager=object(),
         reset_calls=[],
     )
@@ -149,3 +150,35 @@ def test_configure_env_cfg_accepts_a_task_without_a_curriculum() -> None:
 
     assert PolicyGhostSync.configure_env_cfg(cfg) == ["events.push"]
     assert PolicyGhostSync.configure_env_cfg(SimpleNamespace()) == []  # No events, curriculum, or observations.
+
+
+def test_a_larger_pool_leaves_the_environments_beyond_the_slices_parked() -> None:
+    env = _make_env(NUM_ENVS + 4)
+    PolicyGhostSync(env, SLICE_SIZE, NUM_SLICES)
+
+    env._reset_idx(torch.tensor([NUM_ENVS + 1]))  # A parked environment that terminated stays as it is.
+    assert env.reset_calls == []
+
+    env._reset_idx(torch.tensor([0]))
+    assert sorted(env.reset_calls[0]) == [0, 3, 6]
+    env.command_manager.compute(0.02)
+    command = env.command_manager.term.command
+    assert torch.equal(command[SLICE_SIZE : 2 * SLICE_SIZE], command[:SLICE_SIZE])
+
+
+def test_close_puts_the_ghost_environments_back_on_their_own_terrain() -> None:
+    env = _make_env()
+    env.scene.terrain = SimpleNamespace(
+        terrain_origins=object(),
+        terrain_levels=torch.arange(NUM_ENVS),
+        terrain_types=torch.arange(NUM_ENVS),
+        env_origins=torch.arange(NUM_ENVS * 3, dtype=torch.float32).reshape(NUM_ENVS, 3),
+    )
+    original = env.scene.terrain.env_origins.clone()
+    sync = PolicyGhostSync(env, SLICE_SIZE, NUM_SLICES)
+
+    assert torch.equal(env.scene.terrain.env_origins[SLICE_SIZE : 2 * SLICE_SIZE], original[:SLICE_SIZE])
+    sync.close()
+
+    assert torch.equal(env.scene.terrain.env_origins, original)
+    assert torch.equal(env.scene.terrain.terrain_levels, torch.arange(NUM_ENVS))

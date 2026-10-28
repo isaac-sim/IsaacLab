@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sys
@@ -25,8 +26,16 @@ from .common import _compatible_runs, _natural_sort_key, normalize_task_name
 if TYPE_CHECKING:
     pass
 
+logger = logging.getLogger(__name__)
+
 MAX_POLICY_GHOST_SLOTS = 8
 """Largest number of slots, including the reference."""
+
+DEFAULT_GHOST_ENVS = 4
+"""Environments per slot when Policy Ghosts are switched on inside a running playback."""
+
+DEFAULT_GHOST_SLOTS = 3
+"""Slots, including the reference, when Policy Ghosts are switched on inside a running playback."""
 
 
 class PolicyGhostPolicy(Protocol):
@@ -58,7 +67,7 @@ class PolicyGhostRestart:
         self.enable = enable
 
 
-_POLICY_GHOST_VALUE_FLAGS = ("--policy_ghost_slots", "--policy_ghost_root")
+_POLICY_GHOST_VALUE_FLAGS = ("--policy_ghost_slots", "--policy_ghost_envs", "--policy_ghost_root")
 """Policy Ghost options that take a value and are dropped when the feature is disabled."""
 
 
@@ -131,6 +140,101 @@ def discover_checkpoints(
     return checkpoints
 
 
+class PolicyGhostMode:
+    """Switches Policy Ghosts on and off inside a playback that started without them.
+
+    Switching on uses the first ``slice_size * num_slots`` environments of the running simulation as the slots, so no
+    restart is needed when the simulation has that many. The remaining environments are hidden and get zero actions.
+    Switching off resets every environment and returns to the plain playback.
+    """
+
+    def __init__(
+        self,
+        env: Any,
+        *,
+        slice_size: int,
+        num_slots: int,
+        create_session: Callable[[int, int], PolicyGhostSession],
+        step: Callable[[], None],
+        resume: Callable[[], None],
+        restart: PolicyGhostRestart,
+        visualizers: list[Any],
+    ):
+        """Create the mode.
+
+        Args:
+            env: RL wrapper around the running manager-based environment.
+            slice_size: Environments per slot.
+            num_slots: Slots, including the reference.
+            create_session: Builds the Policy Ghost session for a slice size and slot count.
+            step: One step of the plain playback.
+            resume: Prepares the plain playback to continue after the environments were reset.
+            restart: Request used when the simulation has too few environments for the slots.
+            visualizers: Visualizers that can show the Policy Ghosts HUD section.
+        """
+        self._env = env
+        self.slice_size = slice_size
+        self.num_slots = num_slots
+        self._create_session = create_session
+        self._step = step
+        self._resume = resume
+        self.restart = restart
+        self._visualizers = visualizers
+        self.session: PolicyGhostSession | None = None
+        self.message = ""
+        """The reason the latest switch failed, or an empty string."""
+        self._pending: bool | None = None
+
+    @property
+    def in_place(self) -> bool:
+        """Whether the running simulation has enough environments to switch Policy Ghosts on without a restart."""
+        return self._env.unwrapped.num_envs >= self.slice_size * self.num_slots
+
+    @property
+    def active(self) -> bool:
+        """Whether Policy Ghosts are on."""
+        return self.session is not None
+
+    def request_enable(self) -> None:
+        """Switch Policy Ghosts on before the next step."""
+        self._pending = True
+
+    def request_disable(self) -> None:
+        """Switch Policy Ghosts off before the next step."""
+        self._pending = False
+
+    def step(self) -> None:
+        """Apply a pending switch, then step the active mode."""
+        pending, self._pending = self._pending, None
+        if pending is not None and pending != self.active:
+            self._switch(pending)
+        (self.session.step if self.session is not None else self._step)()
+
+    def close(self) -> None:
+        """Release the Policy Ghost session if it is on."""
+        if self.session is not None:
+            self.session.close()
+            self.session = None
+
+    def _switch(self, enable: bool) -> None:
+        self.message = ""
+        try:
+            if enable:
+                session = self._create_session(self.slice_size, self.num_slots)
+                for visualizer in self._visualizers:
+                    visualizer.attach_policy_ghosts(session, self.restart.request, self.request_disable)
+                self.session = session
+            else:
+                for visualizer in self._visualizers:
+                    visualizer.detach_policy_ghosts()
+                self.close()
+                self._env.reset()
+                self._resume()
+        except Exception as error:  # a failed switch must not end the playback
+            logger.exception("Could not switch Policy Ghosts %s.", "on" if enable else "off")
+            self.message = f"Could not switch Policy Ghosts {'on' if enable else 'off'}: {error}"
+
+
 class PolicyGhostSession(PolicyGhostController):
     """Steps one environment whose slices are driven by different checkpoints of the same task.
 
@@ -181,6 +285,8 @@ class PolicyGhostSession(PolicyGhostController):
         self._restart_pending = False
         self._load(0, reference)
         self._obs = env.get_observations()
+        # start the reference and the empty slots together from the same spawn state
+        self._restart_pending = True
 
     @property
     def checkpoint_root(self) -> str:  # noqa: D102

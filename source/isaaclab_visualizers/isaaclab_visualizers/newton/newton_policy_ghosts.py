@@ -34,16 +34,23 @@ class NewtonPolicyGhostPanel:
     mesh textures and metallic shading, so no native material color shows through.
     """
 
-    def __init__(self, controller: PolicyGhostController, restart: Callable[[bool], None] | None = None):
+    def __init__(
+        self,
+        controller: PolicyGhostController,
+        restart: Callable[[bool], None] | None = None,
+        disable: Callable[[], None] | None = None,
+    ):
         """Create the panel.
 
         Args:
             controller: Playback-loop side of Policy Ghosts.
             restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
-                When omitted, the panel has no Disable button.
+            disable: Callback that switches Policy Ghosts off without a restart. When given, the Disable button uses
+                it. When both are omitted, the panel has no Disable button.
         """
         self.controller = controller
         self._restart = restart
+        self._disable = disable
         self._window_open = False
         self._discovered: list[PolicyGhostCheckpoint] = []
         self._message = ""
@@ -87,7 +94,13 @@ class NewtonPolicyGhostPanel:
                 imgui.end_disabled()
             if self._message:
                 imgui.text_wrapped(self._message)
-            if self._restart is not None:
+            if self._disable is not None:
+                imgui.separator()
+                if imgui.button("Disable Policy Ghosts"):
+                    self._disable()
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("Return to playing every environment with the reference checkpoint")
+            elif self._restart is not None:
                 imgui.separator()
                 if imgui.button("Disable Policy Ghosts (restarts)"):
                     self._restart(False)
@@ -149,6 +162,17 @@ class NewtonPolicyGhostPanel:
                     materials[mask, METALLIC] = 0.0
             batch.materials = wp.array(materials, dtype=wp.vec4, device=batch.materials.device)
         # Newton uploads instance materials only while the model is flagged as changed
+        viewer.model_changed = True
+
+    def restore(self, model: Any, viewer: Any) -> None:
+        """Undo the tint, opacity, and flattened materials this panel wrote to the model and the shape batches."""
+        if self._base_colors is not None and model.shape_color is not None:
+            device = model.shape_color.device
+            model.shape_color = wp.array(self._base_colors, dtype=wp.vec3, device=device)
+            model.shape_opacity = wp.array(np.ones(len(self._base_colors), dtype=np.float32), device=device)
+        for batch, native in self._native_materials.values():
+            batch.materials = wp.array(native, dtype=wp.vec4, device=batch.materials.device)
+        self._native_materials.clear()
         viewer.model_changed = True
 
     def consume_slots_changed(self) -> bool:
@@ -247,3 +271,38 @@ def draw_policy_ghost_launcher(imgui: Any, restart: Callable[[bool], None]) -> N
         )
         if imgui.button("Enable Policy Ghosts (restarts)"):
             restart(True)
+
+
+def draw_policy_ghost_toggle(imgui: Any, mode: Any) -> None:
+    """Draw the collapsed Policy Ghosts section of a playback that can switch the feature on from the HUD.
+
+    Args:
+        imgui: The ``imgui`` module.
+        mode: The playback's Policy Ghost mode. It provides ``in_place``, ``slice_size``, ``num_slots``,
+            ``message``, ``request_enable`` and a ``restart`` request.
+    """
+    imgui.set_next_item_open(False, imgui.Cond_.appearing)
+    ghosts_open = imgui.collapsing_header("Policy Ghosts")
+    if imgui.is_item_hovered():
+        imgui.set_tooltip("Compare several checkpoints of this task in one window")
+    if not ghosts_open:
+        return
+    imgui.separator()
+    if mode.in_place:
+        imgui.text_wrapped(
+            f"Compare checkpoints of this task: {mode.slice_size} environments in each of {mode.num_slots} slots."
+            " The other environments are hidden and stop acting until you switch Policy Ghosts off."
+        )
+        if imgui.button("Enable Policy Ghosts"):
+            mode.request_enable()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Restarts the environments with the reference checkpoint in the first slot")
+    else:
+        imgui.text_wrapped(
+            f"Compare checkpoints of this task: {mode.slice_size} environments in each of {mode.num_slots} slots."
+            " This run has too few environments, so enabling restarts the viewer with enough of them."
+        )
+        if imgui.button("Enable Policy Ghosts (restarts)"):
+            mode.restart.request(True)
+    if mode.message:
+        imgui.text_wrapped(mode.message)

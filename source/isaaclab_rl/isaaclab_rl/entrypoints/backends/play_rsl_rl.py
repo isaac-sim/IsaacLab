@@ -15,6 +15,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
+import torch
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -50,7 +51,15 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
-from ..policy_ghosts import MAX_POLICY_GHOST_SLOTS, PolicyGhostRestart, PolicyGhostSession, relaunch
+from ..policy_ghosts import (
+    DEFAULT_GHOST_ENVS,
+    DEFAULT_GHOST_SLOTS,
+    MAX_POLICY_GHOST_SLOTS,
+    PolicyGhostMode,
+    PolicyGhostRestart,
+    PolicyGhostSession,
+    relaunch,
+)
 from . import cli_args_rsl_rl as cli_args
 
 logger = logging.getLogger(__name__)
@@ -83,8 +92,17 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--policy_ghost_slots",
         type=int,
-        default=MAX_POLICY_GHOST_SLOTS,
-        help=f"Number of slots, including the reference, with --policy_ghosts (2 to {MAX_POLICY_GHOST_SLOTS}).",
+        default=None,
+        help=(
+            f"Number of slots, including the reference (2 to {MAX_POLICY_GHOST_SLOTS}). Defaults to"
+            f" {MAX_POLICY_GHOST_SLOTS} with --policy_ghosts, else {DEFAULT_GHOST_SLOTS} for the viewer's switch."
+        ),
+    )
+    parser.add_argument(
+        "--policy_ghost_envs",
+        type=int,
+        default=DEFAULT_GHOST_ENVS,
+        help="Environments per slot when Policy Ghosts are switched on from the viewer HUD of a running playback.",
     )
     parser.add_argument(
         "--policy_ghost_root",
@@ -99,6 +117,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         _, remaining_args_env_registration = setup_preset_cli(parser, remaining_args_env_registration)
     enable_cameras_for_video(args_cli)
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
+    if args_cli.policy_ghost_slots is None:
+        args_cli.policy_ghost_slots = MAX_POLICY_GHOST_SLOTS if args_cli.policy_ghosts else DEFAULT_GHOST_SLOTS
     return args_cli
 
 
@@ -137,6 +157,39 @@ def build_runner(env: RslRlVecEnvWrapper, agent_cfg: RslRlBaseRunnerCfg) -> OnPo
     raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
 
 
+def create_policy_ghost_session(
+    env: RslRlVecEnvWrapper,
+    args_cli: argparse.Namespace,
+    agent_cfg: RslRlBaseRunnerCfg,
+    reference_path: str,
+    log_root_path: str,
+    slice_size: int,
+    num_slots: int,
+) -> PolicyGhostSession:
+    """Build a Policy Ghost session whose reference slot plays ``reference_path``."""
+
+    def policy_factory(path: str):
+        runner = build_runner(env, agent_cfg)
+        runner.load(path)
+        return runner.get_inference_policy(device=env.unwrapped.device)
+
+    reference_file = Path(reference_path)
+    return PolicyGhostSession(
+        env,
+        slice_size=slice_size,
+        num_slots=num_slots,
+        checkpoint_root=os.path.abspath(args_cli.policy_ghost_root or log_root_path),
+        task=args_cli.task,
+        library="rsl_rl",
+        checkpoint_pattern=r"model_.*\.pt",
+        policy_factory=policy_factory,
+        reference=PolicyGhostCheckpoint(
+            reference_path, reference_file.parent.name, reference_file.name, reference_file.stat().st_mtime
+        ),
+        metadata={"agent": args_cli.agent},
+    )
+
+
 def run_policy_ghosts(
     env: RslRlVecEnvWrapper,
     args_cli: argparse.Namespace,
@@ -147,26 +200,8 @@ def run_policy_ghosts(
     restart: PolicyGhostRestart,
 ) -> None:
     """Play the reference checkpoint with ghost slots that the Newton GL viewer HUD fills."""
-
-    def policy_factory(path: str):
-        runner = build_runner(env, agent_cfg)
-        runner.load(path)
-        return runner.get_inference_policy(device=env.unwrapped.device)
-
-    reference_file = Path(reference_path)
-    session = PolicyGhostSession(
-        env,
-        slice_size=slice_size,
-        num_slots=args_cli.policy_ghost_slots,
-        checkpoint_root=os.path.abspath(args_cli.policy_ghost_root or log_root_path),
-        task=args_cli.task,
-        library="rsl_rl",
-        checkpoint_pattern=r"model_.*\.pt",
-        policy_factory=policy_factory,
-        reference=PolicyGhostCheckpoint(
-            reference_path, reference_file.parent.name, reference_file.name, reference_file.stat().st_mtime
-        ),
-        metadata={"agent": args_cli.agent},
+    session = create_policy_ghost_session(
+        env, args_cli, agent_cfg, reference_path, log_root_path, slice_size, args_cli.policy_ghost_slots
     )
     attached = False
     for visualizer in env.unwrapped.sim.visualizers:
@@ -201,13 +236,13 @@ def _stop_on_restart(step: Callable[[], None], restart: PolicyGhostRestart) -> C
     return wrapped
 
 
-def _offer_policy_ghosts(env: RslRlVecEnvWrapper, env_cfg: object, restart: PolicyGhostRestart) -> None:
-    """Add an Enable Policy Ghosts button to the Newton GL HUD of a run that started without the feature."""
+def _offer_policy_ghosts(mode: PolicyGhostMode, env: RslRlVecEnvWrapper, env_cfg: object) -> None:
+    """Offer Policy Ghosts in the Newton GL HUD of a run that started without the feature."""
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         return
     for visualizer in env.unwrapped.sim.visualizers:
-        if hasattr(visualizer, "attach_policy_ghost_restart"):
-            visualizer.attach_policy_ghost_restart(restart.request)
+        if hasattr(visualizer, "attach_policy_ghost_toggle"):
+            visualizer.attach_policy_ghost_toggle(mode)
 
 
 def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> None:
@@ -302,6 +337,27 @@ def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
                 # reset recurrent states for episodes that have terminated
                 policy.reset(dones)
 
+            def resume() -> None:
+                nonlocal obs
+                # the environments were reset when Policy Ghosts were switched off
+                obs = env.get_observations()
+                policy.reset(torch.ones(env.unwrapped.num_envs, dtype=torch.bool, device=env.unwrapped.device))
+
             screen.close()
-            _offer_policy_ghosts(env, env_cfg, restart)
-            run_playback(_stop_on_restart(step, restart), dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            mode = PolicyGhostMode(
+                env,
+                slice_size=args_cli.policy_ghost_envs,
+                num_slots=args_cli.policy_ghost_slots,
+                create_session=lambda size, slots: create_policy_ghost_session(
+                    env, args_cli, agent_cfg, resume_path, log_root_path, size, slots
+                ),
+                step=step,
+                resume=resume,
+                restart=restart,
+                visualizers=[v for v in env.unwrapped.sim.visualizers if hasattr(v, "attach_policy_ghosts")],
+            )
+            cleanup.callback(mode.close)
+            _offer_policy_ghosts(mode, env, env_cfg)
+            run_playback(
+                _stop_on_restart(mode.step, restart), dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg
+            )

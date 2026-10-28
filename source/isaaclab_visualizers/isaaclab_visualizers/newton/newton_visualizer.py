@@ -61,7 +61,7 @@ from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublish
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_key_event_source import NewtonKeyEventSource
-from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
+from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher, draw_policy_ghost_toggle
 from .newton_recording import NewtonRecordingPanel, hover_tooltip
 from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
 
@@ -198,6 +198,7 @@ class NewtonViewerGL(ViewerGL):
     _owner = None
     _policy_ghost_panel = None
     _policy_ghost_restart = None
+    _policy_ghost_toggle = None
     _recording_panel = None
     _show_stats = False
     """Whether the performance and model statistics overlay in the top-right corner is open."""
@@ -382,11 +383,17 @@ class NewtonViewerGL(ViewerGL):
                 live_plots_cb(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
-            ghosts_offered = viewer._policy_ghost_panel is not None or viewer._policy_ghost_restart is not None
+            ghosts_offered = (
+                viewer._policy_ghost_panel is not None
+                or viewer._policy_ghost_toggle is not None
+                or viewer._policy_ghost_restart is not None
+            )
             if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
                 viewer._draw_policy_ghosts_unsupported(imgui)
             elif viewer._policy_ghost_panel is not None:
                 viewer._policy_ghost_panel.draw(imgui)
+            elif viewer._policy_ghost_toggle is not None:
+                draw_policy_ghost_toggle(imgui, viewer._policy_ghost_toggle)
             elif viewer._policy_ghost_restart is not None:
                 draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
 
@@ -2159,8 +2166,33 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._viewer is not None:
             self._viewer._policy_ghost_restart = restart
 
+    def attach_policy_ghost_toggle(self, mode: Any) -> None:
+        """Offer an Enable Policy Ghosts button in the HUD of a playback that can switch the feature on in place.
+
+        Args:
+            mode: The playback's Policy Ghost mode, with ``in_place``, ``slice_size``, ``num_slots``, ``message``,
+                ``request_enable`` and ``restart``.
+        """
+        if self._viewer is not None:
+            self._viewer._policy_ghost_toggle = mode
+
+    def detach_policy_ghosts(self) -> None:
+        """Remove the Policy Ghosts HUD section and show the plain environments again."""
+        panel = self._policy_ghost_panel
+        if panel is None:
+            return
+        self._policy_ghost_panel = None
+        self._visible_env_count = None
+        if self._viewer is not None:
+            self._viewer._policy_ghost_panel = None
+            panel.restore(self.backend.model, self._viewer)
+            self._apply_visible_worlds()
+
     def attach_policy_ghosts(
-        self, controller: PolicyGhostController, restart: Callable[[bool], None] | None = None
+        self,
+        controller: PolicyGhostController,
+        restart: Callable[[bool], None] | None = None,
+        disable: Callable[[], None] | None = None,
     ) -> None:
         """Show the Policy Ghosts HUD section for a playback loop that drives several checkpoints.
 
@@ -2170,9 +2202,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         Args:
             controller: Playback-loop side of Policy Ghosts.
             restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
-                When given, the HUD shows a Disable button.
+                When given, the HUD shows a Disable button that restarts.
+            disable: Callback that switches Policy Ghosts off without a restart; the Disable button uses it.
         """
-        self._policy_ghost_panel = NewtonPolicyGhostPanel(controller, restart)
+        self._policy_ghost_panel = NewtonPolicyGhostPanel(controller, restart, disable)
         if self._viewer is not None:
             self._viewer._policy_ghost_panel = self._policy_ghost_panel
             self._apply_visible_worlds()

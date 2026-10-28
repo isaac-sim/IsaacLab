@@ -38,25 +38,29 @@ class PolicyGhostSync:
         """Attach to an environment and place every slice on the reference slice's terrain.
 
         Args:
-            env: Environment simulated with ``slice_size * num_slices`` worlds.
+            env: Environment simulated with at least ``slice_size * num_slices`` worlds. Worlds beyond the slices
+                are left alone: their resets are ignored, so they stay parked.
             slice_size: Number of environments per slice.
             num_slices: Number of slices, including the reference.
 
         Raises:
             TypeError: If the environment does not use managers.
-            ValueError: If the sizes do not match the environment.
+            ValueError: If the environment has fewer worlds than the slices need.
         """
         for manager in ("command_manager", "event_manager", "scene"):
             if not hasattr(env, manager):
                 raise TypeError("Policy Ghosts only support manager-based environments.")
-        if slice_size < 1 or num_slices < 2 or env.num_envs != slice_size * num_slices:
-            raise ValueError(f"Environment has {env.num_envs} envs, expected {num_slices} slices of {slice_size} envs.")
+        if slice_size < 1 or num_slices < 2 or env.num_envs < slice_size * num_slices:
+            raise ValueError(
+                f"Environment has {env.num_envs} envs, expected at least {num_slices} slices of {slice_size} envs."
+            )
         self._env = env
         self._slice_size = slice_size
         self._num_slices = num_slices
         self._device = env.device
         self._reference_ids = torch.arange(slice_size, device=self._device)
         self._ghost_offsets = torch.arange(1, num_slices, device=self._device) * slice_size
+        self._saved_terrain = self._save_terrain()
         self._sync_terrain()
         self._reset_idx_original = env._reset_idx
         self._compute_commands_original = env.command_manager.compute
@@ -108,9 +112,19 @@ class PolicyGhostSync:
         return offsets.cpu().numpy().astype(np.float32)
 
     def close(self) -> None:
-        """Restore the environment's original reset and command update."""
+        """Restore the environment's original reset, command update, and terrain placement."""
         self._env._reset_idx = self._reset_idx_original
         self._env.command_manager.compute = self._compute_commands_original
+        terrain = self._env.scene.terrain
+        for name, values in self._saved_terrain.items():
+            getattr(terrain, name)[: len(values)] = values
+
+    def _save_terrain(self) -> dict[str, torch.Tensor]:
+        """Copy the terrain placement of every environment, which :meth:`_sync_terrain` overwrites for the ghosts."""
+        terrain = self._env.scene.terrain
+        if terrain is None or getattr(terrain, "terrain_origins", None) is None:
+            return {}
+        return {name: getattr(terrain, name).clone() for name in ("terrain_levels", "terrain_types", "env_origins")}
 
     def _sync_terrain(self) -> None:
         """Place every ghost environment on the terrain tile of its reference environment."""
