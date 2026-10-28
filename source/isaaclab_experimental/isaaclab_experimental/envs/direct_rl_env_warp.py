@@ -222,6 +222,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         # the number of environments to reset, counted on the device so the step does not synchronize with the host
         self._reset_count_wp = wp.zeros(1, dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
+        # the environments a visualizer reset request resets; persistent, so a recorded reset stage replays for it
+        self._manual_reset_mask = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
 
         # Expected bindings:
         self.torch_obs_buf: torch.Tensor = None
@@ -441,6 +443,15 @@ class DirectRLEnvWarp(DirectRLEnv):
             self.extras["final_obs"] = {"policy": self.torch_obs_buf.clone()}
         # -- reset envs that terminated/timed-out
         self._reset_terminated()
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # only reset envs not already reset this step to avoid redundant resets
+            manual_reset_mask = wp.to_torch(self._manual_reset_mask)
+            torch.logical_not(wp.to_torch(self.reset_buf), out=manual_reset_mask)
+            if manual_reset_mask.any():
+                # mark as terminated so RL wrappers observe the episode boundary
+                wp.to_torch(self.reset_terminated).logical_or_(manual_reset_mask)
+                self._reset_idx(mask=self._manual_reset_mask)
         # if sensors are added to the scene, make sure we render to reflect changes in reset
         # if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
         #    self.sim.render()

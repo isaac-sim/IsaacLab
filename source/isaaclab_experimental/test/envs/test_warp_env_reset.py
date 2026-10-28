@@ -12,6 +12,8 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation(SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())))
 
+import isaaclab_tasks_experimental  # noqa: F401
+import pytest
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
 
@@ -31,13 +33,14 @@ def _record_curriculum_env_ids(env, env_ids):
     _curriculum_env_ids.append(env_ids)
 
 
-def _make_cartpole(curriculum: dict | None = None):
-    env_cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
+def _make_cartpole(task_id: str = "Isaac-Cartpole", curriculum: dict | None = None):
+    env_cfg, _ = resolve_task_config(task_id, "", overrides=("physics=newton_mjwarp",))
     env_cfg.seed = 7
     env_cfg.scene.num_envs = _NUM_ENVS
-    env_cfg.curriculum = curriculum
+    if curriculum is not None:
+        env_cfg.curriculum = curriculum
     sim_utils.create_new_stage()
-    return WarpFrontend.build_env(env_cfg, "Isaac-Cartpole").unwrapped
+    return WarpFrontend.build_env(env_cfg, task_id).unwrapped
 
 
 def test_reset_with_mask_resets_only_selected_environments():
@@ -75,5 +78,24 @@ def test_reset_with_ids_or_mask_passes_the_same_ids_to_curriculum_terms():
         expected = torch.tensor([0, 2, 4, 6], device=env.device)
         assert len(_curriculum_env_ids) == 2
         assert all(torch.equal(env_ids, expected) for env_ids in _curriculum_env_ids)
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("task_id", ["Isaac-Cartpole", "Isaac-Cartpole-Direct"])
+def test_visualizer_reset_request_resets_every_environment(task_id: str, monkeypatch):
+    env = _make_cartpole(task_id)
+    try:
+        env.reset()
+        actions = torch.ones((_NUM_ENVS, env.action_space.shape[-1]), device=env.device)
+        for _ in range(5):
+            env.step(actions)
+        monkeypatch.setattr(env.sim, "consume_reset_request", lambda: True)
+
+        _, _, terminated, _, _ = env.step(actions)
+
+        # the request resets the environments the step did not, and marks them terminated for the RL wrappers
+        assert terminated.all()
+        assert not env.episode_length_buf.any()
     finally:
         env.close()

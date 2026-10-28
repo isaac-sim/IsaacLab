@@ -275,6 +275,20 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
 
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # only reset envs not already reset this step to avoid redundant resets
+            manual_reset_mask = wp.to_torch(self.reset_mask_wp)
+            torch.logical_not(self.reset_buf, out=manual_reset_mask)
+            if manual_reset_mask.any():
+                # mark as terminated so RL wrappers observe the episode boundary
+                self.reset_terminated |= manual_reset_mask
+                # mirror the recorder lifecycle used for normal resets
+                manual_reset_ids = self._reset_env_ids(self.reset_mask_wp)
+                self.recorder_manager.record_pre_reset(manual_reset_ids)
+                self._reset_mask(self.reset_mask_wp, manual_reset_ids)
+                self.recorder_manager.record_post_reset(manual_reset_ids)
+
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
 
