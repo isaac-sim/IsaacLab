@@ -368,13 +368,6 @@ class NewtonViewerGL(ViewerGL):
                 imgui.separator()
                 if viewer._view_controls is not None:
                     viewer._view_controls(imgui)
-                owner = viewer._owner
-                if owner is not None and owner.rtx_rendering:
-                    owner._draw_rtx_appearance(imgui)
-                elif _g._ui_callbacks.get("rendering") and imgui.tree_node("Appearance###appearance"):
-                    for callback in _g._ui_callbacks["rendering"]:
-                        callback(imgui)
-                    imgui.tree_pop()
 
             # --- Scene ------------------------------------------------------
             viewer._draw_scene_controls(imgui)
@@ -1058,6 +1051,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 )
             if sensor:
                 imgui.end_disabled()
+        self._draw_appearance(imgui)
         self._draw_focal_length(imgui)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
         indices = sorted(
@@ -1122,10 +1116,21 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self._rtx_appearance_failed = True
         return self._rtx_appearance
 
+    def _draw_appearance(self, imgui) -> None:
+        """Draw the lighting and appearance options of the active renderer, right below the Renderer selector."""
+        if self.rtx_rendering:
+            self._draw_rtx_appearance(imgui)
+            return
+        callbacks = self._viewer.gui._ui_callbacks.get("rendering") if self._viewer.gui is not None else None
+        if callbacks and imgui.tree_node("Lighting & Appearance###appearance"):
+            for callback in callbacks:
+                callback(imgui)
+            imgui.tree_pop()
+
     def _draw_rtx_appearance(self, imgui) -> None:
         """Draw the Appearance options the OVRTX view supports: its background and its lights, one group per type."""
         imgui.set_next_item_open(False, imgui.Cond_.appearing)
-        if not imgui.tree_node("Appearance###rtx_appearance"):
+        if not imgui.tree_node("Lighting & Appearance###rtx_appearance"):
             return
         appearance = self._rtx_appearance_controller()
         if appearance is None or not appearance.available:

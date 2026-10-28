@@ -35,3 +35,5 @@
   "Solid Background" checkbox with a color replaces the sky behind the scene without changing the lighting.
 * The RTX sky texture list offers only outdoor skies, and the sky's loading status shows beside the Sky selector in
   yellow, or in red when the file could not be loaded.
+* Renamed the Camera View "Appearance" options to "Lighting & Appearance" and moved them up, right below the Renderer
+  selector.
