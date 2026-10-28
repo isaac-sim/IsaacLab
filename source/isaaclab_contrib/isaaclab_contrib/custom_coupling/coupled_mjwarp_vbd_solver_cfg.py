@@ -3,26 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the custom MJWarp and VBD coupling manager."""
+"""Configuration for the custom MJWarp and VBD coupled solver."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonSolverCfg, VBDSolverCfg
 
 from isaaclab.utils import configclass
 
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
-
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
-    """Configuration for the custom MJWarp and VBD coupling manager."""
+    """Configuration for the custom MJWarp and VBD coupled solver."""
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
-    """Manager class for the coupled solver."""
+    class_type: type | str = "{DIR}.coupled_mjwarp_vbd_solver:CoupledMJWarpVBDSolver"
 
     rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
     """MJWarp rigid-body solver configuration."""

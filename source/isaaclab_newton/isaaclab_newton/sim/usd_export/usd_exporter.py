@@ -13,10 +13,10 @@ import logging
 import math
 import sys
 from collections import Counter
-from types import SimpleNamespace
 
 import newton
 import numpy as np
+import warp as wp
 from newton.usd import PrimType, SchemaResolverNewton
 
 from pxr import Sdf, Tf, Usd, UsdPhysics, UsdShade
@@ -30,7 +30,12 @@ from isaaclab.sim.usd_export.base_usd_exporter import (
 from isaaclab.utils.dict import update_class_from_dict
 from isaaclab.utils.string import string_to_callable
 
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonShapeCfg, NewtonSolverCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonShapeCfg, NewtonSolver, NewtonSolverCfg
+from isaaclab_newton.physics.newton_builder import (
+    inject_terrain_heightfields,
+    register_builder_attributes,
+    usd_schema_resolvers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +209,9 @@ class UsdExporter(BaseUsdExporter):
                 solver_cfg.save_to_mjcf = None
         force = settings.get("force_position_velocity_actuation", False)
         model = cls.import_model(stage, solver_cfg, device, force, allow_unsafe_torch_checkpoints)
-        solver = cls._manager(solver_cfg)._create_solver(model, solver_cfg) if solver_cfg is not None else None
+        solver = None
+        if solver_cfg is not None:
+            solver = cls._solver(solver_cfg).build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
         # The scene states the solver step rate (physics rate times substeps), as Newton's import reads it.
         scene = next((prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.Scene)), None)
         rate = scene.GetAttribute(_SCENE["time_steps_per_second"].name).Get() if scene else None
@@ -236,24 +243,22 @@ class UsdExporter(BaseUsdExporter):
         Returns:
             The finalized model.
         """
-        manager_type = cls._manager(solver_cfg)
-        # Without a solver there is no concrete manager; terrain conversion only uses the manager's device.
-        manager = manager_type(NewtonCfg(solver_cfg=solver_cfg)) if solver_cfg is not None else SimpleNamespace()
         builder = newton.ModelBuilder()
-        manager_type._register_builder_attributes(builder, solver_cfg)
+        register_builder_attributes(builder, solver_cfg)
         # Tagged terrains become heightfields, as in Isaac Lab; the importer does not read their colliders.
-        terrains = NewtonManager._inject_terrain_heightfields(manager, stage, builder, root_paths=("/",), device=device)
+        terrains = inject_terrain_heightfields(stage, builder, root_paths=("/",), device=device)
         for shape, label in enumerate(builder.shape_label):
             cls._apply_authored_contacts(stage.GetPrimAtPath(label), builder, shape)
         builder.add_usd(
             stage,
-            schema_resolvers=manager_type._get_usd_import_schema_resolvers(),
+            schema_resolvers=usd_schema_resolvers(solver_cfg),
             ignore_paths=terrains,
             force_position_velocity_actuation=force_position_velocity_actuation,
             allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoints,
         )
         # The solver's own preparation, as Isaac Lab runs it before finalizing (e.g. VBD coloring).
-        manager_type._prepare_builder_for_finalize(builder)
+        if solver_cfg is not None:
+            cls._solver(solver_cfg).prepare_builder(solver_cfg, builder)
         return builder.finalize(device=device)
 
     def _selected(self, worlds) -> np.ndarray:
@@ -499,7 +504,7 @@ class UsdExporter(BaseUsdExporter):
                 value = not value
             if value is not None:
                 edits.append(UsdEdit(path, attribute, value, types[type(value)]))
-        if self._manager(solver_cfg)._registers_builder_attributes_from_solver(newton.solvers.SolverKamino):
+        if self._runs(solver_cfg, newton.solvers.SolverKamino):
             # Of Kamino's settings Newton reads from USD, only the constraint stabilization gains are written: the
             # PADMM ones change the result only together with settings USD cannot state (rho_0, warm start method).
             builder = newton.ModelBuilder()
@@ -516,11 +521,10 @@ class UsdExporter(BaseUsdExporter):
 
         Only MuJoCo reads its options from the model; Newton registers their USD attributes.
         """
-        manager = cls._manager(solver_cfg)
-        if not manager._registers_builder_attributes_from_solver(newton.solvers.SolverMuJoCo):
+        if not cls._runs(solver_cfg, newton.solvers.SolverMuJoCo):
             return {}
         builder = newton.ModelBuilder()
-        manager._register_builder_attributes(builder, solver_cfg)
+        register_builder_attributes(builder, solver_cfg)
         scene = (newton.Model.AttributeFrequency.ONCE, newton.Model.AttributeFrequency.WORLD)
         attributes = {
             attribute.name: attribute.usd_attribute_name
@@ -604,7 +608,7 @@ class UsdExporter(BaseUsdExporter):
             current = getattr(cfg, key)
             if key == "class_type" or callable(current):
                 if value != default.get(key):
-                    raise ValueError(f"'{value}' in '{path}' is not a Newton physics manager.")
+                    raise ValueError(f"'{value}' in '{path}' is not a Newton solver.")
                 continue
             if isinstance(value, dict):
                 if current is None:
@@ -637,15 +641,20 @@ class UsdExporter(BaseUsdExporter):
         }
 
     @staticmethod
-    def _manager(solver_cfg) -> type[NewtonManager]:
+    def _solver(solver_cfg: NewtonSolverCfg) -> type[NewtonSolver]:
+        solver = solver_cfg.class_type
+        solver = string_to_callable(solver) if isinstance(solver, str) else solver
+        # An exported file sets the class type; accept only Newton solvers.
+        if not (isinstance(solver, type) and issubclass(solver, NewtonSolver)):
+            raise ValueError(f"'{solver_cfg.class_type}' is not a Newton solver.")
+        return solver
+
+    @classmethod
+    def _runs(cls, solver_cfg: NewtonSolverCfg | None, solver_class: type) -> bool:
+        """Whether the configured solver runs ``solver_class`` (and so reads its custom attributes)."""
         if solver_cfg is None:
-            return NewtonManager
-        manager = solver_cfg.class_type
-        manager = string_to_callable(manager) if isinstance(manager, str) else manager
-        # An exported file sets the class type; accept only Newton managers.
-        if not (isinstance(manager, type) and issubclass(manager, NewtonManager)):
-            raise ValueError(f"'{solver_cfg.class_type}' is not a Newton physics manager.")
-        return manager
+            return False
+        return any(issubclass(c, solver_class) for c in cls._solver(solver_cfg).solver_classes(solver_cfg))
 
     def _target_mode_actuators(
         self, stage: Usd.Stage, model: newton.Model, dofs: dict[int, str], target_ke, target_kd, modes
@@ -657,9 +666,7 @@ class UsdExporter(BaseUsdExporter):
         actuator targeting a single-axis joint makes the import use position-velocity mode (gain: the damping).
         """
         position_velocity = int(newton.JointTargetMode.POSITION_VELOCITY)
-        mujoco = self._manager(self.scene.sim.cfg.physics.solver_cfg)._registers_builder_attributes_from_solver(
-            newton.solvers.SolverMuJoCo
-        )
+        mujoco = self._runs(self.scene.sim.cfg.physics.solver_cfg, newton.solvers.SolverMuJoCo)
         converted = self._converted_velocity_dofs(model) if mujoco else set()
         axes = Counter(dofs.values())
         root = self.scene.env_prim_paths[self.env_id]

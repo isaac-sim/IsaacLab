@@ -42,7 +42,8 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
         live = _capture(manager.backend.model, manager.backend.state_0.body_q, env_id)
         solver_type = type(manager.backend.solver)
         # The engine's own construction of the solver, stepped from the model's initial state.
-        motion = _rollout(manager.backend.model, type(manager)._create_solver(manager.backend.model, solver_cfg))
+        model = manager.backend.model
+        motion = _rollout(model, solver_cfg.class_type.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED))
     return output, live, solver_type, motion
 
 
@@ -230,12 +231,12 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     [
         {"solver_type": "builtins:dict", "solver": {}},
         {
-            "solver_type": "isaaclab_newton.physics.xpbd_manager_cfg:XPBDSolverCfg",
+            "solver_type": "isaaclab_newton.physics.xpbd_solver_cfg:XPBDSolverCfg",
             "solver": {"class_type": "builtins:dict"},
         },
-        {"solver_type": "isaaclab_newton.physics.xpbd_manager_cfg:XPBDSolverCfg", "solver": {"__dict__": {}}},
+        {"solver_type": "isaaclab_newton.physics.xpbd_solver_cfg:XPBDSolverCfg", "solver": {"__dict__": {}}},
     ],
-    ids=["solver type", "manager type", "undeclared field"],
+    ids=["solver type", "solver class", "undeclared field"],
 )
 def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
     """A file names the solver classes that loading instantiates; any other class is refused, not called."""
@@ -268,7 +269,7 @@ def test_loading_does_not_import_modules_the_file_names(tmp_path):
     from isaaclab_newton.sim.usd_export import UsdExporter
     from isaaclab_newton.sim.usd_export.usd_exporter import SETTINGS_KEY
 
-    xpbd = "isaaclab_newton.physics.xpbd_manager_cfg:XPBDSolverCfg"
+    xpbd = "isaaclab_newton.physics.xpbd_solver_cfg:XPBDSolverCfg"
     cases = (
         {"solver_type": "this:Cfg", "solver": {}},
         {"solver_type": xpbd, "solver": {"__dict__": {"class_type": "this:Cfg"}}},
@@ -368,14 +369,12 @@ def test_importing_without_a_solver_returns_a_model():
 
 
 def test_importing_runs_the_solver_preparation(monkeypatch):
-    """Import runs the selected manager's preparation before finalizing, as Isaac Lab's build does."""
-    from isaaclab_newton.physics import NewtonVBDManager, VBDSolverCfg
+    """Import runs the selected solver's preparation before finalizing, as Isaac Lab's build does."""
+    from isaaclab_newton.physics import VBDSolver, VBDSolverCfg
     from isaaclab_newton.sim.usd_export import UsdExporter
 
     prepared = []
-    monkeypatch.setattr(
-        NewtonVBDManager, "_prepare_builder_for_finalize", classmethod(lambda cls, b: prepared.append(b))
-    )
+    monkeypatch.setattr(VBDSolver, "prepare_builder", classmethod(lambda cls, cfg, b: prepared.append(b)))
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/physicsScene")
     UsdExporter.import_model(stage, VBDSolverCfg())
