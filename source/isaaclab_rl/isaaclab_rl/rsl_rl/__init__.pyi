@@ -9,6 +9,10 @@ __all__ = [
     "RslRlBaseRunnerCfg",
     "RslRlCNNModelCfg",
     "RslRlMLPModelCfg",
+    "RslRlQMLPModelCfg",
+    "RslRlResidualMLPCfg",
+    "RslRlSacAlgorithmCfg",
+    "RslRlSacRunnerCfg",
     "RslRlOnPolicyRunnerCfg",
     "RslRlPpoAlgorithmCfg",
     "RslRlRNNModelCfg",
@@ -22,10 +26,13 @@ from .rl_cfg import (
     RslRlBaseRunnerCfg,
     RslRlCNNModelCfg,
     RslRlMLPModelCfg,
+    RslRlQMLPModelCfg,
+    RslRlResidualMLPCfg,
     RslRlOnPolicyRunnerCfg,
     RslRlPpoAlgorithmCfg,
     RslRlRNNModelCfg,
 )
 from .rnd_cfg import RslRlRndCfg
+from .sac_cfg import RslRlSacAlgorithmCfg, RslRlSacRunnerCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 from .vecenv_wrapper import RslRlVecEnvWrapper

@@ -136,17 +136,21 @@ class _DirectTensorEnv(_TensorEnv, DirectRLEnv):
 
 
 @pytest.mark.parametrize(
-    ("backend", "task", "checkpoint_task", "direct"),
+    ("backend", "task", "checkpoint_task", "direct", "policy_kind"),
     [
-        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, id="rsl-rl-cnn"),
-        pytest.param("rl_games", MANAGER_TASK, MANAGER_TASK, False, id="rl-games-lstm"),
-        pytest.param("skrl", MANAGER_TASK, MANAGER_TASK, False, id="skrl"),
-        pytest.param("sb3", MANAGER_TASK, MANAGER_TASK, False, id="sb3-dict-normalization"),
-        pytest.param("rsl_rl", _DIRECT_TASK, MANAGER_TASK, True, id="direct-rsl-rl"),
-        pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, id="ur10-rsl-rl"),
+        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, "default", id="rsl-rl-cnn"),
+        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, "distillation", id="rsl-rl-distillation"),
+        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, "unsupported", id="rsl-rl-unsupported-policy"),
+        pytest.param("rl_games", MANAGER_TASK, MANAGER_TASK, False, "default", id="rl-games-lstm"),
+        pytest.param("skrl", MANAGER_TASK, MANAGER_TASK, False, "default", id="skrl"),
+        pytest.param("sb3", MANAGER_TASK, MANAGER_TASK, False, "default", id="sb3-dict-normalization"),
+        pytest.param("rsl_rl", _DIRECT_TASK, MANAGER_TASK, True, "default", id="direct-rsl-rl"),
+        pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, "default", id="ur10-rsl-rl"),
     ],
 )
-def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct: bool, tmp_path: Path, monkeypatch):
+def test_leapp_export_flow(
+    backend: str, task: str, checkpoint_task: str, direct: bool, policy_kind: str, tmp_path: Path, monkeypatch
+):
     """Load a native checkpoint, export the real backend policy, and replay changed observations."""
     from leapp import InferenceManager
 
@@ -157,7 +161,10 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
     torch.set_num_threads(1)
     torch.manual_seed(42)
     np.random.seed(42)
-    agent_cfg = load_cfg_from_registry(checkpoint_task, f"{backend}_cfg_entry_point")
+    agent_entry = (
+        "rsl_rl_distillation_cfg_entry_point" if policy_kind == "distillation" else f"{backend}_cfg_entry_point"
+    )
+    agent_cfg = load_cfg_from_registry(checkpoint_task, agent_entry)
     checkpoint = _CREATORS[backend](_CheckpointEnv(checkpoint_task, backend), agent_cfg, tmp_path)
     env_cfg = load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point")
     connected = backend == "rsl_rl" and task == MANAGER_TASK and not direct
@@ -210,6 +217,20 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
             "--disable_graph_visualization",
         ]
     )
+    if policy_kind == "unsupported":
+        real_create_runner = module._create_rsl_rl_runner
+
+        def create_runner(*args, **kwargs):
+            runner = real_create_runner(*args, **kwargs)
+            # A native runner can return a custom nn.Module outside the supported MLPModel family.
+            runner.get_inference_policy = lambda device=None: torch.nn.Identity()
+            return runner
+
+        monkeypatch.setattr(module, "_create_rsl_rl_runner", create_runner)
+        with pytest.raises(TypeError, match="LEAPP export requires an MLPModel policy"):
+            module.export_rsl_rl_agent(args, env_cfg, agent_cfg)
+        assert not (tmp_path / task / f"{task}.onnx").exists()
+        return
     assert getattr(module, f"export_{backend}_agent")(args, env_cfg, agent_cfg)
 
     artifact_dir = tmp_path / task

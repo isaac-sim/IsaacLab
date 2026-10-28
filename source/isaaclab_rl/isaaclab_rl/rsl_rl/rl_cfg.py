@@ -19,6 +19,26 @@ from .symmetry_cfg import RslRlSymmetryCfg
 
 
 @configclass
+class RslRlResidualMLPCfg:
+    """Configuration of the residual BatchNorm network used by FlashSAC."""
+
+    class_name: str = "ResidualMLP"
+    """The network class resolved by RSL-RL."""
+
+    hidden_dim: int = 256
+    """Width of the residual stream."""
+
+    num_blocks: int = 2
+    """Number of residual blocks."""
+
+    expansion: int = 4
+    """Width multiplier inside each residual block."""
+
+    bn_momentum: float = 0.01
+    """Momentum of the BatchNorm running statistics."""
+
+
+@configclass
 class RslRlMLPModelCfg:
     """Configuration for the MLP model."""
 
@@ -33,6 +53,9 @@ class RslRlMLPModelCfg:
 
     obs_normalization: bool = False
     """Whether to normalize the observation for the model. Defaults to False."""
+
+    network_cfg: RslRlResidualMLPCfg | None = None
+    """Optional network implementation; None keeps the standard MLP."""
 
     distribution_cfg: DistributionCfg | None = None
     """The configuration for the output distribution. Defaults to None, in which case no distribution is used."""
@@ -66,6 +89,30 @@ class RslRlMLPModelCfg:
 
         class_name: str = "HeteroscedasticGaussianDistribution"
         """The distribution class name. Default is HeteroscedasticGaussianDistribution."""
+
+    @configclass
+    class SquashedGaussianDistributionCfg(DistributionCfg):
+        """Reparameterized Gaussian with scalar or per-action lower and upper bounds."""
+
+        class_name: str = "SquashedGaussianDistribution"
+        """The distribution class resolved by RSL-RL."""
+
+        action_range: tuple[float | list[float], float | list[float]] = (-1.0, 1.0)
+        """Lower and upper bounds in the environment's raw action coordinates."""
+
+        log_std_range: tuple[float, float] = (-5.0, 2.0)
+        """Clamping bounds for the Gaussian log standard deviation before squashing."""
+
+        init_std: float | None = None
+        """Initial Gaussian standard deviation; None keeps the network's initialization."""
+
+
+@configclass
+class RslRlQMLPModelCfg(RslRlMLPModelCfg):
+    """State-action critic using the same configurable networks as the actor."""
+
+    class_name: str = "QMLPModel"
+    """The critic model class resolved by RSL-RL."""
 
 
 @configclass
@@ -214,6 +261,12 @@ class RslRlBaseRunnerCfg:
     device: str = "cuda:0"
     """The device for the rl-agent. Defaults to cuda:0."""
 
+    compute_final_obs: bool = False
+    """Whether the environment must capture pre-reset observations."""
+
+    torch_compile_mode: Literal["default", "max-autotune-no-cudagraphs"] | None = None
+    """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
+
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""
 
@@ -316,6 +369,3 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
-
-    torch_compile_mode: Literal["default", "max-autotune-no-cudagraphs"] | None = None
-    """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
