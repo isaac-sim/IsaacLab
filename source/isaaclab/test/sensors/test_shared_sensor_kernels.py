@@ -5,6 +5,7 @@
 
 """Literal sensor math oracles independent of solver integration fixtures."""
 
+import importlib
 from itertools import combinations
 
 import numpy as np
@@ -143,10 +144,10 @@ def test_pva_rejects_unsupported_features_before_backend_initialization():
         PoseOnlyPva(PvaCfg(prim_path="/NoStage", data_types=["pose"], debug_vis=True))
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.ALL))
-def test_frame_outputs_preserve_coordinates_and_masked_rows(device):
+def test_frame_outputs_preserve_coordinates_and_masked_rows():
     from isaaclab_physx.sensors.frame_transformer.frame_transformer_data import FrameTransformerData
 
+    device = "cpu"
     with wp.ScopedDevice(device):
         mask = wp.array([True, False], dtype=wp.bool)
         s = 2.0**-0.5
@@ -184,15 +185,66 @@ def test_frame_outputs_preserve_coordinates_and_masked_rows(device):
             data.target_pose_source.warp.numpy()[0], [[2, 0, 0, 0, 0, -s, s], [0, -1, 0, 0, 0, -s, s]], atol=1e-6
         )
         np.testing.assert_allclose(data.target_pose_w.warp.numpy()[0], [[1, 4, 3, 0, 0, 0, 1], [2, 2, 3, 0, 0, 0, 1]])
-        outputs[0].fill_(wp.vec3f(5.0))
-        held = data.source_pose_w.warp
-        np.testing.assert_array_equal(held.numpy()[..., :3], 5.0)
-        # Recreated buffers must also replace the recorded commands' bound pointers.
-        data.create_buffers(1, 1, ["replacement"], device)
-        data._source_pos_w.fill_(wp.vec3f(9.0))
-        data._source_quat_w.fill_(wp.quatf(0, 0, 0, 1))
-        np.testing.assert_array_equal(data.source_pose_w.warp.numpy(), [[9, 9, 9, 0, 0, 0, 1]])
-        np.testing.assert_array_equal(held.numpy()[..., :3], 5.0)
+
+
+@pytest.mark.parametrize("backend", ["physx", "ov"])
+@pytest.mark.parametrize("family", ["frame_transformer", "contact_sensor"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_packed_sensor_readers_follow_buffers_through_capture_and_recreation(backend, family, device):
+    """Exercise each real native-memory caller, including its own optional buffers and launch cache."""
+    module = importlib.import_module(f"isaaclab_{backend}.sensors.{family}.{family}_data")
+    if family == "frame_transformer":
+        data = module.FrameTransformerData()
+        fields = ("source_pose_w", "target_pose_w", "target_pose_source")
+        allocation = dict(num_target_frames=2, target_frame_names=["first", "second"])
+    else:
+        data = module.ContactSensorData()
+        fields = ("pose_w",)
+        allocation = dict(
+            num_sensors=2,
+            num_filter_shapes=0,
+            history_length=0,
+            track_pose=True,
+            track_air_time=False,
+            track_contact_points=False,
+            track_friction_forces=False,
+        )
+        if backend == "physx":
+            allocation["supports_total_contact_forces"] = False
+
+    data.create_buffers(num_envs=2, device=device, **allocation)
+    for field in fields:
+        pos = getattr(data, field.replace("pose", "pos")).warp
+        quat = getattr(data, field.replace("pose", "quat")).warp
+        pos.fill_(wp.vec3f(2.0))
+        quat.fill_(wp.quat_identity())
+        held = getattr(data, field)
+        np.testing.assert_array_equal(
+            held.warp.numpy(), np.broadcast_to([2, 2, 2, 0, 0, 0, 1], held.warp.numpy().shape)
+        )
+        with wp.ScopedCapture(device=device) as capture:
+            assert getattr(data, field) is held
+        pos.fill_(wp.vec3f(3.0))
+        wp.capture_launch(capture.graph)
+        np.testing.assert_array_equal(held.warp.numpy()[..., :3], 3.0)
+        # Ordinary cached reads must also refresh the held allocation.
+        pos.fill_(wp.vec3f(5.0))
+        assert getattr(data, field) is held
+        np.testing.assert_array_equal(held.warp.numpy()[..., :3], 5.0)
+
+    # Recreated buffers must replace every recorded command's bound pointers.
+    previous = {field: getattr(data, field) for field in fields}
+    data.create_buffers(num_envs=1, device=device, **allocation)
+    for field in fields:
+        getattr(data, field.replace("pose", "pos")).warp.fill_(wp.vec3f(9.0))
+        getattr(data, field.replace("pose", "quat")).warp.fill_(wp.quat_identity())
+        actual = getattr(data, field)
+        assert actual is not previous[field]
+        np.testing.assert_array_equal(actual.warp.numpy()[..., :3], 9.0)
+        np.testing.assert_array_equal(previous[field].warp.numpy()[..., :3], 5.0)
+    if family == "contact_sensor":
+        data.create_buffers(num_envs=1, device=device, **(allocation | {"track_pose": False}))
+        assert data.pose_w is None and data.pos_w is None and data.quat_w is None
 
 
 def test_sensor_ownership_and_optional_compilation(source_checkout_root):
@@ -252,6 +304,11 @@ def test_sensor_ownership_and_optional_compilation(source_checkout_root):
                 for n in ast.parse(stub.read_text()).body
             )
         if backend != "newton":
+            frame_data = ast.parse((package / "sensors/frame_transformer/frame_transformer_data.py").read_text())
+            assert not any(
+                isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "to_torch"
+                for n in ast.walk(frame_data)
+            ), "Initialize Warp-owned frame storage in Warp; do not mutate it through Torch"
             for family in ("imu", "pva", "joint_wrench"):
                 assert not (package / f"sensors/{family}/kernels.py").exists()
             assert not (package / "sensors/kernels.py").exists()
