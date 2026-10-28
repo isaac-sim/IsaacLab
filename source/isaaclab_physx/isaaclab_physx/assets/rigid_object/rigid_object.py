@@ -18,7 +18,7 @@ from pxr import UsdPhysics
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -736,8 +736,8 @@ class RigidObject(BaseRigidObject):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 masses, (self.num_instances, self.num_bodies), wp.float32, "masses", axis_sizes=(env_ids.shape[0],)
@@ -746,26 +746,14 @@ class RigidObject(BaseRigidObject):
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                masses,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_mass,
-                sim_env_ids,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._body_mass, [env_ids, body_ids])
+        values = wp.from_torch(masses, dtype=wp.float32) if isinstance(masses, torch.Tensor) else masses
+        if full_data:
+            values = wp.indexedarray(values, [env_ids, body_ids])
+        wp.copy(selected, values)
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_mass, self.data._body_mass)
         # PhysX reads pinned host data immediately; the asynchronous copy must finish first.
         wp.synchronize_stream(self.device)
@@ -829,8 +817,8 @@ class RigidObject(BaseRigidObject):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 coms, (self.num_instances, self.num_bodies), wp.transformf, "coms", axis_sizes=(env_ids.shape[0],)
@@ -839,26 +827,14 @@ class RigidObject(BaseRigidObject):
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_with_sim_ids_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                coms,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_com_pose_b.data,
-                sim_env_ids,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._body_com_pose_b.data, [env_ids, body_ids])
+        values = wp.from_torch(coms, dtype=wp.transformf) if isinstance(coms, torch.Tensor) else coms
+        if full_data:
+            values = wp.indexedarray(values, [env_ids, body_ids])
+        wp.copy(selected, values)
         self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         wp.synchronize_stream(self.device)
         self.root_view.set_coms(self._cpu_body_coms, indices=cpu_env_ids)
@@ -921,8 +897,8 @@ class RigidObject(BaseRigidObject):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 inertias,
@@ -935,25 +911,13 @@ class RigidObject(BaseRigidObject):
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_with_sim_ids_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                inertias,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_inertia,
-                sim_env_ids,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._body_inertia, [env_ids, body_ids])
+        values = wp.from_torch(inertias, dtype=wp.float32) if isinstance(inertias, torch.Tensor) else inertias
+        if full_data:
+            values = wp.indexedarray(values, [env_ids, body_ids])
+        wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
         wp.synchronize_stream(self.device)
         self.root_view.set_inertias(self._cpu_body_inertia.flatten(), indices=cpu_env_ids)
