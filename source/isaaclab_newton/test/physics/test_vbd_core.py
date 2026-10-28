@@ -265,7 +265,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         contact_sensors={},
         imu_sensors=[],
         graph=None,
-        graph_capture_pending=False,
+        capture=None,
     )
 
     backend.step()

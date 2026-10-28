@@ -13,7 +13,6 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -174,7 +173,7 @@ class NewtonBackend:
         """Solver substeps per physics step."""
         self.solver_dt = dt / self.num_substeps
         """Duration of one solver substep [s]."""
-        self.deterministic_mode = resolve_deterministic_mode(physics_cfg)
+        self.deterministic_mode = _resolve_deterministic_mode(physics_cfg)
         """Warp determinism mode of the solver and collision pipeline."""
         self.state_1: State = self.model.state()
         """Next state written by the solver."""
@@ -223,9 +222,7 @@ class NewtonBackend:
         self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
         """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
         self.graph: wp.Graph | None = None
-        """Captured step."""
-        self.graph_capture_pending = False
-        """Whether to capture the step right after it next runs eagerly."""
+        """Captured step, or ``None`` until the next step is captured."""
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
@@ -239,18 +236,20 @@ class NewtonBackend:
         if self.cfg is not None:
             self.solver = self.collision_pipeline = self.contacts = self.actuators = None
             self.staged_body_f = self.capture = self.graph = None
-            self.graph_capture_pending = False
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
             self.world_mask = self.fk_mask = None
 
-    def init_solver(self, env_template: str | None = None, *, relaxed_capture: bool = False) -> None:
+    def init_solver(
+        self, env_template: str | None = None, *, relaxed_capture: Callable[[], bool] | None = None
+    ) -> None:
         """Build the solver and its contacts, run the solver-init callbacks, and evaluate the initial FK.
 
         Args:
             env_template: Environment prim path template that expands ``{ENV_REGEX_NS}`` in solver selectors.
-            relaxed_capture: Capture the step in relaxed mode; see :func:`capture_graph`.
+            relaxed_capture: Returns, when the step is captured, whether to capture in relaxed mode; see
+                :func:`capture_graph`. Defaults to strict capture.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
         solver_cls = solver_cfg.class_type
@@ -262,7 +261,7 @@ class NewtonBackend:
         solver = self.solver = solver_cls.build(solver_cfg, self.model, mode, env_template)
         if not solver_cls.single_state:
             solver_cls.init_state(solver_cfg, solver, self.state_1)
-        self.allocate_contacts()
+        self._allocate_contacts()
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
         callbacks, self.solver_init_callbacks = self.solver_init_callbacks, []
@@ -272,49 +271,14 @@ class NewtonBackend:
         self.capture = None
         if self.cfg.use_cuda_graph and self.device.is_cuda:
             if solver_cls.supports_capture(solver_cfg, solver):
-                self.capture = partial(capture_graph, self.device, relaxed=relaxed_capture)
+                self.capture = lambda fn: capture_graph(
+                    self.device, fn, relaxed=relaxed_capture is not None and relaxed_capture()
+                )
             else:
                 logger.warning(
                     "%s cannot be captured in its current configuration; using eager execution.", type(solver).__name__
                 )
         self.invalidate_graph()
-
-    def allocate_contacts(self) -> None:
-        """Allocate contacts from Newton's collision pipeline, or from the solver when it detects contacts itself."""
-        model, solver, solver_cfg = self.model, self.solver, self.cfg.solver_cfg
-        solver_cls = solver_cfg.class_type
-        collision_cfg = self.cfg.collision_cfg
-        if not solver_cls.uses_collision_pipeline(solver_cfg, solver):
-            if collision_cfg is not None:
-                raise ValueError(
-                    f"NewtonCfg.collision_cfg cannot be set while {type(solver).__name__} does not use Newton's"
-                    " collision pipeline. Remove collision_cfg, or configure the solver to use the pipeline (e.g."
-                    " use_mujoco_contacts=False)."
-                )
-            self.contacts = solver_cls.create_contacts(solver_cfg, solver)
-        else:
-            args = collision_cfg.to_pipeline_args() if collision_cfg is not None else {"broad_phase": "explicit"}
-            args["deterministic"] = self.deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
-            required = getattr(solver, "get_max_contact_count", lambda: 0)()
-            if self.collision_pipeline is None:
-                self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
-            self.contacts = self.collision_pipeline.contacts()
-            # MuJoCo Warp can require more contacts than the pipeline estimates.
-            if required > self.contacts.rigid_contact_max:
-                if args["deterministic"]:
-                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
-                    args["rigid_contact_max"] = required
-                    self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
-                    self.contacts = self.collision_pipeline.contacts()
-                else:
-                    self.contacts = Contacts(
-                        rigid_contact_max=required,
-                        soft_contact_max=0,
-                        device=self.device,
-                        requested_attributes=model.get_requested_contact_attributes(),
-                    )
-        if self.contacts is not None:
-            solver_cls.prepare_contacts(solver_cfg, solver, self.contacts, self.collision_pipeline)
 
     def invalidate_fk(
         self,
@@ -393,21 +357,6 @@ class NewtonBackend:
         self.world_mask.zero_()
         self.kinematics_dirty = False
 
-    def notify_model_changes(self) -> None:
-        """Notify the solver of the queued model-property changes once, combining their categories."""
-        if not self.model_changes:
-            return
-        ignored = self.cfg.solver_cfg.class_type.ignored_model_changes
-        flags = 0
-        for change in self.model_changes:
-            if change in ignored and change not in self.warned_model_changes:
-                logger.warning(ignored[change])
-                self.warned_model_changes.add(change)
-            flags |= change
-        with wp.ScopedDevice(self.device):
-            self.solver.notify_model_changed(flags)
-        self.model_changes.clear()
-
     def activate_actuators(self) -> None:
         """Run the model's Newton actuators inside the step. Idempotent."""
         self.actuators_active = True
@@ -474,7 +423,7 @@ class NewtonBackend:
         self.contact_sensors[key] = sensor
         # Contacts allocated before the sensor requested the force attribute must be reallocated.
         if self.solver is not None and self.contacts is not None and self.contacts.force is None:
-            self.allocate_contacts()
+            self._allocate_contacts()
         return sensor
 
     def add_imu_sensor(self, sites: list[int]) -> SensorIMU:
@@ -501,9 +450,8 @@ class NewtonBackend:
             self.invalidate_graph()
 
     def invalidate_graph(self) -> None:
-        """Drop the captured step; with capture enabled, recapture right after the next step runs eagerly."""
+        """Drop the captured step; with capture enabled, the next step runs eagerly and is captured again."""
         self.graph = None
-        self.graph_capture_pending = self.capture is not None
 
     def step(self) -> bool:
         """Advance one physics step, or the whole decimation loop when :meth:`handles_decimation`.
@@ -514,7 +462,7 @@ class NewtonBackend:
         Returns:
             Whether the step has a captured graph.
         """
-        self.notify_model_changes()
+        self._notify_model_changes()
         self.forward()
         if self.handles_decimation():
             simulate = self._simulate_full
@@ -531,11 +479,82 @@ class NewtonBackend:
             return True
         with wp.ScopedDevice(self.device):
             simulate()
-        if self.graph_capture_pending:
+        if self.capture is not None:
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
                 self.graph = self.capture(simulate)
-            self.graph_capture_pending = False
         return self.graph is not None
+
+    def refit_bvh(self, timestamp: int, *, use_cuda_graph: bool = True) -> None:
+        """Refit the model's shape and particle BVHs to :attr:`state_0` once per state ``timestamp``.
+
+        Args:
+            timestamp: Monotonic version of the state, e.g. the sum of the scene-data transform and geometry timestamps.
+            use_cuda_graph: Whether to replay the refit from a CUDA graph on CUDA devices.
+        """
+        cache = self.bvh_refit
+        if cache.timestamp == timestamp:
+            return
+        cache.timestamp = timestamp
+        if not (use_cuda_graph and self.device.is_cuda):
+            self._refit_bvh()
+            return
+        state = self.state_0
+        pointers = state.body_q.ptr, 0 if state.particle_q is None else state.particle_q.ptr
+        if cache.data is None or cache.data[0] != pointers:
+            cache.data = pointers, capture_graph(self.device, self._refit_bvh, relaxed=has_kit())
+        wp.capture_launch(cache.data[1])
+
+    def _allocate_contacts(self) -> None:
+        """Allocate contacts from Newton's collision pipeline, or from the solver when it detects contacts itself."""
+        model, solver, solver_cfg = self.model, self.solver, self.cfg.solver_cfg
+        solver_cls = solver_cfg.class_type
+        collision_cfg = self.cfg.collision_cfg
+        if not solver_cls.uses_collision_pipeline(solver_cfg, solver):
+            if collision_cfg is not None:
+                raise ValueError(
+                    f"NewtonCfg.collision_cfg cannot be set while {type(solver).__name__} does not use Newton's"
+                    " collision pipeline. Remove collision_cfg, or configure the solver to use the pipeline (e.g."
+                    " use_mujoco_contacts=False)."
+                )
+            self.contacts = solver_cls.create_contacts(solver_cfg, solver)
+        else:
+            args = collision_cfg.to_pipeline_args() if collision_cfg is not None else {"broad_phase": "explicit"}
+            args["deterministic"] = self.deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
+            required = getattr(solver, "get_max_contact_count", lambda: 0)()
+            if self.collision_pipeline is None:
+                self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
+            self.contacts = self.collision_pipeline.contacts()
+            # MuJoCo Warp can require more contacts than the pipeline estimates.
+            if required > self.contacts.rigid_contact_max:
+                if args["deterministic"]:
+                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
+                    args["rigid_contact_max"] = required
+                    self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
+                    self.contacts = self.collision_pipeline.contacts()
+                else:
+                    self.contacts = Contacts(
+                        rigid_contact_max=required,
+                        soft_contact_max=0,
+                        device=self.device,
+                        requested_attributes=model.get_requested_contact_attributes(),
+                    )
+        if self.contacts is not None:
+            solver_cls.prepare_contacts(solver_cfg, solver, self.contacts, self.collision_pipeline)
+
+    def _notify_model_changes(self) -> None:
+        """Notify the solver of the queued model-property changes once, combining their categories."""
+        if not self.model_changes:
+            return
+        ignored = self.cfg.solver_cfg.class_type.ignored_model_changes
+        flags = 0
+        for change in self.model_changes:
+            if change in ignored and change not in self.warned_model_changes:
+                logger.warning(ignored[change])
+                self.warned_model_changes.add(change)
+            flags |= change
+        with wp.ScopedDevice(self.device):
+            self.solver.notify_model_changed(flags)
+        self.model_changes.clear()
 
     def _simulate_full(self) -> None:
         """Run ``decimation x (collide, actuators, substeps)``, then post-step callbacks and sensors."""
@@ -618,26 +637,6 @@ class NewtonBackend:
             for sensor in self.contact_sensors.values():
                 sensor.update(self.state_0, eval_contacts)
 
-    def refit_bvh(self, timestamp: int, *, use_cuda_graph: bool = True) -> None:
-        """Refit the model's shape and particle BVHs to :attr:`state_0` once per state ``timestamp``.
-
-        Args:
-            timestamp: Monotonic version of the state, e.g. the sum of the scene-data transform and geometry timestamps.
-            use_cuda_graph: Whether to replay the refit from a CUDA graph on CUDA devices.
-        """
-        cache = self.bvh_refit
-        if cache.timestamp == timestamp:
-            return
-        cache.timestamp = timestamp
-        if not (use_cuda_graph and self.device.is_cuda):
-            self._refit_bvh()
-            return
-        state = self.state_0
-        pointers = state.body_q.ptr, 0 if state.particle_q is None else state.particle_q.ptr
-        if cache.data is None or cache.data[0] != pointers:
-            cache.data = pointers, capture_graph(self.device, self._refit_bvh, relaxed=has_kit())
-        wp.capture_launch(cache.data[1])
-
     def _refit_bvh(self) -> None:
         model, state = self.model, self.state_0
         if model.shape_count:
@@ -646,7 +645,30 @@ class NewtonBackend:
             model.bvh_refit_particles(state)
 
 
-def resolve_deterministic_mode(cfg: NewtonCfg) -> wp.DeterministicMode:
+def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
+    """Record ``fn`` into a CUDA graph without running it.
+
+    Args:
+        device: CUDA device.
+        fn: Work to record. Perform lazy initialization before capture.
+        relaxed: Allow unrelated work on other threads, as required by Kit rendering.
+
+    Returns:
+        The captured graph, replayed with :func:`warp.capture_launch`.
+    """
+    stream = wp.get_stream(device)
+    mode = wp.CaptureMode.THREAD_LOCAL
+    if relaxed:
+        # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
+        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
+        mode = wp.CaptureMode.RELAXED
+    with _paused_gc(), wp.ScopedStream(stream):
+        with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
+            fn()
+    return capture.graph
+
+
+def _resolve_deterministic_mode(cfg: NewtonCfg) -> wp.DeterministicMode:
     """Translate the determinism request of a Newton configuration into a Warp mode.
 
     An explicit :attr:`NewtonCfg.deterministic_mode` wins over the generic
@@ -673,32 +695,6 @@ def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | No
     if not expr:
         return None
     return re.compile("|".join((expr,) if isinstance(expr, str) else expr))
-
-
-# ----- CUDA graph capture and scene queries ----------------------------------------------
-
-
-def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-    """Record ``fn`` into a CUDA graph without running it.
-
-    Args:
-        device: CUDA device.
-        fn: Work to record. Perform lazy initialization before capture.
-        relaxed: Allow unrelated work on other threads, as required by Kit rendering.
-
-    Returns:
-        The captured graph, replayed with :func:`warp.capture_launch`.
-    """
-    stream = wp.get_stream(device)
-    mode = wp.CaptureMode.THREAD_LOCAL
-    if relaxed:
-        # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
-        mode = wp.CaptureMode.RELAXED
-    with _paused_gc(), wp.ScopedStream(stream):
-        with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
-            fn()
-    return capture.graph
 
 
 @contextlib.contextmanager

@@ -74,7 +74,7 @@ from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import test_devices
 
-resolve_deterministic_mode = newton_backend.resolve_deterministic_mode
+resolve_deterministic_mode = newton_backend._resolve_deterministic_mode
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +189,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(coll
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
     )
 
-    backend.allocate_contacts()
+    backend._allocate_contacts()
 
     assert len(pipeline_calls) == 2
     assert pipeline_calls[1] == {**pipeline_calls[0], "rigid_contact_max": 2}
@@ -1244,7 +1244,6 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
         decimation=1,
         capture=None,
         graph=None,
-        graph_capture_pending=False,
     )
     return manager
 
