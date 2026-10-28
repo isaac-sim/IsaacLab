@@ -19,9 +19,9 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonManager,
     NewtonSoftContactCfg,
-    newton_backend,
 )
 from isaaclab_newton.physics.newton_solver import solver_kwargs
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
@@ -240,7 +240,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
             events.append(("step", state_in))
 
     state_0, state_1 = State(), State()
-    backend = SimpleNamespace(
+    backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=physics.VBDSolverCfg()),
         device=wp.get_device("cpu"),
         model=SimpleNamespace(particle_count=1),
@@ -268,6 +268,6 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         graph_capture_pending=False,
     )
 
-    newton_backend.step(backend)
+    backend.step()
 
     assert events == [("rebuild", state_0), ("step", state_0)]

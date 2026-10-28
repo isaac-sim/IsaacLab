@@ -62,6 +62,7 @@ from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.actuators import DrivePID
 from newton.selection import ArticulationView
@@ -148,9 +149,9 @@ def _model_stub(state_attributes=()) -> SimpleNamespace:
 def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
     """Unsupported solvers should not silently ignore a determinism guarantee."""
     cfg = NewtonCfg(solver_cfg=solver_cfg, deterministic_mode="gpu_to_gpu")
-    backend = SimpleNamespace(cfg=cfg, model=_model_stub(), deterministic_mode=resolve_deterministic_mode(cfg))
+    backend = backend_stub(cfg=cfg, model=_model_stub(), deterministic_mode=resolve_deterministic_mode(cfg))
     with pytest.raises(ValueError, match="not supported"):
-        newton_backend.init_solver(backend)
+        backend.init_solver()
 
 
 @pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
@@ -179,7 +180,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(coll
 
     solver = SimpleNamespace(model=SimpleNamespace(), get_max_contact_count=lambda: 2)
     solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
-    backend = SimpleNamespace(
+    backend = backend_stub(
         cfg=NewtonCfg(collision_cfg=collision_cfg, solver_cfg=solver_cfg),
         model=solver.model,
         solver=solver,
@@ -188,7 +189,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(coll
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
     )
 
-    newton_backend.allocate_contacts(backend)
+    backend.allocate_contacts()
 
     assert len(pipeline_calls) == 2
     assert pipeline_calls[1] == {**pipeline_calls[0], "rigid_contact_max": 2}
@@ -737,7 +738,7 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     replays = []
     monkeypatch.setattr(newton_backend, "capture_graph", lambda device, segment, relaxed=False: segment)
     monkeypatch.setattr(wp, "capture_launch", lambda segment: (replays.append(segment), segment()))
-    newton_backend.init_solver(manager.backend)
+    manager.backend.init_solver()
 
     for _ in range(2):
         manager.step()
@@ -804,7 +805,7 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
 
 def _backend_with_masks(cfg: NewtonCfg, world_mask: wp.array, fk_mask: wp.array, solver: object) -> SimpleNamespace:
     """Backend stand-in holding authored-state masks and a solver, without a model."""
-    return SimpleNamespace(
+    return backend_stub(
         cfg=cfg,
         state_0=object(),
         world_mask=world_mask,
@@ -1211,7 +1212,7 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
     solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
     manager._cfg, manager._device = NewtonCfg(num_substeps=num_substeps, solver_cfg=solver_cfg), device
     manager._sim = SimpleNamespace(is_playing=lambda: True, has_gui=False, has_offscreen_render=False)
-    manager.backend = SimpleNamespace(
+    manager.backend = backend_stub(
         cfg=manager._cfg,
         device=wp.get_device(device),
         deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED,
@@ -1255,7 +1256,7 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
     manager = _recording_manager(events, single_state=use_single_state, num_substeps=2)
     manager.register_state_force_callback(lambda state: events.append(("force", state.name)))
 
-    newton_backend.step(manager.backend)
+    manager.backend.step()
 
     if use_single_state:
         assert events == [
@@ -1287,7 +1288,7 @@ def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0(
     manager.backend.actuators_active = True
     manager.set_decimation(2)
 
-    newton_backend.step(manager.backend)
+    manager.backend.step()
 
     step = [("pre",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1"), ("clear", "state_0")]
     assert events == step * 2 + [("post",)]

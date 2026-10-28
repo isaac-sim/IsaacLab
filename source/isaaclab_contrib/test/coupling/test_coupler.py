@@ -32,6 +32,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.newton_builder import create_builder, register_builder_attributes, usd_schema_resolvers
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
@@ -734,7 +735,7 @@ def test_contact_sensor_guard_rejects_coupler():
     """Adding a contact sensor to a coupler backend fails before any sensor is created."""
     solver_cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())])
     manager = NewtonManager(NewtonCfg(solver_cfg=solver_cfg))
-    manager.backend = backend = SimpleNamespace(cfg=manager._cfg, contact_sensors={})
+    manager.backend = backend = backend_stub(cfg=manager._cfg, contact_sensors={})
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
         manager.add_contact_sensor(body_names_expr="body")
