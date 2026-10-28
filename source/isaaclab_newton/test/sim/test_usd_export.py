@@ -241,6 +241,23 @@ def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
         UsdExporter.load_usd(layer.realPath)
 
 
+def test_loading_does_not_import_modules_the_file_names(tmp_path):
+    """A file naming an arbitrary module is refused before that module is imported."""
+    import sys
+
+    from isaaclab_newton.sim.usd_export import UsdExporter
+    from isaaclab_newton.sim.usd_export.usd_exporter import SETTINGS_KEY
+
+    sys.modules.pop("this", None)
+    layer = Sdf.Layer.CreateNew(str(tmp_path / "export.usda"))
+    layer.customLayerData = {SETTINGS_KEY: json.dumps({"solver_type": "this:Cfg", "solver": {}})}
+    layer.Save()
+
+    with pytest.raises(ValueError, match="is not a Newton solver configuration"):
+        UsdExporter.load_usd(layer.realPath)
+    assert "this" not in sys.modules
+
+
 def test_model_without_joint_dofs_has_no_changed_values():
     """A model without joint DOFs, e.g. one with only fixed joints, compares to empty builder lists."""
     from types import SimpleNamespace

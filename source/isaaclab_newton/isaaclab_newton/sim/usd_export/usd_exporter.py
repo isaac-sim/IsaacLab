@@ -184,10 +184,13 @@ class UsdExporter(BaseUsdExporter):
         settings = json.loads(stage.GetRootLayer().customLayerData.get(SETTINGS_KEY, "{}"))
         solver_cfg = None
         if "solver_type" in settings:
-            # The file names the class to call; accept only solver configurations.
-            solver_type = string_to_callable(settings["solver_type"])
-            if not (isinstance(solver_type, type) and issubclass(solver_type, NewtonSolverCfg)):
+            # The file names the classes to use; look them up among Isaac Lab's, never importing what the file names.
+            solver_type = cls._solver_configurations().get(settings["solver_type"])
+            if solver_type is None:
                 raise ValueError(f"'{settings['solver_type']}' in '{path}' is not a Newton solver configuration.")
+            default_manager = solver_type().to_dict().get("class_type")
+            if settings["solver"].get("class_type", default_manager) != default_manager:
+                raise ValueError(f"'{settings['solver']['class_type']}' in '{path}' is not a Newton physics manager.")
             solver_cfg = solver_type()
             solver_cfg.from_dict(settings["solver"])
         force = settings.get("force_position_velocity_actuation", False)
@@ -532,6 +535,16 @@ class UsdExporter(BaseUsdExporter):
                 value = owner.GetAttribute(attribute).Get()
                 if value is not None:
                     getattr(builder, array)[shape] = float(value)
+
+    @staticmethod
+    def _solver_configurations() -> dict[str, type[NewtonSolverCfg]]:
+        """Isaac Lab's Newton solver configurations, keyed as an exported file names them."""
+        import isaaclab_newton.physics as physics  # noqa: PLC0415
+
+        classes = (getattr(physics, name) for name in physics.__all__)
+        return {
+            f"{c.__module__}:{c.__name__}": c for c in classes if isinstance(c, type) and issubclass(c, NewtonSolverCfg)
+        }
 
     @staticmethod
     def _manager(solver_cfg) -> type[NewtonManager]:
