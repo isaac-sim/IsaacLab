@@ -17,7 +17,7 @@ import pytest
 from isaaclab_visualizers.kit import KitBackendCfg
 
 from isaaclab.envs.common import ViewerCfg, _apply_deprecated_viewer_cfg
-from isaaclab.visualizers import TrackingCameraCfg, VisualizerBackendCfg, VisualizerCfg
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
 
 def test_viewer_cfg_default_no_warning():
@@ -61,15 +61,12 @@ def test_deprecated_viewer_forwards_only_to_unconfigured_views(case, expected_pa
     env_cfg = SimpleNamespace(viewer=viewer, sim=SimpleNamespace(visualizer_cfgs=views))
     _apply_deprecated_viewer_cfg(env_cfg)
     for view in views:
-        assert view.window.size == (viewer.resolution if case not in ("defaults", "configured") else shared.window.size)
         if case in ("defaults", "configured"):
             assert (view.eye, view.lookat, view.window) == (shared.eye, shared.lookat, shared.window)
-        elif expected_path is None:
-            assert (view.eye, view.lookat) == (viewer.eye, viewer.lookat) and view.cameras is None
         else:
-            # a followed asset becomes a tracking camera that comes first, so the viewport starts on it
-            assert view.cameras[0].track_path == expected_path and view.cameras[0].eye == viewer.eye
-            assert not isinstance(view.cameras[1], TrackingCameraCfg)
+            assert (view.eye, view.lookat, view.window.size) == (viewer.eye, viewer.lookat, viewer.resolution)
+    assert views[0].backend.origin_type == ("asset" if expected_path else "world")
+    assert views[0].backend.origin_track_path == expected_path
 
 
 def test_combined_visualizer_configs_translate_once_before_launch():
@@ -87,7 +84,7 @@ def test_combined_visualizer_configs_translate_once_before_launch():
         physics=PhysicsCfg(), device="cpu",
         default_visualizer_cfg=VisualizerCfg(max_visible_envs=16, window=WindowCfg(fps=60)),
         visualizer_cfgs=[
-            KitVisualizerCfg(),
+            KitVisualizerCfg(origin_type="asset", origin_track_path="robot/base"),
             NewtonGLVisualizerCfg(eye=(1.0, 2.0, 3.0), max_visible_envs=4, enable_shadows=False),
         ],
     )  # fmt: skip
@@ -101,6 +98,7 @@ def test_combined_visualizer_configs_translate_once_before_launch():
     assert kit.window.size == (1280, 720) and gl.window.size == (1920, 1080)
     assert kit.window.fps == gl.window.fps == 60
     assert kit.max_visible_envs == 16 and gl.max_visible_envs == 4
+    assert (kit.backend.origin_type, kit.backend.origin_track_path) == ("asset", "robot/base")
     assert gl.eye == (1.0, 2.0, 3.0) and gl.streaming_view and not gl.backend.enable_shadows
     assert cfg.default_visualizer_cfg is None
     assert vars(kit).keys().isdisjoint(vars(kit.backend))

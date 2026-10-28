@@ -6,9 +6,8 @@
 """Deprecated: ViewportCameraController compatibility shim.
 
 Camera tracking is now built into :class:`~isaaclab_visualizers.kit.KitVisualizer`.
-Declare a :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or ``track_path`` in the
-``cameras`` of :class:`~isaaclab.visualizers.VisualizerCfg`, and add it to
-:attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
+Configure ``eye`` and ``lookat`` on :class:`~isaaclab.visualizers.VisualizerCfg`, and
+``origin_type`` and ``origin_track_path`` on its :class:`~isaaclab_visualizers.kit.KitBackendCfg` backend.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 
 if TYPE_CHECKING:
     from .. import ViewerCfg
@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 def _warn_method(name: str) -> None:
     warnings.warn(
         f"ViewportCameraController.{name}() is deprecated. "
-        "Declare a PerspectiveCameraCfg with env_index or track_path in VisualizerCfg.cameras, and call "
-        "visualizer.follow() or visualizer.unfollow() to change it at runtime.",
+        "Set eye/lookat on VisualizerCfg and origin_type/origin_track_path on its KitBackendCfg backend; "
+        "call visualizer.reapply_origin() to update at runtime.",
         DeprecationWarning,
         stacklevel=3,
     )
@@ -37,17 +37,16 @@ class ViewportCameraController:
 
     .. deprecated::
         :class:`ViewportCameraController` has been removed. Camera tracking is now built into
-        :class:`~isaaclab_visualizers.kit.KitVisualizer`. Declare a
-        :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or ``track_path`` in
-        :class:`~isaaclab.visualizers.VisualizerCfg` ``cameras`` and pass it to
-        :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
+        :class:`~isaaclab_visualizers.kit.KitVisualizer`. Set ``eye`` and ``lookat`` on
+        :class:`~isaaclab.visualizers.VisualizerCfg`, and ``origin_type`` and ``origin_track_path``
+        on its :class:`~isaaclab_visualizers.kit.KitBackendCfg` backend.
     """
 
     def __init__(self, env: object, cfg: ViewerCfg):
         warnings.warn(
             "ViewportCameraController is deprecated and has been removed. "
-            "Camera tracking is now built into KitVisualizer: declare a PerspectiveCameraCfg with "
-            "env_index or track_path in VisualizerCfg.cameras and add it to SimulationCfg.visualizer_cfgs.",
+            "Camera tracking is now built into KitVisualizer — configure "
+            "eye/lookat on VisualizerCfg and origin_type/origin_track_path on its KitBackendCfg backend.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -69,7 +68,7 @@ class ViewportCameraController:
     # ------------------------------------------------------------------
 
     def set_view_env_index(self, env_index: int) -> None:
-        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.set_follow_env` instead."""
+        """Deprecated. Update :attr:`~KitBackendCfg.origin_env_index` on the visualizer instead."""
         _warn_method("set_view_env_index")
         num_envs = getattr(self._env, "num_envs", None)
         if num_envs is not None and not (0 <= env_index < num_envs):
@@ -79,53 +78,72 @@ class ViewportCameraController:
             )
         self._cfg.env_index = env_index
         for viz in self._get_kit_visualizers():
-            viz.set_follow_env(env_index)
+            viz.cfg.backend.origin_env_index = env_index
+            if viz.cfg.backend.origin_type == "env":
+                viz.reapply_origin()
 
     def update_view_to_world(self) -> None:
-        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.unfollow` instead."""
+        """Deprecated. Set ``origin_type='world'`` on :class:`~isaaclab_visualizers.kit.KitBackendCfg` instead."""
         _warn_method("update_view_to_world")
         self._cfg.origin_type = "world"
+        origin = torch.zeros(3)
         for viz in self._get_kit_visualizers():
-            viz.unfollow()
-            viz.set_view_offsets(tuple(self.default_cam_eye.tolist()), tuple(self.default_cam_lookat.tolist()))
+            viz.cfg.backend.origin_type = "world"
+            eye = (origin + torch.tensor(self.default_cam_eye, dtype=torch.float32)).tolist()
+            target = (origin + torch.tensor(self.default_cam_lookat, dtype=torch.float32)).tolist()
+            viz.set_camera_view(tuple(eye), tuple(target))
 
     def update_view_to_env(self) -> None:
-        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.follow` instead."""
+        """Deprecated. Set ``origin_type='env'`` on :class:`~isaaclab_visualizers.kit.KitBackendCfg` instead."""
         _warn_method("update_view_to_env")
         self._cfg.origin_type = "env"
         for viz in self._get_kit_visualizers():
-            viz.follow(None)
+            viz.cfg.backend.origin_type = "env"
+            viz.reapply_origin()
 
     def update_view_to_asset_root(self, asset_name: str) -> None:
-        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.follow` with the asset instead."""
+        """Deprecated. Set ``origin_type='asset'`` and ``origin_track_path`` on
+        :class:`~isaaclab_visualizers.kit.KitBackendCfg` instead."""
         _warn_method("update_view_to_asset_root")
         self._cfg.asset_name = asset_name
         self._cfg.origin_type = "asset_root"
         for viz in self._get_kit_visualizers():
-            viz.follow(asset_name)
+            viz.cfg.backend.origin_type = "asset"
+            viz.cfg.backend.origin_track_path = asset_name
+            viz.reapply_origin()
 
     def update_view_to_asset_body(self, asset_name: str, body_name: str) -> None:
-        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.follow` with the body instead."""
+        """Deprecated. Set ``origin_type='asset'`` and ``origin_track_path`` on
+        :class:`~isaaclab_visualizers.kit.KitBackendCfg` instead."""
         _warn_method("update_view_to_asset_body")
         self._cfg.asset_name = asset_name
         self._cfg.body_name = body_name
         self._cfg.origin_type = "asset_body"
         for viz in self._get_kit_visualizers():
-            viz.follow(f"{asset_name}/{body_name}")
+            viz.cfg.backend.origin_type = "asset"
+            viz.cfg.backend.origin_track_path = f"{asset_name}/{body_name}"
+            viz.reapply_origin()
 
     def update_view_location(
         self,
         eye: tuple[float, float, float] | None = None,
         lookat: tuple[float, float, float] | None = None,
     ) -> None:
-        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.set_view_offsets` directly instead."""
+        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.set_camera_view` directly instead."""
         _warn_method("update_view_location")
         if eye is not None:
             self.default_cam_eye = np.asarray(eye, dtype=float)
         if lookat is not None:
             self.default_cam_lookat = np.asarray(lookat, dtype=float)
         for viz in self._get_kit_visualizers():
-            viz.set_view_offsets(tuple(self.default_cam_eye.tolist()), tuple(self.default_cam_lookat.tolist()))
+            # Persist relative offsets into the visualizer config so that
+            # subsequent reapply_origin() calls (e.g. from asset tracking) use
+            # the updated offsets rather than the stale original values.
+            viz.cfg.eye = tuple(self.default_cam_eye.tolist())
+            viz.cfg.lookat = tuple(self.default_cam_lookat.tolist())
+            # reapply_origin() adds the current world/env/asset origin and pushes
+            # the result to the viewport, preserving origin-relative behaviour.
+            viz.reapply_origin()
 
     # ------------------------------------------------------------------
     # Private helpers

@@ -23,8 +23,7 @@ from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matr
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.camera_follower import CameraFollower
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, TrackingCameraCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 
@@ -83,13 +82,9 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step: bool = False
         self._controls_kit_timeline = False
         self._owns_kit_timeline = False
-        # Tracking camera following state: the viewport camera follows an environment or an asset, or is free
+        # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
-        self._start_cameras: list = []
-        self._declared_tracking_camera: PerspectiveCameraCfg | None = None
-        self._follow_view: PerspectiveCameraCfg | None = None
-        self._follower: CameraFollower | None = None
-        self._follow_env: int | None = None
+        self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -112,7 +107,6 @@ class KitVisualizer(BaseVisualizer):
             return
 
         super().initialize(sim, cameras=cameras)
-        self._start_cameras = list(cameras)
         scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
 
@@ -160,7 +154,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
-        self._setup_initial_camera_view()
+        self.reapply_origin()
         self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
         if self._controls_kit_timeline:
             self.play()
@@ -191,7 +185,8 @@ class KitVisualizer(BaseVisualizer):
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
-        self._update_asset_follow_camera()
+        if self.cfg.backend.origin_type == "asset":
+            self._update_asset_tracking_camera()
         self._app_pumped_this_step = self._pump_kit_app_update()
         if self._camera_image_provider is not None:
             image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
@@ -308,8 +303,8 @@ class KitVisualizer(BaseVisualizer):
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
-        if self._runtime_headless:
-            self._update_asset_follow_camera()
+        if self._runtime_headless and self.cfg.backend.origin_type == "asset":
+            self._update_asset_tracking_camera()
         w, h = self.cfg.window.size
 
         # Create the render product and annotator before the app update so the first
@@ -456,70 +451,14 @@ class KitVisualizer(BaseVisualizer):
         self._set_viewport_camera(tuple(eye), tuple(target))
 
     @property
-    def following(self) -> bool:
-        """Whether the viewport camera follows an environment or an asset instead of being free."""
-        return self._follower is not None
+    def viewer_origin(self) -> torch.Tensor | None:
+        """Current world-space origin offset applied to :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+        :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` when computing the absolute camera position.
 
-    @property
-    def follow_env_index(self) -> int:
-        """Environment the viewport camera follows, or would follow when asked to."""
-        if self._follow_env is None:
-            scene = self._interactive_scene
-            return 0 if scene is None else (scene.num_envs - 1) // 2
-        return self._follow_env
-
-    def follow(self, track_path: str | None = None, *, env_index: int | None = None) -> None:
-        """Make the viewport camera frame an environment, or follow an asset in it.
-
-        The configuration's ``eye`` and ``lookat`` become offsets from the environment origin, or from the tracked
-        asset when *track_path* is set. A tracking camera declared in the configuration supplies the heading
-        behaviour when it follows the same asset.
-
-        Args:
-            track_path: ``"<asset>"`` or ``"<asset>/<body>"``, or None to frame the environment's origin.
-            env_index: Environment to follow; None keeps the one last chosen, the middle one at first.
+        Returns ``None`` before :meth:`initialize` is called or when no valid origin has been
+        established yet (e.g. asset-tracking before the first :meth:`step`).
         """
-        if env_index is not None:
-            self._follow_env = int(env_index)
-        scene = self._interactive_scene
-        if scene is None:
-            logger.warning("[KitVisualizer] Cannot follow before the scene is registered.")
-            return
-        template = self._declared_tracking_camera
-        same_asset = template is not None and template.track_path == track_path
-        self._follow_view = TrackingCameraCfg(
-            env_index=self._follow_env,
-            track_path=track_path,
-            eye=self.cfg.eye,
-            lookat=self.cfg.lookat,
-            focal_length=self.cfg.focal_length,
-            follow_heading=same_asset and template.follow_heading,
-            heading_smoothing_time_constant=template.heading_smoothing_time_constant if same_asset else 0.0,
-        )
-        self._follower = CameraFollower(self._follow_view, scene, self._env_ids)
-        self._follow_env = self._follower.env
-        self._set_viewport_focal_length(self._follow_view.focal_length)
-        self._update_follow_camera()
-
-    def unfollow(self) -> None:
-        """Hand the viewport camera back to the user, keeping its current pose."""
-        self._follower = self._follow_view = None
-
-    def set_follow_env(self, env_index: int) -> None:
-        """Follow *env_index* from now on; a free camera only remembers the choice."""
-        self._follow_env = int(env_index)
-        if self._follower is not None:
-            self._follower.set_env(env_index)
-            self._update_follow_camera()
-
-    def set_view_offsets(self, eye: tuple[float, float, float], lookat: tuple[float, float, float]) -> None:
-        """Set the camera pose: offsets while following, world coordinates while free."""
-        self.cfg.eye, self.cfg.lookat = tuple(float(v) for v in eye), tuple(float(v) for v in lookat)
-        if self._follow_view is None:
-            self.set_camera_view(self.cfg.eye, self.cfg.lookat)
-            return
-        self._follow_view.eye, self._follow_view.lookat = self.cfg.eye, self.cfg.lookat
-        self._update_follow_camera()
+        return self._viewer_origin
 
     # ---- Viewport + camera ----------------------------------------------------------------
 
@@ -836,14 +775,6 @@ class KitVisualizer(BaseVisualizer):
         camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), False)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
 
-    def _set_viewport_focal_length(self, focal_length: float) -> None:
-        """Set the lens of the viewport camera [mm], in the session layer so the user's stage is left alone."""
-        camera_path = (self._viewport_api.get_active_camera() if self._viewport_api is not None else None) or (
-            _DEFAULT_VIEWPORT_CAMERA_PATH
-        )
-        with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
-            UsdGeom.Camera.Define(self._sim.stage, camera_path).GetFocalLengthAttr().Set(float(focal_length))
-
     def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
         """Apply eye/target camera pose directly to a USD camera prim.
 
@@ -997,42 +928,77 @@ class KitVisualizer(BaseVisualizer):
                 inv_attr.Set(prev)
         self._point_instancer_invisible_ids_backup.clear()
 
-    def _setup_initial_camera_view(self) -> None:
-        """Start on the first declared view: a tracking camera follows from the start, any other view is free.
+    def reapply_origin(self) -> None:
+        """Apply the configured world, environment, or asset origin to the viewport camera.
 
-        Called once at the end of :meth:`initialize`. An asset is followed from the first step, because its
-        state is not available before :meth:`~isaaclab.sim.SimulationContext.reset`.
+        Called during initialization and after changing ``cfg.backend.origin_type``,
+        ``cfg.backend.origin_env_index``, or ``cfg.backend.origin_track_path`` at runtime.
+        Asset tracking waits for the next :meth:`step`, when simulation state is available.
         """
         self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
-        # declaration order, not the simulation's, which lists tracking cameras after the free view
-        declared = self.cfg.cameras if self.cfg.cameras is not None else self._start_cameras
-        views = [camera for camera in declared if isinstance(camera, PerspectiveCameraCfg)]
-        self._declared_tracking_camera = next((view for view in views if isinstance(view, TrackingCameraCfg)), None)
-        if views and isinstance(views[0], TrackingCameraCfg):
-            first = views[0]
-            self.cfg.eye, self.cfg.lookat, self.cfg.focal_length = first.eye, first.lookat, first.focal_length
-            self.follow(first.track_path, env_index=first.env_index)
 
-    def _update_asset_follow_camera(self) -> None:
-        """Re-apply the pose every step while an asset is followed; a fixed environment view is left movable."""
-        if self._follower is not None and self._follower.cfg.track_path:
-            self._update_follow_camera()
+        if self.cfg.backend.origin_type == "world":
+            self._viewer_origin = torch.zeros(3)
+        elif self.cfg.backend.origin_type == "env":
+            scene = self._interactive_scene
+            if scene is None:
+                logger.warning("[KitVisualizer] origin_type='env' requested but no scene is registered yet.")
+                self._viewer_origin = torch.zeros(3)
+            else:
+                num_envs = scene.num_envs
+                if not (0 <= self.cfg.backend.origin_env_index < num_envs):
+                    raise ValueError(
+                        f"[KitVisualizer] origin_env_index {self.cfg.backend.origin_env_index} is out of range "
+                        f"[0, {num_envs - 1}] for origin_type='env'."
+                    )
+                self._viewer_origin = scene.env_origins[self.cfg.backend.origin_env_index]
+        elif self.cfg.backend.origin_type == "asset":
+            if self.cfg.backend.origin_track_path is None:
+                raise ValueError("[KitVisualizer] origin_type='asset' requires origin_track_path to be set.")
+            # Asset data is not available until after sim.reset(); defer to step().
+            return
+        else:
+            logger.warning(
+                "[KitVisualizer] Unknown origin_type '%s'; defaulting to world.", self.cfg.backend.origin_type
+            )
+            self._viewer_origin = torch.zeros(3)
 
-    def _update_follow_camera(self) -> None:
-        """Move the viewport camera to the followed environment or asset, once both are ready."""
-        if self._follower is None:
+        self._apply_viewer_origin_to_camera()
+
+    def _update_asset_tracking_camera(self) -> None:
+        """Update the viewport camera to track an asset root or body.
+
+        Called before viewport frames when :attr:`KitBackendCfg.origin_type` is ``"asset"``.
+        Parses :attr:`~KitBackendCfg.origin_track_path`: ``"asset_name"`` tracks the root,
+        ``"asset_name/body_name"`` tracks a specific body.
+        """
+        scene = self._interactive_scene
+        if scene is None or self.cfg.backend.origin_track_path is None:
             return
-        pose = self._follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
-        if pose is None:
+        asset_name, _, body_name = self.cfg.backend.origin_track_path.partition("/")
+        try:
+            asset = scene[asset_name]
+        except KeyError:
             return
-        eye, target = pose
-        self.set_camera_view(eye, target)
+        if body_name:
+            body_ids, _ = asset.find_bodies(body_name)
+            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.backend.origin_env_index, body_ids[0]]
+        else:
+            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.backend.origin_env_index]
+        self._apply_viewer_origin_to_camera()
+
+    def _apply_viewer_origin_to_camera(self) -> None:
+        """Compute absolute eye/target from :attr:`_viewer_origin` and push to the viewport."""
+        if self._viewer_origin is None:
+            return
+        origin = self._viewer_origin.detach().cpu().numpy()
+        eye = np.array(self.cfg.eye, dtype=float) + origin
+        target = np.array(self.cfg.lookat, dtype=float) + origin
+        self.set_camera_view(tuple(float(v) for v in eye), tuple(float(v) for v in target))
         # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
         try:
             from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
 
-            set_kit_renderer_camera_view(
-                eye=np.array(eye), target=np.array(target), camera_prim_path="/OmniverseKit_Persp"
-            )
+            set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
         except (ImportError, ModuleNotFoundError):
             pass

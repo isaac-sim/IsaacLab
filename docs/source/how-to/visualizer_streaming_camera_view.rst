@@ -282,10 +282,7 @@ interactive camera stays free.
   **Tracking Camera** group edits its environment, asset, body, eye, look-at, focal length and heading settings
   while it runs; **Reset to Task Default** restores the declaration. Record it with
   ``--video viz:newton_gl:tracking``, whichever view the window shows.
-* **Kit:** the viewport starts on the first declared view when it is a tracking camera, and follows it until
-  ``KitVisualizer.unfollow()`` or the **Follow Mode** control in the environment window. An environment view can
-  still be moved; an asset view is re-applied every step.
-* **Newton RTX**, **Viser** and **Rerun** ignore tracking cameras.
+* **Kit**, **Newton RTX**, **Viser** and **Rerun** ignore tracking cameras.
 
 
 Examples

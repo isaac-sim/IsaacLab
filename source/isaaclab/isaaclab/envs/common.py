@@ -11,9 +11,10 @@ from typing import Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
 import torch
+from isaaclab_visualizers.kit import KitBackendCfg
 
 from ..utils import configclass
-from ..visualizers import PerspectiveCameraCfg, TrackingCameraCfg, VisualizerCfg
+from ..visualizers import VisualizerCfg
 
 ##
 # Deprecated: ViewerCfg
@@ -79,49 +80,27 @@ class ViewerCfg:
 
 
 def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
-    """Forward the deprecated viewport declaration to configured visualizers before scene creation.
-
-    A viewer tied to an environment or an asset becomes a tracking camera,
-    :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index`` or ``track_path``, followed by a free view,
-    so the viewport starts on it. Other viewers set ``eye`` and ``lookat`` on the visualizer.
-    """
+    """Forward the deprecated viewport declaration to configured visualizers before scene creation."""
     viewer = env_cfg.viewer
     if viewer == ViewerCfg():
         return
     configs = env_cfg.sim.visualizer_cfgs
     configs = configs if isinstance(configs, list) else [configs]
     defaults = VisualizerCfg()
-    track_path = None
-    if viewer.origin_type in ("asset_root", "asset_body") and viewer.asset_name is not None:
-        track_path = (
-            f"{viewer.asset_name}/{viewer.body_name}"
-            if viewer.origin_type == "asset_body" and viewer.body_name is not None
-            else viewer.asset_name
-        )
-    tied = viewer.origin_type == "env" or track_path is not None
     for cfg in configs:
         # A deliberately configured common view takes precedence over the deprecated declaration.
         if (cfg.eye, cfg.lookat, cfg.window) != (defaults.eye, defaults.lookat, defaults.window):
             continue
+        cfg.eye, cfg.lookat = tuple(viewer.eye), tuple(viewer.lookat)
         cfg.window.size = tuple(viewer.resolution)
-        if tied:
-            if cfg.cameras is not None:
-                warnings.warn(
-                    "env_cfg.viewer tracks an environment or an asset, but the visualizer already declares "
-                    "cameras, so the viewer's tracking and offsets are not applied. Declare a "
-                    "PerspectiveCameraCfg with env_index or track_path in VisualizerCfg.cameras instead.",
-                    stacklevel=2,
-                )
-            else:
-                view = TrackingCameraCfg(
-                    env_index=viewer.env_index,
-                    track_path=track_path,
-                    eye=tuple(viewer.eye),
-                    lookat=tuple(viewer.lookat),
-                )
-                cfg.cameras = [view, PerspectiveCameraCfg()]
-        else:
-            cfg.eye, cfg.lookat = tuple(viewer.eye), tuple(viewer.lookat)
+        if isinstance(cfg.backend, KitBackendCfg):
+            cfg.backend.origin_env_index = viewer.env_index
+            cfg.backend.origin_type = viewer.origin_type
+            if viewer.origin_type in ("asset_root", "asset_body"):
+                cfg.backend.origin_type = "asset"
+                cfg.backend.origin_track_path = viewer.asset_name
+                if viewer.origin_type == "asset_body" and viewer.body_name is not None:
+                    cfg.backend.origin_track_path = f"{viewer.asset_name}/{viewer.body_name}"
 
 
 ##
