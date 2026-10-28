@@ -33,3 +33,5 @@
   "Stats" button opens it and a "Hide" button inside it closes it.
 * Removed the Background selector from the RTX Appearance options, since the dome light already chooses the sky. A
   "Solid Background" checkbox with a color replaces the sky behind the scene without changing the lighting.
+* The RTX sky texture list offers only outdoor skies, and the sky's loading status shows beside the Sky selector in
+  yellow, or in red when the file could not be loaded.

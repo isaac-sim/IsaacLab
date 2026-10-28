@@ -49,6 +49,7 @@ from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
+from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
 from isaaclab.visualizers.policy_ghost import PolicyGhostController
@@ -130,6 +131,9 @@ def term_summary(manager, term: str) -> str:
             return line if len(line) <= 120 else line[:117] + "..."
     return ""
 
+
+DEFAULT_TILED_ENVS = 16
+"""Environments a multi-environment scene camera tiles when it is first shown."""
 
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
@@ -880,8 +884,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._tracking_error = ""
         self._perspective_poses: dict[object, tuple] = {}
         """Last pose and focal length of each free Perspective view, kept while another source is shown."""
-        self._sensor_tiles: dict[object, tuple[int, ...]] = {}
-        """Environments each multi-environment scene camera tiles, by image view."""
+        self._sensor_tiles: dict[object, int] = {}
+        """Number of environments each multi-environment scene camera offers, by image view."""
         self._rtx_appearance: RtxAppearance | None = None
         self._rtx_appearance_failed = False
         self._sky_custom = ""
@@ -1167,14 +1171,13 @@ class NewtonVisualizerBase(BaseVisualizer):
         if imgui.button("Reset##rtx_appearance"):
             edited |= appearance.reset()
         tip("Return to the scene's own lights and background")
-        for message in (appearance.error, appearance.texture_status):
-            if message:
-                failed = message.startswith("Could")
-                imgui.push_style_color(
-                    imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0) if failed else imgui.ImVec4(0.8, 0.8, 0.8, 1.0)
-                )
-                imgui.text_wrapped(message)
-                imgui.pop_style_color()
+        if appearance.error:
+            failed = appearance.error.startswith("Could")
+            imgui.push_style_color(
+                imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0) if failed else imgui.ImVec4(0.8, 0.8, 0.8, 1.0)
+            )
+            imgui.text_wrapped(appearance.error)
+            imgui.pop_style_color()
         if edited:
             self._rtx_view().invalidate()
             self._last_render_step = -1
@@ -1204,6 +1207,12 @@ class NewtonVisualizerBase(BaseVisualizer):
             hover_tooltip(imgui, "Path or URL of a panoramic .hdr or .exr image")
             if imgui.button("Load##sky") and self._sky_custom:
                 appearance.use_sky(self._sky_custom)
+        status = appearance.texture_status
+        if status:  # Yellow while the sky downloads, red when it could not be loaded.
+            failed = status.startswith("Could")
+            imgui.text_colored(
+                imgui.ImVec4(1.0, 0.35, 0.35, 1.0) if failed else imgui.ImVec4(1.0, 0.8, 0.2, 1.0), status
+            )
         return edited
 
     def _source_rank(self, view) -> int:
@@ -1217,24 +1226,28 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = view.camera
         imgui.separator_text("Camera Sensor")
         self._draw_sensor_channels(imgui, view)
-        tiles = self._sensor_tiles.get(view)
-        if tiles is None:  # A single-instance sensor has no environment to choose.
+        offered = self._sensor_tiles.get(view)
+        if offered is None:  # A single-instance sensor has no environment to choose.
             return
-        tiled = tuple(view.cfg.envs) == tiles
-        if tiled:
+        shown = len(view.cfg.envs)
+        limit = min(offered, MAX_TILED_ENVS)
+        changed, count = imgui.input_int("Tiled Envs", shown)
+        hover_tooltip(
+            imgui, f"How many environments are shown side by side, from environment 0 (up to {limit}). 1 shows one."
+        )
+        if changed:
+            count = max(1, min(count, limit))
+            view.cfg.envs = tuple(range(count)) if count > 1 else (view.cfg.envs[0] if shown == 1 else 0,)
+            self._invalidate_sensor_view(view)
+        if len(view.cfg.envs) > 1:
             imgui.begin_disabled()
         env = view.cfg.envs[0] if view.cfg.envs else 0
         changed, new_env = imgui.input_int("Environment", env)
-        hover_tooltip(imgui, "Environment whose camera is shown")
-        if tiled:
+        hover_tooltip(imgui, "Environment whose camera is shown when Tiled Envs is 1")
+        if len(view.cfg.envs) > 1:
             imgui.end_disabled()
-        if changed and 0 <= new_env < camera.num_instances:
+        if changed and len(view.cfg.envs) == 1 and 0 <= new_env < camera.num_instances:
             view.cfg.envs = (new_env,)
-            self._invalidate_sensor_view(view)
-        changed, tiled = imgui.checkbox("Tile Environments", tiled)
-        hover_tooltip(imgui, f"Show {len(tiles)} environments side by side instead of one")
-        if changed:
-            view.cfg.envs = tiles if tiled else (env,)
             self._invalidate_sensor_view(view)
 
     _CHANNEL_LABELS = {"rgb": "RGB", "depth": "Depth", "normals": "Normals", "segmentation": "Segmentation"}
@@ -1822,9 +1835,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         for view in self._image_views:
             camera = view.camera
             if camera is not None and camera.num_instances > 1 and view is not self._rtx_view():
-                # One environment at a time, switchable from the HUD; the tiled layout stays one click away.
-                self._sensor_tiles[view] = tuple(view.cfg.envs)
-                view.cfg.envs = (0 if 0 in view.cfg.envs else view.cfg.envs[0],)
+                # Tile the first environments; the HUD changes how many, down to a single chosen one.
+                self._sensor_tiles[view] = camera.num_instances
+                view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.

@@ -34,16 +34,8 @@ SKY_TEXTURES = {
     "Cloudy: Evening Road": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/evening_road_01_4k.hdr",
     "Cloudy: Lakeside": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/lakeside_4k.hdr",
     "Clear: Kloofendal": f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
-    "Indoor: Autoshop": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/autoshop_01_4k.hdr",
-    "Indoor: Carpentry Shop": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/carpentry_shop_01_4k.hdr",
-    "Indoor: Hospital Room": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hospital_room_4k.hdr",
-    "Indoor: Hotel Room": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hotel_room_4k.hdr",
-    "Indoor: Old Bus Depot": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/old_bus_depot_4k.hdr",
-    "Indoor: Small Empty House": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/small_empty_house_4k.hdr",
-    "Indoor: Surgery": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/surgery_4k.hdr",
-    "Studio: Photo Studio": f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Studio/photo_studio_01_4k.hdr",
 }
-"""Sky textures that Isaac Lab tasks already use for dome lights, by display name."""
+"""Outdoor sky textures that Isaac Lab tasks already use for dome lights, by display name."""
 
 _DOME_PATH, _SUN_PATH = "/NewtonViewerDome", "/NewtonViewerSun"
 _DOME_DEFAULTS = (1000.0, (0.53, 0.68, 0.9))

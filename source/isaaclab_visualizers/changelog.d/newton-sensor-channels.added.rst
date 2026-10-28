@@ -4,3 +4,5 @@
   ``Camera (depth sensor)``, so depth-only and segmentation-only sensors can be viewed.
   The Renderer selector is greyed out while a scene camera is selected, since the sensor is rendered by its own
   renderer.
+  A multi-environment scene camera now tiles its first 16 environments by default, and "Tiled Envs" sets how many are
+  shown side by side (1 shows the single environment chosen with "Environment").
