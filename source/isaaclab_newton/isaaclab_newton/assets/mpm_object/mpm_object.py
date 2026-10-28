@@ -15,7 +15,7 @@ import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
 
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
@@ -287,7 +287,7 @@ class MPMObject(BaseDeformableObject):
         return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device, dtype=wp.int32)
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None) -> wp.array:
-        return resolve_1d_mask(mask=mask, all_mask=self._ALL_ENV_MASK, device=self.device)
+        return resolve_1d_mask(mask=mask, all_mask=self._ALL_ENV_MASK)
 
     def _iter_particle_states(self):
         """Yield the Newton states whose particle arrays must receive writes."""

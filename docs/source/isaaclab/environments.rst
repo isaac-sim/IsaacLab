@@ -99,6 +99,16 @@ Task Preview
      </section>
    </div>
 
+Try Manipulation in Your Browser
+--------------------------------
+
+UR10 reach and Franka lift use pretrained policies. Cube stacking
+uses a scripted controller. Each scene also offers Manual end-effector control.
+
+.. isaaclab-demos:: ur10_reach, franka_lift, franka_stack
+   :title: Explore manipulation
+   :physics: rigid
+
 Benchmarks
 ----------
 

@@ -15,7 +15,7 @@ import warp as wp
 
 from ...utils import math as math_utils
 from ...utils.warp import ProxyArray
-from ...utils.warp.utils import resolve_ids
+from ...utils.warp.memory import resolve_ids
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
