@@ -298,6 +298,25 @@ def test_merged_joint_dofs_map_to_their_usd_joints():
         UsdExporter._joint_prims(stage, model, 0, stage.GetPrimAtPath("/HingeX"))
 
 
+def test_raised_effort_limit_widens_the_mujoco_force_range():
+    """Newton keeps the tighter of the drive force limit and MuJoCo's joint force range, so the range is widened."""
+    from isaaclab_newton.sim.usd_export import UsdExporter
+
+    from isaaclab.sim.usd_export import UsdEdit
+
+    stage = Usd.Stage.CreateInMemory()
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Hinge").GetPrim()
+    joint.CreateAttribute("mjc:actuatorfrcrange:min", Sdf.ValueTypeNames.Double).Set(-4.0)
+    joint.CreateAttribute("mjc:actuatorfrcrange:max", Sdf.ValueTypeNames.Double).Set(4.0)
+
+    edits = UsdExporter._force_range_edits(stage, [UsdEdit("/Hinge", "drive:angular:physics:maxForce", 12.0)])
+    assert {(edit.attribute, edit.value) for edit in edits} == {
+        ("mjc:actuatorfrcrange:min", -12.0),
+        ("mjc:actuatorfrcrange:max", 12.0),
+    }
+    assert not UsdExporter._force_range_edits(stage, [UsdEdit("/Hinge", "drive:angular:physics:maxForce", 3.0)])
+
+
 def test_attribute_tables_cover_newton_importer():
     """Every attribute Newton's importer maps is exported or deliberately excluded."""
     from isaaclab_newton.sim.usd_export.usd_exporter import (

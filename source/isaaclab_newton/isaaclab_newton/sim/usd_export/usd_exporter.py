@@ -298,7 +298,7 @@ class UsdExporter(BaseUsdExporter):
         if unsupported:
             logger.warning(f"Joints other than revolute, prismatic and rotational D6 are not exported: {unsupported}.")
         self._target_mode_actuators(stage, model, dofs, values["joint_target_ke"], values["joint_target_kd"], modes)
-        return edits, drives
+        return edits + self._force_range_edits(stage, edits), drives
 
     @staticmethod
     def _joint_prims(
@@ -535,6 +535,25 @@ class UsdExporter(BaseUsdExporter):
                 value = owner.GetAttribute(attribute).Get()
                 if value is not None:
                     getattr(builder, array)[shape] = float(value)
+
+    @classmethod
+    def _force_range_edits(cls, stage: Usd.Stage, edits: list[UsdEdit]) -> list[UsdEdit]:
+        """Edits widening a MuJoCo joint force range that would clamp an exported drive force limit.
+
+        Newton's import keeps the tighter of a drive's max force and the joint's ``mjc:actuatorfrcrange``.
+        """
+        widened = []
+        for edit in edits:
+            if not edit.attribute.endswith("physics:maxForce"):
+                continue
+            prim = stage.GetPrimAtPath(edit.path)
+            bounds = [cls._stated(prim, f"mjc:actuatorfrcrange:{end}") for end in ("min", "max")]
+            if any(bound is not None for bound in bounds) and max(abs(b or 0.0) for b in bounds) < edit.value:
+                widened += [
+                    UsdEdit(edit.path, "mjc:actuatorfrcrange:min", -float(edit.value)),
+                    UsdEdit(edit.path, "mjc:actuatorfrcrange:max", float(edit.value)),
+                ]
+        return widened
 
     @staticmethod
     def _solver_configurations() -> dict[str, type[NewtonSolverCfg]]:
