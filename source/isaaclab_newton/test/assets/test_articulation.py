@@ -42,15 +42,17 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.assets import Articulation
+from isaaclab_newton.assets import Articulation, RigidObject
+from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.controllers.ik import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions import NewtonInverseKinematicsAction
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from newton import JointType, ModelBuilder, ModelFlags, ShapeFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
+from newton.solvers import SolverMuJoCo
 from newton_test_utils import (
     NUM_ENVS,
     WRIST_USD_STIFFNESS,
@@ -490,6 +492,90 @@ def test_world_hinged_root_has_no_base_dofs(device):
     data._apply_ordering_maps_after_resolve()
 
     assert data.body_link_jacobian_w.torch.shape[-1] == data.mass_matrix.torch.shape[-1] == 1
+
+
+@pytest.mark.parametrize(
+    ("asset_class", "writer", "selector"),
+    [
+        (Articulation, "write_root_link_pose_to_sim_index", "env_ids"),
+        (Articulation, "write_root_com_pose_to_sim_mask", "env_mask"),
+        (RigidObject, "write_root_link_pose_to_sim_mask", "env_mask"),
+        (RigidObject, "write_root_com_pose_to_sim_index", "env_ids"),
+    ],
+)
+def test_fixed_root_pose_write_updates_mujoco_root_transform(asset_class, writer, selector):
+    """A model-backed root write immediately refreshes MuJoCo Warp's solver-owned root transform."""
+    builder = ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.begin_world()
+    root = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+    builder.add_articulation([builder.add_joint_fixed(-1, root)], label="robot")
+    builder.end_world()
+    model = builder.finalize(device="cpu")
+    view = ArticulationView(model, "robot", verbose=False)
+    body_com = view.get_attribute("body_com", model)[:, 0]
+    data = SimpleNamespace(
+        root_link_pose_w=view.get_root_transforms(model)[:, 0],
+        root_com_pose_w=wp.empty(1, dtype=wp.transform, device="cpu"),
+        _sim_bind_body_com_pos_b=body_com,
+        body_com_pos_b=body_com,
+    )
+    all_envs = wp.array([True], dtype=wp.bool, device="cpu")
+    asset = SimpleNamespace(
+        root_view=view,
+        data=data,
+        device="cpu",
+        _ALL_ENV_MASK=all_envs,
+        _resolve_env_ids=lambda ids: ids,
+        _resolve_mask=lambda mask, default: default if mask is None else mask,
+        assert_shape_and_dtype=lambda *args: None,
+        assert_shape_and_dtype_mask=lambda *args: None,
+    )
+    solver = SolverMuJoCo(model)
+    asset._backend_manager = SimpleNamespace(backend=SimpleNamespace(solver=solver))
+    target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
+    selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else all_envs
+
+    getattr(asset_class, writer)(asset, root_pose=target, skip_forward=True, **{selector: selection})
+
+    np.testing.assert_allclose(solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
+
+
+def test_joint_target_modes_are_resolved_once_for_replicas(monkeypatch):
+    """Target modes are resolved on the first replica and copied to the others."""
+    builder = SimpleNamespace(
+        articulation_label=["/World/Env_0/Robot", "/World/Env_1/Robot"],
+        articulation_start=[0, 1],
+        articulation_end=[1, 2],
+        joint_type=[JointType.REVOLUTE, JointType.REVOLUTE],
+        joint_qd_start=[0, 1],
+        joint_label=["/World/Env_0/Robot/joint", "/World/Env_1/Robot/joint"],
+        joint_target_mode=[int(JointTargetMode.NONE)] * 2,
+        joint_target_ke=[0.0] * 2,
+        joint_target_kd=[0.0] * 2,
+    )
+    cfg = SimpleNamespace(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+    )
+    original = articulation_module.resolve_matching_names
+    resolutions = []
+
+    def count_resolutions(name_keys, names, *args, **kwargs):
+        if names == ["joint"]:
+            resolutions.append(names)
+        return original(name_keys, names, *args, **kwargs)
+
+    monkeypatch.setattr(articulation_module, "resolve_matching_names", count_resolutions)
+    monkeypatch.setattr(
+        SimulationContext, "instance", lambda: SimpleNamespace(backend_manager=SimpleNamespace(builder=builder))
+    )
+
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=cfg), None)
+
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)] * 2
+    assert len(resolutions) == 1
 
 
 ##
