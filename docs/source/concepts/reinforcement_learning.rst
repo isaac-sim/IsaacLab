@@ -31,10 +31,14 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 
-Try pretrained Cartpole, G1, and ANYmal-D controllers in the
-:ref:`interactive demo gallery <interactive-browser-demos>` without installing
-Isaac Lab. These compact browser scenes illustrate policy control; use native
-playback for full task evaluation.
+Try pretrained controllers directly below: perturb Cartpole or command G1,
+ANYmal-D, and MicroDuck with travel and yaw controls. These compact browser
+scenes illustrate policy control; use native playback for full task evaluation.
+
+.. isaaclab-demos:: cartpole, g1, anymal, microduck
+   :title: Try pretrained controllers
+   :physics: rigid
+   :activity: policy
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_learning_progression_anymald.gif
    :width: 100%
@@ -64,9 +68,10 @@ Choose a library for the algorithms and configuration tools your experiment need
        distillation, and recurrent and CNN-based policies
      - Included by default
    * - **skrl**
-     - JAX workflows or explicit multi-agent training
-     - PPO, AMP, IPPO, and MAPPO with PyTorch or JAX
-     - ``--extra skrl`` for PyTorch or ``--extra skrl-jax`` for JAX
+     - PyTorch, JAX, or NVIDIA Warp workflows, explicit multi-agent training,
+       and support for different Gymnasium spaces
+     - PPO, AMP, IPPO, and MAPPO with PyTorch, JAX or NVIDIA Warp. Different Gymnasium spaces.
+     - ``--extra skrl`` for PyTorch and NVIDIA Warp, or ``--extra skrl-jax`` for JAX
    * - **RL-Games**
      - Existing RL-Games projects or population-based workflows
      - PPO, SAC, A2C, population-based training, distributed training, and Ray
@@ -92,6 +97,7 @@ Install optional dependencies by selecting the corresponding ``uv`` extra when r
 .. code-block:: bash
 
    uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole
+   uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework warp
    uv run --extra skrl-jax isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework jax
    uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Cartpole
    uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole
@@ -416,6 +422,19 @@ For example, train the Shadow Hand handover task with MAPPO:
 Use ``--algorithm IPPO`` to run the corresponding independent-policy workflow.
 The selected task must expose a multi-agent interface supported by the
 algorithm.
+
+skrl training with NVIDIA Warp
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+skrl can also train policies with NVIDIA Warp instead of PyTorch. This is useful when
+integrating with an NVIDIA Warp-based learning stack or experimenting with NVIDIA Warp
+compilation and execution:
+
+.. code-block:: bash
+
+   uv run --extra skrl isaaclab train --rl_library skrl \
+       --task Isaac-Reach-Franka \
+       --ml_framework warp
 
 skrl training with JAX
 ~~~~~~~~~~~~~~~~~~~~~~

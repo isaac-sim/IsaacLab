@@ -97,7 +97,6 @@ def configure_granular(cfg, is_physx: bool):
         iterations=1,
     )
     cfg.sim.physics.solver_cfg = coupled
-    cfg.sim.physics.class_type = coupled.class_type
     cfg.sim.physics.collision_cfg.soft_contact_max = 0
     top = cfg.course.granular_top
     cfg.scene.sand = MPMObjectCfg(

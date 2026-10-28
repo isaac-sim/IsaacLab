@@ -177,7 +177,7 @@ def make_sim_cfg() -> sim_utils.SimulationCfg:
     """Create the simulation cfg matching the selected renderer."""
     physics_cfg = None
     if args_cli.renderer == "newton_renderer":
-        from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+        from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
         from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
 
         physics_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
