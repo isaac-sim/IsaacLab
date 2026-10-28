@@ -17,7 +17,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, Ne
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_visualizers.kit import KitBackendCfg
-from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
 import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
@@ -99,15 +99,6 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
         num_substeps=1,
         use_cuda_graph=True,
     )
-
-
-@configclass
-class CoffeeGLBackendCfg(NewtonGLBackendCfg):
-    """Coffee presentation with an optional render-only public kitchen."""
-
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer"
-    backdrop: Literal["kitchen", "studio"] = "studio"
-    """Presentation backdrop: ``kitchen`` or the original ``studio``."""
 
 
 @configclass
@@ -260,7 +251,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     backdrops = {
         visualizer.backend.backdrop
         for visualizer in cfg.sim.visualizer_cfgs
-        if isinstance(visualizer.backend, (CoffeeGLBackendCfg, CoffeeKitBackendCfg, CoffeeRTXVisualizerCfg))
+        if isinstance(visualizer.backend, (CoffeeKitBackendCfg, CoffeeRTXVisualizerCfg))
     }
     if len(backdrops) > 1:
         raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")
@@ -274,8 +265,6 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/table.usda"),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
-    if "kitchen" in backdrops:
-        cfg.scene.table.spawn.func = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:spawn_kitchen_table"
     cfg.scene.bowl = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bowl",
         spawn=sim_utils.UsdFileCfg(

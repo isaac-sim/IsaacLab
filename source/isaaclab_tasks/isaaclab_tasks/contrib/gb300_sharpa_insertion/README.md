@@ -14,10 +14,9 @@ Cinematic overlays remain local.
 uv run isaaclab example sharpa-rj45
 uv run isaaclab example sharpa-rj45 --backdrop datacenter
 uv run --extra ovrtx isaaclab example sharpa-rj45 --viz newton_rtx
-uv run --extra isaacsim isaaclab example sharpa-rj45 --viz kit
+uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
 ```
 
-Omitting `--viz` selects Newton GL. Add `--extra video` and `--video` to record a run.
 The defaults above use `--backdrop auto`. In Newton GL, `--backdrop datacenter`
 loads one full rack without the facility.
 

@@ -729,14 +729,13 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     visualizer._picking_enabled = picking
     visualizer.cfg.backend.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.backend.show_contacts = True
-    visualizer.cfg.backend.texture_max_size = 128
 
     visualizer.reset(soft=False)
     visualizer.reset(soft=False)
 
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
-    viewer.set_model.assert_called_once_with(new_model, texture_max_size=128)
+    viewer.set_model.assert_called_once_with(new_model)
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
         call(visualizer._draw_streaming_view_controls, position="side"),

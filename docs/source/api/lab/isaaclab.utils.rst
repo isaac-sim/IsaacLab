@@ -171,8 +171,6 @@ Image operations
 
 .. autofunction:: isaaclab.utils.images.compose_image
 
-.. autofunction:: isaaclab.utils.images.resize_image
-
 Timer operations
 ~~~~~~~~~~~~~~~~
 

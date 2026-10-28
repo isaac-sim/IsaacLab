@@ -513,10 +513,6 @@ def _run(args: argparse.Namespace) -> int:
         cfg.sim.physics.load_visual_shapes = any(
             viz.backend.visualizer_type == "newton_gl" for viz in cfg.sim.visualizer_cfgs
         )
-        if args.backdrop == "auto":
-            for viz in cfg.sim.visualizer_cfgs:
-                if viz.backend.visualizer_type == "newton_gl":
-                    viz.backend.texture_max_size = 1024
         rack_path = configure_visual_scene(cfg)
         env = instantiate(cfg)
         try:
@@ -631,10 +627,7 @@ def _run(args: argparse.Namespace) -> int:
                 ),
                 flush=True,
             )
-            if not success:
-                # Kit must receive the failure before its launcher closes.
-                raise SystemExit(1)
-            return 0
+            return 0 if success else 1
         finally:
             env.close()
 

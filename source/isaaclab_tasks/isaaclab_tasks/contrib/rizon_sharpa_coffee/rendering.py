@@ -22,8 +22,6 @@ import isaaclab.sim as sim_utils
 from .physics import CoffeeMPMSolver
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from isaaclab.envs import ManagerBasedEnv
 
     from .demo_env_cfg import CoffeePresentationCfg
@@ -37,20 +35,6 @@ class CoffeeGLVisualizer(NewtonGLVisualizer):
     """Publish task geometry while the native GL frame is active."""
 
     rendering: CoffeeRendering | None = None
-
-    def initialize(self, sim, *, cameras) -> None:
-        if self._is_initialized:
-            return
-        super().initialize(sim, cameras=cameras)
-        if self.cfg.backend.backdrop == "kitchen":
-            _add_gl_kitchen(self, sim.stage, sim.device)
-
-    def reset(self, soft: bool = False) -> None:
-        """Restore static kitchen meshes only when the viewer's model is replaced."""
-        previous_backend = self.backend
-        super().reset(soft)
-        if self.backend is not previous_backend and self.cfg.backend.backdrop == "kitchen":
-            _add_gl_kitchen(self, self._sim.stage, self._sim.device)
 
     def _update_state(self):
         state = super()._update_state()
@@ -488,60 +472,8 @@ class CoffeeRendering:
         self._clear_surface_cache()
 
 
-def _add_gl_kitchen(visualizer: CoffeeGLVisualizer, stage: Usd.Stage, device: str) -> None:
-    """Submit the scene-owned kitchen without adding scenery to the Newton model."""
-    import newton.usd
-
-    from pxr import Usd, UsdGeom
-
-    kitchen = stage.GetPrimAtPath("/World/CoffeePresentation/Kitchen")
-    cache = UsdGeom.XformCache()
-    for prim in Usd.PrimRange(kitchen, Usd.TraverseInstanceProxies()):
-        if not prim.IsA(UsdGeom.Mesh) or UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.invisible:
-            continue
-        # The public kitchen has token-valued normal primvars; GL derives its own normals.
-        mesh = newton.usd.get_mesh(prim, load_normals=False, load_uvs=True, compute_inertia=False)
-        if not mesh.indices.size:
-            continue
-        matrix = np.asarray(cache.GetLocalToWorldTransform(prim)).T
-        points = (mesh.vertices @ matrix[:3, :3].T + matrix[:3, 3]).astype(np.float32)
-        indices = mesh.indices.reshape(-1, 3)
-        if np.linalg.det(matrix[:3, :3]) < 0:
-            indices = indices[:, ::-1]
-        uvs = None
-        if mesh.uvs is not None:
-            transform = np.asarray(mesh.texture_transform, dtype=np.float32)
-            uvs = wp.array(mesh.uvs @ transform[:, :2].T + transform[:, 2], dtype=wp.vec2, device=device)
-        visualizer.log_mesh(
-            f"/CoffeeKitchen{prim.GetPath()}",
-            wp.array(points, dtype=wp.vec3, device=device),
-            wp.array(indices.flatten(), dtype=wp.int32, device=device),
-            uvs=uvs,
-            texture=mesh.texture,
-            color=(1.0, 1.0, 1.0) if mesh.texture is not None else mesh.color,
-            roughness=mesh.roughness,
-            metallic=mesh.metallic,
-            opacity=mesh.opacity,
-            backface_culling=not UsdGeom.Mesh(prim).GetDoubleSidedAttr().Get(),
-        )
-
-
-def spawn_kitchen_table(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-) -> Usd.Prim:
-    """Hide the studio floor when composing the table, before clone backends import it."""
-    from pxr import UsdGeom
-
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation)
-    UsdGeom.Imageable(prim.GetChild("StudioFloor")).MakeInvisible()
-    return prim
-
-
 def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=None, orientation=None):
-    """Spawn the shared render backdrop before visualizers initialize."""
+    """Spawn the shared RTX backdrop before scene cameras initialize."""
     from pxr import UsdGeom
 
     from .assets import COFFEE_ASSET_DIR
@@ -555,6 +487,9 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
         kitchen_path = f"{prim_path}/Kitchen"
         kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
         kitchen_cfg.func(kitchen_path, kitchen_cfg)
+        for prim in stage.Traverse():
+            if prim.GetName() == "StudioFloor":
+                UsdGeom.Imageable(prim).MakeInvisible()
     return root
 
 
