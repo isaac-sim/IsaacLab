@@ -12,7 +12,7 @@ import numpy as np
 import warp as wp
 from newton import JointType, ModelBuilder, ShapeFlags
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
@@ -89,6 +89,108 @@ def add_visual_deformables_to_sources(
                 mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
                 mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
             add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
+
+
+def expand_merged_mesh_colliders(stage: Usd.Stage, root_paths: Sequence[str]) -> int:
+    """Move collision APIs authored on non-geometry prims onto the meshes beneath them.
+
+    PhysX's ``PhysxMeshMergeCollisionAPI`` lets an Xform carry ``UsdPhysics.CollisionAPI`` and merges the
+    meshes below it into one collider. Newton's importer only creates colliders for geometry prims, so such
+    assets would otherwise import without any collision shapes. Each mesh beneath the Xform receives the
+    Xform's collision and mesh-approximation settings instead; Xforms without meshes are left untouched.
+
+    Args:
+        stage: Stage about to be imported into Newton.
+        root_paths: Prim paths whose subtrees are imported.
+
+    Returns:
+        The number of meshes that received a collision API.
+    """
+    targets = []
+    for root_path in dict.fromkeys(root_paths):
+        root = stage.GetPrimAtPath(root_path)
+        if not root.IsValid():
+            continue
+        for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+            if prim.HasAPI(UsdPhysics.CollisionAPI) and not prim.IsA(UsdGeom.Gprim):
+                targets.append(prim.GetPath())
+
+    num_meshes = 0
+    for path in targets:
+        prim = stage.GetPrimAtPath(path)
+        if not any(p.IsA(UsdGeom.Mesh) for p in Usd.PrimRange(prim, Usd.TraverseInstanceProxies())):
+            continue
+        # Instance proxies are read-only, so make the collider and its instanced ancestors editable.
+        for prefix in path.GetPrefixes():
+            ancestor = stage.GetPrimAtPath(prefix)
+            if ancestor.IsInstance():
+                ancestor.SetInstanceable(False)
+        prim = stage.GetPrimAtPath(path)
+        enabled = UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
+        approximation = None
+        if prim.HasAPI(UsdPhysics.MeshCollisionAPI):
+            approximation = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get()
+        for mesh in Usd.PrimRange(prim):
+            if not mesh.IsA(UsdGeom.Mesh) or mesh.HasAPI(UsdPhysics.CollisionAPI):
+                continue
+            UsdPhysics.CollisionAPI.Apply(mesh).CreateCollisionEnabledAttr(enabled)
+            mesh_collision = UsdPhysics.MeshCollisionAPI.Apply(mesh)
+            if approximation is not None:
+                mesh_collision.CreateApproximationAttr(approximation)
+            num_meshes += 1
+        prim.RemoveAPI(UsdPhysics.MeshCollisionAPI)
+        prim.RemoveAPI(UsdPhysics.CollisionAPI)
+    return num_meshes
+
+
+def bake_negative_mesh_collider_scales(stage: Usd.Stage, root_paths: Sequence[str]) -> int:
+    """Fold negative ``xformOp:scale`` values of mesh colliders into their points.
+
+    MuJoCo rejects geoms with a negative size, which Newton derives from the collider scale. The sign of the
+    scale is moved into the points (reversing the face winding for mirroring scales), so the collider keeps
+    its shape while its scale becomes positive. Only colliders whose last transform op is a scale are handled.
+
+    Args:
+        stage: Stage about to be imported into Newton.
+        root_paths: Prim paths whose subtrees are imported.
+
+    Returns:
+        The number of meshes whose scale was baked.
+    """
+    targets = []
+    for root_path in dict.fromkeys(root_paths):
+        root = stage.GetPrimAtPath(root_path)
+        if not root.IsValid():
+            continue
+        for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+            if not (prim.IsA(UsdGeom.Mesh) and prim.HasAPI(UsdPhysics.CollisionAPI)):
+                continue
+            ops = UsdGeom.Xformable(prim).GetOrderedXformOps()
+            if ops and ops[-1].GetOpType() == UsdGeom.XformOp.TypeScale:
+                scale = ops[-1].Get()
+                has_points = UsdGeom.Mesh(prim).GetPointsAttr().Get() is not None
+                if scale is not None and has_points and any(s < 0.0 for s in scale):
+                    targets.append(prim.GetPath())
+
+    for path in targets:
+        for prefix in path.GetPrefixes():
+            ancestor = stage.GetPrimAtPath(prefix)
+            if ancestor.IsInstance():
+                ancestor.SetInstanceable(False)
+        mesh = UsdGeom.Mesh(stage.GetPrimAtPath(path))
+        scale_op = UsdGeom.Xformable(mesh).GetOrderedXformOps()[-1]
+        scale = np.array(scale_op.Get(), dtype=np.float64)
+        sign = np.sign(scale)
+        points = np.array(mesh.GetPointsAttr().Get(), dtype=np.float64) * sign
+        mesh.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points.astype(np.float32)))
+        if np.prod(sign) < 0.0:
+            counts = np.array(mesh.GetFaceVertexCountsAttr().Get())
+            indices = np.array(mesh.GetFaceVertexIndicesAttr().Get())
+            offsets = np.concatenate(([0], np.cumsum(counts)[:-1]))
+            flipped = np.concatenate([indices[o : o + c][::-1] for o, c in zip(offsets, counts)])
+            mesh.GetFaceVertexIndicesAttr().Set(Vt.IntArray.FromNumpy(flipped.astype(np.int32)))
+        scale_op.Set(type(scale_op.Get())(*np.abs(scale)))
+    return len(targets)
 
 
 def build_source_builders(

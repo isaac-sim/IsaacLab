@@ -528,7 +528,11 @@ def _create_generic_env_wrapper(task_id: str) -> type:
 
                 from isaaclab_tasks.utils import parse_env_cfg
 
-                isaac_env_cfg = parse_env_cfg(self.isaaclab_env_id, num_envs=self.cfg.init_params.num_envs)
+                isaac_env_cfg = parse_env_cfg(
+                    self.isaaclab_env_id,
+                    num_envs=self.cfg.init_params.num_envs,
+                    overrides=list(self.cfg.init_params.get("env_overrides", None) or ()),
+                )
                 sim_app = contextlib.ExitStack()
                 sim_app.enter_context(launch_simulation(isaac_env_cfg, {"enable_cameras": True}))
 

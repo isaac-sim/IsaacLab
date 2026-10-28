@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
@@ -26,6 +27,7 @@ from isaaclab_tasks.contrib.assemble_trocar.config import (  # isort: skip
     CameraPresets,
     G1RobotPresets,
 )
+from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 joint_names = [
@@ -362,6 +364,25 @@ class EventCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    """Physics backend presets for the assemble_trocar task."""
+
+    isaacsim_physx = PhysxCfg(bounce_threshold_velocity=0.01)
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            integrator="implicitfast",
+            cone="elliptic",
+            impratio=10.0,
+            njmax=8192,
+            nconmax=2048,
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+    )
+    default = isaacsim_physx
+
+
+@configclass
 class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     """Unitree G1 robot assemble trocar environment configuration class
     inherits from ManagerBasedRLEnvCfg, defines all configuration parameters for the entire environment
@@ -392,7 +413,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.01)
+        self.sim.physics = PhysicsCfg()
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
         for camera_cfg in (
             self.scene.front_camera,

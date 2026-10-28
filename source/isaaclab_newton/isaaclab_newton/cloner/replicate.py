@@ -32,7 +32,9 @@ from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
     add_visual_deformables_to_sources,
+    bake_negative_mesh_collider_scales,
     build_source_builders,
+    expand_merged_mesh_colliders,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager
@@ -174,6 +176,8 @@ def _replicate_newton(
     ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
     stage_info = None
     if simulation:
+        expand_merged_mesh_colliders(stage, (*import_paths, *source_paths))
+        bake_negative_mesh_collider_scales(stage, (*import_paths, *source_paths))
         ignore_paths.extend(manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths))
         stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
 

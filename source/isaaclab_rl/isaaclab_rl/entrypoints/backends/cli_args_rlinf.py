@@ -57,6 +57,29 @@ def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
     arg_group.add_argument(
         "--only_eval", action="store_true", default=False, help="Only run evaluation without training."
     )
+    parser.add_argument(
+        "env_overrides",
+        nargs="*",
+        metavar="KEY=VALUE",
+        help="Environment config overrides such as physics=newton_mjwarp, applied in every RLinf env worker.",
+    )
+
+
+def set_env_overrides(cfg, overrides: list[str]) -> None:
+    """Forward environment config overrides to the RLinf train and eval env workers.
+
+    Args:
+        cfg: The composed RLinf configuration, opened for writing.
+        overrides: Hydra-style ``key=value`` overrides for the Isaac Lab environment config.
+
+    Raises:
+        ValueError: If an override is not of the form ``key=value``.
+    """
+    for override in overrides:
+        if "=" not in override:
+            raise ValueError(f"Invalid environment override {override!r}; expected KEY=VALUE.")
+    for split in ("train", "eval"):
+        cfg.env[split].init_params.env_overrides = list(overrides)
 
 
 def resolve_config_dir(config_name: str, explicit_path: str | None) -> str:
