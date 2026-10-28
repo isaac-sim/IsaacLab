@@ -60,7 +60,7 @@ from isaaclab_visualizers.newton.newton_visualization_markers import render_newt
 
 from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
 from .newton_recording import NewtonRecordingPanel, hover_tooltip
-from .newton_rtx_appearance import BACKGROUNDS, SKY_TEXTURES, RtxAppearance
+from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
 
 logger = logging.getLogger(__name__)
 
@@ -1076,18 +1076,6 @@ class NewtonVisualizerBase(BaseVisualizer):
         def tip(text: str) -> None:
             hover_tooltip(imgui, text)
 
-        changed, index = imgui.combo("Background", appearance.background, list(BACKGROUNDS))
-        tip("Show the sky of the dome light, or one solid color")
-        if changed:
-            appearance.background = index
-            edited |= appearance.apply_background()
-        if appearance.background == 1:
-            changed, color = imgui.color_edit3("Color", list(appearance.background_color))
-            tip("Solid background color")
-            if changed:
-                appearance.background_color = tuple(float(c) for c in color)
-                edited |= appearance.apply_background()
-
         def light_changed(changed: bool) -> bool:
             return appearance.apply_lights() if changed else False
 
@@ -1129,6 +1117,21 @@ class NewtonVisualizerBase(BaseVisualizer):
                 appearance.dome_color = tuple(float(c) for c in color)
             edited |= light_changed(changed)
             edited |= self._draw_sky_texture(imgui, appearance)
+            imgui.unindent()
+
+        solid = appearance.background == 1
+        changed, solid = imgui.checkbox("Solid Background", solid)
+        tip("Show one color behind the scene instead of the sky. The lighting does not change")
+        if changed:
+            appearance.background = 1 if solid else 0
+            edited |= appearance.apply_background()
+        if solid:
+            imgui.indent()
+            changed, color = imgui.color_edit3("Color##background", list(appearance.background_color))
+            tip("Background color")
+            if changed:
+                appearance.background_color = tuple(float(c) for c in color)
+                edited |= appearance.apply_background()
             imgui.unindent()
 
         changed, appearance.sun_enabled = imgui.checkbox("Distant Light", appearance.sun_enabled)

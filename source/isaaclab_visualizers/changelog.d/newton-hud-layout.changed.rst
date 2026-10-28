@@ -31,3 +31,5 @@
   still follows ``WindowCfg.fps``.
 * The performance and model statistics overlay in the top-right corner of the Newton window now starts closed. A small
   "Stats" button opens it and a "Hide" button inside it closes it.
+* Removed the Background selector from the RTX Appearance options, since the dome light already chooses the sky. A
+  "Solid Background" checkbox with a color replaces the sky behind the scene without changing the lighting.
