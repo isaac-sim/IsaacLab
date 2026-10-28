@@ -9,7 +9,7 @@ import warp as wp
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer_data import BaseFrameTransformerData
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.math_ops import transform_to_vec_quat
+from isaaclab.utils.warp.memory import split_views
 
 
 class FrameTransformerData(BaseFrameTransformerData):
@@ -41,9 +41,9 @@ class FrameTransformerData(BaseFrameTransformerData):
         self._target_transforms_w = wp.zeros((num_envs, num_targets), dtype=wp.transformf, device=device)
 
         # Zero-copy views — auto-reflect kernel writes to underlying transforms
-        self._source_pos_w, self._source_quat_w = transform_to_vec_quat(self._source_transforms)
-        self._target_pos_source, self._target_quat_source = transform_to_vec_quat(self._target_transforms)
-        self._target_pos_w, self._target_quat_w = transform_to_vec_quat(self._target_transforms_w)
+        self._source_pos_w, self._source_quat_w = split_views(self._source_transforms, (wp.vec3f, wp.quatf))
+        self._target_pos_source, self._target_quat_source = split_views(self._target_transforms, (wp.vec3f, wp.quatf))
+        self._target_pos_w, self._target_quat_w = split_views(self._target_transforms_w, (wp.vec3f, wp.quatf))
 
     @property
     def target_frame_names(self) -> list[str]:

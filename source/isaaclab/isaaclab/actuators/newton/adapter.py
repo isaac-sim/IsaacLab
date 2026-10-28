@@ -32,7 +32,7 @@ from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
-from ...utils.warp.utils import resolve_1d_mask
+from ...utils.warp.memory import resolve_1d_mask
 from .kernels import build_implicit_dof_mask, build_per_dof_env_mask_kernel, zero_at_indices_kernel
 
 if TYPE_CHECKING:
@@ -212,7 +212,6 @@ class NewtonActuatorAdapter:
                 ids=env_ids,
                 all_mask=self._all_env_mask,
                 scratch_mask=self._scratch_env_mask,
-                device=self._device,
             )
 
         for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
@@ -623,7 +622,9 @@ def _create_actuators_from_usd(
 
     parsed_per_joint: dict[int, Any] = {}
     for prim in Usd.PrimRange(root_prim):
-        parsed = parse_actuator_prim(prim)
+        # Isaac Lab actuator configs explicitly select this checkpoint. Preserve
+        # their existing execution semantics with Newton's trust-gated parser.
+        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=True)
         if parsed is None:
             continue
         target_name = parsed.target_path.rsplit("/", 1)[-1]

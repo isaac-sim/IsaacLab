@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Opt-in example of a custom Newton coupling manager.
+"""Opt-in example of a custom Newton coupled solver.
 
 Import :mod:`isaaclab_contrib.custom_coupling.tasks` to register the example task.
 """

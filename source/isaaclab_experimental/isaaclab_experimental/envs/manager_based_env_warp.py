@@ -39,9 +39,9 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
 from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
-from isaaclab_experimental.utils.warp import resolve_1d_mask
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -277,7 +277,6 @@ class ManagerBasedEnvWarp:
             mask=env_mask,
             all_mask=self.ALL_ENV_MASK,
             scratch_mask=self.ENV_MASK,
-            device=self.device,
         )
 
     @property

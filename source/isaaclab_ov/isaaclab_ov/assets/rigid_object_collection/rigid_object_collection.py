@@ -20,8 +20,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
 from isaaclab.utils.string import resolve_matching_names
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -792,26 +792,20 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[masses, env_ids, body_ids],
-            outputs=[self.data._body_mass.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self.data._body_mass.data, [env_ids, body_ids])
+        values = wp.from_torch(masses, dtype=wp.float32) if isinstance(masses, torch.Tensor) else masses
+        wp.copy(selected, values)
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
         wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_MASS,
             self.data._cpu_body_mass,
             env_ids=env_ids,
-            sim_env_ids=sim_env_ids,
             device="cpu",
         )
 
@@ -841,7 +835,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            memory.make_masked_copy(wp.float32, 2),
             dim=(self._num_instances, self._num_bodies),
             inputs=[masses, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask)],
             outputs=[self.data._body_mass.data],
@@ -872,19 +866,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids],
-            outputs=[self.data._body_com_pose_b.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self.data._body_com_pose_b.data, [env_ids, body_ids])
+        values = wp.from_torch(coms, dtype=wp.transformf) if isinstance(coms, torch.Tensor) else coms
+        wp.copy(selected, values)
         self.data._reset_body_com_pose_b_dependents()
         wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         wp.synchronize_stream(self._device)
@@ -892,7 +881,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
             env_ids=env_ids,
-            sim_env_ids=sim_env_ids,
             device="cpu",
             data_dim=7,
         )
@@ -923,7 +911,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_mask,
+            memory.make_masked_copy(wp.transformf, 2),
             dim=(self._num_instances, self._num_bodies),
             inputs=[coms, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask)],
             outputs=[self.data._body_com_pose_b.data],
@@ -963,26 +951,20 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[inertias, env_ids, body_ids],
-            outputs=[self.data._body_inertia.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self.data._body_inertia.data, [env_ids, body_ids])
+        values = wp.from_torch(inertias, dtype=wp.float32) if isinstance(inertias, torch.Tensor) else inertias
+        wp.copy(selected, values)
         wp.copy(self.data._cpu_body_inertia, self.data._body_inertia.data)
         wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
             env_ids=env_ids,
-            sim_env_ids=sim_env_ids,
             device="cpu",
             data_dim=9,
         )
@@ -1015,8 +997,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_mask,
-            dim=(self._num_instances, self._num_bodies),
+            memory.make_masked_copy(wp.float32, 3),
+            dim=(self._num_instances, self._num_bodies, 9),
             inputs=[inertias, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask)],
             outputs=[self.data._body_inertia.data],
             device=self._device,
@@ -1409,7 +1391,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             A ``wp.bool`` array of shape (num_instances,) on ``self._device``.
         """
-        return resolve_1d_mask(mask=env_mask, all_mask=self._ALL_TRUE_ENV_MASK, device=self._device)
+        return resolve_1d_mask(mask=env_mask, all_mask=self._ALL_TRUE_ENV_MASK)
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array:
         """Resolve a body mask to a ``wp.bool`` array on ``self._device``.
@@ -1422,7 +1404,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             A ``wp.bool`` array of shape (num_bodies,) on ``self._device``.
         """
-        return resolve_1d_mask(mask=body_mask, all_mask=self._ALL_TRUE_BODY_MASK, device=self._device)
+        return resolve_1d_mask(mask=body_mask, all_mask=self._ALL_TRUE_BODY_MASK)
 
     def _sim_env_ids_view(self, count: int) -> wp.array:
         """Return a cached prefix of the simulator-index scratch buffer."""
