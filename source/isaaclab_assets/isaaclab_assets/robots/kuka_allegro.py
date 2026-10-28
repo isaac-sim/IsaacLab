@@ -137,4 +137,3 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
     },
     soft_joint_pos_limit_factor=1.0,
 )
-
