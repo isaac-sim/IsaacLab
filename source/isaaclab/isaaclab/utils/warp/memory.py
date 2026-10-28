@@ -6,14 +6,14 @@
 """Value-preserving operations on caller-supplied array layouts and selections.
 
 Callers resolve their attribute frequency into array shapes, strides and selectors.
-This module neither names frequencies nor interprets element components. Cached factories
-return concrete kernels on demand. Warm up the execution path before graph capture.
+This module neither names frequencies nor interprets element components. Use native Warp
+views, copy and fill for ordinary movement; cached kernels handle masks and fused operations.
+Warm up the execution path before graph capture.
 """
 
 from collections.abc import Sequence
 from functools import cache
 from numbers import Integral
-from typing import Any
 
 import numpy as np
 import torch
@@ -162,120 +162,97 @@ def make_clear_pair(dtype, ndim: int) -> wp.Kernel:
     return clear
 
 
-@wp.func
-def _selected_index(selection: wp.array(dtype=Any), i: int) -> wp.int64:
-    """Map a launch index through a signed integer selector."""
-    return wp.int64(selection[i])
+def resolve_1d_indices(indices: "torch.Tensor | wp.array") -> wp.array:
+    """Return contiguous int32 device indices for native Warp indexed views.
 
-
-@wp.func
-def _selected_index(selection: wp.array(dtype=wp.bool), i: int) -> wp.int64:
-    """Keep a launch index unless an optional boolean mask excludes it."""
-    if selection and not selection[i]:
-        return wp.int64(-1)
-    return wp.int64(i)
+    Callers supply valid nonnegative indices into their destination. Warp array
+    dimensions are int32, so valid indices fit without narrowing their meaning.
+    Contiguous int32 storage is reused; strided or int64 input needs one copy or
+    cast. Keep the returned array alive with its indexed view. Capture involving
+    a conversion requires Warp's CUDA memory pool and warming the cast beforehand.
+    """
+    selector_dtype(indices)
+    if isinstance(indices, torch.Tensor):
+        indices = wp.from_torch(indices)
+    if indices.ndim != 1:
+        raise ValueError("Indices must be one-dimensional")
+    if indices.dtype == wp.int32:
+        return indices.contiguous()
+    result = wp.empty(indices.shape, dtype=wp.int32, device=indices.device)
+    wp.utils.array_cast(indices, result)
+    return result
 
 
 @cache
-def make_copy(dtype, ndim: int, row_dtype=wp.bool, column_dtype=wp.bool, *, full_source: bool = False) -> wp.Kernel:
-    """Copy selected elements, specializing only the requested layout.
+def make_masked_copy(dtype, ndim: int) -> wp.Kernel:
+    """Copy matching elements selected by optional masks on the first two axes.
 
-    Boolean selectors mask the destination's first two axes; ``None`` selects
-    the whole axis. Integer selectors use the Cartesian product of nonnegative
-    row/column indices. Rank-1 arrays ignore columns. Remaining components of
-    rank-3 arrays are copied unchanged. Array strides are preserved.
-
-    With ``full_source=True``, read the source at destination indices; otherwise
-    read at launch indices (a compact source for integer selections). The kernel
-    takes ``(source, rows, columns, target, selected_rows)``. The optional int32
-    ``selected_rows`` output records row indices once per selected row.
+    Arrays share a shape and may have different strides. A None mask selects the
+    whole axis. Use native wp.copy and wp.indexedarray for unmasked/indexed writes.
     """
     if ndim not in (1, 2, 3):
         raise ValueError(f"Expected rank 1, 2 or 3, got {ndim}")
-    if row_dtype not in (wp.bool, wp.int32, wp.int64) or column_dtype not in (wp.bool, wp.int32, wp.int64):
-        raise TypeError("Selectors must use bool, int32 or int64")
 
     @wp.kernel(module="unique")
     def copy(
         source: wp.array(dtype=dtype, ndim=ndim),
-        rows: wp.array(dtype=row_dtype),
-        columns: wp.array(dtype=column_dtype),
+        rows: wp.array(dtype=wp.bool),
+        columns: wp.array(dtype=wp.bool),
         target: wp.array(dtype=dtype, ndim=ndim),
-        selected_rows: wp.array(dtype=wp.int32),
     ):
         if wp.static(ndim == 1):
             i = wp.tid()
-            j, k = 0, 0
+            j = 0
         elif wp.static(ndim == 2):
             i, j = wp.tid()
-            k = 0
         else:
             i, j, k = wp.tid()
-        row = _selected_index(rows, i)
-        column = wp.int64(0)
-        if wp.static(ndim > 1):
-            column = _selected_index(columns, j)
-        if row < 0 or column < 0:
+        if rows and not rows[i]:
             return
-        if selected_rows and j == 0 and k == 0:
-            selected_rows[i] = wp.int32(row)
-
-        if wp.static(full_source):
-            a, b = row, column
-        else:
-            a, b = wp.int64(i), wp.int64(j)
+        if wp.static(ndim > 1):
+            if columns and not columns[j]:
+                return
         if wp.static(ndim == 1):
-            target[row] = source[a]
+            target[i] = source[i]
         elif wp.static(ndim == 2):
-            target[row, column] = source[a, b]
+            target[i, j] = source[i, j]
         else:
-            target[row, column, k] = source[a, b, k]
+            target[i, j, k] = source[i, j, k]
 
     return copy
 
 
 @cache
-def make_fill(dtype, ndim: int, row_dtype=wp.bool, column_dtype=wp.bool) -> wp.Kernel:
-    """Fill selected elements with one value, using the selectors of :func:`make_copy`.
-
-    The kernel takes ``(value, rows, columns, target, selected_rows)``. It has no
-    source array or source-layout flag. Each specialization is an isolated kernel.
-    """
+def make_masked_fill(dtype, ndim: int) -> wp.Kernel:
+    """Fill elements selected by optional masks on the first two axes."""
     if ndim not in (1, 2, 3):
         raise ValueError(f"Expected rank 1, 2 or 3, got {ndim}")
-    if row_dtype not in (wp.bool, wp.int32, wp.int64) or column_dtype not in (wp.bool, wp.int32, wp.int64):
-        raise TypeError("Selectors must use bool, int32 or int64")
 
     @wp.kernel(module="unique")
     def fill(
         value: dtype,
-        rows: wp.array(dtype=row_dtype),
-        columns: wp.array(dtype=column_dtype),
+        rows: wp.array(dtype=wp.bool),
+        columns: wp.array(dtype=wp.bool),
         target: wp.array(dtype=dtype, ndim=ndim),
-        selected_rows: wp.array(dtype=wp.int32),
     ):
         if wp.static(ndim == 1):
             i = wp.tid()
-            j, k = 0, 0
+            j = 0
         elif wp.static(ndim == 2):
             i, j = wp.tid()
-            k = 0
         else:
             i, j, k = wp.tid()
-        row = _selected_index(rows, i)
-        column = wp.int64(0)
-        if wp.static(ndim > 1):
-            column = _selected_index(columns, j)
-        if row < 0 or column < 0:
+        if rows and not rows[i]:
             return
-        if selected_rows and j == 0 and k == 0:
-            selected_rows[i] = wp.int32(row)
+        if wp.static(ndim > 1):
+            if columns and not columns[j]:
+                return
         if wp.static(ndim == 1):
-            target[row] = value
+            target[i] = value
         elif wp.static(ndim == 2):
-            target[row, column] = value
+            target[i, j] = value
         else:
-            target[row, column, k] = value
+            target[i, j, k] = value
 
     return fill
 

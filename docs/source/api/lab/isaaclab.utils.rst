@@ -292,38 +292,43 @@ and Torch autograd remain in ``isaaclab.utils.math``.
 Warp memory operations
 ^^^^^^^^^^^^^^^^^^^^^^
 
-``isaaclab.utils.warp.memory`` owns value-preserving concatenation, splitting, component
-views, and selected copy/fill. Callers own attribute frequencies: resolve them into arrays,
-shapes, strides and row/column selectors before launching a memory operation. This module
-has no body, joint, or coordinate-domain registry. Coordinate-to-DoF conversions and derived
-physical properties stay with their mathematical or backend owners.
+Use Warp's native array operations for ordinary data movement. The shared
+``isaaclab.utils.warp.memory`` module supplies selector normalization, component views,
+boolean-masked updates and fused packing/splitting. Callers own attribute frequencies:
+resolve them into shapes, strides and selections. The module has no body, joint or
+coordinate-domain registry. Physical equations and solver mappings remain in their owners.
 
-Request concrete kernels from cached factories where their configuration is known. Each factory
-defines and returns a kernel in an isolated Warp module. Only requested layouts are constructed;
-repeated calls return the same kernel object. For example::
+For example::
 
     import warp as wp
     from isaaclab.utils.warp import memory
-    from isaaclab.utils.warp.index_kernel import selector_dtype
 
-    # The caller supplies element types and array rank.
-    wp.launch(memory.make_concat(wp.vec2d, wp.vec3d, wp.types.vector(5, wp.float64), 2),
-              first.shape, [first, second, combined])
-    wp.launch(memory.make_copy(wp.float32, 2, selector_dtype(rows), selector_dtype(columns)),
-              (rows.shape[0], columns.shape[0]), [source, rows, columns, target, None])
-    wp.launch(memory.make_fill(wp.float32, 2), target.shape,
-              [0.0, row_mask, column_mask, target, None])
+    rows = memory.resolve_1d_indices(rows)
+    columns = memory.resolve_1d_indices(columns)
+    selected = wp.indexedarray(target, [rows, columns])
+    wp.copy(selected, source)  # compact source matching selected.shape
+    selected.fill_(0.0)
+    wp.copy(selected, wp.indexedarray(full_source, [rows, columns]))
 
-Python caches kernel construction; Warp separately caches compilation. Warm up the actual
-execution path before CUDA graph capture, including selector dtypes. Later specializations
-do not invalidate kernels already compiled or captured.
+    # Dynamic boolean masks stay on the device without compaction.
+    wp.launch(memory.make_masked_fill(wp.float32, 2), target.shape,
+              [0.0, row_mask, column_mask, target])
 
-Indexed writes select a Cartesian product and support compact or full-shaped sources,
-strided int32/int64 selectors, optional int32 row-ID output, typed elements, and rank-3
-trailing components. ``make_copy(..., full_source=True)`` reads at destination indices;
-the default reads at launch indices. Masks select full-shaped inputs. Unselected destinations are unchanged.
-All arrays retain their own strides. Copy/fill indices must be valid; overlapping destination
-indices require identical values. ``split_views`` returns aliases without allocating storage.
+``resolve_1d_indices`` preserves the order of valid nonnegative indices, returning
+contiguous int32 storage as required by Warp indexed views. It reuses contiguous int32
+arrays; strided/int64 arrays need a copy or cast. Keep normalized indices alive with the
+view. Warm conversions before CUDA graph capture; capture-time allocation requires the
+Warp memory pool. Source and destination data may remain strided. Overlapping destination
+indices require identical values. Simulator row-ID bookkeeping stays with the backend.
+
+``split_views`` returns component aliases without allocating storage. Prefer scalar slices
+for native copies of component data. Retained fused packing/splitting kernels avoid extra
+launches and can use better memory access patterns than multiple component copies.
+
+For custom operations, cached factories return concrete kernels in isolated modules.
+Only requested layouts are constructed. Python caches kernel objects; Warp separately
+caches compilation. Warm the execution path before capture. Later specializations must
+not invalidate kernels already compiled or captured.
 
 ``resolve_1d_mask`` owns selection normalization for sensors and experimental environments.
 Same-device signed integer arrays, boolean masks and slices are capturable; host sequences

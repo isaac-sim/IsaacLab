@@ -11,7 +11,6 @@ import warp as wp
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import memory
-from isaaclab.utils.warp.index_kernel import selector_dtype
 
 pytestmark = pytest.mark.unit
 
@@ -111,39 +110,36 @@ def test_generated_operations_replay_changed_strided_inputs_and_selectors(device
         columns = wp.array([2, 99, 0, 99], dtype=wp.int32)[::2]
         values = wp.array([[11.0, 12.0]], dtype=wp.float32)
         target = wp.full((2, 3), -1.0)
-        selected = wp.full(1, -1, dtype=wp.int32)
 
         row_mask = wp.array([False, True], dtype=wp.bool)
         column_mask = wp.array([False, True, False], dtype=wp.bool)
 
-        wp.launch(
-            memory.make_copy(wp.float32, 2, selector_dtype(rows), selector_dtype(columns)),
-            (1, 2),
-            [values, rows, columns, target, selected],
-        )
-        wp.launch(memory.make_fill(wp.float32, 2), (2, 3), [8.0, row_mask, column_mask, target, None])
+        def selected_copy():
+            normalized_rows = memory.resolve_1d_indices(rows)
+            normalized_columns = memory.resolve_1d_indices(columns)
+            wp.copy(wp.indexedarray(target, [normalized_rows, normalized_columns]), values)
+
+        selected_copy()
+        wp.launch(memory.make_masked_fill(wp.float32, 2), (2, 3), [8.0, row_mask, column_mask, target])
         with wp.ScopedCapture(device=device) as capture:
             wp.launch(kernel, (1, 2), [pos, quat, output])
-            wp.launch(
-                memory.make_copy(wp.float32, 2, selector_dtype(rows), selector_dtype(columns)),
-                (1, 2),
-                [values, rows, columns, target, selected],
-            )
-            wp.launch(memory.make_fill(wp.float32, 2), (2, 3), [8.0, row_mask, column_mask, target, None])
+            selected_copy()
+            wp.launch(memory.make_masked_fill(wp.float32, 2), (2, 3), [8.0, row_mask, column_mask, target])
         rows.fill_(1)
         values.fill_(7.0)
         row_mask.assign(np.array([True, False]))
         target.fill_(-1.0)
         pos.fill_(wp.vec3f(-7.0))
         # A later specialization must not invalidate a kernel already in a graph.
-        before = memory.make_copy(wp.float32, 2, wp.int64, wp.int32).module.hash_module()
-        memory.make_copy(wp.float64, 3, wp.int32, wp.int64).module.load(wp.get_device(device))
-        assert memory.make_copy(wp.float32, 2, wp.int64, wp.int32).module.hash_module() == before
+        before = memory.make_masked_fill(wp.float32, 2).module.hash_module()
+        memory.make_masked_fill(wp.float64, 3).module.load(wp.get_device(device))
+        assert memory.make_masked_fill(wp.float32, 2).module.hash_module() == before
+        # An unrelated native cast specialization must also leave the captured conversion valid.
+        wp.utils.array_cast(wp.ones(2, dtype=wp.float64), wp.empty(2, dtype=wp.float32))
         wp.capture_launch(capture.graph)
         np.testing.assert_array_equal(output.numpy(), [[[-7, -7, -7, 0, 0, 0, 1], [-7, -7, -7, 0, 0, 1, 0]]])
         np.testing.assert_array_equal(full[:, 1::2].numpy(), 99.0)
         np.testing.assert_array_equal(target.numpy(), [[-1, 8, -1], [7, -1, 7]])
-        np.testing.assert_array_equal(selected.numpy(), [1])
 
 
 def test_mask_resolution_preserves_selector_contracts_and_reuses_storage():
@@ -215,80 +211,49 @@ def test_mask_resolution_replays_device_indices_and_rejects_capture_uploads(devi
     np.testing.assert_array_equal(result.numpy(), [False, True, False, False, True])
 
 
-@pytest.mark.parametrize(
-    ("row_type", "column_type"),
-    [(wp.int32, wp.int32), (wp.int64, wp.int64), (wp.int32, wp.int64), (wp.int64, wp.int32)],
-)
-def test_selected_write_preserves_order_strides_widths_and_untouched_values(row_type, column_type):
+@pytest.mark.parametrize("index_type", [wp.int32, wp.int64])
+def test_index_normalization_preserves_order_strides_and_untouched_values(index_type):
     with wp.ScopedDevice("cpu"):
-        rows = wp.array([1, 99, 0, 99], dtype=row_type)[::2]
-        columns = wp.array([2, 99, 0, 99], dtype=column_type)[::2]
-        if row_type == wp.int64 and column_type == wp.int32:
-            rows = wp.to_torch(rows)  # Callers may supply a strided Torch selector directly.
+        rows = wp.array([1, 99, 0, 99], dtype=index_type)[::2]
+        columns = wp.array([2, 99, 0, 99], dtype=index_type)[::2]
+        rows = memory.resolve_1d_indices(wp.to_torch(rows))
+        columns = memory.resolve_1d_indices(columns)
+        assert rows.dtype == columns.dtype == wp.int32
+        assert rows.is_contiguous and columns.is_contiguous
+        assert memory.resolve_1d_indices(rows) is rows
+        np.testing.assert_array_equal(rows.numpy(), [1, 0])
+        np.testing.assert_array_equal(columns.numpy(), [2, 0])
         source = wp.array([[11.0, 99, 12.0, 99], [21.0, 99, 22.0, 99]], dtype=wp.float32)[:, ::2]
         full = wp.full((2, 6), -1.0)
         target = full[:, ::2]
-        selected = wp.full(2, -1, dtype=wp.int32)
-
-        wp.launch(
-            memory.make_copy(wp.float32, 2, selector_dtype(rows), selector_dtype(columns)),
-            (2, 2),
-            [source, rows, columns, target, selected],
-        )
+        selected = wp.indexedarray(target, [rows, columns])
+        wp.copy(selected, source)
         np.testing.assert_array_equal(target.numpy(), [[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]])
         np.testing.assert_array_equal(full[:, 1::2].numpy(), -1.0)
-        np.testing.assert_array_equal(selected.numpy(), [1, 0])
         full_source = wp.array([[31, 32, 33], [41, 42, 43]], dtype=wp.float32)
-        wp.launch(
-            memory.make_copy(wp.float32, 2, selector_dtype(rows), selector_dtype(columns), full_source=True),
-            (2, 2),
-            [full_source, rows, columns, target, None],
-        )
+        wp.copy(selected, wp.indexedarray(full_source, [rows, columns]))
         np.testing.assert_array_equal(target.numpy(), [[31, -1, 33], [41, -1, 43]])
-
-        wp.launch(
-            memory.make_fill(wp.float32, 2, selector_dtype(rows), selector_dtype(columns)),
-            (2, 2),
-            [7.0, rows, columns, target, selected],
-        )
+        selected.fill_(7.0)
         np.testing.assert_array_equal(target.numpy(), [[7, -1, 7], [7, -1, 7]])
-        selected.fill_(-2)
-        wp.launch(
-            memory.make_fill(wp.float32, 2, selector_dtype(rows), selector_dtype(columns)),
-            (2, 0),
-            [8.0, rows, columns[:0], target, selected],
-        )
-        np.testing.assert_array_equal(selected.numpy(), [-2, -2])
+        empty = memory.resolve_1d_indices(wp.empty(0, dtype=index_type))
+        assert empty.shape == (0,) and empty.dtype == wp.int32
+        with pytest.raises(TypeError, match="signed"):
+            memory.resolve_1d_indices(wp.array([1.0]))
+        with pytest.raises(ValueError, match="one-dimensional"):
+            memory.resolve_1d_indices(wp.zeros((2, 2), dtype=index_type))
 
 
 def test_selected_write_handles_typed_elements_masks_and_trailing_components():
     with wp.ScopedDevice("cpu"):
-        # A caller resolves its first-column frequency into a strided rank-1 view.
-        elements = wp.array(np.arange(42, dtype=np.float32).reshape(2, 3, 7), dtype=wp.transformf)
-        first_column = wp.full(2, wp.transformf(-1.0))
-        wp.launch(
-            memory.make_copy(wp.transformf, 1),
-            2,
-            [elements[:, 0], None, None, first_column, None],
-        )
-        np.testing.assert_array_equal(first_column.numpy(), [[0, 1, 2, 3, 4, 5, 6], [21, 22, 23, 24, 25, 26, 27]])
-        selected_rows = wp.array([1, 0], dtype=wp.int64)
-        reverse = wp.empty_like(first_column)
-        wp.launch(
-            memory.make_copy(wp.transformf, 1, selector_dtype(selected_rows)),
-            2,
-            [first_column, selected_rows, None, reverse, None],
-        )
-        np.testing.assert_array_equal(reverse.numpy(), [[21, 22, 23, 24, 25, 26, 27], [0, 1, 2, 3, 4, 5, 6]])
         rows = wp.array([False, True], dtype=wp.bool)
         columns = wp.array([True, False, True], dtype=wp.bool)
         for dtype, size in ((wp.vec3f, 3), (wp.transformf, 7)):
             source = wp.array(np.arange(6 * size, dtype=np.float32).reshape(2, 3, size), dtype=dtype)
             target = wp.full((2, 3), dtype(-1.0))
             wp.launch(
-                memory.make_copy(dtype, 2),
+                memory.make_masked_copy(dtype, 2),
                 (2, 3),
-                [source, rows, columns, target, None],
+                [source, rows, columns, target],
             )
             expected = np.full((2, 3, size), -1.0)
             expected[1, 0] = np.arange(3 * size, 4 * size)
@@ -298,23 +263,12 @@ def test_selected_write_handles_typed_elements_masks_and_trailing_components():
         source = wp.array(np.arange(24, dtype=np.float32).reshape(2, 3, 4), dtype=wp.float32)
         target = wp.full((2, 3, 8), -1.0)[:, :, ::2]
         wp.launch(
-            memory.make_copy(wp.float32, 3),
+            memory.make_masked_copy(wp.float32, 3),
             (2, 3, 4),
-            [source, rows, columns, target, None],
+            [source, rows, columns, target],
         )
         expected = np.full((2, 3, 4), -1.0)
         expected[1, 0], expected[1, 2] = [12, 13, 14, 15], [20, 21, 22, 23]
-        np.testing.assert_array_equal(target.numpy(), expected)
-        row_ids = wp.array([1, 1, 0], dtype=wp.int64)
-        column_ids = wp.array([2, 0], dtype=wp.int32)
-        selected = wp.full(3, -1, dtype=wp.int32)
-        wp.launch(
-            memory.make_copy(wp.float32, 3, selector_dtype(row_ids), selector_dtype(column_ids), full_source=True),
-            (3, 2, 4),
-            [source, row_ids, column_ids, target, selected],
-        )
-        np.testing.assert_array_equal(selected.numpy(), [1, 1, 0])
-        expected[0, 0], expected[0, 2] = [0, 1, 2, 3], [8, 9, 10, 11]
         np.testing.assert_array_equal(target.numpy(), expected)
 
 
@@ -329,20 +283,24 @@ def test_memory_ownership_and_specialization(source_checkout_root):
     assert first is memory.make_concat(wp.vec3f, wp.quatf, wp.transformf, 2)
     assert first.module is not second.module
     assert first.module.hash_module() == before
-    for factory in (memory.make_copy, memory.make_fill):
-        first = factory(wp.float64, 1, wp.int32)
+    for factory in (memory.make_masked_copy, memory.make_masked_fill):
+        first = factory(wp.float64, 1)
         before = first.module.hash_module()
         assert isinstance(first, wp.Kernel)
-        assert factory(wp.float64, 1, wp.int32) is first
-        second = factory(wp.float64, 1, wp.int64)
+        assert factory(wp.float64, 1) is first
+        second = factory(wp.float32, 3)
         assert first.module is not second.module
         assert first.module.hash_module() == before
     source = source_checkout_root / "source"
     core = source / "isaaclab/isaaclab"
     owner = core / "utils/warp/memory.py"
-    assert not hasattr(memory, "make_write")
+    for retired in ("make_write", "make_copy", "make_fill", "_selected_index"):
+        assert not hasattr(memory, retired)
     assert not hasattr(memory, "IndexKernelDispatcher")
     for node in ast.walk(ast.parse(owner.read_text())):
+        if isinstance(node, ast.FunctionDef):
+            assert "selected_rows" not in {arg.arg for arg in node.args.args}
+
         name = getattr(node, "id", getattr(node, "arg", getattr(node, "name", "")))
         assert not set(re.split(r"_+", name.lower())) & {
             "body",
@@ -402,7 +360,7 @@ def test_memory_ownership_and_specialization(source_checkout_root):
             assert not any(name.lstrip("_").startswith(retired_prefixes) for name in definitions), file
             if backend != "ov":
                 assert not definitions & {"set_state_transforms_func", "set_state_velocities_func"}, file
-    factories = {"make_concat", "make_split", "make_clear_pair", "make_copy", "make_fill"}
+    factories = {"make_concat", "make_split", "make_clear_pair", "make_masked_copy", "make_masked_fill"}
     for package in source.iterdir():
         for file in (package / package.name).rglob("*.py"):
             tree = ast.parse(file.read_text())
@@ -411,7 +369,7 @@ def test_memory_ownership_and_specialization(source_checkout_root):
                     isinstance(t, ast.Name) and t.id == "vec13f" for t in node.targets
                 ):
                     assert file == core / "assets/rigid_object/base_rigid_object_data.py", file
-                if isinstance(node, ast.FunctionDef) and node.name == "resolve_1d_mask":
+                if isinstance(node, ast.FunctionDef) and node.name in {"resolve_1d_mask", "resolve_1d_indices"}:
                     assert file == owner, file
                 modules = [a.name for a in node.names] if isinstance(node, ast.Import) else []
                 if isinstance(node, ast.ImportFrom):

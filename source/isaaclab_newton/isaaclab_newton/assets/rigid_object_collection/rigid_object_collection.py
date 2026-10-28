@@ -22,7 +22,6 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray, memory
-from isaaclab.utils.warp.index_kernel import selector_dtype
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -980,18 +979,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Write to consolidated buffer
-        wp.launch(
-            memory.make_copy(wp.vec3f, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids],
-            outputs=[self.data._sim_bind_body_com_pos_b, None],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._sim_bind_body_com_pos_b, [env_ids, body_ids])
+        values = wp.from_torch(coms, dtype=wp.vec3f) if isinstance(coms, torch.Tensor) else coms
+        wp.copy(selected, values)
         self.data._reset_body_com_pose_b_dependents()
         # Tell the physics engine that some of the body properties have been updated
         self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
@@ -1032,10 +1027,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
-            memory.make_copy(wp.vec3f, 2),
+            memory.make_masked_copy(wp.vec3f, 2),
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[coms, env_mask, body_mask],
-            outputs=[self.data._sim_bind_body_com_pos_b, None],
+            outputs=[self.data._sim_bind_body_com_pos_b],
             device=self.device,
         )
         self.data._reset_body_com_pose_b_dependents()

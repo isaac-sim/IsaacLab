@@ -22,7 +22,6 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray, memory
-from isaaclab.utils.warp.index_kernel import selector_dtype
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -701,22 +700,17 @@ class RigidObject(BaseRigidObject):
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
             env_ids: The environment indices to set the masses for. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Scatter user data into the cached _body_mass at (env_ids, body_ids).
-        wp.launch(
-            memory.make_copy(wp.float32, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[masses, env_ids, body_ids],
-            outputs=[self.data._body_mass, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self.data._body_mass, [env_ids, body_ids])
+        values = wp.from_torch(masses, dtype=wp.float32) if isinstance(masses, torch.Tensor) else masses
+        wp.copy(selected, values)
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_MASS is CPU-only).
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_mass, self.data._body_mass)
         wp.synchronize_stream(self._device)
         self._root_view.set_attribute(TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), indices=cpu_env_ids)
@@ -746,10 +740,10 @@ class RigidObject(BaseRigidObject):
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
         wp.launch(
-            memory.make_copy(wp.float32, 2),
+            memory.make_masked_copy(wp.float32, 2),
             dim=(self._num_instances, self._num_bodies),
             inputs=[masses, env_mask_wp, body_mask_wp],
-            outputs=[self.data._body_mass, None],
+            outputs=[self.data._body_mass],
             device=self._device,
         )
         wp.copy(self._cpu_body_mass, self.data._body_mass)
@@ -780,22 +774,17 @@ class RigidObject(BaseRigidObject):
             env_ids: The environment indices to set the center of mass pose for. Defaults to None
                 (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            memory.make_copy(wp.transformf, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids],
-            outputs=[self.data._body_com_pose_b.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self.data._body_com_pose_b.data, [env_ids, body_ids])
+        values = wp.from_torch(coms, dtype=wp.transformf) if isinstance(coms, torch.Tensor) else coms
+        wp.copy(selected, values)
         self.data._reset_body_com_pose_b_dependents()
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         wp.synchronize_stream(self._device)
         # Wheel binding shape is (N, 7); squeeze singleton body dim with a flat float32 view.
@@ -828,10 +817,10 @@ class RigidObject(BaseRigidObject):
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         wp.launch(
-            memory.make_copy(wp.transformf, 2),
+            memory.make_masked_copy(wp.transformf, 2),
             dim=(self._num_instances, self._num_bodies),
             inputs=[coms, env_mask_wp, body_mask_wp],
-            outputs=[self.data._body_com_pose_b.data, None],
+            outputs=[self.data._body_com_pose_b.data],
             device=self._device,
         )
         self.data._reset_body_com_pose_b_dependents()
@@ -864,21 +853,16 @@ class RigidObject(BaseRigidObject):
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            memory.make_copy(wp.float32, 3, selector_dtype(env_ids), selector_dtype(body_ids)),
-            dim=(env_ids.shape[0], body_ids.shape[0], 9),
-            inputs=[inertias, env_ids, body_ids],
-            outputs=[self.data._body_inertia, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self.data._body_inertia, [env_ids, body_ids])
+        values = wp.from_torch(inertias, dtype=wp.float32) if isinstance(inertias, torch.Tensor) else inertias
+        wp.copy(selected, values)
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_INERTIA is CPU-only).
-        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
         wp.synchronize_stream(self._device)
         # Wheel binding shape is (N, 9); flatten the singleton body dim.
@@ -911,10 +895,10 @@ class RigidObject(BaseRigidObject):
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
         wp.launch(
-            memory.make_copy(wp.float32, 3),
+            memory.make_masked_copy(wp.float32, 3),
             dim=(self._num_instances, self._num_bodies, 9),
             inputs=[inertias, env_mask_wp, body_mask_wp],
-            outputs=[self.data._body_inertia, None],
+            outputs=[self.data._body_inertia],
             device=self._device,
         )
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)

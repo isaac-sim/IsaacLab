@@ -549,13 +549,23 @@ Verify ownership and dependency direction as well as numerical behavior and capt
 Shared Warp memory operations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Value-preserving packing, splitting, views, selected copy/fill, and mask resolution belong in
-``isaaclab.utils.warp.memory``. Callers supply frequency through array shapes, strides, and
-selectors; memory must not own body, joint, environment, or physical-quantity concepts.
-Keep derived quantities and native solver mappings with their mathematical or backend owners.
-Delete superseded layout implementations and forwarding aliases without external callers.
+Use native ``wp.copy``, ``array.fill_`` and ``array.zero_`` for ordinary data movement.
+Represent selections with ``wp.indexedarray`` and component layouts with scalar slices/views.
+Do not add project-owned kernels or forwarding wrappers for operations Warp already provides.
+``isaaclab.utils.warp.memory`` owns selector normalization, component views, boolean-masked
+updates and fused operations justified by measured launch or memory-access costs. Callers
+supply frequency through shapes, strides and selectors; memory must not own body, joint,
+environment or physical-quantity concepts. Native solver mappings and simulator row-ID
+bookkeeping belong to backends. Delete superseded implementations and unused aliases.
 
-Use a cached factory that defines and returns a concrete ``wp.Kernel``, following the
+Warp indexed views require contiguous int32 index arrays. Normalize supported Torch/Warp
+selectors with ``resolve_1d_indices``: existing contiguous int32 storage is reused, while
+strided or int64 selectors require a copy/cast. Keep the result alive with the view and
+warm conversions before capture; conversion during CUDA capture requires the memory pool.
+Select both source and destination views for full-shaped sources. Do not compact dynamic
+boolean masks into indices in captured paths; use the small masked copy/fill kernels.
+
+For a required custom kernel, use a cached factory that defines and returns a concrete ``wp.Kernel``, following the
 `MuJoCo Warp factory pattern <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/collision_driver.py>`_.
 Name factories ``make_<operation>``; use ``functools.cache`` for hashable type/rank arguments
 and ``@wp.kernel(module="unique")`` to isolate each specialization. Keep copy and fill signatures

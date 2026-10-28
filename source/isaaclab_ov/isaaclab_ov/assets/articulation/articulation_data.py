@@ -767,13 +767,7 @@ class ArticulationData(BaseArticulationData):
             backend_buffer = self._body_com_vel_w
             self._read_spatial_vector_binding(TT.LINK_VELOCITY, backend_buffer)
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            self._read_launch_cache.launch(
-                "root_link_vel_w",
-                memory_kernels.make_copy(wp.spatial_vectorf, 1),
-                dim=self.num_instances,
-                inputs=[backend_buffer.data[:, 0], None, None],
-                outputs=[self._root_link_vel_w.data, None],
-            )
+            wp.copy(self._root_link_vel_w.data.view(wp.float32), backend_buffer.data[:, 0].view(wp.float32))
             self._root_link_vel_w.timestamp = self._sim_timestamp
         if self._root_link_vel_w_ta is None:
             self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)

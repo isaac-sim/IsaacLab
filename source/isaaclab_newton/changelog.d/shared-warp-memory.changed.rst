@@ -1,1 +1,1 @@
-* Reused generic core Warp memory operations for asset state layouts, selected writes, and tendon controls while retaining native solver mappings.
+* Reused native Warp indexed views and copy/fill for asset and tendon writes, with shared selector normalization and boolean-masked kernels; native solver mappings remain in Newton.
