@@ -22,7 +22,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.utils import resolve_ids
+from isaaclab.utils.warp.memory import resolve_ids
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
