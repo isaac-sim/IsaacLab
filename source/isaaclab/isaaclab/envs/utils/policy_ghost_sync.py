@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_TERRAIN_FIELDS = ("terrain_levels", "terrain_types", "env_origins")
+"""Terrain placement tensors of every environment that the ghosts copy from the reference."""
+
 
 class PolicyGhostSync:
     """Synchronizes the slices of a single environment so that several policies can be compared.
@@ -39,7 +42,7 @@ class PolicyGhostSync:
 
         Args:
             env: Environment simulated with at least ``slice_size * num_slices`` worlds. Worlds beyond the slices
-                are left alone: their resets are ignored, so they stay parked.
+                are not mirrored: they reset on their own and are expected to receive zero actions.
             slice_size: Number of environments per slice.
             num_slices: Number of slices, including the reference.
 
@@ -115,23 +118,26 @@ class PolicyGhostSync:
         """Restore the environment's original reset, command update, and terrain placement."""
         self._env._reset_idx = self._reset_idx_original
         self._env.command_manager.compute = self._compute_commands_original
-        terrain = self._env.scene.terrain
+        terrain = self._terrain()
         for name, values in self._saved_terrain.items():
-            getattr(terrain, name)[: len(values)] = values
+            getattr(terrain, name).copy_(values)
+
+    def _terrain(self) -> Any | None:
+        """Return the scene's terrain importer when it has terrain tiles, else None."""
+        terrain = self._env.scene.terrain
+        return terrain if terrain is not None and getattr(terrain, "terrain_origins", None) is not None else None
 
     def _save_terrain(self) -> dict[str, torch.Tensor]:
         """Copy the terrain placement of every environment, which :meth:`_sync_terrain` overwrites for the ghosts."""
-        terrain = self._env.scene.terrain
-        if terrain is None or getattr(terrain, "terrain_origins", None) is None:
-            return {}
-        return {name: getattr(terrain, name).clone() for name in ("terrain_levels", "terrain_types", "env_origins")}
+        terrain = self._terrain()
+        return {} if terrain is None else {name: getattr(terrain, name).clone() for name in _TERRAIN_FIELDS}
 
     def _sync_terrain(self) -> None:
         """Place every ghost environment on the terrain tile of its reference environment."""
-        terrain = self._env.scene.terrain
-        if terrain is None or getattr(terrain, "terrain_origins", None) is None:
+        terrain = self._terrain()
+        if terrain is None:
             return
-        for name in ("terrain_levels", "terrain_types", "env_origins"):
+        for name in _TERRAIN_FIELDS:
             values = getattr(terrain, name)
             for ghost_start in self._ghost_offsets.tolist():
                 values[ghost_start : ghost_start + self._slice_size] = values[: self._slice_size]
@@ -141,6 +147,10 @@ class PolicyGhostSync:
         if isinstance(env_ids, slice):
             env_ids = torch.arange(self._env.num_envs, device=self._device)[env_ids]
         env_ids = torch.as_tensor(env_ids, device=self._device, dtype=torch.long)
+        parked = env_ids[env_ids >= self._slice_size * self._num_slices]
+        if parked.numel():
+            # worlds beyond the slices reset on their own, so their termination and episode statistics stay clean
+            self._reset_idx_original(parked)
         reference = env_ids[env_ids < self._slice_size]
         if reference.numel() == 0:
             # ghost-only terminations wait for the reference to reset

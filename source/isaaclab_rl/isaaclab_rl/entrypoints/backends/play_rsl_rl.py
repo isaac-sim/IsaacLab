@@ -119,6 +119,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     if args_cli.policy_ghost_slots is None:
         args_cli.policy_ghost_slots = MAX_POLICY_GHOST_SLOTS if args_cli.policy_ghosts else DEFAULT_GHOST_SLOTS
+    if not 2 <= args_cli.policy_ghost_slots <= MAX_POLICY_GHOST_SLOTS:
+        raise SystemExit(f"--policy_ghost_slots must be between 2 and {MAX_POLICY_GHOST_SLOTS}.")
+    if args_cli.policy_ghost_envs < 1:
+        raise SystemExit("--policy_ghost_envs must be at least 1.")
     return args_cli
 
 
@@ -247,8 +251,6 @@ def _offer_policy_ghosts(mode: PolicyGhostMode, env: RslRlVecEnvWrapper, env_cfg
 
 def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> None:
     """Reject configurations Policy Ghosts cannot run, before any simulation starts."""
-    if not 2 <= args_cli.policy_ghost_slots <= MAX_POLICY_GHOST_SLOTS:
-        raise SystemExit(f"--policy_ghost_slots must be between 2 and {MAX_POLICY_GHOST_SLOTS}.")
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise SystemExit("--policy_ghosts only supports manager-based environments.")
     visualizers = env_cfg.sim.visualizer_cfgs or []

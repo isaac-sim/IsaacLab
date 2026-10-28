@@ -152,15 +152,15 @@ def test_configure_env_cfg_accepts_a_task_without_a_curriculum() -> None:
     assert PolicyGhostSync.configure_env_cfg(SimpleNamespace()) == []  # No events, curriculum, or observations.
 
 
-def test_a_larger_pool_leaves_the_environments_beyond_the_slices_parked() -> None:
+def test_a_larger_pool_resets_the_environments_beyond_the_slices_on_their_own() -> None:
     env = _make_env(NUM_ENVS + 4)
     PolicyGhostSync(env, SLICE_SIZE, NUM_SLICES)
 
-    env._reset_idx(torch.tensor([NUM_ENVS + 1]))  # A parked environment that terminated stays as it is.
-    assert env.reset_calls == []
+    env._reset_idx(torch.tensor([NUM_ENVS + 1]))  # A parked environment resets on its own, without mirroring.
+    assert env.reset_calls == [[NUM_ENVS + 1]]
 
     env._reset_idx(torch.tensor([0]))
-    assert sorted(env.reset_calls[0]) == [0, 3, 6]
+    assert sorted(env.reset_calls[1]) == [0, 3, 6]
     env.command_manager.compute(0.02)
     command = env.command_manager.term.command
     assert torch.equal(command[SLICE_SIZE : 2 * SLICE_SIZE], command[:SLICE_SIZE])

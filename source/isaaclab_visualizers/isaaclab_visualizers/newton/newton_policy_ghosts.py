@@ -55,6 +55,7 @@ class NewtonPolicyGhostPanel:
         self._discovered: list[PolicyGhostCheckpoint] = []
         self._message = ""
         self._base_colors: np.ndarray | None = None
+        self._base_opacity: np.ndarray | None = None
         self._tint_signature: tuple | None = None
         self._shown_signature: tuple | None = None
         self._native_materials: dict[int, tuple[Any, np.ndarray]] = {}
@@ -117,6 +118,8 @@ class NewtonPolicyGhostPanel:
         self._tint_signature = tint_signature
         if self._base_colors is None:
             self._base_colors = model.shape_color.numpy().copy()
+            opacity = getattr(model, "shape_opacity", None)
+            self._base_opacity = None if opacity is None else opacity.numpy().copy()
         worlds = model.shape_world.numpy()
         slot_of_shape = np.where(worlds >= 0, worlds // self.layout.slice_size, -1)
         colors = self._base_colors.copy()
@@ -167,9 +170,12 @@ class NewtonPolicyGhostPanel:
     def restore(self, model: Any, viewer: Any) -> None:
         """Undo the tint, opacity, and flattened materials this panel wrote to the model and the shape batches."""
         if self._base_colors is not None and model.shape_color is not None:
-            device = model.shape_color.device
-            model.shape_color = wp.array(self._base_colors, dtype=wp.vec3, device=device)
-            model.shape_opacity = wp.array(np.ones(len(self._base_colors), dtype=np.float32), device=device)
+            model.shape_color.assign(self._base_colors)
+            if self._base_opacity is None:
+                model.shape_opacity = None
+            else:
+                model.shape_opacity.assign(self._base_opacity)
+            self._base_colors = self._base_opacity = None
         for batch, native in self._native_materials.values():
             batch.materials = wp.array(native, dtype=wp.vec4, device=batch.materials.device)
         self._native_materials.clear()

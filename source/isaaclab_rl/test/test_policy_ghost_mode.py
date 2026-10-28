@@ -100,7 +100,7 @@ def test_a_failed_switch_keeps_the_plain_playback_and_reports_why() -> None:
     mode.step()
 
     assert not mode.active and "no checkpoint" in mode.message and log == ["plain"]
-    assert not visualizer.events
+    assert visualizer.events == [("detach",)]  # Nothing stays half attached.
 
 
 def test_the_layout_can_be_chosen_within_the_slot_limits() -> None:
@@ -123,3 +123,16 @@ def test_a_restart_carries_the_chosen_layout_into_the_command_line() -> None:
     assert relaunch_argv(argv, True, 2, 3) == [
         "python", "play", "--num_envs", "2", "--policy_ghost_slots=3", "--task", "T", "--policy_ghosts"
     ]  # fmt: skip
+
+
+def test_a_failed_switch_detaches_the_visualizer_and_closes_the_new_session() -> None:
+    mode, visualizer, sessions, _ = _mode()
+
+    def failing_attach(session, restart, disable):
+        raise RuntimeError("viewer closed")
+
+    visualizer.attach_policy_ghosts = failing_attach
+    mode.request_enable()
+    mode.step()
+
+    assert not mode.active and sessions[0].closed and ("detach",) in visualizer.events

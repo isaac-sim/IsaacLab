@@ -272,6 +272,7 @@ class PolicyGhostMode:
 
     def _switch(self, enable: bool) -> None:
         self.message = ""
+        session = None
         try:
             if enable:
                 session = self._create_session(self.slice_size, self.num_slots)
@@ -286,6 +287,11 @@ class PolicyGhostMode:
                 self._resume()
         except Exception as error:  # a failed switch must not end the playback
             logger.exception("Could not switch Policy Ghosts %s.", "on" if enable else "off")
+            if enable:
+                for visualizer in self._visualizers:
+                    visualizer.detach_policy_ghosts()
+                if session is not None:
+                    session.close()
             self.message = f"Could not switch Policy Ghosts {'on' if enable else 'off'}: {error}"
 
 
@@ -337,8 +343,12 @@ class PolicyGhostSession(PolicyGhostController):
         self._sync = PolicyGhostSync(env.unwrapped, slice_size, num_slots)
         self._policies: list[PolicyGhostPolicy | None] = [None] * num_slots
         self._restart_pending = False
-        self._load(0, reference)
-        self._obs = env.get_observations()
+        try:
+            self._load(0, reference)
+            self._obs = env.get_observations()
+        except BaseException:
+            self._sync.close()  # a failed start must not leave the environment's reset and commands patched
+            raise
         # start the reference and the empty slots together from the same spawn state
         self._restart_pending = True
 

@@ -1874,6 +1874,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._picking_enabled = False
         self._cfg_visible_env_ids: list[int] | None = None
         self._visible_env_count: int | None = None
+        self._visible_env_count_before_ghosts: int | None = None
         self._num_envs = 0
         self._policy_ghost_panel: NewtonPolicyGhostPanel | None = None
 
@@ -2183,7 +2184,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if panel is None:
             return
         self._policy_ghost_panel = None
-        self._visible_env_count = None
+        self._visible_env_count = self._visible_env_count_before_ghosts
         if self._viewer is not None:
             self._viewer._policy_ghost_panel = None
             panel.restore(self.backend.model, self._viewer)
@@ -2206,6 +2207,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 When given, the HUD shows a Disable button that restarts.
             disable: Callback that switches Policy Ghosts off without a restart; the Disable button uses it.
         """
+        self._visible_env_count_before_ghosts = self._visible_env_count
         self._policy_ghost_panel = NewtonPolicyGhostPanel(controller, restart, disable)
         if self._viewer is not None:
             self._viewer._policy_ghost_panel = self._policy_ghost_panel
