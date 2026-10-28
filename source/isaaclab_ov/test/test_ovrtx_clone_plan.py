@@ -340,10 +340,8 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
 
     renderer.backend.renderer.write_array_attribute = _write_array_attribute
     renderer.backend.renderer.bind_attribute = lambda **_kwargs: SimpleNamespace(unbind=lambda: None)
-    renderer.backend.renderer.write_attribute = (
-        lambda prim_paths=None, attribute_name=None, *args, **kwargs: call_order.append("partitions")
-        if attribute_name == "primvars:omni:scenePartition"
-        else None
+    renderer.backend.renderer.write_attribute = lambda prim_paths=None, attribute_name=None, *args, **kwargs: (
+        call_order.append("partitions") if attribute_name == "primvars:omni:scenePartition" else None
     )
     renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
     spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)

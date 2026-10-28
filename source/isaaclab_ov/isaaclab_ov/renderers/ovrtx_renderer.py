@@ -1309,6 +1309,8 @@ class OVRTXMesh:
             normals = self._normals
         if self._face_counts is None or len(self._face_counts) != len(indices) // 3:
             self._face_counts = wp.full(len(indices) // 3, 3, dtype=wp.int32, device=indices.device)
+        if color is not None:
+            color = tuple(float(channel) for channel in color[:3])  # Callers pass NumPy rows or sequences.
         appearance = tuple(
             old if value is None else value
             for old, value in zip(
@@ -1339,7 +1341,7 @@ class OVRTXMesh:
         if populate:
             mesh.CreateDoubleSidedAttr(not appearance[0])
             for name, value in zip(("diffuseColor", "roughness", "metallic", "opacity"), appearance[1:], strict=True):
-                surface.GetInput(name).Set(value)
+                surface.GetInput(name).Set(Gf.Vec3f(*value) if name == "diffuseColor" else value)
             self._appearance = appearance
         if uvs is not None and not UsdGeom.PrimvarsAPI(mesh).HasPrimvar("st"):
             UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
