@@ -110,6 +110,9 @@ class NewtonRecordingPanel:
         self._scene: Any = None
         self._scene_frames = 0
         self._markers_failed = False
+        self.screenshot_path = ""
+        """File written by the latest screenshot."""
+        self._screenshot_pending = False
         self._message = ""
 
     @property
@@ -136,13 +139,17 @@ class NewtonRecordingPanel:
         expanded = imgui.collapsing_header("Recording  (REC)###recording" if active else "Recording###recording")
         if active:
             imgui.pop_style_color()
-        hover_tooltip(imgui, "Record a video, record an animation (and play it back), or save a policy checkpoint")
+        hover_tooltip(
+            imgui,
+            "Record a video, record an animation (and play it back), take a screenshot, or save a policy checkpoint",
+        )
         self.animation.draw_window(imgui)
         if not expanded:
             return
         imgui.separator()
         self._draw_video(imgui)
         self._draw_animation(imgui)
+        self._draw_screenshot(imgui)
         self._draw_checkpoint(imgui)
         self._draw_output(imgui)
         self._draw_message(imgui)
@@ -192,6 +199,14 @@ class NewtonRecordingPanel:
         if self.recording_scene:
             imgui.text_colored(imgui.ImVec4(*_RED), f"REC  {self._scene_frames} frames")
         self.animation.draw(imgui)
+        imgui.separator()
+
+    def _draw_screenshot(self, imgui: Any) -> None:
+        """Draw the screenshot group."""
+        imgui.text("Screenshot (.png)")
+        if imgui.button("Capture##screenshot"):
+            self.request_screenshot()
+        hover_tooltip(imgui, "Save the window image without the panels to the output folder")
         imgui.separator()
 
     def _draw_checkpoint(self, imgui: Any) -> None:
@@ -444,6 +459,27 @@ class NewtonRecordingPanel:
             self._scene_frames += 1
         if self._video is not None:
             self._write_video_frame(owner._viewer.get_frame(render_ui=False).numpy())
+        if self._screenshot_pending:
+            self._screenshot_pending = False
+            self._write_screenshot(owner._viewer.get_frame(render_ui=False).numpy())
+
+    def request_screenshot(self) -> None:
+        """Save the next rendered window frame, without the HUD, as a numbered PNG in the output folder."""
+        self._screenshot_pending = True
+
+    def _write_screenshot(self, frame: np.ndarray) -> None:
+        """Write one frame to the next screenshot file."""
+        from PIL import Image  # noqa: PLC0415
+
+        path = self._output_path("screenshot", ".png")
+        try:
+            Image.fromarray(np.ascontiguousarray(frame[..., :3], dtype=np.uint8)).save(path)
+        except Exception as exc:
+            logger.exception("[NewtonRecording] Could not save the screenshot.")
+            self._message = f"Screenshot failed: {exc}"
+            return
+        self.screenshot_path = str(path)
+        self._message = f"Saved screenshot to {self.screenshot_path}"
 
     def _record_markers(self, owner: Any) -> None:
         """Add the visualization markers, such as velocity arrows, to the animation frame being recorded."""

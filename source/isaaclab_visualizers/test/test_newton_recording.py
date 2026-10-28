@@ -47,8 +47,8 @@ def test_checkpoint_writes_through_the_runs_saver_into_numbered_files(tmp_path):
     panel.save_checkpoint()
 
     folder = tmp_path / "checkpoint"
-    assert sorted(file.name for file in folder.iterdir()) == ["newton_gl_0001.pt", "newton_gl_0002.pt"]
-    assert panel.checkpoint_path == str(folder / "newton_gl_0002.pt")
+    assert sorted(file.name for file in folder.iterdir()) == ["newton_0001.pt", "newton_0002.pt"]
+    assert panel.checkpoint_path == str(folder / "newton_0002.pt")
 
 
 def test_checkpoint_failure_is_reported_without_raising(tmp_path):
@@ -90,7 +90,7 @@ def test_video_streams_frames_and_ignores_resized_ones(tmp_path):
     panel.save_video()
 
     assert panel._video_frames == 3
-    assert (tmp_path / "video" / "newton_gl_0001.mp4").stat().st_size > 0
+    assert (tmp_path / "video" / "newton_0001.mp4").stat().st_size > 0
     assert not panel.recording_video
 
 
@@ -115,7 +115,7 @@ def test_stopped_video_is_kept_only_when_saved(tmp_path):
     panel.save_video()
 
     assert not panel.unsaved_video
-    assert [file.name for file in video_dir.iterdir()] == ["newton_gl_0001.mp4"]
+    assert [file.name for file in video_dir.iterdir()] == ["newton_0001.mp4"]
 
 
 @pytest.mark.skipif(_ffmpeg_executable() is None, reason="ffmpeg is not installed")
@@ -130,7 +130,7 @@ def test_video_with_a_length_saves_itself(tmp_path):
     assert not panel.recording_video and not panel.unsaved_video
     assert panel._video_frames == 4  # 1 s at 4 Hz
     assert "Saved 4 frames" in panel._message
-    assert (tmp_path / "video" / "newton_gl_0001.mp4").exists()
+    assert (tmp_path / "video" / "newton_0001.mp4").exists()
 
 
 @pytest.mark.skipif(_ffmpeg_executable() is None, reason="ffmpeg is not installed")
@@ -141,7 +141,7 @@ def test_closing_keeps_a_running_video(tmp_path):
     panel.capture()
     panel.close()
 
-    assert (tmp_path / "video" / "newton_gl_0001.mp4").exists()
+    assert (tmp_path / "video" / "newton_0001.mp4").exists()
 
 
 def test_relative_output_folder_lands_in_the_repository_not_the_working_directory(tmp_path, monkeypatch):
@@ -202,3 +202,22 @@ def test_saving_a_video_keeps_the_disabled_scopes_balanced(tmp_path):
     panel._draw_video(imgui)  # Saving clears the unsaved video partway through the frame.
 
     assert not panel.unsaved_video and imgui.disabled_depth == 0
+
+
+def test_screenshot_writes_the_next_frame_as_a_numbered_png(tmp_path):
+    frame = np.zeros((4, 6, 3), np.uint8)
+    frame[..., 0] = 200
+    panel = NewtonRecordingPanel(_owner(frames=[frame, frame], output_dir=str(tmp_path)))
+
+    panel.request_screenshot()
+    panel.capture()
+    panel.capture()  # Nothing is pending, so no second file.
+    panel.request_screenshot()
+    panel.capture()
+
+    from PIL import Image
+
+    folder = tmp_path / "screenshot"
+    assert sorted(file.name for file in folder.iterdir()) == ["newton_0001.png", "newton_0002.png"]
+    assert np.array(Image.open(folder / "newton_0001.png"))[0, 0].tolist() == [200, 0, 0]
+    assert panel.screenshot_path == str(folder / "newton_0002.png")
