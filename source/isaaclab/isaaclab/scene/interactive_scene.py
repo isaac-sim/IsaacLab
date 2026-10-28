@@ -435,11 +435,8 @@ class InteractiveScene:
             deformable_object.reset(env_ids, env_mask=env_mask)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids, env_mask=env_mask)
-        if self._surface_grippers:
-            # surface grippers reset by index only
-            gripper_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            for surface_gripper in self._surface_grippers.values():
-                surface_gripper.reset(gripper_ids)
+        for surface_gripper in self._surface_grippers.values():
+            surface_gripper.reset(env_ids, env_mask=env_mask)
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.reset(env_ids, env_mask=env_mask)
         # -- sensors

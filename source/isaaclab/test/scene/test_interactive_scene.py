@@ -186,7 +186,7 @@ def test_relative_deformable_state():
 
 
 def test_masked_reset_reaches_every_entity():
-    """Resets by ids and by mask pass both selections to every asset and sensor, and the selected ids to grippers."""
+    """Resets by ids and by mask pass both selections to every asset and sensor."""
     groups = (
         "_articulations",
         "_cable_objects",
@@ -205,16 +205,11 @@ def test_masked_reset_reaches_every_entity():
     env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
 
     InteractiveScene.reset(scene, env_mask=env_mask)
-    assert calls.keys() == set(groups)
-    for group, (env_ids, kwargs) in calls.items():
-        if group == "_surface_grippers":
-            assert env_ids.tolist() == [0, 2] and kwargs == {}
-        else:
-            assert env_ids is None and kwargs.keys() == {"env_mask"} and kwargs["env_mask"] is env_mask
+    assert calls == dict.fromkeys(groups, (None, {"env_mask": env_mask}))
 
     calls.clear()
     InteractiveScene.reset(scene, env_ids=[1])
-    assert calls == {**dict.fromkeys(groups, ([1], {"env_mask": None})), "_surface_grippers": ([1], {})}
+    assert calls == dict.fromkeys(groups, ([1], {"env_mask": None}))
 
 
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
