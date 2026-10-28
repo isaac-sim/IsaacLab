@@ -102,9 +102,13 @@ drive stiffness.
 Tune friction and contact behavior
 ----------------------------------
 
-Try the :ref:`interactive friction demo <interactive-demo-rigid-friction>` to
-adjust a box's friction on an incline and compare its sliding motion with two
-fixed references.
+Adjust a box's friction on an incline and compare its sliding motion with two
+fixed references in this compact MJWarp scene.
+
+.. isaaclab-demos:: rigid_friction
+   :title: Explore sliding friction
+   :physics: rigid
+   :activity: tuning
 
 Validate colliders, contact locations, normal force, material friction, and
 ``condim`` before changing global friction settings. ``cone`` selects the

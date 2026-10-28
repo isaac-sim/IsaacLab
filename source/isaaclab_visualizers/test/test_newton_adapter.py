@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonCfg, NewtonMJWarpManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 from isaaclab_visualizers.newton import (
     NewtonGLBackendCfg,
     NewtonGLVisualizer,
@@ -261,7 +261,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     )
     sim = object.__new__(SimulationContext)
     sim._scene_data_provider, sim._backend_registry, sim._physics_step_count = provider, [], 0
-    sim.backend_manager = NewtonMJWarpManager(NewtonCfg())
+    sim.backend_manager = NewtonManager(NewtonCfg())
     viewers = []
     for ids in ([0, 2], [1, 3]):
         cfg = VisualizerCfg(
@@ -664,7 +664,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
         get_scene_data_provider=lambda: provider,
         get_physics_step_count=lambda: visualizer._sim_time,
         is_rendering=True,
-        backend_manager=NewtonMJWarpManager(NewtonCfg()),
+        backend_manager=NewtonManager(NewtonCfg()),
     )
     from isaaclab.visualizers import ImageView, ImageViewCfg
 

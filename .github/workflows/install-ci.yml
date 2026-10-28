@@ -172,3 +172,56 @@ jobs:
         continue-on-error: true
         run: |
           .github/scripts/runner_health.sh post-test
+
+  # Windows has no Docker, so the suite runs natively. The composite actions above are
+  # bash and pin setup-uv v6, which crashes on exit on these runners
+  # (astral-sh/setup-uv#686).
+  install-tests-windows:
+    name: Installation Tests (Windows)
+    needs: [changes]
+    if: needs.changes.outputs.run_install_tests == 'true'
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.12.9"
+
+      # By name, Windows resolves bash to WSL's launcher in System32 ahead of PATH.
+      - name: Build wheel
+        run: |
+          & "C:\Program Files\Git\bin\bash.exe" tools/wheel_builder/build.sh
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Tests
+        env:
+          TEST_FILTER: ${{ inputs.test_filter }}
+        run: |
+          $wheel = @(Get-ChildItem tools/wheel_builder/build/dist -Filter "isaaclab-*.whl")
+          if ($wheel.Count -ne 1) { throw "expected one wheel, found $($wheel.Count)" }
+          # pytest's default base sits under the NetworkService profile, deep enough that
+          # Kit's DLLs in a venv there pass the 260-character path limit.
+          $pytestArgs = @("--run-gpu", "--tb=short", "-sv", "--basetemp=$env:RUNNER_TEMP\i", "--junitxml=${{ github.workspace }}\results\results.xml")
+          # Windows CI installs the uv workspace and trains in it, so only the wheel is tested here.
+          $pytestArgs += "--ignore=test_workspace.py"
+          if ($env:TEST_FILTER) { $pytestArgs += @("-k", $env:TEST_FILTER) }
+          uv run --no-project --python 3.12 --with pytest python tools/run_install_ci.py native --wheel $wheel[0].FullName -- @pytestArgs
+          exit $LASTEXITCODE
+
+      - name: Upload JUnit XML report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: install-ci-junit-windows
+          path: ${{ github.workspace }}/results/results.xml
+          if-no-files-found: ignore
+          retention-days: 7

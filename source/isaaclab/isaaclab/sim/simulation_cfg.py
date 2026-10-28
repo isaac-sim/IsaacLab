@@ -109,6 +109,10 @@ class SimulationCfg:
     Joints without a config keep their USD-authored actuators. Implicit actuators
     are unchanged: the solver applies their drive gains. Set this flag to ``False``
     to use the deprecated Isaac Lab actuator execution path.
+
+    Warning:
+        Torch checkpoints referenced by Newton actuator prims may execute code
+        when loaded. Only use actuator assets and checkpoints from trusted sources.
     """
 
     physics: PhysicsCfg | None = None

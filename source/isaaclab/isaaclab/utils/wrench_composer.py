@@ -24,7 +24,7 @@ from .warp.kernels import (
     set_forces_to_dual_buffers_index_kernel,
     set_forces_to_dual_buffers_mask,
 )
-from .warp.utils import resolve_ids
+from .warp.memory import resolve_ids
 
 if TYPE_CHECKING:
     from ..assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
