@@ -114,6 +114,7 @@ Guidelines for modifications:
 * HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
+* Ivan Wang
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
@@ -144,6 +145,7 @@ Guidelines for modifications:
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
+* Luca Schwarzenbach
 * Lukas Fröhlich
 * Manuel Schweiger
 * Marco Alesiani
@@ -201,6 +203,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Sahara Yuta
 * saime428
+* Sanghyun Yun
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
