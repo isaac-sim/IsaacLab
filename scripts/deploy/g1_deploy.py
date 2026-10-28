@@ -5,9 +5,10 @@
 
 """Run a LEAPP-exported policy on a physical Unitree G1.
 
-Inference is the official ``leapp.InferenceManager``. This script supplies the two ends the graph
-cannot reach by itself: the robot's state and camera on the way in, its motors on the way out. No
-simulator is launched and Isaac Sim is never imported.
+Inference runs in Isaac ROS Deploy (InputBuilderNode, TritonNode, OutputBuilderNode).
+This script adapts Unitree DDS and the depth stream to that runtime; it does not execute
+the policy in Python. Source an Isaac ROS environment with isaac_ros_deploy, isaac_ros_triton
+and their dependencies before running. The pipeline must be an ONNX LEAPP bundle.
 
 Needs ``unitree_sdk2py`` with ``cyclonedds==0.10.2``, and a depth publisher on the robot's onboard
 computer sending 64x38 frames as unsigned 16-bit millimetres over UDP.
@@ -21,13 +22,17 @@ import math
 import os
 import re
 import select
+import signal
 import socket
 import struct
+import subprocess
 import sys
+import tempfile
 import termios
 import threading
 import time
 import tty
+from pathlib import Path
 
 import numpy as np
 
@@ -50,6 +55,13 @@ FALL_GRAVITY_Z = -0.7
 
 UPRIGHT_GRAVITY_Z = -0.9
 """Require this projected gravity or lower before engaging the policy."""
+
+ROS_OUTPUT_KINDS = {
+    "write:robot:set_joint_position_target_index": "target/joint/position",
+    "write:robot:write_joint_stiffness_to_sim_index": "kp",
+    "write:robot:write_joint_damping_to_sim_index": "kd",
+}
+"""Exported connections and ROS output kinds, ordered as target position, Kp and Kd."""
 
 MOTOR_NAMES = (
     "left_hip_pitch_joint",
@@ -273,7 +285,6 @@ class G1Link:
         self._publisher.Init()
         self._command = unitree_hg_msg_dds__LowCmd_()
         self._crc = CRC()
-        self._next = None
         deadline = time.monotonic() + 30.0
         while self.state is None:
             if time.monotonic() > deadline:
@@ -327,87 +338,191 @@ class G1Link:
             self.write(zero, zero, kd)
             time.sleep(CONTROL_DT)
 
-    def wait(self, period: float) -> None:
-        """Keep the control cadence, discarding overdue deadlines after a stall."""
-        if self._next is None:
-            self._next = time.monotonic()
-        self._next += period
-        now = time.monotonic()
-        if now < self._next:
-            time.sleep(self._next - now)
-            now = time.monotonic()
-            if now - self._next < period:
-                return
-        if now > self._next:
-            self._next = now
+
+def prepare_ros_pipeline(pipeline: str, directory: str) -> tuple[Path, dict]:
+    """Adapt only external port metadata for Isaac ROS Deploy; keep the exported graph intact."""
+    import yaml
+
+    source = Path(pipeline).expanduser().resolve(strict=True)
+    config = yaml.safe_load(source.read_text())
+    ports = {}
+    for model_name, model in config["models"].items():
+        parameters = model["parameters"]
+        model_path = (source.parent / parameters["model_path"]).resolve(strict=True)
+        if model_path.suffix != ".onnx":
+            raise ValueError("Isaac ROS Deploy requires an ONNX LEAPP export")
+        parameters["model_path"] = str(model_path)
+        for direction in ("inputs", "outputs"):
+            exposed = config["pipeline"][direction].get(model_name, [])
+            for spec in model[direction]:
+                if spec["name"] not in exposed:
+                    continue
+                connection = spec.get("isaaclab_connection")
+                if not connection or connection in ports:
+                    raise ValueError(f"Missing or duplicate isaaclab_connection for {model_name}/{spec['name']}")
+                ports[connection] = spec
+                if direction == "inputs":
+                    # Depth is single-channel metres, not the RGB image converter's input.
+                    # Raw tensors also preserve the export's joint and quaternion conventions.
+                    spec["kind"], spec["source"] = "tensor", spec["name"]
+                else:
+                    spec["kind"] = ROS_OUTPUT_KINDS[connection]
+    names = [spec["name"] for spec in ports.values()]
+    if len(set(names)) != len(names):
+        raise ValueError("Isaac ROS Deploy requires unique external tensor names")
+    initial = config["pipeline"].get("initial_values")
+    if initial:
+        config["pipeline"]["initial_values"] = str((source.parent / initial).resolve(strict=True))
+    destination = Path(directory) / "g1_ros.yaml"
+    destination.write_text(yaml.safe_dump(config, sort_keys=False))
+    return destination, ports
+
+
+def run_ros_runtime(pipeline: str, namespace: str) -> int:
+    """Launch the official input builder, Triton ensemble and output builder in a child process."""
+    import yaml
+    from ament_index_python.packages import get_package_share_directory
+    from launch import LaunchDescription, LaunchService
+    from launch.actions import IncludeLaunchDescription
+    from launch.launch_description_sources import PythonLaunchDescriptionSource
+    from launch_ros.actions import SetParameter
+
+    config = yaml.safe_load(Path(pipeline).read_text())
+    sources = [
+        spec["source"]
+        for model_name, model in config["models"].items()
+        for spec in model["inputs"]
+        if spec["name"] in config["pipeline"]["inputs"].get(model_name, [])
+    ]
+    launch_file = Path(get_package_share_directory("isaac_ros_deploy_bringup")) / "launch/inference_graph.launch.py"
+    service = LaunchService()
+    service.include_launch_description(
+        LaunchDescription(
+            [
+                SetParameter(name="enable_topic", value=f"/{namespace}/enable"),
+                SetParameter(name="enabled_on_start", value=False),
+                SetParameter(name="reset_feedback_on_enable", value=True),
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(str(launch_file)),
+                    launch_arguments={
+                        "config_path": pipeline,
+                        "namespace": namespace,
+                        "publish_rate": str(1.0 / CONTROL_DT),
+                        "source_to_topic": ",".join(f"{source}:/{namespace}/robot_inputs" for source in sources),
+                    }.items(),
+                ),
+            ]
+        )
+    )
+    return service.run()
 
 
 class GraphPolicy:
-    """The exported graph, with the robot's arrays converted to and from its layout.
+    """Device adapter for the Isaac ROS Deploy node runtime.
 
-    The conversions are the point of this class, and each is silent when wrong -- the shapes still
-    match and the robot simply walks badly:
-
-    * the graph reads and writes **all** 43 articulation joints, so the 29 motors are placed by
-      name and the fingers stay at their default pose and zero velocity;
-    * depth arrives from the camera rolled 180 degrees against what the graph was trained on;
-    * depth is a rank-4 ``(1, H, W, 1)`` tensor, not an image-shaped array.
+    The official runtime owns inference, graph scheduling and exported feedback state.
+    This adapter supplies the existing robot/camera inputs and consumes JointCommand messages.
+    Source bundles and model weights are never modified.
     """
 
     def __init__(self, pipeline: str, depth_rotation: int, imu_tilt: tuple[float, float] = (0.0, 0.0)) -> None:
-        import torch
-        from leapp import InferenceManager
+        import rclpy
+        from isaac_ros_deploy_converters.tensor_utils import make_tensor
+        from isaac_ros_deploy_interfaces.msg import JointCommand
+        from isaac_ros_tensor_msgs.msg import TensorList
+        from rclpy.context import Context
+        from rclpy.executors import SingleThreadedExecutor
+        from std_msgs.msg import Bool
 
-        self._torch = torch
+        self._make_tensor = make_tensor
+        self._tensor_list, self._bool = TensorList, Bool
+        self._context = Context()
+        self._node = self._process = self._executor = None
+        self._directory = tempfile.TemporaryDirectory(prefix="g1_ros_deploy_")
+        self._result = None
+        self._enabled = False
         self._rotate = depth_rotation == 180
         pitch, roll = (math.radians(angle) / 2.0 for angle in imu_tilt)
         cp, sp, cr, sr = math.cos(pitch), math.sin(pitch), math.cos(roll), math.sin(roll)
         self._imu_tilt = np.array([cp * cr, cp * sr, sp * cr, -sp * sr], dtype=np.float32)
-        torch.set_num_threads(1)
-        self.inference = InferenceManager(pipeline)
-
-        self._ports = {}
-        for direction, keys in (("inputs", self.inference.inputs), ("outputs", self.inference.outputs)):
-            for key in keys:
-                node, name = key.split("/", 1)
-                spec = next(io for io in self.inference.models[node][direction] if io["name"] == name)
-                connection = spec.get("isaaclab_connection")
-                if not connection or connection in self._ports:
-                    raise ValueError(f"missing or duplicate isaaclab_connection for {key}")
-                self._ports[connection] = (key, spec)
-        names = self._ports["write:robot:set_joint_position_target_index"][1]["element_names"][0]
-        order = {name: i for i, name in enumerate(names)}
-        missing = [name for name in MOTOR_NAMES if name not in order]
-        if missing:
-            raise KeyError(f"the export does not drive {missing}")
-        self._motors = np.array([order[name] for name in MOTOR_NAMES], dtype=np.int64)
-        self._default = np.array(
-            [next((v for p, v in DEFAULT_JOINT_POS.items() if re.fullmatch(p, n)), 0.0) for n in names],
-            dtype=np.float32,
-        )
-        self.default_pose = self._default[self._motors]
-
-        # Warm the graph on synthetic inputs, before anything owns rt/lowcmd. This pays the first
-        # call's cost outside the control loop and leaves self.kp and self.kd holding the gains the
-        # ramp uses, which are the policy's own rather than numbers repeated here.
-        for _ in range(3):
-            self.step(
-                self.default_pose,
-                np.zeros(len(MOTOR_NAMES), np.float32),
-                np.array([0.0, 0.0, 0.0, 1.0], np.float32),
-                np.zeros(3, np.float32),
-                np.zeros(3, np.float32),
-                np.full(DEPTH_SHAPE, DEPTH_MAX_RANGE, np.float32),
+        try:
+            config_path, self._ports = prepare_ros_pipeline(pipeline, self._directory.name)
+            output_specs = [self._ports[connection] for connection in ROS_OUTPUT_KINDS]
+            names = output_specs[0]["element_names"][-1]
+            if any(spec["element_names"][-1] != names or spec["shape"] != [1, len(names)] for spec in output_specs):
+                raise ValueError("Joint targets and gains must have the same named joint layout")
+            if len(set(names)) != len(names) or not set(MOTOR_NAMES).issubset(names):
+                raise ValueError("The export must contain all 29 unique G1 body joints")
+            self._names = names
+            self._motors = np.array([names.index(name) for name in MOTOR_NAMES])
+            self._default = np.array(
+                [next((v for p, v in DEFAULT_JOINT_POS.items() if re.fullmatch(p, n)), 0.0) for n in names],
+                dtype=np.float32,
             )
-        with torch.inference_mode():
-            self.inference.reset()
+            self.default_pose = self._default[self._motors]
+            for connection in ("state:robot:joint_pos", "state:robot:joint_vel"):
+                if self._ports[connection]["element_names"][-1] != names:
+                    raise ValueError(f"Joint layout differs for {connection}")
 
-    def step(self, joint_pos, joint_vel, quat_xyzw, ang_vel, command, depth):
-        """One inference step. Returns motor targets, Kp and Kd, each ``(29,)``."""
+            rclpy.init(context=self._context)
+            namespace = Path(self._directory.name).name
+            self._node = rclpy.create_node("device_adapter", namespace=namespace, context=self._context)
+            self._executor = SingleThreadedExecutor(context=self._context)
+            self._executor.add_node(self._node)
+            self._inputs = self._node.create_publisher(TensorList, "robot_inputs", 1)
+            self._enable = self._node.create_publisher(Bool, "enable", 1)
+            self._node.create_subscription(JointCommand, "joint_commands", self._on_output, 1)
+            self._process = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--ros-runtime",
+                    str(config_path),
+                    namespace,
+                ],
+                start_new_session=True,
+                env={**os.environ, "TMPDIR": self._directory.name},
+            )
+            deadline = time.monotonic() + 60.0
+            while not self._inputs.get_subscription_count() or not self._enable.get_subscription_count():
+                self._spin_until(deadline)
+            # Pay model startup costs before taking ownership of the robot. Closing the enable
+            # gate then keeps history frozen throughout the ramp/hold; reopening resets feedback.
+            for _ in range(3):
+                self.step(
+                    self.default_pose,
+                    np.zeros(len(MOTOR_NAMES), np.float32),
+                    np.array([0.0, 0.0, 0.0, 1.0], np.float32),
+                    np.zeros(3, np.float32),
+                    np.zeros(3, np.float32),
+                    np.full(DEPTH_SHAPE, DEPTH_MAX_RANGE, np.float32),
+                    timeout=60.0,
+                )
+            self._enable.publish(Bool(data=False))
+            self._enabled = False
+            deadline = time.monotonic() + 0.2
+            while time.monotonic() < deadline:
+                self._executor.spin_once(timeout_sec=CONTROL_DT)
+            self._result = None
+        except BaseException:
+            self.close()
+            raise
+
+    def _spin_until(self, deadline: float) -> None:
+        if self._process.poll() is not None:
+            raise RuntimeError(f"Isaac ROS Deploy exited with status {self._process.returncode}")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Isaac ROS Deploy did not return a fresh command in time")
+        self._executor.spin_once(timeout_sec=min(CONTROL_DT, max(0.0, deadline - time.monotonic())))
+
+    def _on_output(self, message) -> None:
+        self._result = message
+
+    def step(self, joint_pos, joint_vel, quat_xyzw, ang_vel, command, depth, timeout: float = DEPTH_MAX_AGE):
+        """Publish device tensors and wait for a fresh, finite command from the official runtime."""
         q, dq = self._default.copy(), np.zeros_like(self._default)
         q[self._motors], dq[self._motors] = joint_pos, joint_vel
         if self._imu_tilt[0] != 1.0:
-            # R_pelvis_world = R_imu_world * inverse(R_imu_to_pelvis).
             quat_xyzw = np.asarray(quat_xyzw, dtype=np.float32)
             ang_vel = np.asarray(ang_vel, dtype=np.float32)
             w, xyz = quat_xyzw[3], quat_xyzw[:3]
@@ -423,37 +538,66 @@ class GraphPolicy:
         frame = np.asarray(depth, dtype=np.float32)
         if self._rotate:
             frame = frame[::-1, ::-1]
-
-        inputs = {
-            self._key(connection): self._torch.from_numpy(np.ascontiguousarray(value, np.float32))
-            for connection, value in {
-                "state:robot:joint_pos": q[None],
-                "state:robot:joint_vel": dq[None],
-                "state:robot:root_quat_w": np.asarray(quat_xyzw, np.float32)[None],
-                "state:robot:root_ang_vel_b": np.asarray(ang_vel, np.float32)[None],
-                "command:base_velocity": np.asarray(command, np.float32)[None],
-                "state:depth_camera:output:distance_to_image_plane": frame[None, :, :, None],
-            }.items()
+        values = {
+            "state:robot:joint_pos": q[None],
+            "state:robot:joint_vel": dq[None],
+            "state:robot:root_quat_w": np.asarray(quat_xyzw, np.float32)[None],
+            "state:robot:root_ang_vel_b": np.asarray(ang_vel, np.float32)[None],
+            "command:base_velocity": np.asarray(command, np.float32)[None],
+            "state:depth_camera:output:distance_to_image_plane": frame[None, :, :, None],
         }
-        with self._torch.inference_mode():
-            outputs = self.inference.run_policy(inputs)
+        message = self._tensor_list()
+        message.header.stamp = self._node.get_clock().now().to_msg()
+        sent_at = message.header.stamp.sec * 10**9 + message.header.stamp.nanosec
+        for connection, value in values.items():
+            spec = self._ports[connection]
+            if list(value.shape) != spec["shape"] or not np.isfinite(value).all():
+                raise ValueError(f"Invalid device input for {connection}")
+            message.names.append(spec["name"])
+            message.tensors.append(self._make_tensor(value))
+        self._inputs.publish(message)
+        if not self._enabled:
+            self._enable.publish(self._bool(data=True))
+            self._enabled = True
+        deadline = time.monotonic() + timeout
+        while True:
+            self._spin_until(deadline)
+            result = self._result
+            if result is None:
+                continue
+            stamp = result.header.stamp.sec * 10**9 + result.header.stamp.nanosec
+            if stamp < sent_at:
+                continue
+            if list(result.names) != self._names:
+                raise ValueError("Isaac ROS Deploy returned a different joint layout")
+            arrays = [np.asarray(value, np.float32) for value in (result.position, result.kp, result.kd)]
+            if any(value.shape != (len(self._names),) or not np.isfinite(value).all() for value in arrays):
+                raise ValueError("Isaac ROS Deploy returned invalid joint targets or gains")
+            target, self.kp, self.kd = (value[self._motors] for value in arrays)
+            return target, self.kp, self.kd
 
-        target = self._motors_of(outputs, "write:robot:set_joint_position_target_index")
-        self.kp = self._motors_of(outputs, "write:robot:write_joint_stiffness_to_sim_index")
-        self.kd = self._motors_of(outputs, "write:robot:write_joint_damping_to_sim_index")
-        # The one check worth making here: these three go straight into motor commands, and a NaN
-        # from a bad joint or IMU reading would be written to the robot as a target.
-        if not np.isfinite([target, self.kp, self.kd]).all():
-            raise ValueError("the graph returned a non-finite target or gain")
-        return target, self.kp, self.kd
+    def close(self) -> None:
+        """Stop the child runtime and release its temporary metadata without touching the export."""
+        if self._process is not None and self._process.poll() is None:
+            os.killpg(self._process.pid, signal.SIGINT)
+            try:
+                self._process.wait(timeout=10.0)
+            except subprocess.TimeoutExpired:
+                os.killpg(self._process.pid, signal.SIGKILL)
+                self._process.wait()
+        if self._executor is not None:
+            self._executor.shutdown()
+        if self._node is not None:
+            self._node.destroy_node()
+        if self._context.ok():
+            self._context.shutdown()
+        self._directory.cleanup()
 
-    def _key(self, connection: str) -> str:
-        """The graph's own name for a tensor, given the Isaac Lab connection it carries."""
-        return self._ports[connection][0]
+    def __enter__(self):
+        return self
 
-    def _motors_of(self, outputs: dict, connection: str) -> np.ndarray:
-        """One of the graph's 43-wide outputs, reduced to the 29 motors in ``rt/lowcmd`` order."""
-        return outputs[self._key(connection)].detach().cpu().numpy().reshape(-1)[self._motors]
+    def __exit__(self, *exc):
+        self.close()
 
 
 def take_lowcmd(domain_id: int, probe_s: float = 3.0) -> None:
@@ -536,8 +680,9 @@ def bring_up(link: G1Link, pose: np.ndarray, kp, kd, ramp_s: float) -> None:
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s]: %(message)s", stream=sys.stdout)
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--pipeline", required=True, help="Exported LEAPP .yaml.")
-    parser.add_argument("--interface", required=True, help="Network interface on the robot's subnet.")
+    parser.add_argument("--pipeline", help="Exported ONNX LEAPP .yaml (required).")
+    parser.add_argument("--interface", help="Network interface on the robot's subnet (required).")
+    parser.add_argument("--ros-runtime", nargs=2, help=argparse.SUPPRESS)
     parser.add_argument("--domain_id", type=int, default=0, help="DDS domain.")
     parser.add_argument("--depth_port", type=int, default=5601, help="UDP port the publisher sends to.")
     parser.add_argument(
@@ -555,6 +700,10 @@ def main() -> int:
         " own 180-degree roll against the camera stream.",
     )
     args = parser.parse_args()
+    if args.ros_runtime:
+        return run_ros_runtime(*args.ros_runtime)
+    if not args.pipeline or not args.interface:
+        parser.error("--pipeline and --interface are required")
     try:
         pitch, roll = (float(value) for value in args.imu_tilt.split(","))
         if not math.isfinite(pitch) or not math.isfinite(roll):
@@ -562,48 +711,47 @@ def main() -> int:
     except ValueError:
         parser.error("--imu_tilt requires finite PITCH,ROLL values in degrees")
 
-    policy = GraphPolicy(args.pipeline, args.depth_rotation, (pitch, roll))
-    link = G1Link(args.domain_id, args.interface)
-    depth = DepthStream(args.depth_port)
-    depth.wait()
-    take_lowcmd(args.domain_id)
+    with GraphPolicy(args.pipeline, args.depth_rotation, (pitch, roll)) as policy:
+        link = G1Link(args.domain_id, args.interface)
+        depth = DepthStream(args.depth_port)
+        depth.wait()
+        take_lowcmd(args.domain_id)
 
-    logger.info(f"mode_machine={link.read()['mode_machine']}  policy at {1 / CONTROL_DT:.0f} Hz")
-    print(Teleop.HELP)
-    teleop = Teleop()
-    confirm("go", "\n>>> Robot supported, area clear, e-stop in hand.")
+        logger.info(f"mode_machine={link.read()['mode_machine']}  policy at {1 / CONTROL_DT:.0f} Hz")
+        print(Teleop.HELP)
+        teleop = Teleop()
+        confirm("go", "\n>>> Robot supported, area clear, e-stop in hand.")
 
-    try:
-        bring_up(link, policy.default_pose, policy.kp, policy.kd, ramp_s=3.0)
-        teleop.heading = heading_from_quat_xyzw(link.read()["root_quat_xyzw"])
-        with teleop:
-            while teleop.running:
-                link.check_abort()
-                state = link.read()
-                if state["gravity_z"] > FALL_GRAVITY_Z:
-                    raise RuntimeError(f"fell (projected gravity {state['gravity_z']:+.2f})")
-                command = teleop.command(state["root_quat_xyzw"])
-                if not teleop.running:
-                    break
-                frame = depth.latest()
-                if frame is None:
-                    raise RuntimeError(f"no depth frame within {DEPTH_MAX_AGE * 1e3:.0f} ms")
-                joint_pos, kp, kd = policy.step(
-                    state["joint_pos"],
-                    state["joint_vel"],
-                    state["root_quat_xyzw"],
-                    state["ang_vel"],
-                    command,
-                    frame,
-                )
-                link.write(joint_pos, kp, kd)
-                link.wait(CONTROL_DT)
-    except (KeyboardInterrupt, OperatorAbort) as error:
-        logger.info(str(error) or "Interrupted")
-    except (RuntimeError, TimeoutError) as error:
-        logger.error(str(error))
-    finally:
-        link.damp(policy.kd)
+        try:
+            bring_up(link, policy.default_pose, policy.kp, policy.kd, ramp_s=3.0)
+            teleop.heading = heading_from_quat_xyzw(link.read()["root_quat_xyzw"])
+            with teleop:
+                while teleop.running:
+                    link.check_abort()
+                    state = link.read()
+                    if state["gravity_z"] > FALL_GRAVITY_Z:
+                        raise RuntimeError(f"fell (projected gravity {state['gravity_z']:+.2f})")
+                    command = teleop.command(state["root_quat_xyzw"])
+                    if not teleop.running:
+                        break
+                    frame = depth.latest()
+                    if frame is None:
+                        raise RuntimeError(f"no depth frame within {DEPTH_MAX_AGE * 1e3:.0f} ms")
+                    joint_pos, kp, kd = policy.step(
+                        state["joint_pos"],
+                        state["joint_vel"],
+                        state["root_quat_xyzw"],
+                        state["ang_vel"],
+                        command,
+                        frame,
+                    )
+                    link.write(joint_pos, kp, kd)
+        except (KeyboardInterrupt, OperatorAbort) as error:
+            logger.info(str(error) or "Interrupted")
+        except (RuntimeError, TimeoutError) as error:
+            logger.error(str(error))
+        finally:
+            link.damp(policy.kd)
     return 0
 
 
