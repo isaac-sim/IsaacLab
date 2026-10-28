@@ -44,6 +44,15 @@ each comparison while varying one material parameter. The annotated values
 are examples for observing different responses, not calibrated material
 recommendations.
 
+Try material changes on a single 2,744-particle blob falling onto a cylinder
+inside a tub. Presets provide qualitative references; reset the scene to apply
+material changes and repeat the same drop.
+
+.. isaaclab-demos:: mpm
+   :title: Explore MPM materials
+   :physics: mpm
+   :activity: tuning
+
 .. list-table:: Values shown in the material recordings
    :header-rows: 1
    :widths: 21 35 44
