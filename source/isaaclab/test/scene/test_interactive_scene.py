@@ -186,10 +186,7 @@ def test_relative_deformable_state():
 
 
 def test_masked_reset_reaches_every_entity():
-    """A masked reset passes the mask to every asset and sensor and the selected ids to surface grippers.
-
-    A reset by ids passes no mask, so entities that accept only ids keep working.
-    """
+    """Resets by ids and by mask pass both selections to every asset and sensor, and the selected ids to grippers."""
     groups = (
         "_articulations",
         "_cable_objects",
@@ -217,7 +214,7 @@ def test_masked_reset_reaches_every_entity():
 
     calls.clear()
     InteractiveScene.reset(scene, env_ids=[1])
-    assert calls == dict.fromkeys(groups, ([1], {}))
+    assert calls == {**dict.fromkeys(groups, ([1], {"env_mask": None})), "_surface_grippers": ([1], {})}
 
 
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
