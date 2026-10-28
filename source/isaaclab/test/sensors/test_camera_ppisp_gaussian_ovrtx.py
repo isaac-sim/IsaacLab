@@ -76,7 +76,7 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 )
 
 if not _MISSING_MODULES:
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg  # noqa: E402
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg  # noqa: E402
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 else:

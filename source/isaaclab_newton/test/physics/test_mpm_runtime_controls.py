@@ -10,24 +10,30 @@ from types import SimpleNamespace
 import newton
 import numpy as np
 import pytest
-from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager, XPBDSolverCfg
+import warp as wp
+from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, NewtonCfg, NewtonManager, XPBDSolverCfg
 from newton.solvers import SolverImplicitMPM
 
 from isaaclab_contrib.coupling import (
     CouplerEntryCfg,
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
-    NewtonCouplerManager,
+    CouplerSolver,
 )
 
 
 def _build_coupled_manager(model, entries, *, proxies=()):
-    """Build the native solver through the manager's actual ownership resolution."""
+    """Build the native solver through the coupler's actual ownership resolution."""
     config = CouplerProxyCfg(entries=entries, proxies=list(proxies))
-    manager = NewtonCouplerManager(NewtonCfg(use_cuda_graph=False, solver_cfg=config))
-    manager._sim = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/World/envs/env_0"))
-    manager.backend = SimpleNamespace(model=model, state_0=model.state(), solver=None, contact_sensors={})
-    manager._build_solver(model, manager._cfg.solver_cfg)
+    manager = NewtonManager(NewtonCfg(use_cuda_graph=False, solver_cfg=config))
+    manager._sim = SimpleNamespace()
+    solver = CouplerSolver.build(
+        manager._cfg.solver_cfg,
+        model,
+        wp.DeterministicMode.NOT_GUARANTEED,
+        "/World/envs/env_{}",
+    )
+    manager.backend = SimpleNamespace(model=model, state_0=model.state(), solver=solver, contact_sensors={})
     return manager
 
 
@@ -57,9 +63,9 @@ def test_runtime_resolution_preserves_current_native_state(coupled):
         selected, state = solver.solver("media"), solver.entry_state("media")
         kwargs = {"entry_name": "media"}
     else:
-        manager = NewtonMPMManager(NewtonCfg(use_cuda_graph=False, solver_cfg=config))
+        manager = NewtonManager(NewtonCfg(use_cuda_graph=False, solver_cfg=config))
         config = manager._cfg.solver_cfg
-        solver = NewtonMPMManager._create_solver(model, config)
+        solver = MPMSolver.build(config, model, wp.DeterministicMode.NOT_GUARANTEED)
         selected, state = solver, model.state()
         kwargs = {}
     manager._sim = SimpleNamespace()

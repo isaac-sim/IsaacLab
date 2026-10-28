@@ -7,14 +7,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
-
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
 
 
 @configclass
@@ -25,8 +22,7 @@ class MPMSolverCfg(NewtonSolverCfg):
     as colliders. It is not a rigid-body or articulation dynamics solver.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.mpm_manager:NewtonMPMManager"
-    """Manager class for the implicit MPM solver."""
+    class_type: type | str = "{DIR}.mpm_solver:MPMSolver"
 
     solver_type: str = "implicit_mpm"
     """Solver type. Can be "implicit_mpm"."""
@@ -125,7 +121,7 @@ class MPMSolverCfg(NewtonSolverCfg):
     project_outside_colliders: bool = False
     """Whether to hard-project particles out of collider interiors after each substep.
 
-    When ``True``, :class:`~isaaclab_newton.physics.NewtonMPMManager` calls
+    When ``True``, :meth:`step` calls
     :meth:`SolverImplicitMPM.project_outside` immediately after every solver
     substep: it applies a Coulomb response and pushes particles that drifted into
     a collider back onto its surface. The implicit solve already resolves

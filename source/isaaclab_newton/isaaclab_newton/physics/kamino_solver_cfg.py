@@ -17,8 +17,6 @@ from .newton_manager_cfg import NewtonSolverCfg
 if TYPE_CHECKING:
     from newton.solvers import SolverKamino
 
-    from isaaclab_newton.physics import NewtonManager
-
 
 def _non_none_kwargs(cfg: Any) -> dict[str, Any]:
     """Return serialized configuration fields with ``None`` values omitted."""
@@ -238,8 +236,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     .. _Newton Kamino documentation: https://newton-physics.github.io/newton/latest/
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.kamino_manager:NewtonKaminoManager"
-    """Manager class for the Kamino solver."""
+    class_type: type | str = "{DIR}.kamino_solver:KaminoSolver"
 
     solver_type: str = "kamino"
     """Solver type. Can be "kamino"."""
@@ -256,7 +253,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's
     articulation structure. If the model has loop-closing joints, the FK solver will be used.
 
-    When ``True``, :meth:`NewtonKaminoManager._eval_fk_impl` reconciles body state via
+    When ``True``, :meth:`eval_fk` reconciles body state via
     :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints`. Kamino's FK
     solver computes consistent body poses/velocities from the joint coordinates (including the
     base joint for floating bases), resolves passive / loop-closure joints, and writes back a
@@ -324,7 +321,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     locomotion or manipulation). The total ``model.rigid_contact_max`` is computed as
     ``max_contacts_per_world * model.world_count`` before solver construction.
 
-    This field is applied by :class:`NewtonKaminoManager` and is not forwarded to Newton.
+    This field is applied by :meth:`build` and is not forwarded to Newton.
     """
 
     def _get_dynamics_solver_config(self) -> tuple[Literal["padmm", "dvi"], dict[str, Any]]:
