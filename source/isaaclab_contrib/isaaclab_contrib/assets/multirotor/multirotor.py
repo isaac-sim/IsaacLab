@@ -52,11 +52,8 @@ class _ThrusterCollection(dict):
             env_ids: Environment indices to reset. Defaults to None (all environments).
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
-        if env_mask is not None:
-            # thrusters index their buffers by environment
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         for actuator in self.values():
-            actuator.reset(env_ids)
+            actuator.reset(env_ids, env_mask=env_mask)
 
 
 class Multirotor(Articulation):

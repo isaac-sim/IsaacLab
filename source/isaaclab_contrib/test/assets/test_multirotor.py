@@ -159,14 +159,18 @@ def test_set_thrust_target_env_slice_unit():
     assert torch.allclose(m._data.thrust_target[3], original[3])
 
 
-def test_thruster_collection_resets_masked_envs_unit():
-    """A mask-only reset, as the articulation forwards it, resets the thrusters of the masked envs only."""
-    reset_env_ids = []
-    thrusters = _ThrusterCollection(thrusters=types.SimpleNamespace(reset=reset_env_ids.append))
+def test_thruster_collection_passes_ids_and_mask_unit():
+    """Resets by ids and by mask, as the articulation forwards them, pass both selections to every thruster."""
+    resets = []
+    thrusters = _ThrusterCollection(
+        thrusters=types.SimpleNamespace(reset=lambda env_ids=None, env_mask=None: resets.append((env_ids, env_mask)))
+    )
+    env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
 
-    thrusters.reset(env_mask=wp.array([True, False, True, False], dtype=wp.bool, device="cpu"))
+    thrusters.reset(env_mask=env_mask)
+    thrusters.reset([1])
 
-    assert [env_ids.tolist() for env_ids in reset_env_ids] == [[0, 2]]
+    assert resets == [(None, env_mask), ([1], None)]
 
 
 def test_reset_with_only_mask_restores_masked_thrust_targets_unit(monkeypatch):
