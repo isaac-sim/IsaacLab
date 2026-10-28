@@ -11,7 +11,7 @@ import logging
 import math
 from abc import abstractmethod
 from dataclasses import MISSING
-from typing import Any, ClassVar
+from typing import Any
 
 import gymnasium as gym
 import numpy as np
@@ -91,15 +91,6 @@ class DirectRLEnvWarp(DirectRLEnv):
         in a vectorized environment.
 
     """
-
-    is_vector_env: ClassVar[bool] = True
-    """Whether the environment is a vectorized environment."""
-    metadata: ClassVar[dict[str, Any]] = {
-        "render_modes": [None, "human", "rgb_array"],
-        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
-        # "isaac_sim_version": get_version(),
-    }
-    """Metadata for the environment."""
 
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
         """Initialize the environment.
