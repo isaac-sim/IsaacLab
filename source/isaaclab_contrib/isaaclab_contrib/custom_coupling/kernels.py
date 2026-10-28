@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp kernel used by the custom coupling manager."""
+"""Warp kernel used by the custom coupled solver."""
 
 import warp as wp
 from newton._src.solvers.vbd.rigid_vbd_kernels import (

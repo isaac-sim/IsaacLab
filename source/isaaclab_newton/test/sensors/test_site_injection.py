@@ -8,7 +8,7 @@
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonMJWarpManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.sensors.frame_transformer.frame_transformer import FrameTransformer
 from newton import ModelBuilder
 
@@ -48,7 +48,7 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(replicated):
     source = ModelBuilder() if replicated else main
     for leg in ("FL", "FR", "RL", "RR"):
         source.add_body(label=f"Robot/{leg}_foot")
-    manager = NewtonMJWarpManager(NewtonCfg())
+    manager = NewtonManager(NewtonCfg())
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
     global_label = manager.register_site(None, xform)
     local_label = manager.register_site("Robot/.*_foot", xform)
