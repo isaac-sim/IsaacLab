@@ -242,6 +242,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
     state_0, state_1 = State(), State()
     backend = SimpleNamespace(
         cfg=NewtonCfg(solver_cfg=physics.VBDSolverCfg()),
+        device=wp.get_device("cpu"),
         model=SimpleNamespace(particle_count=1),
         solver=NativeSolver(),
         state_0=state_0,
@@ -252,12 +253,21 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         staged_body_f=None,
         num_substeps=1,
         solver_dt=0.01,
+        model_changes=set(),
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
+        actuators=None,
+        actuators_active=False,
+        pre_actuator_callbacks=[],
+        post_actuator_callbacks=[],
         state_force_callbacks=[],
         post_step_callbacks=[],
         contact_sensors={},
         imu_sensors=[],
+        graph=None,
+        graph_capture_pending=False,
     )
 
-    newton_backend._simulate_physics_only(backend)
+    newton_backend.step(backend)
 
     assert events == [("rebuild", state_0), ("step", state_0)]

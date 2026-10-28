@@ -67,11 +67,8 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
 class NewtonManager(PhysicsManager):
     """Newton physics manager for Isaac Lab.
 
-    Adapts the registered :class:`NewtonBackend` to Isaac Lab's physics lifecycle; the simulation context owns one
-    instance as :attr:`~isaaclab.sim.SimulationContext.backend_manager`. The manager keeps what survives hard resets
-    (builder, site requests, replication outputs, decimation). Everything bound to the finalized model belongs to the
-    backend, and the functions in :mod:`~isaaclab_newton.physics.newton_backend` build and step it. Solver-specific
-    behavior lives in the stateless :class:`NewtonSolver` the solver configuration selects.
+    Runs one :class:`NewtonBackend` through the physics lifecycle and keeps what survives hard resets: the builder,
+    site requests, replication outputs and decimation.
 
     Lifecycle: ``initialize() -> reset() -> step()`` (repeated) ``-> close()``.
     """
@@ -144,20 +141,9 @@ class NewtonManager(PhysicsManager):
     def reset(self, soft: bool = False) -> None:
         """Reset physics simulation.
 
-        A hard reset (``soft=False``) re-finalizes the Newton model, reallocating
-        its device arrays. The cached collision pipeline, contacts and any
-        captured CUDA graph reference the old buffers, so they are released here
-        and rebuilt against the re-finalized model by :meth:`initialize_solver`.
-        This avoids the illegal CUDA memory access (CUDA error 700) that would
-        otherwise occur on the first step after a hard reset.
-
-        A soft reset (``soft=True``) skips this full reinitialization and reuses
-        the existing model, solver, collision pipeline and CUDA graph.
-
-        Assets bind data once at construction. Hard resets recreate their views,
-        data containers, and per-model step hooks through ``PHYSICS_READY``;
-        do not register additional callbacks to rebind the discarded data.
-        Reacquire ``asset.data`` and its arrays after a hard reset.
+        A hard reset (``soft=False``) closes the backend, with its solver, contacts, step callbacks and captured graph,
+        and finalizes a new one. Consumers bind to it again on ``PHYSICS_READY``; reacquire ``asset.data`` and its
+        arrays afterwards. A soft reset keeps the backend.
 
         Args:
             soft: If True, skip full reinitialization.
@@ -168,7 +154,7 @@ class NewtonManager(PhysicsManager):
             self.initialize_solver()
 
     def _close_backend(self, *, dispatch_stop: bool = True) -> None:
-        """Stop consumers, drop their views, and close the backend with its step callbacks and captured step."""
+        """Stop consumers, drop their views, and close the backend."""
         backend = self.backend
         # Graph-replay invalidation belongs to the captured step closed with the backend.
         self.transforms_may_change_on_graph_replay = False
@@ -176,18 +162,14 @@ class NewtonManager(PhysicsManager):
             return
         if dispatch_stop:
             self.dispatch_event(PhysicsEvent.STOP)
-        # Assets recreate these views and hooks on PHYSICS_READY for the new model.
         self.views.clear()
         self.backend = None
         SimulationContext.instance().close_backend(backend)
 
     def forward(self) -> None:
-        """Update articulation kinematics without stepping physics; see :func:`newton_backend.forward`.
-
-        Asset and scene-data reads share the same pending work.
-        """
+        """Update articulation kinematics without stepping physics; see :func:`newton_backend.forward`."""
         if self.backend is not None:
-            nb.forward(self.backend, force=self.transforms_may_change_on_graph_replay)
+            nb.forward(self.backend)
 
     def video_capture_backend(self) -> str:
         """Newton GL headless perspective video capture."""
@@ -197,30 +179,27 @@ class NewtonManager(PhysicsManager):
         """Publish authored rigid-body changes and invalidate cable geometry."""
         self._scene_data_backend.transforms_timestamp += 1
         self._scene_data_backend.geometry_timestamp += 1
-        device = self._device
-        if device is not None:
-            device = wp.get_device(device)
-            if device.is_cuda and device.stream.is_capturing:
-                self.transforms_may_change_on_graph_replay = True
+        self._flag_outer_capture()
 
     def _mark_particles_dirty(self) -> None:
         """Invalidate SDP geometry after native particle writes."""
         self._scene_data_backend.geometry_timestamp += 1
-        device = wp.get_device(self._device)
-        if device.is_cuda and device.stream.is_capturing:
-            self.transforms_may_change_on_graph_replay = True
+        self._flag_outer_capture()
+
+    def _flag_outer_capture(self) -> None:
+        """Flag writes recorded into an outer CUDA graph capture."""
+        backend = self.backend
+        if backend is not None and backend.device.is_capturing:
+            backend.transforms_may_change_on_graph_replay = True
 
     def step(self) -> None:
-        """Advance physics by one environment step, or one physics step when the environment runs decimation.
-
-        See :func:`newton_backend.step`.
-        """
+        """Advance physics by one environment step, or one physics step when the environment runs decimation."""
         sim = self._sim
         if sim is None or not sim.is_playing():
             return
         backend = self.backend
         physics_steps = backend.decimation if nb.handles_decimation(backend) else 1
-        captured = nb.step(backend, force_forward=self.transforms_may_change_on_graph_replay)
+        captured = nb.step(backend)
         self._sim_time += backend.dt * physics_steps
         self._mark_transforms_changed()
         solver_cfg = self._cfg.solver_cfg
@@ -258,9 +237,7 @@ class NewtonManager(PhysicsManager):
     def clear(self):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
-        self._solver_init_callbacks: list[Callable[[], None]] = []
         self._decimation = 1
-        self.transforms_may_change_on_graph_replay = False
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
         self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
@@ -492,7 +469,7 @@ class NewtonManager(PhysicsManager):
             device=device,
         ):
             cfg = NewtonBackendCfg(physics_cfg=self._cfg, device=sim.device)
-            self.backend = sim.get_or_create_backend(cfg, dt=self.get_physics_dt())
+            self.backend = sim.get_or_create_backend(cfg, builder=builder, dt=self.get_physics_dt())
             self.backend.model.set_gravity(sim.cfg.gravity)
 
         self.backend.decimation = self._decimation
@@ -510,14 +487,12 @@ class NewtonManager(PhysicsManager):
         cloner.replicate(self._sim.get_clone_plan())
 
     def initialize_solver(self) -> None:
-        """Build the solver and its contacts and the initial body state; see :func:`newton_backend.init_solver`.
-
-        The step is captured right after the first step that follows initialization runs eagerly. Initialization does
-        not advance physics.
-        """
+        """Build the solver, its contacts and the initial body state; see :func:`newton_backend.init_solver`."""
         backend = self.backend
         sim = self._sim
         plan = sim.get_clone_plan() if sim is not None else None
+        if sim is not None:
+            backend.solver_init_callbacks.append(self._prepare_visualizer_for_capture)
         with Timer(
             name="newton_initialize_solver",
             msg="Initialize solver took:",
@@ -527,16 +502,13 @@ class NewtonManager(PhysicsManager):
         ):
             relaxed = sim is not None and has_kit() and (sim.has_gui or sim.has_offscreen_render)
             nb.init_solver(backend, None if plan is None else plan.env_template, relaxed_capture=relaxed)
-
-        pending_solver_init, self._solver_init_callbacks = self._solver_init_callbacks, []
-        for cb in pending_solver_init:
-            cb()
-
-        # Picking callbacks must be registered after the solver exists, but before CUDA graph capture.
-        solver_cfg = self._cfg.solver_cfg
-        if solver_cfg.class_type.applies_body_forces(solver_cfg, backend.solver) and sim is not None:
-            sim._prepare_newton_visualizer_for_capture()
         self._mark_transforms_changed()
+
+    def _prepare_visualizer_for_capture(self) -> None:
+        """Let the Newton visualizer register picking forces before the step is captured."""
+        solver_cfg = self._cfg.solver_cfg
+        if solver_cfg.class_type.applies_body_forces(solver_cfg, self.backend.solver):
+            self._sim._prepare_newton_visualizer_for_capture()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Compile material-to-shape addresses for the active Newton model."""
@@ -567,11 +539,8 @@ class NewtonManager(PhysicsManager):
             nb.activate_actuators(self.backend)
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
-        """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.
-
-        Assets initialize before the solver is created, so bindings that need it register here.
-        """
-        self._solver_init_callbacks.append(callback)
+        """Append a one-shot hook invoked once the solver exists, before the initial FK and any CUDA graph capture."""
+        self.backend.solver_init_callbacks.append(callback)
 
     def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked before the actuator step.

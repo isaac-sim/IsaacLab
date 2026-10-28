@@ -65,8 +65,8 @@ Backend Functions
 
 .. automodule:: isaaclab_newton.physics.newton_backend
   :members: resolve_deterministic_mode, init_solver, allocate_contacts, invalidate_fk, invalidate_body_state, forward,
-    notify_model_changes, activate_actuators, add_contact_sensor, add_imu_sensor, compile_label_pattern,
-    handles_decimation, set_decimation, invalidate_graph, step, capture_graph, run_query, refit_bvh
+    notify_model_changes, activate_actuators, add_contact_sensor, add_imu_sensor,
+    handles_decimation, set_decimation, invalidate_graph, step, capture_graph, refit_bvh
 
 .. currentmodule:: isaaclab_newton.physics
 

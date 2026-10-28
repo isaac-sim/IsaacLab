@@ -30,6 +30,7 @@ parser.add_argument("--grid_resolution", type=float, default=0.1, help="Grid pat
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 
+import itertools
 import math
 import time
 
@@ -154,13 +155,14 @@ def main():
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         backend = sim.backend_manager.backend
+        versions = itertools.count(1 << 32)
 
         def run_bvh_with_refit():
-            newton_backend.refit_bvh(backend)
+            newton_backend.refit_bvh(backend, next(versions))
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            newton_backend.refit_bvh(backend)
+            newton_backend.refit_bvh(backend, next(versions))
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,

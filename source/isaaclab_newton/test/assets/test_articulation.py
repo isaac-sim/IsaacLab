@@ -35,7 +35,6 @@ import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import isaaclab_newton.physics.newton_backend as newton_backend_module
 import newton
@@ -394,7 +393,7 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
     fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
 
     wp.launch(
-        newton_backend_module._scatter_reset_masks_from_ids,
+        newton_backend_module._flag_worlds_and_articulations_indexed,
         dim=(env_ids.shape[0], articulation_ids.shape[1]),
         inputs=[env_ids, articulation_ids],
         outputs=[world_mask, fk_mask],
@@ -449,7 +448,12 @@ def test_task_space_allocation_and_capture(device, first_property):
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
     backend_manager.backend = SimpleNamespace(
-        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
     eager = ArticulationData(view, device, backend_manager=backend_manager)
@@ -495,7 +499,12 @@ def test_world_hinged_root_has_no_base_dofs(device):
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
     backend_manager.backend = SimpleNamespace(
-        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
     root_view = ArticulationView(model, "Robot")
     data = ArticulationData(root_view, device, backend_manager=backend_manager)
@@ -2041,12 +2050,11 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         env_ids=torch.tensor([0], device=device, dtype=torch.int32),
     )
 
-    # Patch _simulate_physics_only to capture body_q before collide runs
+    # Pre-actuator callbacks run after the reset is resolved and before collision.
     captured = {}
     backend_manager = scene.sim.backend_manager
-    original_simulate = newton_backend_module._simulate_physics_only
 
-    def _patched_simulate(backend) -> None:
+    def _record_body_state() -> None:
         if backend_manager.backend.collision_pipeline is not None:
             bq = wp.to_torch(backend_manager.backend.state_0.body_q)
             jq = wp.to_torch(backend_manager.backend.state_0.joint_q)
@@ -2054,10 +2062,9 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
             jc0 = int(jc_starts[0])
             captured["bq_root"] = bq[b0, :3].clone()
             captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
-        original_simulate(backend)
 
-    with patch.object(newton_backend_module, "_simulate_physics_only", _patched_simulate):
-        scene.sim.step()
+    backend_manager.register_pre_actuator_callback(_record_body_state)
+    scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 
     assert captured, "collision pipeline did not run in the step"
