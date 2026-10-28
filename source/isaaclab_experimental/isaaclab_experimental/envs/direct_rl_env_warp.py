@@ -26,6 +26,7 @@ from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
+from isaaclab.envs.utils.video_recorder import VideoRecorder
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
@@ -197,6 +198,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         # fold the full loop into a single step() when possible
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -480,6 +482,10 @@ class DirectRLEnvWarp(DirectRLEnv):
                 key: value.clone() if torch.is_tensor(value) else value for key, value in self._task_log.items()
             }
 
+        # advance video recorders (after render and visualization, outside the captured graphs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
         # return observations, rewards, resets and extras
         # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
         self.obs_buf = {"policy": self.torch_obs_buf.clone()}
@@ -562,6 +568,10 @@ class DirectRLEnvWarp(DirectRLEnv):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:

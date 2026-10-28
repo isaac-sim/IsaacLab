@@ -286,6 +286,10 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
+        # -- advance video recorders (after render and resets, before final obs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self.observation_manager.compute(update_history=True)
