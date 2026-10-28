@@ -160,6 +160,20 @@ features; ``ppisp-camera`` retains its Kit-based launch for the Gaussian-scene w
      </aside>
    </div>
 
+NIST peg insertion in the browser
+---------------------------------
+
+Try a compact version of the NIST policy with three loose, draggable pegs.
+The browser uses small convex peg colliders that preserve the tip chamfers
+and simplified socket walls. The native ``nist`` demo above runs the full
+ten-part assembly.
+
+Full CAD visuals show the other 16 assemblies already seated as display objects.
+The camera orbits and zooms around the board center; hold Shift while dragging to pan.
+
+.. isaaclab-demos:: alphanist
+   :title: Try AlphaNIST peg insertion
+
 More examples
 -------------
 

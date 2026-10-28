@@ -117,17 +117,24 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonCfg, NewtonXPBDManager
+    from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSolverCfg
     from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-    manager = NewtonXPBDManager(NewtonCfg())
-    manager._device = "cpu"
-    state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
-    backend = NewtonSceneDataBackend(manager)
+    state = SimpleNamespace(
+        body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"),
+        body_f=wp.zeros(1, dtype=wp.spatial_vectorf, device="cpu"),
+    )
+    owner = NewtonManager(
+        NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=SimpleNamespace(reset=Mock(), eval_fk=Mock())))
+    )
+    eval_fk = owner._cfg.solver_cfg.class_type.eval_fk
+    owner._device = "cpu"
+    backend = NewtonSceneDataBackend(owner)
     provider = SceneDataProvider(backend)
-    manager.backend = SimpleNamespace(
+
+    newton_backend = SimpleNamespace(
         model=SimpleNamespace(body_count=1, world_count=1),
         state_0=state,
         solver=None,
@@ -135,39 +142,38 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
     )
-    manager._scene_data_backend = backend
-    # Fabric may bind between native allocation and the solver's FK-hook initialization.
+    monkeypatch.setattr(owner, "backend", newton_backend)
+    monkeypatch.setattr(owner, "_scene_data_backend", backend)
+    # Fabric may bind between native allocation and solver initialization.
     assert backend.transforms.transforms is state.body_q
-    manager.backend.solver = object()
-    manager._eval_fk = Mock()
-    manager._reset_solver_internals_delegate = Mock()
+    newton_backend.solver = object()
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()
     assert provider.get_transforms(output)
     matrices = output.matrices
-    manager.pre_render()
-    manager._eval_fk.assert_not_called()
+    owner.pre_render()
+    eval_fk.assert_not_called()
     assert provider.get_transforms(SceneDataFormat.Transform())
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     assert wp.launch.call_count == 1
-    manager._eval_fk.assert_not_called()
+    eval_fk.assert_not_called()
 
     state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
-    getattr(manager, invalidate)()
+    getattr(owner, invalidate)()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
-    manager._eval_fk.assert_called_once()
+    eval_fk.assert_called_once()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
-    manager.pre_render()
-    manager._eval_fk.assert_called_once()
+    owner.pre_render()
+    eval_fk.assert_called_once()
     assert wp.launch.call_count == 2
 
     replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    manager.backend.state_0 = SimpleNamespace(body_q=replacement)
+    newton_backend.state_0 = SimpleNamespace(body_q=replacement)
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms is replacement
