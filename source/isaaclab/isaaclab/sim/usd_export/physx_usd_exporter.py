@@ -48,6 +48,9 @@ JOINT_ATTRIBUTES = {
 COLLIDER_ATTRIBUTES = {"contact_offset": "physxCollision:contactOffset", "rest_offset": "physxCollision:restOffset"}
 """Per-shape property -> USD attribute on the body's colliders."""
 
+MASS_SOURCES = {"physics:principalAxes": "physics:diagonalInertia"}
+"""Mass attribute -> the attribute whose absence makes the engine derive it (principal axes come with the moments)."""
+
 
 class PhysxUsdExporter(BaseUsdExporter):
     """Base of the PhysX-based backends: writes their engine values in the PhysX USD dialect.
@@ -69,8 +72,8 @@ class PhysxUsdExporter(BaseUsdExporter):
         for (path, axis), values in self._read_assets(stage).items():
             prim = stage.GetPrimAtPath(path)
             if axis is not None:
-                # A joint without a USD drive and without gains is not driven; writing gains would add a drive.
-                driven = prim.HasAPI(UsdPhysics.DriveAPI, axis) or values["stiffness"] or values["damping"]
+                # PhysX drives only an axis whose USD states a drive; gains on another axis have no effect.
+                driven = prim.HasAPI(UsdPhysics.DriveAPI, axis)
                 for name, (attribute, schema, angular_scale) in JOINT_ATTRIBUTES.items():
                     if attribute.startswith("drive:") and not driven:
                         continue
@@ -79,7 +82,12 @@ class PhysxUsdExporter(BaseUsdExporter):
                     value = float(values[name]) * scale
                     edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
                 continue
-            edits += self._mass_edits(prim, float(values["mass"]), values["com"], values["inertia"])
+            # What the USD leaves to the engine, such as mass derived from geometry, the importer derives the same way.
+            edits += [
+                edit
+                for edit in self._mass_edits(prim, float(values["mass"]), values["com"], values["inertia"])
+                if self._stated(prim, MASS_SOURCES.get(edit.attribute, edit.attribute)) is not None
+            ]
             colliders = self._colliders(stage, path)
             for name, attribute in COLLIDER_ATTRIBUTES.items():
                 # The engine reports shapes per body, without their prim identities.
@@ -88,6 +96,7 @@ class PhysxUsdExporter(BaseUsdExporter):
                     edits += [
                         self._value_edit(stage.GetPrimAtPath(c), attribute, value, schema="PhysxCollisionAPI")
                         for c in colliders
+                        if self._stated(stage.GetPrimAtPath(c), attribute) is not None
                     ]
             material = self._uniform(values["material"], path, "material") if "material" in values else None
             if material is not None:

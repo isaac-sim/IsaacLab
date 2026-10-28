@@ -94,6 +94,67 @@ def test_pd_actuator_becomes_a_drive_of_single_axis_joints_only(joint_type, conv
     assert bool([schema for schema in joint.GetAppliedSchemas() if schema.startswith("PhysicsDriveAPI")]) == converted
 
 
+def test_gains_of_a_joint_without_a_usd_drive_add_no_drive():
+    """PhysX drives only joints whose USD states a drive, so gains the engine holds elsewhere are not exported."""
+    stage = Usd.Stage.CreateInMemory()
+    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
+    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
+    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    for name in ("Base", "Link"):
+        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim())
+    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Hinge")
+    robot = _articulation(["Hinge"], ["Base", "Link"])
+    robot.data.joint_damping.torch.fill_(0.1)
+    scene = _scene(articulations={"robot": robot})
+    scene.physics_scene_path = "/physicsScene"
+    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
+
+    edits = _Exporter(scene).compute_diff(stage)
+
+    assert not [edit for edit in edits if edit.path == "/Robot/Hinge" and edit.attribute.startswith("drive:")]
+
+
+def test_values_the_usd_leaves_to_the_engine_are_not_written():
+    """Mass properties and collider offsets the USD does not state are derived by the importer as by the engine."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
+    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
+    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    for name in ("Derived", "Stated"):
+        body = UsdGeom.Xform.Define(stage, f"/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, f"/{name}/Collider").GetPrim())
+    UsdPhysics.MassAPI.Apply(stage.GetPrimAtPath("/Stated")).CreateMassAttr().Set(1.0)
+    stage.GetPrimAtPath("/Stated/Collider").CreateAttribute("physxCollision:restOffset", Sdf.ValueTypeNames.Float).Set(
+        0.0
+    )
+
+    class Exporter(PhysxUsdExporter):
+        def _read_rigid_body(self, path):
+            return {"contact_offset": np.array([0.02]), "rest_offset": np.array([0.001])}
+
+    def rigid_object(path):
+        data = SimpleNamespace(
+            body_mass=SimpleNamespace(torch=torch.full((1, 1), 3.0)),
+            body_com_pose_b=SimpleNamespace(torch=torch.tensor([[[0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]])),
+            body_inertia=SimpleNamespace(torch=(2.0 * torch.eye(3)).reshape(1, 1, 9)),
+        )
+        return SimpleNamespace(cfg=SimpleNamespace(prim_path=path), data=data)
+
+    scene = _scene(rigid_objects={"derived": rigid_object("/Derived"), "stated": rigid_object("/Stated")})
+    scene.physics_scene_path = "/physicsScene"
+    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
+
+    edits = {(edit.path, edit.attribute): edit.value for edit in Exporter(scene).compute_diff(stage)}
+
+    assert not [key for key in edits if key[0].startswith("/Derived")]
+    assert edits == {
+        ("/Stated", "physics:mass"): pytest.approx(3.0),
+        ("/Stated/Collider", "physxCollision:restOffset"): pytest.approx(0.001),
+    }
+
+
 def test_collider_values_its_shapes_disagree_on_keep_their_usd_values():
     """A body whose shapes report different values of a collider property keeps that property's USD values.
 
@@ -103,9 +164,14 @@ def test_collider_values_its_shapes_disagree_on_keep_their_usd_values():
     physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
     physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
     physics_scene.CreateGravityMagnitudeAttr(9.81)
-    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Table").GetPrim())
+    table = UsdGeom.Xform.Define(stage, "/Table").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(table)
+    UsdPhysics.MassAPI.Apply(table).CreateMassAttr().Set(1.0)
     for name in ("Top", "Legs"):
-        UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, f"/Table/{name}").GetPrim())
+        collider = UsdGeom.Cube.Define(stage, f"/Table/{name}").GetPrim()
+        UsdPhysics.CollisionAPI.Apply(collider)
+        for attribute in ("physxCollision:contactOffset", "physxCollision:restOffset"):
+            collider.CreateAttribute(attribute, Sdf.ValueTypeNames.Float).Set(0.0)
 
     class Exporter(PhysxUsdExporter):
         def _read_rigid_body(self, path):
