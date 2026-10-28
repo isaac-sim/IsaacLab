@@ -49,6 +49,10 @@ _REPO_FRANKA_URDF = os.path.join(
 # Kept beside the tests so they are hermetic and run on either importer backend.
 _MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
 
+# Fixed-joint-only fixture used to verify that the importer authors a PhysX variant even when the
+# asset has no movable joints.
+_FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
+
 
 # Create a fixture for setup and teardown
 @pytest.fixture
@@ -614,6 +618,25 @@ def test_physics_variant_override(sim_config, tmp_path):
     joints, roots = _count_physics(urdf_converter.usd_path)
     assert joints > 0, "Expected the converted USD to compose joints"
     assert roots > 0, "Expected the converted USD to compose an articulation root"
+
+
+@pytest.mark.isaacsim_ci
+def test_fixed_only_urdf_supports_physx_variant(tmp_path):
+    """Verify that a fixed-joint-only URDF exposes and selects the ``"physx"`` variant."""
+    output_dir = os.path.join(str(tmp_path), "urdf_fixed_only_physx_variant")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config = UrdfConverterCfg(
+        asset_path=_FIXED_ONLY_URDF,
+        fix_base=True,
+        usd_dir=output_dir,
+        physics_variant="physx",
+    )
+    urdf_converter = UrdfConverter(config)
+
+    selection, variants = _physics_variant(urdf_converter.usd_path)
+    assert "physx" in variants
+    assert selection == "physx"
 
 
 @pytest.mark.isaacsim_ci
