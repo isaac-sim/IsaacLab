@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+5.1.6 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed joint friction writers to broadcast scalar coefficients directly in the fused Warp kernels,
+  including integer zero, without allocating expanded input tensors.
+
+
 5.1.5 (2026-10-13)
 ~~~~~~~~~~~~~~~~~~
 

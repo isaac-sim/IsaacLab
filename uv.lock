@@ -2165,7 +2165,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "5.1.5"
+version = "5.1.6"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2180,7 +2180,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "8.0.1"
+version = "8.0.2"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
