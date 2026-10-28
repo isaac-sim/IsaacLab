@@ -161,3 +161,20 @@ def test_material_shared_with_a_collider_not_exported_is_not_changed():
 
     with pytest.raises(NotImplementedError, match="shared with colliders not exported"):
         PhysxUsdExporter._material_edits(stage, {"/Exported": {"physics:dynamicFriction": 0.7}})
+
+
+def test_center_of_mass_of_a_scaled_body_is_written_unscaled():
+    """The engine's center of mass includes the body's scale, which importers apply to the USD value again."""
+    from pxr import Gf
+
+    stage = Usd.Stage.CreateInMemory()
+    body = UsdGeom.Xform.Define(stage, "/Body")
+    body.AddScaleOp().Set(Gf.Vec3f(2.0, 2.0, 2.0))
+    mass = UsdPhysics.MassAPI.Apply(body.GetPrim())
+    mass.CreateCenterOfMassAttr().Set(Gf.Vec3f(0.01, -0.02, 0.03))
+
+    edits = PhysxUsdExporter._mass_edits(body.GetPrim(), 1.0, np.array([0.02, -0.04, 0.06]), np.eye(3))
+    assert "physics:centerOfMass" not in {edit.attribute for edit in edits}
+    edits = PhysxUsdExporter._mass_edits(body.GetPrim(), 1.0, np.array([0.04, -0.04, 0.06]), np.eye(3))
+    com = next(edit.value for edit in edits if edit.attribute == "physics:centerOfMass")
+    np.testing.assert_allclose(np.asarray(com), [0.02, -0.02, 0.03], rtol=1e-6)

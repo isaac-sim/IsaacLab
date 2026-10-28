@@ -349,7 +349,12 @@ class BaseUsdExporter(ABC):
 
     @classmethod
     def _mass_edits(cls, prim: Usd.Prim, mass: float, com: np.ndarray, inertia: np.ndarray) -> list[UsdEdit]:
-        """Edits writing a body's mass [kg], COM [m] and body-axes inertia [kg*m^2, 3x3 or 9] the USD does not state."""
+        """Edits writing a body's mass [kg], COM [m] and body-axes inertia [kg*m^2, 3x3 or 9] the USD does not state.
+
+        ``com`` is the engine's, which includes the body's scale; importers scale the USD center of mass by it.
+        """
+        scale = np.asarray(Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim)).GetScale(), dtype=float)
+        com = np.asarray(com, dtype=float) / scale
         edits = [
             cls._value_edit(prim, "physics:mass", mass, schema="PhysicsMassAPI"),
             cls._value_edit(prim, "physics:centerOfMass", com, "point3f", "PhysicsMassAPI"),
