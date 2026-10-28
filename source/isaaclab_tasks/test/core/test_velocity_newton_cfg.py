@@ -7,6 +7,7 @@ import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg
 
+from isaaclab_tasks.core.velocity import mdp
 from isaaclab_tasks.core.velocity.config.g1.rough_env_cfg import G1RoughEnvCfg
 from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.hydra import collect_presets
@@ -38,6 +39,29 @@ def test_flat_velocity_observation_preset_preserves_policy_and_mdp():
 
     navigation = load_cfg_from_registry("IsaacContrib-Navigation-Flat-AnymalC", "env_cfg_entry_point")
     assert navigation.actions.pre_trained_policy_action.low_level_observations.height_scan is None
+
+
+def test_g1_supermimic_max_step_reward_matches_reward_terms():
+    env_cfg, agent_cfg = resolve_task_config(
+        "Isaac-Velocity-Flat-G1", "rsl_rl_supermimic_cfg_entry_point", overrides=[]
+    )
+    rewards = env_cfg.rewards
+    assert {name for name, term in vars(rewards).items() if term is not None and term.weight > 0} == {
+        "track_lin_vel_xy_exp",
+        "track_ang_vel_z_exp",
+        "feet_air_time",
+    }
+    assert rewards.feet_air_time.func is mdp.feet_air_time_positive_biped
+    max_step_reward = (
+        env_cfg.sim.dt
+        * env_cfg.decimation
+        * (
+            rewards.track_lin_vel_xy_exp.weight
+            + rewards.track_ang_vel_z_exp.weight
+            + rewards.feet_air_time.weight * rewards.feet_air_time.params["threshold"]
+        )
+    )
+    assert agent_cfg.algorithm.max_step_reward == pytest.approx(max_step_reward)
 
 
 def test_velocity_state_representation_manifold_and_analytic_clocks():
