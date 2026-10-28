@@ -19,9 +19,9 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonManager,
     NewtonSoftContactCfg,
-    newton_backend,
 )
-from isaaclab_newton.physics.solver_specs import solver_kwargs
+from isaaclab_newton.physics.newton_solver import solver_kwargs
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
@@ -81,7 +81,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     assert backend is sim.get_or_create_backend(replace(cfg))
     assert builder is sim.get_or_create_backend(builder_cfg)
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
-    assert state_values == [expected]
+    assert state_values == [expected] * (2 if simulation else 1)
     assert (backend.state_1 is not None) == simulation
     assert (backend.control is not None) == simulation
     sim.close_backend(backend)
@@ -106,7 +106,7 @@ def test_vbd_colors_builder_before_finalization():
         mass=0.01,
         edge_ke=1.0,
     )
-    physics.VBD_SPEC.prepare_builder(builder, physics.VBDSolverCfg())
+    physics.VBDSolver.prepare_builder(physics.VBDSolverCfg(), builder)
     colors = {int(particle): color for color, group in enumerate(builder.particle_color_groups) for particle in group}
     assert len(set(colors.values())) == builder.particle_count
 
@@ -119,8 +119,9 @@ def test_vbd_solver_force_input_capability():
     """
     physics = importlib.import_module("isaaclab_newton.physics")
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
+    solver = physics.VBDSolver.build(solver_cfg, ModelBuilder().finalize(device="cpu"), NOT_GUARANTEED)
 
-    assert physics.VBD_SPEC.body_forces(solver_cfg) is False
+    assert physics.VBDSolver.applies_body_forces(solver_cfg, solver) is False
 
 
 @pytest.mark.parametrize(
@@ -133,7 +134,7 @@ def test_vbd_rigid_solver_controls(overrides):
     assert kwargs["rigid_body_contact_buffer_size"] == 64
     model = ModelBuilder().finalize(device="cpu")
     native_solver = SolverVBD(model, **overrides)
-    configured_solver = physics.VBD_SPEC.build(model, physics.VBDSolverCfg(**overrides), NOT_GUARANTEED)
+    configured_solver = physics.VBDSolver.build(physics.VBDSolverCfg(**overrides), model, NOT_GUARANTEED)
     for name in (
         "rigid_compliant_alm",
         "rigid_joint_linear_ke",
@@ -164,7 +165,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     builder.color()
     model = builder.finalize(device="cpu")
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
-    solver = physics.VBD_SPEC.build(model, solver_cfg, NOT_GUARANTEED)
+    solver = physics.VBDSolver.build(solver_cfg, model, NOT_GUARANTEED)
     assert solver.rigid_compliant_alm is True
     assert solver.body_body_contact_indices.size == model.body_count * 256
 
@@ -200,7 +201,7 @@ def test_vbd_structural_joint_stiffness_under_load():
         rigid_joint_linear_ke=linear_ke,
         rigid_joint_angular_ke=angular_ke,
     )
-    solver = physics.VBD_SPEC.build(model, solver_cfg, NOT_GUARANTEED)
+    solver = physics.VBDSolver.build(solver_cfg, model, NOT_GUARANTEED)
     state_0, state_1, control = model.state(), model.state(), model.control()
     for _ in range(480):
         state_0.clear_forces()
@@ -229,7 +230,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         def assign(self, other):
             pass
 
-    class Solver:
+    class NativeSolver:
         model = SimpleNamespace(particle_count=1, articulation_count=0, joint_coord_count=0)
 
         def rebuild_bvh(self, solver_state):
@@ -239,26 +240,34 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
             events.append(("step", state_in))
 
     state_0, state_1 = State(), State()
-    backend = SimpleNamespace(
-        solver_cfg=physics.VBDSolverCfg(),
+    backend = backend_stub(
+        cfg=NewtonCfg(solver_cfg=physics.VBDSolverCfg()),
+        device=wp.get_device("cpu"),
         model=SimpleNamespace(particle_count=1),
-        solver=Solver(),
+        solver=NativeSolver(),
         state_0=state_0,
         state_1=state_1,
         control=None,
         collision_pipeline=None,
         contacts=None,
-        cfg=SimpleNamespace(collision_decimation=0),
-        dt=0.01,
+        staged_body_f=None,
         num_substeps=1,
         solver_dt=0.01,
-        staged_body_f=None,
+        model_changes=set(),
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
+        actuators=None,
+        actuators_active=False,
+        pre_actuator_callbacks=[],
+        post_actuator_callbacks=[],
         state_force_callbacks=[],
         post_step_callbacks=[],
         contact_sensors={},
         imu_sensors=[],
+        graph=None,
+        capture=None,
     )
 
-    newton_backend._simulate_physics_only(backend)
+    backend.step()
 
     assert events == [("rebuild", state_0), ("step", state_0)]

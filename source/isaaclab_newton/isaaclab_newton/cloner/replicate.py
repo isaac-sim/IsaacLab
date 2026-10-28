@@ -20,6 +20,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext
 from isaaclab.cloner import path as cloner_path
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -36,8 +37,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
-from isaaclab_newton.physics.newton_builder import inject_terrain_heightfields
-from isaaclab_newton.physics.solver_specs import create_builder, usd_schema_resolvers
+from isaaclab_newton.physics.newton_builder import create_builder, inject_terrain_heightfields, usd_schema_resolvers
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 _PER_WORLD_BUILDER_HOOKS: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -177,7 +177,12 @@ def _replicate_newton(
     stage_info = None
     if simulation:
         ignore_paths.extend(inject_terrain_heightfields(stage, builder, root_paths=import_paths, device=sim.device))
-        stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
+        stage_info = builder.add_usd(
+            stage,
+            root_path=sim.cfg.physics_prim_path,
+            schema_resolvers=schema_resolvers,
+            allow_unsafe_torch_checkpoints=True,
+        )
 
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
@@ -318,7 +323,7 @@ def newton_physics_replicate(
     order = np.argsort(first)
     members = [np.flatnonzero(mask) for mask in world_masks[order]]
     shared = np.arange(len(sources), len(sources) + len(global_paths))
-    prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
+    prefix, suffix = (destinations[0] if destinations else DEFAULT_ENV_TEMPLATE).split("{}", 1)
     topology = PrototypeWorldTopology(
         len(sources) + len(global_paths),
         np.concatenate((shared, *members)).astype(np.int32),

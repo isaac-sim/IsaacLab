@@ -15,6 +15,7 @@ import warp as wp
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager
@@ -507,7 +508,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.root_heading_w,
+                warp_math.heading[1],
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
@@ -529,9 +530,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_link_lin_vel_w.warp],
                 outputs=[self._root_link_lin_vel_b.data],
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -551,9 +552,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_link_ang_vel_w.warp],
                 outputs=[self._root_link_ang_vel_b.data],
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -573,9 +574,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_com_lin_vel_w.warp],
                 outputs=[self._root_com_lin_vel_b.data],
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -595,9 +596,9 @@ class RigidObjectData(BaseRigidObjectData):
         if self._backend_manager.backend.live or self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_com_ang_vel_w.warp],
                 outputs=[self._root_com_ang_vel_b.data],
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp

@@ -3,49 +3,60 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""VBD solver specification."""
+"""VBD solver implementation."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from newton import ModelBuilder, State, eval_ik
+import warp as wp
+from newton import Model, ModelBuilder, State, eval_ik
 from newton.solvers import SolverVBD
 
-from .solver_specs import SolverSpec, build_from_cfg
+from .newton_solver import NewtonSolver, solver_kwargs
 
 if TYPE_CHECKING:
     from .vbd_solver_cfg import VBDSolverCfg
 
 
-def prepare_builder(builder: ModelBuilder, cfg: VBDSolverCfg) -> None:
-    """Color the completed builder before allocating the model."""
-    builder.color(include_bending=True, balance_colors=False)
+class VBDSolver(NewtonSolver):
+    """Newton's Vertex Block Descent solver."""
 
+    solver_class = SolverVBD
 
-def prepare_step(solver: SolverVBD, cfg: VBDSolverCfg, state: State) -> None:
-    """Rebuild the particle BVH before each physics step."""
-    if solver.model.particle_count > 0:
-        solver.rebuild_bvh(state)
+    @classmethod
+    def prepare_builder(cls, cfg: VBDSolverCfg, builder: ModelBuilder) -> None:
+        """Color the completed builder before allocating the model."""
+        builder.color(include_bending=True, balance_colors=False)
 
+    @classmethod
+    def build(
+        cls, cfg: VBDSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
+    ) -> SolverVBD:
+        """Construct VBD, leaving :attr:`~VBDSolverCfg.rigid_compliant_alm` to Newton's default when unset."""
+        kwargs = solver_kwargs(cls.solver_class, cfg, mode)
+        if cfg.rigid_compliant_alm is None:
+            kwargs.pop("rigid_compliant_alm", None)
+        return cls.solver_class(model, **kwargs)
 
-def finish_step(solver: SolverVBD, cfg: VBDSolverCfg, state: State) -> None:
-    """Publish standalone VBD joint state without changing coupled-solver ownership."""
-    model = solver.model
-    if (
-        cfg.update_joint_state
-        and not cfg.integrate_with_external_rigid_solver
-        and model.articulation_count > 0
-        and model.joint_coord_count > 0
-    ):
-        eval_ik(model, state, state.joint_q, state.joint_qd)
+    @classmethod
+    def applies_body_forces(cls, cfg: VBDSolverCfg, solver: SolverVBD) -> bool:
+        return not cfg.integrate_with_external_rigid_solver
 
+    @classmethod
+    def pre_step(cls, cfg: VBDSolverCfg, solver: SolverVBD, state: State) -> None:
+        """Rebuild the particle BVH before each physics step."""
+        if solver.model.particle_count > 0:
+            solver.rebuild_bvh(state)
 
-VBD_SPEC = SolverSpec(
-    prepare_builder=prepare_builder,
-    build=build_from_cfg(SolverVBD),
-    body_forces=lambda cfg: not cfg.integrate_with_external_rigid_solver,
-    prepare_step=prepare_step,
-    finish_step=finish_step,
-)
-"""Specification of the VBD solver, which double-buffers state."""
+    @classmethod
+    def post_step(cls, cfg: VBDSolverCfg, solver: SolverVBD, state: State) -> None:
+        """Publish standalone VBD joint state without changing coupled-solver ownership."""
+        model = solver.model
+        if (
+            cfg.update_joint_state
+            and not cfg.integrate_with_external_rigid_solver
+            and model.articulation_count > 0
+            and model.joint_coord_count > 0
+        ):
+            eval_ik(model, state, state.joint_q, state.joint_qd)

@@ -485,7 +485,6 @@ class ContactSensor(BaseContactSensor):
                 self._newton_force_matrix_view,
                 self._newton_force_matrix_friction_view,
                 self._newton_position_matrix_view,
-                self._timestamp,
             ],
             outputs=[
                 self._data._net_forces_w,
@@ -575,11 +574,9 @@ class ContactSensor(BaseContactSensor):
     """
 
     def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
+        """Release the Newton sensor; the backend that owned it is closed."""
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        # TODO: invalidate NewtonManager if necessary
+        self._contact_view = None
 
     """
     Renamed

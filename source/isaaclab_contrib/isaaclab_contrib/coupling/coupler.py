@@ -5,26 +5,25 @@
 
 """Newton coupler for named solver configurations.
 
-The coupler is a :class:`~isaaclab_newton.physics.SolverSpec` whose functions recurse over the configuration tree:
-each entry's solver configuration selects the entry's own spec, which builds the entry's Newton solver on its model
-view and answers for it (contacts, capture, status). The coupler itself reads no solver-specific configuration.
+:class:`CouplerSolver` builds each entry's solver from the entry's configuration on its model view and couples
+the entries with Newton's experimental coupled solvers; each entry's solver class answers for it (contacts, capture,
+status).
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 
 import warp as wp
-from isaaclab_newton.physics import MPMSolverCfg, NewtonCollisionPipelineCfg, NewtonSolverCfg
-from isaaclab_newton.physics.solver_specs import SolverSpec, solver_kwargs, solver_spec
+from isaaclab_newton.physics import MPMSolverCfg, NewtonCollisionPipelineCfg, NewtonSolver, NewtonSolverCfg
+from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
 from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
-from isaaclab.utils import instantiate
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from isaaclab.utils.string import resolve_matching_names
 
 from .coupler_cfg import (
@@ -47,33 +46,11 @@ class _ResolvedEntry:
     shapes: list[int]
 
 
-CoupledConstructor = Callable[
-    [Model, list[SolverCoupled.Entry], list[CouplerProxyMappingCfg], CouplerCfg, wp.DeterministicMode], SolverBase
-]
-"""Construct the coupled Newton solver ``(model, entries, resolved_proxies, cfg, deterministic_mode)``."""
-
-
-# ----- Before the model exists -----------------------------------------------------
-
-
-def attribute_solvers(cfg: CouplerCfg) -> tuple[type[SolverBase], ...]:
-    """Collect the builder-attribute solvers of every entry."""
-    return tuple(
-        solver_cls
-        for entry in cfg.entries
-        for solver_cls in solver_spec(entry.solver_cfg).attribute_solvers(entry.solver_cfg)
-    )
-
-
-def prepare_builder(builder: ModelBuilder, cfg: CouplerCfg) -> None:
-    """Prepare the shared builder once per distinct entry solver specification."""
-    specs = {id(solver_spec(entry.solver_cfg)): entry.solver_cfg for entry in cfg.entries}
-    for entry_cfg in specs.values():
-        solver_spec(entry_cfg).prepare_builder(builder, entry_cfg)
+# ----- Construction --------------------------------------------------------------------
 
 
 def _validate_cfg(cfg: CouplerCfg) -> None:
-    """Validate the coupler configuration and ask each entry's spec whether it can run coupled."""
+    """Validate the coupler configuration and ask each entry's configuration whether it can run coupled."""
     if not isinstance(cfg, (CouplerProxyCfg, CouplerAdmmCfg)):
         raise TypeError(
             f"CouplerCfg subclass {type(cfg).__name__!r} is not supported; use CouplerProxyCfg or CouplerAdmmCfg."
@@ -112,75 +89,9 @@ def _validate_cfg(cfg: CouplerCfg) -> None:
             raise ValueError(
                 f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
             )
-        error = solver_spec(nested_cfg).coupling_error(nested_cfg, entry.in_place)
+        error = nested_cfg.class_type.coupling_error(nested_cfg, entry.in_place)
         if error is not None:
             raise NotImplementedError(f"CouplerEntryCfg {entry.name!r} {error}.")
-
-
-# ----- Construction --------------------------------------------------------------------
-
-
-def coupler_builder(
-    construct: CoupledConstructor | None = None,
-) -> Callable[[Model, CouplerCfg, wp.DeterministicMode], SolverBase]:
-    """Return a :attr:`SolverSpec.build` resolving entry ownership and constructing the coupled solver.
-
-    Each entry's solver is built on its model view by the entry's own spec. ``construct`` defaults to Newton's proxy
-    coupling (:class:`CouplerProxyCfg`), its independent stepping without proxies, or ADMM (:class:`CouplerAdmmCfg`).
-    Tasks with a custom coupled solver derive a spec with ``dataclasses.replace(COUPLER_SPEC,
-    build=coupler_builder(...))``.
-    """
-
-    def build(model: Model, cfg: CouplerCfg, deterministic_mode: wp.DeterministicMode) -> SolverBase:
-        _validate_cfg(cfg)
-        resolved_entries = [_resolve_entry(model, entry) for entry in cfg.entries]
-        proxies: list[CouplerProxyMappingCfg] = []
-        active_proxy_destinations: set[str] = set()
-        if isinstance(cfg, CouplerProxyCfg):
-            proxies = [_resolve_proxy(model, proxy) for proxy in cfg.proxies]
-            active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
-        _validate_resolved_entries(model, resolved_entries, cfg, active_proxy_destinations)
-        entries = [_build_entry(entry, deterministic_mode) for entry in resolved_entries]
-        return (construct or construct_coupled)(model, entries, proxies, cfg, deterministic_mode)
-
-    return build
-
-
-def construct_coupled(
-    model: Model,
-    entries: list[SolverCoupled.Entry],
-    proxies: list[CouplerProxyMappingCfg],
-    cfg: CouplerCfg,
-    deterministic_mode: wp.DeterministicMode,
-) -> SolverBase:
-    """Construct Newton's coupled solver selected by the configuration.
-
-    A proxy configuration without proxies steps its entries independently: Newton's proxy solver advances only
-    connected proxy groups.
-    """
-    if isinstance(cfg, CouplerAdmmCfg):
-        return _build_admm_coupled_solver(model, entries, cfg, deterministic_mode)
-    if not proxies:
-        return SolverCoupled(model=model, entries=entries)
-    return _build_proxy_coupled_solver(model, entries, proxies, cfg, deterministic_mode)
-
-
-def _build_entry(entry: _ResolvedEntry, deterministic_mode: wp.DeterministicMode) -> SolverCoupled.Entry:
-    entry_cfg = entry.config
-
-    def solver_factory(model_view):
-        return instantiate(entry_cfg.solver_cfg, model_view, deterministic_mode)
-
-    return SolverCoupled.Entry(
-        name=entry_cfg.name,
-        solver=solver_factory,
-        bodies=entry.bodies,
-        particles=entry.particles,
-        joints=entry.joints,
-        shapes=entry.shapes,
-        substeps=entry_cfg.substeps,
-        in_place=entry_cfg.in_place,
-    )
 
 
 def _build_proxy_coupled_solver(
@@ -227,9 +138,9 @@ def _build_admm_coupled_solver(
 # ----- Ownership resolution ----------------------------------------------------------
 
 
-def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg) -> _ResolvedEntry:
+def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg, env_template: str) -> _ResolvedEntry:
     """Resolve one entry's selectors and derived ownership."""
-    bodies = _resolve_entities_to_body_ids(model, entry_cfg.bodies, f"entry {entry_cfg.name!r}")
+    bodies = _resolve_entities_to_body_ids(model, entry_cfg.bodies, f"entry {entry_cfg.name!r}", env_template)
 
     particles = list(dict.fromkeys(map(int, entry_cfg.particles)))
     if entry_cfg.all_particles:
@@ -257,7 +168,8 @@ def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg) -> _ResolvedEntry:
         labeled_shapes = [(index, label) for index, label in enumerate(labels) if label is not None]
         try:
             matched_shapes, _ = resolve_matching_names(
-                entry_cfg.shape_label_patterns, [label for _, label in labeled_shapes]
+                [expand_env_regex_ns(pattern, env_template) for pattern in entry_cfg.shape_label_patterns],
+                [label for _, label in labeled_shapes],
             )
         except ValueError as error:
             raise ValueError(f"CouplerEntryCfg {entry_cfg.name!r}: failed to resolve shape-label patterns.") from error
@@ -272,10 +184,10 @@ def _resolve_entry(model: Model, entry_cfg: CouplerEntryCfg) -> _ResolvedEntry:
     )
 
 
-def _resolve_proxy(model: Model, proxy_cfg: CouplerProxyMappingCfg) -> CouplerProxyMappingCfg:
-    """Resolve a proxy mapping's selectors to collidable body ids, writing them into the config in place."""
+def _resolve_proxy(model: Model, proxy_cfg: CouplerProxyMappingCfg, env_template: str) -> CouplerProxyMappingCfg:
+    """Resolve a proxy mapping to collidable body ids without changing its declaration."""
     selected = _resolve_entities_to_body_ids(
-        model, proxy_cfg.bodies, f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}"
+        model, proxy_cfg.bodies, f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}", env_template
     )
     collide_flag = int(ShapeFlags.COLLIDE_SHAPES)
     collide_bodies = {
@@ -289,12 +201,10 @@ def _resolve_proxy(model: Model, proxy_cfg: CouplerProxyMappingCfg) -> CouplerPr
             f"CouplerProxyMappingCfg {proxy_cfg.source!r}->{proxy_cfg.destination!r} selected no bodies "
             "with ShapeFlags.COLLIDE_SHAPES."
         )
-    proxy_cfg.bodies = bodies
-    proxy_cfg.particles = list(dict.fromkeys(map(int, proxy_cfg.particles)))
-    return proxy_cfg
+    return replace(proxy_cfg, bodies=bodies, particles=list(dict.fromkeys(map(int, proxy_cfg.particles))))
 
 
-def _resolve_entities_to_body_ids(model: Model, specs: list[str | int], field: str) -> list[int]:
+def _resolve_entities_to_body_ids(model: Model, specs: list[str | int], field: str, env_template: str) -> list[int]:
     """Resolve body-label regexes or raw body ids to unique, order-preserving body ids."""
     labels = list(model.body_label)
     body_ids: list[int] = []
@@ -305,7 +215,8 @@ def _resolve_entities_to_body_ids(model: Model, specs: list[str | int], field: s
             body_ids.append(spec)
             continue
         if isinstance(spec, str):
-            matched, _ = resolve_matching_names(f"(?:{spec})(?:/.*)?", labels, raise_when_no_match=False)
+            pattern = expand_env_regex_ns(spec, env_template)
+            matched, _ = resolve_matching_names(f"(?:{pattern})(?:/.*)?", labels, raise_when_no_match=False)
             if not matched:
                 raise ValueError(f"CouplerCfg {field}: body-label regex {spec!r} matched no Newton bodies.")
             body_ids.extend(matched)
@@ -350,83 +261,133 @@ def _validate_no_cross_entry_proxy_joints(model: Model, entries: dict[str, _Reso
             )
 
 
-# ----- After construction: recurse into the entries ------------------------------------
+# ----- Solver ----------------------------------------------------------------------------
 
 
-def _entries(solver: SolverBase, cfg: CouplerCfg):
-    """Yield each entry's spec, Newton solver and configuration."""
-    for entry in cfg.entries:
-        yield solver_spec(entry.solver_cfg), solver.solver(entry.name), entry.solver_cfg
+class CouplerSolver(NewtonSolver):
+    """Couple named entries, each built from its own solver configuration on its model view."""
+
+    contact_sensors = False
+
+    @classmethod
+    def solver_classes(cls, cfg: CouplerCfg) -> tuple[type[SolverBase], ...]:
+        return tuple(
+            solver_cls
+            for entry in cfg.entries
+            for solver_cls in entry.solver_cfg.class_type.solver_classes(entry.solver_cfg)
+        )
+
+    @classmethod
+    def prepare_builder(cls, cfg: CouplerCfg, builder: ModelBuilder) -> None:
+        """Prepare the shared builder once per distinct entry solver class."""
+        for entry_cfg in {entry.solver_cfg.class_type: entry.solver_cfg for entry in cfg.entries}.values():
+            entry_cfg.class_type.prepare_builder(entry_cfg, builder)
+
+    @classmethod
+    def build(
+        cls, cfg: CouplerCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
+    ) -> SolverCoupled:
+        """Resolve entry ownership, build each entry's solver on its model view, and couple the entries.
+
+        ``{ENV_REGEX_NS}`` in entry and proxy body selectors and shape patterns expands against ``env_template``; the
+        configuration stays unchanged.
+        """
+        _validate_cfg(cfg)
+        template = DEFAULT_ENV_TEMPLATE if env_template is None else env_template
+        resolved_entries = [_resolve_entry(model, entry, template) for entry in cfg.entries]
+        proxies: list[CouplerProxyMappingCfg] = []
+        active_proxy_destinations: set[str] = set()
+        if isinstance(cfg, CouplerProxyCfg):
+            proxies = [_resolve_proxy(model, proxy, template) for proxy in cfg.proxies]
+            active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
+        _validate_resolved_entries(model, resolved_entries, cfg, active_proxy_destinations)
+        entries = [_coupled_entry(entry, mode, env_template) for entry in resolved_entries]
+        return cls.build_coupled(cfg, model, entries, proxies, mode)
+
+    @classmethod
+    def build_coupled(
+        cls,
+        cfg: CouplerCfg,
+        model: Model,
+        entries: list[SolverCoupled.Entry],
+        proxies: list[CouplerProxyMappingCfg],
+        mode: wp.DeterministicMode,
+    ) -> SolverCoupled:
+        """Construct Newton's coupled solver from the built entries; tasks with a custom coupled solver override it.
+
+        A proxy configuration without proxies steps its entries independently: Newton's proxy solver advances only
+        connected proxy groups.
+        """
+        if isinstance(cfg, CouplerAdmmCfg):
+            return _build_admm_coupled_solver(model, entries, cfg, mode)
+        if not proxies:
+            return SolverCoupled(model=model, entries=entries)
+        return _build_proxy_coupled_solver(model, entries, proxies, cfg, mode)
+
+    @classmethod
+    def supports_capture(cls, cfg: CouplerCfg, solver: SolverCoupled) -> bool:
+        return all(
+            entry.solver_cfg.class_type.supports_capture(entry.solver_cfg, solver.solver(entry.name))
+            for entry in cfg.entries
+        )
+
+    @classmethod
+    def uses_collision_pipeline(cls, cfg: CouplerCfg, solver: SolverCoupled) -> bool:
+        """Whether an entry that collides outside its proxies expects contacts from Newton's collision pipeline."""
+        if not isinstance(cfg, CouplerProxyCfg):
+            return True
+        directions = {(proxy.source, proxy.destination) for proxy in cfg.proxies}
+        proxy_destinations = {destination for _, destination in directions}
+        outer_contact_entries = {entry.name for entry in cfg.entries if entry.name not in proxy_destinations}
+        outer_contact_entries.update(source for source, _ in directions)
+        outer_contact_entries.update(
+            destination for source, destination in directions if solver.get_proxy_contacts(source, destination) is None
+        )
+        return any(
+            entry.name in outer_contact_entries
+            and entry.solver_cfg.class_type.uses_collision_pipeline(entry.solver_cfg, solver.solver(entry.name))
+            for entry in cfg.entries
+        )
+
+    @classmethod
+    def create_collision_pipeline(cls, cfg: CouplerCfg, solver: SolverCoupled, **kwargs) -> CollisionPipeline:
+        """Collide the whole model, or only :attr:`~CouplerCfg.outer_contact_entry`'s shape pairs."""
+        if cfg.outer_contact_entry is not None:
+            # Shape IDs remain global: the full model's body bindings collide the shared state.
+            kwargs["shape_pairs_filtered"] = solver.view(cfg.outer_contact_entry).shape_contact_pairs
+        return super().create_collision_pipeline(cfg, solver, **kwargs)
+
+    @classmethod
+    def reset(cls, cfg: CouplerCfg, solver: SolverCoupled, state: State, world_mask: wp.array) -> None:
+        """Reset every entry for masked worlds, promoting a selected single MPM world to the full-reset path."""
+        has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in cfg.entries)
+        if solver.model.world_count == 1 and has_mpm_entry:
+            selected = world_mask.numpy()
+            if not selected.any():
+                return
+            if selected[0] and not selected[-1]:
+                solver.reset(state, world_mask=None, flags=0)
+                return
+        solver.reset(state, world_mask=world_mask, flags=0)
+
+    @classmethod
+    def check_step(cls, cfg: CouplerCfg, solver: SolverCoupled, captured: bool, debug: bool) -> None:
+        """Raise asynchronous failures, and log diagnostics, of every entry's solver."""
+        for entry in cfg.entries:
+            entry.solver_cfg.class_type.check_step(entry.solver_cfg, solver.solver(entry.name), captured, debug)
 
 
-def external_contacts(solver: SolverBase, cfg: CouplerCfg) -> bool:
-    """Whether an entry that collides outside its proxies expects contacts from Newton's collision pipeline."""
-    if not isinstance(cfg, CouplerProxyCfg):
-        return True
-    directions = {(proxy.source, proxy.destination) for proxy in cfg.proxies}
-    proxy_destinations = {destination for _, destination in directions}
-    outer_contact_entries = {entry.name for entry in cfg.entries if entry.name not in proxy_destinations}
-    outer_contact_entries.update(source for source, _ in directions)
-    outer_contact_entries.update(
-        destination for source, destination in directions if solver.get_proxy_contacts(source, destination) is None
+def _coupled_entry(entry: _ResolvedEntry, mode: wp.DeterministicMode, env_template: str | None) -> SolverCoupled.Entry:
+    """Describe a resolved entry to Newton; its solver is built on the entry's model view."""
+    entry_cfg = entry.config
+    solver_cfg = entry_cfg.solver_cfg
+    return SolverCoupled.Entry(
+        name=entry_cfg.name,
+        solver=lambda view: solver_cfg.class_type.build(solver_cfg, view, mode, env_template),
+        bodies=entry.bodies,
+        particles=entry.particles,
+        joints=entry.joints,
+        shapes=entry.shapes,
+        substeps=entry_cfg.substeps,
+        in_place=entry_cfg.in_place,
     )
-    return any(
-        entry.name in outer_contact_entries
-        and solver_spec(entry.solver_cfg).external_contacts(solver.solver(entry.name), entry.solver_cfg)
-        for entry in cfg.entries
-    )
-
-
-def create_collision_pipeline(model: Model, solver: SolverBase, cfg: CouplerCfg, **kwargs) -> CollisionPipeline:
-    """Collide the whole model, or only :attr:`CouplerCfg.outer_contact_entry`'s shape pairs."""
-    if cfg.outer_contact_entry is not None:
-        # Shape IDs remain global: the full model's body bindings collide the shared state.
-        kwargs["shape_pairs_filtered"] = solver.view(cfg.outer_contact_entry).shape_contact_pairs
-    return CollisionPipeline(model, **kwargs)
-
-
-def prepare_contacts(solver: SolverBase, cfg: CouplerCfg, contacts, pipeline) -> None:
-    """Initialize entry-local contact buffers before CUDA graph capture."""
-    if hasattr(solver, "prepare_contacts"):
-        solver.prepare_contacts(contacts)
-
-
-def supports_capture(solver: SolverBase, cfg: CouplerCfg) -> bool:
-    """Whether every entry's solver can be recorded into a CUDA graph."""
-    return all(
-        spec.supports_capture(entry_solver, entry_cfg) for spec, entry_solver, entry_cfg in _entries(solver, cfg)
-    )
-
-
-def check_status(solver: SolverBase, cfg: CouplerCfg, captured: bool) -> None:
-    """Raise asynchronous failures of every entry's solver."""
-    for spec, entry_solver, entry_cfg in _entries(solver, cfg):
-        spec.check_status(entry_solver, entry_cfg, captured)
-
-
-def reset(solver: SolverBase, cfg: CouplerCfg, state: State, world_mask: wp.array) -> None:
-    """Reset every entry for masked worlds, promoting a selected single MPM world to the full-reset path."""
-    has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in cfg.entries)
-    if solver.model.world_count == 1 and has_mpm_entry:
-        selected = world_mask.numpy()
-        if not selected.any():
-            return
-        if selected[0] and not selected[-1]:
-            solver.reset(state, world_mask=None, flags=0)
-            return
-    solver.reset(state, world_mask=world_mask, flags=0)
-
-
-COUPLER_SPEC = SolverSpec(
-    attribute_solvers=attribute_solvers,
-    prepare_builder=prepare_builder,
-    build=coupler_builder(),
-    contact_sensors=False,
-    supports_capture=supports_capture,
-    external_contacts=external_contacts,
-    create_collision_pipeline=create_collision_pipeline,
-    prepare_contacts=prepare_contacts,
-    reset=reset,
-    check_status=check_status,
-)
-"""Specification of named Newton solver entries coupled through proxy or ADMM interfaces."""

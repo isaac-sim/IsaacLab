@@ -1,7 +1,8 @@
-* Added :class:`~isaaclab_newton.physics.CapturedGraph`, returned by ``newton_backend.capture_graph``, which records
-  Torch and Warp work on one stream and keeps both libraries' allocations alive.
-* Added ``SolverSpec.captures_model_changes`` and an optional ``env_mask`` to
-  :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`. MJWarp records the solver refresh into a
-  conditional CUDA graph, so an edit whose mask selects no world skips the refresh without a host synchronization.
-* Added ``NewtonBackend.live``, true inside a step and while a CUDA graph is recorded, when derived asset data is
-  recomputed on read instead of taken from timestamp caches.
+* Added :class:`~isaaclab_newton.physics.CapturedGraph`, which retained Torch and Warp graph allocations and replayed
+  mixed work on one stream through :meth:`~isaaclab_newton.physics.CapturedGraph.launch`.
+* Added ``NewtonSolver.captures_model_changes`` and an optional ``env_mask`` to
+  :meth:`~isaaclab_newton.physics.NewtonBackend.mark_model_changed` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`. MJWarp recorded conditional solver refreshes that
+  skipped edits whose masks selected no world without a host synchronization.
+* Added ``NewtonBackend.live`` to identify step and graph-recording intervals in which derived asset data needed
+  fresh computation instead of timestamp caches.

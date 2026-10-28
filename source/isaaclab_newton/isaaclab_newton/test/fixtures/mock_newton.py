@@ -78,6 +78,15 @@ def create_mock_newton_manager(
         actuators=None,
         dt=0.01,
         live=False,
+        transforms_may_change_on_graph_replay=False,
     )
-    manager.transforms_may_change_on_graph_replay = False
     return manager
+
+
+def backend_stub(**fields):
+    """Return a :class:`~isaaclab_newton.physics.NewtonBackend` holding only ``fields``, without a finalized model."""
+    from isaaclab_newton.physics import NewtonBackend  # noqa: PLC0415
+
+    backend = object.__new__(NewtonBackend)
+    backend.__dict__.update(fields)
+    return backend

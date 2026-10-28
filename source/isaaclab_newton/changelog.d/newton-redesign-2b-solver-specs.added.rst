@@ -1,4 +1,4 @@
-* Added solver specifications (:class:`~isaaclab_newton.physics.SolverSpec`, e.g.
-  :data:`~isaaclab_newton.physics.MJWARP_SPEC`): functions and constants describing each Newton solver type to Isaac
-  Lab. A solver configuration's :attr:`~isaaclab_newton.physics.NewtonSolverCfg.class_type` selects its spec, so
-  ``instantiate(solver_cfg, model, deterministic_mode)`` builds Newton's solver, the only solver instance.
+* Added :class:`~isaaclab_newton.physics.NewtonSolver`, whose stateless class methods build Newton's solver
+  from a solver configuration and step, reset and collide it through Newton's :class:`~newton.solvers.SolverBase`
+  API. Each solver configuration's ``class_type`` selects a subclass, e.g.
+  :class:`~isaaclab_newton.physics.MJWarpSolver`, that overrides only where its solver differs.

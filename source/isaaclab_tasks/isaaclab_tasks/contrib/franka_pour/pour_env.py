@@ -143,7 +143,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     def _add_pour_world_to_builder(self, builder, env_id: int, position, quaternion) -> None:
         """Add only solver-specific collision representations to one imported scene world."""
         builder.particle_max_velocity = self._particle_max_velocity
-        env_root = f"/World/envs/env_{env_id}"
+        env_root = self.cfg.scene.clone_cfg.clone_template.format(env_id)
         body_ids = self._current_world_range(builder, "body", env_id)
         shape_ids = self._current_world_range(builder, "shape", env_id)
         self._disable_robot_particle_collision(builder, body_ids, shape_ids)

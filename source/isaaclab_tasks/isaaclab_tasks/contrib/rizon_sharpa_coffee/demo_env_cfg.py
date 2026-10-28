@@ -45,7 +45,8 @@ from .robot import (
 class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Native MPM with optional passive rendering grains."""
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:COFFEE_MPM_SPEC"
+    class_type: type | str = "{DIR}.physics:CoffeeMPMSolver"
+
     solver: str | tuple[str, ...] | None = None
     """Pressure solver; ``None`` selects the final wet or dry task profile."""
     max_iterations: int | None = None
@@ -66,7 +67,7 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
                     solver_cfg=MJWarpSolverCfg(
                         use_mujoco_contacts=False, integrator="implicitfast", njmax=1024, nconmax=128
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="media",
@@ -86,7 +87,7 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
                         air_drag=1.0,
                         separate_worlds=True,
                     ),
-                    bodies=[r"/World/envs/env_.*/Spoon"],
+                    bodies=[r"{ENV_REGEX_NS}/Spoon"],
                     all_particles=True,
                     include_static_shapes=True,
                     in_place=True,

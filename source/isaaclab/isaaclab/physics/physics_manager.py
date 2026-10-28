@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from ..cloner import ReplicateContext
     from ..scene_data import SceneDataBackend
     from ..sim.simulation_context import SimulationContext
+    from .physics_manager_cfg import PhysicsCfg
 
 logger = logging.getLogger(__name__)
 
@@ -146,9 +147,14 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
     backend_name: ClassVar[str]
     """Backend implementation key used by asset and sensor factories."""
 
-    def __init__(self):
+    def __init__(self, cfg: PhysicsCfg):
+        """Store the physics configuration this manager runs.
+
+        Args:
+            cfg: Physics configuration whose ``class_type`` selected this manager.
+        """
         self._sim: SimulationContext | None = None
-        self._cfg: Any = None
+        self._cfg = cfg
         self._device: str = "cuda:0"
         self._sim_time: float = 0.0
         self._callbacks: dict[int, tuple[Any, Callable, int, str | None, Any]] = {}
@@ -479,7 +485,7 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
     def initialize(self, sim_context: SimulationContext) -> None:
         """Attach the manager to its simulation context.
 
-        The context's physics configuration and device become the manager's. A manager configured completely at
+        The context's device becomes the manager's. A manager configured completely at
         construction needs nothing else; subclasses that set up native resources against the context call
         ``super().initialize()`` first.
 
@@ -487,7 +493,6 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
             sim_context: Parent simulation context.
         """
         self._sim = sim_context
-        self._cfg = sim_context.cfg.physics
         self._device = sim_context.cfg.device
         self._sim_time = 0.0
 
@@ -577,7 +582,7 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         finally:
             self.views.clear()
             self._sim_time = 0.0
-            self._sim = self._cfg = None
+            self._sim = None
 
         if callback_errors:
             raise RuntimeError(

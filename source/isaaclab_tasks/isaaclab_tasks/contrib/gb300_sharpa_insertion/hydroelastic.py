@@ -29,12 +29,14 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
         physics: Newton configuration whose entries own the rigid scene and cable.
     """
     rigid, cable = physics.solver_cfg.entries
-    rigid.bodies.extend((r"/World/envs/env_.*/Cable/head", r"/World/envs/env_.*/Cable/latch"))
-    cable.bodies = [r"/World/envs/env_.*/Cable/(?!(?:head|latch)(?:/|$)).*"]
+    rigid.bodies.extend((r"{ENV_REGEX_NS}/Cable/head", r"{ENV_REGEX_NS}/Cable/latch"))
+    cable.bodies = [r"{ENV_REGEX_NS}/Cable/(?!(?:head|latch)(?:/|$)).*"]
     # The fixture proxy includes the pedestal and rack; only the ground needs static ownership.
     cable.include_static_shapes = False
     cable.shape_label_patterns = [r"/World/GroundPlane/.*"]
-    cable.solver_cfg.class_type = "isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:ENDPOINT_VBD_SPEC"
+    cable.solver_cfg = cable.solver_cfg.replace(
+        class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:EndpointVBDSolver"
+    )
     physics.solver_cfg = CouplerProxyCfg(
         entries=[rigid, cable],
         # The cable runs its own post-transfer pipeline; the outer pipeline collides rigid pairs once.

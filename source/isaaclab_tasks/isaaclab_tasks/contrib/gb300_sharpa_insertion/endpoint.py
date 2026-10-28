@@ -7,24 +7,15 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import warp as wp
-from isaaclab_newton.physics.solver_specs import solver_kwargs
-from isaaclab_newton.physics.vbd_solver import VBD_SPEC
+from isaaclab_newton.physics import VBDSolver
 from newton import BodyFlags, Contacts, Control, Model, State, StateFlags
 from newton.solvers import SolverVBD
 
-ENDPOINT_VBD_SPEC = replace(
-    VBD_SPEC,
-    build=lambda model, cfg, deterministic_mode: _EndpointVBD(
-        model, **solver_kwargs(SolverVBD, cfg, deterministic_mode)
-    ),
-)
-"""VBD whose proxy lifecycle prescribes the loose cable endpoint."""
 
+class EndpointVBD(SolverVBD):
+    """VBD whose proxy lifecycle prescribes the loose cable endpoint."""
 
-class _EndpointVBD(SolverVBD):
     def __init__(self, model: Model, **kwargs):
         # Override the destination view only; the source rigid bodies stay dynamic.
         body_flags = model.body_flags.numpy()
@@ -106,6 +97,12 @@ class _EndpointVBD(SolverVBD):
             inputs=[self._prescribed_bodies, self._prescribed_velocities, state_in.body_qd, state_out.body_qd],
             device=self.device,
         )
+
+
+class EndpointVBDSolver(VBDSolver):
+    """VBD solver that builds :class:`EndpointVBD`."""
+
+    solver_class = EndpointVBD
 
 
 @wp.kernel

@@ -21,14 +21,14 @@ from newton.sensors import SensorContact, SensorIMU
 
 from pxr import UsdGeom
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+import isaaclab.cloner as cloner
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataProvider
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 
-from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
 from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
@@ -37,13 +37,11 @@ from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
 )
 
-from . import newton_backend as nb
 from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
+from .newton_builder import create_builder
 from .newton_scene_data import NewtonSceneDataBackend
-from .solver_specs import create_builder, solver_spec
 
 if TYPE_CHECKING:
-    from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
@@ -68,131 +66,91 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
 class NewtonManager(PhysicsManager):
     """Newton physics manager for Isaac Lab.
 
-    Keeps what survives hard resets (site requests, replication outputs, decimation) and adapts the functional
-    lifecycle of the registered :class:`NewtonBackend` to Isaac Lab. Solver-specific behavior lives in the
-    :class:`SolverSpec` that the solver configuration's ``class_type`` selects.
+    Runs one :class:`NewtonBackend` through the physics lifecycle and keeps what survives hard resets: the builder,
+    site requests, replication outputs and decimation.
 
-    Initialization (:meth:`reset` with ``soft=False``)::
-
-        MODEL_INIT              consumers author the shared builder
-        finalize                sites and solver normalization -> NewtonBackend through the registry
-        PHYSICS_READY           consumers bind views, sensors, step callbacks, and actuators to the backend
-        init_solver             solver, contacts, and body state from the initial joint state
-
-    The step is captured as a CUDA graph right after the first :meth:`step` that follows any structural change runs
-    eagerly.
+    Lifecycle: ``initialize() -> reset() -> step()`` (repeated) ``-> close()``.
     """
 
     backend_name = "newton"
 
-    clone_context_type = NewtonReplicateContext
-
-    def __init__(self):
-        super().__init__()
+    def __init__(self, cfg: NewtonCfg):
+        super().__init__(cfg)
+        self._cfg: NewtonCfg = cfg
+        self.builder: ModelBuilder | None = None
+        """Shared construction builder, acquired at :meth:`initialize` and kept across hard resets."""
         self.backend: NewtonBackend | None = None
-        self._site_requests = {}
-        self._site_index_map = {}
-        self._clone: NewtonCloneRecord | None = None
-        self._scene_data_backend = NewtonSceneDataBackend(lambda: self.backend)
-        self._decimation = 1
-        self._solver_init_callbacks: list[Callable[[], None]] = []
+        """Data bound to the finalized model; replaced on every hard reset."""
+        self.clear()
+        self._scene_data_backend = NewtonSceneDataBackend(self)
 
-    # ----- Physics manager lifecycle ---------------------------------------------
+    @property
+    def shares_materials(self) -> bool:
+        """Whether contacts read one material table shared by all environments instead of per-shape values."""
+        solver_cfg = self._cfg.solver_cfg
+        return solver_cfg.class_type.shares_materials(solver_cfg)
+
+    @classmethod
+    def provides_implicit_damping(cls) -> bool:
+        # Newton's symplectic integrator has no implicit damping.
+        return False
+
+    @classmethod
+    def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
+        """Apply Newton's token deformable anchor schemas and sync the visual mesh geometry."""
+        sim_mesh_path = sim_mesh_prim.GetPath().pathString
+        token = "PhysicsVolumeDeformableSimAPI" if deformable_type == "volume" else "PhysicsSurfaceDeformableSimAPI"
+        if not sim_mesh_prim.AddAppliedSchema(token):
+            raise RuntimeError(f"Failed to set {deformable_type} deformable sim API on prim '{sim_mesh_path}'.")
+        # Newton renders the simulation mesh directly: overwrite the visual mesh geometry until
+        # separate visual/simulation meshes are supported.
+        vis_mesh = UsdGeom.Mesh(vis_mesh_prim)
+        if deformable_type == "volume":
+            tet_mesh = UsdGeom.TetMesh(sim_mesh_prim)
+            surface_indices = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get()
+            if surface_indices is None or len(surface_indices) == 0:
+                raise ValueError(
+                    f"Deformable body at '{prim.GetPath().pathString}' has no surface indices on its TetMesh"
+                    " prim; cannot sync to visual mesh."
+                )
+            vis_mesh.GetPointsAttr().Set(tet_mesh.GetPointsAttr().Get())
+            vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
+            vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
+        else:
+            sim_mesh = UsdGeom.Mesh(sim_mesh_prim)
+            vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
+            vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
+        if not prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
+            raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
+
+    def initialize(self, sim_context: SimulationContext) -> None:
+        """Initialize the manager with simulation context.
+
+        Args:
+            sim_context: Parent simulation context.
+        """
+        super().initialize(sim_context)
+        self.builder = sim_context.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg))
+
+        # This context imports NewtonManager, so it can only be imported after this module initializes.
+        from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
+
+        self.clone_context_type = NewtonReplicateContext
 
     def reset(self, soft: bool = False) -> None:
         """Reset physics simulation.
 
-        A hard reset (``soft=False``) closes the backend and finalizes a new one from the shared builder, so nothing
-        captured against the old buffers survives. Consumers rebind on ``PHYSICS_READY``. A soft reset keeps the
-        backend.
+        A hard reset (``soft=False``) closes the backend, with its solver, contacts, step callbacks and captured graph,
+        and finalizes a new one. Consumers bind to it again on ``PHYSICS_READY``; reacquire ``asset.data`` and its
+        arrays afterwards. A soft reset keeps the backend.
 
         Args:
             soft: If True, skip full reinitialization.
         """
-        if soft:
-            return
-        self._close_backend()
-        self._drain_stale_cuda_error()
-        sim = self._sim
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
-        self.dispatch_event(PhysicsEvent.MODEL_INIT)
-        # The builder survives hard resets, so sites already added to it are skipped.
-        global_sites, body_sites, root_sites = self.inject_sites(builder, {})
-        site_map = self._site_index_map
-        site_map.update((label, (index, None)) for label, index in global_sites.items())
-        site_map.update((label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items())
-        for label, xform in root_sites.items():
-            site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
-        builder.up_axis = Axis.Z
-        solver_cfg = self._cfg.solver_cfg
-        solver_spec(solver_cfg).prepare_builder(builder, solver_cfg)
-        with Timer(
-            name="newton_finalize_builder",
-            msg="Finalize builder took:",
-            activity="Finalizing physics model",
-            synchronize="both",
-            device=self._device,
-        ):
-            backend_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-            backend = self.backend = sim.get_or_create_backend(backend_cfg, dt=self.get_physics_dt())
-            backend.model.set_gravity(sim.cfg.gravity)
-        backend.decimation = self._decimation
-        clone = self._clone
-        if clone is not None:
-            backend.particle_ranges = clone.particle_ranges
-        self._scene_data_backend.initialize_geometry(
-            [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
-        )
-        self.dispatch_event(PhysicsEvent.PHYSICS_READY)
-        with Timer(
-            name="newton_initialize_solver",
-            msg="Initialize solver took:",
-            activity="Initializing solver",
-            synchronize="both",
-            device=self._device,
-        ):
-            nb.init_solver(backend, relaxed_capture=has_kit() and (sim.has_gui or sim.has_offscreen_render))
-        pending, self._solver_init_callbacks = self._solver_init_callbacks, []
-        for callback in pending:
-            callback()
-        self._mark_transforms_changed()
-
-    def forward(self) -> None:
-        """Reset solver internals and recompute body state for worlds whose state was authored."""
-        backend = self.backend
-        if backend is not None and backend.solver is not None:
-            nb.notify_model_changes(backend)
-            nb.forward(backend)
-
-    def step(self) -> None:
-        """Advance physics by one environment step, or one physics step when the environment runs decimation."""
-        sim = self._sim
-        if sim is None or not sim.is_playing():
-            return
-        backend = self.backend
-        physics_steps = backend.decimation if nb.handles_decimation(backend) else 1
-        captured = nb.step(backend)
-        spec = solver_spec(backend.solver_cfg)
-        spec.check_status(backend.solver, backend.solver_cfg, captured)
-        if self._cfg.debug_mode:
-            spec.log_debug(backend.solver, backend.solver_cfg)
-        self._sim_time += backend.dt * physics_steps
-        scene_data = self._scene_data_backend
-        scene_data.transforms_timestamp += 1
-        scene_data.geometry_timestamp += 1
-
-    def close(self) -> None:
-        """Clean up Newton physics resources."""
-        super().close()
-        self.clear()
-
-    def clear(self) -> None:
-        """Clear all Newton-specific state (callbacks cleared by ``super().close()``)."""
-        self._close_backend(dispatch_stop=False)
-        self._site_requests = {}
-        self._site_index_map = {}
-        self._clone = None
-        self._decimation = 1
+        if not soft:
+            self._close_backend()
+            self.start_simulation()
+            self.initialize_solver()
 
     def _close_backend(self, *, dispatch_stop: bool = True) -> None:
         """Stop consumers, drop their views, and close the backend."""
@@ -202,203 +160,17 @@ class NewtonManager(PhysicsManager):
         if dispatch_stop:
             self.dispatch_event(PhysicsEvent.STOP)
         self.views.clear()
-        self._solver_init_callbacks = []
         self.backend = None
         SimulationContext.instance().close_backend(backend)
 
-    def _drain_stale_cuda_error(self) -> None:
-        """Clear a stale CUDA error latched on the device before (re)initialization.
-
-        Warp 1.15 leaves the per-thread CUDA error uncleared when
-        ``wp_free_device_async`` fails to add a graph memory free node while a
-        capture is still registered (its "capture ended" sibling branch clears
-        the identical error as benign), and the next Warp array copy then
-        surfaces that stale error as its own failure, aborting simulation
-        initialization. Draining here keeps a prior simulation lifecycle's
-        latched error from poisoning this one. Remove once the upstream Warp
-        fix lands.
-        """
-        device = wp.get_device(str(self._device))
-        if not device.is_cuda:
-            return
-        # Private Warp API: the drain primitives are not exposed publicly; getting the
-        # device above guarantees the runtime is initialized. Guard the whole private
-        # interaction so a future Warp internals reshuffle degrades to a skipped drain
-        # rather than hard-failing simulation start.
-        try:
-            from warp._src.context import runtime as _wp_runtime
-
-            core = _wp_runtime.core
-            # wp_cuda_context_check drains via cudaGetLastError() but returns the
-            # post-sync error state (0 once a non-sticky error was drained), and its
-            # internal check_cuda() prints the drained error verbatim to stderr;
-            # suppress the print and diff Warp's error buffer to report the drain.
-            before = core.wp_get_error_string()
-            was_enabled = bool(core.wp_is_error_output_enabled())
-            core.wp_set_error_output_enabled(0)
-            try:
-                persistent = core.wp_cuda_context_check(device.context)
-            finally:
-                core.wp_set_error_output_enabled(1 if was_enabled else 0)
-            after = core.wp_get_error_string()
-        except (ImportError, AttributeError) as exc:
-            logger.warning("Skipping stale CUDA error drain; Warp internals unavailable: %s", exc)
-            return
-
-        if persistent != 0:
-            logger.error(
-                "CUDA error %d persists after drain; the device context is likely unrecoverable: %s",
-                persistent,
-                after.decode(errors="replace"),
-            )
-        elif after != before:
-            logger.warning(
-                "Drained stale CUDA error latched by a prior lifecycle: %s (last Warp error recorded before drain: %s)",
-                after.decode(errors="replace"),
-                before.decode(errors="replace") or "<none>",
-            )
-
-    # ----- Decimation --------------------------------------------------------------
-
-    def set_decimation(self, decimation: int) -> None:
-        """Set the physics steps of one environment step, and recapture the step when it runs them all.
-
-        When every Newton actuator is CUDA-graph-safe, the entire decimation loop (actuators and solver substeps,
-        repeated ``decimation`` times) is captured as one CUDA graph, captured right after the next step runs eagerly.
-
-        Args:
-            decimation: Physics steps per environment step.
-        """
-        self._decimation = max(1, decimation)
+    def forward(self) -> None:
+        """Update articulation kinematics without stepping physics; see :meth:`NewtonBackend.forward`."""
         if self.backend is not None:
-            nb.set_decimation(self.backend, self._decimation)
+            self.backend.forward()
 
-    def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` executes the full decimation loop.
-
-        This is the case once an articulation runs its Newton actuators in the step
-        (:meth:`activate_newton_actuator_path`) and all of them are CUDA-graph-safe.
-        """
-        return self.backend is not None and nb.handles_decimation(self.backend)
-
-    # ----- Step callbacks and actuators -----------------------------------------------
-
-    def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked before the actuator step.
-
-        Each callback runs inside the captured CUDA graph once per decimation iteration when
-        :meth:`handles_decimation` is ``True``, and eagerly once per step otherwise. Consumers register on
-        ``PHYSICS_READY``; a hard reset discards callbacks together with the buffers they bind.
-        """
-        self.backend.pre_actuator_callbacks.append(callback)
-
-    def register_post_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked after the actuator step on every iteration.
-
-        Each callback runs inside the captured CUDA graph (when :meth:`handles_decimation` is ``True``) right after
-        the Newton actuators and before the solver substeps, so its writes to ``state``/``control`` are visible to the
-        integrator on the same iteration. Callbacks fire in registration order.
-        """
-        self.backend.post_actuator_callbacks.append(callback)
-
-    def register_state_force_callback(self, callback: Callable[[State], None]) -> None:
-        """Register a graph-safe callback that applies forces before every solver substep.
-
-        Args:
-            callback: Function that adds forces [N, N·m] to the provided state.
-        """
-        callbacks = self.backend.state_force_callbacks
-        if callback not in callbacks:
-            callbacks.append(callback)
-
-    def register_post_step_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
-
-        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe (fixed
-        shapes, no host branching on device data) because they are recorded into the captured step.
-        """
-        self.backend.post_step_callbacks.append(callback)
-
-    def unregister_post_step_callback(self, callback: Callable[[], None]) -> None:
-        """Remove a post-step callback; removing an absent callback is a no-op."""
-        if self.backend is not None:
-            with contextlib.suppress(ValueError):
-                self.backend.post_step_callbacks.remove(callback)
-
-    def activate_newton_actuator_path(self) -> NewtonActuatorAdapter | None:
-        """Run the model's Newton actuators inside the step. Idempotent; see :func:`newton_backend.activate_actuators`.
-
-        Returns:
-            The adapter, or ``None`` when the model has no Newton actuators.
-        """
-        return nb.activate_actuators(self.backend)
-
-    def register_solver_init_callback(self, fn: Callable[[], None]) -> None:
-        """Run ``fn`` once the solver exists, before the first step; consumers register on ``PHYSICS_READY``.
-
-        Args:
-            fn: Function binding solver-owned data, such as MuJoCo Warp buffers.
-        """
-        self._solver_init_callbacks.append(fn)
-
-    # ----- Authored state --------------------------------------------------------------
-
-    def invalidate_fk(
-        self,
-        env_mask: wp.array | None = None,
-        env_ids: wp.array | None = None,
-        articulation_ids: wp.array | None = None,
-    ) -> None:
-        """Mark articulations as needing FK and their worlds as needing a solver reset.
-
-        Called by asset writes that modify joint coordinates or root transforms. The flags are consumed at the next
-        forward, raw-state read, rendering, or step.
-
-        Args:
-            env_mask: Boolean mask of dirtied view rows. Shape ``(num_instances,)``.
-            env_ids: Integer indices of dirtied view rows.
-            articulation_ids: Model articulation index of each ``(row, articulation)``, from
-                ``ArticulationView.articulation_ids``. ``None`` flags every articulation.
-        """
-        self._mark_transforms_changed()
-        if self.backend is not None:
-            nb.invalidate_fk(self.backend, env_mask, env_ids, articulation_ids)
-
-    def invalidate_body_state(
-        self,
-        env_ids: wp.array(dtype=wp.int32) | None = None,
-        env_mask: wp.array(dtype=wp.bool) | None = None,
-    ) -> None:
-        """Mark worlds whose maximal-coordinate body state was written, without requesting FK.
-
-        Args:
-            env_ids: Integer indices of dirtied view rows.
-            env_mask: Boolean mask of dirtied view rows.
-        """
-        self._mark_transforms_changed()
-        if self.backend is not None:
-            nb.invalidate_body_state(self.backend, env_ids, env_mask)
-
-    def add_model_change(self, change: ModelFlags, env_mask: wp.array | None = None) -> None:
-        """Queue a property edit for the next state-read or step boundary.
-
-        Args:
-            change: Changed model-property categories.
-            env_mask: Selected worlds. An empty mask performs no solver refresh.
-        """
-        if self.backend is not None:
-            nb.mark_model_changed(self.backend, change, env_mask)
-
-    @property
-    def transforms_may_change_on_graph_replay(self) -> bool:
-        """Whether state was written during an outer capture, so graph replays may change it without notice."""
-        backend = self.backend
-        return backend is not None and backend.transforms_may_change_on_graph_replay
-
-    def mark_particles_dirty(self) -> None:
-        """Invalidate scene-data geometry after native particle writes."""
-        self._scene_data_backend.geometry_timestamp += 1
-        self._flag_outer_capture()
+    def video_capture_backend(self) -> str:
+        """Newton GL headless perspective video capture."""
+        return "newton_gl"
 
     def _mark_transforms_changed(self) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
@@ -406,38 +178,66 @@ class NewtonManager(PhysicsManager):
         self._scene_data_backend.geometry_timestamp += 1
         self._flag_outer_capture()
 
+    def _mark_particles_dirty(self) -> None:
+        """Invalidate SDP geometry after native particle writes."""
+        self._scene_data_backend.geometry_timestamp += 1
+        self._flag_outer_capture()
+
     def _flag_outer_capture(self) -> None:
-        """Remember writes recorded into an outer capture, whose replays bypass Python invalidation."""
+        """Flag writes recorded into an outer CUDA graph capture."""
+        if self.backend.device.is_capturing:
+            self.backend.transforms_may_change_on_graph_replay = True
+
+    def step(self) -> None:
+        """Advance physics by one environment step, or one physics step when the environment runs decimation."""
+        sim = self._sim
+        if sim is None or not sim.is_playing():
+            return
         backend = self.backend
-        if backend is not None and backend.device.is_capturing:
-            backend.transforms_may_change_on_graph_replay = True
+        physics_steps = backend.decimation if backend.handles_decimation() else 1
+        backend.step()
+        self._sim_time += backend.dt * physics_steps
+        self._mark_transforms_changed()
 
-    # ----- Sensors ------------------------------------------------------------------
+    def close(self) -> None:
+        """Clean up Newton physics resources."""
+        super().close()
+        self.clear()
+        self.builder = None
 
-    def add_contact_sensor(
+    def get_scene_data_backend(self) -> SceneDataBackend | None:
+        """Return the SceneDataBackend for the SceneDataProvider."""
+        return self._scene_data_backend
+
+    def register_callback(
         self,
-        body_names_expr: str | list[str] | None = None,
-        shape_names_expr: str | list[str] | None = None,
-        contact_partners_body_expr: str | list[str] | None = None,
-        contact_partners_shape_expr: str | list[str] | None = None,
-        verbose: bool = False,
-    ) -> SensorContact:
-        """Add a contact sensor for reporting contacts between bodies or shapes; see :func:`add_contact_sensor`."""
-        with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:", synchronize="both"):
-            return nb.add_contact_sensor(
-                self.backend,
-                body_names_expr,
-                shape_names_expr,
-                contact_partners_body_expr,
-                contact_partners_shape_expr,
-                verbose,
-            )
+        callback: Callable,
+        event: PhysicsEvent,
+        order: int = 0,
+        name: str | None = None,
+        wrap_weak_ref: bool = True,
+    ) -> CallbackHandle:
+        """Register a callback. Passes event to parent class."""
+        return super().register_callback(callback, event, order, name, wrap_weak_ref)
 
-    def add_imu_sensor(self, sites: list[int]) -> SensorIMU:
-        """Add an IMU sensor measuring acceleration and angular velocity at sites; see :func:`add_imu_sensor`."""
-        return nb.add_imu_sensor(self.backend, sites)
+    def get_physics_sim_view(self) -> list:
+        """Return the registered articulation views."""
+        return list(self.views.values())
 
-    # ----- Model construction -------------------------------------------------------
+    def is_fabric_enabled(self) -> bool:
+        """Check if fabric interface is enabled (not applicable for Newton)."""
+        return False
+
+    def clear(self):
+        """Clear all Newton-specific state (callbacks cleared by super().close())."""
+        self._close_backend(dispatch_stop=False)
+        self._decimation = 1
+        # Site requests and replication outputs survive hard resets.
+        # (body_pattern, per_world, xform floats) -> (label, transform)
+        self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
+        self._site_index_map: dict[str, SiteEntry] = {}
+        self._clone: NewtonCloneRecord | None = None
+        self.views.clear()
 
     def register_site(self, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
         """Request a site for injection into prototypes before replication.
@@ -515,10 +315,6 @@ class NewtonManager(PhysicsManager):
         self._clone = record
         self._site_index_map.update(site_index_map)
 
-    def get_clone_record(self) -> NewtonCloneRecord | None:
-        """Return the outputs of the last native replication, or ``None`` without replication."""
-        return self._clone
-
     def get_site_index_map(self) -> dict[str, SiteEntry]:
         """Return resolved sites by label."""
         return self._site_index_map
@@ -539,7 +335,7 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: State attribute name (must be in ``State.EXTENDED_ATTRIBUTES``).
         """
-        self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg)).request_state_attributes(attr)
+        self.builder.request_state_attributes(attr)
 
     def request_extended_contact_attribute(self, attr: str) -> None:
         """Request an extended contact attribute (e.g. ``"force"``) from the builder before finalization.
@@ -547,19 +343,172 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: Contact attribute name.
         """
-        self._sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=self._cfg)).request_contact_attributes(attr)
+        self.builder.request_contact_attributes(attr)
 
-    def get_scene_data_backend(self) -> SceneDataBackend | None:
-        """Return the SceneDataBackend for the SceneDataProvider."""
-        return self._scene_data_backend
+    def add_model_change(self, change: ModelFlags, env_mask: wp.array | None = None) -> None:
+        """Queue a model-property edit for the next state-read or step boundary.
 
-    def get_scene_data_provider(self) -> SceneDataProvider:
-        """Return the active scene data provider."""
-        return self._sim.get_scene_data_provider()
+        Args:
+            change: Property categories the solver must refresh.
+            env_mask: Changed worlds; an empty mask skips capture-capable solver refreshes.
+        """
+        self.backend.mark_model_changed(change, env_mask)
 
-    def get_physics_sim_view(self) -> list:
-        """Return the registered articulation views."""
-        return list(self.views.values())
+    def invalidate_fk(
+        self,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+        articulation_ids: wp.array | None = None,
+    ) -> None:
+        """Mark environments as needing FK recomputation and solver reset; see :meth:`NewtonBackend.invalidate_fk`.
+
+        Called by asset write methods that modify joint coordinates or root transforms. The masks are consumed by the
+        next forward, raw-state, rendering, or physics-step boundary.
+        """
+        self._mark_transforms_changed()
+        self.backend.invalidate_fk(env_mask, env_ids, articulation_ids)
+
+    def invalidate_body_state(
+        self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
+    ) -> None:
+        """Mark selected maximal-coordinate body state as changed without requesting FK.
+
+        See :meth:`NewtonBackend.invalidate_body_state`.
+        """
+        self._mark_transforms_changed()
+        self.backend.invalidate_body_state(env_ids, env_mask)
+
+    def _drain_stale_cuda_error(self) -> None:
+        """Clear a stale CUDA error latched on the device before (re)initialization.
+
+        Warp 1.15 leaves the per-thread CUDA error uncleared when
+        ``wp_free_device_async`` fails to add a graph memory free node while a
+        capture is still registered (its "capture ended" sibling branch clears
+        the identical error as benign), and the next Warp array copy then
+        surfaces that stale error as its own failure, aborting simulation
+        initialization. Draining here keeps a prior simulation lifecycle's
+        latched error from poisoning this one. Remove once the upstream Warp
+        fix lands.
+        """
+        device = wp.get_device(str(self._device))
+        if not device.is_cuda:
+            return
+        # Private Warp API: the drain primitives are not exposed publicly; getting the
+        # device above guarantees the runtime is initialized. Guard the whole private
+        # interaction so a future Warp internals reshuffle degrades to a skipped drain
+        # rather than hard-failing simulation start.
+        try:
+            from warp._src.context import runtime as _wp_runtime
+
+            core = _wp_runtime.core
+            # wp_cuda_context_check drains via cudaGetLastError() but returns the
+            # post-sync error state (0 once a non-sticky error was drained), and its
+            # internal check_cuda() prints the drained error verbatim to stderr;
+            # suppress the print and diff Warp's error buffer to report the drain.
+            before = core.wp_get_error_string()
+            was_enabled = bool(core.wp_is_error_output_enabled())
+            core.wp_set_error_output_enabled(0)
+            try:
+                persistent = core.wp_cuda_context_check(device.context)
+            finally:
+                core.wp_set_error_output_enabled(1 if was_enabled else 0)
+            after = core.wp_get_error_string()
+        except (ImportError, AttributeError) as exc:
+            logger.warning("Skipping stale CUDA error drain; Warp internals unavailable: %s", exc)
+            return
+
+        if persistent != 0:
+            logger.error(
+                "CUDA error %d persists after drain; the device context is likely unrecoverable: %s",
+                persistent,
+                after.decode(errors="replace"),
+            )
+        elif after != before:
+            logger.warning(
+                "Drained stale CUDA error latched by a prior lifecycle: %s (last Warp error recorded before drain: %s)",
+                after.decode(errors="replace"),
+                before.decode(errors="replace") or "<none>",
+            )
+
+    def start_simulation(self) -> None:
+        """Start simulation by finalizing model and initializing state.
+
+        This function finalizes the model and initializes the simulation state.
+        Note: Collision pipeline is initialized later in initialize_solver() after
+        we determine whether the solver needs external collision detection.
+        """
+        sim = self._sim
+        builder = self.builder
+        self._drain_stale_cuda_error()
+
+        logger.info("Dispatching MODEL_INIT callbacks")
+        self.dispatch_event(PhysicsEvent.MODEL_INIT)
+
+        # The builder survives hard resets, so sites already added to it are skipped.
+        global_sites, body_sites, root_sites = self.inject_sites(builder, {})
+        site_map = self._site_index_map
+        site_map.update((label, (index, None)) for label, index in global_sites.items())
+        site_map.update((label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items())
+        for label, xform in root_sites.items():
+            site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
+
+        device = self._device
+        logger.info(f"Finalizing model on device: {device}")
+        builder.up_axis = Axis.Z
+        if (solver_cfg := self._cfg.solver_cfg) is not None:
+            solver_cfg.class_type.prepare_builder(solver_cfg, builder)
+        with Timer(
+            name="newton_finalize_builder",
+            msg="Finalize builder took:",
+            activity="Finalizing physics model",
+            synchronize="both",
+            device=device,
+        ):
+            cfg = NewtonBackendCfg(physics_cfg=self._cfg, device=sim.device)
+            self.backend = sim.get_or_create_backend(cfg, builder=builder, dt=self.get_physics_dt())
+            self.backend.model.set_gravity(sim.cfg.gravity)
+
+        self.backend.decimation = self._decimation
+        clone = self._clone
+        if clone is not None:
+            self.backend.particle_ranges = clone.particle_ranges
+        self._scene_data_backend.initialize_geometry(
+            [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
+        )
+        logger.info("Dispatching PHYSICS_READY callbacks")
+        self.dispatch_event(PhysicsEvent.PHYSICS_READY)
+
+    def instantiate_builder_from_stage(self):
+        """Import the explicitly declared clone plan into the Newton builder."""
+        cloner.replicate(self._sim.get_clone_plan())
+
+    def initialize_solver(self) -> None:
+        """Build the solver, its contacts and the initial body state; see :meth:`NewtonBackend.init_solver`."""
+        backend = self.backend
+        sim = self._sim
+        plan = sim.get_clone_plan() if sim is not None else None
+        if sim is not None:
+            backend.solver_init_callbacks.append(self._prepare_visualizer_for_capture)
+        with Timer(
+            name="newton_initialize_solver",
+            msg="Initialize solver took:",
+            activity="Initializing solver",
+            synchronize="both",
+            device=self.get_device(),
+        ):
+            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+        self._mark_transforms_changed()
+
+    def _relaxed_capture(self) -> bool:
+        """Whether Kit rendering requires relaxed CUDA graph capture."""
+        sim = self._sim
+        return sim is not None and has_kit() and (sim.has_gui or sim.has_offscreen_render)
+
+    def _prepare_visualizer_for_capture(self) -> None:
+        """Let the Newton visualizer register picking forces before the step is captured."""
+        solver_cfg = self._cfg.solver_cfg
+        if solver_cfg.class_type.applies_body_forces(solver_cfg, self.backend.solver):
+            self._sim._prepare_newton_visualizer_for_capture()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Compile material-to-shape addresses for the active Newton model."""
@@ -569,7 +518,7 @@ class NewtonManager(PhysicsManager):
         self, asset: BaseArticulation, body_names: tuple[str, ...]
     ) -> VisualShapeColorWriter:
         """Compile selected articulation-body shape addresses for the active Newton model."""
-        model = None if self.backend is None else self.backend.model
+        model = self.backend.model
         view = asset.root_view
         if not isinstance(view, ArticulationView):
             root_expr = asset.cfg.prim_path
@@ -580,36 +529,95 @@ class NewtonManager(PhysicsManager):
             view = ArticulationView(model, prim_paths, verbose=False)
         return VisualShapeColorWriter(model, view, body_names)
 
-    # ----- Backend descriptors -----------------------------------------------
+    def get_scene_data_provider(self) -> SceneDataProvider:
+        """Return the active scene data provider."""
+        return SimulationContext.instance().get_scene_data_provider()
 
-    def video_capture_backend(self) -> str:
-        """Newton GL headless perspective video capture."""
-        return "newton_gl"
+    def activate_newton_actuator_path(self) -> None:
+        """Run the model's Newton actuators inside the step; see :meth:`NewtonBackend.activate_actuators`."""
+        self.backend.activate_actuators()
 
-    @staticmethod
-    def setup_deformable_body(prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
-        """Apply Newton's token deformable anchor schemas and sync the visual mesh geometry."""
-        sim_mesh_path = sim_mesh_prim.GetPath().pathString
-        token = "PhysicsVolumeDeformableSimAPI" if deformable_type == "volume" else "PhysicsSurfaceDeformableSimAPI"
-        if not sim_mesh_prim.AddAppliedSchema(token):
-            raise RuntimeError(f"Failed to set {deformable_type} deformable sim API on prim '{sim_mesh_path}'.")
-        # Newton renders the simulation mesh directly: overwrite the visual mesh geometry until
-        # separate visual/simulation meshes are supported.
-        vis_mesh = UsdGeom.Mesh(vis_mesh_prim)
-        if deformable_type == "volume":
-            tet_mesh = UsdGeom.TetMesh(sim_mesh_prim)
-            surface_indices = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get()
-            if surface_indices is None or len(surface_indices) == 0:
-                raise ValueError(
-                    f"Deformable body at '{prim.GetPath().pathString}' has no surface indices on its TetMesh"
-                    " prim; cannot sync to visual mesh."
-                )
-            vis_mesh.GetPointsAttr().Set(tet_mesh.GetPointsAttr().Get())
-            vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
-            vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
-        else:
-            sim_mesh = UsdGeom.Mesh(sim_mesh_prim)
-            vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
-            vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
-        if not prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
-            raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
+    def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
+        """Append a one-shot hook invoked once the solver exists, before the initial FK and any CUDA graph capture."""
+        self.backend.solver_init_callbacks.append(callback)
+
+    def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
+        """Append a hook invoked before the actuator step.
+
+        Each callback runs inside the captured CUDA graph once per decimation iteration when
+        :meth:`handles_decimation` is ``True``, and eagerly once per step otherwise.
+        Hard resets discard these hooks; register them again when the new model is ready.
+        """
+        self.backend.pre_actuator_callbacks.append(callback)
+
+    def register_post_actuator_callback(self, callback: Callable[[], None]) -> None:
+        """Append a hook invoked after the actuator step on every iteration.
+
+        Each callback runs inside the captured CUDA graph (when :meth:`handles_decimation` is ``True``) right after the
+        Newton actuators and before the solver substeps, so its writes to ``state``/``control`` are visible to the
+        integrator on the same iteration. Callbacks fire in registration order.
+        Hard resets discard these hooks; register them again when the new model is ready.
+        """
+        self.backend.post_actuator_callbacks.append(callback)
+
+    def register_state_force_callback(self, callback: Callable[[State], None]) -> None:
+        """Register a graph-safe callback that applies forces before every solver substep.
+
+        Callbacks must be registered before the step is captured. Hard resets discard these hooks; register them again
+        when the new model is ready.
+
+        Args:
+            callback: Function that adds forces [N, N·m] to the provided state.
+        """
+        if callback not in self.backend.state_force_callbacks:
+            self.backend.state_force_callbacks.append(callback)
+
+    def register_post_step_callback(self, callback: Callable[[], None]) -> None:
+        """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
+
+        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe (fixed
+        shapes, no host branching on device data) because they are recorded into the captured step.
+        Hard resets discard these hooks; register them again when the new model is ready.
+        """
+        self.backend.post_step_callbacks.append(callback)
+
+    def unregister_post_step_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a post-step callback; removing an absent callback is a no-op."""
+        if self.backend is not None:
+            with contextlib.suppress(ValueError):
+                self.backend.post_step_callbacks.remove(callback)
+
+    def set_decimation(self, decimation: int) -> None:
+        """Set the decimation count; see :meth:`NewtonBackend.set_decimation`.
+
+        When all actuators are graphable the entire decimation loop is captured as a single CUDA graph, right after
+        the next requested step runs eagerly.
+        """
+        self._decimation = max(1, decimation)
+        if self.backend is not None:
+            self.backend.set_decimation(self._decimation)
+
+    def handles_decimation(self) -> bool:
+        """Whether :meth:`step` executes the full decimation loop; see :meth:`NewtonBackend.handles_decimation`."""
+        return self.backend.handles_decimation()
+
+    def add_contact_sensor(
+        self,
+        body_names_expr: str | list[str] | None = None,
+        shape_names_expr: str | list[str] | None = None,
+        contact_partners_body_expr: str | list[str] | None = None,
+        contact_partners_shape_expr: str | list[str] | None = None,
+        verbose: bool = False,
+    ) -> SensorContact:
+        """Add a contact sensor between bodies or shapes; see :meth:`NewtonBackend.add_contact_sensor`."""
+        return self.backend.add_contact_sensor(
+            body_names_expr,
+            shape_names_expr,
+            contact_partners_body_expr,
+            contact_partners_shape_expr,
+            verbose,
+        )
+
+    def add_imu_sensor(self, sites: list[int]) -> SensorIMU:
+        """Add an IMU sensor at sites; see :meth:`NewtonBackend.add_imu_sensor`."""
+        return self.backend.add_imu_sensor(sites)

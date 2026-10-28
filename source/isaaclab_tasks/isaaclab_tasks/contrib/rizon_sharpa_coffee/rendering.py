@@ -19,7 +19,7 @@ from newton.geometry import ParticleSurface
 
 import isaaclab.sim as sim_utils
 
-from .physics import CoffeeMPMSolver
+from .physics import SolverCoffeeMPM
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -181,10 +181,10 @@ class CoffeeRendering:
         solvers = [
             solver
             for solver in implicit_mpm_solvers(self._backend_manager.backend.solver)
-            if isinstance(solver, CoffeeMPMSolver)
+            if isinstance(solver, SolverCoffeeMPM)
         ]
         if len(solvers) != 1 or solvers[0].grains is None:
-            raise ValueError("CoffeeRendering requires one CoffeeMPMSolver with grains_per_particle > 0.")
+            raise ValueError("CoffeeRendering requires one SolverCoffeeMPM with grains_per_particle > 0.")
         if not self._visualizers:
             raise ValueError("CoffeeRendering requires a coffee GL, RTX or Kit visualizer.")
         self._solver = solvers[0]
@@ -488,7 +488,7 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
         kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
         kitchen_cfg.func(kitchen_path, kitchen_cfg)
         for prim in stage.Traverse():
-            if prim.GetPath().HasPrefix("/World/envs") and prim.GetName() == "StudioFloor":
+            if prim.GetName() == "StudioFloor":
                 UsdGeom.Imageable(prim).MakeInvisible()
     return root
 

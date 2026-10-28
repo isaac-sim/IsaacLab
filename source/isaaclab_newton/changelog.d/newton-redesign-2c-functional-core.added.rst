@@ -1,4 +1,7 @@
-* Added the functions in :mod:`isaaclab_newton.physics.newton_backend` that take a
-  :class:`~isaaclab_newton.physics.NewtonBackend` explicitly (``init_solver``, ``forward``, ``invalidate_fk``,
-  ``mark_model_changed``, ``step``, ``run_query``, ``capture_graph``, ...), so independent backends with different
-  solvers can be built and stepped side by side.
+* Added :class:`~isaaclab_newton.physics.NewtonBackend` methods that initialize, step and query one model
+  (:meth:`~isaaclab_newton.physics.NewtonBackend.init_solver`, :meth:`~isaaclab_newton.physics.NewtonBackend.step`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.forward`, :meth:`~isaaclab_newton.physics.NewtonBackend.invalidate_fk`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.refit_bvh`, ...), so backends with different solvers can be built and
+  stepped side by side.
+* Added an optional ``builder`` argument to :class:`~isaaclab_newton.physics.NewtonBackend` to finalize a builder
+  other than the simulation's shared one.

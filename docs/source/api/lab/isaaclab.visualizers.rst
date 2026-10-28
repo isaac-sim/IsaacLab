@@ -21,6 +21,8 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :nosignatures:
 
    BaseVisualizer
+   KeyEventSource
+   KeyboardSubscription
    VisualizerCfg
    VisualizerBackendCfg
    WindowCfg
@@ -31,6 +33,14 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
 
 .. autoclass:: BaseVisualizer
    :show-inheritance:
+
+.. autoclass:: KeyEventSource
+   :members: closed, add_key_listener, close
+
+.. autoclass:: KeyboardSubscription
+   :members: closed, close
+
+.. autofunction:: add_key_callbacks
 
 .. autoclass:: VisualizerCfg
    :show-inheritance:

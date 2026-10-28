@@ -12,17 +12,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from isaaclab_contrib.coupling import CouplerSolver
 from newton import BodyFlags, GeoType, StateFlags
 from newton.solvers.experimental.coupled import SolverCoupled
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
-from isaaclab_contrib.coupling.coupler import COUPLER_SPEC, coupler_builder
-
 if TYPE_CHECKING:
     from newton import ModelBuilder
-
-    from isaaclab_contrib.coupling import CouplerProxyCfg
 
 
 @wp.kernel
@@ -45,7 +42,7 @@ def _sync_teapot_collider(
     fluid_velocity[destination] = wp.spatial_vector(linear, axis * (angle / dt))
 
 
-class _TeapotColliderSyncSolver(SolverCoupled):
+class TeapotColliderSyncSolver(SolverCoupled):
     """Advance rigid contacts, then pass the measured pot boundary to MPM."""
 
     def __init__(self, model, entries):
@@ -110,7 +107,7 @@ class _TeapotColliderSyncSolver(SolverCoupled):
         self._step_entry(fluid, control, contacts, dt)
 
 
-def _prepare_teapot_builder(builder: ModelBuilder, cfg: CouplerProxyCfg) -> None:
+def repair_teapot_hulls(builder: ModelBuilder) -> None:
     """Keep generated rigid hulls above the exact shell's body-local base plane."""
     for body, label in enumerate(builder.body_label):
         if not label.endswith("/PourContainer"):
@@ -151,16 +148,17 @@ def _prepare_teapot_builder(builder: ModelBuilder, cfg: CouplerProxyCfg) -> None
             # Copying geometry rebuilds mesh caches while preserving authored
             # mass properties; the exact shell and handle vertices are untouched.
             builder.shape_source[shape] = mesh.copy(vertices=vertices, indices=faces)
-    # MPM preparation converts convex parts to triangle meshes; repair their
-    # generated support geometry before that classification is lost.
-    COUPLER_SPEC.prepare_builder(builder, cfg)
 
 
-TEAPOT_COUPLER_SPEC = replace(
-    COUPLER_SPEC,
-    prepare_builder=_prepare_teapot_builder,
-    build=coupler_builder(
-        lambda model, entries, proxies, cfg, mode: _TeapotColliderSyncSolver(model=model, entries=entries)
-    ),
-)
-"""Couple the dynamic grasped pot to its exact MPM collision shell."""
+class TeapotSolver(CouplerSolver):
+    """Couple the dynamic grasped pot to its exact MPM collision shell."""
+
+    @classmethod
+    def prepare_builder(cls, cfg, builder: ModelBuilder) -> None:
+        # MPM preparation converts convex parts to triangle meshes; repair their generated support geometry first.
+        repair_teapot_hulls(builder)
+        super().prepare_builder(cfg, builder)
+
+    @classmethod
+    def build_coupled(cls, cfg, model, entries, proxies, mode):
+        return TeapotColliderSyncSolver(model=model, entries=entries)

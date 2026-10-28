@@ -1,1 +1,1 @@
-* Changed the Newton visualizer to read whether the solver accepts applied body forces from its solver specification.
+* Changed the Newton visualizer to ask the solver configuration's ``class_type`` whether the solver accepts applied body forces.

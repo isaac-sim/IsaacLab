@@ -30,7 +30,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics.newton_backend import compile_label_pattern
+from isaaclab_newton.physics.newton_backend import _compile_label_pattern
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton._src.utils.selection import match_labels
@@ -465,7 +465,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+# No device-specific path; the rotated cases above keep CPU coverage.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
@@ -973,7 +974,7 @@ _SHAPE_LABELS = ["/World/envs/env_0/BoxA/geometry/mesh", "/World/envs/env_0/BoxB
 
 def _select(expr, labels):
     """Labels Newton selects for ``expr``."""
-    pattern = compile_label_pattern(expr)
+    pattern = _compile_label_pattern(expr)
     return [labels[index] for index in match_labels(labels, pattern)]
 
 

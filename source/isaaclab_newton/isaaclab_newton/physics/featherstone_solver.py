@@ -3,28 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Featherstone solver specification."""
-
-from __future__ import annotations
-
-from types import MappingProxyType
+"""Featherstone solver implementation."""
 
 from newton import ModelFlags
 from newton.solvers import SolverFeatherstone
 
-from .solver_specs import SolverSpec, build_from_cfg
+from .newton_solver import NewtonSolver
 
-FEATHERSTONE_SPEC = SolverSpec(
-    build=build_from_cfg(SolverFeatherstone),
-    deterministic=True,
+
+class FeatherstoneSolver(NewtonSolver):
+    """Newton's Featherstone solver, which double-buffers state."""
+
+    solver_class = SolverFeatherstone
+    deterministic = True
     # SolverFeatherstone derives its inertia data from the model only when it is constructed.
-    ignored_model_changes=MappingProxyType(
-        {
-            ModelFlags.BODY_INERTIAL_PROPERTIES: (
-                "The Newton Featherstone solver does not apply mass, center of mass, or inertia changes made after"
-                " the simulation starts; the simulation keeps the initial values."
-            )
-        }
-    ),
-)
-"""Specification of the Featherstone solver, which double-buffers state."""
+    ignored_model_changes = {
+        ModelFlags.BODY_INERTIAL_PROPERTIES: (
+            "The Newton Featherstone solver does not apply mass, center of mass, or inertia changes made after the"
+            " simulation starts; the simulation keeps the initial values."
+        )
+    }

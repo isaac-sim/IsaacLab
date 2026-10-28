@@ -7,22 +7,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
-
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import SolverSpec
 
 
 @configclass
 class VBDSolverCfg(NewtonSolverCfg):
     """Configuration for the Vertex Block Descent solver."""
 
-    class_type: SolverSpec | str = "{DIR}.vbd_solver:VBD_SPEC"
-    """Specification of the VBD solver."""
+    class_type: type | str = "{DIR}.vbd_solver:VBDSolver"
 
     iterations: int = 10
     """Number of VBD iterations per substep."""

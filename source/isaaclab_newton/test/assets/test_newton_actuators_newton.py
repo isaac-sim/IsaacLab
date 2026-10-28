@@ -283,7 +283,12 @@ def _run(
 
     if use_newton_actuators and decimation > 1:
         sim.backend_manager.set_decimation(decimation)
-    handles_dec = use_newton_actuators and decimation > 1 and sim.backend_manager.handles_decimation()
+    handles_dec = (
+        use_newton_actuators
+        and decimation > 1
+        and sim.backend_manager.handles_decimation()
+        and sim.backend_manager._decimation > 1
+    )
 
     results = {}
     for name, island in islands.items():
@@ -498,6 +503,7 @@ def _make_target_mode_builder(
     sim._backend_registry = []
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: sim)
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    sim.backend_manager = SimpleNamespace(builder=builder)
     inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     parent = -1
     joint_ids = []
@@ -964,15 +970,14 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
 
     articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
 
-    # Map each entry of ``act.indices`` to its env via the model's per-world DOF count (worlds here share a layout,
-    # including free-joint DOFs on floating-base articulations).
-    model = newton_run.sim.backend_manager.backend.model
-    dofs_per_world = model.joint_dof_count // model.world_count
+    # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
+    # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
+    # stride.
     for act, state in stateful_pairs:
         pushes_after = state.delay_state.num_pushes.numpy()
         indices_np = act.indices.numpy()
         for i, global_dof in enumerate(indices_np):
-            env = int(global_dof) // dofs_per_world
+            env = int(global_dof) // adapter.num_joints
             if env == 0:
                 assert int(pushes_after[i]) == 0, f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}"
             else:

@@ -19,7 +19,8 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
     gather_joint_coordinates,
     scatter_joint_coordinates,
 )
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton.selection import ArticulationView
 from scipy.spatial.transform import Rotation
 
@@ -98,15 +99,18 @@ def test_joint_commands_preserve_coordinate_layout(ball_joint):
     state, control = model.state(), model.control()
     assert model.joint_coord_count != model.joint_dof_count
     assert control.joint_target_q.shape == state.joint_q.shape
-    backend_manager = NewtonManager()
-    backend_manager.backend = SimpleNamespace(
+    backend_manager = NewtonManager(NewtonCfg())
+    backend_manager.backend = backend_stub(
+        model_changes=set(),
         model=model,
         state_0=state,
         control=control,
         solver=None,
+        actuators=None,
+        kinematics_dirty=False,
         is_stepping=False,
-        transforms_may_change_on_graph_replay=False,
         device=model.device,
+        transforms_may_change_on_graph_replay=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[newton.JointType.FREE])
     data = ArticulationData(view, "cpu", backend_manager=backend_manager)

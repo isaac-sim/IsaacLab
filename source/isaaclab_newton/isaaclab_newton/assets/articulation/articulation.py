@@ -33,13 +33,12 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics import NewtonBuilderCfg
-from isaaclab_newton.physics.solver_specs import solver_spec
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
@@ -179,8 +178,7 @@ class Articulation(BaseArticulation):
 
     def _configure_joint_target_modes(self, _event) -> None:
         """Apply configured actuator modes to the shared builder before model allocation."""
-        sim = SimulationContext.instance()
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = SimulationContext.instance().backend_manager.builder
         root_prim_path_regex = _resolve_articulation_root_prim_path_expr(self.cfg)
         articulation_ids, _ = resolve_matching_names(
             root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
@@ -709,8 +707,12 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if (
+            self._backend_manager.backend.solver is not None
+            and not self.root_view.is_floating_base
+            and env_ids.shape[0]
+        ):
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -758,8 +760,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=env_mask)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -813,8 +815,12 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if (
+            self._backend_manager.backend.solver is not None
+            and not self.root_view.is_floating_base
+            and env_ids.shape[0]
+        ):
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -865,8 +871,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=env_mask)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -1618,7 +1624,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES, env_mask=env_mask)
 
     def write_joint_stiffness_to_sim_index(
         self,
@@ -1932,7 +1938,7 @@ class Articulation(BaseArticulation):
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits.",
             )
-        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES, env_mask=env_mask)
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -2422,7 +2428,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_coms_index(
         self,
@@ -2525,7 +2531,7 @@ class Articulation(BaseArticulation):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_inertias_index(
         self,
@@ -2623,7 +2629,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     """
     Operations - Tendons.
@@ -3493,7 +3499,7 @@ class Articulation(BaseArticulation):
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
-            articulation_kernels.update_soft_joint_pos_limits,
+            warp_math.scale_intervals,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 self.data.joint_pos_limits,
@@ -3582,9 +3588,10 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            # Only the solver's specification knows whether the solver transmits to tendons.
+            # Only the solver knows whether it transmits to tendons.
             backend = self._backend_manager.backend
-            self._fixed_tendon_control = solver_spec(backend.solver_cfg).fixed_tendon_control(self, backend.model)
+            solver_cfg = backend.cfg.solver_cfg
+            self._fixed_tendon_control = solver_cfg.class_type.fixed_tendon_control(solver_cfg, self, backend.model)
 
     """
     Internal helpers -- Debugging.

@@ -931,6 +931,9 @@ MicroDuck biped to walk on flat ground and on rough terrain, with its 14 servos 
 Newton MJWarp. Add ``presets=backlash`` to either task to train the robot variant with a passive play
 hinge in series with each servo, bound through ``backlash_joint_template``.
 
+See :doc:`/source/how-to/train_microduck` for the walking recipe, terrain curriculum, and distributed
+training options.
+
 
 Backend submission
 ------------------

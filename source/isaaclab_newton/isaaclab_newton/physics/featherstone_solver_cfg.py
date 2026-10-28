@@ -7,14 +7,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
-
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import SolverSpec
 
 
 @configclass
@@ -33,8 +28,7 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
     See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
     """
 
-    class_type: SolverSpec | str = "{DIR}.featherstone_solver:FEATHERSTONE_SPEC"
-    """Specification of the Featherstone solver."""
+    class_type: type | str = "{DIR}.featherstone_solver:FeatherstoneSolver"
 
     solver_type: str = "featherstone"
     """Solver type. Can be "featherstone"."""

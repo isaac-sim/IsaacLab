@@ -3,6 +3,79 @@ Changelog
 
 .. towncrier release notes start
 
+0.11.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_teleop.se2_keyboard_teleop_cfg`, :func:`~isaaclab_teleop.se3_keyboard_teleop_cfg`,
+  :func:`~isaaclab_teleop.se2_gamepad_teleop_cfg`, :func:`~isaaclab_teleop.se3_gamepad_teleop_cfg`,
+  :func:`~isaaclab_teleop.se2_spacemouse_teleop_cfg` and :func:`~isaaclab_teleop.se3_spacemouse_teleop_cfg`,
+  which build an :class:`~isaaclab_teleop.IsaacTeleopCfg` for keyboard, gamepad or SpaceMouse
+  SE(2)/SE(3) teleoperation. The keyboard is read in process from whichever visualizer window has
+  focus (no ``input`` group, no keys from other apps). The gamepad is read from ``/dev/input/jsN``
+  and the SpaceMouse from ``/dev/hidrawN`` (which needs a udev rule) by the Isaac Capture
+  ``gamepad`` and ``spacemouse`` plugins, which their configs start with the session. Without
+  ``--xr`` they run headset-free on the standalone CloudXR profile.
+* Added :mod:`isaaclab_teleop.device_selection`, which translates an :mod:`isaaclab.devices`
+  keyboard, gamepad or SpaceMouse config into the equivalent pipeline and resolves each script's
+  ``--teleop_device`` request once. Keyboard, gamepad and SpaceMouse require Isaac Capture (the
+  ``teleop`` extra); devices without a Capture pipeline, such as OpenXR hand tracking, keep their
+  native implementation.
+
+Changed
+^^^^^^^
+
+* Passed visualizer windows explicitly into Isaac Capture sessions and centralized script device
+  selection and creation. Window input attachments roll back partial setup on failure.
+* Consolidated keyboard, gamepad and SpaceMouse pipelines into one module and removed redundant action-copy nodes.
+* Changed :class:`~isaaclab_teleop.IsaacTeleopDevice` to start, pause and reset teleoperation on the
+  ``B`` / ``P`` / ``R`` keys typed into a visualizer window and on a SpaceMouse pipeline's right
+  button, so scripts no longer bind them. While a pipeline reads the keyboard, the visualizers'
+  keyboard camera movement is turned off.
+* Changed the ``teleop`` extra to install ``isaaccapture~=1.7.44a1``, the Isaac Capture release
+  with the keyboard, gamepad and SpaceMouse devices, in place of ``isaacteleop~=1.4.145``, on Linux
+  x86_64 and aarch64.
+  ``isaaccapture`` is ``isaacteleop`` renamed and still provides the ``isaacteleop`` import.
+* Migrated consolidated Mimic, pick-and-place and the manual keyboard check to Isaac Capture.
+  Device configs deprecated in Isaac Lab 3.2 translate before creation, preserving sensitivities,
+  dead zones, gripper output, activation and output device. Replay and annotation use visualizer
+  hotkeys without a session.
+* Changed ``teleop_se3_agent.py`` and ``record_demos.py`` to no longer force Kit, so keyboard, gamepad
+  and SpaceMouse teleoperation also run with kitless visualizers such as ``newton_rtx``. ``--xr`` and
+  tasks that need Kit still start it.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_teleop.IsaacTeleopDevice` failing to start when Isaac Sim is installed but
+  Kit is not running.
+
+
+0.10.6 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed XR camera-feed visibility and task-declared target and anchor paths for custom clone
+  namespaces. ``create_isaac_teleop_device`` now accepts ``env_prim_path`` to expand
+  ``{ENV_REGEX_NS}`` without changing the supplied configuration.
+
+
+0.10.5 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Bound teleop target frames and XR anchor references once during setup instead of rediscovering the
+  Fabric stage and prim every update. Live pose updates and explicit target-matrix overrides were preserved.
+* Rejected nonexistent teleop target-frame paths before starting the session instead of silently emitting
+  poses in the world frame. Ensure ``target_frame_prim_path`` exists before entering the device context.
+
+
 0.10.4 (2026-10-20)
 ~~~~~~~~~~~~~~~~~~~
 

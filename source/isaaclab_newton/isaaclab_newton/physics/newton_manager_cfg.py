@@ -16,35 +16,31 @@ from isaaclab.utils import configclass
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
-
-    from .solver_specs import SolverSpec
+    from isaaclab_newton.physics import NewtonManager, NewtonSolver
 
 logger = logging.getLogger(__name__)
 
 
 @configclass
 class NewtonSolverCfg:
-    """Configuration for Newton solver-related parameters.
+    """Configuration of a Newton solver.
 
-    These parameters are used to configure the Newton solver. For more information, see the `Newton documentation`_.
-
-    :attr:`class_type` selects the :class:`SolverSpec` that builds the solver, ``instantiate(cfg, model, mode)``,
-    and describes it to Isaac Lab.
+    :attr:`class_type` selects the :class:`~isaaclab_newton.physics.NewtonSolver` that builds and drives the
+    solver; customizing a solver means subclassing it. For the solver parameters, see the
+    `Newton documentation`_.
 
     .. _Newton documentation: https://newton.readthedocs.io/en/latest/
     """
 
-    class_type: SolverSpec | str | None = None
-    """Solver specification, or a ``"module:ATTRIBUTE"`` reference to one. ``None`` describes geometry only."""
+    class_type: type[NewtonSolver] | str = "{DIR}.newton_solver:NewtonSolver"
+    """Solver class whose class methods build and drive Newton's solver, e.g. ``class_type.build(cfg, model, mode)``."""
 
     solver_type: str = "None"
     """Solver type metadata (deprecated).
 
     .. deprecated::
-        Solver dispatch is driven by :attr:`class_type`; this field is
-        retained as metadata for logging and debugging only.  Do not branch on
-        ``solver_type`` in new code.
+        Solver dispatch is driven by the configuration class; this field is retained as metadata for logging and
+        debugging only. Do not branch on ``solver_type`` in new code.
     """
 
 
@@ -121,12 +117,12 @@ class NewtonCfg(PhysicsCfg):
 
     This configuration includes Newton-specific simulation settings and solver configuration.
 
-    ``class_type`` selects the integration manager independently of ``solver_cfg.class_type``. Downstream code can
-    subclass :class:`NewtonManager` and set this field, or inject an existing instance into ``SimulationContext``.
+    ``class_type`` selects the integration manager independently of the solver, which :attr:`solver_cfg` describes.
+    Downstream code can subclass :class:`NewtonManager` and set this field.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
-    """Manager factory called without arguments by SimulationContext, unless an instance is injected."""
+    """Manager class, constructed by SimulationContext as ``instantiate(cfg)``."""
 
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
@@ -161,11 +157,10 @@ class NewtonCfg(PhysicsCfg):
        overhead therefore grow with contact capacity. Enable this mode only
        when its reproducibility guarantee is required.
 
-    MJWarp on the GPU with
-    :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to
-    ``True``, XPBD, and Featherstone support this setting. Newton raises an
-    error during solver initialization for unsupported solvers rather than
-    silently running them without the requested guarantee.
+    MJWarp on the GPU (built with its sensor stage disabled), XPBD, and
+    Featherstone support this setting. Newton raises an error during solver
+    initialization for unsupported solvers rather than silently running them
+    without the requested guarantee.
     """
 
     solver_cfg: NewtonSolverCfg | None = None
@@ -253,6 +248,8 @@ class NewtonCfg(PhysicsCfg):
     """
 
     def __post_init__(self):
+        if self.class_type is None:
+            raise ValueError("NewtonCfg.class_type must select a NewtonManager class; omit it for the default.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
             raise ValueError(
                 "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "

@@ -38,7 +38,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg, solver_spec
+from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -52,6 +52,8 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
+
+from .newton_key_event_source import NewtonKeyEventSource
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,10 @@ class NewtonViewerGL(ViewerGL):
 
     _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
+    camera_keys_suspended = False
+    """Set while keyboard camera movement is disabled (see :meth:`NewtonVisualizerBase.set_camera_keys_enabled`)."""
+    keyboard_frame_hook: Callable[[], object] | None = None
+    """Called after every frame while a :class:`NewtonKeyEventSource` listens, to track ImGui keyboard ownership."""
 
     def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -389,6 +395,8 @@ class NewtonViewerGL(ViewerGL):
             super().end_frame()
         finally:
             self._fullscreen_image_active = False
+        if self.keyboard_frame_hook is not None:
+            self.keyboard_frame_hook()
         if self._close_requested:
             self.close()
 
@@ -407,6 +415,12 @@ class NewtonViewerGL(ViewerGL):
         """Image coordinates must not pick objects in the hidden perspective scene."""
         if not self._fullscreen_image_active:
             super().on_mouse_press(x, y, button, modifiers)
+
+    def _update_camera(self, dt: float):
+        """Move the camera from held keys, unless keyboard camera movement is disabled."""
+        if self.camera_keys_suspended:
+            return
+        super()._update_camera(dt)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply configured model-particle appearance while preserving Newton's point logging.
@@ -487,6 +501,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
+        self._camera_keys_enabled = True
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -508,7 +523,14 @@ class NewtonVisualizerBase(BaseVisualizer):
                 window_cfg=self.cfg.window,
             )  # fmt: skip
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        self._viewer.camera_keys_suspended = not self._camera_keys_enabled
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+        if not self._runtime_headless:
+            # keyboard input is optional: a failure here must not stop the visualizer from starting
+            try:
+                self._key_event_source = NewtonKeyEventSource(self._viewer)
+            except Exception:
+                logger.exception("[%s] Keyboard input is unavailable", type(self).__name__)
 
     def log_mesh(
         self,
@@ -670,6 +692,16 @@ class NewtonVisualizerBase(BaseVisualizer):
                 view.invalidate()
         super().close()
 
+    def set_camera_keys_enabled(self, enabled: bool) -> None:
+        """Enable or disable the window's WASD/QE and arrow-key camera movement.
+
+        Mouse camera control and the viewer's other hotkeys keep working. The setting also applies to a
+        window opened later by :meth:`initialize`.
+        """
+        self._camera_keys_enabled = enabled
+        if self._viewer is not None:
+            self._viewer.camera_keys_suspended = not enabled
+
     def supports_markers(self) -> bool:
         """Return whether visualization markers are enabled for this viewer."""
         return self.cfg.enable_markers
@@ -818,7 +850,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         picking_supported = (
             physics_backend is not None
             and physics_backend.solver is not None
-            and solver_spec(physics_backend.solver_cfg).body_forces(physics_backend.solver_cfg)
+            and physics_backend.cfg.solver_cfg.class_type.applies_body_forces(
+                physics_backend.cfg.solver_cfg, physics_backend.solver
+            )
         )
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:
@@ -936,13 +970,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.picking_enabled = self._picking_enabled
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            # A hard reset discards the Newton backend and its callbacks, so register picking with the new one.
             self._sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
 
     def close(self) -> None:
         """Release picking and scene references without destroying Kit's shared GL context."""
         if self._is_closed:
             return
+        self._close_key_event_source()
         try:
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
@@ -1179,7 +1213,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         for renderer in self._renderers:
             renderer.log_mesh(f"Viewer_{id(self)}/{name.lstrip('/')}", *args, **kwargs)
         for view in self._image_views:
-            view.camera.update(0.0)
+            view.camera._invalidate_buffers()
             view.invalidate()
 
     def _render_frame(self) -> None:
@@ -1190,7 +1224,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 self._navigate_scene_camera()
                 if self.cfg.enable_markers and self._marker_revision != self._sim.vis_marker_registry.revision:
                     for view in self._image_views:
-                        view.camera.update(0.0)
+                        view.camera._invalidate_buffers()
                         view.invalidate()
                     self._marker_revision = self._sim.vis_marker_registry.revision
             self._log_streaming_image()
@@ -1202,6 +1236,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         """Close the window; scene cameras retain their render products and shared renderer."""
         if self._is_closed:
             return
+        self._close_key_event_source()
         try:
             if self._viewer is not None:
                 self._viewer.close()

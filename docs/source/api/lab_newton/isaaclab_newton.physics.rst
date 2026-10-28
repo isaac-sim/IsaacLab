@@ -8,7 +8,6 @@
   .. autosummary::
 
     NewtonManager
-    SolverSpec
     CapturedGraph
     NewtonBackend
     NewtonCloneRecord
@@ -19,6 +18,13 @@
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
     NewtonShapeCfg
+    NewtonSolver
+    MJWarpSolver
+    VBDSolver
+    XPBDSolver
+    FeatherstoneSolver
+    KaminoSolver
+    MPMSolver
     NewtonSolverCfg
     MJWarpSolverCfg
     VBDSolverCfg
@@ -58,15 +64,34 @@ Physics Manager
 .. autoclass:: NewtonCloneRecord
   :members:
 
-Backend Functions
------------------
-
 .. automodule:: isaaclab_newton.physics.newton_backend
-  :members: init_solver, forward, invalidate_fk, invalidate_body_state, mark_model_changed, notify_model_changes,
-    activate_actuators, add_contact_sensor, add_imu_sensor, handles_decimation, set_decimation, invalidate_graph,
-    step, capture_graph, run_query, refit_bvh
+  :members: capture_graph
 
 .. currentmodule:: isaaclab_newton.physics
+
+Solvers
+-------
+
+.. autoclass:: NewtonSolver
+  :members:
+
+.. autoclass:: MJWarpSolver
+  :show-inheritance:
+
+.. autoclass:: VBDSolver
+  :show-inheritance:
+
+.. autoclass:: XPBDSolver
+  :show-inheritance:
+
+.. autoclass:: FeatherstoneSolver
+  :show-inheritance:
+
+.. autoclass:: KaminoSolver
+  :show-inheritance:
+
+.. autoclass:: MPMSolver
+  :show-inheritance:
 
 Actuator Solver Access
 ----------------------
@@ -190,36 +215,7 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-Solver Specifications
----------------------
-
-.. autoclass:: SolverSpec
-  :members:
-
-.. autofunction:: solver_spec
-
-.. autofunction:: build_from_cfg
-
-.. autofunction:: register_builder_attributes
-
-.. autofunction:: usd_schema_resolvers
-
-.. autodata:: MJWARP_SPEC
-  :annotation:
-
-.. autodata:: VBD_SPEC
-  :annotation:
-
-.. autodata:: XPBD_SPEC
-  :annotation:
-
-.. autodata:: FEATHERSTONE_SPEC
-  :annotation:
-
-.. autodata:: KAMINO_SPEC
-  :annotation:
-
-.. autodata:: MPM_SPEC
-  :annotation:
+MPM Solver State
+----------------
 
 .. autofunction:: reset_mpm_solver_state

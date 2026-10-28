@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import warp as wp
@@ -16,16 +18,16 @@ from isaaclab_newton.physics import (
     NewtonBackend,
     NewtonBackendCfg,
     NewtonCfg,
+    NewtonManager,
     XPBDSolverCfg,
-    solver_spec,
 )
-from isaaclab_newton.physics import newton_backend as nb
 from newton import CollisionPipeline, Mesh, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
+from isaaclab.sim import SimulationContext
+
 from isaaclab_contrib.coupling import (
-    COUPLER_SPEC,
     CouplerAdmmCfg,
     CouplerEntryCfg,
     CouplerProxyCfg,
@@ -33,13 +35,21 @@ from isaaclab_contrib.coupling import (
 )
 
 
-def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonBackend:
-    """Build a backend finalized from ``builder`` whose coupler solver and contacts are constructed."""
-    cfg = NewtonBackendCfg(physics_cfg=NewtonCfg(solver_cfg=solver_cfg), device="cpu")
-    backend = NewtonBackend(cfg, builder, dt=1.0 / 60.0)
-    assert solver_spec(backend.solver_cfg) is COUPLER_SPEC
-    nb.init_solver(backend)
-    return backend
+def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonManager:
+    """Build a manager over a backend finalized from ``builder`` whose coupler solver and contacts are constructed."""
+    cfg = NewtonCfg(solver_cfg=solver_cfg)
+    manager = NewtonManager(cfg)
+    manager._device = "cpu"
+    manager._sim = SimpleNamespace(
+        get_or_create_backend=lambda _: builder,
+        get_clone_plan=lambda: SimpleNamespace(env_template="/Lab/Cells/Cell{}"),
+        _prepare_newton_visualizer_for_capture=lambda: None,
+    )
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(SimulationContext, "instance", lambda: manager._sim)
+        manager.backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), dt=1.0 / 60.0)
+    manager.initialize_solver()
+    return manager
 
 
 def _build_overlapping_bodies(*, mesh_contact: bool = False) -> ModelBuilder:
@@ -50,7 +60,7 @@ def _build_overlapping_bodies(*, mesh_contact: bool = False) -> ModelBuilder:
             triangle-pair allocation and contact reduction in the capacity test.
     """
     builder = ModelBuilder(gravity=(0.0, 0.0, -9.81))
-    for x, label in ((-0.09, "/World/Source/body"), (0.09, "/World/Destination/body")):
+    for x, label in ((-0.09, "/Lab/Cells/Cell0/Source/body"), (0.09, "/World/Destination/body")):
         body = builder.add_body(
             xform=wp.transform(wp.vec3(x, 0.0, 1.0), wp.quat_identity()),
             mass=1.0,
@@ -76,7 +86,7 @@ def _entry_configs() -> list[CouplerEntryCfg]:
         CouplerEntryCfg(
             name="source",
             solver_cfg=XPBDSolverCfg(iterations=2),
-            bodies=[r"/World/Source/body"],
+            bodies=["{ENV_REGEX_NS}/Source/body"],
         ),
         CouplerEntryCfg(
             name="destination",
@@ -93,7 +103,7 @@ def test_proxy_destination_can_receive_only_proxy_bodies():
             CouplerEntryCfg(
                 name="source",
                 solver_cfg=XPBDSolverCfg(iterations=2),
-                bodies=[r"/World/Source/body"],
+                bodies=["{ENV_REGEX_NS}/Source/body"],
             ),
             CouplerEntryCfg(name="destination", solver_cfg=XPBDSolverCfg(iterations=2)),
         ],
@@ -101,12 +111,12 @@ def test_proxy_destination_can_receive_only_proxy_bodies():
             CouplerProxyMappingCfg(
                 source="source",
                 destination="destination",
-                bodies=[r"/World/Source/body"],
+                bodies=["{ENV_REGEX_NS}/Source/body"],
             )
         ],
     )
 
-    backend = _bind_coupler(builder, solver_cfg)
+    backend = _bind_coupler(builder, solver_cfg).backend
 
     assert backend.solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
 
@@ -123,7 +133,7 @@ def test_real_coupler_constructs_resets_and_steps(
     algorithm: str,
     expected_solver_type: type,
 ):
-    """Step supported coupling configurations without overwriting nested-solver joint state."""
+    """Resolve cloned/global selectors and step without overwriting nested-solver joint state."""
     builder = _build_overlapping_bodies(mesh_contact=algorithm == "admm_capacity")
     entries = _entry_configs()
     if algorithm == "proxy":
@@ -152,7 +162,8 @@ def test_real_coupler_constructs_resets_and_steps(
         with pytest.raises(RuntimeError, match=r"Newton.*does not support contact_max_triangle_pairs"):
             _bind_coupler(builder, solver_cfg)
         return
-    backend = _bind_coupler(builder, solver_cfg)
+    manager = _bind_coupler(builder, solver_cfg)
+    backend = manager.backend
     model = backend.model
     solver = backend.solver
 
@@ -197,7 +208,7 @@ def test_real_coupler_constructs_resets_and_steps(
     backend.state_0 = state_0
     backend.state_1 = state_1
     backend.control = control
-    nb.step(backend)
+    backend._run_solver_substeps(contacts)
     state_1 = backend.state_0
 
     body_q_after = state_1.body_q.numpy()

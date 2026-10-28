@@ -319,7 +319,7 @@ class MPMObject(BaseDeformableObject):
             self._data._particle_vel_w.timestamp = -1.0
             self._data._root_vel_w.timestamp = -1.0
         self._data._particle_state_w.timestamp = -1.0
-        self._backend_manager.mark_particles_dirty()
+        self._backend_manager._mark_particles_dirty()
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         raise NotImplementedError("Debug visualization is not implemented for MPMObject.")

@@ -14,6 +14,7 @@ isaaclab_contrib.coupling
   CouplerProxyMappingCfg
   CouplerProxyCfg
   CouplerAdmmCfg
+  CouplerSolver
 
 Coupler Configurations
 ----------------------
@@ -43,12 +44,9 @@ Coupler Configurations
   :show-inheritance:
   :exclude-members: __init__
 
-Newton Coupler
+Coupler Solver
 --------------
 
-.. autodata:: COUPLER_SPEC
-  :annotation:
-
-.. autofunction:: coupler_builder
-
-.. autofunction:: construct_coupled
+.. autoclass:: CouplerSolver
+  :members:
+  :show-inheritance:

@@ -62,7 +62,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     class Manager(PhysicsManager):
         reset = forward = get_scene_data_backend = step = lambda self, *args, **kwargs: None
 
-    manager = Manager()
+    manager = Manager(PhysicsCfg())
     manager._device = "cpu"
     asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+/Cube", spawn=SpawnerCfg(spawn_path="/Scene/Source/Cube"))
     plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
@@ -117,8 +117,9 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSolverCfg
     from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
+    from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
@@ -126,26 +127,27 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"),
         body_f=wp.zeros(1, dtype=wp.spatial_vectorf, device="cpu"),
     )
-    owner = NewtonManager()
+    owner = NewtonManager(
+        NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=SimpleNamespace(reset=Mock(), eval_fk=Mock())))
+    )
+    eval_fk = owner._cfg.solver_cfg.class_type.eval_fk
     owner._device = "cpu"
-    backend = NewtonSceneDataBackend(lambda: owner.backend)
+    backend = NewtonSceneDataBackend(owner)
     provider = SceneDataProvider(backend)
-    from isaaclab_newton.physics import SolverSpec
 
-    eval_fk = Mock()
-    newton_backend = SimpleNamespace(
+    newton_backend = backend_stub(
+        cfg=owner._cfg,
         model_changes=set(),
         model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
         state_0=state,
-        device=wp.get_device("cpu"),
-        cfg=SimpleNamespace(),
         solver=None,
-        solver_cfg=SimpleNamespace(class_type=SolverSpec(reset=Mock(), eval_fk=eval_fk)),
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         world_ids=wp.zeros(1, dtype=wp.int32, device="cpu"),
+        is_stepping=False,
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
+        device=wp.get_device("cpu"),
     )
     monkeypatch.setattr(owner, "backend", newton_backend)
     monkeypatch.setattr(owner, "_scene_data_backend", backend)

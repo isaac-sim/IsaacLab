@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 from isaaclab_visualizers.newton import (
     NewtonGLBackendCfg,
     NewtonGLVisualizer,
@@ -261,7 +261,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     )
     sim = object.__new__(SimulationContext)
     sim._scene_data_provider, sim._backend_registry, sim._physics_step_count = provider, [], 0
-    sim.backend_manager = NewtonManager()
+    sim.backend_manager = NewtonManager(NewtonCfg())
     viewers = []
     for ids in ([0, 2], [1, 3]):
         cfg = VisualizerCfg(
@@ -664,7 +664,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
         get_scene_data_provider=lambda: provider,
         get_physics_step_count=lambda: visualizer._sim_time,
         is_rendering=True,
-        backend_manager=NewtonManager(),
+        backend_manager=NewtonManager(NewtonCfg()),
     )
     from isaaclab.visualizers import ImageView, ImageViewCfg
 
@@ -713,11 +713,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
-    register_state_force_callback = Mock()
-    sim = SimpleNamespace(
-        get_or_create_backend=Mock(return_value=backend),
-        backend_manager=SimpleNamespace(register_state_force_callback=register_state_force_callback),
-    )
+    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), backend_manager=Mock())
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
     viewer = _Viewer()
@@ -753,11 +749,12 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert viewer.picking_enabled is picking
     if picking:
         assert viewer.wind is None
-        # The hard reset discarded the old backend's callbacks, so picking forces join the new step.
-        register_state_force_callback.assert_called_once()
-        assert register_state_force_callback.call_args.args == (visualizer._viewer_picking_binding.apply,)
+        # The new backend's step must apply picking forces again.
+        sim.backend_manager.register_state_force_callback.assert_called_once_with(
+            visualizer._viewer_picking_binding.apply
+        )
     else:
-        register_state_force_callback.assert_not_called()
+        sim.backend_manager.register_state_force_callback.assert_not_called()
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 

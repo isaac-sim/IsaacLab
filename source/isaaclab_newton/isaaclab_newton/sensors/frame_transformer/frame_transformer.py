@@ -15,7 +15,7 @@ from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameT
 from isaaclab.sim.utils.queries import split_path_expr
 from isaaclab.utils.version import has_kit
 
-from isaaclab_newton.physics.newton_backend import capture_graph
+from isaaclab_newton.physics import newton_backend
 
 from .frame_transformer_data import FrameTransformerData
 from .frame_transformer_kernels import copy_from_newton_kernel
@@ -303,12 +303,14 @@ class FrameTransformer(BaseFrameTransformer):
         """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
-        state = self._backend_manager.backend.state_0
+        state = self._backend_manager.get_scene_data_backend().state
         device = state.body_q.device
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr
             if self._update_graph is None or self._update_graph[0] != pointers:
-                graph = capture_graph(self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit())
+                graph = newton_backend.capture_graph(
+                    self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit()
+                )
                 self._update_graph = pointers, graph
             self._update_graph[1].launch()
             return
