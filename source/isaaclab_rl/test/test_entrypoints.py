@@ -943,6 +943,39 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
         torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])
 
 
+@pytest.mark.parametrize(
+    ("entry", "num_actions"),
+    [
+        ("isaaclab_tasks.contrib.keyboard.agents.rsl_rl_ppo_cfg:SO101PPORunnerCfg", 6),
+        ("isaaclab_tasks.contrib.multitask_manipulation.agents.rsl_rl_ppo_cfg:MultitaskManipulationPPORunnerCfg", 22),
+        ("isaaclab_tasks.core.lift.config.kuka_allegro.agents.rsl_rl_ppo_cfg:KukaAllegroSingleCameraPPORunnerCfg", 16),
+    ],
+)
+def test_custom_rsl_models_construct_from_serialized_configs(entry: str, num_actions: int) -> None:
+    """Model-specific options do not leak into existing custom constructor signatures."""
+    from rsl_rl.utils import resolve_callable
+    from tensordict import TensorDict
+
+    cfg = resolve_callable(entry)().to_dict()
+    assert "network_cfg" not in cfg["actor"] and "network_cfg" not in cfg["critic"]
+    obs = TensorDict(
+        {
+            "policy": torch.randn(4, 30),
+            "proprio": torch.randn(4, 12),
+            "perception": torch.randn(4, 5),
+            "base_image": torch.zeros(4, 3, 64, 64, dtype=torch.uint8),
+        },
+        batch_size=[4],
+    )
+    obs["policy"][:, :3] = torch.nn.functional.one_hot(torch.arange(4) % 3, 3).float()
+    cfg["multi_gpu"] = None
+    algorithm = resolve_callable(cfg["algorithm"]["class_name"]).construct_algorithm(
+        obs, SimpleNamespace(num_envs=4, num_actions=num_actions), cfg, "cpu"
+    )
+    assert algorithm.actor(obs).shape == (4, num_actions)
+    assert torch.isfinite(algorithm.critic(obs)).all()
+
+
 def test_sac_configuration_tracks_native_constructor() -> None:
     """Typed SAC options retain native defaults and reject unknown Hydra fields."""
     import inspect

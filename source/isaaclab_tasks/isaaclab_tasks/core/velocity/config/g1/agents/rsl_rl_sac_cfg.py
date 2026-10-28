@@ -14,6 +14,7 @@ from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
     RslRlQMLPModelCfg,
     RslRlResidualMLPCfg,
+    RslRlResidualMLPModelCfg,
     RslRlSacAlgorithmCfg,
     RslRlSacRunnerCfg,
 )
@@ -29,7 +30,7 @@ class G1FlatSACRunnerCfg(RslRlSacRunnerCfg):
     experiment_name = "g1_flat_sac"
     clip_actions = None
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}
-    actor = RslRlMLPModelCfg(
+    actor = RslRlResidualMLPModelCfg(
         hidden_dims=[],
         activation="relu",
         obs_normalization=False,

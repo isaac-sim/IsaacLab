@@ -146,6 +146,7 @@ class _DirectTensorEnv(_TensorEnv, DirectRLEnv):
         pytest.param("sb3", MANAGER_TASK, MANAGER_TASK, False, "default", id="sb3-dict-normalization"),
         pytest.param("rsl_rl", _DIRECT_TASK, MANAGER_TASK, True, "default", id="direct-rsl-rl"),
         pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, "default", id="ur10-rsl-rl"),
+        pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, "encoded", id="rsl-rl-encoded-observations"),
     ],
 )
 def test_leapp_export_flow(
@@ -165,6 +166,15 @@ def test_leapp_export_flow(
         "rsl_rl_distillation_cfg_entry_point" if policy_kind == "distillation" else f"{backend}_cfg_entry_point"
     )
     agent_cfg = load_cfg_from_registry(checkpoint_task, agent_entry)
+    if policy_kind == "encoded":
+        from isaaclab_tasks.contrib.keyboard.agents.rsl_rl_ppo_cfg import SharedEncoderMLPModelCfg
+
+        agent_cfg.actor = SharedEncoderMLPModelCfg(
+            hidden_dims=[8],
+            activation="elu",
+            distribution_cfg=agent_cfg.actor.distribution_cfg,
+            encoder_cfg={"policy": SharedEncoderMLPModelCfg.EncoderCfg(hidden_dims=[8], latent_dim=4)},
+        )
     checkpoint = _CREATORS[backend](_CheckpointEnv(checkpoint_task, backend), agent_cfg, tmp_path)
     env_cfg = load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point")
     connected = backend == "rsl_rl" and task == MANAGER_TASK and not direct

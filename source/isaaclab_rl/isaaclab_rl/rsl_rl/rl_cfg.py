@@ -54,9 +54,6 @@ class RslRlMLPModelCfg:
     obs_normalization: bool = False
     """Whether to normalize the observation for the model. Defaults to False."""
 
-    network_cfg: RslRlResidualMLPCfg | None = None
-    """Optional network implementation; None keeps the standard MLP."""
-
     distribution_cfg: DistributionCfg | None = None
     """The configuration for the output distribution. Defaults to None, in which case no distribution is used."""
 
@@ -108,7 +105,15 @@ class RslRlMLPModelCfg:
 
 
 @configclass
-class RslRlQMLPModelCfg(RslRlMLPModelCfg):
+class RslRlResidualMLPModelCfg(RslRlMLPModelCfg):
+    """MLP model with an optional residual network implementation."""
+
+    network_cfg: RslRlResidualMLPCfg | None = None
+    """Optional network implementation; None keeps the standard MLP."""
+
+
+@configclass
+class RslRlQMLPModelCfg(RslRlResidualMLPModelCfg):
     """State-action critic using the same configurable networks as the actor."""
 
     class_name: str = "QMLPModel"
