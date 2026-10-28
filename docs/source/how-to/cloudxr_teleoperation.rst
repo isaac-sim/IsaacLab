@@ -16,7 +16,7 @@ upstream setup instructions.
 
 .. note::
 
-   Isaac Lab installs ``isaaccapture~=1.7.44a1`` through the ``teleop`` extra. This release retains
+   Isaac Lab installs ``isaaccapture==1.7.68a1`` through the ``teleop`` extra. This release retains
    the ``isaacteleop`` compatibility import used in this guide; new integrations should use
    ``isaaccapture``. See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
@@ -388,7 +388,7 @@ choose the tab that matches your hardware.
          .. note::
 
             The web client URL is versioned. The ``release-1.7.x`` path corresponds to the
-            ``isaaccapture`` version pinned by Isaac Lab (``isaaccapture~=1.7.44a1`` in the ``teleop``
+            ``isaaccapture`` version pinned by Isaac Lab (``isaaccapture==1.7.68a1`` in the ``teleop``
             extra of the root ``pyproject.toml``). When Isaac Lab updates its teleoperation
             dependency, update this link to the matching client release.
 
@@ -596,7 +596,7 @@ Prerequisites
      step has not been completed.
 
   Clone the repository and check out the release branch matching the ``isaaccapture`` version Isaac
-  Lab is pinned to (``isaaccapture~=1.7.44a1`` in the ``teleop`` extra of the root
+  Lab is pinned to (``isaaccapture==1.7.68a1`` in the ``teleop`` extra of the root
   ``pyproject.toml``), so the plugin's wire format matches the ``isaaccapture`` package Isaac Lab
   installs:
 
