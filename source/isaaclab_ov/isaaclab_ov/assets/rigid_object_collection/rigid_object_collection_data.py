@@ -24,8 +24,6 @@ from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
-_PACK_STATE_2D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2)
-
 
 class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     """Data container for a rigid object collection.
@@ -292,7 +290,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self._default_body_state_ta = ProxyArray(self._default_body_state)
         self._read_launch_cache.launch(
             "default_body_state",
-            _PACK_STATE_2D,
+            memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
             dim=(self.num_instances, self.num_bodies),
             inputs=[
                 self._default_body_pose,
@@ -489,7 +487,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_pose_w, self.body_com_vel_w],
                 outputs=[self._body_state_w.data],
@@ -511,7 +509,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_pose_w, self.body_link_vel_w],
                 outputs=[self._body_link_state_w.data],
@@ -533,7 +531,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_com_pose_w, self.body_com_vel_w],
                 outputs=[self._body_com_state_w.data],

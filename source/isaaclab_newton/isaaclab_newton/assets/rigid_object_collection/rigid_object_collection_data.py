@@ -29,9 +29,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_PACK_STATE_2D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2)
-
-
 class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     """Data container for a rigid object collection.
 
@@ -874,7 +871,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self._default_body_state_ta = ProxyArray(self._default_body_state)
         self._read_launch_cache.launch(
             "default_body_state",
-            _PACK_STATE_2D,
+            memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._default_body_pose, self._default_body_vel],
             outputs=[self._default_body_state],
@@ -893,7 +890,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_link_pose_w.warp,
@@ -919,7 +916,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_link_pose_w.warp,
@@ -945,7 +942,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_com_pose_w.warp,

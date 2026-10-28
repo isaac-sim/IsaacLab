@@ -22,6 +22,7 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.index_kernel import selector_dtype
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -30,13 +31,6 @@ from isaaclab_ov.assets.kernels import _body_wrench_to_world
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .rigid_object_data import RigidObjectData
-
-_COPY_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=False)
-_COPY_FLOAT32_2D_MASKED = memory.make_write(wp.float32, 2, indexed=False, fill=False)
-_COPY_TRANSFORMF_2D_INDEXED = memory.make_write(wp.transformf, 2, indexed=True, fill=False)
-_COPY_TRANSFORMF_2D_MASKED = memory.make_write(wp.transformf, 2, indexed=False, fill=False)
-_COPY_FLOAT32_3D_INDEXED = memory.make_write(wp.float32, 3, indexed=True, fill=False)
-_COPY_FLOAT32_3D_MASKED = memory.make_write(wp.float32, 3, indexed=False, fill=False)
 
 
 class RigidObject(BaseRigidObject):
@@ -715,9 +709,9 @@ class RigidObject(BaseRigidObject):
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Scatter user data into the cached _body_mass at (env_ids, body_ids).
         wp.launch(
-            _COPY_FLOAT32_2D_INDEXED.select(env_ids, body_ids),
+            memory.make_copy(wp.float32, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[masses, env_ids, body_ids, False],
+            inputs=[masses, env_ids, body_ids],
             outputs=[self.data._body_mass, sim_env_ids],
             device=self._device,
         )
@@ -752,9 +746,9 @@ class RigidObject(BaseRigidObject):
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
         wp.launch(
-            _COPY_FLOAT32_2D_MASKED,
+            memory.make_copy(wp.float32, 2),
             dim=(self._num_instances, self._num_bodies),
-            inputs=[masses, env_mask_wp, body_mask_wp, True],
+            inputs=[masses, env_mask_wp, body_mask_wp],
             outputs=[self.data._body_mass, None],
             device=self._device,
         )
@@ -793,9 +787,9 @@ class RigidObject(BaseRigidObject):
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            _COPY_TRANSFORMF_2D_INDEXED.select(env_ids, body_ids),
+            memory.make_copy(wp.transformf, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids, False],
+            inputs=[coms, env_ids, body_ids],
             outputs=[self.data._body_com_pose_b.data, sim_env_ids],
             device=self._device,
         )
@@ -834,9 +828,9 @@ class RigidObject(BaseRigidObject):
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         wp.launch(
-            _COPY_TRANSFORMF_2D_MASKED,
+            memory.make_copy(wp.transformf, 2),
             dim=(self._num_instances, self._num_bodies),
-            inputs=[coms, env_mask_wp, body_mask_wp, True],
+            inputs=[coms, env_mask_wp, body_mask_wp],
             outputs=[self.data._body_com_pose_b.data, None],
             device=self._device,
         )
@@ -877,9 +871,9 @@ class RigidObject(BaseRigidObject):
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            _COPY_FLOAT32_3D_INDEXED.select(env_ids, body_ids),
+            memory.make_copy(wp.float32, 3, selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0], 9),
-            inputs=[inertias, env_ids, body_ids, False],
+            inputs=[inertias, env_ids, body_ids],
             outputs=[self.data._body_inertia, sim_env_ids],
             device=self._device,
         )
@@ -917,9 +911,9 @@ class RigidObject(BaseRigidObject):
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
         wp.launch(
-            _COPY_FLOAT32_3D_MASKED,
+            memory.make_copy(wp.float32, 3),
             dim=(self._num_instances, self._num_bodies, 9),
-            inputs=[inertias, env_mask_wp, body_mask_wp, True],
+            inputs=[inertias, env_mask_wp, body_mask_wp],
             outputs=[self.data._body_inertia, None],
             device=self._device,
         )

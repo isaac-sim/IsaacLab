@@ -28,6 +28,7 @@ from isaaclab.utils.string import resolve_matching_names, resolve_matching_names
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp.index_kernel import selector_dtype
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -46,10 +47,6 @@ logger = logging.getLogger(__name__)
 
 _GPU_ARTICULATION_ALIASING_LINK_THRESHOLD = 64
 _GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD = 32
-
-
-_FILL_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=True)
-_COPY_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=False)
 
 
 class Articulation(BaseArticulation):
@@ -1359,17 +1356,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids)),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[stiffness, env_ids, joint_ids, False],
+                inputs=[stiffness, env_ids, joint_ids],
                 outputs=[self.data._joint_stiffness, sim_env_ids],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[stiffness, env_ids, joint_ids, full_data],
+                inputs=[stiffness, env_ids, joint_ids],
                 outputs=[self.data._joint_stiffness, sim_env_ids],
                 device=self.device,
             )
@@ -1448,17 +1447,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids)),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[damping, env_ids, joint_ids, False],
+                inputs=[damping, env_ids, joint_ids],
                 outputs=[self.data._joint_damping, sim_env_ids],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[damping, env_ids, joint_ids, full_data],
+                inputs=[damping, env_ids, joint_ids],
                 outputs=[self.data._joint_damping, sim_env_ids],
                 device=self.device,
             )
@@ -1700,17 +1701,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limits, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids)),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[limits, env_ids, joint_ids, False],
+                inputs=[limits, env_ids, joint_ids],
                 outputs=[self.data._joint_vel_limits, sim_env_ids],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[limits, env_ids, joint_ids, full_data],
+                inputs=[limits, env_ids, joint_ids],
                 outputs=[self.data._joint_vel_limits, sim_env_ids],
                 device=self.device,
             )
@@ -1796,17 +1799,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limits, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids)),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[limits, env_ids, joint_ids, False],
+                inputs=[limits, env_ids, joint_ids],
                 outputs=[self.data._joint_effort_limits, sim_env_ids],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[limits, env_ids, joint_ids, full_data],
+                inputs=[limits, env_ids, joint_ids],
                 outputs=[self.data._joint_effort_limits, sim_env_ids],
                 device=self.device,
             )
@@ -1888,17 +1893,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(armature, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids)),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[armature, env_ids, joint_ids, False],
+                inputs=[armature, env_ids, joint_ids],
                 outputs=[self.data._joint_armature, sim_env_ids],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, joint_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(joint_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[armature, env_ids, joint_ids, full_data],
+                inputs=[armature, env_ids, joint_ids],
                 outputs=[self.data._joint_armature, sim_env_ids],
                 device=self.device,
             )
@@ -2681,17 +2688,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[stiffness, env_ids, fixed_tendon_ids, False],
+                inputs=[stiffness, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_stiffness, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[stiffness, env_ids, fixed_tendon_ids, full_data],
+                inputs=[stiffness, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_stiffness, None],
                 device=self.device,
             )
@@ -2768,17 +2777,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[damping, env_ids, fixed_tendon_ids, False],
+                inputs=[damping, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_damping, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[damping, env_ids, fixed_tendon_ids, full_data],
+                inputs=[damping, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_damping, None],
                 device=self.device,
             )
@@ -2859,17 +2870,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limit_stiffness, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[limit_stiffness, env_ids, fixed_tendon_ids, False],
+                inputs=[limit_stiffness, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_limit_stiffness, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[limit_stiffness, env_ids, fixed_tendon_ids, full_data],
+                inputs=[limit_stiffness, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_limit_stiffness, None],
                 device=self.device,
             )
@@ -3028,17 +3041,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(rest_length, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[rest_length, env_ids, fixed_tendon_ids, False],
+                inputs=[rest_length, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_rest_length, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[rest_length, env_ids, fixed_tendon_ids, full_data],
+                inputs=[rest_length, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_rest_length, None],
                 device=self.device,
             )
@@ -3169,17 +3184,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(offset, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[offset, env_ids, fixed_tendon_ids, False],
+                inputs=[offset, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_offset, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[offset, env_ids, fixed_tendon_ids, full_data],
+                inputs=[offset, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_offset, None],
                 device=self.device,
             )
@@ -3349,17 +3366,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids)),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[stiffness, env_ids, spatial_tendon_ids, False],
+                inputs=[stiffness, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_stiffness, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[stiffness, env_ids, spatial_tendon_ids, full_data],
+                inputs=[stiffness, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_stiffness, None],
                 device=self.device,
             )
@@ -3436,17 +3455,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids)),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[damping, env_ids, spatial_tendon_ids, False],
+                inputs=[damping, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_damping, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[damping, env_ids, spatial_tendon_ids, full_data],
+                inputs=[damping, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_damping, None],
                 device=self.device,
             )
@@ -3528,17 +3549,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limit_stiffness, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids)),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[limit_stiffness, env_ids, spatial_tendon_ids, False],
+                inputs=[limit_stiffness, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_limit_stiffness, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[limit_stiffness, env_ids, spatial_tendon_ids, full_data],
+                inputs=[limit_stiffness, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_limit_stiffness, None],
                 device=self.device,
             )
@@ -3615,17 +3638,19 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(offset, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids)),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[offset, env_ids, spatial_tendon_ids, False],
+                inputs=[offset, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_offset, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, spatial_tendon_ids),
+                memory.make_copy(
+                    wp.float32, 2, selector_dtype(env_ids), selector_dtype(spatial_tendon_ids), full_source=full_data
+                ),
                 dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-                inputs=[offset, env_ids, spatial_tendon_ids, full_data],
+                inputs=[offset, env_ids, spatial_tendon_ids],
                 outputs=[self.data._spatial_tendon_offset, None],
                 device=self.device,
             )

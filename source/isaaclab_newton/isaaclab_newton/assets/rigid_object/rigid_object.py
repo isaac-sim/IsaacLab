@@ -21,6 +21,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.index_kernel import selector_dtype
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -29,10 +30,6 @@ from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-
-
-_COPY_VEC3F_2D_INDEXED = memory.make_write(wp.vec3f, 2, indexed=True, fill=False)
-_COPY_VEC3F_2D_MASKED = memory.make_write(wp.vec3f, 2, indexed=False, fill=False)
 
 
 class RigidObject(BaseRigidObject):
@@ -896,9 +893,9 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            _COPY_VEC3F_2D_INDEXED.select(env_ids, body_ids),
+            memory.make_copy(wp.vec3f, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids, False],
+            inputs=[coms, env_ids, body_ids],
             outputs=[self.data.body_com_pos_b, None],
             device=self.device,
         )
@@ -942,9 +939,9 @@ class RigidObject(BaseRigidObject):
         coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
-            _COPY_VEC3F_2D_MASKED,
+            memory.make_copy(wp.vec3f, 2),
             dim=(env_mask.shape[0], body_mask.shape[0]),
-            inputs=[coms, env_mask, body_mask, True],
+            inputs=[coms, env_mask, body_mask],
             outputs=[self.data.body_com_pos_b, None],
             device=self.device,
         )

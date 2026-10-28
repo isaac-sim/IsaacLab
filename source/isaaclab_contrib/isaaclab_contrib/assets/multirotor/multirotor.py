@@ -32,9 +32,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_SPLIT_STATE = memory_kernels.make_split(wp.transformf, wp.spatial_vectorf, 1)
-
-
 class _ThrusterCollection(dict):
     """Name-keyed mapping of :class:`~isaaclab_contrib.actuators.Thruster` actuators.
 
@@ -405,7 +402,7 @@ class Multirotor(Articulation):
         vel_output = wp.zeros(self.num_instances, dtype=wp.spatial_vectorf, device=self.device)
         # Split state into pose and vel
         wp.launch(
-            _SPLIT_STATE,
+            memory_kernels.make_split(wp.transformf, wp.spatial_vectorf, 1),
             dim=self.num_instances,
             inputs=[default_root_state_wp, None],
             outputs=[pose_output, vel_output],

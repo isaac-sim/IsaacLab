@@ -32,6 +32,7 @@ import warp as wp
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.utils.warp import memory
+from isaaclab.utils.warp.index_kernel import selector_dtype
 
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 
@@ -42,10 +43,6 @@ if TYPE_CHECKING:
     from isaaclab_newton.assets.articulation.articulation import Articulation
 
 logger = logging.getLogger(__name__)
-
-
-_COPY_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=False)
-_COPY_FLOAT32_2D_MASKED = memory.make_write(wp.float32, 2, indexed=False, fill=False)
 
 
 class MjWarpTendonControl:
@@ -139,9 +136,9 @@ class MjWarpTendonControl:
         articulation.assert_shape_and_dtype(target, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "target")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+            memory.make_copy(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
             dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[target, env_ids, fixed_tendon_ids, False],
+            inputs=[target, env_ids, fixed_tendon_ids],
             outputs=[articulation.data._fixed_tendon_position_target, None],
             device=articulation.device,
         )
@@ -171,9 +168,9 @@ class MjWarpTendonControl:
         env_mask = articulation._resolve_mask(env_mask, articulation._ALL_ENV_MASK)
         fixed_tendon_mask = articulation._resolve_mask(fixed_tendon_mask, articulation._ALL_FIXED_TENDON_MASK)
         wp.launch(
-            _COPY_FLOAT32_2D_MASKED,
+            memory.make_copy(wp.float32, 2),
             dim=buffer.shape,
-            inputs=[target, env_mask, fixed_tendon_mask, True],
+            inputs=[target, env_mask, fixed_tendon_mask],
             outputs=[buffer, None],
             device=articulation.device,
         )

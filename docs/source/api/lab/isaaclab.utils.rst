@@ -298,23 +298,30 @@ shapes, strides and row/column selectors before launching a memory operation. Th
 has no body, joint, or coordinate-domain registry. Coordinate-to-DoF conversions and derived
 physical properties stay with their mathematical or backend owners.
 
-Bind concrete layouts at module import, before launch or capture. Factories cache kernels
-and isolate their Warp compilation modules, so another caller's specialization cannot
-invalidate an already compiled operation. For example::
+Request concrete kernels from cached factories where their configuration is known. Each factory
+defines and returns a kernel in an isolated Warp module. Only requested layouts are constructed;
+repeated calls return the same kernel object. For example::
 
+    import warp as wp
     from isaaclab.utils.warp import memory
+    from isaaclab.utils.warp.index_kernel import selector_dtype
 
     # The caller supplies element types and array rank.
-    concatenate = memory.make_concat(wp.vec2d, wp.vec3d, wp.types.vector(5, wp.float64), 2)
-    copy_selected = memory.make_write(wp.float32, 2, indexed=True, fill=False)
+    wp.launch(memory.make_concat(wp.vec2d, wp.vec3d, wp.types.vector(5, wp.float64), 2),
+              first.shape, [first, second, combined])
+    wp.launch(memory.make_copy(wp.float32, 2, selector_dtype(rows), selector_dtype(columns)),
+              (rows.shape[0], columns.shape[0]), [source, rows, columns, target, None])
+    wp.launch(memory.make_fill(wp.float32, 2), target.shape,
+              [0.0, row_mask, column_mask, target, None])
 
-    wp.launch(concatenate, first.shape, [first, second, combined])
-    wp.launch(copy_selected.select(rows, columns), (rows.size, columns.size),
-              [source, rows, columns, False, target, None])
+Python caches kernel construction; Warp separately caches compilation. Warm up the actual
+execution path before CUDA graph capture, including selector dtypes. Later specializations
+do not invalidate kernels already compiled or captured.
 
 Indexed writes select a Cartesian product and support compact or full-shaped sources,
 strided int32/int64 selectors, optional int32 row-ID output, typed elements, and rank-3
-trailing components. Masks select full-shaped inputs. Unselected destinations are unchanged.
+trailing components. ``make_copy(..., full_source=True)`` reads at destination indices;
+the default reads at launch indices. Masks select full-shaped inputs. Unselected destinations are unchanged.
 All arrays retain their own strides. Copy/fill indices must be valid; overlapping destination
 indices require identical values. ``split_views`` returns aliases without allocating storage.
 

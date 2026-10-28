@@ -35,10 +35,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_PACK_STATE_1D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1)
-_PACK_STATE_2D = memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2)
-
-
 class ArticulationData(BaseArticulationData):
     """Data container for an articulation.
 
@@ -2114,7 +2110,7 @@ class ArticulationData(BaseArticulationData):
             self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
         self._read_launch_cache.launch(
             "default_root_state",
-            _PACK_STATE_1D,
+            memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1),
             dim=self._num_instances,
             inputs=[self._default_root_pose, self._default_root_vel],
             outputs=[self._default_root_state],
@@ -2135,7 +2131,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
-                _PACK_STATE_1D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1),
                 dim=(self._num_instances),
                 inputs=[
                     self.root_link_pose_w,
@@ -2163,7 +2159,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                _PACK_STATE_1D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1),
                 dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w,
@@ -2191,7 +2187,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                _PACK_STATE_1D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 1),
                 dim=self._num_instances,
                 inputs=[
                     self.root_com_pose_w,
@@ -2224,7 +2220,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -2256,7 +2252,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -2290,7 +2286,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                _PACK_STATE_2D,
+                memory_kernels.make_concat(wp.transformf, wp.spatial_vectorf, vec13f, 2),
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_com_pose_w,

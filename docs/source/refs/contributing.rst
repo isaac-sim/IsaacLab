@@ -555,11 +555,21 @@ selectors; memory must not own body, joint, environment, or physical-quantity co
 Keep derived quantities and native solver mappings with their mathematical or backend owners.
 Delete superseded layout implementations and forwarding aliases without external callers.
 
-Bind required variants and integer overloads before launch or capture. Name factories
-``make_<operation>`` and reserve ``_kernel`` for concrete launchable kernels where useful.
-Cache open-ended layout specializations in isolated modules so later callers cannot invalidate
-compiled operations. Do not generate kernels during per-step updates or flatten strided inputs.
-Check dependency direction, aliasing, selector widths, and capture replay alongside numerical results.
+Use a cached factory that defines and returns a concrete ``wp.Kernel``, following the
+`MuJoCo Warp factory pattern <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/collision_driver.py>`_.
+Name factories ``make_<operation>``; use ``functools.cache`` for hashable type/rank arguments
+and ``@wp.kernel(module="unique")`` to isolate each specialization. Keep copy and fill signatures
+explicit. Do not return a dispatcher from a kernel factory or eagerly enumerate layout/type products.
+
+Call the factory where the configuration is known. Repeated calls reuse the same kernel; they do
+not redefine it. If a named variant improves readability, define only a used variant next to its
+factory in the owning kernel module, then import it. Do not scatter variant constants across
+implementation modules. Keep semantic configuration at the caller and preserve array strides.
+
+Python factory caching reuses kernel objects; Warp separately owns compilation and its disk cache.
+Warm up the actual execution path before graph capture, including the needed selector dtypes.
+Later specializations must not invalidate kernels already compiled or captured. Check this alongside
+dependency direction, aliasing, selector widths, and replay with changed inputs.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^

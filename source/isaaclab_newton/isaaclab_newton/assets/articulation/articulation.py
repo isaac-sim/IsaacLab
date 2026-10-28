@@ -34,6 +34,7 @@ from isaaclab.utils.string import resolve_matching_names, resolve_matching_names
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp.index_kernel import selector_dtype
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -49,10 +50,6 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-_FILL_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=True)
-_COPY_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=False)
 
 
 def _target_mode_from_gains(stiffness: float, damping: float) -> JointTargetMode:
@@ -2665,17 +2662,17 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[stiffness, env_ids, fixed_tendon_ids, False],
+                inputs=[stiffness, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_stiffness, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_copy(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[stiffness, env_ids, fixed_tendon_ids, False],
+                inputs=[stiffness, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_stiffness, None],
                 device=self.device,
             )
@@ -2750,17 +2747,17 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
-                _FILL_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_fill(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[damping, env_ids, fixed_tendon_ids, False],
+                inputs=[damping, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_damping, None],
                 device=self.device,
             )
         else:
             wp.launch(
-                _COPY_FLOAT32_2D_INDEXED.select(env_ids, fixed_tendon_ids),
+                memory.make_copy(wp.float32, 2, selector_dtype(env_ids), selector_dtype(fixed_tendon_ids)),
                 dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[damping, env_ids, fixed_tendon_ids, False],
+                inputs=[damping, env_ids, fixed_tendon_ids],
                 outputs=[self.data._fixed_tendon_damping, None],
                 device=self.device,
             )

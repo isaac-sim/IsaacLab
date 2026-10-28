@@ -1,1 +1,1 @@
-* Added frequency-agnostic Warp memory factories for packing, splitting, selected copy/fill, and mask resolution; callers own element types, strides, and selectors. Articulation ordering variants are bound before capture.
+* Added frequency-agnostic Warp memory factories for packing, splitting, selected copy/fill, and mask resolution; callers own element types, strides, and selectors. Cached factories return concrete kernels on demand, including articulation ordering, without enumerating unused variants. Warm up the actual execution path before graph capture.

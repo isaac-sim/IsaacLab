@@ -6,8 +6,8 @@
 """Value-preserving operations on caller-supplied array layouts and selections.
 
 Callers resolve their attribute frequency into array shapes, strides and selectors.
-This module neither names frequencies nor interprets element components. Bind generated
-kernels at import or initialization, before launch/capture; repeated factory calls are cached.
+This module neither names frequencies nor interprets element components. Cached factories
+return concrete kernels on demand. Warm up the execution path before graph capture.
 """
 
 from collections.abc import Sequence
@@ -19,7 +19,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from .index_kernel import IndexKernelDispatcher
+from .index_kernel import selector_dtype
 
 
 def _component_layout(dtypes: tuple) -> tuple[type, tuple[int, ...]]:
@@ -162,36 +162,44 @@ def make_clear_pair(dtype, ndim: int) -> wp.Kernel:
     return clear
 
 
+@wp.func
+def _selected_index(selection: wp.array(dtype=Any), i: int) -> wp.int64:
+    """Map a launch index through a signed integer selector."""
+    return wp.int64(selection[i])
+
+
+@wp.func
+def _selected_index(selection: wp.array(dtype=wp.bool), i: int) -> wp.int64:
+    """Keep a launch index unless an optional boolean mask excludes it."""
+    if selection and not selection[i]:
+        return wp.int64(-1)
+    return wp.int64(i)
+
+
 @cache
-def make_write(dtype, ndim: int, *, indexed: bool, fill: bool) -> "IndexKernelDispatcher | wp.Kernel":
-    """Generate selected copy/fill for rank-1, rank-2 or rank-3 arrays.
+def make_copy(dtype, ndim: int, row_dtype=wp.bool, column_dtype=wp.bool, *, full_source: bool = False) -> wp.Kernel:
+    """Copy selected elements, specializing only the requested layout.
 
-    Indexed selection is the Cartesian product of signed int32/int64 row and column
-    selectors; rank-1 ignores columns. Masks select rows/columns of a full-shaped
-    source; ``None`` masks select entire axes. ``full_source``
-    chooses full-shaped versus selection-sized input for indexed copies. Rank-3
-    launches include the trailing component axis. All arrays retain their strides.
+    Boolean selectors mask the destination's first two axes; ``None`` selects
+    the whole axis. Integer selectors use the Cartesian product of nonnegative
+    row/column indices. Rank-1 arrays ignore columns. Remaining components of
+    rank-3 arrays are copied unchanged. Array strides are preserved.
 
-    Indexed writes accept an optional int32 ``selected_rows`` output to emit row IDs
-    in input order, in the same launch. It is untouched when the column selection is
-    empty. Masked writes require ``selected_rows=None``.
-    Indices must be valid; overlapping destinations require identical source values
-    (there is no last-write guarantee). Source and target must not overlap with a
-    different index mapping. ``fill=True`` accepts one typed scalar/element instead
-    of an array and ignores ``full_source``.
+    With ``full_source=True``, read the source at destination indices; otherwise
+    read at launch indices (a compact source for integer selections). The kernel
+    takes ``(source, rows, columns, target, selected_rows)``. The optional int32
+    ``selected_rows`` output records row indices once per selected row.
     """
     if ndim not in (1, 2, 3):
         raise ValueError(f"Expected rank 1, 2 or 3, got {ndim}")
-    source_type = dtype if fill else wp.array(dtype=dtype, ndim=ndim)
-    selector_dtype = Any if indexed else wp.bool
-    column_dtype = selector_dtype if ndim > 1 else wp.int32
+    if row_dtype not in (wp.bool, wp.int32, wp.int64) or column_dtype not in (wp.bool, wp.int32, wp.int64):
+        raise TypeError("Selectors must use bool, int32 or int64")
 
     @wp.kernel(module="unique")
-    def write(
-        source: source_type,
-        rows: wp.array(dtype=selector_dtype),
+    def copy(
+        source: wp.array(dtype=dtype, ndim=ndim),
+        rows: wp.array(dtype=row_dtype),
         columns: wp.array(dtype=column_dtype),
-        full_source: bool,
         target: wp.array(dtype=dtype, ndim=ndim),
         selected_rows: wp.array(dtype=wp.int32),
     ):
@@ -203,33 +211,65 @@ def make_write(dtype, ndim: int, *, indexed: bool, fill: bool) -> "IndexKernelDi
             k = 0
         else:
             i, j, k = wp.tid()
-        if wp.static(indexed):
-            row = wp.int64(rows[i])
-            column = wp.int64(0)
-            if wp.static(ndim > 1):
-                column = wp.int64(columns[j])
-        else:
-            if rows and not rows[i]:
-                return
-            if wp.static(ndim > 1):
-                if columns and not columns[j]:
-                    return
-            row, column = wp.int64(i), wp.int64(j)
-        if wp.static(indexed):
-            if selected_rows and j == 0 and k == 0:
-                selected_rows[i] = wp.int32(row)
-        if wp.static(fill):
-            value = source
+        row = _selected_index(rows, i)
+        column = wp.int64(0)
+        if wp.static(ndim > 1):
+            column = _selected_index(columns, j)
+        if row < 0 or column < 0:
+            return
+        if selected_rows and j == 0 and k == 0:
+            selected_rows[i] = wp.int32(row)
+
+        if wp.static(full_source):
+            a, b = row, column
         else:
             a, b = wp.int64(i), wp.int64(j)
-            if full_source or wp.static(not indexed):
-                a, b = row, column
-            if wp.static(ndim == 1):
-                value = source[a]
-            elif wp.static(ndim == 2):
-                value = source[a, b]
-            else:
-                value = source[a, b, k]
+        if wp.static(ndim == 1):
+            target[row] = source[a]
+        elif wp.static(ndim == 2):
+            target[row, column] = source[a, b]
+        else:
+            target[row, column, k] = source[a, b, k]
+
+    return copy
+
+
+@cache
+def make_fill(dtype, ndim: int, row_dtype=wp.bool, column_dtype=wp.bool) -> wp.Kernel:
+    """Fill selected elements with one value, using the selectors of :func:`make_copy`.
+
+    The kernel takes ``(value, rows, columns, target, selected_rows)``. It has no
+    source array or source-layout flag. Each specialization is an isolated kernel.
+    """
+    if ndim not in (1, 2, 3):
+        raise ValueError(f"Expected rank 1, 2 or 3, got {ndim}")
+    if row_dtype not in (wp.bool, wp.int32, wp.int64) or column_dtype not in (wp.bool, wp.int32, wp.int64):
+        raise TypeError("Selectors must use bool, int32 or int64")
+
+    @wp.kernel(module="unique")
+    def fill(
+        value: dtype,
+        rows: wp.array(dtype=row_dtype),
+        columns: wp.array(dtype=column_dtype),
+        target: wp.array(dtype=dtype, ndim=ndim),
+        selected_rows: wp.array(dtype=wp.int32),
+    ):
+        if wp.static(ndim == 1):
+            i = wp.tid()
+            j, k = 0, 0
+        elif wp.static(ndim == 2):
+            i, j = wp.tid()
+            k = 0
+        else:
+            i, j, k = wp.tid()
+        row = _selected_index(rows, i)
+        column = wp.int64(0)
+        if wp.static(ndim > 1):
+            column = _selected_index(columns, j)
+        if row < 0 or column < 0:
+            return
+        if selected_rows and j == 0 and k == 0:
+            selected_rows[i] = wp.int32(row)
         if wp.static(ndim == 1):
             target[row] = value
         elif wp.static(ndim == 2):
@@ -237,21 +277,22 @@ def make_write(dtype, ndim: int, *, indexed: bool, fill: bool) -> "IndexKernelDi
         else:
             target[row, column, k] = value
 
-    return IndexKernelDispatcher(write, ("rows",) if ndim == 1 else ("rows", "columns")) if indexed else write
+    return fill
 
 
-@wp.kernel
-def _populate_mask(mask: wp.array(dtype=wp.bool), ids: wp.array(dtype=Any)):
-    i = wp.tid()
-    index = wp.int64(ids[i])
-    if index < wp.int64(0):
-        index += wp.int64(mask.shape[0])
-    # Valid IDs are a caller precondition; never write outside the destination.
-    if index >= wp.int64(0) and index < wp.int64(mask.shape[0]):
-        mask[index] = True
+@cache
+def _make_populate_mask(dtype) -> wp.Kernel:
+    @wp.kernel(module="unique")
+    def populate_mask(mask: wp.array(dtype=wp.bool), ids: wp.array(dtype=dtype)):
+        i = wp.tid()
+        size = wp.int64(mask.shape[0])
+        index = wp.int64(ids[i])
+        if index < 0:
+            index += size
+        if index >= 0 and index < size:
+            mask[index] = True
 
-
-_POPULATE_MASK = IndexKernelDispatcher(_populate_mask, ("ids",))
+    return populate_mask
 
 
 @wp.kernel
@@ -337,7 +378,9 @@ def resolve_1d_mask(
         raise TypeError("Index arrays must use signed int32 or int64 values")
     scratch_mask.zero_()
     if selection.size:
-        wp.launch(_POPULATE_MASK.select(selection), selection.shape, [scratch_mask, selection], device=device)
+        wp.launch(
+            _make_populate_mask(selector_dtype(selection)), selection.shape, [scratch_mask, selection], device=device
+        )
         if temporary_input and device.is_cuda:
             # Eager uploads must outlive scatter even on imported nonblocking CUDA streams.
             wp.synchronize_stream(wp.get_stream(device))

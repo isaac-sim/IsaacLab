@@ -21,6 +21,7 @@ from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import
 from isaaclab.utils import clone, validate
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.index_kernel import selector_dtype
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -32,14 +33,6 @@ from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-
-
-_COPY_FLOAT32_2D_INDEXED = memory.make_write(wp.float32, 2, indexed=True, fill=False)
-_COPY_FLOAT32_2D_MASKED = memory.make_write(wp.float32, 2, indexed=False, fill=False)
-_COPY_TRANSFORMF_2D_INDEXED = memory.make_write(wp.transformf, 2, indexed=True, fill=False)
-_COPY_TRANSFORMF_2D_MASKED = memory.make_write(wp.transformf, 2, indexed=False, fill=False)
-_COPY_FLOAT32_3D_INDEXED = memory.make_write(wp.float32, 3, indexed=True, fill=False)
-_COPY_FLOAT32_3D_MASKED = memory.make_write(wp.float32, 3, indexed=False, fill=False)
 
 
 class RigidObjectCollection(BaseRigidObjectCollection):
@@ -838,9 +831,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            _COPY_FLOAT32_2D_INDEXED.select(env_ids, body_ids),
+            memory.make_copy(wp.float32, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[masses, env_ids, body_ids, False],
+            inputs=[masses, env_ids, body_ids],
             outputs=[self.data._body_mass.data, sim_env_ids],
             device=self._device,
         )
@@ -884,9 +877,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
         wp.launch(
-            _COPY_FLOAT32_2D_MASKED,
+            memory.make_copy(wp.float32, 2),
             dim=(self._num_instances, self._num_bodies),
-            inputs=[masses, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask), True],
+            inputs=[masses, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask)],
             outputs=[self.data._body_mass.data, None],
             device=self._device,
         )
@@ -922,9 +915,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            _COPY_TRANSFORMF_2D_INDEXED.select(env_ids, body_ids),
+            memory.make_copy(wp.transformf, 2, selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids, False],
+            inputs=[coms, env_ids, body_ids],
             outputs=[self.data._body_com_pose_b.data, sim_env_ids],
             device=self._device,
         )
@@ -970,9 +963,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         wp.launch(
-            _COPY_TRANSFORMF_2D_MASKED,
+            memory.make_copy(wp.transformf, 2),
             dim=(self._num_instances, self._num_bodies),
-            inputs=[coms, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask), True],
+            inputs=[coms, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask)],
             outputs=[self.data._body_com_pose_b.data, None],
             device=self._device,
         )
@@ -1017,9 +1010,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            _COPY_FLOAT32_3D_INDEXED.select(env_ids, body_ids),
+            memory.make_copy(wp.float32, 3, selector_dtype(env_ids), selector_dtype(body_ids)),
             dim=(env_ids.shape[0], body_ids.shape[0], 9),
-            inputs=[inertias, env_ids, body_ids, False],
+            inputs=[inertias, env_ids, body_ids],
             outputs=[self.data._body_inertia.data, sim_env_ids],
             device=self._device,
         )
@@ -1066,9 +1059,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
         wp.launch(
-            _COPY_FLOAT32_3D_MASKED,
+            memory.make_copy(wp.float32, 3),
             dim=(self._num_instances, self._num_bodies, 9),
-            inputs=[inertias, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask), True],
+            inputs=[inertias, self._resolve_env_mask(env_mask), self._resolve_body_mask(body_mask)],
             outputs=[self.data._body_inertia.data, None],
             device=self._device,
         )
