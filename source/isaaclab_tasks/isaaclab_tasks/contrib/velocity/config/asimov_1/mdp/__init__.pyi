@@ -12,7 +12,6 @@ __all__ = [
     "feet_air_time",
     "feet_clearance",
     "feet_contact_force_limit",
-    "feet_contact_forces",
     "feet_orientation_penalty",
     "feet_slip",
     "feet_stumble",

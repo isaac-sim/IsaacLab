@@ -2,7 +2,10 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Asimov-1 velocity configurations."""
+"""Asimov-1 velocity configurations.
+
+The task supports the Isaac Sim PhysX backend.
+"""
 
 import math
 
@@ -84,6 +87,23 @@ SLOT_4_5 = (
 FEET_BODIES = ["left_ankle_roll_link", "right_ankle_roll_link"]
 TORSO_BODY = "waist_yaw_link"
 
+# The URDF importer nests each link under its parent, and each contact filter must match exactly one
+# body per environment, so the filter paths spell out the kinematic chain for both sides.
+_PELVIS_PATH = "{ENV_REGEX_NS}/Robot/Geometry/pelvis_link"
+SELF_COLLISION_FILTER_PATHS = [
+    _PELVIS_PATH,
+    f"{_PELVIS_PATH}/waist_yaw_link",
+    *(
+        f"{_PELVIS_PATH}/{side}_hip_pitch_link{suffix}"
+        for side in ("left", "right")
+        for suffix in ("", f"/{side}_hip_roll_link", f"/{side}_hip_roll_link/{side}_hip_yaw_link")
+    ),
+    *(
+        f"{_PELVIS_PATH}/waist_yaw_link/{side}_shoulder_pitch_link/{side}_shoulder_roll_link"
+        for side in ("left", "right")
+    ),
+]
+
 POSE_JOINT_PATTERNS = (
     ".*_hip_pitch_joint",
     ".*_hip_roll_joint",
@@ -134,14 +154,7 @@ class Asimov1SceneCfg(InteractiveSceneCfg):
     )
     self_collision = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/.*_(wrist_yaw|elbow|knee|ankle_roll)_link",
-        filter_prim_paths_expr=[
-            "{ENV_REGEX_NS}/Robot/pelvis_link",
-            "{ENV_REGEX_NS}/Robot/waist_yaw_link",
-            "{ENV_REGEX_NS}/Robot/.*_hip_pitch_link",
-            "{ENV_REGEX_NS}/Robot/.*_hip_roll_link",
-            "{ENV_REGEX_NS}/Robot/.*_hip_yaw_link",
-            "{ENV_REGEX_NS}/Robot/.*_shoulder_roll_link",
-        ],
+        filter_prim_paths_expr=SELF_COLLISION_FILTER_PATHS,
     )
 
     sky_light = AssetBaseCfg(
@@ -529,8 +542,8 @@ class Asimov1RoughEnvCfg(ManagerBasedRLEnvCfg):
 
     def play_mode(self):
         """Apply deterministic overrides for policy playback."""
+        super().play_mode()
         self.scene.num_envs = 32
-        self.observations.policy.enable_corruption = False
         self.events.push_robot = None
         self.events.qpos0_rand = None
         self.events.pd_gains_rand = None

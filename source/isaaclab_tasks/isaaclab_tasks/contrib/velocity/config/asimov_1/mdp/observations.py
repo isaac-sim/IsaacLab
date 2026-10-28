@@ -90,10 +90,11 @@ class delayed_obs(ManagerTermBase):
         self._buffer: torch.Tensor | None = None
         self._pending_reset: torch.Tensor | None = None
 
-    def reset(self, env_ids: torch.Tensor | None = None):
+    def reset(self, env_ids: torch.Tensor | slice | None = None):
         if env_ids is None:
-            env_ids = torch.arange(self._env.num_envs, device=self._env.device)
-        self._lags[env_ids] = torch.randint(self._min_lag, self._max_lag + 1, (len(env_ids),), device=self._env.device)
+            env_ids = slice(None)
+        num_resets = self._lags[env_ids].numel()
+        self._lags[env_ids] = torch.randint(self._min_lag, self._max_lag + 1, (num_resets,), device=self._env.device)
         self._pending_reset = env_ids
 
     def __call__(self, env: ManagerBasedRLEnv, quantity: str, min_lag: int, max_lag: int) -> torch.Tensor:

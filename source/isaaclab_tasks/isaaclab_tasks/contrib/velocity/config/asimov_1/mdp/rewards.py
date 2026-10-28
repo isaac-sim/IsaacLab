@@ -195,7 +195,7 @@ class feet_swing_height(ManagerTermBase):
         env.extras.setdefault("log", {})["Metrics/peak_height_mean"] = (
             torch.sum(self._peak_heights * first_contact.float()) / num_landings
         )
-        self._peak_heights = torch.where(first_contact, torch.zeros_like(self._peak_heights), self._peak_heights)
+        self._peak_heights = torch.where(first_contact.bool(), torch.zeros_like(self._peak_heights), self._peak_heights)
         return cost
 
 

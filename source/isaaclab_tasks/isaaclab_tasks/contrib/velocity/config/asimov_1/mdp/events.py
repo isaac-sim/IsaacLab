@@ -37,7 +37,7 @@ def randomize_joint_default_pos(
         num_joints = asset.num_joints
         joint_ids = torch.arange(num_joints, device=asset.device)
     else:
-        joint_ids = torch.tensor(joint_ids, device=asset.device)
+        joint_ids = torch.as_tensor(joint_ids, device=asset.device)
 
     offsets = torch.empty((len(env_ids), len(joint_ids)), device=asset.device).uniform_(ranges[0], ranges[1])
     default_joint_pos[env_ids[:, None], joint_ids] += offsets
