@@ -12,9 +12,10 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from isaaclab.sensors.imu import BaseImu
+from isaaclab.utils.warp import memory as memory_kernels
 
 from .imu_data import ImuData
-from .kernels import imu_copy_kernel, imu_reset_kernel
+from .kernels import imu_copy_kernel
 
 if TYPE_CHECKING:
     from newton.sensors import SensorIMU as NewtonSensorIMU
@@ -95,9 +96,9 @@ class Imu(BaseImu):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
-            imu_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 1),
             dim=self._num_envs,
-            inputs=[env_mask, self._data._lin_acc_b, self._data._ang_vel_b],
+            inputs=[env_mask, self._data._ang_vel_b, self._data._lin_acc_b],
             device=self._device,
         )
 

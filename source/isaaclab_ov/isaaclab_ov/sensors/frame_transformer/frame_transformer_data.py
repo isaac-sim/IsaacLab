@@ -9,8 +9,8 @@ import warp as wp
 
 from isaaclab.sensors.frame_transformer import BaseFrameTransformerData
 from isaaclab.utils.warp import ProxyArray
-
-from isaaclab_ov.sensors.kernels import concat_pos_and_quat_to_pose_1d_kernel, concat_pos_and_quat_to_pose_kernel
+from isaaclab.utils.warp import memory as memory_kernels
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 
 class FrameTransformerData(BaseFrameTransformerData):
@@ -28,12 +28,12 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
         (num_instances, num_target_frames, 7). The pose is provided in (x, y, z, qx, qy, qz, qw) format.
         """
-        wp.launch(
-            concat_pos_and_quat_to_pose_kernel,
-            dim=(self._num_envs, self._num_target_frames),
-            inputs=[self._target_pos_source, self._target_quat_source],
-            outputs=[self._target_pose_source],
-            device=self._device,
+        self._read_launch_cache.launch(
+            "target_pose_source",
+            memory_kernels.concat,
+            self._target_pos_source,
+            self._target_quat_source,
+            self._target_pose_source,
         )
         if self._target_pose_source_ta is None:
             self._target_pose_source_ta = ProxyArray(self._target_pose_source)
@@ -68,12 +68,8 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
         (num_instances, num_target_frames, 7). The pose is provided in (x, y, z, qx, qy, qz, qw) format.
         """
-        wp.launch(
-            concat_pos_and_quat_to_pose_kernel,
-            dim=(self._num_envs, self._num_target_frames),
-            inputs=[self._target_pos_w, self._target_quat_w],
-            outputs=[self._target_pose_w],
-            device=self._device,
+        self._read_launch_cache.launch(
+            "target_pose_w", memory_kernels.concat, self._target_pos_w, self._target_quat_w, self._target_pose_w
         )
         if self._target_pose_w_ta is None:
             self._target_pose_w_ta = ProxyArray(self._target_pose_w)
@@ -108,12 +104,8 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         The pose is provided in (x, y, z, qx, qy, qz, qw) format.
         """
-        wp.launch(
-            concat_pos_and_quat_to_pose_1d_kernel,
-            dim=self._num_envs,
-            inputs=[self._source_pos_w, self._source_quat_w],
-            outputs=[self._source_pose_w],
-            device=self._device,
+        self._read_launch_cache.launch(
+            "source_pose_w", memory_kernels.concat, self._source_pos_w, self._source_quat_w, self._source_pose_w
         )
         if self._source_pose_w_ta is None:
             self._source_pose_w_ta = ProxyArray(self._source_pose_w)
@@ -157,6 +149,7 @@ class FrameTransformerData(BaseFrameTransformerData):
         """
         self._num_envs = num_envs
         self._device = device
+        self._read_launch_cache = _WarpLaunchCache(device)
         self._num_target_frames = num_target_frames
         self._target_frame_names = target_frame_names
         self._source_pose_w = wp.zeros(num_envs, dtype=wp.transformf, device=device)

@@ -647,7 +647,6 @@ Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a devic
 an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
 Verify ownership and dependency direction as well as numerical behavior and capture replay.
 
-
 Shared Warp memory operations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -682,6 +681,35 @@ Python factory caching reuses kernel objects; Warp separately owns compilation a
 Warm up the actual execution path before graph capture, including the needed selector dtypes.
 Later specializations must not invalidate kernels already compiled or captured. Check this alongside
 dependency direction, aliasing, selector widths, and replay with changed inputs.
+
+Shared Warp wrench composition
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``isaaclab.utils.warp.wrench`` owns force, torque, and moment-arm composition. Use cached factories
+that define and return concrete kernels in isolated modules. Request index/mask and set/add variants
+where used, and keep destination-buffer selection in ``WrenchComposer``. Warm up the actual execution
+path before graph capture. Name factories ``make_<operation>`` and concrete launchable kernels with
+``_kernel`` where useful. Keep common math independent of domain-specific wrench policy.
+
+When a thread exclusively owns an output cell, use explicit read-add-write assignments.
+Warp array ``+=`` can lower to atomic addition; reserve atomics for concurrent reduction.
+Validate frame conventions, partial updates, and capture replay as well as ownership boundaries.
+
+Shared sensor capabilities and storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Shared concepts have one owner, but backend capabilities can differ. Validate requested features
+before allocating resources. Keep optional measurements in coherent groups with explicit absence;
+never substitute zero measurements for unsupported features. A backend may extend a common data
+container with its own fields and lifecycle. Use the existing sensor factory and initialization
+root, not another capability registry or backend-specific copies of shared storage.
+
+Fused domain kernels retain gravity bias and lifecycle defaults while calling common equations.
+Name factories ``make_<operation>`` and cache optional PVA updates on demand. Isolate generated
+kernels with ``module="unique"``, keeping reset independent. Selecting one subset must not construct
+or compile other subsets, invalidate reset, or compile another backend's update path.
+Check cold compilation and warm execution separately.
+PVA shares pose/component storage and optional spatial outputs; backends own acquisition.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^

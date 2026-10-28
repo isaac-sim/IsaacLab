@@ -199,7 +199,8 @@ you can import from ``isaaclab_physx.sensors``:
    # Direct PhysX implementation imports
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
-   from isaaclab_physx.sensors import Pva, PvaData
+   from isaaclab_physx.sensors import Pva
+   from isaaclab.sensors import PvaData
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
    from isaaclab_physx.sensors import JointWrenchSensor, JointWrenchSensorData
 
@@ -1546,6 +1547,41 @@ The ``gravity_bias`` configuration parameter has been removed from both sensors:
 The new ``ImuData`` only provides ``ang_vel_b`` and ``lin_acc_b``. If you were accessing other
 properties (``pos_w``, ``quat_w``, ``lin_vel_b``, ``ang_acc_b``, ``projected_gravity_b``), switch
 to :class:`~isaaclab.sensors.PvaData` which provides all of them.
+
+
+.. rubric:: Shared PVA data and backend capabilities
+
+Import ``PvaData`` from ``isaaclab.sensors``. Backend-specific ``PvaData`` classes and
+``BasePvaData`` have been removed; the sensor still selects its native backend.
+``PvaCfg.data_types`` defaults to ``["pose", "velocity", "acceleration", "projected_gravity"]``.
+Pose is required, while each remaining group can be omitted:
+
+.. code-block:: python
+
+   pva_cfg = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/base", data_types=["pose", "velocity"])
+
+The backend's ``supported_data_types`` declares what it can produce. Unsupported requests
+fail before callback registration or native resource creation. Reading a disabled output
+raises ``NotImplementedError``; enabled properties return ``None`` before data allocation.
+Acceleration includes linear and angular coordinate acceleration and still requires native
+angular velocity for transport, even with velocity output disabled. Debug visualization
+requires the acceleration output. A Newton pose-only sensor does not request ``body_qdd``.
+
+Pose, position and quaternion now share one allocation, as do each linear/angular pair.
+Their Warp/Torch views may be noncontiguous, mutations are shared, and reading a property
+launches no packing kernel. Copy explicitly when independent or contiguous storage is needed.
+Reinitialization creates new allocations and proxies; cached old views retain their old storage.
+Initialization, reset and STOP now establish identity pose, zero velocity/acceleration and
+projected gravity along -Z until the next sample. This deliberately standardizes the previous
+Newton zero-gravity initialization and zero-quaternion STOP state, and clears stale OV/PhysX
+measurements on STOP.
+
+A new backend can advertise fewer groups and select the corresponding generated kernel
+once during construction. Extensions advertise additional groups on their sensor class and
+instantiate a local data subclass: pass the standard subset to ``PvaData.__init__`` and own
+additional storage, getters, updates and resets in that subclass/backend. The core data's
+``data_types`` describes its standard groups. No core registry or new universal optional
+fields are needed. Native gathering and input layouts remain backend-owned.
 
 
 .. rubric:: Sensor Pose Properties Deprecation

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,10 +15,9 @@ from pxr import UsdGeom
 
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors.pva import BasePva
+from isaaclab.sensors.pva import BasePva, PvaData
 
-from .kernels import pva_reset_kernel, pva_update_kernel
-from .pva_data import PvaData
+from .kernels import make_pva_update
 
 if TYPE_CHECKING:
     from isaaclab.sensors.pva import PvaCfg
@@ -41,10 +39,12 @@ class Pva(BasePva):
     __backend_name__: str = "newton"
     """The name of the backend for the PVA sensor."""
 
+    supported_data_types = frozenset({"pose", "velocity", "acceleration", "projected_gravity"})
+
     def __init__(self, cfg: PvaCfg):
         """Initializes the Newton PVA sensor.
 
-        Registers a site request and the ``body_qdd`` state attribute with
+        Registers a site request and, when acceleration is enabled, ``body_qdd`` with
         :class:`NewtonManager`. The site is injected into prototype builders
         before replication so it ends up in each world.
 
@@ -53,13 +53,15 @@ class Pva(BasePva):
         """
         super().__init__(cfg)
 
-        self._data = PvaData()
+        self._data = PvaData(self.cfg.data_types)
+        self._update_kernel = make_pva_update(self._data.data_types)
         self._site_indices: wp.array | None = None
         self._newton_model = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
         self._site_label = self._backend_manager.register_site(cfg.prim_path, offset_xform)
-        self._backend_manager.request_extended_state_attribute("body_qdd")
+        if "acceleration" in self._data.data_types:
+            self._backend_manager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"Pva '{cfg.prim_path}': site registered (label='{self._site_label}')")
 
@@ -70,48 +72,6 @@ class Pva(BasePva):
             f"\tbackend           : newton\n"
             f"\tupdate period (s) : {self.cfg.update_period}\n"
             f"\tnumber of sensors : {self._num_envs}\n"
-        )
-
-    """
-    Properties
-    """
-
-    @property
-    def data(self) -> PvaData:
-        """The PVA sensor data."""
-        self._update_outdated_buffers()
-        return self._data
-
-    """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        """Reset the sensor for the given environments.
-
-        Zeroes out all PVA buffers for the specified environments.
-
-        Args:
-            env_ids: Environment indices to reset. Defaults to all environments.
-            env_mask: Boolean mask of environments to reset. Mutually exclusive with *env_ids*.
-        """
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        super().reset(None, env_mask)
-        wp.launch(
-            pva_reset_kernel,
-            dim=self._num_envs,
-            inputs=[
-                env_mask,
-                self._data._pose_w,
-                self._data._pos_w,
-                self._data._quat_w,
-                self._data._projected_gravity_b,
-                self._data._lin_vel_b,
-                self._data._ang_vel_b,
-                self._data._lin_acc_b,
-                self._data._ang_acc_b,
-            ],
-            device=self._device,
         )
 
     """
@@ -157,7 +117,7 @@ class Pva(BasePva):
         logger.info(f"Pva initialized: {num_envs} envs")
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        """Reads Newton body state and computes all PVA quantities."""
+        """Read Newton body state and compute the enabled PVA quantities."""
         if self._newton_model is None:
             raise RuntimeError(
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
@@ -166,7 +126,7 @@ class Pva(BasePva):
         state = self._backend_manager.get_scene_data_backend().state
 
         wp.launch(
-            pva_update_kernel,
+            self._update_kernel,
             dim=self._num_envs,
             inputs=[
                 env_mask,
@@ -178,18 +138,9 @@ class Pva(BasePva):
                 self._newton_model.body_world,
                 state.body_q,
                 state.body_qd,
-                state.body_qdd,
+                state.body_qdd if "acceleration" in self._data.data_types else None,
             ],
-            outputs=[
-                self._data._pose_w,
-                self._data._pos_w,
-                self._data._quat_w,
-                self._data._projected_gravity_b,
-                self._data._lin_vel_b,
-                self._data._ang_vel_b,
-                self._data._lin_acc_b,
-                self._data._ang_acc_b,
-            ],
+            outputs=[self._data.buffers],
             device=self._device,
         )
 
@@ -240,17 +191,3 @@ class Pva(BasePva):
         super()._invalidate_initialize_callback(event)
         self._newton_model = None
         self._site_indices = None
-
-        # Zero out data buffers so stale data is not served between STOP and reinit.
-        for buf in [
-            self._data._pose_w,
-            self._data._pos_w,
-            self._data._quat_w,
-            self._data._projected_gravity_b,
-            self._data._lin_vel_b,
-            self._data._ang_vel_b,
-            self._data._lin_acc_b,
-            self._data._ang_acc_b,
-        ]:
-            if buf is not None:
-                buf.zero_()

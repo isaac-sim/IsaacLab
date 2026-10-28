@@ -469,16 +469,16 @@ def test_reset(sim_ctx, device):
         pva_ball.update(dt, force_recompute=True)
 
     # Buffers should hold non-zero state before reset.
-    assert torch.any(wp.to_torch(pva_ball._data._lin_vel_b) != 0), "expected non-zero data before reset"
+    assert torch.any(pva_ball._data.lin_vel_b.torch != 0), "expected non-zero data before reset"
     assert torch.any(pva_ball.data.lin_vel_b.torch[1] != 0), "expected env 1 to have non-zero data before reset"
 
     # reset only env 1
     pva_ball.reset(env_ids=[1])
     torch.testing.assert_close(
-        wp.to_torch(pva_ball._data._lin_vel_b)[1],
+        pva_ball._data.lin_vel_b.torch[1],
         torch.zeros(3, dtype=torch.float32, device=device),
     )
-    assert torch.any(wp.to_torch(pva_ball._data._lin_vel_b)[0] != 0), "env 0 should not be reset"
+    assert torch.any(pva_ball._data.lin_vel_b.torch[0] != 0), "env 0 should not be reset"
 
     pva_ball.reset()
 
@@ -495,13 +495,13 @@ def test_reset(sim_ctx, device):
         torch.testing.assert_close(buf, torch.zeros_like(buf), msg=f"{name} not zeroed by reset()")
 
     # quat_w resets to identity (x, y, z, w) = (0, 0, 0, 1)
-    quat = wp.to_torch(pva_ball._data._quat_w)
+    quat = pva_ball._data.quat_w.torch
     expected_quat = torch.zeros_like(quat)
     expected_quat[:, 3] = 1.0
     torch.testing.assert_close(quat, expected_quat)
 
     # projected_gravity_b resets to (0, 0, -1)
-    pg = wp.to_torch(pva_ball._data._projected_gravity_b)
+    pg = pva_ball._data.projected_gravity_b.torch
     expected_pg = torch.zeros_like(pg)
     expected_pg[:, 2] = -1.0
     torch.testing.assert_close(pg, expected_pg)
