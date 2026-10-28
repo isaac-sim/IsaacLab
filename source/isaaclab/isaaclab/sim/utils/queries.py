@@ -466,12 +466,8 @@ def resolve_matching_prims_from_source(
             instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
             trailing = segments[instance_seg + 1 :]
             walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
-            results = []
-            # walk the one instance only, not the whole stage
-            for prim in _iter_matching_prims_in_subtree(walk_root, first.GetStage().GetPrimAtPath(instance_root)):
-                path = prim.GetPath().pathString
-                if path == instance_root or path.startswith(instance_root + "/"):
-                    results.append((prim, instance_expr + path[len(instance_root) :]))
+            prims = _iter_matching_prims_in_subtree(walk_root, first.GetStage().GetPrimAtPath(instance_root))
+            results = [(prim, instance_expr + prim.GetPath().pathString[len(instance_root) :]) for prim in prims]
     if predicate is not None:
         # Whole-path regexes can select both a prim and its ancestors; their descendant sets overlap.
         unique_matches = {}
