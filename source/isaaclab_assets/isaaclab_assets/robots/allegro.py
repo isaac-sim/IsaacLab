@@ -101,4 +101,3 @@ ALLEGRO_ACTUATED_JOINT_NAMES: list[str] = [
     "thumb_joint_3",
 ]
 """Allegro Hand actuated joint names, in the Direct task's actuation order."""
-
