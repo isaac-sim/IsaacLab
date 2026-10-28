@@ -360,10 +360,14 @@ targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic 
     :alt: Position step response for a damping sweep.
 
 
-Try the :ref:`interactive PD tuning demo <interactive-demo-joint-pd>` to adjust
-stiffness and damping on a suspended arm with step and sine commands. Its live
-plot compares target and measured angles. Tune a real robot using its own mass,
-actuator model, effort limits, and timestep.
+Adjust stiffness and damping on a suspended arm with step and sine commands.
+The live plot compares target and measured angles. Tune a real robot using its
+own mass, actuator model, effort limits, and timestep.
+
+.. isaaclab-demos:: joint_pd
+   :title: Explore PD gains
+   :physics: rigid
+   :activity: tuning
 
 
 Armature
@@ -930,6 +934,9 @@ Example: MicroDuck walking
 MicroDuck biped to walk on flat ground and on rough terrain, with its 14 servos modeled by BAM on
 Newton MJWarp. Add ``presets=backlash`` to either task to train the robot variant with a passive play
 hinge in series with each servo, bound through ``backlash_joint_template``.
+
+See :doc:`/source/how-to/train_microduck` for the walking recipe, terrain curriculum, and distributed
+training options.
 
 
 Backend submission
