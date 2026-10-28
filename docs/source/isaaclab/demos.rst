@@ -117,7 +117,7 @@ No source checkout is required.
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Teapot Fill" data-demo-id="teapot-fill"
                data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="newton_gl"
                data-demo-args="--device cuda:0"
                data-demo-description="Fill a Utah teapot with MPM water particles and pour them into a bowl.">
          <img src="../../_static/demos/teapot_fill.jpg" alt="Utah teapot pouring simulated water" loading="lazy">
@@ -150,6 +150,20 @@ No source checkout is required.
          See the demo README for asset-root overrides.</p>
      </aside>
    </div>
+
+NIST peg insertion in the browser
+---------------------------------
+
+Try a compact version of the NIST policy with three loose, draggable pegs.
+The browser uses small convex peg colliders that preserve the tip chamfers
+and simplified socket walls. The native ``nist`` demo above runs the full
+ten-part assembly.
+
+Full CAD visuals show the other 16 assemblies already seated as display objects.
+The camera orbits and zooms around the board center; hold Shift while dragging to pan.
+
+.. isaaclab-demos:: alphanist
+   :title: Try AlphaNIST peg insertion
 
 More examples
 -------------

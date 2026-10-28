@@ -18,7 +18,7 @@ from warp.utils import array_sum
 if TYPE_CHECKING:
     from newton import State
 
-    from .physics import CoffeeMPMSolver
+    from .physics import SolverCoffeeMPM
 
 _MATERIAL_FIELDS = (
     "young_modulus",
@@ -58,7 +58,7 @@ class CoffeeDissolution:
 
     def __init__(
         self,
-        solver: CoffeeMPMSolver,
+        solver: SolverCoffeeMPM,
         coffee_ids: wp.array,
         water_ids: wp.array,
         *,

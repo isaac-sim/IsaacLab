@@ -14,7 +14,7 @@ from unittest.mock import Mock
 
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
 from isaaclab.test.utils import launch_test_simulation
-from isaaclab.visualizers import WindowCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 launch_test_simulation(enable_cameras=True)
 
@@ -31,7 +31,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 from pxr import Gf as UsdGf
 from pxr import Sdf, UsdGeom, UsdPhysics
@@ -137,8 +137,8 @@ def _fabric_curve_points_world(curve_path: str) -> torch.Tensor:
 def _expected_cable_points_world(curve_path: str) -> torch.Tensor:
     """Reconstruct curve points from Newton body and shape state."""
     backend_manager = sim_utils.SimulationContext.instance().backend_manager
-    model = backend_manager.get_model()
-    body_q = wp.to_torch(backend_manager.get_state_0().body_q).cpu()
+    model = backend_manager.backend.model
+    body_q = wp.to_torch(backend_manager.backend.state_0.body_q).cpu()
     shape_transform = wp.to_torch(model.shape_transform).cpu()
     shape_scale = wp.to_torch(model.shape_scale).cpu()
     body_ids = [index for index, label in enumerate(model.body_label) if label.startswith(f"{curve_path}_edge_body_")]
@@ -180,7 +180,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
         device=device,
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-        visualizer_cfgs=[KitVisualizerCfg(headless=True, window=WindowCfg(size=(64, 64)))],
+        visualizer_cfgs=[VisualizerCfg(headless=True, window=WindowCfg(size=(64, 64)), backend=KitBackendCfg())],
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -357,8 +357,8 @@ def test_nested_bodies_keep_independent_world_poses():
             _render(sim, scene)
             paths = ["/World/envs/env_0/Cube", "/World/envs/env_0/Cube/Child"]
             targets = torch.tensor([[1.5, -0.75, 2.0], [-0.25, 1.0, 3.0]], device=sim.device)
-            state = wp.to_torch(sim.backend_manager.get_state_0().body_q)
-            indices = [sim.backend_manager.get_model().body_label.index(path) for path in paths]
+            state = wp.to_torch(sim.backend_manager.backend.state_0.body_q)
+            indices = [sim.backend_manager.backend.model.body_label.index(path) for path in paths]
             state[indices, :3] = targets
             sim.backend_manager.invalidate_body_state()
             _render(sim, scene)
@@ -412,14 +412,14 @@ def test_nested_articulation_follows_root_pose_writes():
             sim.reset()
             scene.reset()
             _render(sim, scene)
-            indices = [sim.backend_manager.get_model().body_label.index(path) for path in paths]
+            indices = [sim.backend_manager.backend.model.body_label.index(path) for path in paths]
             pose = scene["robot"].data.default_root_pose.torch.clone()
             physics_steps = sim.get_physics_step_count()
             for displacement in (1.0, 2.0, 3.0):
                 pose[:, 0] = displacement
                 scene["robot"].write_root_link_pose_to_sim_index(root_pose=pose)
                 _render(sim, scene)
-                expected = wp.to_torch(sim.backend_manager.get_state_0().body_q)[indices, :3].cpu()
+                expected = wp.to_torch(sim.backend_manager.backend.state_0.body_q)[indices, :3].cpu()
                 for path, position in zip(paths, expected, strict=True):
                     _assert_position(_fabric_position(path), position)
                     _assert_position(_fabric_position(f"{path}/geometry"), position)

@@ -20,7 +20,7 @@ from isaaclab.utils import clone, configclass, instantiate, replace, to_dict, up
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 """
 Mock classes and functions.
@@ -79,7 +79,7 @@ def double(x):
 
 
 @configclass
-class ModifierCfg:
+class TensorProcessorCfg:
     params: dict[str, Any] = {"A": 1, "B": 2}
 
 
@@ -111,7 +111,7 @@ class BasicDemoCfg:
     device_id: int = 0
     env: EnvCfg = EnvCfg()
     robot_default_state: RobotDefaultStateCfg = RobotDefaultStateCfg()
-    list_config = [ModifierCfg(), ModifierCfg(params={"A": 3, "B": 4})]
+    list_config = [TensorProcessorCfg(), TensorProcessorCfg(params={"A": 3, "B": 4})]
 
 
 @configclass

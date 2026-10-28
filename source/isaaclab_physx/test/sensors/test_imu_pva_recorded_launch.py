@@ -120,9 +120,11 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor = sensor_cls.__new__(sensor_cls)
     sensor.cfg = SimpleNamespace(prim_path=f"/World/{sensor_type.upper()}")
     sensor._device = device
+    sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)
     sensor._num_envs = 2
+    sensor._ALL_ENV_MASK = wp.ones(sensor._num_envs, dtype=wp.bool, device=device)
+    sensor._reset_mask = wp.zeros(sensor._num_envs, dtype=wp.bool, device=device)
     sensor._view = rigid_view
-    sensor._timestamp = wp.ones(2, dtype=wp.float32, device=device)
     sensor._offset_pos_b = wp.zeros(2, dtype=wp.vec3f, device=device)
     sensor._offset_quat_b = wp.array(
         [wp.quatf(0.0, 0.0, 0.0, 1.0), wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device
@@ -173,7 +175,6 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
     )
 
     accelerations_torch[:, 0] = torch.tensor([3.0, 16.0], device=sensor.device)
-    wp.to_torch(sensor._timestamp).fill_(1.25)
     changed_env_mask = wp.array([False, True], dtype=wp.bool, device=sensor.device)
     sensor._update_buffers_impl(changed_env_mask)
     wp.synchronize_device(sensor.device)

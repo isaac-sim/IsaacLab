@@ -3,6 +3,192 @@ Changelog
 
 .. towncrier release notes start
 
+42.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.managers.ObservationTermCfg.history_newest_first` and
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` to place the current step first along the
+  history dimension for policies whose deployment runtime builds observation history in that order.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint latest`` in the skrl and rl_games benchmark play entrypoints loading the best-reward
+  checkpoint instead of the newest one, matching the fix in the training and play entrypoints.
+* Fixed :func:`~isaaclab.utils.math.sample_triangle` sampling a V-shaped distribution with the least density at the
+  midpoint and the most at the bounds. It now samples the documented symmetric triangular distribution, with its mode
+  at the midpoint of ``lower`` and ``upper``.
+* Preserved tuple containers when serializing and restoring nested ``slice`` values in dictionary utilities.
+
+
+42.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.visualizers.add_key_callbacks` for script hotkeys through explicit visualizer
+  windows, without constructing a teleop device or requiring Isaac Capture.
+* Extended ``TensorProcessor`` and ``TensorProcessorCfg`` to support tensors, ``ProxyArray`` values,
+  and nested lists, tuples, and dictionaries through the shared ``TensorProcessorData`` type.
+  Added optional named input/output metadata and lifecycle hooks while preserving single-tensor
+  observation processing. Added manager resolution of nested scene entities and manager terms
+  in processor parameters.
+
+Changed
+^^^^^^^
+
+* Changed the Newton dependency pin from ``71eeba16`` to the latest upstream ``main`` revision, ``42f7def1``.
+* Preserved trusted Torch actuator checkpoint loading across Newton's new explicit USD import opt-in.
+* Added shared Warp quaternion, rigid-body, interval, and Jacobian mathematics with predeclared rank specializations and numerical convention tests.
+* Named shared math entry points by operation without ``_kernel`` suffixes; rank variants use ``quat_rotate_inv[rank]`` and ``heading[rank]``.
+* Used Warp's ``map`` to predeclare elementwise math launches without allocating arrays, replacing the custom mapping factory.
+* **Breaking:** :class:`~isaaclab.physics.PhysicsManager` takes its physics configuration at construction, and
+  :class:`~isaaclab.sim.SimulationContext` builds the manager with ``instantiate(cfg.physics)``. Subclasses accept
+  ``cfg`` in ``__init__`` and pass it to ``super().__init__(cfg)``; ``initialize()`` no longer sets ``_cfg``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``Se2/Se3KeyboardCfg``, ``Se2/Se3GamepadCfg`` and ``Se2/Se3SpaceMouseCfg``
+  configuration records in Isaac Lab 3.2. Existing declarations continue to translate into
+  Isaac Capture configs before device creation. Use the :mod:`isaaclab_teleop` pipeline builders
+  for new configurations; see :ref:`isaac-teleop-keyboard` for migration.
+* Deprecated ``ObservationTermCfg.modifiers`` in favor of ``ObservationTermCfg.tensor_processors``.
+  Retained the legacy field with a targeted warning and forwarding during manager initialization.
+  Setting both fields now raises ``ValueError`` to prevent silently overriding either pipeline.
+* Deprecated ``isaaclab.utils.modifiers``, ``ModifierBase``, and ``ModifierCfg`` in favor of
+  ``isaaclab.utils.tensor_processors``, ``TensorProcessor``, and ``TensorProcessorCfg``. Preserved
+  legacy imports and serialized callable paths with an import-time deprecation warning.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``Se2/Se3Keyboard``, ``Se2/Se3Gamepad`` and ``Se2/Se3SpaceMouse`` input
+  implementations and their HID helpers. Existing configuration records remain available and
+  translate to Isaac Capture configs before launch. Replace direct constructors with the
+  :mod:`isaaclab_teleop` pipeline builders and :func:`~isaaclab_teleop.create_isaac_teleop_device`;
+  see :ref:`isaac-teleop-keyboard` for migration and standalone session setup.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.configure_logging` leaving the root-logger handlers it replaces open. It now
+  closes them, as :func:`logging.basicConfig` does with ``force=True``, so a log file opened by an earlier
+  call is released and can be deleted on Windows.
+* Fixed conversion of legacy HDF5 datasets with an explicit version 0 attribute so the output was marked as XYZW
+  and was not converted again when loaded.
+
+
+41.1.0 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.visualizers.BaseVisualizer.key_event_source` and
+  :class:`~isaaclab.visualizers.KeyEventSource`, keyboard input from a focused visualizer window.
+  :meth:`~isaaclab.visualizers.KeyEventSource.add_key_listener` returns a
+  :class:`~isaaclab.visualizers.KeyboardSubscription` that receives each key press and release as a
+  W3C ``KeyboardEvent.code`` string, and a focus loss when the window stops delivering keys.
+  Visualizers without a local window that can report keys return ``None``, the default.
+* Added :meth:`~isaaclab.visualizers.BaseVisualizer.set_camera_keys_enabled`, which turns a
+  visualizer's keyboard camera movement off while a keyboard consumer uses those keys.
+
+Changed
+^^^^^^^
+
+* Simplified keyboard sources to listener registration and event forwarding; native window hooks
+  were initialized and closed by visualizers instead of changing with listener counts.
+* Centralized the optional keyboard source and teardown in the base visualizer and removed
+  redundant subscription state.
+
+Fixed
+^^^^^
+
+* Fixed Kit marker environment ownership for scenes with custom clone namespaces.
+* Fixed scene camera discovery and visualizer camera selection to use declared clone paths.
+
+
+41.0.3 (2026-10-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept cleared sensor outputs valid after reset and refreshed them on the first update,
+  without delaying the first measurement by the sensor update period. Derived-query
+  sensors explicitly invalidate their cached poses, ray hits, or images.
+* Kept sensor environment rows owned by the shared scheduler and rejected incomplete
+  native bindings before indexed updates or resets.
+
+
+41.0.2 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Triangulated USD polygon faces before Warp ray-caster mesh creation, preventing
+  quad faces from producing artificial interior intersections or missing surfaces.
+* Rejected mismatched ray-start and direction shapes before native ray queries.
+* Fixed a startup regression of about 4 s on the first articulation spawn by importing the TorchScript
+  actuator-network converter only when a checkpoint is converted.
+* Fixed multi-mesh ray-cast target tracking when several meshes shared one rigid body
+  by binding each mesh to its exact body in the shared scene-data provider.
+* Rejected ray-caster mounts missing from some environments during initialization,
+  before indexed resets or updates could address the wrong sensor rows.
+* Initialized only missing Fabric frame matrices from USD, preserving live physics transforms when a new view was bound.
+
+
+41.0.1 (2026-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed shared scene assets ignoring explicit physics cloning overrides while preserving implicit physics
+  participation for shared terrain.
+
+
+41.0.0 (2026-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed projects generated by ``isaaclab --new`` from an installed wheel to require a compatible Isaac Lab release
+  (``isaaclab~=X.Y.Z``) instead of the exact installed version (``isaaclab==X.Y.Z``), so they keep resolving after a
+  patch release. A local build label of the installed version is dropped.
+* Separated shared view, camera, window, and visibility settings in ``VisualizerCfg`` from backend-only
+  ``*BackendCfg`` options. Kept the old combined ``*VisualizerCfg`` declarations and
+  ``SimulationCfg.default_visualizer_cfg`` as inputs deprecated in Isaac Lab 3.2, translated once before launch.
+  Migrate to ``VisualizerCfg(..., backend=NewtonGLBackendCfg(...))`` or a task-owned
+  ``MultiBackendVisualizerCfg``. Old Kit declarations retained their 720p default; new shared
+  declarations used the common 1080p default. Explicit per-view settings retained precedence.
+* Kept multiple view declarations independent: two views with ``--viz=newton_gl,newton_rtx`` opened
+  four windows, preserving each view's camera and window settings. Direct simulation construction
+  also accepted a list of backend configurations.
+* **Breaking:** Restricted the teapot-fill demo and its Rizon wrapper to Newton GL and removed their Kit/RTX viewer setup.
+  Omit ``--visualizer`` or use ``--visualizer newton_gl``; use the surface-reconstruction tutorial for RTX rendering.
+
+Fixed
+^^^^^
+
+* Fixed one broken ``isaaclab.tasks`` entry point stopping ``isaaclab train``, ``play``, ``list_envs``, and the other
+  task workflows. A package that fails to import is now reported with a warning that names its distribution and
+  shows the error, and discovery continues with the other packages.
+* Fixed ``isaaclab --new`` silently leaving a repository without commits when a git command fails, for example
+  ``git commit`` without a configured git identity. The generator now warns and prints the commands left to run.
+* Fixed cameras moving to their env-local pose after an environment reset when Kit runs without the Fabric Scene
+  Delegate. Fabric frame views now run the Fabric Hierarchy update once after they seed their transforms.
+* Used one shared visualizer configuration in the MPM examples, applying their declared camera
+  focal length to every selected backend while preserving particle and RTX backend options.
+
+
 40.0.1 (2026-10-20)
 ~~~~~~~~~~~~~~~~~~~
 

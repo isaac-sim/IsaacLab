@@ -14,7 +14,6 @@ import warp as wp
 
 from pxr import UsdGeom
 
-from ...utils import index_fill_
 from ...utils import math as math_utils
 from ...utils.warp import ProxyArray
 from ...utils.warp.kernels import raycast_mesh_masked_kernel
@@ -151,6 +150,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timestamps
         SensorBase.reset(self, env_mask=env_mask)
+        self._invalidate_buffers(env_mask)
         # reset the data through the same Warp path used by updates.
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_ray_infos(env_mask)
@@ -195,9 +195,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         else:
             self._target_env_ids_torch = torch.as_tensor(env_ids, dtype=torch.int32, device=self._device).reshape(-1)
             env_ids_wp = wp.from_torch(self._target_env_ids_torch, dtype=wp.int32)
-            self._reset_mask.zero_()
-            index_fill_(self._reset_mask_torch, self._target_env_ids_torch, True)
-            env_mask = self._reset_mask
+            env_mask = self._resolve_indices_and_mask(env_ids_wp)
             count = self._target_env_ids_torch.numel()
             use_env_ids = True
 

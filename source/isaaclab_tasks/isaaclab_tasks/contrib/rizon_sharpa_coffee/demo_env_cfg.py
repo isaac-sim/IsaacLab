@@ -16,8 +16,8 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonRTXBackendCfg
 
 import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
@@ -45,7 +45,8 @@ from .robot import (
 class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Native MPM with optional passive rendering grains."""
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:CoffeeMPMManager"
+    class_type: type | str = "{DIR}.physics:CoffeeMPMSolver"
+
     solver: str | tuple[str, ...] | None = None
     """Pressure solver; ``None`` selects the final wet or dry task profile."""
     max_iterations: int | None = None
@@ -60,14 +61,13 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
     """Configure coupling with material defaults resolved after scene overrides."""
     return NewtonCfg(
         solver_cfg=CouplerProxyCfg(
-            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:NewtonCoffeeCouplerManager",
             entries=[
                 CouplerEntryCfg(
                     name="robot",
                     solver_cfg=MJWarpSolverCfg(
                         use_mujoco_contacts=False, integrator="implicitfast", njmax=1024, nconmax=128
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="media",
@@ -87,7 +87,7 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
                         air_drag=1.0,
                         separate_worlds=True,
                     ),
-                    bodies=[r"/World/envs/env_.*/Spoon"],
+                    bodies=[r"{ENV_REGEX_NS}/Spoon"],
                     all_particles=True,
                     include_static_shapes=True,
                     in_place=True,
@@ -102,7 +102,7 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
 
 
 @configclass
-class CoffeeRTXVisualizerCfg(NewtonRTXVisualizerCfg):
+class CoffeeRTXVisualizerCfg(NewtonRTXBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
     class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeRTXVisualizer"
@@ -111,7 +111,7 @@ class CoffeeRTXVisualizerCfg(NewtonRTXVisualizerCfg):
 
 
 @configclass
-class CoffeeKitVisualizerCfg(KitVisualizerCfg):
+class CoffeeKitBackendCfg(KitBackendCfg):
     """Coffee presentation with an optional render-only public kitchen."""
 
     class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_rendering:CoffeeKitVisualizer"
@@ -249,15 +249,15 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     if not math.isfinite(cfg.min_delivered_mass) or cfg.min_delivered_mass <= 0.0:
         raise ValueError("min_delivered_mass must be finite and positive.")
     backdrops = {
-        visualizer.backdrop
+        visualizer.backend.backdrop
         for visualizer in cfg.sim.visualizer_cfgs
-        if isinstance(visualizer, (CoffeeKitVisualizerCfg, CoffeeRTXVisualizerCfg))
+        if isinstance(visualizer.backend, (CoffeeKitBackendCfg, CoffeeRTXVisualizerCfg))
     }
     if len(backdrops) > 1:
         raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")
     for backdrop in backdrops:
         cfg.scene.presentation = AssetBaseCfg(
-            prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop)
+            prim_path="/World/CoffeePresentation", spawn=CoffeePresentationCfg(backdrop=backdrop), cloning_contexts=()
         )
     cfg.scene.robot = get_robot_cfg()
     cfg.scene.table = AssetBaseCfg(
