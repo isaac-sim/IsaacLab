@@ -85,19 +85,14 @@ The ``ovphysx`` extra requires OvPhysX |ovphysx_version|. Install it from the re
     uv sync --inexact --extra ovphysx
 
 The ``--inexact`` flag preserves packages installed through other extras.
-Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
-extra pairs OVRTX 0.6.0.1791947691 with OVStage 0.3.0.1791986420. Upgrade these
-runtimes together; older release sets are not interchangeable.
+Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes with a compatible
+OVStage runtime. Keep the runtime versions resolved by the repository's dependency pins together.
 
-OVPhysX 0.7 support
+Schema registration
 ~~~~~~~~~~~~~~~~~~~
 
-The default dependency pins use OVPhysX 0.7. The backend selects task completion, stage
-teardown, scene reads and schema discovery from the installed runtime version.
-Tensor and contact bindings remain in use.
-
-OVPhysX 0.7 no longer bundles PhysX USD schemas. The ``ov`` and ``ovphysx`` extras
-install ``physx-usd-schemas==25.11.2.72696984`` before startup. Isaac Lab locates
+The ``ov`` and ``ovphysx`` extras install the external ``physx-usd-schemas`` provider
+before startup. The OvPhysX backend locates
 both PhysX and deformable schema directories without importing the provider,
 then registers them before USD population. The already-installed Newton schemas
 are also registered. Do not suppress schema-registration errors: late registration
