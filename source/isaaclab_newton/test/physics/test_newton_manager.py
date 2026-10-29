@@ -342,18 +342,18 @@ def test_deterministic_request_resolves_to_the_mode_the_solver_applies(
     assert newton_backend._resolve_deterministic_mode(cfg) == expected
 
 
-@pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
-def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg):
-    """A deterministic pipeline sizes its sort buffer at construction, so it is rebuilt for the solver's contacts."""
+@pytest.mark.parametrize(("configured", "expected"), [(None, 2), (1, 2), (5, 5)])
+def test_collision_pipeline_sizes_contacts_for_solver(configured, expected):
+    """The pipeline is built once with the solver's contact capacity, unless configured larger; the sorting
+    buffers of deterministic mode are sized with it."""
     pipelines, prepared = [], []
 
     class FakePipeline:
         def __init__(self, **kwargs):
             pipelines.append(kwargs)
-            self.rigid_contact_max = kwargs.get("rigid_contact_max") or 1
 
         def contacts(self):
-            return SimpleNamespace(rigid_contact_max=self.rigid_contact_max)
+            return SimpleNamespace(rigid_contact_max=pipelines[-1]["rigid_contact_max"])
 
     class RecordingSolver(NewtonSolver):
         @classmethod
@@ -364,6 +364,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
         def prepare_contacts(cls, cfg, solver, contacts, pipeline):
             prepared.append(contacts)
 
+    collision_cfg = NewtonCollisionPipelineCfg(rigid_contact_max=configured)
     backend = backend_stub(
         cfg=NewtonCfg(collision_cfg=collision_cfg, solver_cfg=NewtonSolverCfg(class_type=RecordingSolver)),
         model=None,
@@ -375,9 +376,9 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
 
     backend._allocate_contacts()
 
-    assert pipelines[1] == {**pipelines[0], "rigid_contact_max": 2}
-    assert pipelines[0]["deterministic"] is True
-    assert backend.contacts.rigid_contact_max == 2
+    (args,) = pipelines
+    assert args["deterministic"] and args["rigid_contact_max"] == expected
+    assert backend.contacts.rigid_contact_max == expected
     assert prepared == [backend.contacts]
 
 

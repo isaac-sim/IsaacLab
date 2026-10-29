@@ -528,7 +528,7 @@ class NewtonBackend:
     def _allocate_contacts(self) -> None:
         """Allocate contacts from Newton's collision pipeline, or from the solver when it detects contacts itself."""
         self.invalidate_graph()
-        model, solver, solver_cfg = self.model, self.solver, self.cfg.solver_cfg
+        solver, solver_cfg = self.solver, self.cfg.solver_cfg
         solver_cls = solver_cfg.class_type
         collision_cfg = self.cfg.collision_cfg
         if not solver_cls.uses_collision_pipeline(solver_cfg, solver):
@@ -543,23 +543,13 @@ class NewtonBackend:
             args = collision_cfg.to_pipeline_args() if collision_cfg is not None else {"broad_phase": "explicit"}
             args["deterministic"] = self.deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
             required = getattr(solver, "get_max_contact_count", lambda: 0)()
+            if required:
+                # The solver (e.g. MuJoCo Warp) copies at most its own contact capacity out of the pipeline's buffer,
+                # so the buffer holds that many contacts unless configured larger.
+                args["rigid_contact_max"] = max(args.get("rigid_contact_max") or 0, required)
             if self.collision_pipeline is None:
                 self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
             self.contacts = self.collision_pipeline.contacts()
-            # MuJoCo Warp can require more contacts than the pipeline estimates.
-            if required > self.contacts.rigid_contact_max:
-                if args["deterministic"]:
-                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
-                    args["rigid_contact_max"] = required
-                    self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
-                    self.contacts = self.collision_pipeline.contacts()
-                else:
-                    self.contacts = Contacts(
-                        rigid_contact_max=required,
-                        soft_contact_max=0,
-                        device=self.device,
-                        requested_attributes=model.get_requested_contact_attributes(),
-                    )
         if self.contacts is not None:
             solver_cls.prepare_contacts(solver_cfg, solver, self.contacts, self.collision_pipeline)
 
