@@ -4155,7 +4155,7 @@ class Articulation(BaseArticulation):
         Returns:
             Environment indices.
         """
-        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES)
 
     def _resolve_joint_ids(
         self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None, joint_mask: wp.array | None = None
@@ -4172,7 +4172,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
-        return resolve_ids(ids=joint_ids, mask=joint_mask, all_ids=self._ALL_JOINT_INDICES, device=self.device)
+        return resolve_ids(ids=joint_ids, mask=joint_mask, all_ids=self._ALL_JOINT_INDICES)
 
     def _resolve_body_ids(
         self, body_ids: Sequence[int] | torch.Tensor | wp.array | None = None, body_mask: wp.array | None = None
@@ -4186,7 +4186,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES, device=self.device)
+        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_fixed_tendon_ids(
         self,
@@ -4202,9 +4202,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
-        return resolve_ids(
-            ids=tendon_ids, mask=fixed_tendon_mask, all_ids=self._ALL_FIXED_TENDON_INDICES, device=self.device
-        )
+        return resolve_ids(ids=tendon_ids, mask=fixed_tendon_mask, all_ids=self._ALL_FIXED_TENDON_INDICES)
 
     def _resolve_spatial_tendon_ids(
         self,
@@ -4220,12 +4218,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
-        return resolve_ids(
-            ids=spatial_tendon_ids,
-            mask=spatial_tendon_mask,
-            all_ids=self._ALL_SPATIAL_TENDON_INDICES,
-            device=self.device,
-        )
+        return resolve_ids(ids=spatial_tendon_ids, mask=spatial_tendon_mask, all_ids=self._ALL_SPATIAL_TENDON_INDICES)
 
     """
     Deprecated methods.
