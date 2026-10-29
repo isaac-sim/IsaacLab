@@ -19,6 +19,7 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
+from isaaclab.sim import SwitchableAssetsCfg
 
 from isaaclab_ov._clone import CloneRecipe
 from isaaclab_ov.physics import ovphysx_compat
@@ -181,10 +182,17 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             use_ovstage = initialized._use_ovstage
             share_ovstage = initialized.backend.cfg.scene_key is None
         else:
-            # Default to native OVRTX cloning to preserve camera-task throughput on both physics backends.
-            # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
+            # Default to native OVRTX cloning to preserve camera-task throughput on both physics backends, except for
+            # switchable assets: every environment holds all candidates of such an asset, which native cloning first
+            # renders far slower. Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance
+            # are fixed.
             with_ovphysx = sim.backend_manager.clone_context_type is OvPhysxReplicateContext
-            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0").strip()
+            # Standalone cameras prepare before the first reset without a clone plan.
+            plan = sim.get_clone_plan()
+            switchable = plan is not None and any(
+                isinstance(vars(cfg).get("spawn"), SwitchableAssetsCfg) for cfg in plan.asset_cfgs
+            )
+            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if switchable else "0").strip()
             if value not in {"0", "1"}:
                 raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
             share_ovstage = os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1"
