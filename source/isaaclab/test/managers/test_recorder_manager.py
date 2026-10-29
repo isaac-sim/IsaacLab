@@ -93,6 +93,8 @@ def test_record(tmp_path):
         assert episode.data["record_pre_step"].shape == (2, 4)
         assert episode.data["record_post_step"].shape == (2, 5)
 
+    manager.set_success_to_episodes((2, 0), torch.tensor([[False], [True]]))
+    assert [manager.get_episode(i).success for i in range(env.num_envs)] == [True, None, False]
     manager.record_pre_reset(slice(None))  # Capture, export and clear the completed episodes.
     assert reset_term.env_ids == slice(None)
     assert all(manager.get_episode(i).is_empty() for i in range(env.num_envs))
@@ -103,6 +105,14 @@ def test_record(tmp_path):
         assert manager.get_episode(env_id).is_empty() == (env_id % 2 == 1)
     manager.record_post_reset(slice(1, None, 2))
     assert reset_term.env_ids == slice(1, None, 2)
+    assert all(manager.get_episode(i).data["record_post_reset"].shape == (1, 3) for i in range(env.num_envs))
+    manager.reset((2, 0))
+    assert [manager.get_episode(i).is_empty() for i in range(env.num_envs)] == [True, False, True]
+    manager.record_post_reset((2, 0))
+    manager.record_pre_reset((2, 0), force_export_or_skip=False)
+    assert [manager.get_episode(i).success for i in range(env.num_envs)] == [False, None, False]
+    manager.set_success_to_episodes((), torch.empty(0, 1, dtype=torch.bool))
+    manager.reset(())
     assert all(manager.get_episode(i).data["record_post_reset"].shape == (1, 3) for i in range(env.num_envs))
     manager.close()
 

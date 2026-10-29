@@ -1,7 +1,8 @@
 * Replaced per-world recorder episode containers with batched field allocations and
   independent insertion indices, reusing storage across resets and growing without dropping samples.
 * Added :meth:`~isaaclab.managers.RecorderManager.get_term` for direct access to captured batches.
-* Preserve slices through recorder reset callbacks; terms accept slices or indices directly.
+* Preserve slices through recorder reset callbacks and normalize Python sequences to lists so tuple
+  environment indices work for capture, reset and success updates.
 * **Breaking:** Removed the implicit observation computation before RL post-step recorder callbacks.
   Physical capture no longer consumes extra observation noise. Custom terms needing observations
   of the completed transition must call ``env.observation_manager.compute_group(name, update_history=False)``

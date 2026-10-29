@@ -55,7 +55,7 @@ class RecorderManagerBaseCfg:
     """Whether to export episodes in the close call."""
 
     buffer_initial_capacity: int = 64
-    """Initial samples per world and field. Must be positive; storage grows as needed.
+    """Initial samples per environment and field. Must be positive; storage grows as needed.
 
     Set to the expected episode length, including decimation callbacks, to avoid reallocations.
     """
@@ -248,20 +248,35 @@ class RecorderManager(ManagerBase):
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return {}
+        if isinstance(env_ids, Sequence):
+            env_ids = list(env_ids)
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
         self._reset_buffers(env_ids)
         return {}
 
     def get_term(self, name: str) -> RecorderTerm:
-        """Return the configured recorder term with the given name."""
+        """Return a configured recorder term.
+
+        Args:
+            name: Name of the term.
+
+        Returns:
+            The configured term.
+        """
         return self._terms[name]
 
     def get_episode(self, env_id: int) -> EpisodeData:
-        """Return an owned snapshot of a world's current episode.
+        """Return an owned snapshot of the selected environment's current episode.
 
-        Tensor leaves have a leading sample dimension. Reading copies data and may synchronize
-        the device. For live writes, use :meth:`add_to_episodes` and :meth:`set_success_to_episodes`.
+        Reading copies data and may synchronize the device. For live writes, use
+        :meth:`add_to_episodes` and :meth:`set_success_to_episodes`.
+
+        Args:
+            env_id: The environment index.
+
+        Returns:
+            An episode with tensor leaves and a leading sample dimension.
         """
         episode = EpisodeData()
         if not self.active_terms or not 0 <= env_id < self._env.num_envs:
@@ -278,15 +293,17 @@ class RecorderManager(ManagerBase):
         episode.success = None if success < 0 else bool(success)
         return episode
 
-    def add_to_episodes(self, key: str, value: torch.Tensor | dict, env_ids: Sequence[int] | slice | None = None):
+    def add_to_episodes(
+        self, key: str, value: torch.Tensor | dict, env_ids: Sequence[int] | slice | None = None
+    ) -> None:
         """Append a batch to the selected episodes.
 
         Args:
             key: Field path, with nested keys separated by '/'.
-            value: Tensor of shape (selected worlds, ...) or nested dictionary of tensors.
+            value: Tensor of shape (selected environments, ...) or nested dictionary of tensors.
                 Warp arrays are also accepted. Storage copies the values and preserves dtype/device.
                 A field's shape, dtype, and device must remain constant while it contains samples.
-            env_ids: Unique world indices in the same order as the value batch. None selects all worlds.
+            env_ids: Unique environment indices in batch order. None selects all environments.
         """
         if not self.active_terms or key is None:
             return
@@ -314,12 +331,19 @@ class RecorderManager(ManagerBase):
             self._fields.append(field)
         field.append(value, env_ids)
 
-    def set_success_to_episodes(self, env_ids: Sequence[int] | slice | None, success_values: torch.Tensor):
-        """Set selected worlds' success flags from a tensor of shape (selected worlds,) or (selected worlds, 1)."""
+    def set_success_to_episodes(self, env_ids: Sequence[int] | slice | None, success_values: torch.Tensor) -> None:
+        """Set success flags for selected environments.
+
+        Args:
+            env_ids: The environment indices. None selects all environments.
+            success_values: Flags in selection order, with shape (num_selected,) or (num_selected, 1).
+        """
         if not self.active_terms:
             return
         if env_ids is None:
             env_ids = slice(None)
+        elif isinstance(env_ids, Sequence):
+            env_ids = list(env_ids)
         self._success[env_ids] = success_values.reshape(-1).to(device=self._success.device, dtype=torch.int8)
 
     def record_pre_step(self) -> None:
@@ -352,6 +376,8 @@ class RecorderManager(ManagerBase):
 
         if env_ids is None:
             env_ids = slice(None)
+        elif isinstance(env_ids, Sequence):
+            env_ids = list(env_ids)
 
         for term in self._terms.values():
             key, value = term.record_pre_reset(env_ids)
@@ -380,6 +406,8 @@ class RecorderManager(ManagerBase):
 
         if env_ids is None:
             env_ids = slice(None)
+        elif isinstance(env_ids, Sequence):
+            env_ids = list(env_ids)
 
         for term in self._terms.values():
             key, value = term.record_post_reset(env_ids)
@@ -491,7 +519,7 @@ class RecorderManager(ManagerBase):
     Helper functions.
     """
 
-    def _reset_buffers(self, env_ids):
+    def _reset_buffers(self, env_ids: Sequence[int] | torch.Tensor | slice | None) -> None:
         """Discard selected samples by resetting indices; retain allocations for the next episodes."""
         for field in self._fields:
             field.reset(env_ids)
@@ -536,13 +564,13 @@ class RecorderManager(ManagerBase):
 
 
 class _RecorderField:
-    """One field's time-major allocation and independent per-world insertion indices.
+    """One field's time-major allocation and independent per-environment insertion indices.
 
-    No per-world Python containers or tensor views are created during append. The host upper
+    No per-environment Python containers or tensor views are created during append. The host upper
     bound avoids reading device indices in steady state; only capacity exhaustion checks synchronize.
     """
 
-    def __init__(self, name: str, value: torch.Tensor, num_envs: int, capacity: int):
+    def __init__(self, name: str, value: torch.Tensor, num_envs: int, capacity: int) -> None:
         self.name = name
         # Retained storage outlives the caller's inference context: reset/export may run outside it.
         with torch.inference_mode(False):
@@ -552,7 +580,7 @@ class _RecorderField:
         self.upper_bound = 0
 
     @torch.no_grad()
-    def append(self, value: torch.Tensor, env_ids):
+    def append(self, value: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | slice | None) -> None:
         if value.shape[1:] != self.data.shape[2:] or value.dtype != self.data.dtype or value.device != self.data.device:
             if self.lengths.any().item():
                 raise ValueError(f"Recorder field '{self.name}' changed shape, dtype, or device with active samples.")
@@ -585,7 +613,7 @@ class _RecorderField:
             self.lengths[worlds] = indices + 1
         self.upper_bound += 1
 
-    def reset(self, env_ids):
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None) -> None:
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             self.lengths.zero_()
             self.upper_bound = 0
