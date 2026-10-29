@@ -3,14 +3,64 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Custom kernels for warp."""
+"""Custom kernels for Warp.
 
+.. deprecated::
+    Wrench entry points in this module will be removed in Isaac Lab 3.2. Use
+    :class:`~isaaclab.utils.wrench_composer.WrenchComposer`, or the kernels and factories in
+    :mod:`isaaclab.utils.warp.wrench`. The old launch signatures remain supported until removal;
+    importing them emits :class:`DeprecationWarning`. New writers take the selected force and
+    torque destinations directly instead of five buffers and an ``is_global`` argument.
+"""
+
+import warnings
 from typing import Any
 
 import torch
 import warp as wp
 
 from .index_kernel import IndexKernelDispatcher
+
+_DEPRECATED_WRENCH_NAMES = (
+    "compose_wrench_to_body_frame",
+    "add_raw_wrench_buffers",
+    "set_forces_to_dual_buffers_index",
+    "add_forces_to_dual_buffers_index",
+    "set_forces_to_dual_buffers_mask",
+    "add_forces_to_dual_buffers_mask",
+    "reset_wrench_composer_index",
+    "reset_wrench_composer_mask",
+    "set_forces_to_dual_buffers_index_kernel",
+    "add_forces_to_dual_buffers_index_kernel",
+    "reset_wrench_composer_index_kernel",
+)
+
+
+def __getattr__(name: str):
+    if name not in _DEPRECATED_WRENCH_NAMES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from . import _wrench_compat, wrench
+
+    warnings.warn(
+        f"{__name__}.{name} is deprecated and will be removed in Isaac Lab 3.2. "
+        "Use WrenchComposer or the kernels and factories in isaaclab.utils.warp.wrench instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    if name in ("compose_wrench_to_body_frame", "add_raw_wrench_buffers"):
+        return getattr(wrench, name)
+    if name == "reset_wrench_composer_mask":
+        return wrench.make_reset_wrench(wp.bool)
+    if name == "reset_wrench_composer_index" or name.endswith("_kernel"):
+        return getattr(_wrench_compat, name)
+    dtype = wp.bool if name.endswith("_mask") else Any
+    return _wrench_compat.make_write_wrench(dtype, dtype, accumulate=name.startswith("add_"))
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_DEPRECATED_WRENCH_NAMES))
+
 
 ##
 # Raycasting
@@ -390,353 +440,6 @@ wp.overload(
 ##
 
 
-@wp.kernel
-def set_forces_to_dual_buffers_index(
-    env_ids: wp.array(dtype=Any),
-    body_ids: wp.array(dtype=Any),
-    forces: wp.array2d(dtype=wp.vec3f),
-    torques: wp.array2d(dtype=wp.vec3f),
-    positions: wp.array2d(dtype=wp.vec3f),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
-):
-    """Set forces/torques into dual buffers using index selection (overwrites).
-
-    Dispatched with ``dim=(len(env_ids), len(body_ids))``.
-
-    When ``is_global`` is True, forces/torques are written to the world-frame buffers.
-    Forces with ``positions`` go to ``global_force_w`` with torque ``cross(P, F)`` accumulated
-    into ``global_torque_w``; forces without positions go to ``global_force_at_com_w``.
-    When ``is_global`` is False, values go to ``local_force_b`` / ``local_torque_b``.
-
-    Any of ``forces``, ``torques``, or ``positions`` may be ``None`` (null array).
-    """
-    tid_env, tid_body = wp.tid()
-    ei = wp.int32(env_ids[tid_env])
-    bi = wp.int32(body_ids[tid_body])
-
-    if is_global:
-        if torques:
-            global_torque_w[ei, bi] = torques[tid_env, tid_body]
-        if forces:
-            if positions:
-                global_force_w[ei, bi] = forces[tid_env, tid_body]
-                if torques:
-                    global_torque_w[ei, bi] = global_torque_w[ei, bi] + wp.cross(
-                        positions[tid_env, tid_body], forces[tid_env, tid_body]
-                    )
-                else:
-                    global_torque_w[ei, bi] = wp.cross(positions[tid_env, tid_body], forces[tid_env, tid_body])
-            else:
-                global_force_at_com_w[ei, bi] = forces[tid_env, tid_body]
-    else:
-        if torques:
-            local_torque_b[ei, bi] = torques[tid_env, tid_body]
-        if forces:
-            local_force_b[ei, bi] = forces[tid_env, tid_body]
-            if positions:
-                if torques:
-                    local_torque_b[ei, bi] = local_torque_b[ei, bi] + wp.cross(
-                        positions[tid_env, tid_body], forces[tid_env, tid_body]
-                    )
-                else:
-                    local_torque_b[ei, bi] = wp.cross(positions[tid_env, tid_body], forces[tid_env, tid_body])
-
-
-@wp.kernel
-def add_forces_to_dual_buffers_index(
-    env_ids: wp.array(dtype=Any),
-    body_ids: wp.array(dtype=Any),
-    forces: wp.array2d(dtype=wp.vec3f),
-    torques: wp.array2d(dtype=wp.vec3f),
-    positions: wp.array2d(dtype=wp.vec3f),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
-):
-    """Add forces/torques into dual buffers using index selection (accumulates).
-
-    Same routing logic as :func:`set_forces_to_dual_buffers_index` but uses ``+=`` instead of ``=``.
-    Dispatched with ``dim=(len(env_ids), len(body_ids))``.
-    """
-    tid_env, tid_body = wp.tid()
-    ei = wp.int32(env_ids[tid_env])
-    bi = wp.int32(body_ids[tid_body])
-
-    if is_global:
-        if forces:
-            if positions:
-                global_force_w[ei, bi] = global_force_w[ei, bi] + forces[tid_env, tid_body]
-                global_torque_w[ei, bi] = global_torque_w[ei, bi] + wp.cross(
-                    positions[tid_env, tid_body], forces[tid_env, tid_body]
-                )
-            else:
-                global_force_at_com_w[ei, bi] = global_force_at_com_w[ei, bi] + forces[tid_env, tid_body]
-        if torques:
-            global_torque_w[ei, bi] = global_torque_w[ei, bi] + torques[tid_env, tid_body]
-    else:
-        if forces:
-            local_force_b[ei, bi] = local_force_b[ei, bi] + forces[tid_env, tid_body]
-            if positions:
-                local_torque_b[ei, bi] = local_torque_b[ei, bi] + wp.cross(
-                    positions[tid_env, tid_body], forces[tid_env, tid_body]
-                )
-        if torques:
-            local_torque_b[ei, bi] = local_torque_b[ei, bi] + torques[tid_env, tid_body]
-
-
-@wp.kernel
-def set_forces_to_dual_buffers_mask(
-    env_mask: wp.array(dtype=wp.bool),
-    body_mask: wp.array(dtype=wp.bool),
-    forces: wp.array2d(dtype=wp.vec3f),
-    torques: wp.array2d(dtype=wp.vec3f),
-    positions: wp.array2d(dtype=wp.vec3f),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
-):
-    """Set forces/torques into dual buffers using mask selection (overwrites).
-
-    Same routing logic as :func:`set_forces_to_dual_buffers_index` but threads are gated by
-    ``env_mask[tid_env] and body_mask[tid_body]``, and indices are direct (no indirection array).
-    Dispatched with ``dim=(num_envs, num_bodies)``.
-    """
-    tid_env, tid_body = wp.tid()
-
-    if env_mask[tid_env] and body_mask[tid_body]:
-        if is_global:
-            if torques:
-                global_torque_w[tid_env, tid_body] = torques[tid_env, tid_body]
-            if forces:
-                if positions:
-                    global_force_w[tid_env, tid_body] = forces[tid_env, tid_body]
-                    if torques:
-                        global_torque_w[tid_env, tid_body] = global_torque_w[tid_env, tid_body] + wp.cross(
-                            positions[tid_env, tid_body], forces[tid_env, tid_body]
-                        )
-                    else:
-                        global_torque_w[tid_env, tid_body] = wp.cross(
-                            positions[tid_env, tid_body], forces[tid_env, tid_body]
-                        )
-                else:
-                    global_force_at_com_w[tid_env, tid_body] = forces[tid_env, tid_body]
-        else:
-            if torques:
-                local_torque_b[tid_env, tid_body] = torques[tid_env, tid_body]
-            if forces:
-                local_force_b[tid_env, tid_body] = forces[tid_env, tid_body]
-                if positions:
-                    if torques:
-                        local_torque_b[tid_env, tid_body] = local_torque_b[tid_env, tid_body] + wp.cross(
-                            positions[tid_env, tid_body], forces[tid_env, tid_body]
-                        )
-                    else:
-                        local_torque_b[tid_env, tid_body] = wp.cross(
-                            positions[tid_env, tid_body], forces[tid_env, tid_body]
-                        )
-
-
-@wp.kernel
-def add_forces_to_dual_buffers_mask(
-    env_mask: wp.array(dtype=wp.bool),
-    body_mask: wp.array(dtype=wp.bool),
-    forces: wp.array2d(dtype=wp.vec3f),
-    torques: wp.array2d(dtype=wp.vec3f),
-    positions: wp.array2d(dtype=wp.vec3f),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
-):
-    """Add forces/torques into dual buffers using mask selection (accumulates).
-
-    Same routing logic as :func:`add_forces_to_dual_buffers_index` but threads are gated by
-    ``env_mask[tid_env] and body_mask[tid_body]``.
-    Dispatched with ``dim=(num_envs, num_bodies)``.
-    """
-    tid_env, tid_body = wp.tid()
-
-    if env_mask[tid_env] and body_mask[tid_body]:
-        if is_global:
-            if forces:
-                if positions:
-                    global_force_w[tid_env, tid_body] = global_force_w[tid_env, tid_body] + forces[tid_env, tid_body]
-                    global_torque_w[tid_env, tid_body] = global_torque_w[tid_env, tid_body] + wp.cross(
-                        positions[tid_env, tid_body], forces[tid_env, tid_body]
-                    )
-                else:
-                    global_force_at_com_w[tid_env, tid_body] = (
-                        global_force_at_com_w[tid_env, tid_body] + forces[tid_env, tid_body]
-                    )
-            if torques:
-                global_torque_w[tid_env, tid_body] = global_torque_w[tid_env, tid_body] + torques[tid_env, tid_body]
-        else:
-            if forces:
-                local_force_b[tid_env, tid_body] = local_force_b[tid_env, tid_body] + forces[tid_env, tid_body]
-                if positions:
-                    local_torque_b[tid_env, tid_body] = local_torque_b[tid_env, tid_body] + wp.cross(
-                        positions[tid_env, tid_body], forces[tid_env, tid_body]
-                    )
-            if torques:
-                local_torque_b[tid_env, tid_body] = local_torque_b[tid_env, tid_body] + torques[tid_env, tid_body]
-
-
-@wp.kernel
-def add_raw_wrench_buffers(
-    src_gf: wp.array2d(dtype=wp.vec3f),
-    src_gt: wp.array2d(dtype=wp.vec3f),
-    src_gfc: wp.array2d(dtype=wp.vec3f),
-    src_lf: wp.array2d(dtype=wp.vec3f),
-    src_lt: wp.array2d(dtype=wp.vec3f),
-    dst_gf: wp.array2d(dtype=wp.vec3f),
-    dst_gt: wp.array2d(dtype=wp.vec3f),
-    dst_gfc: wp.array2d(dtype=wp.vec3f),
-    dst_lf: wp.array2d(dtype=wp.vec3f),
-    dst_lt: wp.array2d(dtype=wp.vec3f),
-):
-    """Element-wise add all five source wrench buffers into destination buffers.
-
-    Dispatched with ``dim=(num_envs, num_bodies)``. Each ``src_*`` / ``dst_*`` pair corresponds
-    to one of the five input buffers (global_force_w, global_torque_w, global_force_at_com_w,
-    local_force_b, local_torque_b).
-    """
-    tid_env, tid_body = wp.tid()
-    dst_gf[tid_env, tid_body] = dst_gf[tid_env, tid_body] + src_gf[tid_env, tid_body]
-    dst_gt[tid_env, tid_body] = dst_gt[tid_env, tid_body] + src_gt[tid_env, tid_body]
-    dst_gfc[tid_env, tid_body] = dst_gfc[tid_env, tid_body] + src_gfc[tid_env, tid_body]
-    dst_lf[tid_env, tid_body] = dst_lf[tid_env, tid_body] + src_lf[tid_env, tid_body]
-    dst_lt[tid_env, tid_body] = dst_lt[tid_env, tid_body] + src_lt[tid_env, tid_body]
-
-
-@wp.kernel
-def compose_wrench_to_body_frame(
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    com_pos_w: wp.array2d(dtype=wp.vec3f),
-    link_quat_w: wp.array2d(dtype=wp.quatf),
-    out_force_b: wp.array2d(dtype=wp.vec3f),
-    out_torque_b: wp.array2d(dtype=wp.vec3f),
-):
-    """Compose global and local wrench buffers into a single body-frame output.
-
-    Global torques store the moment of positional forces about the world origin: ``cross(P, F)``.
-    This kernel corrects to be about the body's CoM via ``cross(P, F) - cross(com_pos_w, F) =
-    cross(P - com_pos_w, F)``, then rotates both force and torque into the body frame using
-    ``quat_rotate_inv(link_quat_w, ...)``, and adds local-frame values.
-
-    Dispatched with ``dim=(num_envs, num_bodies)``.
-    """
-    tid_env, tid_body = wp.tid()
-    total_force_w = global_force_w[tid_env, tid_body] + global_force_at_com_w[tid_env, tid_body]
-    corrected_torque_w = global_torque_w[tid_env, tid_body] - wp.cross(
-        com_pos_w[tid_env, tid_body], global_force_w[tid_env, tid_body]
-    )
-    out_force_b[tid_env, tid_body] = (
-        wp.quat_rotate_inv(link_quat_w[tid_env, tid_body], total_force_w) + local_force_b[tid_env, tid_body]
-    )
-    out_torque_b[tid_env, tid_body] = (
-        wp.quat_rotate_inv(link_quat_w[tid_env, tid_body], corrected_torque_w) + local_torque_b[tid_env, tid_body]
-    )
-
-
-@wp.kernel
-def reset_wrench_composer_index(
-    env_ids: wp.array(dtype=Any),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    out_force_b: wp.array2d(dtype=wp.vec3f),
-    out_torque_b: wp.array2d(dtype=wp.vec3f),
-):
-    """Zero all 7 wrench composer buffers at the specified environment indices.
-
-    Dispatched with ``dim=(len(env_ids), num_bodies)``.
-    """
-    tid_env, tid_body = wp.tid()
-    ei = wp.int32(env_ids[tid_env])
-    z = wp.vec3f(0.0)
-    global_force_w[ei, tid_body] = z
-    global_torque_w[ei, tid_body] = z
-    global_force_at_com_w[ei, tid_body] = z
-    local_force_b[ei, tid_body] = z
-    local_torque_b[ei, tid_body] = z
-    out_force_b[ei, tid_body] = z
-    out_torque_b[ei, tid_body] = z
-
-
-_SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER = IndexKernelDispatcher(
-    set_forces_to_dual_buffers_index, ("env_ids", "body_ids")
-)
-_ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER = IndexKernelDispatcher(
-    add_forces_to_dual_buffers_index, ("env_ids", "body_ids")
-)
-_RESET_WRENCH_COMPOSER_INDEX_DISPATCHER = IndexKernelDispatcher(reset_wrench_composer_index, ("env_ids",))
-
-
-def set_forces_to_dual_buffers_index_kernel(
-    env_ids: "wp.array | torch.Tensor", body_ids: "wp.array | torch.Tensor"
-) -> wp.Kernel:
-    """Select the indexed wrench-set worker for the selector dtypes."""
-    return _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
-
-
-def add_forces_to_dual_buffers_index_kernel(
-    env_ids: "wp.array | torch.Tensor", body_ids: "wp.array | torch.Tensor"
-) -> wp.Kernel:
-    """Select the indexed wrench-add worker for the selector dtypes."""
-    return _ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
-
-
-def reset_wrench_composer_index_kernel(env_ids: "wp.array | torch.Tensor") -> wp.Kernel:
-    """Select the indexed wrench-reset worker for the selector dtype."""
-    return _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select(env_ids)
-
-
-@wp.kernel
-def reset_wrench_composer_mask(
-    env_mask: wp.array(dtype=wp.bool),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    out_force_b: wp.array2d(dtype=wp.vec3f),
-    out_torque_b: wp.array2d(dtype=wp.vec3f),
-):
-    """Zero all 7 wrench composer buffers for environments matching the mask.
-
-    Dispatched with ``dim=(num_envs, num_bodies)``.
-    """
-    tid_env, tid_body = wp.tid()
-    if env_mask[tid_env]:
-        z = wp.vec3f(0.0)
-        global_force_w[tid_env, tid_body] = z
-        global_torque_w[tid_env, tid_body] = z
-        global_force_at_com_w[tid_env, tid_body] = z
-        local_force_b[tid_env, tid_body] = z
-        local_torque_b[tid_env, tid_body] = z
-        out_force_b[tid_env, tid_body] = z
-        out_torque_b[tid_env, tid_body] = z
-
-
 ##
 # Element-wise arithmetic.
 ##
@@ -805,3 +508,7 @@ def initialize_rng_state(
     """
     env_id = wp.tid()
     state[env_id] = wp.rand_init(seed, env_id)
+
+
+# Include deprecated names in star imports without eagerly creating their kernels.
+__all__ = [name for name in globals() if not name.startswith("_")] + list(_DEPRECATED_WRENCH_NAMES)
