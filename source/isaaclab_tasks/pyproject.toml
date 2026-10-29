@@ -39,3 +39,4 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_tasks.core.motion_tracking.data" = ["*.npz"]
