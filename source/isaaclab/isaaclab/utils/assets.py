@@ -34,6 +34,8 @@ from urllib.parse import urlparse
 
 import ovstorage
 from filelock import FileLock
+from ovstorage.plugin import PluginBackend
+from ovstorage.redirect_follower import RedirectFollower
 
 from ..paths import ISAACLAB_ROOT
 
@@ -176,12 +178,11 @@ def _ovstorage_stack(url: str) -> ovstorage.LayerBase:
             request = ovstorage.ConnectionRequest(kind)
             for key, value in config.items():
                 request.add_config(key, ovstorage.ConfigValue.string(value))
-            # attribute access: ovstorage registers its native submodules in sys.modules only on first import
             stack = (
                 ovstorage.Stack(root="redirects")
                 .with_registry(ovstorage.PluginRegistry([str(ovstorage.bundled_plugins_dir())]))
-                .wrapper(ovstorage.redirect_follower.RedirectFollower("redirects", "origin"))
-                .backend(ovstorage.plugin.PluginBackend(kind, "origin"))
+                .wrapper(RedirectFollower("redirects", "origin"))
+                .backend(PluginBackend(kind, "origin"))
                 .connection("origin", request)
             )
             _OVSTORAGE_STACKS[origin] = _ovstorage_run(stack.build())
