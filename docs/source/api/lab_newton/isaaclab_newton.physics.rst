@@ -8,6 +8,7 @@
   .. autosummary::
 
     NewtonManager
+    CapturedGraph
     NewtonBackend
     NewtonCloneRecord
     MjWarpActuatorBridge
@@ -53,12 +54,20 @@ Physics Manager
 
 .. autofunction:: create_builder
 
+.. autoclass:: CapturedGraph
+  :members:
+
 .. autoclass:: NewtonBackend
   :members:
   :exclude-members: __init__
 
 .. autoclass:: NewtonCloneRecord
   :members:
+
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: capture_graph
+
+.. currentmodule:: isaaclab_newton.physics
 
 Solvers
 -------

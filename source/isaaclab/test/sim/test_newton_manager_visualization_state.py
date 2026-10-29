@@ -119,6 +119,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     import warp as wp
     from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSolverCfg
     from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
+    from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
@@ -134,13 +135,19 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     backend = NewtonSceneDataBackend(owner)
     provider = SceneDataProvider(backend)
 
-    newton_backend = SimpleNamespace(
-        model=SimpleNamespace(body_count=1, world_count=1),
+    newton_backend = backend_stub(
+        cfg=owner._cfg,
+        model_changes=set(),
+        model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
         state_0=state,
         solver=None,
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
+        world_ids=wp.zeros(1, dtype=wp.int32, device="cpu"),
+        is_stepping=False,
         kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
+        device=wp.get_device("cpu"),
     )
     monkeypatch.setattr(owner, "backend", newton_backend)
     monkeypatch.setattr(owner, "_scene_data_backend", backend)

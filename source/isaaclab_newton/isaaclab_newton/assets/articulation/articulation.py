@@ -706,8 +706,12 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if (
+            self._backend_manager.backend.solver is not None
+            and not self.root_view.is_floating_base
+            and env_ids.shape[0]
+        ):
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -755,8 +759,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=env_mask)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -809,8 +813,12 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if (
+            self._backend_manager.backend.solver is not None
+            and not self.root_view.is_floating_base
+            and env_ids.shape[0]
+        ):
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -861,8 +869,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=env_mask)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -1610,7 +1618,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES, env_mask=env_mask)
 
     def write_joint_stiffness_to_sim_index(
         self,
@@ -1924,7 +1932,7 @@ class Articulation(BaseArticulation):
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits.",
             )
-        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES, env_mask=env_mask)
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -2413,7 +2421,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_coms_index(
         self,
@@ -2515,7 +2523,7 @@ class Articulation(BaseArticulation):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_inertias_index(
         self,
@@ -2612,7 +2620,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     """
     Operations - Tendons.

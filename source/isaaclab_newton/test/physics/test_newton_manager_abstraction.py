@@ -51,6 +51,7 @@ from isaaclab_newton.physics import (
     NewtonSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
+    newton_backend,
 )
 from isaaclab_newton.physics.mpm_solver import (
     _make_solver_config,
@@ -61,6 +62,7 @@ from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.actuators import DrivePID
 from newton.selection import ArticulationView
@@ -70,9 +72,9 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
-resolve_deterministic_mode = NewtonManager._resolve_deterministic_mode
+resolve_deterministic_mode = newton_backend._resolve_deterministic_mode
 
 
 # ---------------------------------------------------------------------------
@@ -146,11 +148,10 @@ def _model_stub(state_attributes=()) -> SimpleNamespace:
 )
 def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
     """Unsupported solvers should not silently ignore a determinism guarantee."""
-    manager = NewtonManager(NewtonCfg())
-    manager._cfg = NewtonCfg(solver_cfg=solver_cfg, deterministic_mode="gpu_to_gpu")
-    manager.backend = SimpleNamespace(model=_model_stub())
+    cfg = NewtonCfg(solver_cfg=solver_cfg, deterministic_mode="gpu_to_gpu")
+    backend = backend_stub(cfg=cfg, model=_model_stub(), deterministic_mode=resolve_deterministic_mode(cfg))
     with pytest.raises(ValueError, match="not supported"):
-        manager.initialize_solver()
+        backend.init_solver()
 
 
 @pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
@@ -178,14 +179,17 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(coll
             prepared.append(contacts)
 
     solver = SimpleNamespace(model=SimpleNamespace(), get_max_contact_count=lambda: 2)
-    backend = SimpleNamespace(model=solver.model, solver=solver, collision_pipeline=None)
-    manager = NewtonManager(NewtonCfg())
     solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
-    manager._cfg, manager._device = NewtonCfg(collision_cfg=collision_cfg, solver_cfg=solver_cfg), "cpu"
-    manager.backend = backend
-    manager._deterministic_mode = wp.DeterministicMode.GPU_TO_GPU
+    backend = backend_stub(
+        cfg=NewtonCfg(collision_cfg=collision_cfg, solver_cfg=solver_cfg),
+        model=solver.model,
+        solver=solver,
+        collision_pipeline=None,
+        device="cpu",
+        deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
+    )
 
-    manager._initialize_contacts()
+    backend._allocate_contacts()
 
     assert len(pipeline_calls) == 2
     assert pipeline_calls[1] == {**pipeline_calls[0], "rigid_contact_max": 2}
@@ -699,15 +703,19 @@ def test_mpm_cuda_graph_capture_supports_static_topology(overrides, expected):
 
 
 def test_mpm_status_check_runs_only_after_graph_capture():
-    """Sparse-grid asynchronous failures are queried only after graph replay."""
-    calls = []
+    """Standalone replay surfaces sparse-grid failures; the eager status hook avoids a host read."""
+    cfg = NewtonCfg(solver_cfg=MPMSolverCfg(), use_cuda_graph=False)
+    backend = newton_backend.NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), ModelBuilder(), dt=0.01)
     solver = object.__new__(SolverImplicitMPM)
-    solver.check_sparse_grid_rebuild_status = lambda: calls.append("check")
+    solver.model = backend.model
+    solver._grid_status = wp.full(1, wp.Volume.REBUILD_VOXEL_CAPACITY_EXCEEDED, dtype=wp.uint32, device="cpu")
+    solver._grid_accumulated_status = None
+    backend.solver = solver
+    backend.graph = SimpleNamespace(launch=lambda: None)
 
-    MPMSolver.check_step(MPMSolverCfg(), solver, False, False)
-    MPMSolver.check_step(MPMSolverCfg(), solver, True, False)
-
-    assert calls == ["check"]
+    MPMSolver.check_step(cfg.solver_cfg, solver, False, False)
+    with pytest.raises(RuntimeError, match="active voxels"):
+        backend.step()
 
 
 def test_nested_mpm_solver_discovery_selects_implicit_mpm_entries():
@@ -732,17 +740,41 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     events = []
     manager = _recording_manager(events, single_state=True, num_substeps=1, device="cuda:0", captures=supported)
     replays = []
-    monkeypatch.setattr(manager, "_capture_graph", lambda segment: segment)
-    monkeypatch.setattr(wp, "capture_launch", lambda segment: (replays.append(segment), segment()))
-    manager._invalidate_graph()
+    monkeypatch.setattr(
+        newton_backend,
+        "capture_graph",
+        lambda device, segment, relaxed=False: SimpleNamespace(launch=lambda: (replays.append(segment), segment())),
+    )
+    manager.backend.init_solver()
 
     for _ in range(2):
         manager.step()
 
-    assert (manager._graph is not None) is supported
+    assert (manager.backend.graph is not None) is supported
     assert len(replays) == int(supported)
     # The capturing step ran eagerly first, so both steps advanced physics exactly once.
     assert events.count(("step", "state_0", "state_0")) == 2
+
+
+@pytest.mark.parametrize("relaxed", [False, True])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_cuda_graph_records_torch_work_and_retains_temporary_tensors(device, relaxed):
+    """Capture retains temporary Torch allocations and records kernels without advancing their output."""
+    import torch
+
+    value = torch.zeros(4, device=device)
+
+    def controller():
+        value.copy_((value + 1.0).square())
+
+    controller()
+    torch.cuda.synchronize(device)
+    graph = newton_backend.capture_graph(device, controller, relaxed=relaxed)
+    torch.testing.assert_close(value, torch.ones_like(value))
+    for _ in range(3):
+        graph.launch()
+    torch.cuda.synchronize(device)
+    torch.testing.assert_close(value, torch.full_like(value, 676.0))
 
 
 # ---------------------------------------------------------------------------
@@ -761,7 +793,7 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     ],
 )
 def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
-    """A model-backed root write immediately refreshes MuJoCo's root transform."""
+    """A queued model-backed root write refreshes MuJoCo before the next state read or step."""
     builder = ModelBuilder()
     SolverMuJoCo.register_custom_attributes(builder)
     builder.begin_world()
@@ -770,7 +802,10 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
     root_joint = builder.add_joint_fixed(-1, root, parent_xform=initial_pose)
     builder.add_articulation([root_joint], label="robot")
     builder.end_world()
-    model = builder.finalize(device="cpu")
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False)
+    backend = newton_backend.NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    model = backend.model
     view = ArticulationView(model, "robot", verbose=False)
     body_com = view.get_attribute("body_com", model)[:, 0]
     data = SimpleNamespace(
@@ -789,24 +824,62 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
         assert_shape_and_dtype=lambda *args: None,
         assert_shape_and_dtype_mask=lambda *args: None,
     )
-    solver = SolverMuJoCo(model)
-    asset._backend_manager = SimpleNamespace(backend=SimpleNamespace(solver=solver))
+    solver = backend.solver
+    asset._backend_manager = NewtonManager(cfg)
+    asset._backend_manager.backend = backend
     target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
     selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
 
     getattr(asset_class, writer)(asset, root_pose=target, skip_forward=True, **{selector: selection})
+    backend.notify_model_changes()
 
     np.testing.assert_allclose(solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
 
 
-def _backend_with_masks(world_mask: wp.array, fk_mask: wp.array, solver: object) -> SimpleNamespace:
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_captured_model_refresh_follows_the_reset_mask(device):
+    """An outer capture refreshes MuJoCo's model constants only when the replay's mask selects a world."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False)
+    builder = ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.begin_world()
+    body = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+    joint = builder.add_joint_fixed(-1, body)
+    builder.add_articulation([joint])
+    builder.end_world()
+    backend = newton_backend.NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
+    backend.init_solver()
+    mask = wp.array([False], dtype=wp.bool, device=device)
+
+    def refresh():
+        backend.mark_model_changed(ModelFlags.JOINT_PROPERTIES, env_mask=mask)
+        backend.forward()
+
+    graph = newton_backend.capture_graph(device, refresh)
+    for position in (1.0, 2.0):
+        backend.model.joint_X_p.assign(
+            wp.array([wp.transform(wp.vec3(position, 0.0, 0.0), wp.quat_identity())], dtype=wp.transform, device=device)
+        )
+        before = backend.solver.mjw_data.mocap_pos.numpy().copy()
+        mask.fill_(False)
+        graph.launch()
+        np.testing.assert_array_equal(backend.solver.mjw_data.mocap_pos.numpy(), before)
+        mask.fill_(True)
+        graph.launch()
+        np.testing.assert_allclose(backend.solver.mjw_data.mocap_pos.numpy()[0, 0], [position, 0.0, 0.0])
+
+
+def _backend_with_masks(cfg: NewtonCfg, world_mask: wp.array, fk_mask: wp.array, solver: object) -> SimpleNamespace:
     """Backend stand-in holding authored-state masks and a solver, without a model."""
-    return SimpleNamespace(
+    return backend_stub(
+        cfg=cfg,
+        device=world_mask.device,
         state_0=object(),
         world_mask=world_mask,
         fk_mask=fk_mask,
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
+        model_changes=set(),
         solver=solver,
     )
 
@@ -829,7 +902,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
 
     owner = NewtonManager(NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=RecordingSolver)))
     owner._device = "cpu"
-    owner.backend = _backend_with_masks(world_mask, fk_mask, object())
+    owner.backend = _backend_with_masks(owner._cfg, world_mask, fk_mask, object())
 
     scene_backend = newton_manager_module.NewtonSceneDataBackend(owner)
     raw_state = owner.backend.state_0
@@ -861,7 +934,7 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
             pass
 
     manager = NewtonManager(NewtonCfg(solver_cfg=MPMSolverCfg(class_type=NoFKSolver)))
-    manager.backend = _backend_with_masks(world_mask, fk_mask, _RejectingSolver())
+    manager.backend = _backend_with_masks(manager._cfg, world_mask, fk_mask, _RejectingSolver())
 
     manager.forward()
 
@@ -1187,6 +1260,10 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
             return False
 
         @classmethod
+        def build(cls, cfg, model, mode, env_template=None):
+            return object()
+
+        @classmethod
         def step(cls, cfg, solver, state_in, state_out, *_args):
             events.append(("step", state_in.name, state_out.name))
 
@@ -1203,7 +1280,11 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
     solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
     manager._cfg, manager._device = NewtonCfg(num_substeps=num_substeps, solver_cfg=solver_cfg), device
     manager._sim = SimpleNamespace(is_playing=lambda: True, has_gui=False, has_offscreen_render=False)
-    manager.backend = SimpleNamespace(
+    manager.backend = backend_stub(
+        cfg=manager._cfg,
+        device=wp.get_device(device),
+        deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED,
+        model=object(),
         solver=object(),
         state_0=_State("state_0", events),
         state_1=_State("state_1", events),
@@ -1219,6 +1300,19 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
         world_mask=wp.zeros(2, dtype=wp.bool, device=device),
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
+        is_stepping=False,
+        staged_body_f=None,
+        model_changes=set(),
+        actuators_active=False,
+        pre_actuator_callbacks=[],
+        post_actuator_callbacks=[],
+        state_force_callbacks=[],
+        post_step_callbacks=[],
+        solver_init_callbacks=[],
+        decimation=1,
+        capture=None,
+        graph=None,
     )
     return manager
 
@@ -1230,7 +1324,7 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
     manager = _recording_manager(events, single_state=use_single_state, num_substeps=2)
     manager.register_state_force_callback(lambda state: events.append(("force", state.name)))
 
-    manager._run_solver_substeps(contacts=None)
+    manager.backend.step()
 
     if use_single_state:
         assert events == [
@@ -1259,9 +1353,10 @@ def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0(
     manager = _recording_manager(events, single_state=False, num_substeps=1)
     manager.register_pre_actuator_callback(lambda: events.append(("pre",)))
     manager.register_post_step_callback(lambda: events.append(("post",)))
-    manager._decimation = 2
+    manager.backend.actuators_active = True
+    manager.set_decimation(2)
 
-    manager._simulate_full()
+    manager.backend.step()
 
     step = [("pre",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1"), ("clear", "state_0")]
     assert events == step * 2 + [("post",)]
@@ -1309,7 +1404,7 @@ def test_graph_capture_preserves_first_step_and_recapture(
                 sim.backend_manager.set_decimation(decimation)
             sim.backend_manager.backend.state_0.body_f.assign(wrench)
             sim.step(render=False)
-            assert sim.backend_manager._graph is not None
+            assert sim.backend_manager.backend.graph is not None
             np.testing.assert_allclose(sim.backend_manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 

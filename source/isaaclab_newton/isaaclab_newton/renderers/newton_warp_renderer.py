@@ -20,9 +20,10 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.warp_math import replace_background_depth_wp
 
-from ..physics import NewtonBackendCfg, NewtonQueries
+from ..physics import NewtonBackendCfg, newton_backend
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
@@ -589,14 +590,21 @@ class NewtonWarpRenderer(BaseRenderer):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        render_data.graph = NewtonQueries.run_query(
-            self.backend,
-            provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
-            partial(self._launch_render, render_data),
-            render_data.graph,
-            # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
-            use_cuda_graph=self.cfg.use_cuda_graph and backend.model.tri_count == 0,
-        )
+        # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
+        use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
+        timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
+        backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
+        if not use_graph or backend.device.is_capturing:
+            self._launch_render(render_data)
+        else:
+            state = backend.state_0
+            pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
+            if render_data.graph is None or render_data.graph[0] != pointers:
+                graph = newton_backend.capture_graph(
+                    backend.device, partial(self._launch_render, render_data), relaxed=has_kit()
+                )
+                render_data.graph = pointers, graph
+            render_data.graph[1].launch()
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.

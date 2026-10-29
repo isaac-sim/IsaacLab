@@ -24,13 +24,13 @@ __all__ = [
     "MPMSolver",
     "MPMSolverCfg",
     "NewtonBackend",
+    "CapturedGraph",
     "NewtonBackendCfg",
     "NewtonBuilderCfg",
     "NewtonCfg",
     "NewtonCloneRecord",
     "NewtonCollisionPipelineCfg",
     "NewtonManager",
-    "NewtonQueries",
     "reset_mpm_solver_state",
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
@@ -62,12 +62,12 @@ from .mjwarp_solver import MJWarpSolver
 from .mjwarp_solver_cfg import MJWarpSolverCfg
 from .mpm_solver import MPMSolver, reset_mpm_solver_state
 from .mpm_solver_cfg import MPMSolverCfg
-from .newton_backend import NewtonBackend, NewtonCloneRecord
+from .newton_backend import CapturedGraph, NewtonBackend, NewtonCloneRecord
 from .newton_backend_cfg import NewtonBackendCfg
 from .newton_builder import create_builder
 from .newton_builder_cfg import NewtonBuilderCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
-from .newton_manager import NewtonManager, NewtonQueries, create_newton_builder
+from .newton_manager import NewtonManager, create_newton_builder
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSoftContactCfg, NewtonSolverCfg
 from .newton_solver import NewtonSolver
 from .vbd_solver import VBDSolver

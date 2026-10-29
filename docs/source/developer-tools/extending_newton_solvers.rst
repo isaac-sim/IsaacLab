@@ -42,8 +42,10 @@ custom force, impulse, or state transfer.
 Responsibilities and Boundaries
 -------------------------------
 
-:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model, and the
-:class:`~isaaclab_newton.physics.NewtonManager` drives it. The backend's solver
+:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model and initializes, steps
+and queries it (``init_solver``, ``step``, ``forward``, ``invalidate_fk``, ...), so backends with different solvers can
+be built and stepped side by side. The :class:`~isaaclab_newton.physics.NewtonManager` runs one backend through the
+Isaac Lab lifecycle. The backend's solver
 (:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is Newton's solver, built with
 ``solver_cfg.class_type.build(solver_cfg, model, mode)``. The Isaac Lab solver is never instantiated and holds no state:
 each method is a class method that takes the configuration and Newton's solver. A coupled solver builds each entry's
@@ -61,11 +63,11 @@ Newton solver through the entry's own Isaac Lab solver.
    * - :class:`~isaaclab_newton.physics.NewtonManager`
      - What must survive a hard reset: site requests, the replication outputs
        (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), and the decimation setting. It finalizes the
-       :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry, closes it on a hard reset, and runs
-       the step, holding the step callbacks and the captured step.
+       :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry, closes it on a hard reset, and
+       publishes scene-data timestamps.
    * - :class:`~isaaclab_newton.physics.NewtonBackend`
-     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, and reset masks.
-       A hard reset or close discards it.
+     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, reset masks, step
+       callbacks, and the captured step. A hard reset or close discards it, together with its callbacks.
    * - Solver configuration
      - Solver parameters, and ``class_type``, which selects the Isaac Lab solver.
    * - Isaac Lab solver
@@ -136,8 +138,45 @@ records the callbacks, so they must be graph-safe. Consumers register them with
 :meth:`~isaaclab_newton.physics.NewtonManager.register_post_step_callback` and its siblings while ``PHYSICS_READY``
 dispatches.
 
-Property writers call :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`; the manager commits the queued
-categories once at the next step.
+Property writers call :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change` or
+:meth:`~isaaclab_newton.physics.NewtonBackend.mark_model_changed`, optionally with an ``env_mask`` of changed worlds.
+The backend combines queued categories and refreshes solver constants before the next manager ``forward()``,
+scene-data state read, or backend step. MJWarp supports a conditional CUDA graph that skips the refresh when every
+edit mask is empty, without reading masks back
+to the host. Solvers must declare ``captures_model_changes`` only when their ``notify_model_changed`` implementation
+can be recorded; other solvers refresh eagerly and reject model changes during capture.
+
+:meth:`~isaaclab_newton.physics.NewtonBackend.invalidate_fk` takes selections in the articulation view's row space
+and uses ``model.articulation_world`` to flag the containing worlds. A view over a subset of worlds therefore resets
+the selected worlds, while a global articulation requests FK without resetting the global world.
+
+
+Captured Work
+-------------
+
+:func:`~isaaclab_newton.physics.newton_backend.capture_graph` records Torch and Warp work on one stream and returns
+:class:`~isaaclab_newton.physics.CapturedGraph`, which retains both libraries' graph allocations. Keep that object
+alive and replay it with :meth:`~isaaclab_newton.physics.CapturedGraph.launch`:
+
+.. code-block:: python
+
+   from isaaclab_newton.physics.newton_backend import capture_graph
+
+   graph = capture_graph(backend.device, lambda: controller.compute())
+   graph.launch()
+
+Complete lazy initialization before recording. The capture helper keeps temporary Torch tensors and Warp scratch
+storage alive for replays; use it when recording Torch callbacks or model-property edits. Replays are ordered with
+the caller's Torch stream.
+
+When a backend step or sensor query runs inside an enclosing capture, it records its work into that capture. It does
+not start another capture, and BVH refits are recorded on every replay instead of relying on host timestamps.
+:meth:`~isaaclab_newton.physics.NewtonBackend.step` otherwise runs the first step eagerly and captures it for later
+replays when the solver supports capture.
+
+``backend.live`` is true during a step and while a CUDA graph is being recorded. Derived asset properties then
+recompute on every read, so callbacks see the current substep state and graph replays update their outputs. Outside
+these intervals, the usual timestamp caches avoid repeated work.
 
 
 Extension Contract
@@ -179,9 +218,9 @@ solver. Override only what differs:
      - Meaning
    * - ``solver_class``
      - Newton solver class that ``build`` constructs.
-   * - ``single_state``, ``deterministic``, ``contact_sensors``
-     - Class-level capabilities: stepping in place on one ``State``, honoring a Warp determinism guarantee, and
-       readable contacts for Newton contact sensors.
+   * - ``single_state``, ``deterministic``, ``contact_sensors``, ``captures_model_changes``
+     - Class-level capabilities: stepping in place on one ``State``, honoring a Warp determinism guarantee, readable
+       contacts for Newton contact sensors, and recording model-property refreshes into conditional CUDA graphs.
    * - ``ignored_model_changes``
      - :class:`newton.ModelFlags` the solver does not apply after construction, mapped to a one-time warning.
    * - ``solver_classes``

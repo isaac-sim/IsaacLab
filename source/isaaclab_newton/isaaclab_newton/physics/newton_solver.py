@@ -57,6 +57,9 @@ class NewtonSolver:
     deterministic: ClassVar[bool] = False
     """Whether the solver can honor a Warp determinism guarantee."""
 
+    captures_model_changes: ClassVar[bool] = False
+    """Whether the solver's model-property refresh can be recorded into a CUDA graph."""
+
     contact_sensors: ClassVar[bool] = True
     """Whether Newton contact sensors can read the solver's contacts."""
 
