@@ -138,6 +138,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         model=SimpleNamespace(body_count=1, world_count=1),
         state_0=state,
         solver=None,
+        solver_observables=None,
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
