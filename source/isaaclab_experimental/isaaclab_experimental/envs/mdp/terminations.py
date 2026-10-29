@@ -213,20 +213,20 @@ def joint_pos_out_of_manual_limit(
 ) -> None:
     """Terminate when joint positions are outside configured bounds. Writes into ``out``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    if asset_cfg.joint_mask_wp is None:
+    if asset_cfg.joint_mask is None:
         raise ValueError(
-            f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_mask_wp, "
+            f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_mask, "
             f"but got None for asset '{asset_cfg.name}'."
         )
-    if asset.data.joint_pos.warp.shape[1] != asset_cfg.joint_mask_wp.shape[0]:
+    if asset.data.joint_pos.warp.shape[1] != asset_cfg.joint_mask.shape[0]:
         raise ValueError(
-            f"joint_mask_wp length ({asset_cfg.joint_mask_wp.shape[0]}) does not match "
+            f"joint_mask length ({asset_cfg.joint_mask.shape[0]}) does not match "
             f"joint_pos dim ({asset.data.joint_pos.warp.shape[1]}) for asset '{asset_cfg.name}'."
         )
     wp.launch(
         kernel=_joint_pos_out_of_manual_limit_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask_wp, bounds[0], bounds[1], out],
+        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask.warp, bounds[0], bounds[1], out],
         device=env.device,
     )
 
@@ -265,6 +265,6 @@ def illegal_contact(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg: S
     wp.launch(
         kernel=_illegal_contact_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
+        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_indices.warp, threshold, out],
         device=env.device,
     )

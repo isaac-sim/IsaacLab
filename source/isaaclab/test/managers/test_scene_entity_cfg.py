@@ -124,11 +124,14 @@ def test_resolve_warp_indexes_and_masks_the_selection(scene):
         cfg.resolve(scene)
         cfg.resolve_warp(scene)
 
-    assert subset.joint_ids_wp.numpy().tolist() == [2, 0]
-    assert subset.joint_mask_wp.numpy().tolist() == [True, False, True, False]
-    assert subset.body_ids_wp.numpy().tolist() == [3, 1]
-    assert subset.body_mask_wp.numpy().tolist() == [False, True, False, True]
-    assert full.joint_ids_wp.numpy().tolist() == [0, 1, 2, 3]
-    assert full.joint_mask_wp.numpy().tolist() == [True] * 4
-    assert full.body_ids_wp.numpy().tolist() == [0, 1, 2, 3]
-    assert full.body_mask_wp.numpy().tolist() == [True] * 4
+    assert subset.joint_indices.warp.numpy().tolist() == [2, 0]
+    assert subset.joint_mask.warp.numpy().tolist() == [True, False, True, False]
+    assert subset.body_indices.warp.numpy().tolist() == [3, 1]
+    assert subset.body_mask.warp.numpy().tolist() == [False, True, False, True]
+    assert full.joint_indices.warp.numpy().tolist() == [0, 1, 2, 3]
+    assert full.joint_mask.warp.numpy().tolist() == [True] * 4
+    assert full.body_indices.warp.numpy().tolist() == [0, 1, 2, 3]
+    assert full.body_mask.warp.numpy().tolist() == [True] * 4
+    for copied in (subset.copy(), copy.deepcopy(subset)):
+        for name in ("joint_indices", "joint_mask", "body_indices", "body_mask"):
+            assert getattr(copied, name) is getattr(subset, name)

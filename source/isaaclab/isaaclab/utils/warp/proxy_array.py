@@ -167,8 +167,26 @@ class ProxyArray:
         return self._warp.device
 
     def __len__(self) -> int:
-        """Return the size of the first dimension."""
-        return self._warp.shape[0]
+        """Reject ``len()``; use :attr:`shape` instead.
+
+        Torch reads a short sized sequence used as an index as a tuple of indices, so a sized
+        :class:`ProxyArray` would select the wrong elements in ``tensor[proxy]``. Without a length, torch
+        indexes with it as an array.
+
+        Raises:
+            TypeError: Always.
+        """
+        raise TypeError("len() of a ProxyArray is not supported; use .shape[0].")
+
+    def __copy__(self) -> ProxyArray:
+        """Return a wrapper of the same warp array."""
+        return ProxyArray(self._warp)
+
+    def __deepcopy__(self, memo: dict) -> ProxyArray:
+        """Return a wrapper of a copy of the warp array."""
+        copied = ProxyArray(wp.clone(self._warp))
+        memo[id(self)] = copied
+        return copied
 
     def __repr__(self) -> str:
         """Return a string representation of the ProxyArray."""

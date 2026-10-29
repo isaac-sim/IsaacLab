@@ -1041,9 +1041,9 @@ class ObservationManager(ManagerBase):
                 "Add `out_dim=` to its @generic_io_descriptor_warp decorator."
             )
         asset = self._env.scene[asset_cfg.name]
-        joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
-        if joint_ids_wp is not None:
-            return int(joint_ids_wp.shape[0])
+        joint_indices = getattr(asset_cfg, "joint_indices", None)
+        if joint_indices is not None:
+            return int(joint_indices.shape[0])
         joint_ids = getattr(asset_cfg, "joint_ids", slice(None))
         if isinstance(joint_ids, slice):
             return int(getattr(asset, "num_joints", asset.data.joint_pos.torch.shape[1]))
@@ -1065,9 +1065,9 @@ class ObservationManager(ManagerBase):
         if out_dim == "joint":
             asset_cfg = term_cfg.params.get("asset_cfg")
             asset = self._env.scene[asset_cfg.name]
-            joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
-            if joint_ids_wp is not None:
-                return int(joint_ids_wp.shape[0])
+            joint_indices = getattr(asset_cfg, "joint_indices", None)
+            if joint_indices is not None:
+                return int(joint_indices.shape[0])
             joint_ids = getattr(asset_cfg, "joint_ids", slice(None))
             if isinstance(joint_ids, slice):
                 return int(getattr(asset, "num_joints", asset.data.joint_pos.warp.shape[1]))

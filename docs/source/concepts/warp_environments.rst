@@ -493,7 +493,7 @@ array. This is resolved via a fallback chain (see
 4. **Ray-caster fallback**: Number of rays of the sensor in ``sensor_cfg``, for terms that
    write one value per ray (e.g. ``height_scan``).
 
-5. **Asset config fallback**: Count of ``asset_cfg.joint_ids`` (or ``joint_ids_wp``) for
+5. **Asset config fallback**: Count of ``asset_cfg.joint_ids`` (or ``joint_indices``) for
    joint-level terms.
 
 
