@@ -9,6 +9,12 @@ Events
 .. automodule:: isaaclab_newton.envs.mdp.events
     :members:
 
+Terminations
+------------
+
+.. automodule:: isaaclab_newton.envs.mdp.terminations
+    :members:
+
 Classes
 -------
 
