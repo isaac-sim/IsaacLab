@@ -20,6 +20,9 @@ from .actions import (  # noqa: F401
     JointPositionActionCfg,
 )
 
+# Experimental Warp-first command terms. Their configurations stay the stable ones.
+from .commands import NullCommand, UniformPoseCommand, UniformVelocityCommand  # noqa: F401
+
 # Override stable terms with experimental Warp-first implementations. These leaf
 # modules are import-clean (no eager backend imports), so re-exporting them here
 # is safe.

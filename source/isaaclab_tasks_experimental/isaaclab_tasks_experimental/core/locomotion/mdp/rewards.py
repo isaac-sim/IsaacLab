@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.managers.manager_base import ManagerTermBase
 
 import isaaclab.utils.string as string_utils
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import rotate_vec_to_body_frame
 
 if TYPE_CHECKING:

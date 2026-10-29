@@ -7,13 +7,11 @@
 
 Pure-Python unit tests; no app launch. Covers:
 
-* :func:`SceneEntityCfg.from_stable` field copy.
 * :func:`_require_newton_physics` hard-check.
 * :func:`_walk_terms` recursive ManagerTermBaseCfg discovery over instance
   attributes (nested class objects are not descended into).
 * :meth:`_mirror_module` / :meth:`_nearest_mdp_module` deterministic mirror
   resolution and :meth:`_cfg_route_modules` cfg-hierarchy resolution.
-* :func:`_promote_scene_entity_cfgs` walks ``term.params`` dicts.
 * :func:`_swap_mdp` raises with a path list when twins are missing and skips
   already-warp terms (the swap itself is covered by the real-registry tests in
   ``test_frontend_cfg_conversion.py``).
@@ -36,13 +34,11 @@ from isaaclab_experimental.envs.frontend import (
     FrontendIncompatibleError,
     WarpFrontend,
 )
-from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg
-from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as StableSceneEntityCfg
 from isaaclab.utils import configclass
 
 # ======================================================================
@@ -154,12 +150,12 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
     assert calls == [(cfg, {"render_mode": "rgb_array"})]
 
 
-def test_warp_direct_build_selects_warp_scene_from_cfg():
+def test_warp_direct_build_keeps_the_stable_scene():
     cfg = types.SimpleNamespace(scene=types.SimpleNamespace(class_type=None))
     expected_env = object()
 
     def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
-        assert cfg.scene.class_type is fe.InteractiveSceneWarp
+        assert cfg.scene.class_type is None
         assert kwargs == {"render_mode": "rgb_array"}
         return expected_env
 
@@ -170,45 +166,6 @@ def test_warp_direct_build_selects_warp_scene_from_cfg():
         env = WarpFrontend._build_direct_env(cfg, "Isaac-Test", render_mode="rgb_array")
 
     assert env is expected_env
-
-
-# ======================================================================
-# SceneEntityCfg.from_stable
-# ======================================================================
-
-
-def test_from_stable_copies_all_selection_fields():
-    stable = StableSceneEntityCfg(
-        name="robot",
-        joint_names=["lf_hip"],
-        joint_ids=[0, 1, 2],
-        fixed_tendon_names=["tendon_a"],
-        fixed_tendon_ids=[5],
-        body_names=["base", "lf_foot"],
-        body_ids=[0, 4],
-        object_collection_names=["objs"],
-        object_collection_ids=[7],
-        preserve_order=True,
-    )
-    warp = WarpSceneEntityCfg.from_stable(stable)
-    for field in (
-        "name",
-        "joint_names",
-        "joint_ids",
-        "fixed_tendon_names",
-        "fixed_tendon_ids",
-        "body_names",
-        "body_ids",
-        "object_collection_names",
-        "object_collection_ids",
-        "preserve_order",
-    ):
-        assert getattr(warp, field) == getattr(stable, field), f"field {field!r} mismatch"
-    assert isinstance(warp, WarpSceneEntityCfg)
-    # Warp-only fields stay None until :meth:`resolve` runs.
-    assert warp.joint_mask is None
-    assert warp.joint_ids_wp is None
-    assert warp.body_ids_wp is None
 
 
 # ======================================================================
@@ -360,74 +317,6 @@ def test_swap_mdp_skips_already_warp(monkeypatch: pytest.MonkeyPatch):
     cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(func=_warp_twin_func)))
     fe.WarpFrontend._swap_mdp(cfg, "Isaac-Test-v0")  # no raise
     assert cfg.rewards.r1.func is _warp_twin_func
-
-
-# ======================================================================
-# _promote_scene_entity_cfgs
-# ======================================================================
-
-
-def test_promote_scene_entity_cfgs_promotes_in_params():
-    cfg = _CfgFixture(
-        rewards=_RewardsCfg(
-            r1=_term(params={"asset_cfg": StableSceneEntityCfg(name="robot", joint_names=["lf_hip"]), "scale": 1.0})
-        )
-    )
-    fe.WarpFrontend._promote_scene_entity_cfgs(cfg)
-    promoted = cfg.rewards.r1.params["asset_cfg"]
-    assert isinstance(promoted, WarpSceneEntityCfg)
-    assert promoted.name == "robot"
-    assert promoted.joint_names == ["lf_hip"]
-    # Non-SceneEntityCfg params are untouched.
-    assert cfg.rewards.r1.params["scale"] == 1.0
-
-
-def test_promote_scene_entity_cfgs_skips_already_warp():
-    # configclass init deep-copies params, so identity won't hold across
-    # construction; what we actually want to assert is "no re-promotion":
-    # the asset_cfg remains a WarpSceneEntityCfg (i.e., wasn't passed
-    # back through `from_stable`).
-    warp = WarpSceneEntityCfg(name="robot", joint_names=["lf_hip"])
-    cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(params={"asset_cfg": warp})))
-    before = cfg.rewards.r1.params["asset_cfg"]
-    fe.WarpFrontend._promote_scene_entity_cfgs(cfg)
-    after = cfg.rewards.r1.params["asset_cfg"]
-    assert isinstance(after, WarpSceneEntityCfg)
-    # The asset_cfg object was not replaced by another from_stable call.
-    assert after is before
-
-
-def test_promote_scene_entity_cfgs_walks_all_term_groups():
-    cfg = _CfgFixture(
-        rewards=_RewardsCfg(r1=_term(params={"asset_cfg": StableSceneEntityCfg(name="r")})),
-        events=_EventsCfg(
-            e1=EventTermCfg(func=_stable_func, mode="reset", params={"asset_cfg": StableSceneEntityCfg(name="e")})
-        ),
-        observations=_ObservationsCfg(
-            policy=_PolicyObsGroup(
-                o1=ObservationTermCfg(func=_stable_func, params={"asset_cfg": StableSceneEntityCfg(name="o-pol")})
-            ),
-            perception=_ExtraObsGroup(
-                o3=ObservationTermCfg(func=_stable_func, params={"asset_cfg": StableSceneEntityCfg(name="o-per")})
-            ),
-        ),
-        curriculum=_CurriculumCfg(
-            c1=EventTermCfg(func=_stable_func, mode="reset", params={"asset_cfg": StableSceneEntityCfg(name="c")})
-        ),
-    )
-    fe.WarpFrontend._promote_scene_entity_cfgs(cfg)
-    # Warp-managed groups (rewards, observations incl. sub-groups, events) are promoted.
-    assert isinstance(cfg.rewards.r1.params["asset_cfg"], WarpSceneEntityCfg)
-    assert isinstance(cfg.observations.policy.o1.params["asset_cfg"], WarpSceneEntityCfg)
-    # The perception sub-group is reached even though its attribute name is
-    # not hardcoded in the framework.
-    assert isinstance(cfg.observations.perception.o3.params["asset_cfg"], WarpSceneEntityCfg)
-    # The event manager is warp-first, so its terms are promoted too.
-    assert isinstance(cfg.events.e1.params["asset_cfg"], WarpSceneEntityCfg)
-    # Curriculum runs on the stable (torch) manager, so its SceneEntityCfg is
-    # left untouched — promoting it would hand a warp variant to a torch manager.
-    assert isinstance(cfg.curriculum.c1.params["asset_cfg"], StableSceneEntityCfg)
-    assert not isinstance(cfg.curriculum.c1.params["asset_cfg"], WarpSceneEntityCfg)
 
 
 # ======================================================================

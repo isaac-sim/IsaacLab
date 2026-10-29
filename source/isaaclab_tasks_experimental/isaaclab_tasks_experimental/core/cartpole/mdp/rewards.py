@@ -8,8 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.managers import ManagerTermBase
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
+
+from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     import torch
@@ -40,11 +42,11 @@ def _joint_pos_target_l2_kernel(
 def joint_pos_target_l2(env: ManagerBasedRLEnv, out, target: float, asset_cfg: SceneEntityCfg) -> None:
     """Penalize joint position deviation from a target value. Writes into ``out``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    assert asset.data.joint_pos.warp.shape[1] == asset_cfg.joint_mask.shape[0]
+    assert asset.data.joint_pos.warp.shape[1] == asset_cfg.joint_mask_wp.shape[0]
     wp.launch(
         kernel=_joint_pos_target_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, out, target],
+        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask_wp, out, target],
         device=env.device,
     )
 

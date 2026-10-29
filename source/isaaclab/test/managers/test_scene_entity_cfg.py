@@ -22,11 +22,17 @@ from isaaclab.utils.string import resolve_matching_names
 pytestmark = pytest.mark.unit
 
 
+class _Scene(dict):
+    """Entity lookup and device of :class:`~isaaclab.scene.InteractiveScene`."""
+
+    device = "cpu"
+
+
 @pytest.fixture
 def scene():
     names = ["part_0", "part_1", "part_2", "part_3"]
     find = partial(resolve_matching_names, list_of_strings=names)
-    return dict(
+    return _Scene(
         robot=SimpleNamespace(
             joint_names=names,
             body_names=names,
@@ -108,3 +114,21 @@ def test_external_force_uses_selected_body_count(scene):
     torch.testing.assert_close(kwargs["forces"], torch.full((2, 2, 3), 2.0))
     torch.testing.assert_close(kwargs["torques"], torch.full((2, 2, 3), 3.0))
     assert kwargs["body_ids"].tolist() == [3, 1]
+
+
+def test_resolve_warp_indexes_and_masks_the_selection(scene):
+    """Warp ids keep the resolved order, and masks mark the selection over all joints or bodies."""
+    subset = SceneEntityCfg("robot", joint_names=["part_2", "part_0"], preserve_order=True, body_ids=[3, 1])
+    full = SceneEntityCfg("robot")
+    for cfg in (subset, full):
+        cfg.resolve(scene)
+        cfg.resolve_warp(scene)
+
+    assert subset.joint_ids_wp.numpy().tolist() == [2, 0]
+    assert subset.joint_mask_wp.numpy().tolist() == [True, False, True, False]
+    assert subset.body_ids_wp.numpy().tolist() == [3, 1]
+    assert subset.body_mask_wp.numpy().tolist() == [False, True, False, True]
+    assert full.joint_ids_wp.numpy().tolist() == [0, 1, 2, 3]
+    assert full.joint_mask_wp.numpy().tolist() == [True] * 4
+    assert full.body_ids_wp.numpy().tolist() == [0, 1, 2, 3]
+    assert full.body_mask_wp.numpy().tolist() == [True] * 4
