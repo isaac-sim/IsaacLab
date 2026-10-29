@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.sensors import SensorBase
 
-from . import shoelace_constants as physics
+from .shoelace_constants import CONTACT_DISTANCE_CAP
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -131,7 +131,7 @@ class FingerTailContacts:
         """Allocate device buffers and register the post-step observer after model construction."""
         device = self._backend_manager.backend.model.device
         self._device_slots = wp.array(self._shape_slots, dtype=wp.int32, device=device)
-        self._distance = wp.full((self._num_envs, 4), physics.CONTACT_DISTANCE_CAP, device=device)
+        self._distance = wp.full((self._num_envs, 4), CONTACT_DISTANCE_CAP, device=device)
         self.signed_distance = wp.to_torch(self._distance)
         self._backend_manager.unregister_post_step_callback(self.update)
         self._backend_manager.register_post_step_callback(self.update)
@@ -141,7 +141,7 @@ class FingerTailContacts:
         if self.signed_distance is not None:
             if env_ids is not None and not isinstance(env_ids, (torch.Tensor, slice)):
                 env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.signed_distance.device)
-            self.signed_distance[slice(None) if env_ids is None else env_ids] = physics.CONTACT_DISTANCE_CAP
+            self.signed_distance[slice(None) if env_ids is None else env_ids] = CONTACT_DISTANCE_CAP
 
     def update(self) -> None:
         """Aggregate signed surface distances [m] after each physics step, including CUDA capture."""
@@ -149,7 +149,7 @@ class FingerTailContacts:
         contacts, model = backend.contacts, backend.model
         if contacts is None:
             raise RuntimeError("Shoelace contact observation requires an initialized Newton collision buffer")
-        self._distance.fill_(physics.CONTACT_DISTANCE_CAP)
+        self._distance.fill_(CONTACT_DISTANCE_CAP)
         wp.launch(
             _aggregate_finger_tail_signed_distance,
             dim=contacts.rigid_contact_max,
@@ -185,7 +185,7 @@ class FingerTailContactSensor(SensorBase):
         """Clear cached distances for the reset environments."""
         super().reset(env_ids, env_mask)
         if env_mask is not None:
-            self.data[wp.to_torch(env_mask)] = physics.CONTACT_DISTANCE_CAP
+            self.data[wp.to_torch(env_mask)] = CONTACT_DISTANCE_CAP
         else:
             self._contacts.reset(env_ids)
 

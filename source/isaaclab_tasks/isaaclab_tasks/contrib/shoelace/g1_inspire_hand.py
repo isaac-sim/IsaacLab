@@ -17,8 +17,8 @@ from .shoelace_assets import ShoelaceUsdCfg, spawn_shoelace_usd
 INDEX_CLOSED = (1.225962774,) * 2
 THUMB_PITCH = (0.4999,) * 2
 THUMB_YAW = (1.233697987,) * 2
-_LEFT_TCP = (0.193129098, -0.063929696, 0.029342429)
-TCP_BODY_OFFSETS = ((_LEFT_TCP,), ((_LEFT_TCP[0], -_LEFT_TCP[1], _LEFT_TCP[2]),))
+LEFT_TCP = (0.193129098, -0.063929696, 0.029342429)
+TCP_BODY_OFFSETS = ((LEFT_TCP,), ((LEFT_TCP[0], -LEFT_TCP[1], LEFT_TCP[2]),))
 # The USD's thumb joint frames and index link lengths are not exact mirrors. Right-body
 # offsets compensate those differences so the actual pad faces mirror in wrist coordinates.
 PAD_OFFSETS = (
@@ -34,7 +34,7 @@ STRAIGHT_JOINT_NAMES = tuple(
 )
 # Body, box centre [m], xyzw orientation. Both hands share a mirrored 2.8 mm closed gap.
 # Mirror the complete box transform in the wrist frame, then express it in its owning body.
-_PINCH_BOXES = (
+PINCH_BOXES = (
     (
         "L_thumb_distal",
         (0.014210405, -0.013827257, -0.006426735),
@@ -103,7 +103,7 @@ def spawn_g1_shoelace(
     if straight_joints != set(STRAIGHT_JOINT_NAMES):
         raise ValueError(f"G1 straight-finger joints missing: {set(STRAIGHT_JOINT_NAMES) - straight_joints}")
 
-    for body_name, position, quaternion in _PINCH_BOXES:
+    for body_name, position, quaternion in PINCH_BOXES:
         body = stage.GetPrimAtPath(root.GetPath().AppendChild(body_name))
         if not body:
             raise ValueError(f"G1 pinch-pad body missing: {body_name}")

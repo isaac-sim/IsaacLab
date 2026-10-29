@@ -21,11 +21,24 @@ from pxr import Usd, UsdPhysics, UsdShade
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationContext
 
-from . import shoelace_constants as physics
 from .shoelace_assets import read_shoelace_attribute
+from .shoelace_constants import CONTACT_GAP
 
 if TYPE_CHECKING:
     from .shoelace_env_cfg import ShoelaceEnvCfg
+
+
+# Fixed cable material and aglet profile; gains are rescaled for each asset's segment length.
+STRETCH_STIFFNESS = 1.0e7
+STRETCH_DAMPING = 2.0e2
+BEND_STIFFNESS = 5.0
+BEND_DAMPING = 1.0
+CONTACT_KE = 1.0e6
+CONTACT_KD = 0.0
+TAIL_BEND_STIFFNESS = 100.0
+TAIL_BEND_DAMPING = 2.0
+TAIL_STIFF_CORE_LENGTH = 0.050
+TAIL_STIFF_TRANSITION_LENGTH = 0.012
 
 
 def create_shoelace_env(cfg: ShoelaceEnvCfg, **kwargs: object) -> ManagerBasedRLEnv:
@@ -113,9 +126,9 @@ def configure_shoelace_builder(
             # Configure generated capsule contacts before solver views exist; no runtime notification is needed.
             shape = shapes[0]
             builder.shape_material_mu[shape] = friction
-            builder.shape_material_ke[shape] = physics.CONTACT_KE
-            builder.shape_material_kd[shape] = physics.CONTACT_KD
-            builder.shape_gap[shape] = physics.CONTACT_GAP
+            builder.shape_material_ke[shape] = CONTACT_KE
+            builder.shape_material_kd[shape] = CONTACT_KD
+            builder.shape_gap[shape] = CONTACT_GAP
             # Scale unit-density capsule inertia to the imported mass, then add isotropic regularization.
             unit_mass, _, unit_inertia = compute_inertia_shape(
                 GeoType.CAPSULE, builder.shape_scale[shape], None, density=1.0
@@ -135,8 +148,8 @@ def configure_shoelace_builder(
         # reverse the profile for the right cable.
         weights = _tail_joint_blend_weights(len(rod_joints), segment_length, free_end_at_start)
         for target, stretch, bend, tail in (
-            (builder.joint_target_ke, physics.STRETCH_STIFFNESS, physics.BEND_STIFFNESS, physics.TAIL_BEND_STIFFNESS),
-            (builder.joint_target_kd, physics.STRETCH_DAMPING, physics.BEND_DAMPING, physics.TAIL_BEND_DAMPING),
+            (builder.joint_target_ke, STRETCH_STIFFNESS, BEND_STIFFNESS, TAIL_BEND_STIFFNESS),
+            (builder.joint_target_kd, STRETCH_DAMPING, BEND_DAMPING, TAIL_BEND_DAMPING),
         ):
             values = np.column_stack((np.full_like(weights, stretch), bend + weights * (tail - bend)))
             # Match the rod's six gain slots: shear X/Y, stretch Z, bend X/Y, and twist Z.
@@ -169,14 +182,13 @@ def _tail_joint_blend_weights(
         Dimensionless weights in joint order, shape [joint_count].
     """
     distances = segment_length * np.arange(1, joint_count + 1, dtype=np.float64)
-    if physics.TAIL_STIFF_TRANSITION_LENGTH > 0.0:
+    if TAIL_STIFF_TRANSITION_LENGTH > 0.0:
         weights = np.clip(
-            (physics.TAIL_STIFF_CORE_LENGTH + physics.TAIL_STIFF_TRANSITION_LENGTH - distances)
-            / physics.TAIL_STIFF_TRANSITION_LENGTH,
+            (TAIL_STIFF_CORE_LENGTH + TAIL_STIFF_TRANSITION_LENGTH - distances) / TAIL_STIFF_TRANSITION_LENGTH,
             0.0,
             1.0,
         )
         weights = weights * weights * (3.0 - 2.0 * weights)
     else:
-        weights = (distances <= physics.TAIL_STIFF_CORE_LENGTH).astype(np.float64)
+        weights = (distances <= TAIL_STIFF_CORE_LENGTH).astype(np.float64)
     return weights if free_end_at_start else weights[::-1].copy()

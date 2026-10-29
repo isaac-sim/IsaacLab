@@ -38,28 +38,40 @@ from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftSceneCfg
 
 from . import mdp
-from . import shoelace_constants as physics
 from .shoelace_assets import ShoelaceUsdCfg
+from .shoelace_constants import CONTACT_DISTANCE_CAP, CONTACT_GAP, SHOELACE_ASSETS
 from .shoelace_contacts_cfg import FingerTailContactSensorCfg
+
+TCP_OFFSET = (0.0, 0.0, 0.1034)
+GRIPPER_OPEN_POSITION = 0.01
+GRIPPER_CLOSED_POSITION = 0.001
+TAIL_SUCCESS_OUTWARD_DISTANCE = 0.09
+CONTACTS_PER_ENV = 512
+TRIANGLE_PAIRS_PER_ENV = 8192
+MIN_TRIANGLE_PAIRS = 2**20 - 1  # ADMM contact-matching capacity limit.
 
 CABLE_CFGS = (SceneEntityCfg("shoelace_left"), SceneEntityCfg("shoelace_right"))
 ROBOT_CFGS = (
     SceneEntityCfg("robot_left", joint_names=["panda_finger_joint1"], body_names=["panda_hand"]),
     SceneEntityCfg("robot_right", joint_names=["panda_finger_joint1"], body_names=["panda_hand"]),
 )
-_FINGER_FRICTION = {"/.*panda_(left|right)finger/.*": physics.FINGER_MU}
+FINGER_FRICTION = {"/.*panda_(left|right)finger/.*": 40.0}
 FINGER_CFGS = tuple(
     SceneEntityCfg(robot, body_names=[body])
     for robot in ("robot_left", "robot_right")
     for body in ("panda_leftfinger", "panda_rightfinger")
 )
-_GRASP_PARAMS = {
+GRASP_PARAMS = {
     "cable_cfgs": CABLE_CFGS,
     "finger_cfgs": FINGER_CFGS,
     "contact_std": 5.0e-4,
     "contact_penetration_tolerance": 1.0e-3,
     "relative_speed_std": 0.08,
     "grasp_filter_time_constant": 0.10,
+    "target_diameter": 0.003,  # Match the active USD cable widths [m].
+    "pad_distance_std": 0.006,
+    "aperture_std": 0.002,
+    "capture_std": 0.002,
 }
 
 
@@ -76,7 +88,7 @@ def _franka_cfg(
         rigid_props=robot.spawn.rigid_props,
         articulation_props=robot.spawn.articulation_props,
         variants=robot.spawn.variants,
-        friction_overrides=_FINGER_FRICTION.copy(),
+        friction_overrides=FINGER_FRICTION.copy(),
         collision_props={
             "/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)],
             "/.*panda_(left|right)finger/.*": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
@@ -85,13 +97,13 @@ def _franka_cfg(
     robot.init_state.pos = position
     robot.init_state.rot = rotation
     robot.init_state.joint_pos.update(arm_joint_positions)
-    robot.init_state.joint_pos["panda_finger_joint.*"] = physics.GRIPPER_OPEN_POSITION
+    robot.init_state.joint_pos["panda_finger_joint.*"] = GRIPPER_OPEN_POSITION
     # Newton ignores the inherited PhysX-only ``disable_gravity``; compensate gravity so zero actions hold pose.
     robot.spawn.rigid_props = {"/.*": [robot.spawn.rigid_props, MujocoRigidBodyCfg(gravcomp=1.0)]}
     # Limit finger speed so closing fingers do not tunnel through the thin cable.
     robot.actuators["panda_hand"].actuator_velocity_limit = 0.04
     # Stiff finger drive for a stable grasp on the cable.
-    robot.actuators["panda_hand"].stiffness = physics.GRIPPER_STIFFNESS
+    robot.actuators["panda_hand"].stiffness = 8000.0
     return robot
 
 
@@ -102,8 +114,8 @@ def _arm_action(asset_name: str) -> env_mdp.DifferentialInverseKinematicsActionC
         joint_names=["panda_joint.*"],
         body_name="panda_hand",
         controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
-        scale=(physics.ARM_ACTION_SCALE,) * 3 + (physics.ARM_ROTATION_ACTION_SCALE,) * 3,
-        body_offset=env_mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=physics.TCP_OFFSET),
+        scale=(0.005,) * 3 + (0.01,) * 3,
+        body_offset=env_mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=TCP_OFFSET),
     )
 
 
@@ -113,20 +125,36 @@ class ShoelaceSceneCfg(InteractiveSceneCfg):
 
     robot_left = _franka_cfg(
         "{ENV_REGEX_NS}/RobotLeft",
-        physics.LEFT_ROBOT_POSITION,
+        (-0.525248, 0.023338, -0.089901),
         (0.0, 0.0, 0.0, 1.0),
-        physics.LEFT_ARM_JOINT_POSITIONS,
+        {
+            "panda_joint1": 0.267436,
+            "panda_joint2": -0.276844,
+            "panda_joint3": -0.509809,
+            "panda_joint4": -2.681384,
+            "panda_joint5": 0.871062,
+            "panda_joint6": 2.543250,
+            "panda_joint7": -0.079776,
+        },
     )
     robot_right = _franka_cfg(
         "{ENV_REGEX_NS}/RobotRight",
-        physics.RIGHT_ROBOT_POSITION,
+        (0.507963, -0.001890, -0.088518),
         (0.0, 0.0, 1.0, 0.0),
-        physics.RIGHT_ARM_JOINT_POSITIONS,
+        {
+            "panda_joint1": -0.379171,
+            "panda_joint2": -0.306599,
+            "panda_joint3": 0.461994,
+            "panda_joint4": -2.726323,
+            "panda_joint5": -0.930591,
+            "panda_joint6": 2.645580,
+            "panda_joint7": 1.577059,
+        },
     )
     shoelace_asset = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/ShoelaceScene",
         spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[ShoelaceUsdCfg(usd_path=str(usd_path)) for usd_path in physics.SHOELACE_ASSETS],
+            assets_cfg=[ShoelaceUsdCfg(usd_path=str(usd_path)) for usd_path in SHOELACE_ASSETS],
             random_choice=False,
         ),
     )
@@ -153,15 +181,15 @@ class ActionsCfg:
     left_gripper = env_mdp.BinaryJointPositionActionCfg(
         asset_name="robot_left",
         joint_names=["panda_finger_joint1"],
-        open_command_expr={"panda_finger_joint1": physics.GRIPPER_OPEN_POSITION},
-        close_command_expr={"panda_finger_joint1": physics.GRIPPER_CLOSED_POSITION},
+        open_command_expr={"panda_finger_joint1": GRIPPER_OPEN_POSITION},
+        close_command_expr={"panda_finger_joint1": GRIPPER_CLOSED_POSITION},
     )
     right_arm = _arm_action("robot_right")
     right_gripper = env_mdp.BinaryJointPositionActionCfg(
         asset_name="robot_right",
         joint_names=["panda_finger_joint1"],
-        open_command_expr={"panda_finger_joint1": physics.GRIPPER_OPEN_POSITION},
-        close_command_expr={"panda_finger_joint1": physics.GRIPPER_CLOSED_POSITION},
+        open_command_expr={"panda_finger_joint1": GRIPPER_OPEN_POSITION},
+        close_command_expr={"panda_finger_joint1": GRIPPER_CLOSED_POSITION},
     )
 
 
@@ -192,8 +220,8 @@ class ObservationsCfg:
         gripper_close_error = ObsTerm(
             func=mdp.gripper_close_error,
             params={"robot_cfgs": ROBOT_CFGS},
-            clip=(0.0, physics.GRIPPER_OPEN_POSITION - physics.GRIPPER_CLOSED_POSITION),
-            scale=1.0 / (physics.GRIPPER_OPEN_POSITION - physics.GRIPPER_CLOSED_POSITION),
+            clip=(0.0, GRIPPER_OPEN_POSITION - GRIPPER_CLOSED_POSITION),
+            scale=1.0 / (GRIPPER_OPEN_POSITION - GRIPPER_CLOSED_POSITION),
         )
         tails_to_tcp = ObsTerm(
             func=mdp.tails_to_tcp,
@@ -202,9 +230,9 @@ class ObservationsCfg:
         )
         finger_tail_signed_distance = ObsTerm(
             func=mdp.finger_tail_signed_distance,
-            clip=(-physics.CONTACT_DISTANCE_CAP, physics.CONTACT_DISTANCE_CAP),
-            scale=1.0 / physics.CONTACT_DISTANCE_CAP,
-            history_length=physics.CONTACT_OBSERVATION_HISTORY_LENGTH,
+            clip=(-CONTACT_DISTANCE_CAP, CONTACT_DISTANCE_CAP),
+            scale=1.0 / CONTACT_DISTANCE_CAP,
+            history_length=3,
         )
         tail_tcp_relative_speed = ObsTerm(
             func=mdp.tail_tcp_relative_speed,
@@ -263,9 +291,9 @@ class RewardsCfg:
         func=mdp.dense_task_reward,
         weight=10.0,
         params={
-            **_GRASP_PARAMS,
+            **GRASP_PARAMS,
             "reach_std": 0.08,
-            "success_x_separation": physics.TAIL_SUCCESS_X_SEPARATION,
+            "success_x_separation": 2.0 * TAIL_SUCCESS_OUTWARD_DISTANCE,
             "acquisition_weight": 0.6,
             "approach_fraction": 0.5,
             "bilateral_approach_fraction": 0.5,
@@ -281,6 +309,9 @@ class RewardsCfg:
         params={
             "cable_cfgs": CABLE_CFGS,
             "finger_cfgs": FINGER_CFGS,
+            "open_apertures": (0.01996, 0.01996),  # Franka ready surface spacings [m].
+            "target_diameter": GRASP_PARAMS["target_diameter"],
+            "pad_distance_std": GRASP_PARAMS["pad_distance_std"],
             "alignment_std": 0.015,
             "closure_radius": 0.01,
             "alignment_weight": 0.6,
@@ -295,7 +326,7 @@ class RewardsCfg:
         func=mdp.grasp_hold_reward,
         weight=1.0,
         params={
-            **_GRASP_PARAMS,
+            **GRASP_PARAMS,
             "bilateral_grasp_fraction": 0.5,
             "full_reward_duration": 2.0,
             "sustained_reward_fraction": 0.2,
@@ -314,10 +345,10 @@ class TerminationsCfg:
     success = DoneTerm(
         func=mdp.shoelace_bilateral_pull_success,
         params={
-            **_GRASP_PARAMS,
-            "throat_radius": physics.THROAT_RADIUS,
-            "maximum_throat_segments_per_arm": physics.MAXIMUM_THROAT_SEGMENTS_PER_ARM,
-            "minimum_tail_outward_distance": physics.TAIL_SUCCESS_OUTWARD_DISTANCE,
+            **GRASP_PARAMS,
+            "throat_radius": 0.025,
+            "maximum_throat_segments_per_arm": 15,
+            "minimum_tail_outward_distance": TAIL_SUCCESS_OUTWARD_DISTANCE,
             "minimum_pull_distance": 0.025,
             "grasp_threshold": 0.2,
         },
@@ -340,7 +371,7 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
         gravity=(0.0, 0.0, -9.81),
         physics=NewtonCfg(
             solver_cfg=CouplerAdmmCfg(
-                contact_max_triangle_pairs=physics.MIN_TRIANGLE_PAIRS,
+                contact_max_triangle_pairs=MIN_TRIANGLE_PAIRS,
                 contact_reduction_hashtable_size_factor=0.25,
                 entries=[
                     CouplerEntryCfg(
@@ -357,33 +388,33 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
                     CouplerEntryCfg(
                         name="shoelace",
                         solver_cfg=VBDSolverCfg(
-                            iterations=physics.VBD_ITERATIONS,
+                            iterations=12,
                             rigid_compliant_alm=True,
-                            rigid_body_contact_buffer_size=physics.VBD_CONTACT_BUFFER,
+                            rigid_body_contact_buffer_size=256,
                         ),
                         bodies=[r"{ENV_REGEX_NS}/ShoelaceScene/Shoelace(Left|Right)"],
                         include_static_shapes=True,
                     ),
                 ],
                 contact_pairs=[("robots", "shoelace")],
-                iterations=physics.ADMM_ITERATIONS,
-                rho=physics.ADMM_RHO,
+                iterations=2,
+                rho=500.0,
                 gamma=0.0,
-                baumgarte=physics.ADMM_BAUMGARTE,
-                rigid_contact_matching=physics.ADMM_CONTACT_MATCHING,
+                baumgarte=0.5,
+                rigid_contact_matching="latest",
             ),
             collision_cfg=NewtonCollisionPipelineCfg(
-                rigid_contact_max=physics.CONTACTS_PER_ENV * 4,
-                max_triangle_pairs=physics.MIN_TRIANGLE_PAIRS,
+                rigid_contact_max=CONTACTS_PER_ENV * 4,
+                max_triangle_pairs=MIN_TRIANGLE_PAIRS,
             ),
-            collision_decimation=physics.NEWTON_COLLISION_DECIMATION,
+            collision_decimation=2,
             default_shape_cfg=NewtonShapeCfg(
-                gap=physics.CONTACT_GAP,
+                gap=CONTACT_GAP,
                 ke=2.5e4,
                 kd=100.0,
                 mu=10.0,
             ),
-            num_substeps=physics.NEWTON_NUM_SUBSTEPS,
+            num_substeps=10,
             use_cuda_graph=True,
         ),
     )
@@ -396,27 +427,15 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
     ui_window_class_type = None
 
     tcp_body_offsets: tuple[tuple[tuple[float, float, float], ...], tuple[tuple[float, float, float], ...]] = (
-        (physics.TCP_OFFSET,),
-        (physics.TCP_OFFSET,),
+        (TCP_OFFSET,),
+        (TCP_OFFSET,),
     )
     """Local point offsets for each hand's resolved TCP bodies; their world positions are averaged [m]."""
 
     finger_body_offsets: tuple[tuple[float, float, float], ...] = ((0.0, -0.00002, 0.04525),) * 4
     """Opposing surface reference points in finger body frames [m]; Franka pad-face centres."""
-    grasp_open_apertures: tuple[float, float] = (0.01996, 0.01996)
-    """Surface-point distances at the ready/open pose [m], used only for acquisition progress."""
-    grasp_target_diameter: float = 0.003
-    """Target cable diameter [m], matching the active USD widths."""
-    grasp_pad_distance_std: float = 0.006
-    """Reference-point localization width for free-tail contact acquisition [m]."""
-    grasp_aperture_std: float = 0.002
-    """Width for excessive surface-point spacing above target diameter [m]."""
-    grasp_capture_std: float = 0.002
-    """Strict retention width for the tail leaving the segment between opposing surfaces [m]."""
-    finger_contact_distance_cap: float = physics.CONTACT_DISTANCE_CAP
-    """No-candidate sentinel of the finger contact sensor [m]."""
 
-    cable_inertia_regularization: float = physics.CABLE_INERTIA_REGULARIZATION
+    cable_inertia_regularization: float = 1.0e-6
     """Isotropic inertia added to each dynamic cable segment [kg*m^2], without changing its mass."""
 
     def validate_config(self) -> None:
@@ -425,33 +444,19 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
             raise ValueError("Exactly four three-dimensional surface offsets are required")
         if not all(math.isfinite(v) for offset in self.finger_body_offsets for v in offset):
             raise ValueError("Surface offsets must be finite")
-        if not all(
-            math.isfinite(v) and v > 0
-            for v in (
-                self.grasp_target_diameter,
-                self.grasp_pad_distance_std,
-                self.grasp_aperture_std,
-                self.grasp_capture_std,
-            )
-        ):
-            raise ValueError("Grasp geometry widths and target diameter must be finite and positive")
-        if len(self.grasp_open_apertures) != 2 or not all(
-            math.isfinite(v) and v > self.grasp_target_diameter for v in self.grasp_open_apertures
-        ):
-            raise ValueError("Each ready aperture must exceed the target diameter")
         if not isinstance(self.sim.physics, NewtonCfg):
             raise TypeError("The dual-Franka shoelace task requires Newton physics")
         collision = self.sim.physics.collision_cfg
-        collision.rigid_contact_max = physics.CONTACTS_PER_ENV * self.scene.num_envs
+        collision.rigid_contact_max = CONTACTS_PER_ENV * self.scene.num_envs
         collision.max_triangle_pairs = max(
             collision.max_triangle_pairs,
-            physics.MIN_TRIANGLE_PAIRS,
-            physics.TRIANGLE_PAIRS_PER_ENV * self.scene.num_envs,
+            MIN_TRIANGLE_PAIRS,
+            TRIANGLE_PAIRS_PER_ENV * self.scene.num_envs,
         )
         solver = self.sim.physics.solver_cfg
-        solver.contact_max_triangle_pairs = max(solver.contact_max_triangle_pairs or 0, physics.MIN_TRIANGLE_PAIRS)
+        solver.contact_max_triangle_pairs = max(solver.contact_max_triangle_pairs or 0, MIN_TRIANGLE_PAIRS)
         # Newton 1.6 contact matching needs a triangle budget below 2**20; scale the table instead.
         solver.contact_reduction_hashtable_size_factor = max(
             solver.contact_reduction_hashtable_size_factor or 0.25,
-            0.25 * physics.TRIANGLE_PAIRS_PER_ENV * self.scene.num_envs / solver.contact_max_triangle_pairs,
+            0.25 * TRIANGLE_PAIRS_PER_ENV * self.scene.num_envs / solver.contact_max_triangle_pairs,
         )

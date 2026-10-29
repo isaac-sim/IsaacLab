@@ -67,9 +67,14 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
         grasp_filter_time_constant: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
         finger_cfgs: tuple[SceneEntityCfg, ...],
+        *,
         contact_penetration_tolerance: float = 0.0,
-        maximum_throat_segments_per_arm: int = 15,
-        minimum_tail_outward_distance: float = 0.09,
+        maximum_throat_segments_per_arm: int,
+        minimum_tail_outward_distance: float,
+        target_diameter: float,
+        pad_distance_std: float,
+        aperture_std: float,
+        capture_std: float,
     ) -> torch.Tensor:
         """Return success after cooperative loaded pull and current geometric completion.
 
@@ -86,6 +91,10 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
             contact_penetration_tolerance: Allowed contact-solver penetration [m].
             maximum_throat_segments_per_arm: Maximum free capsule centers in the throat for either arm's cable.
             minimum_tail_outward_distance: Minimum signed outward X offset of each tail from the seam midpoint [m].
+            target_diameter: Target cable diameter [m].
+            pad_distance_std: Finger reference-point localization width [m].
+            aperture_std: Width for excess finger spacing above the target diameter [m].
+            capture_std: Width for the tail leaving the opposing-finger segment [m].
 
         Returns:
             Success flags for finite states completing both phases, shape [N].
@@ -118,6 +127,10 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
             cable_cfgs,
             finger_cfgs,
             contact_penetration_tolerance,
+            target_diameter=target_diameter,
+            pad_distance_std=pad_distance_std,
+            aperture_std=aperture_std,
+            capture_std=capture_std,
         )
         finite = geometry_finite & grasp_finite & torch.isfinite(outward_x).all(dim=1)
         filtered = filter_grasps(self._filtered_grasp, grasp, finite, env.step_dt, grasp_filter_time_constant)

@@ -23,10 +23,10 @@ if TYPE_CHECKING:
     from .collision_ik_cfg import G1CollisionAwareIKActionCfg
 
 
-_JOINT_PARTS = ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow", "wrist_roll", "wrist_pitch", "wrist_yaw")
+JOINT_PARTS = ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow", "wrist_roll", "wrist_pitch", "wrist_yaw")
 # Overlapping spheres fitted to source visual bounds, in their link frames. The
 # shoulder attachment is deliberately excluded, since it meets the torso by design.
-_ARM_SPHERES = (
+ARM_SPHERES = (
     (2, (0.0075, 0.0, -0.02), 0.043),
     (2, (0.0075, 0.0, -0.05), 0.043),
     (2, (0.0075, 0.0, -0.08), 0.043),
@@ -115,7 +115,7 @@ class G1CollisionAwareIKAction(DifferentialInverseKinematicsAction):
             raise ValueError("Clearance, joint step and recovery step must be positive")
         if cfg.projection_iterations < 1 or cfg.backtrack_steps < 1:
             raise ValueError("Projection and backtracking iterations must be positive")
-        names = [f"{cfg.side}_{part}_joint" for part in _JOINT_PARTS]
+        names = [f"{cfg.side}_{part}_joint" for part in JOINT_PARTS]
         self._chain_order = [self._joint_names.index(name) for name in names]
         self._action_order = [names.index(name) for name in self._joint_names]
         self._chain_joint_ids = [self._asset.joint_names.index(name) for name in names]
@@ -128,8 +128,8 @@ class G1CollisionAwareIKAction(DifferentialInverseKinematicsAction):
         parent_positions, parent_rotations, child_positions, child_rotations, axes = [], [], [], [], []
         for i, name in enumerate(names):
             joint = joints[name]
-            parent = cfg.torso_body if i == 0 else f"{cfg.side}_{_JOINT_PARTS[i - 1]}_link"
-            child = f"{cfg.side}_{_JOINT_PARTS[i]}_link"
+            parent = cfg.torso_body if i == 0 else f"{cfg.side}_{JOINT_PARTS[i - 1]}_link"
+            child = f"{cfg.side}_{JOINT_PARTS[i]}_link"
             if joint.GetBody0Rel().GetTargets()[0].name != parent or joint.GetBody1Rel().GetTargets()[0].name != child:
                 raise ValueError(f"Unexpected G1 joint topology at {name}")
             parent_positions.append(tuple(joint.GetLocalPos0Attr().Get()))
@@ -150,9 +150,9 @@ class G1CollisionAwareIKAction(DifferentialInverseKinematicsAction):
         self._child_positions = tensor(child_positions)
         self._child_rotations_inv = quat_conjugate(tensor(child_rotations))
         self._joint_axes = tensor(axes)
-        self._sphere_links = torch.tensor([s[0] for s in _ARM_SPHERES], device=self.device)
-        self._sphere_offsets = tensor([s[1] for s in _ARM_SPHERES])
-        self._sphere_radii = tensor([s[2] for s in _ARM_SPHERES])
+        self._sphere_links = torch.tensor([s[0] for s in ARM_SPHERES], device=self.device)
+        self._sphere_offsets = tensor([s[1] for s in ARM_SPHERES])
+        self._sphere_radii = tensor([s[2] for s in ARM_SPHERES])
         self._ancestor_mask = torch.arange(7, device=self.device)[None, :] <= self._sphere_links[:, None]
         self._box_center = tensor(cfg.torso_center)
         self._box_half_extents = tensor(cfg.torso_half_extents)

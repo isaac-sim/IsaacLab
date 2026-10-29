@@ -28,10 +28,10 @@ from .mdp.rewards import binary_gripper_switch_rate
 from .shoelace_assets import ShoelaceUsdCfg
 from .shoelace_env_cfg import CABLE_CFGS, ObservationsCfg, RewardsCfg, ShoelaceEnvCfg, ShoelaceSceneCfg, TerminationsCfg
 
-_POLICY_DEFAULTS = ObservationsCfg.PolicyCfg()
+POLICY_DEFAULTS = ObservationsCfg.PolicyCfg()
 
-_ARM_JOINTS = r"{side}_(shoulder_.*|elbow|wrist_.*)_joint"
-_ARM_MIRROR_SIGNS = {
+ARM_JOINTS = r"{side}_(shoulder_.*|elbow|wrist_.*)_joint"
+ARM_MIRROR_SIGNS = {
     "shoulder_pitch_joint": 1.0,
     "shoulder_roll_joint": -1.0,
     "shoulder_yaw_joint": -1.0,
@@ -42,9 +42,9 @@ _ARM_MIRROR_SIGNS = {
 }
 # Finger targets and near-tip surface landmarks from a constrained fit around a 2.8 mm target.
 # The nominal closed surface midpoint defines a fixed wrist TCP; actual grasp scoring stays live.
-_INDEX_OPEN = tuple(value - 0.25 for value in INDEX_CLOSED)
-_INDEX_STROKES = tuple(closed - opened for closed, opened in zip(INDEX_CLOSED, _INDEX_OPEN, strict=True))
-_FINGER_CFGS = tuple(
+INDEX_OPEN = tuple(value - 0.25 for value in INDEX_CLOSED)
+INDEX_STROKES = tuple(closed - opened for closed, opened in zip(INDEX_CLOSED, INDEX_OPEN, strict=True))
+FINGER_CFGS = tuple(
     SceneEntityCfg("robot", joint_names=[joint], body_names=[body])
     for joint, body in (
         ("L_thumb_proximal_pitch_joint", "L_thumb_distal"),
@@ -54,7 +54,7 @@ _FINGER_CFGS = tuple(
     )
 )
 # Closed-pad midpoint measured with the robot USD's forward kinematics, in each wrist frame.
-_ROBOT_CFGS = tuple(SceneEntityCfg("robot", body_names=[f"{side}_wrist_yaw_link"]) for side in ("left", "right"))
+ROBOT_CFGS = tuple(SceneEntityCfg("robot", body_names=[f"{side}_wrist_yaw_link"]) for side in ("left", "right"))
 
 
 def _robot_cfg() -> ArticulationCfg:
@@ -95,10 +95,10 @@ def _robot_cfg() -> ArticulationCfg:
     for joint, position in left_arm_positions.items():
         # Reflection reverses axial rotations about X/Z; pitch and elbow rotate about Y.
         robot.init_state.joint_pos[f"left_{joint}"] = position
-        robot.init_state.joint_pos[f"right_{joint}"] = _ARM_MIRROR_SIGNS[joint] * position
+        robot.init_state.joint_pos[f"right_{joint}"] = ARM_MIRROR_SIGNS[joint] * position
     for arm, prefix in enumerate(("L", "R")):
         robot.init_state.joint_pos.update(_thumb_targets(prefix, THUMB_PITCH[arm], THUMB_YAW[arm]))
-        robot.init_state.joint_pos[f"{prefix}_index_proximal_joint"] = _INDEX_OPEN[arm]
+        robot.init_state.joint_pos[f"{prefix}_index_proximal_joint"] = INDEX_OPEN[arm]
         robot.init_state.joint_pos[f"{prefix}_index_intermediate_joint"] = 0.0
     return robot
 
@@ -108,7 +108,7 @@ def _arm_action(side: str, arm: int) -> env_mdp.DifferentialInverseKinematicsAct
     return G1CollisionAwareIKActionCfg(
         side=side,
         asset_name="robot",
-        joint_names=[_ARM_JOINTS.format(side=side)],
+        joint_names=[ARM_JOINTS.format(side=side)],
         body_name=f"{side}_wrist_yaw_link",
         controller=DifferentialIKControllerCfg(
             command_type="pose", use_relative_mode=True, ik_method="dls", ik_params={"lambda_val": 0.05}
@@ -132,7 +132,7 @@ def _pinch_action(prefix: str, arm: int) -> InspireFingerActionCfg:
     """Open/close only the index while holding all thumb joints at the calibrated pinch pose."""
     opened = _thumb_targets(prefix, THUMB_PITCH[arm], THUMB_YAW[arm])
     closed = opened.copy()
-    opened.update({f"{prefix}_index_proximal_joint": _INDEX_OPEN[arm], f"{prefix}_index_intermediate_joint": 0.0})
+    opened.update({f"{prefix}_index_proximal_joint": INDEX_OPEN[arm], f"{prefix}_index_intermediate_joint": 0.0})
     closed.update({f"{prefix}_index_proximal_joint": INDEX_CLOSED[arm], f"{prefix}_index_intermediate_joint": 0.0})
     return InspireFingerActionCfg(
         asset_name="robot",
@@ -187,31 +187,31 @@ class G1ShoelaceObservationsCfg(ObservationsCfg):
     @configclass
     class PolicyCfg(ObservationGroupCfg):
         # Keep the pretrained G1 concatenation order independent of the Franka policy.
-        left_joint_pos = clone(_POLICY_DEFAULTS.left_joint_pos)
-        right_joint_pos = clone(_POLICY_DEFAULTS.right_joint_pos)
-        left_joint_vel = clone(_POLICY_DEFAULTS.left_joint_vel)
-        right_joint_vel = clone(_POLICY_DEFAULTS.right_joint_vel)
+        left_joint_pos = clone(POLICY_DEFAULTS.left_joint_pos)
+        right_joint_pos = clone(POLICY_DEFAULTS.right_joint_pos)
+        left_joint_vel = clone(POLICY_DEFAULTS.left_joint_vel)
+        right_joint_vel = clone(POLICY_DEFAULTS.right_joint_vel)
         finger_tracking_error = ObservationTermCfg(
             func=f"{__package__}.mdp.inspire_hand:inspire_finger_tracking_error",
             params={
-                "finger_cfgs": _FINGER_CFGS,
-                "motion_ranges": (0.12, _INDEX_STROKES[0], 0.12, _INDEX_STROKES[1]),
+                "finger_cfgs": FINGER_CFGS,
+                "motion_ranges": (0.12, INDEX_STROKES[0], 0.12, INDEX_STROKES[1]),
             },
             clip=(-1.0, 1.0),
         )
-        tails_to_tcp = clone(_POLICY_DEFAULTS.tails_to_tcp)
-        finger_tail_signed_distance = clone(_POLICY_DEFAULTS.finger_tail_signed_distance)
+        tails_to_tcp = clone(POLICY_DEFAULTS.tails_to_tcp)
+        finger_tail_signed_distance = clone(POLICY_DEFAULTS.finger_tail_signed_distance)
         finger_tail_relative_velocity = ObservationTermCfg(
             func=mdp.finger_tail_relative_velocity,
-            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": _FINGER_CFGS},
+            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": FINGER_CFGS},
             scale=10.0,
         )
         pad_to_tail = ObservationTermCfg(
             func=mdp.pad_to_tail,
-            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": _FINGER_CFGS},
+            params={"cable_cfgs": CABLE_CFGS, "finger_cfgs": FINGER_CFGS},
             scale=10.0,
         )
-        last_action = clone(_POLICY_DEFAULTS.last_action)
+        last_action = clone(POLICY_DEFAULTS.last_action)
         finger_joint_pos = ObservationTermCfg(
             func=env_mdp.joint_pos,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["[LR]_(thumb|index)_.*_joint"])},
@@ -263,16 +263,12 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
     """Nominal closed pinch centres in the left/right wrist frames, independent of finger state [m]."""
     finger_body_offsets = PAD_OFFSETS
     """The same surface landmarks used by the shared grasp rewards [m]."""
-    grasp_open_apertures = (0.019776298,) * 2
-    """Measured left/right surface spacing at the ready pose [m]."""
-    grasp_capture_std: float = 0.004
-    """Tail capture width for the Inspire pinch pads in grasp rewards and success [m]."""
 
     def __post_init__(self) -> None:
         """Bind the shared managers to one articulation with increasing finger closure angles."""
         policy = self.observations.policy
         for side in ("left", "right"):
-            joint_cfg = SceneEntityCfg("robot", joint_names=[_ARM_JOINTS.format(side=side)])
+            joint_cfg = SceneEntityCfg("robot", joint_names=[ARM_JOINTS.format(side=side)])
             getattr(policy, f"{side}_joint_pos").params["asset_cfg"] = joint_cfg
             getattr(policy, f"{side}_joint_vel").params["asset_cfg"] = clone(joint_cfg)
             getattr(self.events, f"reset_{side}_arm").params["asset_cfg"] = clone(joint_cfg)
@@ -281,22 +277,25 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
         self.events.reset_right_arm.func = f"{__package__}.mdp.events:mirror_arm_joints"
         self.events.reset_right_arm.params = {
             "source_cfg": SceneEntityCfg(
-                "robot", joint_names=[f"left_{joint}" for joint in _ARM_MIRROR_SIGNS], preserve_order=True
+                "robot", joint_names=[f"left_{joint}" for joint in ARM_MIRROR_SIGNS], preserve_order=True
             ),
             "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=[f"right_{joint}" for joint in _ARM_MIRROR_SIGNS], preserve_order=True
+                "robot", joint_names=[f"right_{joint}" for joint in ARM_MIRROR_SIGNS], preserve_order=True
             ),
-            "mirror_signs": tuple(_ARM_MIRROR_SIGNS.values()),
+            "mirror_signs": tuple(ARM_MIRROR_SIGNS.values()),
         }
-        policy.tails_to_tcp.params["robot_cfgs"] = tuple(clone(cfg) for cfg in _ROBOT_CFGS)
-        self.rewards.dense_task.params["approach_robot_cfgs"] = tuple(clone(cfg) for cfg in _ROBOT_CFGS)
+        policy.tails_to_tcp.params["robot_cfgs"] = tuple(clone(cfg) for cfg in ROBOT_CFGS)
+        self.rewards.dense_task.params["approach_robot_cfgs"] = tuple(clone(cfg) for cfg in ROBOT_CFGS)
         for term in (
             self.rewards.pregrasp,
             self.rewards.dense_task,
             self.rewards.grasp_hold,
             self.terminations.success,
         ):
-            term.params["finger_cfgs"] = tuple(clone(cfg) for cfg in _FINGER_CFGS)
+            term.params["finger_cfgs"] = tuple(clone(cfg) for cfg in FINGER_CFGS)
+        self.rewards.pregrasp.params["open_apertures"] = (0.019776298,) * 2
+        for term in (self.rewards.dense_task, self.rewards.grasp_hold, self.terminations.success):
+            term.params["capture_std"] = 0.004
         self.events.reset_shoe.params["position_range"] = {"x": (-0.01, 0.01), "y": (-0.01, 0.01)}
         self.sim.physics.solver_cfg.iterations = 8
         self.sim.physics.solver_cfg.entries[0].bodies = [r"{ENV_REGEX_NS}/(Robot|ShoelaceScene/Shoe)"]

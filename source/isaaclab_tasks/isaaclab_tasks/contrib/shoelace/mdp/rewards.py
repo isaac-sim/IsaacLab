@@ -155,6 +155,10 @@ class dense_task_reward(ManagerTermBase):
         bilateral_grasp_fraction: float = 0.7,
         contact_penetration_tolerance: float = 0.0,
         pull_grasp_threshold: float = 0.2,
+        target_diameter: float,
+        pad_distance_std: float,
+        aperture_std: float,
+        capture_std: float,
     ) -> torch.Tensor:
         """Return the signed rate of acquisition-and-pull progress [1/s].
 
@@ -192,6 +196,10 @@ class dense_task_reward(ManagerTermBase):
                 penetration beyond this tolerance still reduce grasp quality.
             pull_grasp_threshold: Minimum current and filtered grasp quality for each arm's record credit;
                 both arms must qualify for new bilateral records.
+            target_diameter: Target cable diameter [m].
+            pad_distance_std: Finger reference-point localization width [m].
+            aperture_std: Width for excess finger spacing above the target diameter [m].
+            capture_std: Width for the tail leaving the opposing-finger segment [m].
 
         Returns:
             Signed reward rates [1/s], shape [N]. RewardManager cancels the timestep division
@@ -215,7 +223,7 @@ class dense_task_reward(ManagerTermBase):
             raise ValueError("pull_grasp_threshold must be in (0, 1]")
 
         # Per-arm tensors follow robot order (left, right), which is opposite to the cable naming.
-        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs)
+        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs, target_diameter)
         tail_distances = geometry["capture_distance"]
         approach_distance = tail_distances
         if approach_robot_cfgs is not None:
@@ -229,6 +237,10 @@ class dense_task_reward(ManagerTermBase):
             cable_cfgs,
             finger_cfgs,
             contact_penetration_tolerance,
+            target_diameter=target_diameter,
+            pad_distance_std=pad_distance_std,
+            aperture_std=aperture_std,
+            capture_std=capture_std,
             geometry=geometry,
         )
         outward_x = tail_outward_x(env, cable_cfgs)
@@ -368,6 +380,10 @@ class grasp_hold_reward(ManagerTermBase):
         contact_penetration_tolerance: float = 0.0,
         full_reward_duration: float | None = None,
         sustained_reward_fraction: float = 0.2,
+        target_diameter: float,
+        pad_distance_std: float,
+        aperture_std: float,
+        capture_std: float,
     ) -> torch.Tensor:
         """Return sustained grasp quality with a bilateral bonus.
 
@@ -384,6 +400,10 @@ class grasp_hold_reward(ManagerTermBase):
             full_reward_duration: Maximum quality-weighted retention time at full reward rate [s] per
                 episode. ``None`` disables the budget. Release or regrasp does not renew it.
             sustained_reward_fraction: Remaining reward fraction in [0, 1] after the full-rate budget.
+            target_diameter: Target cable diameter [m].
+            pad_distance_std: Finger reference-point localization width [m].
+            aperture_std: Width for excess finger spacing above the target diameter [m].
+            capture_std: Width for the tail leaving the opposing-finger segment [m].
 
         Returns:
             Hold scores in [0, 1], shape [N]. The first finite sample seeds the filter without a ramp.
@@ -404,6 +424,10 @@ class grasp_hold_reward(ManagerTermBase):
             cable_cfgs,
             finger_cfgs,
             contact_penetration_tolerance,
+            target_diameter=target_diameter,
+            pad_distance_std=pad_distance_std,
+            aperture_std=aperture_std,
+            capture_std=capture_std,
         )
         filtered = filter_grasps(
             self._filtered_per_gripper_grasp, grasp, finite, env.step_dt, max(grasp_filter_time_constant, 1.0e-6)
@@ -445,11 +469,15 @@ class pregrasp_progress_reward(ManagerTermBase):
         closure_radius: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
         finger_cfgs: tuple[SceneEntityCfg, ...],
+        *,
         alignment_weight: float = 0.6,
         closure_weight: float = 0.25,
         contact_weight: float = 0.15,
         contact_std: float = 0.0015,
         contact_penetration_tolerance: float = 0.001,
+        open_apertures: tuple[float, float],
+        target_diameter: float,
+        pad_distance_std: float,
     ) -> torch.Tensor:
         """Return geometry/contact potential progress [1/s], without joint-angle assumptions.
 
@@ -459,19 +487,26 @@ class pregrasp_progress_reward(ManagerTermBase):
         First-finger contact earns a soft acquisition signal; physical retention uses the stricter
         shared grasp score.
         Reset seeds the potential without credit; reopening/contact loss removes previous credit.
+        ``open_apertures`` are the ready surface spacings [m]; ``target_diameter`` and
+        ``pad_distance_std`` set cable diameter and reference-point localization width [m].
         """
-        if not all(math.isfinite(value) and value > 0 for value in (alignment_std, closure_radius)):
+        if not all(
+            math.isfinite(value) and value > 0
+            for value in (alignment_std, closure_radius, target_diameter, pad_distance_std)
+        ):
             raise ValueError("Pregrasp widths must be finite and positive")
+        if len(open_apertures) != 2 or not all(math.isfinite(v) and v > target_diameter for v in open_apertures):
+            raise ValueError("Each ready aperture must exceed the target diameter")
         if not all(math.isfinite(value) and value >= 0 for value in (alignment_weight, closure_weight, contact_weight)):
             raise ValueError("Pregrasp weights must be finite and nonnegative")
-        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs)
+        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs, target_diameter)
         distance = geometry["capture_distance"]
-        opened = distance.new_tensor(env.cfg.grasp_open_apertures)
-        closure = ((opened - geometry["aperture"]) / (opened - env.cfg.grasp_target_diameter)).clamp(0.0, 1.0)
+        opened = distance.new_tensor(open_apertures)
+        closure = ((opened - geometry["aperture"]) / (opened - target_diameter)).clamp(0.0, 1.0)
         alignment = torch.exp(-(distance / alignment_std).square())
         gate = (1.0 - (distance / closure_radius).square()).clamp_min(0.0).square()
         contact, contact_finite = _finger_contact_quality(env, contact_std, contact_penetration_tolerance)
-        contact *= torch.exp(-(geometry["pad_distance"] / env.cfg.grasp_pad_distance_std).square())
+        contact *= torch.exp(-(geometry["pad_distance"] / pad_distance_std).square())
         potential = (
             alignment_weight * alignment + closure_weight * gate * closure + contact_weight * contact.mean(dim=2)
         ).mean(dim=1)
