@@ -332,6 +332,7 @@ class NewtonManager(PhysicsManager):
         # The CUDA graph points at the old model's freed buffers (CUDA 700 on the next step).
         self._graph = None
         self._graph_capture_pending = False
+        self.transforms_may_change_on_graph_replay = False
         self._use_newton_actuators_active = False
         if backend is not None:
             self.backend = None
