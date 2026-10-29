@@ -32,11 +32,11 @@ if TYPE_CHECKING:
 
 
 class CoffeeMotionPlayback(ActionTerm):
-    """Replay the demo's recorded arm motion from a random time offset per environment.
+    """Replay the demo's recorded arm motion in a loop, from a different time offset per environment.
 
     The term takes no actions. Before every physics step it writes the recorded pose with zero velocity and holds
-    it with the joint position targets; the hand keeps the demo's grip, its default pose. The recording plays
-    forward, then backward, so it loops without a jump.
+    it with the joint position targets; the hand keeps the demo's grip, its default pose. The offsets are spread
+    evenly over the recording and assigned to the environments in a random order.
     """
 
     cfg: CoffeeMotionPlaybackCfg
@@ -48,12 +48,12 @@ class CoffeeMotionPlayback(ActionTerm):
             raise ValueError(
                 f"The motion is recorded at {motion['rate_hz']} Hz; the environment steps every {env.step_dt} s"
             )
-        recorded = torch.tensor(motion["positions"], device=self.device)
-        self._frames = torch.cat((recorded, recorded[1:-1].flip(0)))
+        self._frames = torch.tensor(motion["positions"], device=self.device)
         self._arm_ids = [self._asset.joint_names.index(name) for name in motion["joint_names"]]
-        # A dedicated generator keeps the offsets reproducible, whatever else used the global one.
-        generator = torch.Generator().manual_seed(env.cfg.seed or 0)
-        self._offsets = torch.randint(len(self._frames), (self.num_envs,), generator=generator).to(self.device)
+        offsets = torch.arange(self.num_envs) * len(self._frames) // self.num_envs
+        # A dedicated generator keeps the order reproducible, whatever else used the global one.
+        order = torch.randperm(self.num_envs, generator=torch.Generator().manual_seed(env.cfg.seed or 0))
+        self._offsets = offsets[order].to(self.device)
         self._default_pose = self._asset.data.default_joint_pos.torch.clone()
         self._actions = torch.zeros(self.num_envs, 0, device=self.device)
 

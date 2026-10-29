@@ -7,8 +7,8 @@
 
 The scene comes from the demo's own code (:mod:`isaaclab_tasks.contrib.rizon_sharpa_coffee`): its
 ``configure_scene`` builds the robot, table, bowl, cup and spoon, and its kinematic mount moves the spoon
-with the palm. Every environment replays the demo's recorded arm motion (``coffee_arm_motion.json``) from
-its own random time offset.
+with the palm. Every environment replays the demo's recorded arm motion (``coffee_arm_motion.json``) in a
+loop from its own time offset.
 
 Differences from the demo:
 
