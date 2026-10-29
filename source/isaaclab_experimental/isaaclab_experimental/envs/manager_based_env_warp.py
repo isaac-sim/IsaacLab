@@ -610,7 +610,7 @@ class ManagerBasedEnvWarp:
         """
         if not self._resets_by_index():
             return None
-        return resolve_ids(mask=env_mask, all_ids=None, device=self.device)
+        return resolve_ids(mask=env_mask, all_ids=None)
 
     def _resets_by_index(self) -> bool:
         """Whether a stable manager that resets by index has active terms."""
