@@ -15,7 +15,14 @@ from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
 
 from ..conveyor_franka.conveyor_franka_env import ConveyorFrankaEnv
 from .actions_cfg import TOOL_OFFSET
-from .scene import BIN_POSITIONS, GOAL_DIRECTIONS, PARCEL_CLASS_IDS, PARCEL_SIZES
+from .scene import (
+    BIN_POSITIONS,
+    GOAL_DIRECTIONS,
+    PARCEL_CLASS_IDS,
+    PARCEL_SIZES,
+    SUCTION_PAD_RADIUS,
+    SUCTION_PAD_SPACING,
+)
 
 
 class SuctionSortingEnv(ConveyorFrankaEnv):
@@ -29,6 +36,8 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
             target_body_pattern=r".*/Cube[0-9]+",
             target_count_per_env=len(PARCEL_SIZES),
             tool_offset=TOOL_OFFSET,
+            pad_radius=SUCTION_PAD_RADIUS,
+            pad_spacing=SUCTION_PAD_SPACING,
         )
         try:
             super()._init_sim()

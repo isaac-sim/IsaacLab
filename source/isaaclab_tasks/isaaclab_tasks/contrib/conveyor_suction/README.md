@@ -15,7 +15,7 @@ and vacuum; belts run continuously.
 
 ![Franka suction parcel sorting](../../../../../docs/source/_static/environment-previews/conveyor_suction_sorting.jpg)
 
-The tool has four suction cups of 4 mm radius on the existing Panda hand. Suction requires a nearby,
+The tool has four visible suction cups of 12 mm radius on the existing Panda hand. Suction requires a nearby,
 aligned parcel face and applies the upstream Newton prototype's compliant, capped forces.
 It does not move parcels by writing their poses. The original fingers are visually hidden
 and their collisions disabled. Existing finger-gripper policies require retraining.
@@ -50,6 +50,9 @@ The 52 observations include whether the selected parcel has completed its requir
 this history remains observable after lowering or releasing it. Earlier 51-input checkpoints
 require their matching configuration.
 Parcel dimensions vary across twelve fixed cuboid assets spanning five size classes.
+Parcels are 8.5–19 cm long and weigh approximately 64–431 g. The receiving lanes have
+24 cm openings to accommodate the largest packages. Earlier suction checkpoints require
+their matching parcel catalogue and tool configuration; the observation shape alone does not imply compatibility.
 The correct destination is determined by package dimensions; a destination command or
 size-class label is not supplied to the actor. Colors make the scene readable without
 becoming policy inputs.

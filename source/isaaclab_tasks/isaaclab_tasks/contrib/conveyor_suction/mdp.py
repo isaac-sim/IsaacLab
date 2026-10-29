@@ -269,8 +269,8 @@ class ResetParcels(ManagerTermBase):
         bins = torch.tensor(BIN_POSITIONS, device=self.device)
         for index, class_id in enumerate(PARCEL_CLASS_IDS):
             rank_in_bin = PARCEL_CLASS_IDS[:index].count(class_id)
-            radial = -0.14 if rank_in_bin % 2 == 0 else 0.14
-            lateral = -0.12 if rank_in_bin < 2 else 0.12
+            radial = -0.12 if rank_in_bin % 2 == 0 else 0.12
+            lateral = -0.10 if rank_in_bin < 2 else 0.10
             direction = directions[class_id]
             cross = torch.stack((-direction[1], direction[0], direction[2]))
             self._bin_poses[index, :3] = bins[class_id] + radial * direction + lateral * cross

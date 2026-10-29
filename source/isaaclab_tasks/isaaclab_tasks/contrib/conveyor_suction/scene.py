@@ -22,6 +22,7 @@ from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 from ..conveyor_franka.conveyor_franka_env_cfg import _ROBOT_INITIAL_STATE, _collision_properties, _conveyor_asset
 from ..conveyor_franka.conveyor_geometry import ConveyorSectionSpec, CuboidSpec, MeshSpec, _prism_faces
 from ..conveyor_franka.franka_robot_cfg import FRANKA_PANDA_CONVEYOR_CFG
+from .actions_cfg import TOOL_OFFSET
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -32,30 +33,32 @@ INTAKE_RADIUS = 0.28
 INTAKE_HALF_STRAIGHT = 0.45
 INTAKE_WIDTH = 0.24
 FEEDER_POSITION = (2.40, -0.75, 0.42)
+SUCTION_PAD_RADIUS = 0.012
+SUCTION_PAD_SPACING = 0.014
 PARCEL_DIMENSIONS = (
-    (0.04, 0.04, 0.04),
-    (0.065, 0.045, 0.05),
-    (0.085, 0.06, 0.06),
-    (0.11, 0.075, 0.07),
-    (0.14, 0.10, 0.08),
+    (0.09, 0.075, 0.055),
+    (0.11, 0.085, 0.065),
+    (0.135, 0.095, 0.075),
+    (0.16, 0.11, 0.085),
+    (0.18, 0.125, 0.10),
 )
 """Nominal dimensions [m] of the five increasing parcel-volume classes."""
 PARCEL_CLASS_IDS = (0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 3)
 PARCEL_SIZES = (
     *PARCEL_DIMENSIONS,
-    (0.045, 0.035, 0.038),
-    (0.060, 0.050, 0.055),
-    (0.090, 0.055, 0.065),
-    (0.105, 0.080, 0.075),
-    (0.150, 0.090, 0.085),
-    (0.038, 0.045, 0.042),
-    (0.115, 0.070, 0.065),
+    (0.095, 0.075, 0.05),
+    (0.105, 0.09, 0.065),
+    (0.14, 0.09, 0.08),
+    (0.155, 0.115, 0.09),
+    (0.19, 0.12, 0.105),
+    (0.085, 0.08, 0.055),
+    (0.165, 0.105, 0.085),
 )
 """Per-asset cuboid dimensions [m]; shapes vary within a size class."""
 CLASS_COLORS = ((0.20, 0.53, 0.79), (0.88, 0.48, 0.19), (0.26, 0.66, 0.46), (0.68, 0.39, 0.66), (0.74, 0.60, 0.35))
 GOAL_ANGLES = tuple(math.radians(value) for value in (10, 35, 60, 85, 110))
 GOAL_DIRECTIONS = tuple((math.cos(angle), math.sin(angle), 0.0) for angle in GOAL_ANGLES)
-GOAL_POSITIONS = tuple((0.62 * x, 0.62 * y, 0.10) for x, y, _ in GOAL_DIRECTIONS)
+GOAL_POSITIONS = tuple((0.70 * x, 0.70 * y, 0.08) for x, y, _ in GOAL_DIRECTIONS)
 """Sloped receiving-deck positions in the robot's environment frame [m]."""
 BIN_POSITIONS = tuple((2.17 * x, 2.17 * y, -0.48) for x, y, _ in GOAL_DIRECTIONS)
 BIN_INTERIOR_SIZE = (0.60, 0.56, 0.56)
@@ -212,7 +215,7 @@ def _conveyor_sections(
         x, y, _ = direction
         slope = 0.25
         add(
-            _deck(f"ReceivingDeck{index}", angle, 0.55, 0.79, 0.20, 0.24, 0.1175, 0.0575),
+            _deck(f"ReceivingDeck{index}", angle, 0.64, 0.79, 0.24, 0.24, 0.095, 0.0575),
             (x, y, -slope),
             surface_normal=(slope * x, slope * y, 1.0),
         )
@@ -366,15 +369,8 @@ def _add_destination(scene: SuctionSortingSceneCfg, index: int, angle: float) ->
             colliding=colliding,
         )
 
-    for side, offset in (("Left", -0.119), ("Right", 0.119)):
-        _add_box(
-            scene,
-            f"Lane{index}Mouth{side}",
-            (0.245, 0.018, 0.13),
-            (0.67 * cosine - offset * sine, 0.67 * sine + offset * cosine, 0.125),
-            CLASS_COLORS[index],
-            angle + math.copysign(math.atan2(0.02, 0.24), offset),
-        )
+    for side, offset in (("Left", -0.129), ("Right", 0.129)):
+        box(f"Mouth{side}", (0.17, 0.018, 0.13), 0.715, offset, 0.125, CLASS_COLORS[index])
         box(f"Outfeed{side}", (1.20, 0.020, 0.045), 1.35, math.copysign(0.13, offset), 0.05, _METAL_COLOR)
     box("Frame", (1.20, 0.28, 0.08), 1.35, 0.0, -0.045, _FRAME_COLOR, colliding=False)
     for leg, radius in enumerate((0.92, 1.78)):
@@ -394,7 +390,7 @@ def spawn_suction_franka(
     orientation: tuple[float, float, float, float] | None = None,
 ) -> Usd.Prim:
     """Keep the existing arm asset and author a compact, hand-mounted suction tool."""
-    from pxr import Gf, Usd, UsdGeom, UsdPhysics
+    from pxr import Usd, UsdGeom, UsdPhysics
 
     prim = sim_utils.spawn_from_usd(prim_path, cfg, translation=translation, orientation=orientation)
     sim_utils.make_uninstanceable(str(prim.GetPath()))
@@ -407,16 +403,25 @@ def spawn_suction_franka(
                 UsdPhysics.CollisionAPI(child).GetCollisionEnabledAttr().Set(False)
     tool = str(hand.GetPath()) + "/SuctionTool"
     for name, position, size, color in (
-        ("Mount", (0.0, 0.0, 0.065), (0.035, 0.035, 0.055), (0.18, 0.20, 0.23)),
-        ("Plate", (0.0, 0.0, 0.096), (0.028, 0.028, 0.005), (0.62, 0.67, 0.72)),
+        ("Mount", (0.0, 0.0, 0.05), (0.045, 0.045, 0.05), (0.08, 0.28, 0.36)),
+        ("Plate", (0.0, 0.0, 0.079), (0.075, 0.075, 0.008), (0.22, 0.27, 0.31)),
     ):
         geometry = sim_utils.CuboidCfg(size=size, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color))
         geometry.func(f"{tool}/{name}", geometry, translation=position)
-    for index, (x, y) in enumerate(((-1, -1), (-1, 1), (1, -1), (1, 1))):
-        cup = UsdGeom.Cylinder.Define(prim.GetStage(), f"{tool}/Cup{index}")
-        cup.CreateRadiusAttr(0.004)
-        cup.CreateHeightAttr(0.006)
-        cup.AddTranslateOp().Set(Gf.Vec3d(x * 0.007, y * 0.007, 0.102))
-        cup.CreateDisplayColorAttr([Gf.Vec3f(0.12, 0.55, 0.65)])
-        UsdPhysics.CollisionAPI.Apply(cup.GetPrim()).CreateCollisionEnabledAttr(True)
+    for part, radius, height, z, color in (
+        ("Stem", 0.008, 0.016, 0.091, (0.025, 0.035, 0.04)),
+        ("Lip", SUCTION_PAD_RADIUS, 0.006, TOOL_OFFSET[2] - 0.003, (0.04, 0.48, 0.56)),
+    ):
+        geometry = sim_utils.CylinderCfg(
+            radius=radius,
+            height=height,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.7),
+            collision_props=_collision_properties(contact_margin=0.001) if part == "Lip" else None,
+        )
+        for index, (x, y) in enumerate(((-1, -1), (-1, 1), (1, -1), (1, 1))):
+            geometry.func(
+                f"{tool}/{part}{index}",
+                geometry,
+                translation=(x * SUCTION_PAD_SPACING, y * SUCTION_PAD_SPACING, z),
+            )
     return prim

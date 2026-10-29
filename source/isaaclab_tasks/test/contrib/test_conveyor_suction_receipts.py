@@ -87,10 +87,10 @@ def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
         command = env.command_manager.get_term("sort")
         actions = torch.zeros((2, 4), device=device)
         actions[:, 3] = 1.0
-        # A recorded outfeed impact must settle in the bin without crossing its floor.
+        # An outfeed-speed impact must settle in the bin without crossing its floor.
         impact_ids = torch.tensor([0], device=device)
         pose = torch.tensor(
-            [[2.07563591, 0.28751278, -0.72892869, -0.97748345, -0.07764439, -0.19566739, -0.01455657]],
+            [[2.07563591, 0.28751278, -0.71146984, -0.97748345, -0.07764439, -0.19566739, -0.01455657]],
             device=device,
         )
         pose[:, :3] += env.scene.env_origins[impact_ids]
