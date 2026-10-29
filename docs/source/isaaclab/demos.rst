@@ -55,7 +55,7 @@ No source checkout is required.
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
-               data-demo-physics="newton_xpbd"
+               data-demo-physics="newton_xpbd" data-demo-fixed-physics="true"
                data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
          <img src="../../_static/browser_demos/previews/microduck.jpg"
