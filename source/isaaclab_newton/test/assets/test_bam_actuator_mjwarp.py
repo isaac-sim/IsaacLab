@@ -178,22 +178,26 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
 
     The samples hold across environment resets; hard resets rebind without stacking solver hooks.
     """
-    sampled_cfg = _make_cfg(max_delay=2, vin_range=(6.0, 8.0), vin_drop_gain_range=(0.0, 0.2))
-    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(vin_drop_gain_range=(0.0, 0.2)), "RobotC": sampled_cfg}
+    sampled_cfg = _make_cfg(max_delay=2, vin_range=(6.0, 8.0), battery_resistance_range=(0.0, 0.07))
+    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(battery_resistance_range=(0.0, 0.07)), "RobotC": sampled_cfg}
     robot_a, robot_b, robot_c = _spawn_pendulums(native_sim, pendulum_usd, cfgs)
     assert robot_c.actuators["servo"] is not robot_a.actuators["servo"], "differing max_delay must not merge"
     for robot in (robot_a, robot_b):
         voltage = wp.to_torch(get_bam_group(robot, "servo").nominal_voltage)
         torch.testing.assert_close(voltage, torch.full_like(voltage, VIN), atol=1e-6, rtol=0.0)
-    assert not wp.to_torch(get_bam_group(robot_a, "servo").sag_gain).any(), "a merged robot took another's sag"
+    resistance = wp.to_torch(get_bam_group(robot_a, "servo").battery_resistance)
+    assert not resistance.any(), "a merged robot took another's battery"
     sampled = {}
     for robot, attr, (low, high) in (
-        (robot_b, "sag_gain", sampled_cfg.vin_drop_gain_range),
+        (robot_b, "battery_resistance", sampled_cfg.battery_resistance_range),
         (robot_c, "nominal_voltage", sampled_cfg.vin_range),
-        (robot_c, "sag_gain", sampled_cfg.vin_drop_gain_range),
+        (robot_c, "battery_resistance", sampled_cfg.battery_resistance_range),
     ):
         values = wp.to_torch(getattr(get_bam_group(robot, "servo"), attr))
         assert bool(((values >= low) & (values <= high)).all()), f"{attr} outside its configured range"
+        if attr == "nominal_voltage":
+            # Each environment's servos start on their battery's sampled voltage.
+            torch.testing.assert_close(wp.to_torch(get_bam_group(robot, "servo").voltage), values)
         assert len(torch.unique(values)) > 1, f"{attr} drew the same value for every environment"
         sampled[robot, attr] = values.clone()
     robot_c.actuators.reset()
@@ -210,15 +214,16 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
     )
     for reset_index in range(3):
         if reset_index:
-            # A hard reset rebuilds the model and drives; the bridge hooks must be replaced, not appended.
+            # A hard reset rebuilds the model and its batteries; the friction hooks must be replaced, not appended.
             native_sim.reset()
             assert hook_counts == (
                 len(native_sim.backend_manager._pre_actuator_callbacks),
                 len(native_sim.backend_manager._post_actuator_callbacks),
             )
         assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "robots with the same components must merge"
+        batteries = native_sim.backend_manager.backend.model.batteries
         for robot in (robot_a, robot_b, robot_c):
-            assert get_bam_group(robot, "servo").adapter is native_sim.backend_manager.backend.actuators, (
+            assert any(get_bam_group(robot, "servo").battery is battery for battery in batteries), (
                 "BAM state outlived its model"
             )
         native_sim.step()
@@ -258,7 +263,7 @@ def test_reset_environment_starts_without_the_previous_episode_load(native_sim, 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("elbow_delay", [2, 0], ids=["separate-actuators", "shared-actuator"])
 def test_each_group_keeps_its_own_configuration(native_sim, device, elbow_delay):
-    """BAM groups of one robot keep their own supply and friction settings, also when Newton merges their actuators."""
+    """BAM groups of one robot keep their own battery and friction settings, also when Newton merges their actuators."""
     elbows = _make_cfg(
         joint_names_expr=[".*_elbow"], max_delay=elbow_delay, vin_range=(6.5, 6.5), stiff_frictionloss=False
     )
