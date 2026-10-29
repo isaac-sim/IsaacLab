@@ -1138,8 +1138,9 @@ class NewtonManager(PhysicsManager):
            :meth:`_is_all_graphable` checks (adapter presence alone
            cannot distinguish the fast path from the standard Lab path).
         2. On first call, builds the single sim-level
-           :class:`NewtonActuatorAdapter` over the full flat DOF layout as
-           :attr:`NewtonBackend.actuators`; later calls reuse it.
+           :class:`NewtonActuatorAdapter` over the full flat DOF layout and the
+           model's batteries as :attr:`NewtonBackend.actuators`; later calls
+           reuse it.
         """
         self._use_newton_actuators_active = True
 
@@ -1155,6 +1156,7 @@ class NewtonManager(PhysicsManager):
             num_joints=backend.model.joint_dof_count // num_envs,
             dof_offset=0,
             device=self._device,
+            batteries=backend.model.batteries,
         )
         backend.actuators.finalize(backend.control)
 
