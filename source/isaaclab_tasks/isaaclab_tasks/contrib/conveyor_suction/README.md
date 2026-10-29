@@ -87,8 +87,7 @@ from-scratch command as a recipe for complete batches.
 ## Facility references
 
 The induction-loop/offload layout follows ordinary distribution-center organization,
-including [UPS robotic parcel sorting](https://about.ups.com/us/en/newsroom/press-releases/innovation-driven/ups-strengthens-network-capabilities-and-employee-experience--th.html)
-and [Dematic's crossbelt sorter layouts](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1056_Crossbelt_Sorter.pdf).
+including [Dematic's crossbelt sorter layouts](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1056_Crossbelt_Sorter.pdf).
 The scene uses native primitives with physical decks, guards and bins; decorative
 supports remain visual only.
 
