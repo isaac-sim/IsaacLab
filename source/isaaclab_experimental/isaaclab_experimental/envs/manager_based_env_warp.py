@@ -38,7 +38,7 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
 from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from isaaclab_experimental.managers import ActionManager, EventManager, ObservationManager
 from isaaclab_experimental.utils.warp_capture import CapturedStage
@@ -610,7 +610,7 @@ class ManagerBasedEnvWarp:
         """
         if not self._resets_by_index():
             return None
-        return resolve_ids(mask=env_mask, all_ids=None)
+        return torch.nonzero(wp.to_torch(env_mask)).squeeze(-1)
 
     def _resets_by_index(self) -> bool:
         """Whether a stable manager that resets by index has active terms."""
