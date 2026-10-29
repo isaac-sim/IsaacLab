@@ -141,6 +141,15 @@ class BamActuatorCfg(ActuatorBaseCfg):
     battery_resistance_range: tuple[float, float] | None = None
     """Range of the per-environment battery resistance [Ohm], sampled once and held across resets."""
 
+    vin_drop_gain_range: tuple[float, float] | None = None
+    """Deprecated range of the pre-native supply sag gain [V/(N.m)]; use :attr:`battery_resistance_range`.
+
+    It is converted to ``battery_resistance_range = vin_drop_gain_range * motor.kt``, which drops the voltage per
+    ampere of supply current as the gain did per ampere of motor current. The supply current is the motor current
+    weighted by the duty cycle, so the supply sags less than under the pre-native ``vin - gain * sum_j |tau_j|``.
+    Will be removed in 3.2.
+    """
+
     vin_min: float = -math.inf
     """Lower bound on the sagged supply voltage [V]. The default keeps only the 0 V floor."""
 

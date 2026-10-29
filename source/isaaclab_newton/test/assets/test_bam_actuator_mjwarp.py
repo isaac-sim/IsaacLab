@@ -186,8 +186,14 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
     The samples hold across environment resets; hard resets rebind without stacking solver hooks.
     """
     sampled_cfg = _make_cfg(max_delay=2, vin_range=(6.0, 8.0), battery_resistance_range=(0.0, 0.07))
-    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(battery_resistance_range=(0.0, 0.07)), "RobotC": sampled_cfg}
-    robot_a, robot_b, robot_c = _spawn_pendulums(native_sim, pendulum_usd, cfgs)
+    # RobotB sets the same resistance range through the deprecated sag gain range, which motor.kt converts.
+    cfgs = {
+        "RobotA": _make_cfg(),
+        "RobotB": _make_cfg(vin_drop_gain_range=(0.0, 0.07 / sampled_cfg.motor.kt)),
+        "RobotC": sampled_cfg,
+    }
+    with pytest.warns(DeprecationWarning, match="'vin_drop_gain_range'.*sags less"):
+        robot_a, robot_b, robot_c = _spawn_pendulums(native_sim, pendulum_usd, cfgs)
     assert robot_c.actuators["servo"] is not robot_a.actuators["servo"], "differing max_delay must not merge"
     for robot in (robot_a, robot_b):
         voltage = wp.to_torch(get_bam_group(robot, "servo").nominal_voltage)
