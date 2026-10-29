@@ -68,7 +68,6 @@ run_attempt() {
       --seed 42 \
       --benchmark_formatter schema \
       --output_path /tmp/benchmark-output \
-      --visualizer none \
       $args" &
   benchmark_pid=$!
   # Bash can run cancellation traps while waiting with its builtin wait.
