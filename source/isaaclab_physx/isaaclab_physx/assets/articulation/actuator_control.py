@@ -22,6 +22,8 @@ from isaaclab.sim.utils.queries import find_first_matching_prim
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
+    import warp as wp
+
     from .articulation import Articulation
 
 logger = logging.getLogger(__name__)
@@ -155,6 +157,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             articulation.root_view.set_dof_position_targets(pos_target, articulation._ALL_INDICES)
             articulation.root_view.set_dof_velocity_targets(vel_target, articulation._ALL_INDICES)
 
-    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+    def reset_native_actuators(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
         if self._native_actuator_path_active and self._actuator_runtime is not None:
-            self._actuator_runtime.reset(env_ids)
+            self._actuator_runtime.reset(env_ids, env_mask)

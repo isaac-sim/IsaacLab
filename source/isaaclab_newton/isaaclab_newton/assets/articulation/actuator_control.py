@@ -232,9 +232,9 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 articulation._ALL_ENV_MASK,
             )
 
-    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+    def reset_native_actuators(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
         if self._native_actuator_path_active and self._articulation._backend_manager.backend.actuators is not None:
-            self._articulation._backend_manager.backend.actuators.reset(env_ids)
+            self._articulation._backend_manager.backend.actuators.reset(env_ids, env_mask)
 
     def _bam_actuators(self) -> list[tuple[Actuator, list[str]]]:
         """Return the Newton BAM actuators that drive this articulation, each with the BAM groups it drives.

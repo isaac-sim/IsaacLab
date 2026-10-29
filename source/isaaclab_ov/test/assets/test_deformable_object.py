@@ -387,6 +387,33 @@ def test_indexed_partial_write_preserves_retained_aliased_slice(
 
 
 @pytest.mark.usefixtures("host_shell")
+def test_mask_writes_update_only_masked_rows():
+    """The mask writers take full-size data and write only the environments the mask selects."""
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+    zeros = torch.zeros((3, 2, 3), device=asset.device)
+    asset.root_view.positions = wp.from_torch(zeros.clone(), dtype=wp.float32)
+    asset.root_view.velocities = wp.from_torch(zeros.clone(), dtype=wp.float32)
+    asset.update(0.1)
+    env_mask = wp.array([False, True, False], dtype=wp.bool, device=asset.device)
+
+    state = torch.cat((torch.full((3, 2, 3), 5.0), torch.full((3, 2, 3), -5.0)), dim=-1).to(asset.device)
+    asset.write_nodal_state_to_sim_mask(state, env_mask=env_mask)
+    expected = torch.zeros((3, 2, 6), device=asset.device)
+    expected[1] = state[1]
+    torch.testing.assert_close(asset.data.nodal_state_w.torch, expected)
+    view = asset.root_view
+    assert view.last_indices.numpy().tolist() == [1]
+    assert (view.position_write_count, view.velocity_write_count) == (1, 1)
+
+    positions = torch.full((3, 2, 3), 9.0, device=asset.device)
+    asset.write_nodal_pos_to_sim_mask(positions, env_mask=env_mask)
+    expected[1, :, :3] = 9.0
+    torch.testing.assert_close(asset.data.nodal_pos_w.torch, expected[..., :3])
+    assert view.last_indices.numpy().tolist() == [1]
+    assert (view.position_write_count, view.velocity_write_count) == (2, 1)
+
+
+@pytest.mark.usefixtures("host_shell")
 def test_full_overwrite_stale_cache_does_not_read_simulator() -> None:
     asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
 
