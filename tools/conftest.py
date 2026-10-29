@@ -168,6 +168,53 @@ def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_
     return 0
 
 
+def _readable(fds, timeout):
+    """Return the pipes in ``fds`` that a read would not block on, waiting up to ``timeout`` seconds for one."""
+    if os.name != "nt":
+        return select.select(fds, [], [], timeout)[0]
+    # Windows cannot select() on pipes, so poll each one instead.
+    deadline = time.monotonic() + timeout
+    while not (ready := [fd for fd in fds if _pipe_readable(fd)]) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    return ready
+
+
+def _pipe_readable(fd):
+    """Return whether the Windows pipe ``fd`` holds output or its writer has closed it."""
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    peek = ctypes.windll.kernel32.PeekNamedPipe
+    peek.argtypes = (
+        wintypes.HANDLE,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+    )
+    available = wintypes.DWORD()
+    if not peek(msvcrt.get_osfhandle(fd), None, 0, None, ctypes.byref(available), None):
+        return True  # broken pipe: the read returns EOF at once
+    return available.value > 0
+
+
+def _kill_process_tree(process, pgid):
+    """Kill the test process and every process it started (Kit, Isaac Sim)."""
+    if pgid is None:
+        # Windows has no process groups; taskkill walks the tree from the test process instead.
+        result = subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, check=False)
+        if result.returncode != 0:
+            with contextlib.suppress(OSError):
+                process.kill()
+        return
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        process.kill()
+
+
 def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1, echo=True):
     """Read whatever is readable on the child's pipes, echoing it as it arrives.
 
@@ -187,7 +234,7 @@ def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1, echo=True):
     stdout_chunk = b""
     stderr_chunk = b""
     try:
-        ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], timeout)
+        ready_fds = _readable([stdout_fd, stderr_fd], timeout)
 
         for fd in ready_fds:
             with contextlib.suppress(OSError):
@@ -376,7 +423,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             universal_newlines=False,
             start_new_session=True,
         )
-        pgid = os.getpgid(process.pid)
+        pgid = None if os.name == "nt" else os.getpgid(process.pid)
 
         stdout_fd = process.stdout.fileno()
         stderr_fd = process.stderr.fileno()
@@ -433,11 +480,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                     # Ahead of the system tables, which _get_diagnostics truncates off the end.
                     pre_kill_diag = f"{hang_stacks}\n\n{pre_kill_diag}"
 
-                # Kill the entire process group (test + any Kit children).
-                try:
-                    os.killpg(pgid, signal.SIGKILL)
-                except (ProcessLookupError, PermissionError, OSError):
-                    process.kill()
+                _kill_process_tree(process, pgid)
                 try:
                     remaining_stdout, remaining_stderr = process.communicate(timeout=5)
                     stdout_data += remaining_stdout
@@ -459,12 +502,14 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         except Exception:
             pass
 
-        # Kill any orphaned child processes (Kit, Isaac Sim) left by the test.
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-            time.sleep(1)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
+        # Kill any orphaned child processes (Kit, Isaac Sim) left by the test. On Windows the
+        # tree is unreachable once its root has exited.
+        if pgid is not None:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+                time.sleep(1)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
 
         wall_time = time.time() - start_time
         return process.returncode, stdout_data, stderr_data, "", wall_time, ""
@@ -949,7 +994,8 @@ def _run_one_pass(
     # ``isaaclab_physx/.../test_articulation.py``) don't write to the same path
     # inside the shared ``/workspace/isaaclab`` mount and trigger false
     # shutdown_hang detections in sibling shards via the report-file existence check.
-    report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
+    # A Windows drive colon would name an alternate data stream instead of a file.
+    report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__").replace(":", "")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
     # Crash-durable progress log. pytest writes its JUnit XML only at session end, so this is
     # the only record of what passed, failed, and was in flight when a run dies before that.
