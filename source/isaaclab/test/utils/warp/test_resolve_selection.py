@@ -11,7 +11,7 @@ import warp as wp
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_1d_mask, resolve_ids
 
 
 def _all_ids(n: int, device: str) -> wp.array:
@@ -19,19 +19,17 @@ def _all_ids(n: int, device: str) -> wp.array:
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("dtype", [None, wp.int32])
-def test_resolve_ids(device, dtype):
+def test_resolve_ids(device):
     """Every selection resolves to device ids; a selection of every element is the shared constant itself.
 
-    Without ``dtype``, tensors and Warp arrays pass through and positive-step slices view the shared ids without a
-    copy. ``dtype=wp.int32`` gives a contiguous one-dimensional int32 Warp array for every kind of ids.
+    Tensors and Warp arrays pass through, and positive-step slices view the shared ids without a copy.
     """
     all_ids = _all_ids(10, device)
     torch_device = wp.device_to_torch(device)
     ids_int32 = wp.array([5], dtype=wp.int32, device=device)
     for ids in (None, slice(None)):
-        assert resolve_ids(ids=ids, all_ids=all_ids, device=device, dtype=dtype) is all_ids
-    assert resolve_ids(ids=ids_int32, all_ids=all_ids, device=device, dtype=dtype) is ids_int32
+        assert resolve_ids(ids=ids, all_ids=all_ids) is all_ids
+    assert resolve_ids(ids=ids_int32, all_ids=all_ids) is ids_int32
     for ids, expected in (
         ([3, 8], [3, 8]),
         (slice(2, 8, 3), [2, 5]),
@@ -40,40 +38,28 @@ def test_resolve_ids(device, dtype):
         (torch.arange(10, device=torch_device)[::3], [0, 3, 6, 9]),
         (wp.array([7, 1], dtype=wp.int64, device=device), [7, 1]),
     ):
-        resolved = resolve_ids(ids=ids, all_ids=all_ids, device=device, dtype=dtype)
-        if dtype is None:
-            assert resolved is ids or isinstance(ids, (list, slice))
-        else:
-            assert isinstance(resolved, wp.array) and resolved.dtype == dtype and resolved.is_contiguous
+        resolved = resolve_ids(ids=ids, all_ids=all_ids)
+        assert resolved is ids or isinstance(ids, (list, slice))
         assert (wp.to_torch(resolved) if isinstance(resolved, wp.array) else resolved).tolist() == expected
     with pytest.raises(TypeError, match="ProxyArray"):
-        resolve_ids(ids=ProxyArray(ids_int32), all_ids=all_ids, device=device, dtype=dtype)
-    if dtype is None:
-        cached = wp.to_torch(all_ids)
-        for selection in (slice(1, None, 2), slice(0, 0)):
-            resolved = wp.to_torch(resolve_ids(ids=selection, all_ids=all_ids, device=device))
-            assert resolved.data_ptr() == cached[selection].data_ptr()
-            assert resolved.stride() == cached[selection].stride()
-    else:
-        for ids, error in (
-            (torch.tensor([1.0], device=torch_device), TypeError),
-            (wp.array([1.0], dtype=wp.float32, device=device), TypeError),
-            (torch.zeros((2, 2), dtype=torch.int64, device=torch_device), ValueError),
-        ):
-            with pytest.raises(error):
-                resolve_ids(ids=ids, all_ids=all_ids, device=device, dtype=dtype)
+        resolve_ids(ids=ProxyArray(ids_int32), all_ids=all_ids)
+    cached = wp.to_torch(all_ids)
+    for selection in (slice(1, None, 2), slice(0, 0)):
+        resolved = wp.to_torch(resolve_ids(ids=selection, all_ids=all_ids))
+        assert resolved.data_ptr() == cached[selection].data_ptr()
+        assert resolved.stride() == cached[selection].stride()
 
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("mask_type", ["warp", "torch"])
 def test_resolve_ids_from_a_mask(device, mask_type):
-    """A mask resolves to its ascending ids, takes precedence over ids, and honours ``dtype``."""
+    """A mask resolves to its ascending ids and takes precedence over ids; :func:`resolve_1d_indices` casts to int32."""
     mask_bool = torch.tensor([0, 1, 1, 0, 1, 0, 0, 1], dtype=torch.bool, device=wp.device_to_torch(device))
     mask = wp.from_torch(mask_bool, dtype=wp.bool) if mask_type == "warp" else mask_bool
     all_ids = _all_ids(mask_bool.shape[0], device)
-    ids = resolve_ids(ids=[0, 1], mask=mask, all_ids=all_ids, device=device)
+    ids = resolve_ids(ids=[0, 1], mask=mask, all_ids=all_ids)
     assert ids.dtype == torch.int64 and ids.tolist() == [1, 2, 4, 7]
-    ids_int32 = resolve_ids(mask=mask, all_ids=all_ids, device=device, dtype=wp.int32)
+    ids_int32 = resolve_1d_indices(resolve_ids(mask=mask, all_ids=all_ids))
     assert isinstance(ids_int32, wp.array) and ids_int32.dtype == wp.int32 and ids_int32.is_contiguous
     assert ids_int32.numpy().tolist() == [1, 2, 4, 7]
 

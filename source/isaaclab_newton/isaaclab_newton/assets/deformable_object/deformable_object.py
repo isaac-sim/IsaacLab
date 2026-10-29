@@ -17,7 +17,7 @@ import warp as wp
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_1d_mask, resolve_ids
 
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -403,7 +403,7 @@ class DeformableObject(BaseDeformableObject):
 
     def _resolve_env_ids(self, env_ids):
         """Resolve environment indices to a warp int32 array."""
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device, dtype=wp.int32)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
         """Resolve an environment mask to a warp bool array."""

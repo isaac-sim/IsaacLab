@@ -22,7 +22,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.memory import resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -529,7 +529,7 @@ class DeformableObject(BaseDeformableObject):
         dtype=wp.int32
     ):
         """Resolve environment indices to a device-resident int32 Warp array."""
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device, dtype=wp.int32)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     @staticmethod
     def _arrays_overlap(first: wp.array, second: wp.array) -> bool:
