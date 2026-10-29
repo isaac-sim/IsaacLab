@@ -145,6 +145,7 @@ Guidelines for modifications:
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
+* lu123bing
 * Luca Schwarzenbach
 * Lukas Fröhlich
 * Manuel Schweiger
