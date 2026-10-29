@@ -13,7 +13,7 @@ import pytest
 import warp as wp
 from newton.usd import PrimType, SchemaResolverNewton
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 
 def _export(
@@ -25,12 +25,20 @@ def _export(
     hinge_actuator=None,
     num_substeps=1,
     edit_robot=None,
+    edit_cfg=None,
     before_export=None,
+    default_shape_cfg=None,
+    world_hook=None,
 ):
     """Initialize the fixture scene, export it, and capture the live model and its rollout for comparison.
 
-    ``edit_robot`` edits the robot's USD before the scene is built; ``before_export`` changes the initialized scene.
+    ``edit_robot`` edits the robot's USD and ``edit_cfg`` the scene configuration before the scene is built;
+    ``world_hook`` changes each world's Newton builder before it is finalized; ``before_export`` changes the
+    initialized scene.
     """
+    import contextlib
+
+    from isaaclab_newton.cloner import newton_builder_world_hook
     from isaaclab_newton.physics import NewtonCfg
 
     from isaaclab.scene import InteractiveScene
@@ -44,14 +52,19 @@ def _export(
         robot.GetRootLayer().Save()
     if hinge_actuator is not None:
         cfg.robot.actuators = {"hinge": hinge_actuator}
+    if edit_cfg is not None:
+        edit_cfg(cfg)
     sim_cfg = SimulationCfg(
         device=device,
         dt=1 / 120,
         gravity=(0.2, -0.1, -4.0),
         physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps),
     )
+    if default_shape_cfg is not None:
+        sim_cfg.physics.default_shape_cfg = default_shape_cfg
     output = str(tmp_path / "exported.usda")
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+    hook = newton_builder_world_hook(world_hook) if world_hook is not None else contextlib.nullcontext()
+    with build_simulation_context(sim_cfg=sim_cfg) as sim, hook:
         scene = InteractiveScene(cfg)
         sim.reset()
         if before_export is not None:
@@ -199,6 +212,120 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
             _assert_pose_equal(loaded[name, label], value)
         else:
             np.testing.assert_allclose(loaded[name, label], value, rtol=1e-4, atol=1e-7, err_msg=f"{label} {name}")
+
+
+@pytest.mark.parametrize("mass", [None, 4.0], ids=["unchanged", "changed mass"])
+def test_inertia_newton_derives_on_import_is_not_written(tmp_path, mass):
+    """Inertia Newton's import corrects (here, moments breaking the triangle inequality) is left to the import, also
+    when Isaac Lab changes the body's mass."""
+    from isaaclab_newton.physics import XPBDSolverCfg
+
+    link = "/World/envs/env_0/Robot/Link"
+
+    def unbalanced_link(stage):
+        UsdPhysics.MassAPI(stage.GetPrimAtPath("/Robot/Link")).GetDiagonalInertiaAttr().Set(Gf.Vec3f(0.01, 0.01, 0.5))
+
+    def heavier_link(scene):
+        model = scene.sim.backend_manager.backend.model
+        masses = model.body_mass.numpy()
+        masses[list(model.body_label).index(link)] = mass
+        model.body_mass.assign(masses)
+
+    output, live, _, _ = _export(
+        tmp_path, XPBDSolverCfg(), "cpu", edit_robot=unbalanced_link, before_export=heavier_link if mass else None
+    )
+
+    assert live["body_inertia", link][0, 0] > 0.01  # the import corrected it
+    exported = Sdf.Layer.FindOrOpen(output)
+    for name in ("physics:diagonalInertia", "physics:principalAxes", "newton:inertia"):
+        assert exported.GetPropertyAtPath(f"{link}.{name}") is None, name
+    if mass:
+        assert exported.GetAttributeAtPath(f"{link}.physics:mass").default == pytest.approx(mass)
+    model = _newton_import(output, "xpbd", "cpu")
+    loaded = _capture(model, model.body_q, 0)
+    np.testing.assert_allclose(loaded["body_inertia", link], live["body_inertia", link], rtol=1e-5)
+
+
+def test_a_changed_joint_of_a_type_not_exported_is_refused(tmp_path):
+    """A joint other than revolute, prismatic and rotational D6 keeps its USD values, so changing it is refused."""
+    from isaaclab_newton.physics import XPBDSolverCfg
+
+    from isaaclab.actuators import ImplicitActuatorCfg
+
+    def ball_hinge(stage):
+        stage.GetPrimAtPath("/Robot/Hinge").SetTypeName("PhysicsSphericalJoint")
+
+    def ball_joint_state(cfg):
+        cfg.robot.init_state.joint_pos = {".*": 0.0}
+
+    actuator = ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=83.0, damping=4.5)
+    with pytest.raises(NotImplementedError, match="Joint '/World/envs/env_0/Robot/Hinge' changed"):
+        _export(
+            tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, edit_robot=ball_hinge, edit_cfg=ball_joint_state
+        )
+
+
+@pytest.mark.parametrize("solver", ["mujoco", "xpbd"])
+def test_builder_hook_and_shape_default_changes_are_written(tmp_path, solver):
+    """Changes Isaac Lab makes while building the model, which Newton's import alone does not make, are written.
+
+    A world builder hook sets a link's contact stiffness before finalization, and Isaac Lab's shape defaults reach
+    colliders with and without a physics material; a collider without one gets a new material that states them.
+    """
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonShapeCfg, XPBDSolverCfg
+    from isaaclab_newton.sim.usd_export.usd_exporter import MATERIAL_ATTRIBUTES
+
+    link_collider = "/World/envs/env_0/Robot/Link/Collision"
+
+    def stiffer_link(builder, world, position, orientation):
+        for shape, label in enumerate(builder.shape_label):
+            if label.endswith("/Robot/Link/Collision"):
+                builder.shape_material_ke[shape] = 7.0e3
+
+    solver_cfg = MJWarpSolverCfg() if solver == "mujoco" else XPBDSolverCfg()
+    shape_cfg = NewtonShapeCfg(gap=0.02, ke=5.0e3, kd=200.0, mu=0.8)
+    output, live, _, _ = _export(tmp_path, solver_cfg, "cpu", default_shape_cfg=shape_cfg, world_hook=stiffer_link)
+
+    assert live["shape_material_ke", link_collider] == pytest.approx(7.0e3)
+    table, ground = "/World/envs/env_0/Table/geometry/mesh", "/World/Ground/geometry/mesh"
+    stage = Usd.Stage.Open(output)
+    bound = [
+        UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(c)).ComputeBoundMaterial("physics")[0] for c in (table, ground)
+    ]
+    assert bound[0] and bound[0].GetPath() == bound[1].GetPath()  # equal values share one new material
+    # Only what an unset attribute would not give: the changed friction and gains.
+    assert {a.GetName() for a in bound[0].GetPrim().GetAuthoredAttributes()} == {
+        "physics:dynamicFriction",
+        "newton:contactStiffness",
+        "newton:contactDamping",
+    }
+    model = _newton_import(output, solver, "cpu")
+    loaded = _capture(model, model.body_q, 0)
+    for collider in (table, link_collider):
+        for name in (*MATERIAL_ATTRIBUTES, "shape_gap"):
+            np.testing.assert_allclose(
+                loaded[name, collider], live[name, collider], rtol=1e-5, err_msg=f"{collider} {name}"
+            )
+
+
+def test_a_mass_change_keeps_the_inertia_derived_from_geometry(tmp_path):
+    """The box's USD leaves its inertia to the import, which derives it from the mass; a changed mass keeps it."""
+    from isaaclab_newton.physics import XPBDSolverCfg
+
+    box = "/World/envs/env_0/Box"
+
+    def heavier_box(scene):
+        model = scene.sim.backend_manager.backend.model
+        mass = model.body_mass.numpy()
+        mass[list(model.body_label).index(box)] *= 2.0
+        model.body_mass.assign(mass)
+
+    output, live, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", before_export=heavier_box)
+
+    model = _newton_import(output, "xpbd", "cpu")
+    loaded = _capture(model, model.body_q, 0)
+    for name in ("body_mass", "body_inertia"):
+        np.testing.assert_allclose(loaded[name, box], live[name, box], rtol=1e-5, err_msg=name)
 
 
 def test_loading_returns_the_solver_step(tmp_path):
