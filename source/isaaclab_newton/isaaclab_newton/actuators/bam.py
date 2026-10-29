@@ -5,10 +5,12 @@
 
 """The BAM servo parts that Newton's native BAM path does not provide.
 
-Newton runs the firmware and motor (:class:`~newton.actuators.DriveBAM`), the supply
-(:class:`~newton.actuators.Battery`), the command ring (:class:`~newton.actuators.InputProcessorDelay`),
-the play-angle read (:class:`~newton.actuators.InputProcessorBacklash`) and the effort clamp. Isaac Lab adds a
-per-environment random command lag and the gearbox friction that MJWarp applies as a DOF friction constraint.
+Newton runs the firmware (:class:`~newton.actuators.DriveVoltageControlled`), the current and PWM limits
+(:class:`~newton.actuators.ClampingCurrentPWM`), the DC motor (:class:`~newton.actuators.MotorDC`), the supply
+(:class:`~newton.actuators.BatteryConstantResistance`), the command ring
+(:class:`~newton.actuators.InputProcessorDelay`) and the play-angle read
+(:class:`~newton.actuators.InputProcessorEncoder`). Isaac Lab adds a per-environment random command lag and the
+gearbox friction that MJWarp applies as a DOF friction constraint.
 """
 
 from __future__ import annotations
@@ -32,7 +34,8 @@ from .bam_kernels import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.actuators.newton import NewtonActuatorAdapter
+    from newton.actuators import BatteryConstantResistance
+
     from isaaclab.assets import Articulation
 
 
@@ -285,11 +288,17 @@ class BamGroup:
     command_lags: list[BamCommandLag]
     """Random command lag per Newton actuator driving the group; empty without a delay."""
 
-    adapter: NewtonActuatorAdapter
-    """Adapter whose batteries power the group."""
+    battery: BatteryConstantResistance
+    """Newton batteries that include the group's, one per environment."""
 
-    battery_offset: int
-    """Index of environment 0's battery in :attr:`NewtonActuatorAdapter.battery`."""
+    battery_ids: slice
+    """Indices of the group's batteries in :attr:`battery`, environment-major and evenly spaced."""
+
+    supply_voltage: wp.array
+    """Supply voltage of every actuator of the model [V] (``control.actuator_supply_voltage``)."""
+
+    supply_rows: wp.array
+    """Row of each environment's first servo in :attr:`supply_voltage`, shape ``(num_envs,)``."""
 
     @property
     def friction_scale(self) -> wp.array:
@@ -303,18 +312,29 @@ class BamGroup:
 
     @property
     def nominal_voltage(self) -> wp.array:
-        """Live unloaded supply voltage [V], shape ``(num_envs,)``. Writable."""
-        return self.adapter.battery.nominal_voltage[self.battery_offset : self.battery_offset + self.num_envs]
+        """Live unloaded supply voltage [V], shape ``(num_envs,)``. Writable.
+
+        A write takes effect at the battery update that follows the next actuator step, or at the next reset.
+        """
+        return self.battery.nominal_voltage[self.battery_ids]
 
     @property
-    def sag_gain(self) -> wp.array:
-        """Live supply sag per unit of total motor torque [V/(N.m)], shape ``(num_envs,)``. Writable."""
-        return self.adapter.battery.sag_gain[self.battery_offset : self.battery_offset + self.num_envs]
+    def battery_resistance(self) -> wp.array:
+        """Live internal resistance of the battery [Ohm], shape ``(num_envs,)``. Writable."""
+        return self.battery.resistance[self.battery_ids]
 
     @property
     def voltage(self) -> wp.array:
-        """Supply voltage of the last step [V], shape ``(num_envs,)``."""
-        return self.adapter.battery.voltage[self.battery_offset : self.battery_offset + self.num_envs]
+        """Supply voltage the group's motors read on the next step [V], shape ``(num_envs,)``. A copy."""
+        voltage = wp.empty(self.num_envs, dtype=wp.float32, device=self.supply_rows.device)
+        wp.launch(
+            gather_dof_values_kernel,
+            dim=self.num_envs,
+            inputs=[self.supply_voltage, self.supply_rows],
+            outputs=[voltage],
+            device=self.supply_rows.device,
+        )
+        return voltage
 
 
 def get_bam_group(articulation: Articulation, name: str) -> BamGroup:

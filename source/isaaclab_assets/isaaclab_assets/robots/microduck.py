@@ -104,7 +104,8 @@ MICRODUCK_CFG = ArticulationCfg(
             kp_fw=200.0,
             vin=7.4,
             vin_range=(6.5, 8.2),
-            vin_drop_gain_range=(0.0, 0.2),
+            # The pre-native sag gain range (0, 0.2) V/(N.m) times kt: the same drop per unit of motor current.
+            battery_resistance_range=(0.0, 0.2 * _XL330_MOTOR_CFG.kt),
             vin_min=6.0,
             min_delay=3,
             max_delay=6,
