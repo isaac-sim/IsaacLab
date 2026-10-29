@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+8.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused native Warp indexed views and copy/fill for selected asset writes and root-column reads; shared kernels handle boolean masks and fused state layouts.
+
+
 8.0.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~
 
