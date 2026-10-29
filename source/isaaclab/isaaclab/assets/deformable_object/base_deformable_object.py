@@ -218,7 +218,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 6).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids, full_data=True)
 
     def write_nodal_pos_to_sim_mask(
@@ -233,7 +233,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_pos_to_sim_index(nodal_pos, env_ids=env_ids, full_data=True)
 
     def write_nodal_velocity_to_sim_mask(
@@ -248,7 +248,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_velocity_to_sim_index(nodal_vel, env_ids=env_ids, full_data=True)
 
     def write_nodal_kinematic_target_to_sim_mask(
@@ -263,7 +263,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 4).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids, full_data=True)
 
     """

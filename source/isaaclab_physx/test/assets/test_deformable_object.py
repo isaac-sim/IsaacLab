@@ -258,6 +258,12 @@ def test_deformable_nodal_state_mask_writes(deformable_scene: _DeformableScene) 
         deformable.write_nodal_state_to_sim_mask(state, env_mask=env_mask)
         expected = torch.cat((initial_state[:1], state[1:]))
         torch.testing.assert_close(deformable.data.nodal_state_w.torch, expected)
+        for getter, component in (
+            (deformable.root_view.get_simulation_nodal_positions, slice(0, 3)),
+            (deformable.root_view.get_simulation_nodal_velocities, slice(3, 6)),
+        ):
+            raw = wp.to_torch(getter()).to(device).reshape(expected[..., component].shape)
+            torch.testing.assert_close(raw, expected[..., component])
 
 
 @pytest.mark.isaacsim_ci
