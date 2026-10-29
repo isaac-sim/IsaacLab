@@ -5,9 +5,10 @@
 
 """Literal unit tests for :class:`isaaclab.utils.wrench_composer.WrenchComposer`.
 
-Every case uses a two-environment, two-body composer on CPU with hand-computed expected values. A body rotated a
+CPU cases use a two-environment, two-body composer with hand-computed expected values. A body rotated a
 quarter turn about +Z maps a world vector ``(x, y, z)`` to the body vector ``(y, -x, z)``; a half turn maps it to
-``(-x, -y, z)``. Real-solver delivery is covered by ``test_wrench_composer_integration.py``.
+``(-x, -y, z)``. A CUDA case checks replay of generated writers. Real-solver delivery is covered by
+``test_wrench_composer_integration.py``.
 """
 
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -32,6 +34,8 @@ _METHODS = [
     "set_forces_and_torques_index",
     "set_forces_and_torques_mask",
 ]
+
+
 # ``(env, body)`` cell -> literal 3-vector or quaternion
 _Cells = dict[tuple[int, int], tuple[float, ...]]
 
@@ -481,3 +485,196 @@ def test_empty_wrench_input_is_reported() -> None:
         with pytest.warns(UserWarning, match="No forces or torques"):
             getattr(composer, method)()
     assert not composer.active
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_generated_writers_replay_changed_inputs_under_cuda_capture(device):
+    """Real composer kernels replay all write variants without touching an unselected environment."""
+    com, quat = _poses(shape=(3, 2))
+    asset = SimpleNamespace(
+        num_instances=3, num_bodies=2, device=device, data=_AssetData(com.to(device), quat.to(device))
+    )
+    composer = WrenchComposer(asset)
+    with wp.ScopedDevice(device):
+        composer.local_force_b.fill_(wp.vec3f(7.0))
+        env_ids = wp.array([0], dtype=wp.int64)
+        body_ids = wp.array([1], dtype=wp.int32)
+        global_force = wp.array([[[0, 2, 0]]], dtype=wp.vec3f)
+        global_position = wp.array([[[1, 0, 0]]], dtype=wp.vec3f)
+        local_force = wp.full((3, 2), wp.vec3f(3, 0, 0))
+        local_position = wp.full((3, 2), wp.vec3f(0, 1, 0))
+        env_mask = wp.array([False, True, False], dtype=wp.bool)
+        body_mask = wp.array([True, False], dtype=wp.bool)
+
+        def write_and_compose():
+            for method in (composer.set_forces_and_torques_index, composer.add_forces_and_torques_index):
+                method(global_force, positions=global_position, env_ids=env_ids, body_ids=body_ids, is_global=True)
+            for method in (composer.set_forces_and_torques_mask, composer.add_forces_and_torques_mask):
+                method(local_force, positions=local_position, env_mask=env_mask, body_mask=body_mask)
+            return composer.out_force_b, composer.out_torque_b
+
+        write_and_compose()  # Warm up the specializations used by this execution path.
+        with wp.ScopedCapture(device=device) as capture:
+            force, torque = write_and_compose()
+        global_force.fill_(wp.vec3f(0, 3, 0))
+        local_force.fill_(wp.vec3f(4, 0, 0))
+        wp.capture_launch(capture.graph)
+        wp.capture_launch(capture.graph)
+        np.testing.assert_allclose(
+            force.warp.numpy(), [[[0, 0, 0], [0, 6, 0]], [[8, 0, 0], [0, 0, 0]], [[7, 7, 7], [7, 7, 7]]]
+        )
+        np.testing.assert_allclose(
+            torque.warp.numpy(), [[[0, 0, 0], [0, 0, 6]], [[0, 0, -8], [0, 0, 0]], [[0, 0, 0], [0, 0, 0]]]
+        )
+
+        # Selection values stay on the device: the same graph must visit different rows/columns.
+        env_ids.fill_(2)
+        body_ids.fill_(0)
+        env_mask.assign(np.array([True, False, False]))
+        body_mask.assign(np.array([False, True]))
+        wp.capture_launch(capture.graph)
+        np.testing.assert_allclose(
+            force.warp.numpy(), [[[0, 0, 0], [8, 0, 0]], [[8, 0, 0], [0, 0, 0]], [[0, 6, 0], [0, 0, 0]]]
+        )
+        np.testing.assert_allclose(
+            torque.warp.numpy(), [[[0, 0, 0], [0, 0, -8]], [[0, 0, -8], [0, 0, 0]], [[0, 0, 6], [0, 0, 0]]]
+        )
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "set_forces_to_dual_buffers_index",
+        "add_forces_to_dual_buffers_index",
+        "set_forces_to_dual_buffers_mask",
+        "add_forces_to_dual_buffers_mask",
+        "set_forces_to_dual_buffers_index_kernel",
+        "add_forces_to_dual_buffers_index_kernel",
+    ],
+)
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_deprecated_wrench_writers_preserve_launch_signatures(name, device):
+    """Old imports warn about 3.2 and still route optional contributions into the original buffers."""
+    from isaaclab.utils.warp import kernels
+
+    with wp.ScopedDevice(device):
+        indexed = "_index" in name
+        env_ids = wp.array([1], dtype=wp.int64) if indexed else wp.array([False, True], dtype=wp.bool)
+        body_ids = wp.array([0], dtype=wp.int32) if indexed else wp.array([True, False], dtype=wp.bool)
+        with pytest.warns(DeprecationWarning, match=r"will be removed in Isaac Lab 3\.2"):
+            kernel = getattr(kernels, name)
+        if name.endswith("_kernel"):
+            # Preserve Torch selectors as well as Warp arrays in the old selector helpers.
+            kernel = kernel(wp.to_torch(env_ids), body_ids)
+        assert isinstance(kernel, wp.Kernel)
+        shape = (1, 1) if indexed else (2, 2)
+        source_cell = (0, 0) if indexed else (1, 0)
+        inputs = []
+        for value in ((2, 0, 0), (0, 0, 3), (0, 1, 0)):
+            values = np.full((*shape, 3), -9.0, dtype=np.float32)
+            values[source_cell] = value
+            inputs.append(wp.array(values, dtype=wp.vec3f))
+        force, torque, position = inputs
+        buffers = [wp.empty((2, 2), dtype=wp.vec3f) for _ in range(5)]
+        # Literal expected contributions: cross((0, 1, 0), (2, 0, 0)) = (0, 0, -2).
+        for is_global, f, t, p, contributions in (
+            (True, force, torque, position, {0: (2, 0, 0), 1: (0, 0, 1)}),
+            (True, force, torque, None, {2: (2, 0, 0), 1: (0, 0, 3)}),
+            (False, force, torque, position, {3: (2, 0, 0), 4: (0, 0, 1)}),
+            (False, None, torque, position, {4: (0, 0, 3)}),
+            (True, force, None, position, {0: (2, 0, 0), 1: (0, 0, -2)}),
+        ):
+            for buffer in buffers:
+                buffer.fill_(wp.vec3f(7.0))
+            for _ in range(2):
+                wp.launch(kernel, shape, inputs=[env_ids, body_ids, f, t, p, *buffers, is_global])
+            for i, buffer in enumerate(buffers):
+                expected = np.full((2, 2, 3), 7.0)
+                if i in contributions:
+                    value = np.array(contributions[i])
+                    expected[1, 0] = 7.0 + 2 * value if name.startswith("add_") else value
+                np.testing.assert_allclose(buffer.numpy(), expected)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_deprecated_wrench_composition_and_resets_preserve_launch_signatures(device):
+    """Old composition, buffer addition and reset imports remain launchable until 3.2."""
+    from isaaclab.utils.warp import kernels
+
+    with pytest.warns(DeprecationWarning, match=r"will be removed in Isaac Lab 3\.2"):
+        from isaaclab.utils.warp.kernels import add_raw_wrench_buffers, compose_wrench_to_body_frame
+
+    with wp.ScopedDevice(device):
+        sources = [
+            wp.full((2, 2), wp.vec3f(*value)) for value in ((0, 2, 0), (0, 0, 10), (0, 1, 0), (4, 0, 0), (0, 0, 1))
+        ]
+        buffers = [wp.zeros((2, 2), dtype=wp.vec3f) for _ in range(7)]
+        for _ in range(2):
+            wp.launch(add_raw_wrench_buffers, (2, 2), inputs=[*sources, *buffers[:5]])
+        positions = wp.full((2, 2), wp.vec3f(1, 0, 0))
+        orientations = wp.full((2, 2), wp.quatf(*_QUARTER_TURN_Z))
+        wp.launch(compose_wrench_to_body_frame, (2, 2), inputs=[*buffers[:5], positions, orientations, *buffers[5:]])
+        np.testing.assert_allclose(buffers[5].numpy(), np.broadcast_to((14, 0, 0), (2, 2, 3)), atol=2e-6)
+        np.testing.assert_allclose(buffers[6].numpy(), np.broadcast_to((0, 0, 18), (2, 2, 3)), atol=2e-6)
+
+        for name, selection in (
+            ("reset_wrench_composer_index", wp.array([1], dtype=wp.int64)),
+            ("reset_wrench_composer_mask", wp.array([False, True], dtype=wp.bool)),
+            ("reset_wrench_composer_index_kernel", wp.array([1], dtype=wp.int32)),
+        ):
+            with pytest.warns(DeprecationWarning, match=r"will be removed in Isaac Lab 3\.2"):
+                kernel = getattr(kernels, name)
+            if name.endswith("_kernel"):
+                kernel = kernel(wp.to_torch(selection))
+            for buffer in buffers:
+                buffer.fill_(wp.vec3f(7.0))
+            wp.launch(kernel, (len(selection), 2), inputs=[selection, *buffers])
+            expected = np.full((2, 2, 3), 7.0)
+            expected[1] = 0.0
+            for buffer in buffers:
+                np.testing.assert_array_equal(buffer.numpy(), expected)
+
+
+def test_wrench_ownership_and_exclusive_writes(source_checkout_root):
+    """Wrench kernels own composition and use ordinary writes for exclusive destinations."""
+    import ast
+
+    from isaaclab.utils.warp import wrench
+
+    first = wrench.make_write_wrench(wp.int32, wp.int64)
+    before = first.module.hash_module()
+    assert isinstance(first, wp.Kernel)
+    assert wrench.make_write_wrench(wp.int32, wp.int64) is first
+    second = wrench.make_write_wrench(wp.int64, wp.int32, accumulate=True)
+    assert first.module is not second.module
+    assert first.module.hash_module() == before
+    assert not hasattr(wrench, "IndexKernelDispatcher")
+    assert not hasattr(wrench, "set_wrench_index")
+    assert not hasattr(wrench, "add_wrench_index")
+    assert not hasattr(wrench, "reset_wrench_composer_mask"), "Mask/index reset must share one factory"
+    reset = wrench.make_reset_wrench(wp.bool)
+    reset_hash = reset.module.hash_module()
+    indexed_reset = wrench.make_reset_wrench(wp.int64)
+    assert wrench.make_reset_wrench(wp.bool) is reset
+    assert reset.module is not indexed_reset.module
+    assert reset.module.hash_module() == reset_hash
+
+    core = source_checkout_root / "source/isaaclab/isaaclab"
+    owner = core / "utils/warp/wrench.py"
+    assert owner.is_file()
+    tree = ast.parse(owner.read_text())
+    for node in ast.walk(tree):
+        assert not (isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Subscript))
+        if isinstance(node, ast.FunctionDef) and node.name.lstrip("_").startswith("make_"):
+            assert not node.name.endswith("_kernel"), node.name
+        modules = [a.name for a in node.names] if isinstance(node, ast.Import) else []
+        if isinstance(node, ast.ImportFrom):
+            modules.append(node.module or "")
+        assert not any(
+            m.startswith(("isaaclab_newton", "isaaclab_physx", "isaaclab_ov", "newton", "isaacsim")) for m in modules
+        )
+    generic = ast.parse((core / "utils/warp/kernels.py").read_text())
+    assert not any(
+        isinstance(n, ast.FunctionDef) and ("wrench" in n.name or "_forces_to_dual_buffers_" in n.name)
+        for n in generic.body
+    )

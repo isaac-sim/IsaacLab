@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+5.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Viewed packed multirotor defaults as typed components without allocating output buffers or launching a split kernel.
+
+
 5.0.0 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~
 
