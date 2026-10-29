@@ -489,7 +489,7 @@ class MockActionManagerTorch:
 
 
 class MockSceneEntityCfg:
-    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask_wp / joint_ids_wp)."""
+    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask / joint_indices)."""
 
     def __init__(self, name: str, joint_ids: list[int], num_joints: int, device: str):
         self.name = name
@@ -499,8 +499,8 @@ class MockSceneEntityCfg:
         mask = [False] * num_joints
         for idx in joint_ids:
             mask[idx] = True
-        self.joint_mask_wp = wp.array(mask, dtype=wp.bool, device=device)
-        self.joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=device)
+        self.joint_mask = ProxyArray(wp.array(mask, dtype=wp.bool, device=device))
+        self.joint_indices = ProxyArray(wp.array(joint_ids, dtype=wp.int32, device=device))
 
 
 class MockContactSensorData:
@@ -669,14 +669,14 @@ class MockBodyCfg:
 class MockSensorCfg:
     """SceneEntityCfg-like object for contact sensor terms.
 
-    Provides both ``body_ids`` (for stable functions) and ``body_ids_wp``
+    Provides both ``body_ids`` (for stable functions) and ``body_indices``
     (for experimental warp functions).
     """
 
     def __init__(self, name="contact_sensor", body_ids=None, device=DEVICE):
         self.name = name
         self.body_ids = body_ids if body_ids is not None else list(BODY_IDS)
-        self.body_ids_wp = wp.array(self.body_ids, dtype=wp.int32, device=device)
+        self.body_indices = ProxyArray(wp.array(self.body_ids, dtype=wp.int32, device=device))
 
 
 class MockTerminationManager:

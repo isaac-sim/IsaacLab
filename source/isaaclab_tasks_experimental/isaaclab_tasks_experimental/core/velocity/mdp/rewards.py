@@ -59,7 +59,7 @@ def feet_air_time(env: ManagerBasedRLEnv, out, command_name: str, sensor_cfg: Sc
         inputs=[
             contact_sensor.data.last_air_time.warp,
             first_contact,
-            sensor_cfg.body_ids_wp,
+            sensor_cfg.body_indices.warp,
             env.command_manager.get_command_wp(command_name),
             threshold,
             out,
@@ -115,7 +115,7 @@ def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, 
         inputs=[
             contact_sensor.data.current_air_time.warp,
             contact_sensor.data.current_contact_time.warp,
-            sensor_cfg.body_ids_wp,
+            sensor_cfg.body_indices.warp,
             env.command_manager.get_command_wp(command_name),
             threshold,
             out,
@@ -156,7 +156,7 @@ def feet_air_time_variance(
     max_time: float = 0.5,
 ) -> None:
     """Penalize sample variance of foot air/contact durations, capped at ``max_time`` [s], while moving."""
-    if sensor_cfg.body_ids_wp.shape[0] < 2:
+    if sensor_cfg.body_indices.shape[0] < 2:
         raise RuntimeError("'feet_air_time_variance' needs at least two bodies to take a variance across feet.")
     data = env.scene.sensors[sensor_cfg.name].data
     wp.launch(
@@ -165,7 +165,7 @@ def feet_air_time_variance(
         inputs=[
             data.last_air_time,
             data.last_contact_time,
-            sensor_cfg.body_ids_wp,
+            sensor_cfg.body_indices.warp,
             env.command_manager.get_command_wp(command_name),
             max_time,
             out,
@@ -211,7 +211,7 @@ def _feet_slide_kernel(
 
 def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize feet sliding."""
-    if asset_cfg.body_ids_wp.shape[0] != sensor_cfg.body_ids_wp.shape[0]:
+    if asset_cfg.body_indices.shape[0] != sensor_cfg.body_indices.shape[0]:
         raise RuntimeError("'feet_slide' needs the asset and the sensor to select the same number of bodies.")
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     asset = env.scene[asset_cfg.name]
@@ -221,8 +221,8 @@ def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg =
         inputs=[
             asset.data.body_lin_vel_w.warp,
             contact_sensor.data.net_normal_forces_w_history.warp,
-            asset_cfg.body_ids_wp,
-            sensor_cfg.body_ids_wp,
+            asset_cfg.body_indices.warp,
+            sensor_cfg.body_indices.warp,
             contact_sensor.data.net_normal_forces_w_history.warp.shape[1],
             out,
         ],

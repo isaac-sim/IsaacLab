@@ -197,7 +197,7 @@ class TestProxyArrayConvenienceProperties:
 
     @cpu_only
     def test_convenience_properties(self, device):
-        """Test that shape, dtype, device, len(), and repr() forward the warp array's metadata."""
+        """Test that shape, dtype, device, and repr() forward the warp array's metadata, and len() is rejected."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
         arr = wp.zeros((7, 3), dtype=wp.float32, device=device)
@@ -205,10 +205,37 @@ class TestProxyArrayConvenienceProperties:
         assert ta.shape == (7, 3)
         assert ta.dtype == wp.float32
         assert ta.device == arr.device
-        assert len(ta) == 7
+        with pytest.raises(TypeError, match=r"shape\[0\]"):
+            len(ta)
         r = repr(ta)
         assert "ProxyArray" in r
         assert "float32" in r
+
+    def test_short_selector_indexes_tensor(self, device):
+        """A ProxyArray shorter than torch's tuple heuristic (32) selects like the tensor it wraps."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        values = torch.arange(8.0, device=device)
+        mask = torch.tensor([1, 0, 1, 0, 0, 0, 0, 1], dtype=torch.bool, device=device)
+        indices = torch.tensor([4, 1], dtype=torch.int32, device=device)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert torch.equal(values[ProxyArray(wp.from_torch(mask))], values[mask])
+            assert torch.equal(values[ProxyArray(wp.from_torch(indices))], values[indices.long()])
+
+    def test_copies(self, device):
+        """copy shares the warp array; deepcopy owns a copy of it."""
+        import copy
+
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        ta = ProxyArray(wp.array([1.0, 2.0], dtype=wp.float32, device=device))
+        shallow, deep = copy.copy(ta), copy.deepcopy(ta)
+        assert isinstance(shallow, ProxyArray) and shallow.warp.ptr == ta.warp.ptr
+        assert isinstance(deep, ProxyArray) and deep.warp.ptr != ta.warp.ptr
+        ta.torch[0] = 5.0
+        assert shallow.torch[0].item() == 5.0
+        assert deep.torch[0].item() == 1.0
 
 
 class TestProxyArrayDeprecationBridge:

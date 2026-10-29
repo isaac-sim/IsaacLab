@@ -271,7 +271,7 @@ def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.actuators.applied_effort.warp, asset_cfg.joint_mask_wp, out],
+        inputs=[asset.actuators.applied_effort.warp, asset_cfg.joint_mask.warp, out],
         device=env.device,
     )
 
@@ -295,7 +295,7 @@ def joint_vel_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg) -> None
     wp.launch(
         kernel=_sum_abs_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask_wp, out],
+        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask.warp, out],
         device=env.device,
     )
 
@@ -306,7 +306,7 @@ def joint_vel_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneE
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask_wp, out],
+        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask.warp, out],
         device=env.device,
     )
 
@@ -317,7 +317,7 @@ def joint_acc_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneE
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_acc.warp, asset_cfg.joint_mask_wp, out],
+        inputs=[asset.data.joint_acc.warp, asset_cfg.joint_mask.warp, out],
         device=env.device,
     )
 
@@ -344,7 +344,7 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = 
     wp.launch(
         kernel=_sum_abs_diff_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, asset_cfg.joint_mask_wp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, asset_cfg.joint_mask.warp, out],
         device=env.device,
     )
 
@@ -382,7 +382,7 @@ def joint_pos_limits(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_joint_pos_limits_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, asset_cfg.joint_mask_wp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, asset_cfg.joint_mask.warp, out],
         device=env.device,
     )
 
@@ -474,7 +474,7 @@ def undesired_contacts(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg
     wp.launch(
         kernel=_undesired_contacts_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
+        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_indices.warp, threshold, out],
         device=env.device,
     )
 

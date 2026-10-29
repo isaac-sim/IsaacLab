@@ -198,16 +198,16 @@ Joint state.
 def joint_pos(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """The joint positions of the asset."""
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
-    if joint_ids_wp is None:
+    joint_indices = getattr(asset_cfg, "joint_indices", None)
+    if joint_indices is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos.warp, joint_ids_wp, out],
+        inputs=[asset.data.joint_pos.warp, joint_indices.warp, out],
         device=env.device,
     )
 
@@ -234,16 +234,16 @@ def joint_pos_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Subset selection (requires a pre-resolved Warp joint-id list).
-    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
-    if joint_ids_wp is None:
+    joint_indices = getattr(asset_cfg, "joint_indices", None)
+    if joint_indices is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, joint_ids_wp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, joint_indices.warp, out],
         device=env.device,
     )
 
@@ -268,16 +268,16 @@ def _joint_pos_limit_normalized_kernel(
 def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """The joint positions of the asset normalized with the asset's joint limits."""
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
-    if joint_ids_wp is None:
+    joint_indices = getattr(asset_cfg, "joint_indices", None)
+    if joint_indices is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_pos_limit_normalized_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, joint_ids_wp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, joint_indices.warp, out],
         device=env.device,
     )
 
@@ -288,16 +288,16 @@ def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntity
 def joint_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """The joint velocities of the asset."""
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
-    if joint_ids_wp is None:
+    joint_indices = getattr(asset_cfg, "joint_indices", None)
+    if joint_indices is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_vel.warp, joint_ids_wp, out],
+        inputs=[asset.data.joint_vel.warp, joint_indices.warp, out],
         device=env.device,
     )
 
@@ -312,16 +312,16 @@ def joint_vel_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Subset selection (requires a pre-resolved Warp joint-id list).
-    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
-    if joint_ids_wp is None:
+    joint_indices = getattr(asset_cfg, "joint_indices", None)
+    if joint_indices is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_vel.warp, asset.data.default_joint_vel.warp, joint_ids_wp, out],
+        inputs=[asset.data.joint_vel.warp, asset.data.default_joint_vel.warp, joint_indices.warp, out],
         device=env.device,
     )
 
@@ -397,7 +397,7 @@ def body_incoming_wrench(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg) 
     wp.launch(
         kernel=_body_incoming_wrench_kernel,
         dim=env.num_envs,
-        inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_ids_wp, out],
+        inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_indices.warp, out],
         device=env.device,
     )
 

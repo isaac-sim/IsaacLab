@@ -131,7 +131,7 @@ class randomize_rigid_body_com(ManagerTermBase):
                 WarpRng.state,
                 self._default_com,
                 body_com_pos_b,
-                asset_cfg.body_ids_wp,
+                asset_cfg.body_indices.warp,
                 com_lo,
                 com_hi,
             ],
@@ -219,7 +219,7 @@ class apply_external_force_torque(ManagerTermBase):
             inputs=[
                 env_mask,
                 WarpRng.state,
-                asset_cfg.body_ids_wp,
+                asset_cfg.body_indices.warp,
                 self._forces,
                 self._torques,
                 float(force_range[0]),
@@ -230,7 +230,7 @@ class apply_external_force_torque(ManagerTermBase):
             device=env.device,
         )
         self._asset.permanent_wrench_composer.set_forces_and_torques_mask(
-            forces=self._forces, torques=self._torques, body_mask=asset_cfg.body_mask_wp, env_mask=env_mask
+            forces=self._forces, torques=self._torques, body_mask=asset_cfg.body_mask.warp, env_mask=env_mask
         )
 
 
@@ -505,9 +505,9 @@ def reset_joints_by_offset(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Assume cfg params are already resolved by the manager stack (Warp-first workflow).
-    if asset_cfg.joint_ids_wp is None:
+    if asset_cfg.joint_indices is None:
         raise ValueError(
-            f"reset_joints_by_offset requires a SceneEntityCfg with resolved joint_ids_wp, "
+            f"reset_joints_by_offset requires a SceneEntityCfg with resolved joint_indices, "
             f"but got None for asset '{asset_cfg.name}'. "
             "Pass it in the term parameters so the Warp manager resolves it."
         )
@@ -517,7 +517,7 @@ def reset_joints_by_offset(
         dim=env.num_envs,
         inputs=[
             env_mask,
-            asset_cfg.joint_ids_wp,
+            asset_cfg.joint_indices.warp,
             WarpRng.state,
             asset.data.default_joint_pos.warp,
             asset.data.default_joint_vel.warp,
@@ -591,9 +591,9 @@ def reset_joints_by_scale(
     """Warp-first reset of joint state by scaling defaults with random factors."""
     asset: Articulation = env.scene[asset_cfg.name]
 
-    if asset_cfg.joint_ids_wp is None:
+    if asset_cfg.joint_indices is None:
         raise ValueError(
-            f"reset_joints_by_scale requires a SceneEntityCfg with resolved joint_ids_wp, "
+            f"reset_joints_by_scale requires a SceneEntityCfg with resolved joint_indices, "
             f"but got None for asset '{asset_cfg.name}'. "
             "Pass it in the term parameters so the Warp manager resolves it."
         )
@@ -603,7 +603,7 @@ def reset_joints_by_scale(
         dim=env.num_envs,
         inputs=[
             env_mask,
-            asset_cfg.joint_ids_wp,
+            asset_cfg.joint_indices.warp,
             WarpRng.state,
             asset.data.default_joint_pos.warp,
             asset.data.default_joint_vel.warp,

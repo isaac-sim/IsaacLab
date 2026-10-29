@@ -7,13 +7,15 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+import copy
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
 from ..utils import configclass
+from ..utils.warp.proxy_array import ProxyArray
 
 if TYPE_CHECKING:
     from ..assets import Articulation, RigidObject, RigidObjectCollection
@@ -124,31 +126,45 @@ class SceneEntityCfg:
 
     """
 
-    joint_ids_wp: wp.array | None = None
-    """The indices of the selected joints as a Warp ``int32`` array. Defaults to None.
+    joint_indices: ProxyArray | None = field(default=None, metadata={"copy": False})
+    """The indices of the selected joints as an ``int32`` :class:`~isaaclab.utils.warp.ProxyArray`. Defaults to None.
 
     Filled by :meth:`resolve_warp` for articulations. Warp kernels gather a subset of joints with it: entry ``k`` is
-    the joint read into output column ``k``.
+    the joint read into output column ``k``. Copies of the configuration share it.
     """
 
-    joint_mask_wp: wp.array | None = None
-    """The selected joints as a Warp ``bool`` mask over all joints of the articulation. Defaults to None.
+    joint_mask: ProxyArray | None = field(default=None, metadata={"copy": False})
+    """The selected joints as a ``bool`` :class:`~isaaclab.utils.warp.ProxyArray` over all joints of the articulation.
+    Defaults to None.
 
     Filled by :meth:`resolve_warp` for articulations. Warp kernels use it to reduce over or write the selected joints.
+    Copies of the configuration share it.
     """
 
-    body_ids_wp: wp.array | None = None
-    """The indices of the selected bodies as a Warp ``int32`` array. Defaults to None.
+    body_indices: ProxyArray | None = field(default=None, metadata={"copy": False})
+    """The indices of the selected bodies as an ``int32`` :class:`~isaaclab.utils.warp.ProxyArray`. Defaults to None.
 
     Filled by :meth:`resolve_warp` when the entity has bodies or bodies are selected. Warp kernels gather a subset of
-    bodies with it.
+    bodies with it. Copies of the configuration share it.
     """
 
-    body_mask_wp: wp.array | None = None
-    """The selected bodies as a Warp ``bool`` mask over all bodies of the entity. Defaults to None.
+    body_mask: ProxyArray | None = field(default=None, metadata={"copy": False})
+    """The selected bodies as a ``bool`` :class:`~isaaclab.utils.warp.ProxyArray` over all bodies of the entity.
+    Defaults to None.
 
     Filled by :meth:`resolve_warp` when the entity has bodies. Warp kernels use it to write the selected bodies.
+    Copies of the configuration share it.
     """
+
+    def __deepcopy__(self, memo: dict) -> SceneEntityCfg:
+        """A deep copy that shares the resolved Warp selections, which terms only read."""
+        copied = copy.copy(self)
+        memo[id(self)] = copied
+        shared = {name for name, f in self.__dataclass_fields__.items() if f.metadata.get("copy") is False}
+        for name, value in self.__dict__.items():
+            if name not in shared:
+                setattr(copied, name, copy.deepcopy(value, memo))
+        return copied
 
     def resolve(self, scene: InteractiveScene):
         """Resolves the scene entity and converts the joint and body names to indices.
@@ -202,9 +218,10 @@ class SceneEntityCfg:
     def resolve_warp(self, scene: InteractiveScene):
         """Resolve the joint and body selections into Warp arrays on the scene's device.
 
-        Fills :attr:`joint_ids_wp` and :attr:`joint_mask_wp` for articulations, and :attr:`body_ids_wp` and
-        :attr:`body_mask_wp` from the host selections of :meth:`resolve`, so it must follow :meth:`resolve` and
+        Fills :attr:`joint_indices` and :attr:`joint_mask` for articulations, and :attr:`body_indices` and
+        :attr:`body_mask` from the host selections of :meth:`resolve`, so it must follow :meth:`resolve` and
         precede :meth:`finalize`. Managers that run Warp terms call it before constructing class-based terms.
+        Full selections resolve to every index and a full mask once, here.
 
         Args:
             scene: The interactive scene instance.
@@ -213,9 +230,9 @@ class SceneEntityCfg:
         num_joints = getattr(entity, "num_joints", None)
         if num_joints is not None:
             joint_ids = range(num_joints)[self.joint_ids] if isinstance(self.joint_ids, slice) else self.joint_ids
-            self.joint_ids_wp = wp.array(list(joint_ids), dtype=wp.int32, device=scene.device)
-            self.joint_mask_wp = wp.array(
-                [j in joint_ids for j in range(num_joints)], dtype=wp.bool, device=scene.device
+            self.joint_indices = ProxyArray(wp.array(list(joint_ids), dtype=wp.int32, device=scene.device))
+            self.joint_mask = ProxyArray(
+                wp.array([j in joint_ids for j in range(num_joints)], dtype=wp.bool, device=scene.device)
             )
         num_bodies = getattr(entity, "num_bodies", None)
         body_ids = self.body_ids
@@ -223,9 +240,11 @@ class SceneEntityCfg:
             if num_bodies is None:
                 return
             body_ids = range(num_bodies)[body_ids]
-        self.body_ids_wp = wp.array(list(body_ids), dtype=wp.int32, device=scene.device)
+        self.body_indices = ProxyArray(wp.array(list(body_ids), dtype=wp.int32, device=scene.device))
         if num_bodies is not None:
-            self.body_mask_wp = wp.array([b in body_ids for b in range(num_bodies)], dtype=wp.bool, device=scene.device)
+            self.body_mask = ProxyArray(
+                wp.array([b in body_ids for b in range(num_bodies)], dtype=wp.bool, device=scene.device)
+            )
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
