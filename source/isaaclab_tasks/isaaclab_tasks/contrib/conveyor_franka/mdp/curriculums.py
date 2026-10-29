@@ -45,7 +45,6 @@ class ConveyorResetCurriculum(ManagerTermBase):
         self._reset_term.row_ids = self.reset_sampler.row_ids
         self.success_monitor = self.reset_sampler.success_monitor
         self.sampler = self.reset_sampler.sampler
-        self._env_ids = torch.arange(env.num_envs, device=env.device)
 
     def __call__(
         self,
@@ -59,7 +58,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
         """Record finished episodes and draw rows for only the resetting environments."""
         del success_monitor, sampling
         ids = (
-            self._env_ids[env_ids]
+            env.scene._ALL_INDICES[env_ids]
             if isinstance(env_ids, slice)
             else torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
         )
