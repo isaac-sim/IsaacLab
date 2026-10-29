@@ -35,7 +35,6 @@ from newton.actuators import (
     ClampingBase,
     InputProcessorBase,
     InputProcessorDelay,
-    InputProcessorRandomDelay,
     parse_actuator_prim,
 )
 from newton.selection import ArticulationView
@@ -813,29 +812,12 @@ def _create_actuators_from_usd(
 
         input_processors = []
         for component_index, (comp_cls, _) in enumerate(processor_components[0]):
-            delay_arguments = [components[component_index][1] for components in processor_components]
-            if comp_cls is InputProcessorRandomDelay:
-                # One lag stream per environment, as Newton's builder gives each world its own.
-                lag_ranges = [
-                    {name: args[name] for name in ("max_delay", "min_delay", "update_period")}
-                    for args in delay_arguments
-                ]
-                holds = [{"hold_probability": args["hold_probability"]} for args in delay_arguments]
-                world = np.repeat(np.arange(num_envs, dtype=np.int32), len(delay_arguments))
-                input_processors.append(
-                    InputProcessorRandomDelay(
-                        **_tile_per_dof_arguments(lag_ranges, num_envs, wp.int32, wp_device),
-                        **_tile_per_dof_arguments(holds, num_envs, wp.float32, wp_device),
-                        world=wp.array(world, dtype=wp.int32, device=wp_device),
-                        seed=delay_arguments[0]["seed"],
-                    )
-                )
-                continue
             if comp_cls is not InputProcessorDelay:
                 raise ValueError(
                     f"Input processor {comp_cls.__name__} is not supported without a Newton model; only"
-                    " InputProcessorDelay and InputProcessorRandomDelay are."
+                    " InputProcessorDelay is."
                 )
+            delay_arguments = [components[component_index][1] for components in processor_components]
             max_delay = max(int(arguments["delay_steps"]) for arguments in delay_arguments)
             if max_delay > 0:
                 input_processors.append(

@@ -18,13 +18,13 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators import BamFriction
+from isaaclab_newton.actuators import BamCommandLag, BamFriction
 from newton.actuators import (
     Actuator,
     ClampingMaxEffort,
     DriveBAM,
     InputProcessorBacklash,
-    InputProcessorRandomDelay,
+    InputProcessorDelay,
     parse_actuator_prim,
 )
 
@@ -249,7 +249,7 @@ def test_authored_prim_composes_native_components(goldens, servo_usd, limit, vol
     expected_limit = limit if limit is not None else voltage * cfg.motor.kt / cfg.motor.resistance
     expected_components = [ClampingMaxEffort]
     if max_delay:
-        expected_components.append(InputProcessorRandomDelay)
+        expected_components.append(InputProcessorDelay)
     if backlash is not None:
         expected_components.append(InputProcessorBacklash)
     for name in JOINT_NAMES:
@@ -267,13 +267,7 @@ def test_authored_prim_composes_native_components(goldens, servo_usd, limit, vol
         components = {component: kwargs for component, kwargs in entry.component_specs}
         assert components[ClampingMaxEffort]["max_effort"] == pytest.approx(expected_limit)
         if max_delay:
-            assert InputProcessorRandomDelay.resolve_arguments(components[InputProcessorRandomDelay]) == {
-                "max_delay": max_delay,
-                "min_delay": 1,
-                "hold_probability": 0.0,
-                "update_period": 0,
-                "seed": 0,
-            }
+            assert components[InputProcessorDelay]["delay_steps"] == max_delay
         if backlash is not None:
             resolved = InputProcessorBacklash.resolve_arguments(components[InputProcessorBacklash])
             assert resolved == {
@@ -371,8 +365,8 @@ def test_battery_sag_matches_upstream_supply_recording(goldens, servo_usd, devic
 def test_delay_matches_recorded_mjlab_sequence(goldens, servo_usd, device):
     """Replay mjlab's recorded 3--6-step lags through warm-up, ring wrap, and a partial reset.
 
-    Torch and Warp RNGs differ, so each step's lag range is pinned to the recorded lag, which every draw then
-    returns; the lag tests below cover sampling.
+    Torch and Warp RNGs differ, so the recorded lags are written into the delay processor; the lag tests below
+    cover sampling.
     """
     shape = goldens["delay_commands"].shape[1:]
     bam = make_actuator(servo_usd, make_cfg(goldens, max_delay=int(goldens["delay_max"])), shape[0], device)
@@ -380,9 +374,7 @@ def test_delay_matches_recorded_mjlab_sequence(goldens, servo_usd, device):
     for index, command in enumerate(goldens["delay_commands"]):
         if goldens["delay_resets"][index].any():
             bam.adapter.reset(torch.from_numpy(np.flatnonzero(goldens["delay_resets"][index])).to(device))
-        lags = np.repeat(goldens["delay_lags"][index], shape[1]).astype(np.int32)
-        delay.min_delay.assign(lags)
-        delay.max_delay.assign(lags)
+        delay.delay_steps.assign(np.repeat(goldens["delay_lags"][index], shape[1]).astype(np.int32))
         effort = step(bam, np.zeros(shape), np.zeros(shape), command)
         np.testing.assert_allclose(
             effort, goldens["delay_motor_torque"][index], rtol=1e-5, atol=1e-6, err_msg=f"step {index}"
@@ -465,19 +457,41 @@ def test_effort_feedback_and_supply_floor(goldens, servo_usd, device):
     )
 
 
+def make_lagged_actuator(goldens, servo_usd, device, num_envs, **lag_settings) -> SimpleNamespace:
+    """Build a delayed BAM actuator whose lag is drawn each step and restarted with the adapter's resets."""
+    cfg = make_cfg(goldens, **lag_settings)
+    bam = make_actuator(servo_usd, cfg, num_envs=num_envs, device=device)
+    (delay,) = bam.actuator.input_processors
+    bam.lag = BamCommandLag(
+        delay,
+        slots=np.arange(bam.dofs.size),
+        dof_indices=bam.dofs.ravel(),
+        dofs_per_env=len(JOINT_NAMES),
+        min_delay=cfg.min_delay,
+        max_delay=cfg.max_delay,
+        hold_prob=cfg.delay_hold_prob,
+        update_period=cfg.delay_update_period,
+    )
+    bam.adapter.register_reset_callback(bam.lag.reset)
+    return bam
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_command_lags_differ_per_environment_and_episode(goldens, servo_usd, device):
     """Lags refresh on staggered per-environment phases, change after a reset, and replay through a CUDA graph."""
     num_envs, period = 16, 4
     # The second actuator never resets after start-up, so it continues every untouched environment.
-    cfg = make_cfg(goldens, min_delay=1, max_delay=3, delay_update_period=period)
-    actuators = [make_actuator(servo_usd, cfg, num_envs, device) for _ in range(2)]
+    actuators = [
+        make_lagged_actuator(goldens, servo_usd, device, num_envs, min_delay=1, max_delay=3, delay_update_period=period)
+        for _ in range(2)
+    ]
     zeros = np.zeros((num_envs, 2))
     graphs = []
     for bam in actuators:
         step(bam, zeros, zeros, zeros)  # Compile before CUDA capture.
         bam.adapter.reset(torch.arange(num_envs, device=device))
         with wp.ScopedDevice(device), wp.ScopedCapture() as capture:
+            bam.lag.step()
             bam.adapter.step(bam.state, bam.control, DT, swap_state=False)
         graphs.append(capture.graph)
     # Small commands stay in the linear firmware regime at rest, so each torque identifies the delayed command.
@@ -526,19 +540,17 @@ def test_command_lag_stream_keeps_its_seeding(goldens, servo_usd, device):
     Pins the draw sequence, so trajectories recorded with the pre-native BAM drive replay unchanged.
     """
     num_envs = 4
-    bam = make_actuator(servo_usd, make_cfg(goldens, min_delay=3, max_delay=6), num_envs, device)
-    (delay,) = bam.actuator.input_processors
-    zeros = np.zeros((num_envs, len(JOINT_NAMES)))
+    bam = make_lagged_actuator(goldens, servo_usd, device, num_envs, min_delay=3, max_delay=6)
     expected = wp.zeros(num_envs, dtype=wp.int32, device=device)
     for reset_count in range(3):
         if reset_count:
             bam.adapter.reset(None if reset_count == 1 else torch.arange(num_envs, device=device))
         for index in range(8):
-            step(bam, zeros, zeros, zeros)
             with wp.ScopedDevice(device):
+                bam.lag.step()
                 wp.launch(_reference_lag_kernel, dim=num_envs, inputs=[reset_count, index, 3, 6, expected])
             np.testing.assert_array_equal(
-                delay.delay_steps.numpy().reshape(num_envs, -1),
+                bam.lag.delay.delay_steps.numpy().reshape(num_envs, -1),
                 np.repeat(expected.numpy()[:, None], len(JOINT_NAMES), axis=1),
                 err_msg=f"episode {reset_count}, step {index}",
             )

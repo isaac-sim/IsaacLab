@@ -3,29 +3,146 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The BAM servo part that Newton's native BAM path does not provide.
+"""The BAM servo parts that Newton's native BAM path does not provide.
 
 Newton runs the firmware and motor (:class:`~newton.actuators.DriveBAM`), the supply
-(:class:`~newton.actuators.Battery`), the random command lag (:class:`~newton.actuators.InputProcessorRandomDelay`),
-the play-angle read (:class:`~newton.actuators.InputProcessorBacklash`) and the effort clamp. Isaac Lab adds the
-gearbox friction that MJWarp applies as a DOF friction constraint.
+(:class:`~newton.actuators.Battery`), the command ring (:class:`~newton.actuators.InputProcessorDelay`),
+the play-angle read (:class:`~newton.actuators.InputProcessorBacklash`) and the effort clamp. Isaac Lab adds a
+per-environment random command lag and the gearbox friction that MJWarp applies as a DOF friction constraint.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import warp as wp
+from newton.actuators import InputProcessorDelay
 
 from isaaclab.actuators.actuator_bam_cfg import BAM_MODEL_FLAGS, BamMotorCfg
 
-from .bam_kernels import bam_friction_budget_kernel, gather_dof_values_kernel, zero_masked_envs_kernel
+from .bam_kernels import (
+    bam_command_lag_kernel,
+    bam_command_lag_reset_kernel,
+    bam_friction_budget_kernel,
+    gather_dof_values_kernel,
+    zero_masked_envs_kernel,
+)
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import Articulation
+
+
+class BamCommandLag:
+    """Random command lag of BAM servos, written into a Newton delay processor before each actuator step.
+
+    :class:`~newton.actuators.InputProcessorDelay` replays commands with a fixed lag per DOF. Each step,
+    :meth:`step` draws one lag per environment, shared by the environment's DOFs, and writes it into the
+    processor's :attr:`~newton.actuators.InputProcessorDelay.delay_steps`. A draw is attempted every
+    ``update_period`` steps on a random per-environment phase, and is skipped with probability ``hold_prob``.
+
+    The stream of each environment restarts on :meth:`reset` from the seed ``seed + reset_count``, where
+    ``reset_count`` counts the resets since construction.
+    """
+
+    def __init__(
+        self,
+        delay: InputProcessorDelay,
+        slots: Sequence[int],
+        dof_indices: Sequence[int],
+        dofs_per_env: int,
+        min_delay: int,
+        max_delay: int,
+        hold_prob: float = 0.0,
+        update_period: int = 0,
+        seed: int = 0,
+    ):
+        """Initialize the lag streams and seed the first episode.
+
+        Args:
+            delay: Delay processor whose lags are drawn.
+            slots: Processor slots driven by this lag, shape ``(N,)``.
+            dof_indices: DOF index of each slot, which locates its environment, shape ``(N,)``.
+            dofs_per_env: DOFs per environment in the layout of :paramref:`dof_indices`.
+            min_delay: Minimum lag [physics steps].
+            max_delay: Maximum lag [physics steps].
+            hold_prob: Probability of keeping the current lag at a draw [-].
+            update_period: Physics steps between draws. ``0`` draws every step.
+            seed: Base seed of the lag and phase draws.
+
+        Raises:
+            ValueError: If the lag range is invalid or exceeds the processor's buffer.
+        """
+        if not 0 <= min_delay <= max_delay <= delay.buf_depth:
+            raise ValueError(
+                f"Lag range [{min_delay}, {max_delay}] must be ordered, non-negative and within the delay buffer"
+                f" depth {delay.buf_depth}."
+            )
+        if len(slots) != len(dof_indices):
+            raise ValueError(f"Got {len(slots)} slots and {len(dof_indices)} DOF indices.")
+        device = delay.delay_steps.device
+        self.delay = delay
+        """Delay processor whose :attr:`~newton.actuators.InputProcessorDelay.delay_steps` this lag writes."""
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.hold_prob = hold_prob
+        self.update_period = update_period
+        self.seed = seed
+        self.reset_count = 0
+        """Number of resets applied, which decorrelates successive episodes."""
+        self._slots = wp.array(np.asarray(slots, dtype=np.int32), dtype=wp.int32, device=device)
+        self._dof_indices = wp.array(np.asarray(dof_indices, dtype=np.uint32), dtype=wp.uint32, device=device)
+        self._dofs_per_env = dofs_per_env
+        self.lag = wp.zeros(len(slots), dtype=wp.int32, device=device)
+        """Lag of the last step [physics steps], shape ``(N,)``."""
+        self.step_count = wp.zeros(len(slots), dtype=wp.int32, device=device)
+        """Steps since the last reset, shape ``(N,)``."""
+        self.phase = wp.zeros(len(slots), dtype=wp.int32, device=device)
+        """Offset of the draw period, shape ``(N,)``."""
+        self.rng_seed = wp.zeros(len(slots), dtype=wp.int32, device=device)
+        """Episode seed of each slot's environment, shape ``(N,)``."""
+        self._reseed(None, seed)
+
+    def step(self) -> None:
+        """Draw this step's lags into the delay processor. Captured with the actuator step in CUDA graphs."""
+        wp.launch(
+            bam_command_lag_kernel,
+            dim=len(self.lag),
+            inputs=[
+                self.lag,
+                self.step_count,
+                self.phase,
+                self.rng_seed,
+                self._slots,
+                self.min_delay,
+                self.max_delay,
+                self.hold_prob,
+                self.update_period,
+            ],
+            outputs=[self.delay.delay_steps],
+            device=self.lag.device,
+        )
+
+    def reset(self, env_mask: wp.array | None = None) -> None:
+        """Restart the lag streams of the masked environments with a new episode seed.
+
+        Args:
+            env_mask: Per-environment boolean reset mask, or None to reset every environment.
+        """
+        self.reset_count += 1
+        self._reseed(env_mask, self.seed + self.reset_count)
+
+    def _reseed(self, env_mask: wp.array | None, seed: int) -> None:
+        wp.launch(
+            bam_command_lag_reset_kernel,
+            dim=len(self.lag),
+            inputs=[env_mask, self._dof_indices, self._dofs_per_env, self.update_period, seed],
+            outputs=[self.lag, self.step_count, self.phase, self.rng_seed],
+            device=self.lag.device,
+        )
 
 
 class BamFriction:
@@ -165,6 +282,9 @@ class BamGroup:
     friction: BamFriction
     """Gearbox friction of the group's servos."""
 
+    command_lags: list[BamCommandLag]
+    """Random command lag per Newton actuator driving the group; empty without a delay."""
+
     adapter: NewtonActuatorAdapter
     """Adapter whose batteries power the group."""
 
@@ -205,7 +325,7 @@ def get_bam_group(articulation: Articulation, name: str) -> BamGroup:
         name: Actuator group name.
 
     Returns:
-        The group's friction and supply state.
+        The group's friction, command-lag and supply state.
 
     Raises:
         KeyError: If the articulation has no Newton-executed BAM group *name*.

@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import warp as wp
 from newton import Model, ModelFlags
-from newton.actuators import DriveBAM, InputProcessorBacklash, InputProcessorRandomDelay
+from newton.actuators import DriveBAM, InputProcessorBacklash, InputProcessorDelay
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg
@@ -27,7 +27,7 @@ from isaaclab.actuators.newton.adapter import NewtonActuatorAdapter, NewtonActua
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 
-from isaaclab_newton.actuators.bam import BamFriction, BamGroup
+from isaaclab_newton.actuators.bam import BamCommandLag, BamFriction, BamGroup
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 
 if TYPE_CHECKING:
@@ -222,24 +222,31 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             self._articulation._backend_manager.backend.actuators.reset(env_ids)
 
     def _create_bam_groups(self, collection: ActuatorCollection, adapter: NewtonActuatorAdapter) -> None:
-        """Create the supply and friction state of each BAM group.
+        """Create the supply, command lag and friction state of each BAM group.
 
-        Each group gets one battery per environment and per-DOF friction state. Their resets follow every adapter
-        reset.
+        Each group gets one battery per environment, a lag stream per environment and delay processor when it
+        has a delay, and per-DOF friction state. Their resets follow every adapter reset.
 
         Raises:
-            RuntimeError: If a group's DOFs are not driven by Newton's BAM drive reading its battery, with exactly
-                its configured random delay and backlash processors.
+            RuntimeError: If a group's DOFs are not driven by Newton's BAM drive reading its battery, with its
+                authored delay and exactly its configured backlash processor.
         """
         dofs_per_env = adapter.num_joints
-        # Input processors of each BAM DOF, with the backlash velocity feedback setting.
-        bam_processors: dict[int, list[tuple[type, bool | None]]] = {}
+        bam_dofs: set[int] = set()
+        delay_slots: dict[int, tuple[InputProcessorDelay, int]] = {}
+        backlash_feedback: dict[int, list[bool]] = {}
         for actuator in adapter.actuators:
             # A drive on its own supply voltage would ignore the group's battery.
             if not isinstance(actuator.drive, DriveBAM) or not actuator.drive.supply_from_control:
                 continue
-            kinds = [(type(p), getattr(p, "velocity_feedback", None)) for p in actuator.input_processors]
-            bam_processors.update((dof, kinds) for dof in actuator.indices.numpy().tolist())
+            indices = actuator.indices.numpy().tolist()
+            bam_dofs.update(indices)
+            for processor in actuator.input_processors:
+                if isinstance(processor, InputProcessorDelay):
+                    delay_slots.update((dof, (processor, slot)) for slot, dof in enumerate(indices))
+                elif isinstance(processor, InputProcessorBacklash):
+                    for dof in indices:
+                        backlash_feedback.setdefault(dof, []).append(processor.velocity_feedback)
 
         # Group DOFs, environment-major and in group joint order. Instance e lives in environment e.
         all_joints = list(range(self.num_joints))
@@ -253,29 +260,47 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
         for name, cfg in self._bam_cfgs.items():
             dofs = env_offsets + local_dofs[name]
-            if not set(bam_processors).issuperset(dofs.ravel().tolist()):
+            if not bam_dofs.issuperset(dofs.ravel().tolist()):
                 raise RuntimeError(f"BAM group '{name}' is not driven by Newton's DriveBAM with supply_from_control.")
             # Newton skips an unregistered processor token silently, and a stale one would read a play hinge.
-            expected = []
-            if cfg.max_delay > 0:
-                expected.append((InputProcessorRandomDelay, None))
-            if cfg.backlash_joint_template is not None:
-                expected.append((InputProcessorBacklash, cfg.backlash_velocity_feedback))
-            if any(bam_processors[dof] != expected for dof in dofs.ravel().tolist()):
-                wanted = [
-                    cls.__name__ + ("" if flag is None else f"(velocity_feedback={flag})") for cls, flag in expected
-                ]
-                raise RuntimeError(
-                    f"BAM group '{name}' must read its servos through exactly these processors: {wanted}."
-                )
+            expected = [] if cfg.backlash_joint_template is None else [cfg.backlash_velocity_feedback]
+            if any(backlash_feedback.get(dof, []) != expected for dof in dofs.ravel().tolist()):
+                wanted = f"one backlash processor with velocity_feedback={expected[0]}" if expected else "no backlash"
+                raise RuntimeError(f"BAM group '{name}' must read its servos through {wanted}.")
             nominal_voltage, sag_gain = self._sample_bam_supply(cfg)
             battery_offset = adapter.add_batteries(dofs, nominal_voltage, sag_gain, min_voltage=max(cfg.vin_min, 0.0))
             friction = BamFriction(cfg.motor, wp.array(dofs.ravel(), dtype=wp.uint32, device=self.device), dofs_per_env)
             adapter.register_reset_callback(friction.reset)
 
+            command_lags = []
+            if cfg.max_delay > 0:
+                # One lag per delay processor, so groups merged into one Newton actuator keep their own settings.
+                lag_slots: dict[int, tuple[InputProcessorDelay, list[int], list[int]]] = {}
+                for dof in dofs.ravel().tolist():
+                    if dof not in delay_slots:
+                        raise RuntimeError(f"BAM group '{name}' has max_delay > 0 but no Newton delay processor.")
+                    delay, slot = delay_slots[dof]
+                    entry = lag_slots.setdefault(id(delay), (delay, [], []))
+                    entry[1].append(slot)
+                    entry[2].append(dof)
+                for delay, slots, lag_dofs in lag_slots.values():
+                    lag = BamCommandLag(
+                        delay,
+                        slots,
+                        lag_dofs,
+                        dofs_per_env,
+                        min_delay=cfg.min_delay,
+                        max_delay=cfg.max_delay,
+                        hold_prob=cfg.delay_hold_prob,
+                        update_period=cfg.delay_update_period,
+                    )
+                    adapter.register_reset_callback(lag.reset)
+                    self._articulation._backend_manager.register_pre_actuator_callback(lag.step)
+                    command_lags.append(lag)
             self.bam_groups[name] = BamGroup(
                 num_envs=self.num_instances,
                 friction=friction,
+                command_lags=command_lags,
                 adapter=adapter,
                 battery_offset=battery_offset,
             )

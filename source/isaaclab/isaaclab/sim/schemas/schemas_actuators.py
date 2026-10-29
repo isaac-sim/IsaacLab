@@ -160,8 +160,8 @@ def define_actuator_properties(
       :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` →
       ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
     * :class:`~isaaclab.actuators.BamActuatorCfg` →
-      ``NewtonBAMControlAPI`` + ``NewtonMaxEffortClampingAPI`` (+ ``NewtonActuatorRandomDelayAPI``),
-      plus ``NewtonActuatorBacklashAPI`` when the servo reads through a play hinge
+      ``NewtonBAMControlAPI`` + ``NewtonMaxEffortClampingAPI`` (+ ``NewtonActuatorDelayAPI``),
+      plus a backlash input processor when the servo reads through a play hinge
 
     No-ops (returns immediately) when:
 
@@ -287,6 +287,7 @@ def author_actuator_prims(
         vel_limit_map = resolve_per_dof(cfg.actuator_velocity_limit, joint_names) if is_dc_motor else {}
         sat_effort_map = resolve_per_dof(cfg.saturation_effort, joint_names) if is_dc_motor else {}
 
+        # BAM sizes the delay buffer for its longest lag; Isaac Lab draws the lag of every step.
         raw_delay = cfg.max_delay if is_delayed or is_bam else 0
         delay_map = resolve_per_dof(raw_delay, joint_names, cast=int) if raw_delay else {}
 
@@ -349,17 +350,11 @@ def author_actuator_prims(
                 array_attrs["lookup_efforts"] = [row[2] for row in lookup]
 
             delay_steps = delay_map.get(jname, 0)
-            if delay_steps > 0 and is_bam:
-                # Newton draws the lag of every step, one per environment.
-                schemas.append("NewtonActuatorRandomDelayAPI")
-                attrs["max_delay"] = delay_steps
-                attrs["min_delay"] = int(cfg.min_delay)
-                attrs["hold_probability"] = float(cfg.delay_hold_prob)
-                attrs["update_period"] = int(cfg.delay_update_period)
-            elif delay_steps > 0:
+            if delay_steps > 0:
                 schemas.append("NewtonActuatorDelayAPI")
                 attrs["delay_steps"] = delay_steps
-                attrs["max_delay"] = delay_steps
+                if not is_bam:
+                    attrs["max_delay"] = delay_steps
 
             if is_bam and cfg.backlash_joint_template is not None:
                 schemas.append("NewtonActuatorBacklashAPI")

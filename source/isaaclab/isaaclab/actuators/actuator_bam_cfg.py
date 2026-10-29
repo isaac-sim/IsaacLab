@@ -98,8 +98,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     Requires ``use_newton_actuators=True`` with Newton's MJWarp solver. Like other explicit
     actuators, it replaces existing USD actuators on the selected joints. Newton runs the firmware
     and motor (:class:`~newton.actuators.DriveBAM`), the supply (:class:`~newton.actuators.Battery`),
-    the random command lag (:class:`~newton.actuators.InputProcessorRandomDelay`) and the effort clamp;
-    Isaac Lab adds the gearbox friction.
+    the command delay and the effort clamp; Isaac Lab adds the random command lag and the gearbox
+    friction.
 
     If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the torque
     limit is the stall torque ``max(vin_range) * motor.kt / motor.resistance``, using

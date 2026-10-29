@@ -1,5 +1,6 @@
-* Added :class:`~isaaclab_newton.actuators.BamFriction`, the BAM servo part Newton's native BAM path lacks:
-  the gearbox friction budget.
+* Added :class:`~isaaclab_newton.actuators.BamCommandLag` and :class:`~isaaclab_newton.actuators.BamFriction`,
+  the BAM servo parts Newton's native BAM path lacks: the per-environment random command lag and the gearbox
+  friction budget.
 * Added :func:`~isaaclab_newton.actuators.get_bam_group` and :class:`~isaaclab_newton.actuators.BamGroup`
   to read and write a Newton-executed BAM group's friction scale and supply.
 * Added :meth:`~isaaclab_newton.physics.NewtonManager.request_solver_observables` to have the solver export
