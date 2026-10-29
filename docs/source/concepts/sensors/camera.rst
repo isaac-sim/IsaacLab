@@ -320,19 +320,22 @@ reads. Camera resets reach the processors' ``reset`` with the reset environments
 
    depth_camera = replace(
        front_camera,
-       data_types=["shaded"],
+       data_types=["rgb"],
        tensor_processors=[
-           TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["shaded"]),
+           TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["rgb"]),
        ],
    )
 
-Here the renderer produces only ``distance_to_image_plane``, and ``camera.data.output["shaded"]`` holds the
-processor's result.
+Here the renderer produces only ``distance_to_image_plane``, and ``camera.data.output["rgb"]`` holds the
+processor's result. Processor outputs appear in :attr:`~sensors.CameraData.output` and
+:attr:`~sensors.CameraData.info` from the first published capture on.
 
 With ``update_period > 0``, environments reset at different times and capture on different steps, so a call
 can mix new rows with rows that still hold the previous capture. Stateful processors (frame stacking,
 temporal filters, video generation) can list ``"env_mask"`` in their ``inputs`` to receive a boolean mask of
 the environments with a new capture. The name is reserved, and the mask is not published as an output.
+The mask describes the current capture request, so processors that read it need synchronous rendering; with
+``async_rendering=True`` the camera raises an error.
 
 Post-render image signal processing
 -----------------------------------
