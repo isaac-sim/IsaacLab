@@ -31,7 +31,8 @@ import torch
 import warp as wp
 from newton.solvers import SolverMuJoCo
 
-from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab.utils.warp import memory
+
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 
 if TYPE_CHECKING:
@@ -112,17 +113,12 @@ class MjWarpTendonControl:
             env_ids: Environment indices. If None, then all indices are used.
         """
         articulation = self._articulation
-        env_ids = articulation._resolve_env_ids(env_ids)
-        fixed_tendon_ids = articulation._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(articulation._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(articulation._resolve_fixed_tendon_ids(fixed_tendon_ids))
         articulation.assert_shape_and_dtype(target, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "target")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[target, env_ids, fixed_tendon_ids],
-            outputs=[articulation.data._fixed_tendon_position_target],
-            device=articulation.device,
-        )
+        selected = wp.indexedarray(articulation.data._fixed_tendon_position_target, [env_ids, fixed_tendon_ids])
+        values = wp.from_torch(target, dtype=wp.float32) if isinstance(target, torch.Tensor) else target
+        wp.copy(selected, values)
 
     def set_position_target_mask(
         self,
@@ -149,7 +145,7 @@ class MjWarpTendonControl:
         env_mask = articulation._resolve_mask(env_mask, articulation._ALL_ENV_MASK)
         fixed_tendon_mask = articulation._resolve_mask(fixed_tendon_mask, articulation._ALL_FIXED_TENDON_MASK)
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            memory.make_masked_copy(wp.float32, 2),
             dim=buffer.shape,
             inputs=[target, env_mask, fixed_tendon_mask],
             outputs=[buffer],
