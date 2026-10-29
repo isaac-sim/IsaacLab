@@ -329,6 +329,10 @@ class NewtonManager(PhysicsManager):
         clone = self._clone
         return {} if clone is None else clone.source_builders
 
+    def get_faulted_worlds(self) -> wp.array:
+        """Return which worlds failed in the last step; see :meth:`NewtonBackend.get_faulted_worlds`."""
+        return self.backend.get_faulted_worlds()
+
     def request_extended_state_attribute(self, attr: str) -> None:
         """Request an extended state attribute (e.g. ``"body_qdd"``) from the builder before finalization.
 

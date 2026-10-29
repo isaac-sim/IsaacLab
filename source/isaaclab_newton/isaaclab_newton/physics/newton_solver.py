@@ -194,6 +194,10 @@ class NewtonSolver:
         """Raise asynchronous solver failures after a step launch (``captured``: a CUDA graph replay), and log
         diagnostics when ``debug`` is set."""
 
+    @classmethod
+    def flag_faulted_worlds(cls, cfg: NewtonSolverCfg, solver: SolverBase, faulted: wp.array) -> None:
+        """Set ``faulted`` for the worlds whose solve failed since their last reset; shape is (world_count,)."""
+
     # ----- Consumers -----
 
     @classmethod

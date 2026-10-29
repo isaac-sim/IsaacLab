@@ -93,6 +93,21 @@ _FLAG_WORLDS_AND_ARTICULATIONS_INDEXED = IndexKernelDispatcher(_flag_worlds_and_
 _FLAG_WORLDS_INDEXED = IndexKernelDispatcher(_flag_worlds_indexed, ("env_ids",))
 
 
+@wp.kernel(enable_backward=False)
+def _flag_nonfinite_worlds(
+    body_q: wp.array(dtype=wp.transformf),
+    body_qd: wp.array(dtype=wp.spatial_vectorf),
+    body_world: wp.array(dtype=wp.int32),
+    faulted: wp.array(dtype=wp.bool),
+):
+    """Flag the worlds that hold a body whose pose or velocity is not finite."""
+    body = wp.tid()
+    pose = body_q[body]
+    finite = wp.isfinite(wp.transform_get_translation(pose)) and wp.isfinite(wp.transform_get_rotation(pose))
+    if body_world[body] >= 0 and not (finite and wp.isfinite(body_qd[body])):
+        faulted[body_world[body]] = True
+
+
 # ----- Data ------------------------------------------------------------------------------
 
 
@@ -487,6 +502,20 @@ class NewtonBackend:
         solver_cfg = self.cfg.solver_cfg
         solver_cfg.class_type.check_step(solver_cfg, self.solver, captured, self.cfg.debug_mode)
         return captured
+
+    def get_faulted_worlds(self) -> wp.array:
+        """Return which worlds failed: a body pose or velocity is not finite after the last step, or the solver
+        flags the world (see :meth:`NewtonSolver.flag_faulted_worlds`).
+
+        Returns:
+            Boolean array of shape (world_count,).
+        """
+        model, state, solver_cfg = self.model, self.state_0, self.cfg.solver_cfg
+        faulted = wp.zeros(model.world_count, dtype=wp.bool, device=self.device)
+        inputs = [state.body_q, state.body_qd, model.body_world]
+        wp.launch(_flag_nonfinite_worlds, dim=model.body_count, inputs=inputs, outputs=[faulted], device=self.device)
+        solver_cfg.class_type.flag_faulted_worlds(solver_cfg, self.solver, faulted)
+        return faulted
 
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
