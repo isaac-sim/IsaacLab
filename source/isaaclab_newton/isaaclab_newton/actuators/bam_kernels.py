@@ -107,10 +107,11 @@ def bam_friction_budget_kernel(
     i = wp.tid()
     dof = dof_indices[i]
     joint_vel = joint_qd[dof]
+    # Copy the flag before clearing it: a branch on episode_start[i] would read the array again after the store.
+    starts_episode = episode_start[i]
+    episode_start[i] = False
     ext_tau = float(0.0)
-    if episode_start[i]:
-        episode_start[i] = False
-    else:
+    if not starts_episode:
         ext_tau = -qfrc_bias[dof] + qfrc_constraint[dof] - qfrc_frictionloss[dof]
     external_torque[i] = ext_tau
 
