@@ -715,8 +715,9 @@ staging.
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
       - ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
     * - :class:`~isaaclab.actuators.BamActuatorCfg`
-      - ``NewtonBAMControlAPI`` + ``NewtonMaxEffortClampingAPI`` (+ ``NewtonActuatorDelayAPI``, + a backlash
-        input processor); Newton only, see :ref:`actuators-bam`
+      - ``NewtonVoltageControlAPI`` + ``NewtonCurrentPWMClampingAPI`` + ``NewtonDCMotorAPI``
+        (+ ``NewtonActuatorDelayAPI``, + ``NewtonActuatorEncoderAPI``), drawing from a
+        ``NewtonConstantResistanceBattery``; Newton only, see :ref:`actuators-bam`
 
 **Existing USD actuators.** For joints covered by an explicit Lab actuator config, the config
 replaces any existing ``NewtonActuator`` prim. Joints not covered by a Lab config keep their
@@ -756,17 +757,20 @@ cannot hold its target under load, its gearbox sticks, and its supply sags.
 
 BAM requires Newton with ``MJWarpSolverCfg`` and
 :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``; other backends and solvers
-raise an error. Newton runs the firmware and motor (:class:`~newton.actuators.DriveBAM`), the supply
-(:class:`~newton.actuators.Battery`), the command delay and the effort clamp. Isaac Lab draws the command
-lag and computes the gearbox friction (:mod:`isaaclab_newton.actuators`). Every physics step:
+raise an error. Newton runs the firmware (:class:`~newton.actuators.DriveVoltageControlled`), the current
+and PWM limits (:class:`~newton.actuators.ClampingCurrentPWM`), the DC motor
+(:class:`~newton.actuators.MotorDC`), the supply (:class:`~newton.actuators.BatteryConstantResistance`),
+the command delay (:class:`~newton.actuators.InputProcessorDelay`) and the play-angle read
+(:class:`~newton.actuators.InputProcessorEncoder`). Isaac Lab draws the command lag and computes the
+gearbox friction (:mod:`isaaclab_newton.actuators`). Every physics step:
 
 * the position command is delayed by a lag drawn for each environment;
-* each environment's battery sags with the summed torque its group joints drew on the previous step,
-  ``vin_eff = max(vin - sag_gain * sum_j |tau_j|, vin_min, 0)``;
-* the firmware law ``duty = (q_des - q) * kp_fw * error_gain`` is clipped by the current limiter
-  and the PWM range;
-* the DC motor gives ``tau = kt * (vin_eff * duty - kt * dq) / R``, so damping is back-EMF, and ``tau``
-  is clamped to the effort limit;
+* the firmware commands ``u = vin_eff * (q_des - q) * kp_fw * error_gain`` [V], which the current limiter
+  bounds to ``kt * dq +/- R * max_current`` and the PWM range to ``+/- max_pwm * vin_eff``;
+* the DC motor draws ``I = (u - kt * dq) / R`` and gives ``tau = kt * I``, so damping is back-EMF;
+* each environment's battery then sags with the current its group's servos drew during their PWM
+  on-time, ``max(vin - R_b * max(sum_j d_j * I_j, 0), vin_min, 0)`` with the duty cycle
+  ``d_j = u_j / vin_eff``, which the motors read as ``vin_eff`` on the next step;
 * the gearbox friction budget (Coulomb, Stribeck, and load-dependent terms selected by
   ``m1``, ``m2``, ``m5``, or ``m6``) is applied by MJWarp as a friction constraint.
 
@@ -797,7 +801,7 @@ lag and computes the gearbox friction (:mod:`isaaclab_newton.actuators`). Every 
                 kp_fw=200.0,                       # firmware proportional gain
                 vin=7.4,                           # nominal voltage [V]
                 vin_range=(7.0, 8.0),              # per-robot battery voltage [V]
-                vin_drop_gain_range=(0.0, 3.0),    # per-robot supply sag [V/(N*m)]
+                battery_resistance_range=(0.0, 0.07),  # per-robot battery resistance [Ohm]
                 vin_min=6.0,                       # supply floor under sag [V]
                 max_delay=2,                       # command lag [physics steps]
             ),
@@ -806,9 +810,18 @@ lag and computes the gearbox friction (:mod:`isaaclab_newton.actuators`). Every 
 
 When the USD models gearbox play as a passive revolute hinge in series with each servo, set
 ``backlash_joint_template`` to the hinge name pattern, e.g. ``"passive_{}_backlash"``. The firmware
-then reads servo angle plus play angle through Newton's ``NewtonActuatorBacklashAPI``, while back-EMF
+then reads servo angle plus play angle through Newton's ``NewtonActuatorEncoderAPI``, while back-EMF
 and the current limiter keep the servo velocity; missing or non-revolute pairs raise while the asset is
-spawned. Set ``backlash_velocity_feedback=True`` to also add the play-hinge velocity.
+spawned.
+
+Each BAM group authors one ``NewtonConstantResistanceBattery`` prim under the articulation, which
+Newton replicates per environment, and its servos draw from it through ``newton:battery``. The battery
+drops its voltage with the signed supply current, so a back-driven servo returns current to the
+others, and the voltage never rises above ``vin``. ``battery_resistance`` [Ohm] replaces the pre-native
+``vin_drop_gain_range`` [V/(N.m)]: ``R_b = sag_gain * kt`` drops the voltage per ampere of motor current as
+the sag gain did per unit of motor torque. The two laws still differ, since the battery weights each
+current by its duty cycle and keeps its sign. Newton gives ``R_b * sum_j max_pwm**2 / R < 1`` as the bound
+under which the supply settles.
 
 ``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
 actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to
@@ -840,9 +853,10 @@ every joint in a group. Set the reflected rotor inertia through ``armature`` or 
    * - ``load_friction_motor_quad``, ``load_friction_external_quad``
      - Quadratic load-coupling coefficients [1/(N.m)]. Defaults: 0.
 
-Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
-``max(vin_range) * motor.kt / motor.resistance``. ``joint_effort_limit`` is unchanged; keep it at
-least as large as the actuator cap.
+Nothing clamps the motor torque after the motor: the current limiter holds it at ``kt * max_current``
+unless the PWM range overrides the limiter at high joint speed, where the back-EMF brakes harder.
+``actuator_effort_limit`` must stay unset, since Newton's clamps act on the voltage command of a motor.
+``joint_effort_limit`` is unchanged; keep it above ``kt * max_current``.
 
 .. _actuators-bam-paths:
 
@@ -859,10 +873,11 @@ viscous coefficient is applied once as passive joint damping and is visible thro
 reference on the servo joints (``mjc:solreffriction`` and ``mjc:solimpfriction``) to reduce creep,
 since MJWarp has no noslip solver.
 
-:attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports the clamped motor torque and
-:attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` the unclamped one; neither includes
-friction. ``data.joint_friction`` reports the budget of the last step on the servo joints. Read it with
-``get_bam_group(robot, "servos").friction_budget`` from :mod:`isaaclab_newton.actuators`.
+:attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` and
+:attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` both report the motor torque, not the
+voltage the firmware commands; neither includes friction. ``data.joint_friction`` reports the budget of
+the last step on the servo joints. Read it with ``get_bam_group(robot, "servos").friction_budget`` from
+:mod:`isaaclab_newton.actuators`.
 
 Isaac Lab draws one command lag per environment, shared by the group's joints, honoring ``min_delay``,
 ``max_delay``, ``delay_hold_prob`` and ``delay_update_period``, and writes it into Newton's delay
@@ -885,15 +900,16 @@ arrays; write them in place, for example through :func:`warp.to_torch`:
     * - ``nominal_voltage``
       - Unloaded supply voltage [V], shape ``(num_envs,)``
       - ``vin_range``
-    * - ``sag_gain``
-      - Supply sag under load [V/(N·m)], shape ``(num_envs,)``
-      - ``vin_drop_gain_range``
+    * - ``battery_resistance``
+      - Internal resistance of the battery [Ohm], shape ``(num_envs,)``
+      - ``battery_resistance_range``
     * - ``friction_scale``
       - Multiplier of the dry-friction budget [-], shape ``(num_envs, num_joints)``
       - -- (defaults to 1)
 
-Start-up ranges are sampled once per environment and kept across resets. The firmware gain is the
-drive's ``kp``, ``kp_fw * error_gain``, readable and writable through
+Start-up ranges are sampled once per environment and kept across resets. ``voltage`` returns a copy of
+the supply voltage the group's motors read on the next step. The firmware gain is the drive's ``kp``
+(``kp_fw``), and its duty-cycle factor the drive's ``error_gain``, readable and writable through
 :func:`~isaaclab.actuators.newton.read_group_parameter` and
 :func:`~isaaclab.actuators.newton.write_group_parameter`. To resample friction every episode, add a reset
 event:
