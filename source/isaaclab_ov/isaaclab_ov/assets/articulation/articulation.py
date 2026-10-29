@@ -31,8 +31,9 @@ from isaaclab.assets.articulation.ordering_resolvers import (
 )
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import kernels as warp_kernels
+from isaaclab.utils.warp import math as warp_math
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -45,9 +46,8 @@ from .articulation_data import ArticulationData
 from .kernels import (
     clamp_default_joint_pos_and_update_soft_limits_index_kernel,
     clamp_default_joint_pos_and_update_soft_limits_mask,
-    update_soft_joint_pos_limits,
     write_joint_friction_data_to_buffer_index_kernel,
-    write_joint_friction_data_to_buffer_mask,
+    write_joint_friction_data_to_buffer_mask_kernel,
     write_joint_position_with_sim_ids_kernel,
     write_joint_state_with_sim_ids_kernel,
     write_joint_velocity_with_sim_ids_kernel,
@@ -1283,27 +1283,25 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        stiffness = self._broadcast_scalar_to_2d(stiffness, shape)
-        self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        if not isinstance(stiffness, float):
+            self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-            dim=shape,
-            inputs=[stiffness, env_ids, joint_ids],
-            outputs=[self._data._joint_stiffness.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._joint_stiffness.data, [env_ids, joint_ids])
+        if isinstance(stiffness, float):
+            selected.fill_(stiffness)
+        else:
+            values = wp.from_torch(stiffness, dtype=wp.float32) if isinstance(stiffness, torch.Tensor) else stiffness
+            wp.copy(selected, values)
         self._push_joint_property(
             TT.DOF_STIFFNESS,
             self._data._joint_stiffness.data,
             self._data._joint_stiffness_backend,
             cpu_buffer=self.data._cpu_joint_stiffness,
-            indices=self._get_cpu_env_ids(env_ids, sim_env_ids),
+            indices=self._get_cpu_env_ids(env_ids),
         )
 
     def write_joint_stiffness_to_sim_mask(
@@ -1337,10 +1335,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        stiffness = self._broadcast_scalar_to_2d(stiffness, shape)
-        self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        if not isinstance(stiffness, float):
+            self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        writer = memory.make_masked_fill if isinstance(stiffness, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[stiffness, env_mask_wp, joint_mask_wp],
             outputs=[self._data._joint_stiffness.data],
@@ -1381,27 +1380,25 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        damping = self._broadcast_scalar_to_2d(damping, shape)
-        self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        if not isinstance(damping, float):
+            self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-            dim=shape,
-            inputs=[damping, env_ids, joint_ids],
-            outputs=[self._data._joint_damping.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._joint_damping.data, [env_ids, joint_ids])
+        if isinstance(damping, float):
+            selected.fill_(damping)
+        else:
+            values = wp.from_torch(damping, dtype=wp.float32) if isinstance(damping, torch.Tensor) else damping
+            wp.copy(selected, values)
         self._push_joint_property(
             TT.DOF_DAMPING,
             self._data._joint_damping.data,
             self._data._joint_damping_backend,
             cpu_buffer=self.data._cpu_joint_damping,
-            indices=self._get_cpu_env_ids(env_ids, sim_env_ids),
+            indices=self._get_cpu_env_ids(env_ids),
         )
 
     def write_joint_damping_to_sim_mask(
@@ -1435,10 +1432,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        damping = self._broadcast_scalar_to_2d(damping, shape)
-        self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        if not isinstance(damping, float):
+            self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        writer = memory.make_masked_fill if isinstance(damping, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[damping, env_mask_wp, joint_mask_wp],
             outputs=[self._data._joint_damping.data],
@@ -1672,27 +1670,25 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        limits = self._broadcast_scalar_to_2d(limits, shape)
-        self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
+        if not isinstance(limits, float):
+            self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-            dim=shape,
-            inputs=[limits, env_ids, joint_ids],
-            outputs=[self._data._joint_vel_limits.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._joint_vel_limits.data, [env_ids, joint_ids])
+        if isinstance(limits, float):
+            selected.fill_(limits)
+        else:
+            values = wp.from_torch(limits, dtype=wp.float32) if isinstance(limits, torch.Tensor) else limits
+            wp.copy(selected, values)
         self._push_joint_property(
             TT.DOF_MAX_VELOCITY,
             self._data._joint_vel_limits.data,
             self._data._joint_vel_limits_backend,
             cpu_buffer=self.data._cpu_joint_velocity_limit,
-            indices=self._get_cpu_env_ids(env_ids, sim_env_ids),
+            indices=self._get_cpu_env_ids(env_ids),
         )
 
     def write_joint_velocity_limit_to_sim_mask(
@@ -1726,10 +1722,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        limits = self._broadcast_scalar_to_2d(limits, shape)
-        self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
+        if not isinstance(limits, float):
+            self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
+        writer = memory.make_masked_fill if isinstance(limits, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[limits, env_mask_wp, joint_mask_wp],
             outputs=[self._data._joint_vel_limits.data],
@@ -1770,27 +1767,25 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        limits = self._broadcast_scalar_to_2d(limits, shape)
-        self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
+        if not isinstance(limits, float):
+            self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-            dim=shape,
-            inputs=[limits, env_ids, joint_ids],
-            outputs=[self._data._joint_effort_limits.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._joint_effort_limits.data, [env_ids, joint_ids])
+        if isinstance(limits, float):
+            selected.fill_(limits)
+        else:
+            values = wp.from_torch(limits, dtype=wp.float32) if isinstance(limits, torch.Tensor) else limits
+            wp.copy(selected, values)
         self._push_joint_property(
             TT.DOF_MAX_FORCE,
             self._data._joint_effort_limits.data,
             self._data._joint_effort_limits_backend,
             cpu_buffer=self.data._cpu_joint_effort_limit,
-            indices=self._get_cpu_env_ids(env_ids, sim_env_ids),
+            indices=self._get_cpu_env_ids(env_ids),
         )
 
     def write_joint_effort_limit_to_sim_mask(
@@ -1824,10 +1819,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        limits = self._broadcast_scalar_to_2d(limits, shape)
-        self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
+        if not isinstance(limits, float):
+            self.assert_shape_and_dtype(limits, shape, wp.float32, "limits")
+        writer = memory.make_masked_fill if isinstance(limits, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[limits, env_mask_wp, joint_mask_wp],
             outputs=[self._data._joint_effort_limits.data],
@@ -1868,27 +1864,25 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        joint_ids = memory.resolve_1d_indices(self._resolve_joint_ids(joint_ids))
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        armature = self._broadcast_scalar_to_2d(armature, shape)
-        self.assert_shape_and_dtype(armature, shape, wp.float32, "armature")
+        if not isinstance(armature, float):
+            self.assert_shape_and_dtype(armature, shape, wp.float32, "armature")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
-            dim=shape,
-            inputs=[armature, env_ids, joint_ids],
-            outputs=[self._data._joint_armature.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._joint_armature.data, [env_ids, joint_ids])
+        if isinstance(armature, float):
+            selected.fill_(armature)
+        else:
+            values = wp.from_torch(armature, dtype=wp.float32) if isinstance(armature, torch.Tensor) else armature
+            wp.copy(selected, values)
         self._push_joint_property(
             TT.DOF_ARMATURE,
             self._data._joint_armature.data,
             self._data._joint_armature_backend,
             cpu_buffer=self.data._cpu_joint_armature,
-            indices=self._get_cpu_env_ids(env_ids, sim_env_ids),
+            indices=self._get_cpu_env_ids(env_ids),
         )
         self._data._reset_dynamics(mass_matrix=True)
 
@@ -1923,10 +1917,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        armature = self._broadcast_scalar_to_2d(armature, shape)
-        self.assert_shape_and_dtype(armature, shape, wp.float32, "armature")
+        if not isinstance(armature, float):
+            self.assert_shape_and_dtype(armature, shape, wp.float32, "armature")
+        writer = memory.make_masked_fill if isinstance(armature, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[armature, env_mask_wp, joint_mask_wp],
             outputs=[self._data._joint_armature.data],
@@ -1982,11 +1977,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        joint_friction_coeff = self._broadcast_scalar_to_2d(joint_friction_coeff, shape)
-        if joint_dynamic_friction_coeff is not None:
-            joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
-        if joint_viscous_friction_coeff is not None:
-            joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_friction_coeff, shape, wp.float32, "joint_friction_coeff")
         if joint_dynamic_friction_coeff is not None:
             self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
@@ -1999,7 +1989,9 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
+            write_joint_friction_data_to_buffer_index_kernel(
+                env_ids, joint_ids, joint_friction_coeff, joint_dynamic_friction_coeff, joint_viscous_friction_coeff
+            ),
             dim=shape,
             inputs=[
                 joint_friction_coeff,
@@ -2042,11 +2034,6 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        joint_friction_coeff = self._broadcast_scalar_to_2d(joint_friction_coeff, shape)
-        if joint_dynamic_friction_coeff is not None:
-            joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
-        if joint_viscous_friction_coeff is not None:
-            joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_friction_coeff, shape, wp.float32, "joint_friction_coeff")
         if joint_dynamic_friction_coeff is not None:
             self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
@@ -2055,7 +2042,9 @@ class Articulation(BaseArticulation):
         # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_mask,
+            write_joint_friction_data_to_buffer_mask_kernel(
+                joint_friction_coeff, joint_dynamic_friction_coeff, joint_viscous_friction_coeff
+            ),
             dim=shape,
             inputs=[
                 joint_friction_coeff,
@@ -2111,7 +2100,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
         if shape[0] == 0 or shape[1] == 0:
             return
@@ -2120,7 +2108,9 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
+            write_joint_friction_data_to_buffer_index_kernel(
+                env_ids, joint_ids, None, joint_dynamic_friction_coeff, None
+            ),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2161,12 +2151,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
         # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_mask,
+            write_joint_friction_data_to_buffer_mask_kernel(None, joint_dynamic_friction_coeff, None),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2223,7 +2212,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
         if shape[0] == 0 or shape[1] == 0:
             return
@@ -2232,7 +2220,9 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
+            write_joint_friction_data_to_buffer_index_kernel(
+                env_ids, joint_ids, None, None, joint_viscous_friction_coeff
+            ),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2275,12 +2265,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
         # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_mask,
+            write_joint_friction_data_to_buffer_mask_kernel(None, None, joint_viscous_friction_coeff),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2731,25 +2720,23 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: Fixed-tendon indices. Defaults to None (all fixed tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         shape = (env_ids.shape[0], tendon_ids.shape[0])
-        stiffness = self._broadcast_scalar_to_2d(stiffness, shape)
-        self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        if not isinstance(stiffness, float):
+            self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=shape,
-            inputs=[stiffness, env_ids, tendon_ids],
-            outputs=[self._data._fixed_tendon_stiffness.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._fixed_tendon_stiffness.data, [env_ids, tendon_ids])
+        if isinstance(stiffness, float):
+            selected.fill_(stiffness)
+        else:
+            values = wp.from_torch(stiffness, dtype=wp.float32) if isinstance(stiffness, torch.Tensor) else stiffness
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.FIXED_TENDON_STIFFNESS,
             self._data._fixed_tendon_stiffness.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_stiffness_mask(
@@ -2784,10 +2771,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         shape = (self._num_instances, self._num_fixed_tendons)
-        stiffness = self._broadcast_scalar_to_2d(stiffness, shape)
-        self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        if not isinstance(stiffness, float):
+            self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        writer = memory.make_masked_fill if isinstance(stiffness, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[stiffness, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._fixed_tendon_stiffness.data],
@@ -2824,25 +2812,23 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: Fixed-tendon indices. Defaults to None (all fixed tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         shape = (env_ids.shape[0], tendon_ids.shape[0])
-        damping = self._broadcast_scalar_to_2d(damping, shape)
-        self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        if not isinstance(damping, float):
+            self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=shape,
-            inputs=[damping, env_ids, tendon_ids],
-            outputs=[self._data._fixed_tendon_damping.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._fixed_tendon_damping.data, [env_ids, tendon_ids])
+        if isinstance(damping, float):
+            selected.fill_(damping)
+        else:
+            values = wp.from_torch(damping, dtype=wp.float32) if isinstance(damping, torch.Tensor) else damping
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.FIXED_TENDON_DAMPING,
             self._data._fixed_tendon_damping.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_damping_mask(
@@ -2877,10 +2863,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         shape = (self._num_instances, self._num_fixed_tendons)
-        damping = self._broadcast_scalar_to_2d(damping, shape)
-        self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        if not isinstance(damping, float):
+            self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        writer = memory.make_masked_fill if isinstance(damping, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[damping, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._fixed_tendon_damping.data],
@@ -2915,25 +2902,27 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: Fixed-tendon indices. Defaults to None (all fixed tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         shape = (env_ids.shape[0], tendon_ids.shape[0])
-        limit_stiffness = self._broadcast_scalar_to_2d(limit_stiffness, shape)
-        self.assert_shape_and_dtype(limit_stiffness, shape, wp.float32, "limit_stiffness")
+        if not isinstance(limit_stiffness, float):
+            self.assert_shape_and_dtype(limit_stiffness, shape, wp.float32, "limit_stiffness")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=shape,
-            inputs=[limit_stiffness, env_ids, tendon_ids],
-            outputs=[self._data._fixed_tendon_limit_stiffness.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._fixed_tendon_limit_stiffness.data, [env_ids, tendon_ids])
+        if isinstance(limit_stiffness, float):
+            selected.fill_(limit_stiffness)
+        else:
+            values = (
+                wp.from_torch(limit_stiffness, dtype=wp.float32)
+                if isinstance(limit_stiffness, torch.Tensor)
+                else limit_stiffness
+            )
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.FIXED_TENDON_LIMIT_STIFFNESS,
             self._data._fixed_tendon_limit_stiffness.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_limit_stiffness_mask(
@@ -2968,10 +2957,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         shape = (self._num_instances, self._num_fixed_tendons)
-        limit_stiffness = self._broadcast_scalar_to_2d(limit_stiffness, shape)
-        self.assert_shape_and_dtype(limit_stiffness, shape, wp.float32, "limit_stiffness")
+        if not isinstance(limit_stiffness, float):
+            self.assert_shape_and_dtype(limit_stiffness, shape, wp.float32, "limit_stiffness")
+        writer = memory.make_masked_fill if isinstance(limit_stiffness, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[limit_stiffness, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._fixed_tendon_limit_stiffness.data],
@@ -3133,25 +3123,25 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: Fixed-tendon indices. Defaults to None (all fixed tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         shape = (env_ids.shape[0], tendon_ids.shape[0])
-        rest_length = self._broadcast_scalar_to_2d(rest_length, shape)
-        self.assert_shape_and_dtype(rest_length, shape, wp.float32, "rest_length")
+        if not isinstance(rest_length, float):
+            self.assert_shape_and_dtype(rest_length, shape, wp.float32, "rest_length")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=shape,
-            inputs=[rest_length, env_ids, tendon_ids],
-            outputs=[self._data._fixed_tendon_rest_length.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._fixed_tendon_rest_length.data, [env_ids, tendon_ids])
+        if isinstance(rest_length, float):
+            selected.fill_(rest_length)
+        else:
+            values = (
+                wp.from_torch(rest_length, dtype=wp.float32) if isinstance(rest_length, torch.Tensor) else rest_length
+            )
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.FIXED_TENDON_REST_LENGTH,
             self._data._fixed_tendon_rest_length.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_rest_length_mask(
@@ -3186,10 +3176,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         shape = (self._num_instances, self._num_fixed_tendons)
-        rest_length = self._broadcast_scalar_to_2d(rest_length, shape)
-        self.assert_shape_and_dtype(rest_length, shape, wp.float32, "rest_length")
+        if not isinstance(rest_length, float):
+            self.assert_shape_and_dtype(rest_length, shape, wp.float32, "rest_length")
+        writer = memory.make_masked_fill if isinstance(rest_length, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[rest_length, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._fixed_tendon_rest_length.data],
@@ -3225,8 +3216,8 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
             env_ids: The environment indices to command. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         shape = (env_ids.shape[0], tendon_ids.shape[0])
         self.assert_shape_and_dtype(target, shape, wp.float32, "target")
         if shape[0] == 0 or shape[1] == 0:
@@ -3240,13 +3231,9 @@ class Articulation(BaseArticulation):
             outputs=[offset],
             device=self._device,
         )
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
-            dim=shape,
-            inputs=[offset, env_ids, tendon_ids],
-            outputs=[self._data._fixed_tendon_offset.data],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._fixed_tendon_offset.data, [env_ids, tendon_ids])
+        values = wp.from_torch(offset, dtype=wp.float32) if isinstance(offset, torch.Tensor) else offset
+        wp.copy(selected, values)
         # commanding a target schedules the write; the offset setter keeps its explicit contract
         self._fixed_tendon_target_dirty = True
 
@@ -3277,25 +3264,23 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: Fixed-tendon indices. Defaults to None (all fixed tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         shape = (env_ids.shape[0], tendon_ids.shape[0])
-        offset = self._broadcast_scalar_to_2d(offset, shape)
-        self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
+        if not isinstance(offset, float):
+            self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
         if shape[0] == 0 or shape[1] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=shape,
-            inputs=[offset, env_ids, tendon_ids],
-            outputs=[self._data._fixed_tendon_offset.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._fixed_tendon_offset.data, [env_ids, tendon_ids])
+        if isinstance(offset, float):
+            selected.fill_(offset)
+        else:
+            values = wp.from_torch(offset, dtype=wp.float32) if isinstance(offset, torch.Tensor) else offset
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.FIXED_TENDON_OFFSET,
             self._data._fixed_tendon_offset.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_fixed_tendon_position_target_mask(
@@ -3332,7 +3317,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            memory.make_masked_copy(wp.float32, 2),
             dim=shape,
             inputs=[offset, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._fixed_tendon_offset.data],
@@ -3373,10 +3358,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         shape = (self._num_instances, self._num_fixed_tendons)
-        offset = self._broadcast_scalar_to_2d(offset, shape)
-        self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
+        if not isinstance(offset, float):
+            self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
+        writer = memory.make_masked_fill if isinstance(offset, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[offset, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._fixed_tendon_offset.data],
@@ -3493,24 +3479,22 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids: Spatial-tendon indices. Defaults to None (all spatial tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        stiffness = self._broadcast_scalar_to_2d(stiffness, (env_ids.shape[0], tendon_ids.shape[0]))
-        self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "stiffness")
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
+        if not isinstance(stiffness, float):
+            self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "stiffness")
         if env_ids.shape[0] == 0 or tendon_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=(env_ids.shape[0], tendon_ids.shape[0]),
-            inputs=[stiffness, env_ids, tendon_ids],
-            outputs=[self._data._spatial_tendon_stiffness.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._spatial_tendon_stiffness.data, [env_ids, tendon_ids])
+        if isinstance(stiffness, float):
+            selected.fill_(stiffness)
+        else:
+            values = wp.from_torch(stiffness, dtype=wp.float32) if isinstance(stiffness, torch.Tensor) else stiffness
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_STIFFNESS,
             self._data._spatial_tendon_stiffness.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_stiffness_mask(
@@ -3545,10 +3529,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
         shape = (self._num_instances, self._num_spatial_tendons)
-        stiffness = self._broadcast_scalar_to_2d(stiffness, shape)
-        self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        if not isinstance(stiffness, float):
+            self.assert_shape_and_dtype(stiffness, shape, wp.float32, "stiffness")
+        writer = memory.make_masked_fill if isinstance(stiffness, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[stiffness, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._spatial_tendon_stiffness.data],
@@ -3584,24 +3569,22 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids: Spatial-tendon indices. Defaults to None (all spatial tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        damping = self._broadcast_scalar_to_2d(damping, (env_ids.shape[0], tendon_ids.shape[0]))
-        self.assert_shape_and_dtype(damping, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "damping")
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
+        if not isinstance(damping, float):
+            self.assert_shape_and_dtype(damping, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "damping")
         if env_ids.shape[0] == 0 or tendon_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=(env_ids.shape[0], tendon_ids.shape[0]),
-            inputs=[damping, env_ids, tendon_ids],
-            outputs=[self._data._spatial_tendon_damping.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._spatial_tendon_damping.data, [env_ids, tendon_ids])
+        if isinstance(damping, float):
+            selected.fill_(damping)
+        else:
+            values = wp.from_torch(damping, dtype=wp.float32) if isinstance(damping, torch.Tensor) else damping
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_DAMPING,
             self._data._spatial_tendon_damping.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_damping_mask(
@@ -3636,10 +3619,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
         shape = (self._num_instances, self._num_spatial_tendons)
-        damping = self._broadcast_scalar_to_2d(damping, shape)
-        self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        if not isinstance(damping, float):
+            self.assert_shape_and_dtype(damping, shape, wp.float32, "damping")
+        writer = memory.make_masked_fill if isinstance(damping, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[damping, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._spatial_tendon_damping.data],
@@ -3677,26 +3661,28 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids: Spatial-tendon indices. Defaults to None (all spatial tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        limit_stiffness = self._broadcast_scalar_to_2d(limit_stiffness, (env_ids.shape[0], tendon_ids.shape[0]))
-        self.assert_shape_and_dtype(
-            limit_stiffness, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "limit_stiffness"
-        )
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
+        if not isinstance(limit_stiffness, float):
+            self.assert_shape_and_dtype(
+                limit_stiffness, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "limit_stiffness"
+            )
         if env_ids.shape[0] == 0 or tendon_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=(env_ids.shape[0], tendon_ids.shape[0]),
-            inputs=[limit_stiffness, env_ids, tendon_ids],
-            outputs=[self._data._spatial_tendon_limit_stiffness.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._spatial_tendon_limit_stiffness.data, [env_ids, tendon_ids])
+        if isinstance(limit_stiffness, float):
+            selected.fill_(limit_stiffness)
+        else:
+            values = (
+                wp.from_torch(limit_stiffness, dtype=wp.float32)
+                if isinstance(limit_stiffness, torch.Tensor)
+                else limit_stiffness
+            )
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_LIMIT_STIFFNESS,
             self._data._spatial_tendon_limit_stiffness.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_limit_stiffness_mask(
@@ -3731,10 +3717,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
         shape = (self._num_instances, self._num_spatial_tendons)
-        limit_stiffness = self._broadcast_scalar_to_2d(limit_stiffness, shape)
-        self.assert_shape_and_dtype(limit_stiffness, shape, wp.float32, "limit_stiffness")
+        if not isinstance(limit_stiffness, float):
+            self.assert_shape_and_dtype(limit_stiffness, shape, wp.float32, "limit_stiffness")
+        writer = memory.make_masked_fill if isinstance(limit_stiffness, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[limit_stiffness, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._spatial_tendon_limit_stiffness.data],
@@ -3772,24 +3759,22 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids: Spatial-tendon indices. Defaults to None (all spatial tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        offset = self._broadcast_scalar_to_2d(offset, (env_ids.shape[0], tendon_ids.shape[0]))
-        self.assert_shape_and_dtype(offset, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "offset")
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        tendon_ids = memory.resolve_1d_indices(self._resolve_spatial_tendon_ids(spatial_tendon_ids))
+        if not isinstance(offset, float):
+            self.assert_shape_and_dtype(offset, (env_ids.shape[0], tendon_ids.shape[0]), wp.float32, "offset")
         if env_ids.shape[0] == 0 or tendon_ids.shape[0] == 0:
             return
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
-            dim=(env_ids.shape[0], tendon_ids.shape[0]),
-            inputs=[offset, env_ids, tendon_ids],
-            outputs=[self._data._spatial_tendon_offset.data, sim_env_ids],
-            device=self._device,
-        )
+        selected = wp.indexedarray(self._data._spatial_tendon_offset.data, [env_ids, tendon_ids])
+        if isinstance(offset, float):
+            selected.fill_(offset)
+        else:
+            values = wp.from_torch(offset, dtype=wp.float32) if isinstance(offset, torch.Tensor) else offset
+            wp.copy(selected, values)
         self._root_view.set_attribute(
             TT.SPATIAL_TENDON_OFFSET,
             self._data._spatial_tendon_offset.data,
-            indices=self._get_sim_env_ids(env_ids, sim_env_ids),
+            indices=env_ids,
         )
 
     def set_spatial_tendon_offset_mask(
@@ -3824,10 +3809,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_spatial_tendon_mask(spatial_tendon_mask)
         shape = (self._num_instances, self._num_spatial_tendons)
-        offset = self._broadcast_scalar_to_2d(offset, shape)
-        self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
+        if not isinstance(offset, float):
+            self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
+        writer = memory.make_masked_fill if isinstance(offset, float) else memory.make_masked_copy
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            writer(wp.float32, 2),
             dim=shape,
             inputs=[offset, env_mask_wp, tendon_mask_wp],
             outputs=[self._data._spatial_tendon_offset.data],
@@ -4139,7 +4125,7 @@ class Articulation(BaseArticulation):
         # (or zeros if no joints).  This matches the PhysX/Newton path.
         if D > 0:
             wp.launch(
-                update_soft_joint_pos_limits,
+                warp_math.scale_intervals,
                 dim=(N, D),
                 inputs=[self._data.joint_pos_limits, cfg.soft_joint_pos_limit_factor],
                 outputs=[self._data._soft_joint_pos_limits],
@@ -4450,26 +4436,10 @@ class Articulation(BaseArticulation):
     def _broadcast_scalar_to_2d(
         self, value: float | torch.Tensor | wp.array, shape: tuple[int, int]
     ) -> torch.Tensor | wp.array:
-        """Broadcast a scalar :class:`float` to a ``(rows, cols)`` torch ``float32`` tensor.
+        """Expand scalar inputs for the fused multi-component friction writers.
 
-        Tendon and joint setters accept ``float | torch.Tensor | wp.array``; the
-        underlying ``shared_kernels.write_2d_data_to_buffer_*`` kernels only
-        accept 2D arrays.  This helper expands a Python float into a constant
-        tensor on :attr:`_device`; tensor / warp inputs are returned as-is.
-
-        Mirrors the PhysX backend's ``isinstance(value, float)`` branching,
-        which dispatches to ``articulation_kernels.float_data_to_buffer_with_*``.
-        OVPhysX does not have those scalar kernels, so we materialize the
-        broadcast on the Python side.
-
-        Args:
-            value: Scalar float or 2D tensor / warp array.
-            shape: ``(rows, cols)`` target shape used when broadcasting a
-                scalar.
-
-        Returns:
-            A 2D :class:`torch.Tensor` on ``self._device`` if *value* was a
-            float; otherwise *value* unchanged.
+        These writers preserve optional components in one launch and require arrays.
+        Ordinary property setters use the shared scalar-fill kernel directly.
         """
         if isinstance(value, float):
             return torch.full(shape, value, dtype=torch.float32, device=self._device)

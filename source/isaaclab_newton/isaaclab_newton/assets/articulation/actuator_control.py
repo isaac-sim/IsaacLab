@@ -84,7 +84,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 joint_viscous_friction_coeff=cfg.motor.friction_viscous,
                 joint_ids=collection._group_joint_indices[name],
             )
-        adapter = self._articulation._backend_manager._adapter
+        adapter = self._articulation._backend_manager.backend.actuators
         if adapter is not None:
             arti_start = self._joint_dof_offset()
             binding = adapter.bind_articulation(
@@ -218,8 +218,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             )
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        if self._native_actuator_path_active and self._articulation._backend_manager._adapter is not None:
-            self._articulation._backend_manager._adapter.reset(env_ids)
+        if self._native_actuator_path_active and self._articulation._backend_manager.backend.actuators is not None:
+            self._articulation._backend_manager.backend.actuators.reset(env_ids)
 
     def _create_bam_groups(self, collection: ActuatorCollection, adapter: NewtonActuatorAdapter) -> None:
         """Create the supply and friction state of each BAM group.
@@ -305,7 +305,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         Raises:
             ValueError: If the active solver does not export its bias, constraint and friction-loss forces.
         """
-        solver = self._articulation._backend_manager._solver
+        solver = self._articulation._backend_manager.backend.solver
         kinds = {"qfrc_bias", "qfrc_constraint", "qfrc_frictionloss"}
         if not kinds <= solver.supported_observables:
             raise ValueError(
@@ -316,7 +316,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         for group in self.bam_groups.values():
 
             def update_budget(friction: BamFriction = group.friction) -> None:
-                loads = self._articulation._backend_manager._solver_observables
+                loads = self._articulation._backend_manager.backend.solver_observables
                 friction.compute_budget(
                     self._articulation._backend_manager.backend.state_0.joint_qd,
                     loads.qfrc_bias,

@@ -8,19 +8,22 @@
   .. autosummary::
 
     NewtonManager
+    NewtonBackend
+    NewtonCloneRecord
     NewtonCfg
     NewtonBackendCfg
     NewtonBuilderCfg
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
-    NewtonFeatherstoneManager
-    NewtonKaminoManager
-    NewtonMPMManager
-    NewtonMJWarpManager
-    NewtonVBDManager
     NewtonShapeCfg
+    NewtonSolver
+    MJWarpSolver
+    VBDSolver
+    XPBDSolver
+    FeatherstoneSolver
+    KaminoSolver
+    MPMSolver
     NewtonSolverCfg
-    NewtonXPBDManager
     MJWarpSolverCfg
     VBDSolverCfg
     XPBDSolverCfg
@@ -45,6 +48,39 @@ Physics Manager
 .. autoclass:: NewtonManager
   :members:
   :inherited-members:
+  :show-inheritance:
+
+.. autofunction:: create_builder
+
+.. autoclass:: NewtonBackend
+  :members:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonCloneRecord
+  :members:
+
+Solvers
+-------
+
+.. autoclass:: NewtonSolver
+  :members:
+
+.. autoclass:: MJWarpSolver
+  :show-inheritance:
+
+.. autoclass:: VBDSolver
+  :show-inheritance:
+
+.. autoclass:: XPBDSolver
+  :show-inheritance:
+
+.. autoclass:: FeatherstoneSolver
+  :show-inheritance:
+
+.. autoclass:: KaminoSolver
+  :show-inheritance:
+
+.. autoclass:: MPMSolver
   :show-inheritance:
 
 Physics Configuration
@@ -162,35 +198,7 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-Solver Managers
----------------
+MPM Solver State
+----------------
 
-.. autoclass:: NewtonMJWarpManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonVBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonXPBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonFeatherstoneManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonKaminoManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonMPMManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: reset_mpm_solver_state

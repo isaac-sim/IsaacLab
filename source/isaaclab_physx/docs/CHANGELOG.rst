@@ -3,6 +3,91 @@ Changelog
 
 .. towncrier release notes start
 
+10.0.2 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused native Warp indexed views and copy/fill for selected asset writes, normalizing strided/int64 selectors once and keeping simulator row-ID handling in the backend.
+
+Fixed
+^^^^^
+
+* Fixed the PhysX replicator building a second, hidden body for a clone source that only its own environment
+  uses, such as a :class:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg` variant assigned to a single
+  environment. The hidden body pushed the visible one out of its spawn pose. Such a source is now parsed from the
+  stage, and the replicator still handles every other source.
+* Fixed later scenes of a process reusing the PhysX stage-parse exclusions of the first scene that registered the
+  replicator. After a scene with a USD-only asset, such as a spawned camera, a later scene with more environments
+  got a second body for each object of the extra environments.
+
+
+10.0.1 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed FrameTransformer initialization and numeric environment ordering for manually authored
+  environments without a clone plan.
+
+
+10.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced duplicated heading, quaternion rotation, interval, and Jacobian math with core Warp operations.
+* **Breaking:** :class:`~isaaclab_physx.physics.PhysxManager` takes its :class:`~isaaclab_physx.physics.PhysxCfg` at construction.
+
+Fixed
+^^^^^
+
+* Fixed the Kit launcher hiding modules whose name contains ``lab`` from other threads while Isaac Sim starts,
+  and not restoring the previous ``sys.stdout`` afterwards.
+
+
+9.0.3 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX environment partitioning to use the clone plan's declared namespace.
+* Fixed frame-transformer row ordering and source exclusion during cloning for custom namespaces.
+
+
+9.0.2 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refreshed sensor kinematics after articulation state writes and rejected bindings
+  that did not cover every sensor environment.
+* Updated PhysX-mounted cameras with the Newton Warp renderer through the native
+  Fabric publisher, preserving live poses when views were initialized after motion.
+
+
+9.0.1 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused shared body poses for multi-mesh ray-cast targets instead of creating separate
+  PhysX target views.
+
+Fixed
+^^^^^
+
+* Refreshed articulation kinematics before ray-caster sensor-frame reads so mounted
+  sensors followed root or joint writes before the next physics step.
+* Removed duplicate USD seeding from Fabric frame views so reading a newly bound view no longer reset a moved body to its authored pose.
+
+
 9.0.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~
 

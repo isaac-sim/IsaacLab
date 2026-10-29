@@ -26,7 +26,6 @@ import tempfile
 from typing import Any
 
 import torch
-from torch._export.converter import TS2EPConverter
 
 from pxr import Sdf, Usd, UsdPhysics, Vt
 
@@ -510,6 +509,9 @@ def resave_checkpoint_with_metadata(original_path: str, metadata: dict[str, Any]
     Returns:
         Path to the temporary ``.pt2`` checkpoint.
     """
+    # Deferred: importing the converter loads torch._dynamo, which adds seconds to every articulation spawn.
+    from torch._export.converter import TS2EPConverter  # noqa: PLC0415
+
     local_path = retrieve_file_path(original_path)
 
     extra_files: dict[str, str] = {"metadata.json": ""}

@@ -11,6 +11,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.math import scale_interval
 
 from isaaclab_newton.assets.kernels import pack_body_wrench_to_world
 
@@ -54,28 +55,6 @@ def update_body_joint_wrench(
         out[env, user_body] = incoming_joint_wrench(
             body_parent_f[env, body], body_q[env, body], body_com[env, body], body_joint_pose[env, body]
         )
-
-
-@wp.func
-def compute_soft_joint_pos_limits_func(
-    joint_pos_limits: wp.vec2f,
-    soft_limit_factor: wp.float32,
-):
-    """Compute the soft joint position limits.
-
-    Args:
-        joint_pos_limits: The joint position limits.
-        soft_limit_factor: The soft limit factor.
-
-    Returns:
-        The soft joint position limits.
-    """
-    joint_pos_mean = (joint_pos_limits[0] + joint_pos_limits[1]) / 2.0
-    joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
-    return wp.vec2f(
-        joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
-        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
-    )
 
 
 """
@@ -230,7 +209,7 @@ def write_joint_limit_data_to_buffer_index(
             joint_pos_limits_lower[env_id, joint_id],
             joint_pos_limits_upper[env_id, joint_id],
         )
-    soft_joint_pos_limits[env_id, joint_id] = compute_soft_joint_pos_limits_func(
+    soft_joint_pos_limits[env_id, joint_id] = scale_interval(
         wp.vec2f(joint_pos_limits_lower[env_id, joint_id], joint_pos_limits_upper[env_id, joint_id]),
         soft_limit_factor,
     )
@@ -284,7 +263,7 @@ def write_joint_limit_data_to_buffer_mask(
                 joint_pos_limits_lower[i, j],
                 joint_pos_limits_upper[i, j],
             )
-        soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(
+        soft_joint_pos_limits[i, j] = scale_interval(
             wp.vec2f(joint_pos_limits_lower[i, j], joint_pos_limits_upper[i, j]), soft_limit_factor
         )
 
@@ -325,7 +304,7 @@ def write_joint_limit_data_to_user_and_backend_index(
         wp.atomic_add(clamped_defaults, 0, 1)
         default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
 
-    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
+    soft_joint_pos_limits[env_id, user_id] = scale_interval(limits, soft_limit_factor)
 
 
 @wp.kernel
@@ -365,7 +344,7 @@ def write_joint_limit_data_to_user_and_backend_mask(
         wp.atomic_add(clamped_defaults, 0, 1)
         default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
 
-    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
+    soft_joint_pos_limits[env_id, user_id] = scale_interval(limits, soft_limit_factor)
 
 
 @wp.kernel
@@ -477,30 +456,6 @@ def write_joint_friction_param_to_buffer(
         out_buffer[env_id, joint_id, buffer_index] = in_data[i, j]
 
 
-@wp.kernel
-def float_data_to_buffer_with_indices(
-    in_data: wp.float32,
-    env_ids: wp.array(dtype=Any),
-    joint_ids: wp.array(dtype=Any),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write a scalar float value to a 2D buffer at specified indices.
-
-    This kernel broadcasts a single scalar float value to all specified (env_id, joint_id)
-    locations in the output buffer.
-
-    Args:
-        in_data: Input scalar float value to broadcast.
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
-        out_data: Output array where the scalar value is written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    env_id = wp.int32(env_ids[i])
-    joint_id = wp.int32(joint_ids[j])
-    out_data[env_id, joint_id] = in_data
-
-
 _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
     write_joint_limit_data_to_buffer_index, ("env_ids", "joint_ids")
 )
@@ -512,9 +467,6 @@ _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
 )
 _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
     write_joint_friction_param_to_buffer, ("env_ids", "joint_ids")
-)
-_FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
-    float_data_to_buffer_with_indices, ("env_ids", "joint_ids")
 )
 
 
@@ -544,61 +496,6 @@ def write_joint_friction_param_to_buffer_kernel(
 ) -> wp.Kernel:
     """Select the joint-friction parameter writer matching the selector dtypes."""
     return _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
-
-
-def float_data_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
-) -> wp.Kernel:
-    """Select the scalar buffer writer matching the selector dtypes."""
-    return _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
-
-
-@wp.kernel
-def float_data_to_buffer_with_mask(
-    in_data: wp.float32,
-    env_mask: wp.array(dtype=wp.bool),
-    joint_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write a scalar float value to a 2D buffer at specified mask.
-
-    This kernel broadcasts a single scalar float value to all the positions that are marked as True in the environment
-    and joint masks.
-
-    Args:
-        in_data: Input scalar float value to broadcast.
-        env_mask: Input array of environment mask. Shape is (num_envs,).
-        joint_mask: Input array of joint mask. Shape is (num_joints,).
-        out_data: Output array where the scalar value is written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and joint_mask[j]:
-        out_data[i, j] = in_data
-
-
-@wp.kernel
-def update_soft_joint_pos_limits(
-    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-    soft_limit_factor: wp.float32,
-    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-):
-    """Update soft joint position limits based on hard limits and a soft limit factor.
-
-    This kernel computes soft joint position limits from hard joint position limits using
-    a soft limit factor. Soft limits are typically used to provide a safety margin before
-    reaching the hard limits.
-
-    Args:
-        joint_pos_limits: Input array of hard joint position limits as vec2f (lower, upper).
-            Shape is (num_envs, num_joints).
-        soft_limit_factor: Input scalar factor for computing soft limits (typically 0.0-1.0).
-            A value of 1.0 means soft limits equal hard limits, while smaller values create
-            a tighter range.
-        soft_joint_pos_limits: Output array where soft joint position limits are written.
-            Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
 
 
 @wp.kernel
@@ -867,73 +764,6 @@ def gather_dof_force_rows(
 
     dof_start = joint_qd_start[articulation_start[art_ids[i]]]
     dst[i, user_dof] = src[dof_start + backend_dof]
-
-
-@wp.kernel
-def shift_jacobian_com_to_origin(
-    body_link_pose: wp.array2d(dtype=wp.transformf),
-    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    link_offset: wp.int32,
-    src: wp.array4d(dtype=wp.float32),
-    dst: wp.array4d(dtype=wp.float32),
-):
-    """Shift the linear-velocity rows of the Jacobian from COM to link origin.
-
-    Newton's ``eval_jacobian`` returns ``J · q_dot = [v_com_world, omega_world]``
-    per link — the linear rows are the velocity of the link's center of mass,
-    expressed in world frame. The
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` contract
-    requires the linear rows to be the velocity at the link **origin**
-    (USD prim transform) so that ``J · q_dot[body_idx]`` matches
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_lin_vel_w` /
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_ang_vel_w`.
-
-    The shift is the same one applied per-body by
-    :func:`get_link_vel_from_root_com_vel_func`, but layered onto every
-    Jacobian column: each column represents the spatial velocity contribution
-    of one DoF, and shifting a spatial velocity from COM to link origin uses
-    the same ``v_origin = v_com - omega x (R · body_com_pos_b)`` identity.
-
-    Notes on layout:
-        * Jacobian rows ``[0:3]`` are linear velocity, ``[3:6]`` are angular.
-        * ``body_link_pose`` and ``body_com_pos_b`` are indexed by the
-          articulation's full body count, so ``link_offset`` must be applied
-          to map a row in the (already-gathered) ``src`` to its body index in
-          the asset data. ``link_offset = 1`` for fixed-base (Newton's row 0
-          fixed-root row was dropped during the prior gather);
-          ``link_offset = 0`` for floating-base.
-
-    Args:
-        body_link_pose: Per-body link pose in world frame. Shape is
-            (num_instances, num_bodies).
-        body_com_pos_b: Per-body center-of-mass offset expressed in the body's
-            link frame. Shape is (num_instances, num_bodies).
-        link_offset: Offset added to the jacobian-row body index to reach the
-            full body index. ``1`` for fixed-base, ``0`` for floating-base.
-        src: COM-referenced Jacobian (read-only). Shape is
-            (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
-        dst: Output buffer for the link-origin Jacobian. Same shape as
-            ``src``. Linear rows ``[0:3]`` are written with the shifted
-            velocity; angular rows ``[3:6]`` are copied unchanged (angular
-            velocity is reference-point invariant).
-    """
-    n, b, dof = wp.tid()
-    full_body_idx = b + link_offset
-
-    R = wp.transform_get_rotation(body_link_pose[n, full_body_idx])
-    c_world = wp.quat_rotate(R, body_com_pos_b[n, full_body_idx])
-
-    v_com = wp.vec3(src[n, b, 0, dof], src[n, b, 1, dof], src[n, b, 2, dof])
-    omega = wp.vec3(src[n, b, 3, dof], src[n, b, 4, dof], src[n, b, 5, dof])
-
-    v_origin = v_com - wp.cross(omega, c_world)
-
-    dst[n, b, 0, dof] = v_origin[0]
-    dst[n, b, 1, dof] = v_origin[1]
-    dst[n, b, 2, dof] = v_origin[2]
-    dst[n, b, 3, dof] = omega[0]
-    dst[n, b, 4, dof] = omega[1]
-    dst[n, b, 5, dof] = omega[2]
 
 
 """

@@ -3,6 +3,70 @@ Changelog
 
 .. towncrier release notes start
 
+29.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added automatic sample-budget scaling for MicroDuck walking with 4,096 environments per GPU, dividing the iteration budget, checkpoint interval, and fixed-step curriculum boundaries by ``WORLD_SIZE``. Added paired ``env.ngpus`` and ``env.nnodes`` Hydra overrides for explicit recipe scaling.
+
+Changed
+^^^^^^^
+
+* Changed MicroDuck flat and rough walking to use the AGILE combined recipe by default, including with backlash.
+  Custom tasks can retain the previous recipe by overriding the tracking rewards and action-rate curriculum
+  and setting ``rewards.pose.params["standing_only"] = False``.
+* Changed the contrib Newton tasks with custom solvers (GB300 insertion, Rizon coffee) to
+  :class:`~isaaclab_newton.physics.NewtonSolver` subclasses selected by their solver configurations, and the
+  MPM tasks to :func:`~isaaclab_newton.physics.reset_mpm_solver_state`.
+
+Fixed
+^^^^^
+
+* Fixed MicroDuck rough-terrain progression for slow commands and direction changes by using accumulated walking and command tracking instead of net displacement.
+* Fixed task interpolation resolution for dictionary agents when no extra Hydra options were supplied.
+* Fixed Hydra 1.4 configuration composition and repeated task registration to avoid migration warnings
+  while preserving replacement with the latest task configuration.
+
+
+29.0.3 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to read Newton state, contacts and replication outputs from the physics manager's
+  backend and replication outputs.
+
+Fixed
+^^^^^
+
+* Fixed the SO-101 stacking pipeline for Isaac Capture 1.7 by removing the retired
+  ``orientation_offset`` argument and calibration constant. Orientation follows the SDK's
+  engage-relative clutch model seeded from the configured home transform, with the existing
+  eight-element pose and analog-gripper action order preserved.
+
+
+29.0.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed task asset lookups, coupled solver selectors, and teleoperation paths to follow the
+  scene's clone template instead of assuming the default environment namespace.
+
+
+29.0.1 (2026-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept the coffee demo's kitchen presentation out of the Newton physics model.
+
+
 29.0.0 (2026-10-21)
 ~~~~~~~~~~~~~~~~~~~
 

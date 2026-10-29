@@ -304,20 +304,37 @@ Renderers and visualizers instead select their implementations through their
 configuration's ``class_type``. Their selection is independent of physics;
 renderer instances are shared through the simulation registry described below.
 
-Physics manager lifecycle
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Construction and updates
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-Each backend implements :class:`~isaaclab.physics.PhysicsManager`, the abstract
-base class that owns its simulation lifecycle. Implementations initialize their
-engine from a :class:`~isaaclab.sim.SimulationContext`, update kinematics with
-``forward()``, advance simulation with ``step()``, reset state with ``reset()``,
-and release resources with ``close()``.
+The task or standalone script composes the simulation. Preset resolution belongs to
+``isaaclab_tasks`` and finishes before calling the core launcher, which accepts concrete
+configurations and applies launch options. Scene construction and updates follow this order:
 
-The manager exposes :class:`~isaaclab.physics.PhysicsEvent` callbacks for
-cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
-``PHYSICS_READY`` after physics initialization, and ``STOP`` before native resources are replaced
-or shut down.
-The concrete ``close()`` implementation dispatches the ``STOP`` event.
+1. :class:`~isaaclab.sim.SimulationContext` constructs the selected physics manager and owns
+   the resource registry. :class:`~isaaclab.scene.InteractiveScene` owns scene assets and
+   sensors. A :class:`~isaaclab.cloner.ClonePlan` declares their source definitions,
+   environment layout, and replication routes before native cloning.
+2. Clone contexts prepare their requirements before dispatch. Consumers that share a native
+   representation combine their asset routes, so physics and rendering do not populate the
+   same representation independently. Copies come from the plan; authored prototype metadata,
+   such as mesh topology or scale, is read during setup.
+3. Reset initializes physics and binds consumers to its published state. The
+   :class:`~isaaclab.physics.PhysicsEvent` callbacks order model preparation and physics
+   readiness. Declared rendering consumers bind before the first graph capture, and visualizers
+   initialize before the simulation starts playing.
+4. Physics steps and explicit state writes invalidate the appropriate publications. Asset
+   reads and :ref:`scene-data-provider` reads refresh derived state lazily. A read after a
+   state write does not require a new physics step. Matching native formats are borrowed;
+   consumers reuse conversions for an unchanged publication.
+
+Camera-backed views and recordings borrow a camera's output; the camera owns its render product
+and buffers, while the simulation owns the renderer. Closing a window leaves its borrowed camera
+alive. Native GL perspective views instead render published scene state directly. Teleop and XR
+retain bound host Fabric matrices for pose reads; they do not copy poses through GPU buffers.
+
+Shared resource lifetime
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``SimulationContext`` keeps native resources and renderers in one registry.
 ``get_or_create_backend(backend_cfg)`` reuses a resource when the configuration
@@ -366,21 +383,26 @@ Newton has two resources with different lifetimes, not two interchangeable backe
 * ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
   requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
   is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
-* ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
-  borrow those handles. Closing it releases runtime allocations without closing the builder.
+* ``NewtonBackend`` owns the finalized model and native buffers and, under Newton physics, the
+  solver, contacts, and sensors. Physics and render consumers borrow those handles. Closing it
+  releases runtime allocations without closing the builder.
 
-Both resources use the same registry:
+Under Newton physics the manager acquires both and exposes them; a hard reset replaces the backend:
 
 .. code-block:: python
 
-    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
-    builder = sim.get_or_create_backend(builder_cfg)
-    # Clone/import populates this builder before model allocation.
-    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-    backend = sim.get_or_create_backend(model_cfg)
+    builder = sim.backend_manager.builder  # populated by cloning before sim.reset()
+    backend = sim.backend_manager.backend  # set by sim.reset()
 
-Both configurations use the selected physics cfg; non-Newton physics selects a render-only
-representation. ``SimulationContext`` has no backend-specific cfg fields, and consumers do not
+Consumers that also run under other physics, such as renderers and visualizers, share them through the registry. Under
+Newton physics this returns the manager's builder and backend; under other physics it finalizes a render-only backend:
+
+.. code-block:: python
+
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
+
+``SimulationContext`` has no backend-specific cfg fields, and consumers do not
 access clone contexts. Consumers request body transforms and visual points directly through SDP.
 Queries share the native resource's BVHs but keep each consumer's captured work separate.
 

@@ -218,7 +218,7 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
             )
         assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "robots with the same components must merge"
         for robot in (robot_a, robot_b, robot_c):
-            assert get_bam_group(robot, "servo").adapter is native_sim.backend_manager._adapter, (
+            assert get_bam_group(robot, "servo").adapter is native_sim.backend_manager.backend.actuators, (
                 "BAM state outlived its model"
             )
         native_sim.step()
@@ -238,7 +238,7 @@ def test_reset_environment_starts_without_the_previous_episode_load(native_sim, 
         native_sim.step()
         robot.update(native_sim.get_physics_dt())
     # The load the next budget reads without a reset.
-    loads = native_sim.backend_manager._solver_observables
+    loads = native_sim.backend_manager.backend.solver_observables
     dofs = friction.dof_indices.numpy()
     last_load = (-loads.qfrc_bias.numpy() + loads.qfrc_constraint.numpy() - loads.qfrc_frictionloss.numpy())[dofs]
     reset = dofs // (native_sim.backend_manager.backend.model.joint_dof_count // NUM_ENVS) == 0

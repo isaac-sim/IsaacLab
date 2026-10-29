@@ -33,6 +33,8 @@ __all__ = [
     "PRIMITIVE_MESH_TYPES",
     "ModifierCfg",
     "ModifierBase",
+    "TensorProcessorCfg",
+    "TensorProcessor",
     "DigitalFilter",
     "DigitalFilterCfg",
     "Integrator",
@@ -87,9 +89,10 @@ from .mesh import (
     convert_faces_to_triangles,
     PRIMITIVE_MESH_TYPES,
 )
-from .modifiers import (
-    ModifierCfg,
-    ModifierBase,
+from .modifiers import ModifierCfg, ModifierBase
+from .tensor_processors import (
+    TensorProcessorCfg,
+    TensorProcessor,
     DigitalFilter,
     DigitalFilterCfg,
     Integrator,

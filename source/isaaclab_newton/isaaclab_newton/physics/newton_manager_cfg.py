@@ -8,75 +8,39 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from newton import ModelBuilder
-
-    from isaaclab_newton.physics import NewtonManager
-
-    from .newton_manager import NewtonBackend
+    from isaaclab_newton.physics import NewtonManager, NewtonSolver
 
 logger = logging.getLogger(__name__)
 
 
 @configclass
-class NewtonBuilderCfg:
-    """Share mutable construction data, populated before model allocation and retained across hard resets."""
-
-    class_type: Callable[[NewtonBuilderCfg], ModelBuilder] | str = "{DIR}.newton_manager:create_newton_builder"
-    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
-    """Selected physics settings; non-Newton physics requires a render-only Newton representation."""
-
-
-@configclass
-class NewtonBackendCfg(BackendCfg):
-    """Allocate model and state from the matching builder; closing them leaves the builder intact."""
-
-    class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
-    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
-    """Selected physics settings, also identifying the shared construction builder."""
-    device: str = MISSING
-    """Device on which to allocate the model and native buffers."""
-
-
-@configclass
 class NewtonSolverCfg:
-    """Configuration for Newton solver-related parameters.
+    """Configuration of a Newton solver.
 
-    These parameters are used to configure the Newton solver. For more information, see the `Newton documentation`_.
-
-    Subclasses set :attr:`class_type` to their matching :class:`NewtonManager`
-    subclass; :class:`NewtonCfg` propagates that to its own
-    :attr:`NewtonCfg.class_type` in :meth:`NewtonCfg.__post_init__` so that
-    ``SimulationContext`` resolves the correct manager via the existing
-    dispatch path.
+    :attr:`class_type` selects the :class:`~isaaclab_newton.physics.NewtonSolver` that builds and drives the
+    solver; customizing a solver means subclassing it. For the solver parameters, see the
+    `Newton documentation`_.
 
     .. _Newton documentation: https://newton.readthedocs.io/en/latest/
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
-    """Manager class for this solver.
-
-    Default points at the abstract :class:`NewtonManager`; concrete subclasses
-    override it.
-    """
+    class_type: type[NewtonSolver] | str = "{DIR}.newton_solver:NewtonSolver"
+    """Solver class whose class methods build and drive Newton's solver, e.g. ``class_type.build(cfg, model, mode)``."""
 
     solver_type: str = "None"
     """Solver type metadata (deprecated).
 
     .. deprecated::
-        Manager dispatch is now driven by :attr:`class_type`; this field is
-        retained as metadata for logging and debugging only.  Do not branch on
-        ``solver_type`` in new code.
+        Solver dispatch is driven by the configuration class; this field is retained as metadata for logging and
+        debugging only. Do not branch on ``solver_type`` in new code.
     """
 
 
@@ -153,20 +117,12 @@ class NewtonCfg(PhysicsCfg):
 
     This configuration includes Newton-specific simulation settings and solver configuration.
 
-    The active :class:`NewtonManager` subclass is determined by
-    :attr:`solver_cfg.class_type`, which :meth:`__post_init__` propagates to
-    :attr:`class_type` so that ``SimulationContext`` resolves the right
-    manager subclass automatically.  User code keeps the existing two-level
-    shape ``NewtonCfg(solver_cfg=...)`` and does not need to set
-    :attr:`class_type` explicitly.
+    ``class_type`` selects the integration manager independently of the solver, which :attr:`solver_cfg` describes.
+    Downstream code can subclass :class:`NewtonManager` and set this field.
     """
 
-    class_type: type[NewtonManager] | str | None = None
-    """The class type of the :class:`NewtonManager`.
-
-    Auto-set in :meth:`__post_init__` from :attr:`solver_cfg.class_type`.
-    Users normally do not set this directly.
-    """
+    class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
+    """Manager class, constructed by SimulationContext as ``instantiate(cfg)``."""
 
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
@@ -201,11 +157,10 @@ class NewtonCfg(PhysicsCfg):
        overhead therefore grow with contact capacity. Enable this mode only
        when its reproducibility guarantee is required.
 
-    MJWarp on the GPU with
-    :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to
-    ``True``, XPBD, and Featherstone support this setting. Newton raises an
-    error during solver initialization for unsupported solvers rather than
-    silently running them without the requested guarantee.
+    MJWarp on the GPU (built with its sensor stage disabled), XPBD, and
+    Featherstone support this setting. Newton raises an error during solver
+    initialization for unsupported solvers rather than silently running them
+    without the requested guarantee.
     """
 
     solver_cfg: NewtonSolverCfg | None = None
@@ -293,22 +248,17 @@ class NewtonCfg(PhysicsCfg):
     """
 
     def __post_init__(self):
-        # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
-        # Refuse a user-set value: setting both is ambiguous and was
-        # previously silently overwritten.
-        if self.class_type is not None:
-            raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
+        if self.class_type is None:
+            raise ValueError("NewtonCfg.class_type must select a NewtonManager class; omit it for the default.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
             raise ValueError(
                 "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "
                 f"got {self.deterministic_mode!r}."
             )
         if self.solver_cfg is None:
-            from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+            from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
-
-        self.class_type = self.solver_cfg.class_type
 
         # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.
         if self.collision_decimation > 0 and self.collision_decimation >= self.num_substeps:
