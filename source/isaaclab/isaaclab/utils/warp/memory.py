@@ -296,7 +296,6 @@ def write_2d_with_mask(
     row_mask: wp.array,
     column_mask: wp.array,
     out: wp.array,
-    device: str,
 ) -> None:
     """Write ``data`` into ``out`` where both masks are true, launching over the mask lengths.
 
@@ -308,8 +307,7 @@ def write_2d_with_mask(
             or a ``torch.Tensor`` with the dtype's trailing dimensions, or one scalar for every selected entry.
         row_mask: Boolean mask over the first dimension of ``out``.
         column_mask: Boolean mask over the second dimension of ``out``.
-        out: Output array.
-        device: Warp device string (e.g. ``"cuda:0"``).
+        out: Output array. The launch runs on its device.
     """
     if isinstance(data, (int, float)):
         kernel = make_masked_fill(out.dtype, 2)
@@ -323,7 +321,7 @@ def write_2d_with_mask(
         dim=(row_mask.shape[0], column_mask.shape[0]),
         inputs=[data, row_mask, column_mask],
         outputs=[out],
-        device=device,
+        device=out.device,
     )
 
 
@@ -454,55 +452,40 @@ def resolve_ids(
     ids: "Sequence[int] | slice | torch.Tensor | wp.array | None" = None,
     mask: "wp.array | torch.Tensor | None" = None,
     all_ids: wp.array,
-    device: str,
-    dtype: type | None = None,
 ) -> "wp.array | torch.Tensor":
-    """Resolve ids/mask into ids on ``device``. The mask takes precedence over the ids.
+    """Resolve ids/mask into ids on the device of ``all_ids``. The mask takes precedence over the ids.
+
+    Pass the result to :func:`resolve_1d_indices` where contiguous int32 ids are needed.
 
     Args:
         ids: Index ids. Accepts ``Sequence[int]``, ``slice``, ``torch.Tensor``, ``wp.array``,
-            or ``None`` (all elements). Tensors and warp arrays keep their integer dtype
-            unless ``dtype`` is given. Pass ids from ``find_*(as_proxy=True)`` as ``.warp`` or ``.torch``.
+            or ``None`` (all elements). Tensors and warp arrays keep their integer dtype.
         mask: Boolean mask. Its ids are found with :func:`torch.nonzero`, which waits for
             the device.
         all_ids: Pre-allocated ids of every element, returned as-is when *ids* and *mask*
             select every element.
-        device: Warp device string (e.g. ``"cuda:0"``).
-        dtype: Warp integer dtype the ids must have, for callers whose kernels take one
-            index dtype. The ids are then a contiguous 1-D ``wp.array`` of this dtype.
-            Defaults to None: a mask resolves to an int64 ``torch.Tensor``, and ids keep
-            their type and dtype.
 
     Returns:
-        ``all_ids``, a ``torch.Tensor`` or a ``wp.array`` of ids on ``device``.
+        ``all_ids``, a ``torch.Tensor`` or a ``wp.array`` of ids on the device of ``all_ids``.
+        A mask resolves to an int64 ``torch.Tensor``; lists and slices resolve to ``wp.int32``.
 
     Raises:
-        TypeError: If *ids* is a :class:`ProxyArray`, which is output-only, *mask* is
-            neither a ``wp.array`` nor a ``torch.Tensor``, or ``dtype`` is given and the
-            ids are not 32-bit or 64-bit integers.
-        ValueError: If ``dtype`` is given and the ids are not one-dimensional.
+        TypeError: If *ids* is a :class:`ProxyArray`, which is output-only, or *mask* is
+            neither a ``wp.array`` nor a ``torch.Tensor``.
     """
+    device = all_ids.device
     if mask is not None:
         if isinstance(mask, wp.array):
             mask = wp.to_torch(mask)
         elif not isinstance(mask, torch.Tensor):
             raise TypeError(f"Unsupported mask type: {type(mask)}")
-        ids = torch.nonzero(mask.to(wp.device_to_torch(device))).squeeze(-1)
-    else:
-        ids = _ids_on_device(ids, all_ids, device)
-    return ids if dtype is None else _ids_as_dtype(ids, dtype)
-
-
-def _ids_on_device(
-    ids: "Sequence[int] | slice | torch.Tensor | wp.array | None", all_ids: wp.array, device: str
-) -> "wp.array | torch.Tensor":
-    """Ids on ``device``, keeping the dtype of tensors and warp arrays; lists and slices become ``wp.int32``."""
+        return torch.nonzero(mask.to(wp.device_to_torch(device))).squeeze(-1)
     if isinstance(ids, torch.Tensor):
-        return ids if str(ids.device) == str(wp.get_device(device)) else ids.to(wp.device_to_torch(device))
+        return ids if str(ids.device) == str(device) else ids.to(wp.device_to_torch(device))
     if ids is None:
         return all_ids
     if isinstance(ids, wp.array):
-        return ids if ids.device == wp.get_device(device) else ids.to(device)
+        return ids if ids.device == device else ids.to(device)
     if isinstance(ids, ProxyArray):
         raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
     if isinstance(ids, slice):
@@ -514,20 +497,3 @@ def _ids_on_device(
             return wp.from_torch(wp.to_torch(all_ids)[start:stop:step])
         return wp.array(list(range(start, stop, step)), dtype=wp.int32, device=device)
     return wp.array(list(ids), dtype=wp.int32, device=device)
-
-
-def _ids_as_dtype(ids: "wp.array | torch.Tensor", dtype: type) -> wp.array:
-    """``ids`` as a contiguous 1-D ``wp.array`` of ``dtype`` on their device."""
-    if dtype not in (wp.int32, wp.int64):
-        raise TypeError(f"Unsupported id dtype: {dtype}. Expected wp.int32 or wp.int64.")
-    if ids.ndim != 1:
-        raise ValueError(f"Ids must be a one-dimensional array, got {ids.ndim} dimensions.")
-    if isinstance(ids, wp.array):
-        if ids.dtype == dtype and ids.is_contiguous:
-            return ids
-        if ids.dtype not in (wp.int32, wp.int64):
-            raise TypeError(f"Warp ids must be 32-bit or 64-bit signed integers, got {ids.dtype}.")
-        ids = wp.to_torch(ids)
-    elif ids.dtype.is_floating_point or ids.dtype.is_complex or ids.dtype == torch.bool:
-        raise TypeError(f"Ids must be integers, got {ids.dtype}.")
-    return wp.from_torch(ids.to(wp.dtype_to_torch(dtype)).contiguous(), dtype=dtype)
