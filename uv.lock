@@ -1771,7 +1771,7 @@ ui = [
 
 [[package]]
 name = "isaaclab"
-version = "42.1.0"
+version = "42.2.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1795,7 +1795,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "5.0.0"
+version = "5.0.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -2147,7 +2147,7 @@ provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "s
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.3.1"
+version = "1.0.0"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2158,7 +2158,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.1.6"
+version = "2.1.7"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2175,7 +2175,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "12.0.0"
+version = "12.0.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2186,7 +2186,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "8.0.0"
+version = "8.0.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2201,7 +2201,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "10.0.1"
+version = "10.0.2"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2270,7 +2270,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.11.1"
+version = "0.11.2"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
