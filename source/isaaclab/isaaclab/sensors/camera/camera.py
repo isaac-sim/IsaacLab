@@ -729,6 +729,24 @@ class Camera(SensorBase):
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
             return
+        if self._renderer.renders_all_cameras and env_mask is self._is_outdated and self.supports_batch_update:
+            # The submission renders every camera of the renderer anyway, so the due ones that share this camera's
+            # batch implementation capture together.
+            batch_impl = type(self)._update_buffers_batch_impl
+            cameras = sim_utils.SimulationContext.instance().get_scene_data_provider().cameras.values()
+            due = [
+                camera
+                for camera in cameras
+                if camera._renderer is self._renderer
+                and camera.supports_batch_update
+                and type(camera)._update_buffers_batch_impl is batch_impl
+                and camera._data_dirty
+            ]
+            batch_impl(due)
+            for camera in due:
+                if camera is not self:
+                    camera._mark_buffers_updated()
+            return
         self._prepare_camera(env_mask)
 
         self._sim.render_context.render_into_camera(
