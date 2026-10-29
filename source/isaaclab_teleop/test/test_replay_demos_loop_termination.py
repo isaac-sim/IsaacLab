@@ -9,39 +9,16 @@
 its episodes, applying the untouched idle action. For a task-space (IK) task that idle action is
 all zeros, i.e. a zero-norm quaternion, which crashed the run after a successful replay.
 
-``scripts/tools/replay_demos.py`` launches the simulator at import time, so the loop function is
-extracted from the source and executed against stub objects instead.
+The loop runs against stub objects instead of a simulator.
 """
-
-import ast
-import contextlib
-from pathlib import Path
 
 import pytest
 import torch
+from isaaclab_teleop.entrypoints.replay_demos import replay_episodes_loop
 
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.datasets import EpisodeData
 
 pytestmark = pytest.mark.integration
-
-# This test lives at source/isaaclab/test/cli/test_replay_demos_loop_termination.py.
-_REPLAY_DEMOS_PATH = Path(__file__).resolve().parents[4] / "scripts" / "tools" / "replay_demos.py"
-
-
-def _load_replay_episodes_loop():
-    """Compile ``replay_episodes_loop`` from the script source."""
-    source = _REPLAY_DEMOS_PATH.read_text()
-    tree = ast.parse(source)
-    func = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "replay_episodes_loop")
-    namespace = {
-        "contextlib": contextlib,
-        "torch": torch,
-        "EpisodeData": EpisodeData,
-        "HDF5DatasetFileHandler": HDF5DatasetFileHandler,
-        "is_paused": False,
-    }
-    exec(compile(ast.Module(body=[func], type_ignores=[]), str(_REPLAY_DEMOS_PATH), "exec"), namespace)
-    return namespace["replay_episodes_loop"]
 
 
 class _SimStub:
@@ -93,7 +70,6 @@ def test_replay_loop_does_not_step_after_the_recorded_actions():
     )
     idle_action = torch.zeros(1, recorded_actions.shape[-1])
     env = _EnvStub()
-    replay_episodes_loop = _load_replay_episodes_loop()
 
     replayed_episode_count, _, _ = replay_episodes_loop(
         env,
