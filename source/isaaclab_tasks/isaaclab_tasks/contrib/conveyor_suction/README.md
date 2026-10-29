@@ -29,8 +29,9 @@ the seal implementation into Isaac Lab. Stock Newton releases do not provide thi
 
 ## Training and playback
 
-The default configuration uses 512 environments, 6,000 PPO updates, and twelve-parcel goals
-within 240-second episodes. Reliable learning from scratch has not yet been validated.
+The default configuration uses 512 environments, 6,000 PPO updates, and 240-second episodes.
+Each verified delivery counts as a success, and the robot continues with another parcel in the
+same scene. Reliable learning from scratch has not yet been validated.
 
 ```bash
 uv run isaaclab train --task IsaacContrib-Conveyor-Suction-Sorting \
@@ -66,23 +67,24 @@ belt and feeder slots to vary the order of subsequent pickups. The same sampler 
 conveyor curriculum and can select procedurally generated or cached reset states.
 It does not add another environment manager or a second scene-state serializer.
 
+All twelve parcels begin unsorted in every reset phase. A verified physical receipt earns
+a reward of +10 and selects the next reachable unsorted parcel without resetting the world.
+The first receipt after a sampled reset immediately records a successful outcome for that
+reset row. Later receipts still earn rewards and increment delivery counters, but are not
+attributed to the earlier reset state. A world reset before that first receipt records a
+failed row outcome; a later failure does not overwrite or duplicate an already recorded success.
+
 Training starts receive more practice when the policy has intermediate success, while
 every reset row remains eligible. Sampling history is local to each worker and restarts
 when the environment is recreated. Training success from an easier reset is not an
 end-to-end pickup result. Evaluate separately from full belt starts and report correct-bin
 deliveries by size class, wrong-bin deliveries, drops, and complete twelve-parcel batches.
 
-Training and playback target a fully sorted twelve-parcel batch within 240 seconds. Playback
-samples full belt starts uniformly. `commands.sort.deliveries_per_episode`
-defines the success criterion for termination, reset sampling and `full_start_success_rate`;
-`full_batch_success_rate` separately requires all twelve receipts from a full start. Set the receipt goal to
-one for isolated pick-and-transfer evaluation. Losing an unsorted parcel ends the episode.
-
-For the twelve-parcel objective, the same four reset phases begin with eleven, eight, four,
-or zero parcels already sorted into their physical bins. This provides shorter remaining-batch
-problems without expanding the reset catalog. Pre-sorted inventory earns no receipt reward and
-is excluded from `correct_deliveries`; full-start metrics exclude these partial batches.
-Goals below twelve retain the original all-unsorted inventory. Full-start playback is unchanged.
+Playback samples full belt starts uniformly. `full_start_success_rate` measures whether a
+full home start produces a first receipt; `full_batch_success_rate` separately measures all
+twelve physical receipts from that start. A single delivery is a success without requiring
+a complete batch. Receiving all twelve parcels ends the episode to replenish the scene;
+timeout or losing an unsorted parcel also ends it.
 
 Development results used staged warm-started checkpoints. Resume a compatible checkpoint with
 `--checkpoint /path/to/model.pt`; optimizer state is retained by default.

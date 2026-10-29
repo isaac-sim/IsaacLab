@@ -91,7 +91,7 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
     time_out = TerminationTermCfg(func=common_mdp.time_out, time_out=True)
-    success = TerminationTermCfg(func=mdp.successful_delivery)
+    batch_complete = TerminationTermCfg(func=mdp.batch_complete)
     failure = TerminationTermCfg(func=mdp.failed_delivery)
     invalid_action = TerminationTermCfg(
         func=invalid_policy_action, params={"action_names": ("arm_action", "gripper_action")}

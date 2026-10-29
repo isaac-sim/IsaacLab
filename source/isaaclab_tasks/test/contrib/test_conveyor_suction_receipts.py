@@ -18,63 +18,13 @@ from isaaclab_tasks.utils import parse_env_cfg
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_partial_batch_reset_only_rewards_new_physical_receipts(device):
-    """Pre-sorted inventory is physical, earns no receipt credit, and is excluded from full-start metrics."""
-    cfg = parse_env_cfg("IsaacContrib-Conveyor-Suction-Sorting", device=device, num_envs=2)
-    cfg.commands.sort.deliveries_per_episode = 12
-    cfg.episode_length_s = 240
-    cfg.sim.visualizer_cfgs = []
-    cfg.sim.save_logs_to_file = False
-    cfg.terminations.success = None
-    with closing(gym.make("IsaacContrib-Conveyor-Suction-Sorting", cfg=cfg).unwrapped) as env:
-        reset = env.event_manager.get_term_cfg("reset_parcels").func
-        rows = torch.tensor([0, 38], device=device)  # Last-parcel release and an unsorted full belt start.
-        reset.reset_sampler.sampler.sample = lambda probabilities, count: rows[:count]
-        env.reset(seed=41)
-        command = env.command_manager.get_term("sort")
-        command.evaluate()
-        assert command.delivered.sum(dim=1).tolist() == [11, 0]
-        assert not command.delivered[env.scene._ALL_INDICES, env.active_ids].any()
-        assert not env.episode_success.any()
-        assert not command.new_success.any()
-        assert command.metrics["correct_deliveries"].tolist() == [0, 0]
-        positions = torch.stack([parcel.data.root_pos_w.torch[0] for parcel in env.parcels])
-        offsets = positions - env.scene.env_origins[0] - env.bin_positions[env.parcel_classes]
-        seeded = command.delivered[0]
-        # Bounding circles establish containment independently of the reset's bin-frame transform.
-        assert (
-            torch.linalg.vector_norm(offsets[seeded, :2], dim=-1)
-            + torch.linalg.vector_norm(env.parcel_sizes[seeded, :2] / 2, dim=-1)
-            < 0.28
-        ).all()
-        assert (offsets[seeded, 2].abs() + env.parcel_sizes[seeded, 2] / 2 < 0.28).all()
-        actions = torch.zeros((2, 4), device=device)
-        actions[:, 3] = 1.0
-        for _ in range(720):
-            env.step(actions)
-            if env.episode_success[0]:
-                break
-        assert env.episode_success[0]
-        assert command.delivered[0].all()
-        assert command.metrics["correct_deliveries"][0] == 1
-        extras = command.reset(torch.tensor([0], device=device))
-        assert extras["full_start_episodes"] == 0
-        assert "full_start_success_rate" not in extras and "full_batch_success_rate" not in extras
-        full = command.reset(torch.tensor([1], device=device))
-        assert full["full_start_episodes"] == 1
-        assert full["full_start_success_rate"].tolist() == full["full_batch_success_rate"].tolist() == [0]
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
-    """A handoff is not another receipt; two receipts complete an episode, and an inactive loss fails it."""
+def test_receipts_record_success_and_continue_without_reset(device):
+    """Receipts reward once, record the sampled row once, and preserve history through handoffs and failures."""
     task = "IsaacContrib-Conveyor-Suction-Sorting"
     cfg = parse_env_cfg(task, device=device, num_envs=2)
-    cfg.commands.sort.deliveries_per_episode = 2
     cfg.sim.visualizer_cfgs = []
     cfg.sim.save_logs_to_file = False
     cfg.seed = 41
-    cfg.terminations.success = None
     cfg.terminations.failure = None
     cfg.terminations.invalid_action = None
     with closing(gym.make(task, cfg=cfg).unwrapped) as env:
@@ -85,6 +35,11 @@ def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
         reset.reset_sampler.sampler.sample = lambda probabilities, count: rows[:count]
         env.reset()
         command = env.command_manager.get_term("sort")
+        monitor = reset.reset_sampler.success_monitor
+        assert not command.delivered.any(), "Every reset must start with all parcels unsorted."
+        assert not command.new_success.any() and not env.episode_success.any()
+        assert command.metrics["correct_deliveries"].tolist() == [0, 0]
+        assert monitor.success_size[rows].tolist() == [0, 0]
         actions = torch.zeros((2, 4), device=device)
         actions[:, 3] = 1.0
         # An outfeed-speed impact must settle in the bin without crossing its floor.
@@ -101,24 +56,48 @@ def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
         env.parcels[0].write_root_velocity_to_sim_index(root_velocity=velocity, env_ids=impact_ids)
         env.sim.forward()
         env.scene.update(env.step_dt)
+        received = [False, False]
         for _ in range(720):
-            env.step(actions)
-            if command.delivered[0, 0] and command.delivered[1, 4]:
+            lengths = env.episode_length_buf.clone()
+            _, rewards, terminated, timed_out, extras = env.step(actions)
+            assert not terminated.any() and not timed_out.any(), "One receipt must not reset the physical scene."
+            torch.testing.assert_close(env.episode_length_buf, lengths + 1)
+            assert torch.isfinite(rewards).all()
+            for env_id, parcel_id in enumerate((0, 4)):
+                if command.delivered[env_id, parcel_id] and not received[env_id]:
+                    assert env.episode_success[env_id] and command.metrics["success_rate"][env_id] == 1
+                    assert extras["successes"][env_id]
+                    assert monitor.success_size[rows[env_id]] == monitor.success_rate[rows[env_id]] == 1
+                    delivery = dict(env.reward_manager.get_active_iterable_terms(env_id))["delivery"][0]
+                    assert delivery == 600.0
+                    received[env_id] = True
+            if all(received):
                 break
         else:
-            pytest.fail("The seeded release never reached its physical bin.")
+            pytest.fail("The released parcels never reached their physical bins.")
         assert not command.failed.any()
         assert env.active_ids[1] != 4, "The release fixture must also reach the next-target handoff."
         expected = torch.zeros(len(env.parcels), dtype=torch.bool, device=device)
         expected[4] = True
         torch.testing.assert_close(command.delivered[1], expected)
 
-        # Resetting the other world invalidates the shared evaluation cache without advancing physics.
+        # A handoff and an unrelated reset cannot repeat the receipt or its sampled-row outcome.
+        _, _, _, _, extras = env.step(actions)
+        assert not extras["successes"].any()
+        assert dict(env.reward_manager.get_active_iterable_terms(1))["delivery"][0] == 0.0
         env.reset(env_ids=impact_ids)
         command.evaluate()
         torch.testing.assert_close(command.delivered[1], expected)
         assert command.metrics["correct_deliveries"][1] == 1
-        assert not env.episode_success[1]
+        assert env.episode_success[1]
+        assert monitor.success_size[rows].tolist() == [1, 1]
+
+        # A positive-length attempt without a receipt records one failure when it resets.
+        env.step(actions)
+        assert not command.delivered[0].any() and not env.episode_success[0]
+        env.reset(env_ids=impact_ids)
+        assert monitor.success_size[rows].tolist() == [2, 1]
+        assert monitor.success_rate[rows].tolist() == [0.5, 1.0]
 
         def place_in_bin(env_id, parcel_id, bin_id):
             ids = torch.tensor([env_id], device=device)
@@ -147,10 +126,34 @@ def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
         command.failed[1] = False
         command.lifted[1] = True
         place_in_bin(1, second, env.parcel_classes[second])
-        for _ in range(15):
+        for _ in range(2):
             env.step(actions)
+        assert not command.delivered[1, second]
+
+        # An invalid action on a would-be receipt step earns no credit, without erasing earlier success.
+        actions[1, 0] = torch.nan
+        _, rewards, _, _, extras = env.step(actions)
+        assert command.failed[1] and not command.delivered[1, second]
+        assert not extras["successes"][1]
+        assert dict(env.reward_manager.get_active_iterable_terms(1))["delivery"][0] == 0.0
+        assert env.episode_success[1] and command.metrics["success_rate"][1] == 1
+        assert monitor.success_size[rows[1]] == monitor.success_rate[rows[1]] == 1
+        assert torch.isfinite(rewards).all()
+
+        actions[1, 0] = 0.0
+        command.failed[1] = False
+        place_in_bin(1, second, env.parcel_classes[second])
+        pulses = 0
+        for _ in range(15):
+            _, _, terminated, timed_out, extras = env.step(actions)
+            assert not terminated.any() and not timed_out.any()
+            pulse = extras["successes"][1].item()
+            pulses += pulse
+            assert dict(env.reward_manager.get_active_iterable_terms(1))["delivery"][0] == 600.0 * pulse
+        assert pulses == 1
         assert env.episode_success[1]
         assert command.delivered[1].sum() == command.metrics["correct_deliveries"][1] == 2
+        assert monitor.success_size[rows[1]] == monitor.success_rate[rows[1]] == 1
 
         # An unselected parcel cannot disappear into a wrong bin without failing its world.
         inactive = next(
@@ -161,11 +164,6 @@ def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
             env.step(actions)
         assert command.failed.tolist() == [True, False]
         assert env.episode_success.tolist() == [False, True]
-
-        # A rejected policy action must not become a successful reset-sampling outcome.
-        actions[1, 0] = torch.nan
-        _, rewards, _, _, _ = env.step(actions)
-        assert command.failed[1]
-        assert not env.episode_success[1]
-        assert command.metrics["success_rate"][1] == 0
-        assert torch.isfinite(rewards).all()
+        env.reset(env_ids=impact_ids)
+        assert monitor.success_size[rows].tolist() == [3, 1]
+        assert monitor.success_rate[rows[0]].item() == pytest.approx(1.0 / 3.0)
