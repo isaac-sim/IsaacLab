@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "BamCommandLag",
     "BamFriction",
     "BamGroup",
     "get_bam_group",
 ]
 
-from .bam import BamFriction, BamGroup, get_bam_group
+from .bam import BamCommandLag, BamFriction, BamGroup, get_bam_group
