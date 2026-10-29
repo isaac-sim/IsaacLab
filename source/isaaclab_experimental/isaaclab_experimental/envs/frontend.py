@@ -46,8 +46,6 @@ import torch
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _StableSceneEntityCfg
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
-
 logger = logging.getLogger(__name__)
 
 
@@ -140,8 +138,8 @@ class WarpFrontend:
     def _build_direct_env(cls, env_cfg: Any, task_id: str, **construct_kwargs: Any) -> gym.Env:
         """Construct a direct warp env.
 
-        Direct task data stays stable, while the frontend selects the Warp scene
-        implementation and a hand-written Warp env class. The class is
+        Direct task data stays stable, while the frontend selects a
+        hand-written Warp env class. The class is
         resolved by name from the mirrored experimental package (or an explicit
         ``warp_entry_point`` override); see :meth:`_resolve_direct_warp_class`.
         If name resolution finds nothing, the task itself must be a warp-native
@@ -157,11 +155,8 @@ class WarpFrontend:
         if env_class is None:
             # No warp twin by name: the task itself must be a warp-native registration.
             cls._assert_direct_warp_registration(task_id)
-        else:
-            cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
-        env_cfg.scene.class_type = InteractiveSceneWarp
-        if env_class is None:
             return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
+        cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
         return env_class(cfg=env_cfg, **construct_kwargs)
 
     # ------------------------------------------------------------------
@@ -182,7 +177,7 @@ class WarpFrontend:
         2. :meth:`_promote_scene_entity_cfgs` — replace stable
            :class:`~isaaclab.managers.SceneEntityCfg` instances under each
            term's ``params`` with the warp variant (which adds warp-cached
-           ``joint_mask``, ``joint_ids_wp``, ``body_ids_wp`` fields).
+           ``joint_mask_wp``, ``joint_ids_wp``, ``body_ids_wp`` fields).
         3. :meth:`_swap_mdp` — for every MDP term found anywhere in the cfg tree
            (discovered by :meth:`_walk_terms` via :class:`ManagerTermBaseCfg`
            subclassing, not by hard-coded attribute names), replace any stable
@@ -247,7 +242,7 @@ class WarpFrontend:
         rebuilds any stable :class:`SceneEntityCfg` value under ``term.params``
         through :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable`.
         The warp variant subclasses the stable one, so type checks elsewhere
-        stay valid; the new fields (``joint_mask`` / ``joint_ids_wp`` /
+        stay valid; the new fields (``joint_mask_wp`` / ``joint_ids_wp`` /
         ``body_ids_wp``) are filled at :meth:`resolve` time by the warp scene.
         """
         from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as _WarpSceneEntityCfg

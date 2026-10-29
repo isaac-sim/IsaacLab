@@ -97,17 +97,10 @@ def test_counts_names_finders_and_index_resolution(monkeypatch, backend, asset):
     if asset == "collection":
         with pytest.warns(DeprecationWarning):
             assert obj.find_objects(".*", as_proxy=True)[0] is proxy
-        assert obj._resolve_body_ids(torch.arange(3, dtype=torch.int32)[:2]).shape[0] == 2
 
-    # Environment selections resolve to strided views of the cached indices without copying.
-    env_ids = torch.arange(4, dtype=torch.int32)
-    assert obj._resolve_env_ids(env_ids[:2]).shape[0] == 2
-    cached = wp.to_torch(obj._ALL_INDICES if asset == "object" else obj._ALL_ENV_INDICES)
-    for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
-        resolved = wp.to_torch(obj._resolve_env_ids(selection))
-        torch.testing.assert_close(resolved, cached[selection])
-        assert resolved.data_ptr() == cached[selection].data_ptr()
-        assert resolved.stride() == cached[selection].stride()
+    # Each resolver returns its own cached indices for a selection of every element.
+    assert obj._resolve_env_ids(slice(None)) is (obj._ALL_INDICES if asset == "object" else obj._ALL_ENV_INDICES)
+    assert obj._resolve_body_ids(slice(None)) is obj._ALL_BODY_INDICES
 
 
 def _expected_properties(top: str) -> dict[str, type]:
@@ -294,6 +287,30 @@ def test_writer_reads_back_full_and_partial_writes(monkeypatch, backend, device,
     last = (-1, -1) if per_body else -1
     expected[last] = update[last]
     torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
+
+    if (
+        asset == "collection"
+        and selection == "mask"
+        and quantity.endswith(("pose", "velocity"))
+        and backend != "ovphysx"
+    ):
+        # Collection mask writers given ``body_ids`` write only those bodies of the masked environments.
+        last_body = num_bodies - 1
+        for offset, body_ids in enumerate(
+            ([last_body], wp.array([last_body], dtype=wp.int64, device=device), slice(None, last_body - 1, -2)),
+            start=2,
+        ):
+            update = _payload(shape, trailing, offset=100.0 * offset, device=device)
+            method(**{kwarg: update}, env_mask=selectors["env_mask"], body_ids=body_ids)
+            expected[-1, -1] = update[-1, -1]
+            torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
+        if backend == "newton":
+            # A short mask writes only the rows it covers, even when the memory past its end selects more rows.
+            update = _payload(shape, trailing, offset=500.0, device=device)
+            short_mask = wp.ones(_NUM_INSTANCES, dtype=wp.bool, device=device)[: _NUM_INSTANCES - 1]
+            method(**{kwarg: update[: _NUM_INSTANCES - 1]}, env_mask=short_mask)
+            expected[: _NUM_INSTANCES - 1] = update[: _NUM_INSTANCES - 1]
+            torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
 
     # Data with an extra environment is rejected for torch and warp inputs.
     bad = _payload((_NUM_INSTANCES + 1, *shape[1:]), trailing, device=device)

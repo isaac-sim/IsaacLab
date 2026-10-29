@@ -47,6 +47,13 @@ class SelectorRecordingActuator(ImplicitActuator):
         return super().compute(control_action, joint_pos, joint_vel)
 
 
+class IndexResetActuator(ImplicitActuator):
+    """Custom actuator with the index-only :meth:`reset` signature from before masked resets."""
+
+    def reset(self, env_ids):
+        self.reset_env_ids = env_ids
+
+
 def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_limit: float):
     return IdealPDActuatorCfg(
         joint_names_expr=joints,
@@ -822,6 +829,16 @@ def test_custom_singleton_compute_receives_original_selector():
     collection.compute()
 
     assert collection["all"].observed_joint_indices == slice(None)
+
+
+def test_index_reset_reaches_custom_actuator_without_mask_argument():
+    cfg = _implicit_cfg()
+    cfg.class_type = IndexResetActuator
+    collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
+
+    collection.reset([1])
+
+    assert collection["all"].reset_env_ids == [1]
 
 
 def test_multi_group_explicit_outputs_match_pd_formula():

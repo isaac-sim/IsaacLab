@@ -20,8 +20,8 @@ import copy
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import warp as wp
 
@@ -31,6 +31,7 @@ from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
 from isaaclab.utils import string_to_callable, to_dict
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import reset_captured_stages
 
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -44,6 +45,38 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+class TermSplit(NamedTuple):
+    """Terms of one operation, split by whether they can be recorded into a CUDA graph."""
+
+    eager: list
+    """Terms that run eagerly, before the recorded part."""
+
+    captured: list
+    """Terms recorded with the rest of the operation."""
+
+
+def split_terms(terms: Sequence[Any], capturable: Callable[[Any], bool] = lambda term: term.capturable) -> TermSplit:
+    """Split terms by capturability, keeping their order.
+
+    Args:
+        terms: The terms (term configurations by default).
+        capturable: Whether a term can be recorded. Defaults to the term configuration's ``capturable`` flag.
+    """
+    return TermSplit([term for term in terms if not capturable(term)], [term for term in terms if capturable(term)])
+
+
+def split_resets(term_cfgs: Sequence[Any]) -> TermSplit:
+    """Split class terms by whether their ``reset`` can be recorded, keeping their order.
+
+    An annotation on a term class covers its ``__call__``; the ``reset`` is judged by the annotation on the
+    ``reset`` method itself.
+
+    Args:
+        term_cfgs: The configurations of the class terms.
+    """
+    return split_terms(term_cfgs, lambda term_cfg: is_warp_capturable(term_cfg.func.reset, term_cfg.params))
 
 
 class ManagerTermBase(ABC):
@@ -237,17 +270,34 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> dict[str, float]:
+    def reset(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | None = None,
+        *,
+        env_mask: wp.array | None = None,
+    ) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
+
+        The ids resolve to a mask on the host, which a CUDA graph cannot record, so the recorded part is :meth:`_reset`.
 
         Args:
             env_ids: The environment ids for which to log data.
                 Defaults None, which logs data for all environments.
+            env_mask: Boolean Warp mask of shape (num_envs,) selecting the environments.
+                If provided, takes precedence over ``env_ids``.
 
         Returns:
             Dictionary containing the logging information.
         """
-        return {}
+        # Mask-first path: captured callers must provide env_mask.
+        if env_mask is None or not isinstance(env_mask, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError(
+                    f"{type(self).__name__}.reset requires env_mask(wp.array[bool]) during capture. "
+                    "Do not pass env_ids on captured paths."
+                )
+            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        return self._reset(env_mask)
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
         """Find terms in the manager based on the names.
@@ -295,6 +345,10 @@ class ManagerBase(ABC):
         """Prepare terms information from the configuration object."""
         raise NotImplementedError
 
+    def _reset(self, env_mask: wp.array) -> dict[str, float]:
+        """Resets the environments selected by a boolean mask of shape (num_envs,) and returns logging information."""
+        return {}
+
     """
     Internal callbacks.
     """
@@ -324,6 +378,8 @@ class ManagerBase(ABC):
 
         # set the flag
         self._is_scene_entities_resolved = True
+        # class terms were just created
+        reset_captured_stages(self)
 
     """
     Internal functions.
@@ -407,11 +463,8 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # register non-capturable terms with the call switch for mode=2 fallback
-        if not is_warp_capturable(term_cfg.func):
-            switch = getattr(self._env, "_manager_call_switch", None)
-            if switch is not None:
-                switch.register_manager_capturability(type(self).__name__, False)
+        # whether the term can be recorded into a CUDA graph, resolved once per term
+        term_cfg.capturable = is_warp_capturable(term_cfg.func, term_cfg.params)
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing

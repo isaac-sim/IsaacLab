@@ -485,5 +485,30 @@ def gather_subtract_2d_kernel(env_ids: "wp.array | torch.Tensor", item_ids: "wp.
     return _GATHER_SUBTRACT_2D_DISPATCHER.select(env_ids, item_ids)
 
 
+##
+# Random number generation.
+##
+
+
+@wp.kernel(enable_backward=False)
+def initialize_rng_state(
+    # input
+    seed: wp.int32,
+    # output
+    state: wp.array(dtype=wp.uint32),
+):
+    """Initialize one random number generator state per environment.
+
+    Launch with ``dim=(num_envs,)``. Kernels that draw from ``state[i]`` should store the advanced state back,
+    so the next launch or graph replay draws new numbers.
+
+    Args:
+        seed: Seed shared by all environments; each environment uses its index as the offset.
+        state: Random number generator states. Shape is (num_envs,).
+    """
+    env_id = wp.tid()
+    state[env_id] = wp.rand_init(seed, env_id)
+
+
 # Include deprecated names in star imports without eagerly creating their kernels.
 __all__ = [name for name in globals() if not name.startswith("_")] + list(_DEPRECATED_WRENCH_NAMES)
