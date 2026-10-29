@@ -230,7 +230,7 @@ class apply_external_force_torque(ManagerTermBase):
             device=env.device,
         )
         self._asset.permanent_wrench_composer.set_forces_and_torques_mask(
-            forces=self._forces, torques=self._torques, body_mask=asset_cfg.body_mask.warp, env_mask=env_mask
+            forces=self._forces, torques=self._torques, body_mask=asset_cfg.body_mask, env_mask=env_mask
         )
 
 

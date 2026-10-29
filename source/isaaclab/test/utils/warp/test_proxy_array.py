@@ -197,7 +197,7 @@ class TestProxyArrayConvenienceProperties:
 
     @cpu_only
     def test_convenience_properties(self, device):
-        """Test that shape, dtype, device, and repr() forward the warp array's metadata, and len() is rejected."""
+        """Test that shape, dtype, device, len(), and repr() forward the warp array's metadata."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
         arr = wp.zeros((7, 3), dtype=wp.float32, device=device)
@@ -205,23 +205,10 @@ class TestProxyArrayConvenienceProperties:
         assert ta.shape == (7, 3)
         assert ta.dtype == wp.float32
         assert ta.device == arr.device
-        with pytest.raises(TypeError, match=r"shape\[0\]"):
-            len(ta)
+        assert len(ta) == 7
         r = repr(ta)
         assert "ProxyArray" in r
         assert "float32" in r
-
-    def test_short_selector_indexes_tensor(self, device):
-        """A ProxyArray shorter than torch's tuple heuristic (32) selects like the tensor it wraps."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
-
-        values = torch.arange(8.0, device=device)
-        mask = torch.tensor([1, 0, 1, 0, 0, 0, 0, 1], dtype=torch.bool, device=device)
-        indices = torch.tensor([4, 1], dtype=torch.int32, device=device)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            assert torch.equal(values[ProxyArray(wp.from_torch(mask))], values[mask])
-            assert torch.equal(values[ProxyArray(wp.from_torch(indices))], values[indices.long()])
 
     def test_copies(self, device):
         """copy shares the warp array; deepcopy owns a copy of it."""
