@@ -98,6 +98,15 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     Please refer to the :class:`isaaclab.managers.CommandManager` class for more details.
     """
 
+    tasks: dict[str, ManagerBasedRLEnvCfg] | None = None
+    """Tasks that the environments run, keyed by name. Defaults to None, in which case all environments run
+    the task defined by this configuration.
+
+    Each environment runs one of the tasks and switches tasks on reset. The tasks contribute their rigid objects,
+    termination terms and episode lengths; the remaining settings of this configuration are shared by all tasks.
+    Please refer to the :class:`isaaclab.managers.HeterogeneousTaskManager` class for more details.
+    """
+
     def play_mode(self):
         """Adjust the configuration for interactive playback and policy inference.
 
