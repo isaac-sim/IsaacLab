@@ -3,5 +3,6 @@
   actuator prims by those schemas.
 * **Breaking:** Removed ``BamActuatorCfg.vin_drop_gain_range`` [V/(N.m)], since Newton's battery drops its
   voltage with the supply current, not the motor torque. Use
-  :attr:`~isaaclab.actuators.BamActuatorCfg.battery_resistance_range` [Ohm]; ``sag_gain * motor.kt`` gives the
-  same drop per unit of motor current.
+  :attr:`~isaaclab.actuators.BamActuatorCfg.battery_resistance_range` [Ohm]. ``sag_gain * motor.kt`` drops
+  the voltage per ampere of supply current as the sag gain did per ampere of motor current; the duty cycle
+  weights the supply current, so the supply sags less.
