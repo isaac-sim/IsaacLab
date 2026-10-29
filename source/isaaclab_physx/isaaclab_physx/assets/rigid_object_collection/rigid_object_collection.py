@@ -1242,11 +1242,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def _resolve_env_ids(self, env_ids=None, env_mask: wp.array | None = None) -> wp.array | torch.Tensor:
         """Resolve environment indices."""
-        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_ENV_INDICES, device=self.device)
+        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_ENV_INDICES)
 
     def _resolve_body_ids(self, body_ids=None, body_mask: wp.array | None = None) -> wp.array | torch.Tensor:
         """Resolve body indices."""
-        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES, device=self.device)
+        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_mask_writer_body_ids(
         self, body_mask: wp.array | None, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None

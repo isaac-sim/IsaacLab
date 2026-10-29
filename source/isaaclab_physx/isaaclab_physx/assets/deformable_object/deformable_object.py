@@ -21,7 +21,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.memory import resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
 
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -219,7 +219,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 6).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids, full_data=True)
 
     def write_nodal_pos_to_sim_index(
@@ -286,7 +286,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_pos_to_sim_index(nodal_pos, env_ids=env_ids, full_data=True)
 
     def write_nodal_velocity_to_sim_index(
@@ -354,7 +354,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_velocity_to_sim_index(nodal_vel, env_ids=env_ids, full_data=True)
 
     def write_nodal_kinematic_target_to_sim_index(
@@ -430,7 +430,7 @@ class DeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 4).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES, device=self.device)
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids, full_data=True)
 
     """
@@ -555,7 +555,7 @@ class DeformableObject(AssetBase):
         Returns:
             A warp array of environment indices.
         """
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device, dtype=wp.int32)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _initialize_impl(self):
         # obtain global simulation view

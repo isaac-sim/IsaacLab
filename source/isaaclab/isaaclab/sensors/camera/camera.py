@@ -26,7 +26,7 @@ from ...utils.math import (
     quat_from_matrix,
 )
 from ...utils.warp import ProxyArray
-from ...utils.warp.memory import resolve_ids
+from ...utils.warp.memory import resolve_1d_indices, resolve_ids
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
@@ -1029,7 +1029,7 @@ class Camera(SensorBase):
         """Resolve camera indices to a Warp ``int32`` array."""
         if env_ids is None:
             return None
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self._device, dtype=wp.int32)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""

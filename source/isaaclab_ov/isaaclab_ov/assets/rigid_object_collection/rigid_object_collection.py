@@ -1327,11 +1327,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         resolved array onto ``self._device`` so kernel launches don't fail on a device
         mismatch.
         """
-        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_ENV_INDICES, device=self._device)
+        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_ENV_INDICES)
 
     def _resolve_body_ids(self, body_ids=None, body_mask: wp.array | None = None) -> wp.array | torch.Tensor:
         """Resolve body indices on ``self._device``."""
-        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES, device=self._device)
+        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES)
 
     def _env_body_ids_to_view_ids(
         self, env_ids: torch.Tensor | wp.array, body_ids: torch.Tensor | wp.array, device: str = "cuda:0"

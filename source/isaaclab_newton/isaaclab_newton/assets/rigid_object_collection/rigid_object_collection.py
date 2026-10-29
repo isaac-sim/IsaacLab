@@ -482,7 +482,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             scratch_mask=self._scratch_body_mask,
         )
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
-        write_2d_with_mask(body_poses, env_mask, body_mask, self.data.body_link_pose_w, self.device)
+        write_2d_with_mask(body_poses, env_mask, body_mask, self.data.body_link_pose_w)
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
 
@@ -1266,7 +1266,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             Environment indices.
         """
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_ENV_INDICES, device=self.device)
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_ENV_INDICES)
 
     def _resolve_body_ids(self, body_ids) -> wp.array | torch.Tensor:
         """Resolve body indices.
@@ -1277,7 +1277,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             Body indices.
         """
-        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self.device)
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     """
     Internal simulation callbacks.
