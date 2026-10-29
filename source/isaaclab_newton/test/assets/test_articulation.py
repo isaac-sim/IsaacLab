@@ -23,7 +23,7 @@ The composite scene runs on the CPU without CUDA-graph capture. On CUDA, one own
 ordered-state republish recorded into a captured graph.
 """
 
-from isaaclab_newton.physics import NewtonCfg, NewtonMJWarpManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
 from isaaclab.sim import FrameView, SimulationCfg
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
@@ -447,7 +447,7 @@ def test_task_space_allocation_and_capture(device, first_property):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    backend_manager = NewtonMJWarpManager(NewtonCfg())
+    backend_manager = NewtonManager(NewtonCfg())
     backend_manager.backend = SimpleNamespace(
         model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
     )
@@ -493,7 +493,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    backend_manager = NewtonMJWarpManager(NewtonCfg())
+    backend_manager = NewtonManager(NewtonCfg())
     backend_manager.backend = SimpleNamespace(
         model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
     )
@@ -2047,7 +2047,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     original_simulate = backend_manager._simulate_physics_only
 
     def _patched_simulate() -> None:
-        if backend_manager._needs_collision_pipeline:
+        if backend_manager.backend.collision_pipeline is not None:
             bq = wp.to_torch(backend_manager.backend.state_0.body_q)
             jq = wp.to_torch(backend_manager.backend.state_0.joint_q)
             b0 = int(body_starts[0])
@@ -2060,7 +2060,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 
-    assert captured, "collision pipeline did not run — _needs_collision_pipeline is False"
+    assert captured, "collision pipeline did not run in the step"
 
     bq_root = captured["bq_root"]
     jq_root = captured["jq_root"]
