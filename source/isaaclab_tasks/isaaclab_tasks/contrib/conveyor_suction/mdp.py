@@ -63,8 +63,9 @@ def tool_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 
 def suction_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return whether the active parcel is physically attached."""
-    return env.gripper.engaged.unsqueeze(-1).float()
+    """Observe physical attachment and the active parcel's pickup qualification."""
+    command = env.command_manager.get_term("sort")
+    return torch.stack((env.gripper.engaged, command.lifted), dim=-1).float()
 
 
 def successful_delivery(env: ManagerBasedRLEnv) -> torch.Tensor:

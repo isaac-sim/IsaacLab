@@ -46,6 +46,9 @@ With Isaac Sim installed, use `--viz kit` for RTX visualization.
 The policy outputs three Cartesian target increments and one binary vacuum command. Standard
 differential IK maintains a downward tool orientation. State observations include the
 selected parcel's pose, velocity and dimensions, robot and tool states, and suction state.
+The 52 observations include whether the selected parcel has completed its required lift;
+this history remains observable after lowering or releasing it. Earlier 51-input checkpoints
+require their matching configuration.
 Parcel dimensions vary across twelve fixed cuboid assets spanning five size classes.
 The correct destination is determined by package dimensions; a destination command or
 size-class label is not supplied to the actor. Colors make the scene readable without

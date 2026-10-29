@@ -131,8 +131,20 @@ def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
             env.sim.forward()
             env.scene.update(env.step_dt)
 
-        # Seed a previously lifted and released second parcel; the native scene establishes settlement.
+        # Identical released poses require observable qualification before they can earn a receipt.
         second = env.active_ids[1].item()
+        place_in_bin(1, second, env.parcel_classes[second])
+        command.lifted[1] = False
+        unqualified = env.observation_manager.compute()["policy"][1].clone()
+        command.lifted[1] = True
+        qualified = env.observation_manager.compute()["policy"][1]
+        assert not torch.equal(unqualified, qualified), "Pickup qualification must be observable to the policy."
+        assert qualified.shape == (52,)
+        command.lifted[1] = False
+        for _ in range(15):
+            env.step(actions)
+        assert command.failed[1] and not command.delivered[1, second]
+        command.failed[1] = False
         command.lifted[1] = True
         place_in_bin(1, second, env.parcel_classes[second])
         for _ in range(15):
