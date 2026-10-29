@@ -17,6 +17,72 @@ from functools import cache
 import warp as wp
 
 
+@wp.func
+def _set_wrench(
+    forces: wp.array2d(dtype=wp.vec3f),
+    torques: wp.array2d(dtype=wp.vec3f),
+    positions: wp.array2d(dtype=wp.vec3f),
+    force_buffer: wp.array2d(dtype=wp.vec3f),
+    torque_buffer: wp.array2d(dtype=wp.vec3f),
+    i: int,
+    j: int,
+    env: int,
+    body: int,
+):
+    if torques:
+        torque_buffer[env, body] = torques[i, j]
+    if forces:
+        force_buffer[env, body] = forces[i, j]
+        if positions:
+            moment = wp.cross(positions[i, j], forces[i, j])
+            if torques:
+                torque_buffer[env, body] = torque_buffer[env, body] + moment
+            else:
+                torque_buffer[env, body] = moment
+
+
+@wp.func
+def _add_wrench(
+    forces: wp.array2d(dtype=wp.vec3f),
+    torques: wp.array2d(dtype=wp.vec3f),
+    positions: wp.array2d(dtype=wp.vec3f),
+    force_buffer: wp.array2d(dtype=wp.vec3f),
+    torque_buffer: wp.array2d(dtype=wp.vec3f),
+    i: int,
+    j: int,
+    env: int,
+    body: int,
+):
+    if forces:
+        force_buffer[env, body] = force_buffer[env, body] + forces[i, j]
+        if positions:
+            torque_buffer[env, body] = torque_buffer[env, body] + wp.cross(positions[i, j], forces[i, j])
+    if torques:
+        torque_buffer[env, body] = torque_buffer[env, body] + torques[i, j]
+
+
+@wp.func
+def _reset_wrench(
+    global_force_w: wp.array2d(dtype=wp.vec3f),
+    global_torque_w: wp.array2d(dtype=wp.vec3f),
+    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
+    local_force_b: wp.array2d(dtype=wp.vec3f),
+    local_torque_b: wp.array2d(dtype=wp.vec3f),
+    out_force_b: wp.array2d(dtype=wp.vec3f),
+    out_torque_b: wp.array2d(dtype=wp.vec3f),
+    env: int,
+    body: int,
+):
+    z = wp.vec3f(0.0)
+    global_force_w[env, body] = z
+    global_torque_w[env, body] = z
+    global_force_at_com_w[env, body] = z
+    local_force_b[env, body] = z
+    local_torque_b[env, body] = z
+    out_force_b[env, body] = z
+    out_torque_b[env, body] = z
+
+
 @cache
 def make_write_wrench(env_dtype=wp.bool, body_dtype=wp.bool, *, accumulate: bool = False) -> wp.Kernel:
     """Return a fused force, torque and moment writer for the requested selectors.
@@ -66,23 +132,9 @@ def make_write_wrench(env_dtype=wp.bool, body_dtype=wp.bool, *, accumulate: bool
             body = j
 
         if wp.static(accumulate):
-            if forces:
-                force_buffer[env, body] = force_buffer[env, body] + forces[i, j]
-                if positions:
-                    torque_buffer[env, body] = torque_buffer[env, body] + wp.cross(positions[i, j], forces[i, j])
-            if torques:
-                torque_buffer[env, body] = torque_buffer[env, body] + torques[i, j]
+            _add_wrench(forces, torques, positions, force_buffer, torque_buffer, i, j, env, body)
         else:
-            if torques:
-                torque_buffer[env, body] = torques[i, j]
-            if forces:
-                force_buffer[env, body] = forces[i, j]
-                if positions:
-                    moment = wp.cross(positions[i, j], forces[i, j])
-                    if torques:
-                        torque_buffer[env, body] = torque_buffer[env, body] + moment
-                    else:
-                        torque_buffer[env, body] = moment
+            _set_wrench(forces, torques, positions, force_buffer, torque_buffer, i, j, env, body)
 
     return write_wrench
 
@@ -176,13 +228,16 @@ def make_reset_wrench(dtype=wp.bool) -> wp.Kernel:
             ei = tid_env
         else:
             ei = wp.int32(selection[tid_env])
-        z = wp.vec3f(0.0)
-        global_force_w[ei, tid_body] = z
-        global_torque_w[ei, tid_body] = z
-        global_force_at_com_w[ei, tid_body] = z
-        local_force_b[ei, tid_body] = z
-        local_torque_b[ei, tid_body] = z
-        out_force_b[ei, tid_body] = z
-        out_torque_b[ei, tid_body] = z
+        _reset_wrench(
+            global_force_w,
+            global_torque_w,
+            global_force_at_com_w,
+            local_force_b,
+            local_torque_b,
+            out_force_b,
+            out_torque_b,
+            ei,
+            tid_body,
+        )
 
     return reset

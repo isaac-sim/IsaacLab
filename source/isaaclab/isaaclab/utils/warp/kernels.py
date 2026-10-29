@@ -3,14 +3,64 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Custom kernels for warp."""
+"""Custom kernels for Warp.
 
+.. deprecated::
+    Wrench entry points in this module will be removed in Isaac Lab 3.2. Use
+    :class:`~isaaclab.utils.wrench_composer.WrenchComposer`, or the kernels and factories in
+    :mod:`isaaclab.utils.warp.wrench`. The old launch signatures remain supported until removal;
+    importing them emits :class:`DeprecationWarning`. New writers take the selected force and
+    torque destinations directly instead of five buffers and an ``is_global`` argument.
+"""
+
+import warnings
 from typing import Any
 
 import torch
 import warp as wp
 
 from .index_kernel import IndexKernelDispatcher
+
+_DEPRECATED_WRENCH_NAMES = (
+    "compose_wrench_to_body_frame",
+    "add_raw_wrench_buffers",
+    "set_forces_to_dual_buffers_index",
+    "add_forces_to_dual_buffers_index",
+    "set_forces_to_dual_buffers_mask",
+    "add_forces_to_dual_buffers_mask",
+    "reset_wrench_composer_index",
+    "reset_wrench_composer_mask",
+    "set_forces_to_dual_buffers_index_kernel",
+    "add_forces_to_dual_buffers_index_kernel",
+    "reset_wrench_composer_index_kernel",
+)
+
+
+def __getattr__(name: str):
+    if name not in _DEPRECATED_WRENCH_NAMES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from . import _wrench_compat, wrench
+
+    warnings.warn(
+        f"{__name__}.{name} is deprecated and will be removed in Isaac Lab 3.2. "
+        "Use WrenchComposer or the kernels and factories in isaaclab.utils.warp.wrench instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    if name in ("compose_wrench_to_body_frame", "add_raw_wrench_buffers"):
+        return getattr(wrench, name)
+    if name == "reset_wrench_composer_mask":
+        return wrench.make_reset_wrench(wp.bool)
+    if name == "reset_wrench_composer_index" or name.endswith("_kernel"):
+        return getattr(_wrench_compat, name)
+    dtype = wp.bool if name.endswith("_mask") else Any
+    return _wrench_compat.make_write_wrench(dtype, dtype, accumulate=name.startswith("add_"))
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_DEPRECATED_WRENCH_NAMES))
+
 
 ##
 # Raycasting
@@ -433,3 +483,7 @@ _GATHER_SUBTRACT_2D_DISPATCHER = IndexKernelDispatcher(gather_subtract_2d, ("env
 def gather_subtract_2d_kernel(env_ids: "wp.array | torch.Tensor", item_ids: "wp.array | torch.Tensor") -> wp.Kernel:
     """Select the gather-subtract worker for the selector dtypes."""
     return _GATHER_SUBTRACT_2D_DISPATCHER.select(env_ids, item_ids)
+
+
+# Include deprecated names in star imports without eagerly creating their kernels.
+__all__ = [name for name in globals() if not name.startswith("_")] + list(_DEPRECATED_WRENCH_NAMES)
