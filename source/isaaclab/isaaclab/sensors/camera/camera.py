@@ -665,7 +665,7 @@ class Camera(SensorBase):
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
-            self._update_poses(env_mask=env_mask, frame_op=2)
+            self._update_poses(env_mask=reset_mask, frame_op=2)
         elif env_ids is None:
             self._update_poses(frame_op=2)
         else:
