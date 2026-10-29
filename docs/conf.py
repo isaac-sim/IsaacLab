@@ -231,13 +231,14 @@ exclude_patterns = [
 ]
 
 # Mock out modules that are not available on RTD
+# Warp stays real: generated kernels resolve concrete element layouts during import,
+# without compiling or launching a GPU kernel. Warp is a normal project dependency.
 autodoc_mock_imports = [
     "torch",
     "torchvision",
     "matplotlib",
     "scipy",
     "carb",
-    "warp",
     "pxr",
     "isaacsim",
     "omni",
