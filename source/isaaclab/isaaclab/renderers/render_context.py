@@ -373,7 +373,7 @@ class RenderContext:
         for renderer, indices in groups.values():
             renderer.render_batch([requests[index][1] for index in indices])
             for index in indices:
-                published[index] = renderer.read_output(*requests[index][1:])
+                published[index] = bool(renderer.read_output(*requests[index][1:]))
         return published
 
     def reset_stage_prepare_flag(self) -> None:

@@ -31,6 +31,9 @@ _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
     "depth_clipping_behavior": "none",
 }
 
+CAPTURE_MASK_NAME = "env_mask"
+"""Processor input holding the boolean mask of environments with a new capture."""
+
 
 @configclass
 class CameraCfg(SensorBaseCfg):
@@ -292,10 +295,6 @@ class CameraCfg(SensorBaseCfg):
                 f"but the camera is configured with unsupported types: {unsupported}. "
                 "Choose supported data types or select a different renderer."
             )
-
-
-CAPTURE_MASK_NAME = "env_mask"
-"""Processor input holding the boolean mask of environments with a new capture."""
 
 
 def _render_data_types(cfg: CameraCfg) -> list[str]:

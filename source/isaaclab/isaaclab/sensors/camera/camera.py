@@ -825,6 +825,8 @@ class Camera(SensorBase):
                 self._tensor_processors.append(processor_cfg.func(processor_cfg, {**buffers, **mask}))
             buffers.update(self._tensor_processors[index]({**buffers, **mask}))
         self._data.output.update(buffers)
+        # Processor outputs enter info with output, at their first publication.
+        self._data.info.update(dict.fromkeys(buffers.keys() - self._data.info.keys()))
 
     """
     Private Helpers
@@ -898,7 +900,6 @@ class Camera(SensorBase):
         # A processor may publish an output under the name of a render output that it reads.
         self._render_outputs = dict(self._data.output)
         self._renderer.set_outputs(self._render_data, self._render_outputs)
-        self._data.info.update(dict.fromkeys(name for cfg in self.cfg.tensor_processors for name in cfg.outputs))
 
     def _read_authored_opencv_intrinsics(
         self, prim: Usd.Prim, width: int, height: int, env_id: int
