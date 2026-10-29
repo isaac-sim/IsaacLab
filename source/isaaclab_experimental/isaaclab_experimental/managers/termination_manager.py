@@ -15,7 +15,7 @@ CUDA-graph-friendly implementation:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -24,31 +24,13 @@ from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import TerminationTermCfg
 
-from .manager_base import ManagerBase, ManagerTermBase
+from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import captured, eager
+
+from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-
-@wp.kernel
-def _termination_pre_compute_reset(
-    # output
-    term_dones: wp.array(dtype=wp.bool, ndim=2),
-    truncated: wp.array(dtype=wp.bool),
-    terminated: wp.array(dtype=wp.bool),
-    dones: wp.array(dtype=wp.bool),
-):
-    """Reset per-step termination buffers.
-
-    Launched with dim = (num_envs,) to reset per-env flags and clear the corresponding row in `term_dones`.
-    This works even when `term_dones.shape[1] == 0` (no terms).
-    """
-    env_id = wp.tid()
-    truncated[env_id] = False
-    terminated[env_id] = False
-    dones[env_id] = False
-    for term_idx in range(term_dones.shape[1]):
-        term_dones[env_id, term_idx] = False
 
 
 @wp.kernel
@@ -125,6 +107,8 @@ class TerminationManager(ManagerBase):
         super().__init__(cfg, env)
 
         self._term_name_to_term_idx = {name: i for i, name in enumerate(self._term_names)}
+        self._term_split = split_terms(self._term_cfgs)
+        self._class_term_split = split_resets(self._class_term_cfgs)
 
         # persistent buffers (Warp)
         num_terms = len(self._term_names)
@@ -243,31 +227,16 @@ class TerminationManager(ManagerBase):
     Operations.
     """
 
-    def reset(
-        self,
-        env_ids: Sequence[int] | torch.Tensor | None = None,
-        *,
-        env_mask: wp.array | None = None,
-    ) -> dict[str, torch.Tensor]:
+    @captured
+    def _reset(self, env_mask: wp.array) -> dict[str, torch.Tensor]:
         """Reset termination stats and class terms; return pre-allocated extras.
 
         Args:
-            env_ids: The specific environment indices to reset.
-                If None, all environments are considered.
             env_mask: Boolean Warp mask of shape (num_envs,) selecting reset environments.
-                If provided, takes precedence over ``env_ids``.
 
         Returns:
             A dictionary containing the information to log under the "Termination/{term_name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "TerminationManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
         if len(self._term_names) > 0:
             self._term_done_avg_wp.zero_()
             wp.launch(
@@ -276,7 +245,9 @@ class TerminationManager(ManagerBase):
                 inputs=[self._last_episode_dones_wp, self._term_done_avg_wp],
                 device=self.device,
             )
-        for term_cfg in self._class_term_cfgs:
+        for term_cfg in self._class_term_split.eager:
+            eager(term_cfg.func.reset, env_mask=env_mask)
+        for term_cfg in self._class_term_split.captured:
             term_cfg.func.reset(env_mask=env_mask)
         return self._reset_extras
 
@@ -285,22 +256,17 @@ class TerminationManager(ManagerBase):
         """Pre-allocated reset logging extras for termination terms."""
         return self._reset_extras
 
+    @captured
     def compute(self) -> torch.Tensor:
         """Computes the termination signal as union of individual terms.
 
         Returns:
             The combined termination signal of shape (num_envs,).
         """
-        # reset computation (Warp buffers) in a single kernel launch
-        wp.launch(
-            kernel=_termination_pre_compute_reset,
-            dim=self.num_envs,
-            inputs=[self._term_dones_wp, self._truncated_wp, self._terminated_wp, self._dones_wp],
-            device=self.device,
-        )
-
         # iterate over all the termination terms (fixed list; per-term math is Warp)
-        for term_cfg in self._term_cfgs:
+        for term_cfg in self._term_split.eager:
+            eager(term_cfg.func, self._env, term_cfg.out, **term_cfg.params)
+        for term_cfg in self._term_split.captured:
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
         # finalize dones and update last-episode term flags (single kernel launch)
@@ -320,6 +286,55 @@ class TerminationManager(ManagerBase):
 
         return self._dones_tensor_view
 
+    """
+    Operations - Term settings.
+    """
+
+    def set_term_cfg(self, term_name: str, cfg: TerminationTermCfg):
+        """Sets the configuration of the specified term into the manager.
+
+        Recorded termination stages read whether the term is a time-out on every call. They record again on their
+        next call only when the term's function, parameters or capturability change.
+
+        Args:
+            term_name: The name of the termination term.
+            cfg: The configuration for the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        term_idx = self._term_name_to_term_idx[term_name]
+        # the term keeps writing into its column of the done buffer
+        cfg.out = self._term_out_views_wp[term_idx]
+        changed = self._term_cfg_changed(term_name, cfg)
+        cfg.capturable = is_warp_capturable(cfg.func, cfg.params)
+        self._term_cfgs[term_idx] = cfg
+        wp.to_torch(self._term_is_time_out_wp)[term_idx] = bool(cfg.time_out)
+        self._class_term_cfgs = [term_cfg for term_cfg in self._term_cfgs if isinstance(term_cfg.func, ManagerTermBase)]
+        self._term_split = split_terms(self._term_cfgs)
+        self._class_term_split = split_resets(self._class_term_cfgs)
+        # recorded stages hold the replaced term, which may also differ in capturability
+        if changed:
+            self._record_term_again(term_name, cfg)
+
+    def get_term_cfg(self, term_name: str) -> TerminationTermCfg:
+        """Gets the configuration for the specified term.
+
+        Args:
+            term_name: The name of the termination term.
+
+        Returns:
+            The configuration of the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        return self._term_cfgs[self._term_name_to_term_idx[term_name]]
+
     def get_term(self, name: str) -> torch.Tensor:
         """Returns the termination term value at current step with the specified name.
 
@@ -338,6 +353,9 @@ class TerminationManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, TerminationTermCfg]]:
+        return zip(self._term_names, self._term_cfgs)
 
     def _prepare_terms(self):
         # check if config is dict already
