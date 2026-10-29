@@ -202,7 +202,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
                 f"The battery resistance must be non-negative and ordered, got {self.battery_resistance} and range"
                 f" {self.battery_resistance_range}"
             )
-        lowest_voltage = min(self.vin, *(self.vin_range or ()))
+        lowest_voltage = min((self.vin, *(self.vin_range or ())))
         if self.vin_min > lowest_voltage:
             raise ValueError(f"vin_min ({self.vin_min}) must not exceed the lowest supply voltage ({lowest_voltage})")
         if self.min_delay < 0:
