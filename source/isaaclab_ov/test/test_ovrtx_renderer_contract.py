@@ -148,6 +148,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
 
     from isaaclab.cloner import make_clone_plan, replicate
 
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1")
+
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
@@ -227,6 +229,9 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert len(redirected) == (1 if shared_physics else 2)
     assert renderer.backend.renderer is not None
     assert config_kwargs.get("active_cuda_gpus") == ("1" if use_ovstage else None)
+    # Camera compatibility must retain the requested GPU scene-transform path,
+    # including when simulation tensors originate on the CPU.
+    assert config_kwargs["read_gpu_transforms"] is True
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
@@ -868,7 +873,8 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
 
 
 @pytest.mark.parametrize("colorized", [False, True])
-def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized):
+@pytest.mark.parametrize("named_tensors", [False, True])
+def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized, named_tensors):
     """Pixel types, label keys and missing-map handling follow the requested output contract."""
     from isaaclab.renderers.segmentation_colors import random_color_from_id
 
@@ -895,6 +901,23 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
         "StableIdMap": _encode_identifier_map([(stable_id, "/World/Cone")]),
         "StableIdSemanticIdMap": _encode_stable_id_semantic_id_map([(stable_id, 2)]),
     }
+    if named_tensors:
+        maps = {
+            "SemanticIdMap": {
+                "id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+                "label_offsets": np.array([0, 12], dtype=np.uint64),
+                "label_data": np.frombuffer(b"class: cone;", dtype=np.uint8),
+            },
+            "StableIdMap": {
+                "id": np.array([stable_id], dtype=np.uint32),
+                "label_offsets": np.array([0, 11], dtype=np.uint64),
+                "label_data": np.frombuffer(b"/World/Cone", dtype=np.uint8),
+            },
+            "StableIdSemanticIdMap": {
+                "stable_id": np.array([stable_id], dtype=np.uint32),
+                "semantic_id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+            },
+        }
     frame = types.SimpleNamespace(render_vars={})
     for key, value in maps.items():
         render_var = MagicMock()

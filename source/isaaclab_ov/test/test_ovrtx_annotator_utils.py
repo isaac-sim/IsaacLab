@@ -72,20 +72,34 @@ def test_decode_semantic_id_map_handles_empty_buffer():
     assert decode_semantic_id_map(np.zeros(0, dtype=np.uint8)) == {}
 
 
-def test_decode_semantic_id_map_rejects_corrupt_entry_count():
+@pytest.mark.parametrize("named_tensors", [False, True])
+def test_decode_semantic_id_map_rejects_corrupt_entry_count(named_tensors):
     """A SemanticIdMap whose entry count exceeds the buffer raises instead of reading out of bounds."""
     id_map = _encode_identifier_map([((2, 0, 0, 0), "class: cone;")])
     id_map[-4:] = np.frombuffer(int(999).to_bytes(4, "little"), dtype=np.uint8)
+    if named_tensors:
+        id_map = {
+            "id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+            "label_offsets": np.array([0], dtype=np.uint64),
+            "label_data": np.frombuffer(b"class: cone;", dtype=np.uint8),
+        }
     with pytest.raises(ValueError, match="Corrupt SemanticIdMap"):
         decode_semantic_id_map(id_map)
 
 
-def test_decode_semantic_id_map_rejects_label_spilling_into_count_field():
+@pytest.mark.parametrize("named_tensors", [False, True])
+def test_decode_semantic_id_map_rejects_label_spilling_into_count_field(named_tensors):
     """A label whose bytes run into the trailing 4-byte entry count is rejected (bound is data.size - 4)."""
     id_map = _encode_identifier_map([((2, 0, 0, 0), "class: cone;")])
     # Inflate the single entry's label_length (u4 at byte offset 16 of the 24-byte entry) so the label
     # would extend into the trailing entry-count word.
     id_map[16:20] = np.frombuffer(int(len("class: cone;") + 4).to_bytes(4, "little"), dtype=np.uint8)
+    if named_tensors:
+        id_map = {
+            "id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+            "label_offsets": np.array([0, 16], dtype=np.uint64),
+            "label_data": np.frombuffer(b"class: cone;", dtype=np.uint8),
+        }
     with pytest.raises(ValueError, match="Corrupt SemanticIdMap"):
         decode_semantic_id_map(id_map)
 
