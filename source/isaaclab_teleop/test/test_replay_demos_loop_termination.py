@@ -18,7 +18,7 @@ from isaaclab_teleop.entrypoints.replay_demos import replay_episodes_loop
 
 from isaaclab.utils.datasets import EpisodeData
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 
 class _SimStub:

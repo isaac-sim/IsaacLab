@@ -13,13 +13,9 @@ every backend, so passing here also covers kitless backends (e.g. Newton) where
 
 import math
 
-import pytest
-
 from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.schemas.schemas import create_world_fixed_joint
-
-pytestmark = pytest.mark.kitless
 
 
 def _make_root_prim(stage: Usd.Stage, path: str, translation: tuple[float, float, float]) -> Usd.Prim:

@@ -12,8 +12,6 @@ from newton import ShapeFlags
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("load_visual_shapes", [True, False])
 @pytest.mark.parametrize("dynamic", [True, False])

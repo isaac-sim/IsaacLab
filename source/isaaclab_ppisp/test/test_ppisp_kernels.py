@@ -38,8 +38,6 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_PARAM_COUNT,
 )
 
-pytestmark = pytest.mark.kitless
-
 wp.init()
 
 

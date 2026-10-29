@@ -12,8 +12,6 @@ from isaaclab_tasks.contrib.deploy.gear_assembly.config.rizon_4s.ros_inference_e
 )
 from isaaclab_tasks.contrib.deploy.gear_assembly.config.ur_10e.joint_pos_env_cfg import UR10e2F140GearAssemblyEnvCfg
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     "env_cfg_cls",

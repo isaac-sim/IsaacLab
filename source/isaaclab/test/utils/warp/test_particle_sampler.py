@@ -10,8 +10,6 @@ import pytest
 
 from isaaclab.utils.warp import sample_particles_in_cavity, sample_particles_in_mesh
 
-pytestmark = pytest.mark.kitless
-
 
 def _box_mesh(lower: float, upper: float) -> tuple[np.ndarray, np.ndarray]:
     """Return an outward-facing triangulated cube."""

@@ -16,8 +16,6 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.handover.handover_common import HandoverGoal
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_handover_goal_update_does_not_synchronize(device):

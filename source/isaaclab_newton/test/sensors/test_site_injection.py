@@ -22,8 +22,6 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("replicated", [False, True])
 def test_sites_bind_once_to_clone_sources_or_explicit_builder(replicated):

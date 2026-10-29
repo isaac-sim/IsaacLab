@@ -5,7 +5,6 @@
 
 """Tests for Newton's compiled visual-material writers."""
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg
@@ -21,8 +20,6 @@ from pxr import Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.renderers.base_renderer import VisualMaterialBatch
 from isaaclab.sim import SimulationContext
-
-pytestmark = pytest.mark.kitless
 
 
 def _srgb(colors: torch.Tensor) -> torch.Tensor:

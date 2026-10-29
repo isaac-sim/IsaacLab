@@ -39,9 +39,6 @@ def _create(
     return CoupledMJWarpVBDSolver.build(solver_cfg, MagicMock(), NOT_GUARANTEED)
 
 
-pytestmark = pytest.mark.kitless
-
-
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     """The coupled manager imports joint properties consumed by its MuJoCo solver."""
     stage = Usd.Stage.CreateInMemory()

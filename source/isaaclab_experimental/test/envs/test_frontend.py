@@ -45,8 +45,6 @@ from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg,
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as StableSceneEntityCfg
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.kitless
-
 # ======================================================================
 # Fixtures: fake stable/warp symbols and configclass trees.
 #

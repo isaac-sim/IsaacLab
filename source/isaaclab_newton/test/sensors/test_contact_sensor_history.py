@@ -9,7 +9,6 @@
 
 import warnings
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_newton.sensors.contact_sensor.contact_sensor_data import ContactSensorData
@@ -17,8 +16,6 @@ from isaaclab_newton.sensors.contact_sensor.contact_sensor_kernels import (
     copy_from_newton_kernel,
     update_contact_sensor_kernel,
 )
-
-pytestmark = pytest.mark.kitless
 
 
 def test_force_matrix_history_rolls_newest_first_and_honors_mask():

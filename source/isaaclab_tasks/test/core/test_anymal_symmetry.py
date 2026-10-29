@@ -13,8 +13,6 @@ from tensordict import TensorDict
 
 from isaaclab_tasks.core.velocity.mdp.symmetry import anymal
 
-pytestmark = pytest.mark.kitless
-
 # Native joint orders of ANYmal-D on the two physics backends.
 PHYSX_ORDER = [
     "LF_HAA", "LH_HAA", "RF_HAA", "RH_HAA",

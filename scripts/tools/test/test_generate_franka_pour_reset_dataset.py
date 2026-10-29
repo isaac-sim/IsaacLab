@@ -13,8 +13,6 @@ import pytest
 
 from scripts.tools.generate_franka_pour_reset_dataset import GeneratorCfg, phase_counts
 
-pytestmark = pytest.mark.kitless
-
 
 def test_generator_help_starts_without_launching_simulation():
     """The documented entry point must remain importable in a clean subprocess."""

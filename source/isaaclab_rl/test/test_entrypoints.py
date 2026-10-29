@@ -33,8 +33,6 @@ from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
 from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
 from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, create_zero_action_policy
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     ("statement", "unexpected_modules"),

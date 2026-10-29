@@ -20,8 +20,6 @@ from isaaclab.benchmark.metrics import (
 )
 from isaaclab.benchmark.schema import MeanStd
 
-pytestmark = pytest.mark.kitless
-
 
 def test_mean_std_peak_computes_peak():
     ms = mean_std_peak([1.0, 2.0, 3.0])

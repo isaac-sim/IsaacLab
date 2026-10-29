@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 _FRESH_PROCESS_SCRIPT = Path(__file__).with_name("_env_cfgs_fresh_process.py").resolve()
 

@@ -17,8 +17,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.unit
 @pytest.mark.parametrize("device", test_devices())

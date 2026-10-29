@@ -21,8 +21,6 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_rl.utils import pretrained_checkpoint
 
-pytestmark = pytest.mark.kitless
-
 
 @configclass
 class _CameraCfg:

@@ -10,8 +10,6 @@ import torch
 
 import isaaclab_tasks.core.reorient.utils as reorient_utils
 
-pytestmark = pytest.mark.kitless
-
 
 def test_sample_joint_positions_within_limits_interpolates_endpoints(monkeypatch):
     """Verify reset-noise scales map samples between defaults and limit endpoints."""

@@ -22,8 +22,6 @@ from rich.console import Console, RenderableType
 
 from isaaclab.app import loading_screen
 
-pytestmark = pytest.mark.kitless
-
 _ALT_SCREEN_ON = "\x1b[?1049h"
 _ALT_SCREEN_OFF = "\x1b[?1049l"
 

@@ -16,8 +16,6 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.kitless
-
 
 def _make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="train.py", add_help=False)

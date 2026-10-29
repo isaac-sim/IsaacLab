@@ -21,8 +21,6 @@ from newton.viewer import ViewerRerun
 
 from isaaclab.visualizers import VisualizerCfg
 
-pytestmark = pytest.mark.kitless
-
 
 def test_viser_missing_dependency_propagates_import_error(monkeypatch):
     monkeypatch.setitem(sys.modules, "viser", None)

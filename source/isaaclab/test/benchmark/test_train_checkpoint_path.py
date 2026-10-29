@@ -11,8 +11,6 @@ import pytest
 
 from isaaclab.benchmark.entrypoints import training
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     ("backend", "subdir", "filename"),

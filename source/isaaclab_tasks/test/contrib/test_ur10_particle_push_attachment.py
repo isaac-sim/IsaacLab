@@ -28,8 +28,6 @@ from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env_cfg import
     UR10ParticlePushSceneCfg,
 )
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_paddle_follows_wrist_after_cloning_and_joint_state_writes(device):

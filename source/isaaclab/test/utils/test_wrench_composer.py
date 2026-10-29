@@ -23,7 +23,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 _IDENTITY = (0.0, 0.0, 0.0, 1.0)
 _QUARTER_TURN_Z = (0.0, 0.0, 2.0**-0.5, 2.0**-0.5)

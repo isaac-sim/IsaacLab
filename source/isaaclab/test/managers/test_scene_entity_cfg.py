@@ -19,7 +19,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.string import resolve_matching_names
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

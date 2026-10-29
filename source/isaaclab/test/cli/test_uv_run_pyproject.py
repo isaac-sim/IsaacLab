@@ -15,7 +15,7 @@ import tomllib
 from packaging.requirements import Requirement
 from packaging.version import Version
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 def _root_pyproject(source_checkout_root: Path) -> dict:

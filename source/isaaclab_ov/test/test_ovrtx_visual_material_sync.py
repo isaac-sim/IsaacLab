@@ -18,7 +18,6 @@ _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.fin
 
 pytestmark = [
     pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}"),
-    pytest.mark.kitless,
     pytest.mark.ov,
 ]
 

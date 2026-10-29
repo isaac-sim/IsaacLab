@@ -22,8 +22,6 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     configure_mpm_capacities,
 )
 
-pytestmark = pytest.mark.kitless
-
 
 def test_reset_dataset_path_is_repo_relative_and_missing_error_is_actionable(monkeypatch, tmp_path):
     """Relative artifacts share the generator's root and missing files name the recovery command."""

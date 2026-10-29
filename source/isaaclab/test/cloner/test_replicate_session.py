@@ -31,8 +31,6 @@ from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 from isaaclab.sim.spawners.wrappers import spawn_multi_asset, spawn_multi_usd_file
 
-pytestmark = pytest.mark.kitless
-
 
 class _Context(ReplicateContext):
     def replicate(self, plan, asset_prototype_ids):

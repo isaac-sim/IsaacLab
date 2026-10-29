@@ -20,7 +20,7 @@ import pytest
 
 import isaaclab.utils.assets as assets_utils
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 def test_asset_root_environment_override_takes_precedence(monkeypatch):

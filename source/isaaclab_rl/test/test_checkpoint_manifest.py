@@ -13,8 +13,6 @@ import pytest
 
 from isaaclab_rl.entrypoints.common import RUN_MANIFEST_FILENAME, resolve_checkpoint_selector, write_run_manifest
 
-pytestmark = pytest.mark.kitless
-
 
 def _set_created_at(run_dir: Path, created_at: str) -> None:
     manifest_path = run_dir / RUN_MANIFEST_FILENAME

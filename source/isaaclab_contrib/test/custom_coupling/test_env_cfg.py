@@ -13,8 +13,6 @@ from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolverCfg
 
 from isaaclab_tasks.utils import resolve_task_config
 
-pytestmark = pytest.mark.kitless
-
 
 def test_example_default_preset_uses_the_manual_coupler() -> None:
     """Importing the example must select its own manual coupling preset."""

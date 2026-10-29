@@ -18,8 +18,6 @@ from isaaclab_tasks.contrib.shoelace.mdp.events import reset_shoe_position
 from isaaclab_tasks.contrib.shoelace.shoelace_env_cfg import ShoelaceEnvCfg
 from isaaclab_tasks.contrib.shoelace.shoelace_physics import configure_shoelace_builder
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("env_ids", [slice(1, 4, 2), torch.tensor([3, 1])])
 def test_shoe_reset_accepts_slices_and_preserves_unselected_poses(env_ids: torch.Tensor | slice) -> None:

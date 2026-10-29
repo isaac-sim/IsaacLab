@@ -14,8 +14,6 @@ from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, reset_mpm_solver_st
 from isaaclab_newton.physics import mpm_solver as mpm_solver_module
 from newton.solvers import SolverImplicitMPM
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.fixture(scope="module")
 def cpu_mpm_solver_and_state():

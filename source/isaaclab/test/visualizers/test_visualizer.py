@@ -26,7 +26,7 @@ from isaaclab.visualizers.visualizer_cfg import (
     WindowCfg,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.kitless]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 #
 # Config construction

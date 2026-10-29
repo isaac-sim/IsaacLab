@@ -30,8 +30,6 @@ from isaaclab.visualizers import VisualizerCfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
-pytestmark = pytest.mark.kitless
-
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
 

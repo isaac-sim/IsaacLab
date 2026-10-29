@@ -27,8 +27,6 @@ from isaaclab.utils.images import compose_image, sensor_key_for_gt_type
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.visualizers import ImageView, ImageViewCfg
 
-pytestmark = pytest.mark.kitless
-
 
 def _reference_colorize(data, channel):
     """NumPy/stdlib reference independent of the device composition kernels."""

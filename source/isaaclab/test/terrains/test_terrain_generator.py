@@ -33,7 +33,7 @@ from isaaclab.terrains.height_field import (
 from isaaclab.terrains.trimesh.utils import make_box, make_cone, make_cylinder
 from isaaclab.utils.seed import configure_seed
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

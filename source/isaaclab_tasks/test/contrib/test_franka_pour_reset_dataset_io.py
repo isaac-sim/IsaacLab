@@ -16,8 +16,6 @@ from isaaclab_tasks.contrib.franka_pour.reset_dataset_io import (
     reset_dataset_validate_runtime,
 )
 
-pytestmark = pytest.mark.kitless
-
 
 def _payload() -> dict:
     state_count = 2

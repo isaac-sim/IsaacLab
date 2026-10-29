@@ -22,7 +22,7 @@ from isaaclab.benchmark.sensor_suites import (
     run_contact_sensor_workload,
 )
 
-pytestmark = [pytest.mark.benchmark, pytest.mark.kitless]
+pytestmark = pytest.mark.benchmark
 
 
 class _MeasurementSink:

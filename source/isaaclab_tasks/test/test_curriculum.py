@@ -7,7 +7,6 @@
 
 from types import SimpleNamespace
 
-import pytest
 import torch
 
 from isaaclab.utils import instantiate
@@ -19,8 +18,6 @@ from isaaclab_tasks.contrib.nist.utils import (
     SamplerCfg,
     UniformSamplingStrategyCfg,
 )
-
-pytestmark = pytest.mark.kitless
 
 
 def test_uniform_only_sampler_is_uniform():

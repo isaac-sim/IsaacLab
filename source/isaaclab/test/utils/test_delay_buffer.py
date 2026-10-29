@@ -11,7 +11,7 @@ import torch
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import DelayBuffer
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

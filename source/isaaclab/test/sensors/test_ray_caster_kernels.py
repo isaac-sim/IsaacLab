@@ -26,7 +26,7 @@ import warp as wp
 
 from isaaclab.utils.warp.math import yaw_quat
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 from isaaclab.sensors.ray_caster.kernels import (
     apply_z_drift_kernel,

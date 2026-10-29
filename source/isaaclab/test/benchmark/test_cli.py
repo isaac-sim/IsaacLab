@@ -12,8 +12,6 @@ import pytest
 from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int, validate_warmup_steps
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("argument_type", [parse_non_negative_int, parse_positive_int])
 def test_integer_parsers_report_native_conversion_errors(argument_type, capsys):

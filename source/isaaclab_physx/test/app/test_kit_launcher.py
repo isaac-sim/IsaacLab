@@ -25,8 +25,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
 
-pytestmark = pytest.mark.kitless
-
 
 def _launcher_after_output_resolution(**state) -> KitLauncher:
     """Return a bare launcher with the attributes the output resolvers set, all requesting no visual output."""

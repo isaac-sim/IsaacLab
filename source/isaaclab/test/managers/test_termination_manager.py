@@ -10,7 +10,7 @@ import torch
 
 from isaaclab.managers import TerminationManager, TerminationTermCfg
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 class DummyEnv:

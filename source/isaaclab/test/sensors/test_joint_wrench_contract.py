@@ -9,7 +9,7 @@ import ast
 
 import pytest
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 def test_joint_wrench_contract_registration(source_checkout_root):

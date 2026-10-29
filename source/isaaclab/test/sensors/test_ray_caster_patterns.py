@@ -12,7 +12,7 @@ import torch
 
 from isaaclab.sensors.ray_caster.patterns import patterns, patterns_cfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")

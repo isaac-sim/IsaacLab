@@ -7,10 +7,7 @@
 
 from pathlib import Path
 
-import pytest
 from stage_comparison import compare_golden_stage
-
-pytestmark = pytest.mark.kitless
 
 
 def _usda_with_robot(translate: tuple[float, float, float] = (0.0, 0.0, 0.0), *, extra_prim: bool = False) -> str:

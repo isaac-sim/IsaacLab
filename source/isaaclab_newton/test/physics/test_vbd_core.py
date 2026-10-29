@@ -21,8 +21,6 @@ from newton.solvers import SolverVBD
 from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import replace
 
-pytestmark = pytest.mark.kitless
-
 NOT_GUARANTEED = wp.DeterministicMode.NOT_GUARANTEED
 
 

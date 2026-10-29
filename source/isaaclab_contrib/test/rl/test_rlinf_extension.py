@@ -24,8 +24,6 @@ import pytest
 import torch
 import yaml
 
-pytestmark = pytest.mark.kitless
-
 # ---------------------------------------------------------------------------
 # Mock the ``rlinf`` package so the extension module can be imported without
 # having RLinf installed.  We create just enough structure for the top-level

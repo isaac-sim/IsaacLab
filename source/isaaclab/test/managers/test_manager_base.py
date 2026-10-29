@@ -26,7 +26,7 @@ from isaaclab.managers.manager_base import ManagerBase
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils import configclass, tensor_processors, to_dict, update_from_dict
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""

@@ -9,10 +9,7 @@ import sys
 import types
 from unittest.mock import MagicMock
 
-import pytest
 from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
-
-pytestmark = pytest.mark.kitless
 
 
 def test_set_kit_camera_view_uses_viewport_utility(monkeypatch):

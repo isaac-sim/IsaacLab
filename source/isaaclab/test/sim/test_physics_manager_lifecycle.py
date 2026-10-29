@@ -18,8 +18,6 @@ from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.visualizers import VisualizerCfg
 
-pytestmark = pytest.mark.kitless
-
 
 def test_backend_registry_identity_and_lifecycle():
     """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""

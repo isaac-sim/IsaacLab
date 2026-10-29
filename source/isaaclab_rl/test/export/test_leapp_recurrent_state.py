@@ -14,8 +14,6 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
-pytestmark = pytest.mark.kitless
-
 torch = pytest.importorskip("torch")
 
 

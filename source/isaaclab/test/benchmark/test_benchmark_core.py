@@ -17,7 +17,7 @@ from isaaclab.benchmark.benchmark_core import BaseIsaacLabBenchmark, _runtime_me
 from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata
 from isaaclab.sim import utils as sim_utils
 
-pytestmark = [pytest.mark.benchmark, pytest.mark.kitless]
+pytestmark = pytest.mark.benchmark
 
 # ==============================================================================
 # BaseIsaacLabBenchmark Tests

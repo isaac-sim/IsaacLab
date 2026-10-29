@@ -17,8 +17,6 @@ import torch
 from isaaclab_physx.renderers import visual_material
 from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     ("shape", "warp_type"),

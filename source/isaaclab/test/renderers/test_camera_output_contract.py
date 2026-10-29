@@ -24,7 +24,7 @@ from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, instantiate, replace, validate
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.kitless]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,

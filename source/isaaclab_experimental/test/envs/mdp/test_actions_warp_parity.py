@@ -13,7 +13,7 @@ import torch
 import warp as wp
 
 wp.init()
-pytestmark = [pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required"), pytest.mark.kitless]
+pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
 from isaaclab_experimental.envs.mdp.actions import (
     JointEffortAction,

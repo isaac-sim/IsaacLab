@@ -21,7 +21,7 @@ import isaaclab.program_browser as browser
 import isaaclab.programs as programs
 from isaaclab.sim import SimulationContext
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 def test_cli_import_does_not_require_runtime_dependencies():

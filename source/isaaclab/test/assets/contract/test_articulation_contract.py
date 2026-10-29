@@ -31,7 +31,7 @@ from isaaclab.utils.warp import ProxyArray
 from .articulation_factory import get_articulation
 from .backends import backends, read_backend_joint_state, requires
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 # Distinct instance, joint, body, and tendon counts so any swapped axis shows up.
 N, J, B, FT, ST = 2, 6, 7, 3, 2

@@ -49,8 +49,6 @@ from isaaclab_contrib.coupling import (
     coupler,
 )
 
-pytestmark = pytest.mark.kitless
-
 _CELL_TEMPLATE = "/Lab/Cells/Cell{}"
 """Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""
 

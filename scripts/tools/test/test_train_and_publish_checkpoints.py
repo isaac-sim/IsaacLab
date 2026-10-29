@@ -26,8 +26,6 @@ from scripts.tools.train_and_publish_checkpoints import (
     publish_pretrained_checkpoint,
 )
 
-pytestmark = pytest.mark.kitless
-
 
 def test_cartpole_feature_presets_are_in_pretrained_checkpoint_matrix() -> None:
     """Every Cartpole feature policy for the preferred workflow must receive a distinct checkpoint."""

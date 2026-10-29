@@ -7,8 +7,6 @@ import pytest
 
 from isaaclab_tasks.utils import get_checkpoint_path
 
-pytestmark = pytest.mark.kitless
-
 
 def test_get_checkpoint_path_prefers_requested_checkpoint(tmp_path):
     checkpoint_dir = tmp_path / "cartpole_camera_direct" / "2026-06-07_02-41-41" / "nn"

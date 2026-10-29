@@ -57,8 +57,6 @@ from isaaclab.utils import clone, configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
-pytestmark = pytest.mark.kitless
-
 ##
 # Scene Configuration
 ##

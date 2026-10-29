@@ -28,8 +28,6 @@ from isaaclab.benchmark.schema import (
     Versions,
 )
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("measurements", [[SingleMeasurement(name="fps", value=60.0, unit="Hz")], []])
 def test_phase_json_round_trip_keeps_metadata(measurements) -> None:

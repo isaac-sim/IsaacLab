@@ -5,14 +5,11 @@
 
 """Unit tests for Factory sampling signals."""
 
-import pytest
 import torch
 
 from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.utils import BetaSamplingStrategyCfg, UniformSamplingStrategyCfg
-
-pytestmark = pytest.mark.kitless
 
 
 def _score(cfg, rates: torch.Tensor) -> torch.Tensor:

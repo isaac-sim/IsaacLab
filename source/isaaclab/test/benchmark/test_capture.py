@@ -41,8 +41,6 @@ from isaaclab.benchmark.schema import Hardware, Resources, Versions
 from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
-pytestmark = pytest.mark.kitless
-
 
 class _Rec:
     def __init__(self, data):

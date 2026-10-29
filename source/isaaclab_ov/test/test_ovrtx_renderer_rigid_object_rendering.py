@@ -32,7 +32,6 @@ pytestmark = [
     pytest.mark.rendering,
     pytest.mark.isaacsim_ci,
     pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}"),
-    pytest.mark.kitless,
     pytest.mark.ov,
 ]
 

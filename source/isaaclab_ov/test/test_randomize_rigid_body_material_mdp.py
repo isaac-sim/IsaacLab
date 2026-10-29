@@ -33,7 +33,7 @@ from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
-pytestmark = [pytest.mark.kitless, pytest.mark.ov]
+pytestmark = pytest.mark.ov
 
 wp.init()
 

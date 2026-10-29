@@ -15,7 +15,7 @@ from isaaclab.managers import TerminationManager
 
 from isaaclab_tasks.utils import parse_env_cfg
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 def test_manual_success_preserves_manager_dependencies():

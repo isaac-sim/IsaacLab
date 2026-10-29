@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

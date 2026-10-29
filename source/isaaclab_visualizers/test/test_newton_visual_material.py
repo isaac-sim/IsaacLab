@@ -5,11 +5,8 @@
 
 """Visualizer material-writer contracts."""
 
-import pytest
 from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
-
-pytestmark = pytest.mark.kitless
 
 
 def test_kit_visualizer_publishes_fabric_visual_material_writer() -> None:

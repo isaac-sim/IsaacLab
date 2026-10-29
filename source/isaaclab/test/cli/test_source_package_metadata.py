@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import tomllib
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize("name", ["torch", "torchvision"])

@@ -18,10 +18,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.kitless
-
 # Matches:
 #   wp.to_torch(<chain>.data.<field>)
 # where <chain> can be <name>, <name>[...], <name>.<name>, <name>.<name>[...], etc.

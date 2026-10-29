@@ -13,8 +13,6 @@ import torch
 from isaaclab.envs.mdp.actions.actions_cfg import AbsBinaryJointPositionActionCfg, BinaryJointPositionActionCfg
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
 
-pytestmark = pytest.mark.kitless
-
 
 class _JointIds:
     """Stand-in for the proxy returned by ``find_joints(..., as_proxy=True)``."""

@@ -11,11 +11,8 @@ import json
 import os
 import unittest
 
-import pytest
 import warp as wp
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
-
-pytestmark = pytest.mark.kitless
 
 
 @wp.kernel

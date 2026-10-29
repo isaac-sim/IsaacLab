@@ -53,8 +53,6 @@ from isaaclab_physx.sim.schemas import (  # isort: skip
     PhysxRigidBodyPropertiesCfg,
 )
 
-pytestmark = pytest.mark.kitless
-
 LEGACY_PATH = "/World/Legacy"
 FRAGMENT_PATH = "/World/Fragment"
 

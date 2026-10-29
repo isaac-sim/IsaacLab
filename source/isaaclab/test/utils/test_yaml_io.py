@@ -7,7 +7,7 @@ import pytest
 
 from isaaclab.utils.io.yaml import dump_yaml, load_yaml
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 def test_dump_yaml_supports_current_working_directory(monkeypatch, tmp_path):

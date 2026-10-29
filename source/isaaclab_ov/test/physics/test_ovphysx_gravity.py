@@ -23,7 +23,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = [pytest.mark.kitless, pytest.mark.ov]
+pytestmark = pytest.mark.ov
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

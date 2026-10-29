@@ -35,8 +35,6 @@ from isaaclab_newton.physics import NewtonCfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
-pytestmark = pytest.mark.kitless
-
 # Stable manager-based tasks resolve to this env class; direct tasks provide their own and
 # take the :meth:`WarpFrontend._resolve_direct_warp_class` path instead of cfg adaptation.
 _STABLE_MANAGER_ENTRY_POINT = "isaaclab.envs:ManagerBasedRLEnv"

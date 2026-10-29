@@ -10,10 +10,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.kitless
-
 _APPS_DIR = Path(__file__).resolve().parents[4] / "apps"
 
 # Kit loaded when cameras are enabled.

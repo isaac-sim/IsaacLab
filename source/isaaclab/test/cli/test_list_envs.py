@@ -8,11 +8,8 @@
 from __future__ import annotations
 
 import gymnasium as gym
-import pytest
 
 from isaaclab.cli.commands.list_envs import command_list_envs
-
-pytestmark = pytest.mark.kitless
 
 
 def test_command_lists_non_isaac_prefixed_task_from_current_project(tmp_path, monkeypatch, capsys):

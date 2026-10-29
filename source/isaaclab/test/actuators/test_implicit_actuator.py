@@ -10,7 +10,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.test.utils import test_devices
 from isaaclab.utils import instantiate
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 # Shapes broadcast the same scalar parameters, so one multi-env, multi-joint shape covers them.
 NUM_ENVS, NUM_JOINTS = 2, 2

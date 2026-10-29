@@ -18,7 +18,7 @@ from isaaclab_visualizers.newton import (
 
 from isaaclab.visualizers import VisualizerCfg
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = [pytest.mark.unit]
 
 
 def test_close_does_not_destroy_shared_gl_context() -> None:

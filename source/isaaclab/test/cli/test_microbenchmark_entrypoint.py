@@ -12,8 +12,6 @@ import pytest
 
 from isaaclab.benchmark.microbenchmark import MicrobenchmarkFactory, run_microbenchmark_cli
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     ("physics", "component", "relative_script", "prefix_args"),

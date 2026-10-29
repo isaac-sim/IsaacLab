@@ -20,8 +20,6 @@ import torch
 
 from pxr import Gf, Sdf, Tf, Usd
 
-pytestmark = pytest.mark.kitless
-
 
 class _PoseValidityFlags(IntFlag):
     POSITION_VALID = 1

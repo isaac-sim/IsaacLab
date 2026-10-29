@@ -26,8 +26,6 @@ from isaaclab.assets.articulation.ordering_resolvers import (
     get_articulation_name_ordering,
 )
 
-pytestmark = pytest.mark.kitless
-
 sim_stub = types.ModuleType("isaaclab.sim")
 
 

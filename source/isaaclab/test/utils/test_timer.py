@@ -14,7 +14,7 @@ wp.init()
 import isaaclab.utils.timer as timer_module
 from isaaclab.utils.timer import Timer, TimerError
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 class _FakeClock:

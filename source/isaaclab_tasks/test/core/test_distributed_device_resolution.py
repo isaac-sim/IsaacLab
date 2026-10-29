@@ -23,8 +23,6 @@ import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 
-pytestmark = pytest.mark.kitless
-
 _RANK_ENV_VARS = ("LOCAL_RANK", "JAX_LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_RANK")
 
 

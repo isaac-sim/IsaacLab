@@ -5,15 +5,12 @@
 
 """Tests for the Shadow Hand handover physics presets."""
 
-import pytest
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab_tasks.core.handover.handover_env_cfg import BALL_CFG, HandoverEnvCfg
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG
-
-pytestmark = pytest.mark.kitless
 
 
 def test_handover_isaacsim_physx_resolves_physx_assets() -> None:

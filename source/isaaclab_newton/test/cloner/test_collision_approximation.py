@@ -12,8 +12,6 @@ from newton import GeoType, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
-pytestmark = pytest.mark.kitless
-
 _SOURCE = "/World/Asset"
 
 

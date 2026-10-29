@@ -21,8 +21,6 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.sim import SpawnerCfg
 
-pytestmark = pytest.mark.kitless
-
 
 def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
     api_schemas = Sdf.TokenListOp()

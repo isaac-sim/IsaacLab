@@ -13,8 +13,6 @@ import pytest
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     "backend, package",

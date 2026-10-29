@@ -14,7 +14,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 DECIMAL_PRECISION = 5
 """Precision of the test.

@@ -16,7 +16,7 @@ from isaaclab.test.utils import resolve_test_sim_device
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
 from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")

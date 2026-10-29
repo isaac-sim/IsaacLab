@@ -12,7 +12,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-pytestmark = [pytest.mark.kitless, pytest.mark.ov]
+pytestmark = pytest.mark.ov
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.

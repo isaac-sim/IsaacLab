@@ -34,8 +34,6 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
 )
 
-pytestmark = pytest.mark.kitless
-
 
 def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonManager:
     """Build a manager over a backend finalized from ``builder`` whose coupler solver and contacts are constructed."""

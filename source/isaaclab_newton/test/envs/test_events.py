@@ -37,8 +37,6 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-pytestmark = pytest.mark.kitless
-
 MATERIAL_PARAMS = {
     "asset_cfg": SceneEntityCfg("robot", body_ids=[0]),
     "static_friction_range": (0.5, 1.0),

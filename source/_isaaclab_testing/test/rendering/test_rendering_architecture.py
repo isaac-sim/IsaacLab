@@ -11,9 +11,6 @@ from pathlib import Path
 
 from packaging.requirements import Requirement
 from rendering_cases import KIT_RENDERING_CASES, KITLESS_RENDERING_CASES
-import pytest
-
-pytestmark = pytest.mark.kitless
 
 _SUITE = Path(__file__).parent
 _SOURCE = _SUITE.parents[2]

@@ -10,7 +10,7 @@ import pytest
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.sensors.sensor_base import SensorBase
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 class _DummySensor(SensorBase):

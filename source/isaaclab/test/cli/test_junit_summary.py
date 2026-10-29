@@ -11,10 +11,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.kitless
-
 
 def test_junit_summary_separates_xfail_from_skip(tmp_path: Path) -> None:
     """Pytest expected failures should render as unreliable, not skipped."""

@@ -12,8 +12,6 @@ import isaaclab_tasks  # noqa: F401
 # Local imports should be imported last
 from env_test_utils import SINGLE_ENVIRONMENT_TASKS, _run_environments, setup_environment  # isort: skip
 
-pytestmark = pytest.mark.kitless
-
 
 _COVERED_TASKS = [
     "Isaac-Cartpole",  # Already covered by test_environment_determinism.py

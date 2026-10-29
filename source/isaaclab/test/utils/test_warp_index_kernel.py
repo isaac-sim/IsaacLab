@@ -13,8 +13,6 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
-pytestmark = pytest.mark.kitless
-
 
 @wp.kernel
 def _scatter_indices(

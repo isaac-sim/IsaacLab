@@ -23,8 +23,6 @@ from isaaclab.benchmark.schema import (
 )
 from isaaclab.benchmark.serialize import write_bundle_file
 
-pytestmark = pytest.mark.kitless
-
 
 def _versions():
     return Versions(

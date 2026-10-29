@@ -15,7 +15,7 @@ import pytest
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 def _make_env_with_policy_obs_terms(

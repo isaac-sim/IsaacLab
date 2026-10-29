@@ -10,7 +10,7 @@ import pytest
 from isaaclab.envs.mdp import NullCommandCfg
 from isaaclab.utils import instantiate
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

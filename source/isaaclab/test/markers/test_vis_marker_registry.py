@@ -13,7 +13,7 @@ import pytest
 
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 class _Owner:

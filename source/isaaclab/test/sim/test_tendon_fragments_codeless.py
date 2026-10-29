@@ -11,7 +11,7 @@ ovphysx = pytest.importorskip("ovphysx", reason="ovphysx wheel not installed")
 
 from pxr import Plug, Usd
 
-pytestmark = [pytest.mark.kitless, pytest.mark.ov]
+pytestmark = pytest.mark.ov
 
 
 def test_tendon_fragments_use_codeless_schema_names_and_types():

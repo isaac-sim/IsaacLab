@@ -23,7 +23,7 @@ from isaaclab.sim.utils.newton_model_utils import (
     replace_newton_builder_shape_colors,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 _WARNING_MESSAGE = "Newton shape color replacement is enabled; this workaround will be deprecated in a future release."
 

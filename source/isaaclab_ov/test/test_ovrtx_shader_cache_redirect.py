@@ -19,8 +19,6 @@ from isaaclab_ov.renderers.ovrtx_shader_cache import (
     redirect_shader_cache,
 )
 
-pytestmark = pytest.mark.kitless
-
 _CACHE_PATH = "/tmp/isaaclab-ovrtx-kitless-cache"
 
 # Only ever forwarded to the patched applier factory, so its contents never matter.

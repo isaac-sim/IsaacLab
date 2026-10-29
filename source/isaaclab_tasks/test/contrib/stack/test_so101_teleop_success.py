@@ -14,12 +14,9 @@ be reintroduced silently.
 
 from types import SimpleNamespace
 
-import pytest
 import torch
 
 from isaaclab_tasks.contrib.stack.config.so101.stack_joint_teleop_env_cfg import SO101CubeStackEnvCfg
-
-pytestmark = pytest.mark.kitless
 
 # Resting center-to-center distance of two stacked cubes [m], measured in sim.
 _STACK_DZ = 0.0477

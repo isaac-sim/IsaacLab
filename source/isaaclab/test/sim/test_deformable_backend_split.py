@@ -34,7 +34,7 @@ from isaaclab.sim.spawners.materials import (
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 
 def _field_names(cls) -> set[str]:

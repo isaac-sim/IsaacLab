@@ -25,8 +25,6 @@ from isaaclab.benchmark.stepping import (
     sample_random_actions,
 )
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     ("active", "fail", "pass_class"),

@@ -40,7 +40,7 @@ _QUALITY_DEFAULT_SETTINGS = {
     "rtx.viewTile.limit": 1000000,
 }
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.kitless]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
 class _FakeSettings:

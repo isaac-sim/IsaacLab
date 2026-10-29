@@ -18,8 +18,6 @@ from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_train_sb3 as t
 from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_play_skrl as play_skrl
 from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_train_skrl as train_skrl
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize("adapter", [play_rl_games, play_rsl_rl, play_sb3, play_skrl])
 def test_play_adapter_help_does_not_require_task(adapter):

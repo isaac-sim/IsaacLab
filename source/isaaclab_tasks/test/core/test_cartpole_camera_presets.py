@@ -22,8 +22,6 @@ from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import (
 )
 from isaaclab_tasks.utils.hydra import resolve_presets
 
-pytestmark = pytest.mark.kitless
-
 _ENV_CFG_CLASSES = [
     pytest.param(CartpoleDirectCameraEnvCfg, id="direct"),
     pytest.param(CartpoleManagerCameraEnvCfg, id="manager"),

@@ -10,8 +10,6 @@ from isaaclab.utils import validate
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-pytestmark = pytest.mark.kitless
-
 _SURFACE_GRIPPER_TASKS = [
     "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow",
     "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",

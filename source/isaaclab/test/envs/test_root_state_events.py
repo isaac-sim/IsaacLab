@@ -13,7 +13,7 @@ import torch
 from isaaclab.envs.mdp import push_by_setting_velocity, reset_root_state_uniform
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 class _Scene(dict):

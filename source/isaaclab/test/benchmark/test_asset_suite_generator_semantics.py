@@ -17,7 +17,7 @@ from isaaclab.benchmark.asset_suites import (
 from isaaclab.benchmark.asset_suites.generators import build_fill_benchmarks
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
-pytestmark = [pytest.mark.benchmark, pytest.mark.kitless]
+pytestmark = pytest.mark.benchmark
 
 _CONFIG = MethodBenchmarkRunnerConfig(
     num_iterations=1,

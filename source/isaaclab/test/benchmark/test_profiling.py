@@ -8,11 +8,7 @@
 import cProfile
 import os
 
-import pytest
-
 from isaaclab.benchmark.profiling import parse_cprofile_stats
-
-pytestmark = pytest.mark.kitless
 
 
 def _profiled():

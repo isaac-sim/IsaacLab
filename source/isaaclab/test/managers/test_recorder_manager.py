@@ -17,7 +17,7 @@ import torch
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

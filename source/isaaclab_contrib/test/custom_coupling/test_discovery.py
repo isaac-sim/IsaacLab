@@ -9,10 +9,6 @@ import subprocess
 import sys
 import textwrap
 
-import pytest
-
-pytestmark = pytest.mark.kitless
-
 
 def test_custom_coupling_is_opt_in() -> None:
     """Only importing the registration module may register the example task."""

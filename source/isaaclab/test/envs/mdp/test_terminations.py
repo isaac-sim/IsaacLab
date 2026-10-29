@@ -7,13 +7,10 @@
 
 from types import SimpleNamespace
 
-import pytest
 import torch
 
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit, joint_vel_out_of_manual_limit
 from isaaclab.managers import SceneEntityCfg
-
-pytestmark = pytest.mark.kitless
 
 
 def test_joint_effort_limit_terminates_only_environments_with_clipped_selected_joints() -> None:

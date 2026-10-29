@@ -26,7 +26,7 @@ from isaaclab.managers import (
 )
 from isaaclab.utils import DelayBuffer, configclass, noise, tensor_processors, to_dict, update_from_dict, validate
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

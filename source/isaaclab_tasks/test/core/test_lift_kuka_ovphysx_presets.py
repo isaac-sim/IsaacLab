@@ -14,8 +14,6 @@ from isaaclab.sim import MultiAssetSpawnerCfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
-pytestmark = pytest.mark.kitless
-
 
 @pytest.mark.parametrize(
     "task_name,preset_args",

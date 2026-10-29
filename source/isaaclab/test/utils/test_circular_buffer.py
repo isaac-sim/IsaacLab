@@ -8,7 +8,7 @@ import torch
 
 from isaaclab.utils import CircularBuffer
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture

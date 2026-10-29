@@ -13,7 +13,7 @@ import torch
 from isaaclab.controllers.joint_impedance import JointImpedanceController
 from isaaclab.controllers.joint_impedance_cfg import JointImpedanceControllerCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = pytest.mark.integration
 
 _NUM_ROBOTS = 4
 _NUM_DOF = 7
