@@ -149,7 +149,8 @@ def test_importing_the_export_reproduces_deformables(tmp_path):
     for path, positions in live.items():
         moved = np.abs(positions - np.asarray(initial[path][1])).max()
         assert moved > 0.01, f"{path} barely moved"
-        np.testing.assert_allclose(loaded[path], positions, atol=1e-5, err_msg=path)
+        # PhysX GPU runs differ by up to about 0.2 mm; a 10x stiffer material moves the beam by about 15 mm.
+        np.testing.assert_allclose(loaded[path], positions, atol=1e-3, err_msg=path)
 
 
 def test_read_getters_cover_physx_views(tmp_path):
