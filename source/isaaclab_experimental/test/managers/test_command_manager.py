@@ -105,6 +105,22 @@ def test_modify_term_cfg_applies_to_the_recorded_command_stage(monkeypatch):
         env.command_manager.compute(dt=DT)
     wp.synchronize()
 
-    command = env.command_manager.get_command("base_velocity")
+    command = env.command_manager.get_command("base_velocity").torch
     assert torch.equal(command[:, 0], torch.full((NUM_ENVS,), 1.5, device=DEVICE))
     assert env.recordings == 2
+
+
+def test_get_command_is_one_proxy_of_the_term_buffer(monkeypatch):
+    """The command is one ProxyArray over the term's buffer, read by Warp through ``.warp`` and torch through
+    ``.torch``; a term that replaces its buffer gets a new proxy."""
+    monkeypatch.setattr(WarpRng, "state", wp.array(np.arange(NUM_ENVS, dtype=np.uint32), device=DEVICE))
+    env = _env()
+    env.command_manager = CommandManager(CommandsCfg(), env)
+    term = env.command_manager.get_term("base_velocity")
+    command = env.command_manager.get_command("base_velocity")
+    assert command is env.command_manager.get_command("base_velocity")
+    buffer = term.command
+    assert command.warp.ptr == (buffer.data_ptr() if isinstance(buffer, torch.Tensor) else buffer.ptr)
+    assert command.torch.shape == (NUM_ENVS, 3)
+    monkeypatch.setattr(type(term), "command", property(lambda self: wp.zeros((NUM_ENVS, 3), device=DEVICE)))
+    assert env.command_manager.get_command("base_velocity") is not command

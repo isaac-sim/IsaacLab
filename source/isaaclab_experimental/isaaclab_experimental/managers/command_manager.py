@@ -19,6 +19,7 @@ from prettytable import PrettyTable
 from isaaclab.managers.manager_term_cfg import CommandTermCfg
 from isaaclab.utils import instantiate
 from isaaclab.utils.seed import WarpRng
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.capture import captured, eager, is_warp_capturable
 
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
@@ -393,8 +394,8 @@ class CommandManager(ManagerBase):
         super().__init__(cfg, env)
         # an uncapturable command term runs its compute and reset eagerly
         self._term_split = split_terms(list(self._terms.values()), is_warp_capturable)
-        # store the commands
-        self._commands = dict()
+        # the command of each term as (buffer, proxy), rebuilt only when the term replaces its buffer
+        self._commands: dict[str, tuple[Any, ProxyArray]] = dict()
         if self.cfg:
             self.cfg.debug_vis = False
             for term in self._terms.values():
@@ -523,36 +524,25 @@ class CommandManager(ManagerBase):
         for term in self._term_split.captured:
             term.compute(dt)
 
-    def get_command(self, name: str) -> torch.Tensor:
+    def get_command(self, name: str) -> ProxyArray:
         """Returns the command for the specified command term.
 
-        Args:
-            name: The name of the command term.
-
-        Returns:
-            The command tensor of the specified command term.
-        """
-        command = self._terms[name].command
-        if isinstance(command, wp.array):
-            return wp.to_torch(command)
-        return command
-
-    def get_command_wp(self, name: str) -> wp.array:
-        """Returns the command for the specified command term as a Warp array.
-
-        Warp terms read the command through this accessor on every call rather than caching it, so a
-        recorded stage always refers to the buffers of the current environment.
+        Torch code reads it through ``.torch`` and Warp code through ``.warp``. Terms read the command through
+        this accessor on every call rather than caching it, so a recorded stage always refers to the buffers of
+        the current environment.
 
         Args:
             name: The name of the command term.
 
         Returns:
-            The command array of the specified command term. Shape is (num_envs, command_dim).
+            The command of the specified command term. Shape is (num_envs, command_dim).
         """
         command = self._terms[name].command
-        if isinstance(command, torch.Tensor):
-            return wp.from_torch(command)
-        return command
+        cached = self._commands.get(name)
+        if cached is None or cached[0] is not command:
+            cached = (command, ProxyArray(command if isinstance(command, wp.array) else wp.from_torch(command)))
+            self._commands[name] = cached
+        return cached[1]
 
     def set_term_cfg(self, name: str, cfg: CommandTermCfg):
         """Sets the configuration of the specified command term.

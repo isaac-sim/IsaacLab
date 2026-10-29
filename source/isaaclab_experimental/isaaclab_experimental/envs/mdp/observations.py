@@ -355,7 +355,7 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
     Warp-first override of :func:`isaaclab.envs.mdp.observations.generated_commands`.
     Reads the command manager's Warp command array on every call.
     """
-    wp.copy(out, env.command_manager.get_command_wp(command_name))
+    wp.copy(out, env.command_manager.get_command(command_name).warp)
 
 
 """
