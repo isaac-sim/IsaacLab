@@ -126,6 +126,7 @@ def _renderer(*, use_ovstage: bool = False):
     renderer.backend = SimpleNamespace(render_products=set())
     renderer.scene = renderer.backend
     renderer._initialized_scene = True
+    renderer._needs_transform_initialization = False
     renderer._use_ovstage = use_ovstage
     renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None

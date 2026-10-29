@@ -90,7 +90,12 @@ def _simulation(monkeypatch):
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = SimpleNamespace(
-        clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None, render_products=set()
+        clone_copies=[],
+        clone_env_paths=[],
+        population_env_paths=[],
+        clone_positions=None,
+        render_products=set(),
+        cfg=SimpleNamespace(read_gpu_transforms=False),
     )
     renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
