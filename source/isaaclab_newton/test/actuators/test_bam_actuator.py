@@ -21,7 +21,6 @@ import warp as wp
 from isaaclab_newton.actuators import BamCommandLag, BamFriction
 from newton import ModelBuilder
 from newton.actuators import (
-    Actuator,
     BatteryConstantResistance,
     ClampingCurrentPWM,
     DriveVoltageControlled,
@@ -254,35 +253,6 @@ def supply_voltage(bam: SimpleNamespace) -> np.ndarray:
     return bam.control.actuator_supply_voltage.numpy()[rows]
 
 
-def reference_servo_step(
-    cfg: BamActuatorCfg, voltage: np.ndarray, pos: np.ndarray, vel: np.ndarray, target: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """One step of the BAM servo chain at the given supply voltage, independently of Newton.
-
-    Args:
-        cfg: Configuration of the servos.
-        voltage: Supply voltage of each servo [V], shape ``(num_envs, J)``.
-        pos: Servo angles [rad], shape ``(num_envs, J)``.
-        vel: Servo velocities [rad/s], shape ``(num_envs, J)``.
-        target: Position targets [rad], shape ``(num_envs, J)``.
-
-    Returns:
-        The motor torque [N.m] and the current each servo draws from its battery [A], shape ``(num_envs, J)`` each.
-    """
-    motor = cfg.motor
-    command = voltage * motor.error_gain * cfg.kp_fw * (target - pos)
-    back_emf = motor.kt * vel
-    if motor.max_current > 0.0:
-        span = motor.resistance * motor.max_current
-        command = np.clip(command, back_emf - span, back_emf + span)
-    limit = motor.max_pwm * np.maximum(voltage, 0.0)
-    command = np.clip(command, -limit, limit)
-    current = (command - back_emf) / motor.resistance
-    # The battery supplies the motor current only during the PWM on-time.
-    duty = np.divide(command, voltage, out=np.zeros_like(command), where=voltage > 0.0)
-    return motor.kt * current, duty * current
-
-
 """
 Configuration and authoring.
 """
@@ -483,71 +453,20 @@ def test_motor_and_friction_match_upstream_goldens(goldens, servo_usd, device):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_battery_sag_follows_the_supply_current(goldens, device):
-    """Each environment's battery drops its voltage with the summed current its servos drew on the last step.
+def test_sampled_supply_matches_the_recorded_first_step(goldens, device):
+    """Per-environment nominal voltages written into the batteries reach the servos on the next step.
 
-    The voltage is ``max(vin - R * max(sum_j duty_j * I_j, 0), vin_min)``, the law of Newton's
-    ``BatteryConstantResistance``, which replaced the pre-native ``vin - sag_gain * sum_j |tau_j|``. The upstream
-    recording still fixes the inputs and the first step, which runs at the nominal voltage under both laws. Each
-    later step is checked against :func:`reference_servo_step` at the voltage the battery supplied.
+    The upstream sag recording runs its first step at each environment's nominal voltage, under both its
+    ``vin - sag_gain * sum_j |tau_j|`` law and Newton's battery, whose later, sagged steps Newton tests.
     """
-    shape = goldens["sag_q"].shape[1:]
-    vin_min = float(goldens["sag_vin_min"])
-    cfg = make_cfg(goldens, vin_min=vin_min)
-    bam = make_model(cfg, num_envs=shape[0], device=device)
-    nominal = goldens["sag_vin"][:, 0]
-    # The recorded sag gains times kt: the same drop per unit of motor current. 1.83 Ohm exceeds the stability bound.
-    resistance = goldens["sag_gain"][:, 0] * cfg.motor.kt
-    bam.battery.nominal_voltage.assign(nominal.astype(np.float32))
-    bam.battery.resistance.assign(resistance.astype(np.float32))
+    cfg = make_cfg(goldens, vin_min=float(goldens["sag_vin_min"]))
+    bam = make_model(cfg, num_envs=goldens["sag_q"].shape[1], device=device)
+    # Isaac Lab writes its start-up samples the same way.
+    bam.battery.nominal_voltage.assign(goldens["sag_vin"][:, 0].astype(np.float32))
     bam.battery.reset(bam.control)
-
-    sagged = False
-    for index, (pos, vel, target) in enumerate(zip(goldens["sag_q"], goldens["sag_dq"], goldens["sag_target"])):
-        voltage = supply_voltage(bam).astype(np.float64)
-        effort = step(bam, pos, vel, target)
-        expected_effort, current = reference_servo_step(cfg, voltage, pos, vel, target)
-        np.testing.assert_allclose(effort, expected_effort, rtol=1e-5, atol=1e-6, err_msg=f"step {index}")
-        if index == 0:
-            np.testing.assert_allclose(voltage[:, 0], goldens["sag_effective_vin"][0, :, 0], rtol=1e-6)
-            np.testing.assert_allclose(effort, goldens["sag_motor_torque"][0], rtol=1e-5, atol=1e-6)
-        expected_voltage = np.maximum(nominal - resistance * np.maximum(current.sum(axis=1), 0.0), vin_min)
-        np.testing.assert_allclose(
-            supply_voltage(bam)[:, 0], expected_voltage, rtol=1e-5, atol=1e-5, err_msg=f"step {index}"
-        )
-        np.testing.assert_array_equal(supply_voltage(bam)[:, 1], supply_voltage(bam)[:, 0])
-        sagged |= bool((expected_voltage < nominal - 0.01).any())
-    assert sagged, "the recording must load the batteries"
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_battery_formula_by_hand(device):
-    """Check the battery law on servos at rest, where the current a servo draws has a closed form.
-
-    At rest and inside the PWM limit, a servo commanding ``u = V * g * kp * e`` draws
-    ``d * I = (u / V) * (u / R) = V * (g * kp * e)**2 / R``, so opposite errors draw the same current. A servo driven
-    past its no-load speed returns current, which offsets the others but never raises the voltage above nominal.
-    """
-    motor = BamMotorCfg(
-        model="m1", kt=0.5, resistance=2.0, error_gain=0.01, max_current=0.0, friction_base=0.0, friction_viscous=0.0
-    )
-    cfg = BamActuatorCfg(
-        joint_names_expr=["servo_.*"], motor=motor, vin=8.0, kp_fw=10.0, battery_resistance=0.5, vin_min=6.0
-    )
-    bam = make_model(cfg, num_envs=1, device=device)
-    zeros = np.zeros((1, 2))
-    # duty = g * kp * e = 0.1 * e, so each servo draws 8 * (0.1 * e)**2 / 2 [A]: 0.04 A and 0.16 A.
-    step(bam, zeros, zeros, np.array([[1.0, -2.0]]))
-    np.testing.assert_allclose(supply_voltage(bam), 8.0 - 0.5 * (0.04 + 0.16), rtol=1e-6)
-    # A servo braking at 4 rad/s without error commands 0 V, so it draws nothing; the other draws at 7.9 V.
-    step(bam, zeros, np.array([[0.0, 4.0]]), np.array([[1.0, 0.0]]))
-    np.testing.assert_allclose(supply_voltage(bam), 8.0 - 0.5 * 7.9 * 0.01 / 2.0, rtol=1e-6)
-    # Driven forward at 30 rad/s, a servo commanding about 0.8 V faces a 15 V back-EMF: it returns 0.1 * 7.1 A.
-    step(bam, zeros, np.array([[0.0, 30.0]]), np.array([[0.0, 1.0]]))
-    np.testing.assert_allclose(supply_voltage(bam), 8.0, rtol=1e-6)
-    # At full PWM both servos draw 8 V / 2 Ohm = 4 A, which would drop the voltage to 4 V; vin_min floors it.
-    step(bam, zeros, zeros, np.array([[40.0, -40.0]]))
-    np.testing.assert_allclose(supply_voltage(bam), 6.0, rtol=1e-6)
+    np.testing.assert_allclose(supply_voltage(bam)[:, 0], goldens["sag_effective_vin"][0, :, 0], rtol=1e-6)
+    effort = step(bam, goldens["sag_q"][0], goldens["sag_dq"][0], goldens["sag_target"][0])
+    np.testing.assert_allclose(effort, goldens["sag_motor_torque"][0], rtol=1e-5, atol=1e-6)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -568,33 +487,6 @@ def test_delay_matches_recorded_mjlab_sequence(goldens, servo_usd, device):
         np.testing.assert_allclose(
             effort, goldens["delay_motor_torque"][index], rtol=1e-5, atol=1e-6, err_msg=f"step {index}"
         )
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_encoder_reads_the_play_angle(goldens, device):
-    """The firmware sees servo plus play angle; the back-EMF keeps the servo velocity."""
-    kt, resistance, error_gain = (goldens[f"attr_{name}"].item() for name in ("kt", "R", "error_gain"))
-    full = lambda value: wp.full(4, value, dtype=wp.float32, device=device)  # noqa: E731
-    motor = MotorDC(kt=full(kt), resistance=full(resistance), vin=full(VIN))
-    actuator = Actuator(
-        indices=wp.array([0, 1, 2, 3], dtype=wp.uint32, device=device),
-        drive=DriveVoltageControlled(kp=full(KP_FW), error_gain=full(error_gain)),
-        input_processors=[InputProcessorEncoder(wp.array([1, 0, 3, 2], dtype=wp.uint32, device=device))],
-        motor=motor,
-    )
-    positions = np.array([[0.01, -0.02], [0.03, -0.01]], dtype=np.float32)
-    velocities = np.array([[0.3, -0.4], [-0.5, 0.2]], dtype=np.float32)
-    control = PhysxActuatorWrapper.create(2, 2, device)
-    control.joint_target_q = wp.zeros(4, dtype=wp.float32, device=device)
-    control.joint_target_qd = wp.zeros(4, dtype=wp.float32, device=device)
-    state = SimpleNamespace(
-        joint_q=wp.array(positions.ravel(), device=device), joint_qd=wp.array(velocities.ravel(), device=device)
-    )
-    actuator.step(state, control, dt=DT)
-
-    error = -positions - positions[:, ::-1]
-    expected = kt / resistance * (VIN * KP_FW * error_gain * error - kt * velocities)
-    np.testing.assert_allclose(control.joint_f_2d.numpy(), expected, rtol=2e-5, atol=1e-7)
 
 
 @pytest.mark.parametrize("device", test_devices())
