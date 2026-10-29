@@ -306,10 +306,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             )
 
         builder.body_flags[body_id] = int(newton.BodyFlags.KINEMATIC)
-        builder.body_mass[body_id] = 0.0
-        builder.body_inv_mass[body_id] = 0.0
-        builder.body_inertia[body_id] = wp.mat33()
-        builder.body_inv_inertia[body_id] = wp.mat33()
 
     def _find_world_shape(self, builder, shape_ids: range, env_id: int, label_suffix: str, *, body_id: int) -> int:
         """Resolve exactly one imported shape by owning body and exact scene-relative path."""

@@ -474,35 +474,49 @@ def test_solver_registers_only_its_builder_attributes(solver_cfg, active, inacti
     assert builder.has_custom_attribute(active)
 
 
-def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
-    """Kinematic bodies must be massless so MPM treats them as kinematic colliders."""
+def test_mpm_kinematic_colliders_preserve_mass_for_other_solvers():
+    """MPM uses zero effective collider mass without breaking a shared rigid model."""
     import newton
 
     builder = newton.ModelBuilder()
+    register_builder_attributes(builder, MPMSolverCfg())
     kinematic_body = builder.add_body(
         mass=0.35,
-        inertia=wp.mat33(1.0),
+        inertia=wp.mat33(0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01),
         is_kinematic=True,
         label="kinematic_collider",
     )
     dynamic_body = builder.add_body(
         mass=1.2,
-        inertia=wp.mat33(2.0),
+        inertia=wp.mat33(0.02, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0, 0.02),
         is_kinematic=False,
         label="dynamic_body",
     )
+    mesh = newton.Mesh(
+        vertices=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0), (0.0, 0.0, 0.1)],
+        indices=[0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3],
+    )
+    builder.add_shape_mesh(kinematic_body, mesh=mesh, cfg=newton.ModelBuilder.ShapeConfig(density=0.0))
+    builder.add_particle(pos=(0.2, 0.2, 0.2), vel=(0.0, 0.0, 0.0), mass=0.01, radius=0.02)
 
     MPMSolver.prepare_builder(MPMSolverCfg(), builder)
+    model = builder.finalize(device="cpu")
+    # Explicit zero physical mass makes MuJoCo reject this free body. Kinematic
+    # collider treatment must instead remain local to the MPM solver.
+    rigid_solver = SolverMuJoCo(model, use_mujoco_cpu=True)
+    mpm_solver = MPMSolver.build(
+        MPMSolverCfg(voxel_size=0.1, grid_type="dense", grid_padding=1),
+        model,
+        wp.DeterministicMode.NOT_GUARANTEED,
+    )
 
-    assert builder.body_flags[kinematic_body] & int(newton.BodyFlags.KINEMATIC)
-    assert builder.body_mass[kinematic_body] == 0.0
-    assert builder.body_inv_mass[kinematic_body] == 0.0
-    assert np.allclose(np.array(builder.body_inertia[kinematic_body]), 0.0)
-    assert np.allclose(np.array(builder.body_inv_inertia[kinematic_body]), 0.0)
-
-    assert builder.body_mass[dynamic_body] == pytest.approx(1.2)
-    assert builder.body_inv_mass[dynamic_body] == pytest.approx(1.0 / 1.2)
-    assert np.allclose(np.array(builder.body_inertia[dynamic_body]), 2.0)
+    assert rigid_solver.mj_model.nbody == 3
+    assert model.body_mass.numpy()[kinematic_body] == pytest.approx(0.35)
+    assert model.body_mass.numpy()[dynamic_body] == pytest.approx(1.2)
+    np.testing.assert_allclose(model.body_inertia.numpy()[kinematic_body], np.eye(3) * 0.01)
+    effective_mass = mpm_solver._mpm_model.collider_body_mass.numpy()
+    assert effective_mass[kinematic_body] == 0.0
+    assert effective_mass[dynamic_body] == pytest.approx(1.2)
 
 
 _MPM_PARTICLE_ATTRIBUTES = {
