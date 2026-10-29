@@ -2679,7 +2679,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         self.assert_shape_and_dtype_mask(stiffness, (env_mask, fixed_tendon_mask), wp.float32, "stiffness")
-        write_2d_with_mask(stiffness, env_mask, fixed_tendon_mask, self.data._fixed_tendon_stiffness, self.device)
+        write_2d_with_mask(stiffness, env_mask, fixed_tendon_mask, self.data._fixed_tendon_stiffness)
 
     def set_fixed_tendon_damping_index(
         self,
@@ -2750,7 +2750,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
         self.assert_shape_and_dtype_mask(damping, (env_mask, fixed_tendon_mask), wp.float32, "damping")
-        write_2d_with_mask(damping, env_mask, fixed_tendon_mask, self.data._fixed_tendon_damping, self.device)
+        write_2d_with_mask(damping, env_mask, fixed_tendon_mask, self.data._fixed_tendon_damping)
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
@@ -2866,7 +2866,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
         if isinstance(limit, float):
             raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
-        write_2d_with_mask(limit, env_mask, fixed_tendon_mask, self.data._fixed_tendon_pos_limits, self.device)
+        write_2d_with_mask(limit, env_mask, fixed_tendon_mask, self.data._fixed_tendon_pos_limits)
 
     def set_fixed_tendon_rest_length_index(
         self,
@@ -3674,7 +3674,7 @@ class Articulation(BaseArticulation):
         Returns:
             Environment indices.
         """
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device)
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
@@ -3685,7 +3685,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
-        return resolve_ids(ids=joint_ids, all_ids=self._ALL_JOINT_INDICES, device=self.device)
+        return resolve_ids(ids=joint_ids, all_ids=self._ALL_JOINT_INDICES)
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
@@ -3696,7 +3696,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self.device)
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_fixed_tendon_ids(
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
@@ -3709,7 +3709,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
-        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_FIXED_TENDON_INDICES, device=self.device)
+        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_FIXED_TENDON_INDICES)
 
     def _resolve_spatial_tendon_ids(
         self, spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
@@ -3722,7 +3722,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
-        return resolve_ids(ids=spatial_tendon_ids, all_ids=self._ALL_SPATIAL_TENDON_INDICES, device=self.device)
+        return resolve_ids(ids=spatial_tendon_ids, all_ids=self._ALL_SPATIAL_TENDON_INDICES)
 
     @staticmethod
     def _to_torch_ids(ids: wp.array | torch.Tensor) -> torch.Tensor:
