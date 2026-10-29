@@ -147,7 +147,9 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, INITIAL_ANGLE))
     robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(robot.data.joint_vel.torch))
     robot.actuators.reset()
-    # Version 2 starts without external load: the solver has not exported one before the first step.
+    # Version 2 starts without external load: the solver has not exported one before the first step, and reset
+    # environments read none. Version 1 fed MuJoCo Warp's start-up gravity load (9.81e-3 N.m) into the first
+    # friction budget; with that load seeded, this path reproduces version 1 within the tolerances below.
     with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory_v2.npz")) as golden:
         assert native_sim.get_physics_dt() == float(golden["dt"])
         traces = {name: [] for name in ("position", "velocity", "effort", "friction_budget")}
