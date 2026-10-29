@@ -3,6 +3,9 @@
   :class:`~newton.actuators.BatteryConstantResistance`, :class:`~newton.actuators.InputProcessorDelay` and
   :class:`~newton.actuators.InputProcessorEncoder`. The Newton manager passes the model's batteries to the
   actuator adapter, which steps them after the actuators.
+* Changed the first BAM friction budget of an episode to read no external load. The solver keeps a reset
+  environment's loads until it solves again, so the budget read the terminated episode's last load. State writes
+  without a reset, such as pushes, keep the load.
 * Changed the BAM supply to one battery per actuator group and environment. Separate BAM groups of one
   robot now sag independently, also when Newton merges their actuators.
 * Changed the Newton dependency pin from ``42f7def1`` to ``b9452c2f``, the merge of newton#4504 and newton#4797 on

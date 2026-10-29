@@ -29,8 +29,8 @@ from .bam_kernels import (
     bam_command_lag_kernel,
     bam_command_lag_reset_kernel,
     bam_friction_budget_kernel,
+    bam_friction_reset_kernel,
     gather_dof_values_kernel,
-    zero_masked_envs_kernel,
 )
 
 if TYPE_CHECKING:
@@ -199,6 +199,11 @@ class BamFriction:
         """External gearbox load of the previous solve, as of the last budget [N.m], shape ``(N,)``."""
         self.prev_applied_torque = wp.zeros(num_dofs, dtype=wp.float32, device=device)
         """Clamped effort of the previous step [N.m], shape ``(N,)``. Zeroed on reset."""
+        self.episode_start = wp.zeros(num_dofs, dtype=wp.bool, device=device)
+        """Whether the next budget is the first of an episode, which reads no external load, shape ``(N,)``.
+
+        Set on reset and cleared by the next budget.
+        """
         self.friction_budget = wp.zeros(num_dofs, dtype=wp.float32, device=device)
         """Velocity-independent friction budget of the last step [N.m], shape ``(N,)``."""
 
@@ -233,6 +238,7 @@ class BamFriction:
                 qfrc_constraint,
                 qfrc_frictionloss,
                 self.prev_applied_torque,
+                self.episode_start,
                 self.friction_scale,
                 *(self.coefficients[name] for name in self.COEFFICIENTS),
                 self.stribeck,
@@ -258,16 +264,20 @@ class BamFriction:
         )
 
     def reset(self, env_mask: wp.array | None = None) -> None:
-        """Clear the applied-effort history of the masked environments.
+        """Start a new episode in the masked environments.
+
+        Clears their applied-effort history, and their next budget reads no external load: the solver keeps a
+        reset environment's loads until it solves again. State writes without a reset, such as pushes, keep the
+        load.
 
         Args:
             env_mask: Per-environment boolean reset mask, or None to reset every environment.
         """
         wp.launch(
-            zero_masked_envs_kernel,
+            bam_friction_reset_kernel,
             dim=len(self.dof_indices),
             inputs=[env_mask, self.dof_indices, self._dofs_per_env],
-            outputs=[self.prev_applied_torque],
+            outputs=[self.prev_applied_torque, self.episode_start],
             device=self.dof_indices.device,
         )
 

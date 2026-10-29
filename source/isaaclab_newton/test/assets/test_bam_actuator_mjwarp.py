@@ -241,7 +241,8 @@ def test_reset_environment_starts_without_the_previous_episode_load(native_sim, 
     """The first budget after a reset sees no external load in the reset environment only.
 
     The solver writes its load observables only while stepping, so a reset environment would otherwise feed the
-    terminated episode's load into its first friction budget.
+    terminated episode's load into its first friction budget. A state write without a reset, such as a push, keeps
+    the load.
     """
     (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": _make_cfg()})
     friction = get_bam_group(robot, "servo").friction
@@ -259,6 +260,8 @@ def test_reset_environment_starts_without_the_previous_episode_load(native_sim, 
     robot.write_joint_position_to_sim_index(position=torch.full((1, 1), INITIAL_ANGLE, device=device), env_ids=[0])
     robot.write_joint_velocity_to_sim_index(velocity=torch.zeros(1, 1, device=device), env_ids=[0])
     robot.reset([0])
+    # Environment 1 is pushed: its state is written, which resets its solver world, but its episode goes on.
+    robot.write_joint_velocity_to_sim_index(velocity=robot.data.joint_vel.torch[1:].clone(), env_ids=[1])
     robot.write_data_to_sim()
     native_sim.step()
 

@@ -808,7 +808,6 @@ def _backend_with_masks(world_mask: wp.array, fk_mask: wp.array, solver: object)
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
         solver=solver,
-        solver_observables=None,
     )
 
 
@@ -867,33 +866,6 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
     manager.forward()
 
     assert world_mask.numpy().tolist() == [False, False]
-
-
-def test_forward_zeros_the_solver_observables_of_reset_worlds():
-    """The solver writes observables only while stepping, so a reset world's per-DOF values must not outlive it."""
-    world_mask = wp.array([False, True, False], dtype=wp.bool, device="cpu")
-    fk_mask = wp.array([False], dtype=wp.bool, device="cpu")
-
-    class NoOpSolver(NewtonSolver):
-        @classmethod
-        def reset(cls, *args):
-            pass
-
-        @classmethod
-        def eval_fk(cls, *args):
-            pass
-
-    manager = NewtonManager(NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=NoOpSolver)))
-    manager.backend = _backend_with_masks(world_mask, fk_mask, object())
-    manager.backend.model = SimpleNamespace(joint_dof_count=4, world_count=2)
-    loads = wp.array([1.0, 2.0, 3.0, 4.0], dtype=wp.float32, device="cpu")
-    per_world = wp.array([5, 6], dtype=wp.int32, device="cpu")
-    manager.backend.solver_observables = SimpleNamespace(kinds={"qfrc_bias", "nefc"}, qfrc_bias=loads, nefc=per_world)
-
-    manager.forward()
-
-    assert loads.numpy().tolist() == [1.0, 2.0, 0.0, 0.0]
-    assert per_world.numpy().tolist() == [5, 6]
 
 
 # ---------------------------------------------------------------------------

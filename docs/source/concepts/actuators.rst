@@ -868,8 +868,9 @@ MuJoCo solver applies as ``dof_frictionloss``, so it resolves static friction wi
 constraints. The budget follows from the servo velocity, the effort applied on the previous step, and
 the external load: the previous solve's bias and constraint forces without the servo's own friction
 loss, which Newton's MuJoCo solver exports as observables. Applied body wrenches are not included. The
-viscous coefficient is applied once as passive joint damping and is visible through
-``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` authors a stiff friction-constraint
+first budget after an environment reset reads no external load, since the last solve belongs to the
+terminated episode; state writes without a reset, such as pushes, keep it. The viscous coefficient is
+applied once as passive joint damping and is visible through ``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` authors a stiff friction-constraint
 reference on the servo joints (``mjc:solreffriction`` and ``mjc:solimpfriction``) to reduce creep,
 since MJWarp has no noslip solver.
 

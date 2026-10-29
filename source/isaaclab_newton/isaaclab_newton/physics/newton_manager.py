@@ -111,16 +111,6 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_
     world_mask[env_ids[wp.tid()]] = True
 
 
-@wp.kernel(enable_backward=False)
-def _zero_reset_world_dofs(
-    world_mask: wp.array(dtype=wp.bool), dofs_per_world: int, values: wp.array(dtype=wp.float32)
-):
-    """Zero the per-DOF values of the worlds flagged for reset."""
-    dof = wp.tid()
-    if world_mask[dof // dofs_per_world]:
-        values[dof] = 0.0
-
-
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     """Construct the shared builder: solver-aware under Newton physics, plain otherwise.
 
@@ -359,7 +349,6 @@ class NewtonManager(PhysicsManager):
             )
         solver_cfg, solver, state = self._cfg.solver_cfg, backend.solver, backend.state_0
         solver_cfg.class_type.reset(solver_cfg, solver, state, backend.world_mask)
-        self._clear_reset_world_observables()
         solver_cfg.class_type.eval_fk(solver_cfg, solver, state, backend.world_mask, backend.fk_mask)
         backend.fk_mask.zero_()
         backend.world_mask.zero_()
@@ -1166,7 +1155,8 @@ class NewtonManager(PhysicsManager):
 
         Call once the solver exists and before CUDA graph capture, e.g. from a :meth:`register_solver_init_callback`
         hook. A request for new kinds reallocates :attr:`NewtonBackend.solver_observables`, so read the arrays from
-        there when stepping rather than keeping them.
+        there when stepping rather than keeping them. The solver writes them only while stepping: a world's values,
+        also a reset world's, are those of its last solve until it solves again.
 
         Raises:
             ValueError: If the solver does not export a requested kind.
@@ -1179,28 +1169,6 @@ class NewtonManager(PhysicsManager):
                 return
             kinds |= observables.kinds
         backend.solver_observables = backend.solver.observables(kinds)
-
-    def _clear_reset_world_observables(self) -> None:
-        """Zero the per-DOF solver observables of the worlds flagged for reset.
-
-        The solver writes observables only while stepping, so a reset world would otherwise expose the terminated
-        episode's values, such as its last joint loads, until its next solve.
-        """
-        backend = self.backend
-        observables = backend.solver_observables
-        if observables is None:
-            return
-        model = backend.model
-        for kind in observables.kinds:
-            values = getattr(observables, kind)
-            if values.dtype == wp.float32 and values.shape == (model.joint_dof_count,):
-                wp.launch(
-                    _zero_reset_world_dofs,
-                    dim=model.joint_dof_count,
-                    inputs=[backend.world_mask, model.joint_dof_count // model.world_count],
-                    outputs=[values],
-                    device=values.device,
-                )
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.
