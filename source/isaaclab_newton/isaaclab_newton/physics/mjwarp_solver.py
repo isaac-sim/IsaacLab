@@ -15,6 +15,7 @@ import warp as wp
 from newton import Contacts, Model, State
 from newton.solvers import SolverMuJoCo
 
+from .mjwarp_materials import MaterialSolverMuJoCo
 from .newton_solver import NewtonSolver, solver_kwargs
 
 if TYPE_CHECKING:
@@ -68,12 +69,14 @@ class MJWarpSolver(NewtonSolver):
                 " values would never be refreshed. Remove the sensors, or drop the determinism request"
                 f" (deterministic_mode={mode.name})."
             )
-        kwargs = solver_kwargs(cls.solver_class, cfg, mode)
+        modes = getattr(getattr(model, "isaaclab", None), "friction_combine_mode", None)
+        solver_class = MaterialSolverMuJoCo if modes is not None and np.any(modes.numpy() == 2) else cls.solver_class
+        kwargs = solver_kwargs(solver_class, cfg, mode)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
         if deterministic:
             kwargs["disable_sensors"] = True
-        return cls.solver_class(model, **kwargs)
+        return solver_class(model, **kwargs)
 
     @classmethod
     def supports_capture(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo) -> bool:

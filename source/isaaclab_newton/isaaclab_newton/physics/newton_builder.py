@@ -14,12 +14,19 @@ import numpy as np
 import warp as wp
 from newton import Heightfield, ModelBuilder, ShapeFlags
 from newton.solvers import SolverMuJoCo
-from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
+from newton.usd import (
+    SchemaResolver,
+    SchemaResolverMjc,
+    SchemaResolverNewton,
+    SchemaResolverPhysx,
+    get_custom_attribute_values,
+)
 
 from pxr import Usd, UsdGeom
 
 from isaaclab.utils import checked_apply
 
+from .mjwarp_materials import register_friction_combine_mode
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
 
 logger = logging.getLogger(__name__)
@@ -67,7 +74,14 @@ def inject_terrain_heightfields(
             indices=wp.array(faces, dtype=wp.int32, device=device),
         )
         heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
-        builder.add_shape_heightfield(heightfield=heightfield, xform=xform)
+        # Forward only the combine mode; keep the existing heightfield parameters.
+        mode_attr = builder.custom_attributes.get("isaaclab:friction_combine_mode")
+        custom_attributes = (
+            get_custom_attribute_values(mesh_prim, [mode_attr], context={"builder": builder})
+            if mode_attr is not None
+            else None
+        )
+        builder.add_shape_heightfield(heightfield=heightfield, xform=xform, custom_attributes=custom_attributes)
         logger.info(
             "Converted terrain collider %s (%d faces) to a %dx%d heightfield.",
             prim.GetPath().pathString,
@@ -83,6 +97,8 @@ def register_builder_attributes(builder: ModelBuilder, cfg: NewtonSolverCfg | No
     """Register the custom attributes the configured solver reads on a builder that receives imported assets."""
     for solver_cls in dict.fromkeys(cfg.class_type.solver_classes(cfg) if cfg is not None else ()):
         solver_cls.register_custom_attributes(builder)
+        if issubclass(solver_cls, SolverMuJoCo):
+            register_friction_combine_mode(builder)
 
 
 def usd_schema_resolvers(cfg: NewtonSolverCfg | None) -> list[SchemaResolver]:
