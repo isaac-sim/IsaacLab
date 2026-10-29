@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab import cloner
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.managers import CommandTerm, ManagerTermBase
 from isaaclab.utils import index_fill_
@@ -168,10 +169,10 @@ class LetterTypingCommand(CommandTerm):
             num_instances = len(prim_paths)
             env_part = []
             for path in prim_paths:
-                env_match = re.search(r"/env_([0-9]+)", path)
+                env_match = cloner.path.match(path, env.scene.cloner_cfg.clone_template)
                 part_match = re.search(r"/part_([0-9]+)", path)
                 assert env_match is not None, f"{path!r} is not inside a numbered environment"
-                env_part.append((int(env_match.group(1)), int(part_match.group(1)) if part_match else 0))
+                env_part.append((int(env_match.instance), int(part_match.group(1)) if part_match else 0))
         else:
             num_instances = int(view.count)
             per_world = max(num_instances // self.num_envs, 1)

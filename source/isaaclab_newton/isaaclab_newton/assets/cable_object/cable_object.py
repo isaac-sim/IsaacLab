@@ -179,7 +179,7 @@ class CableObject(BaseCableObject):
         curve_prim, curve_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         num_segments = int(UsdGeom.BasisCurves(curve_prim).GetCurveVertexCountsAttr().Get()[0]) - 1
 
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         articulation_path_expr = f"{curve_path_expr}_articulation"
         self._root_view = ArticulationView(
             model,
@@ -246,8 +246,8 @@ class CableObject(BaseCableObject):
 
     def _iter_states(self):
         """Yield active Newton states."""
-        state_0 = self._backend_manager.get_state_0()
-        state_1 = self._backend_manager.get_state_1()
+        state_0 = self._backend_manager.backend.state_0
+        state_1 = self._backend_manager.backend.state_1
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1

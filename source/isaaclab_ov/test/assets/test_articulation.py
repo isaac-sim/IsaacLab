@@ -558,7 +558,7 @@ def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
     stage_usda = _make_articulation_root_stage_usda()
-    articulation._backend_manager = OvPhysxManager()
+    articulation._backend_manager = OvPhysxManager(OvPhysxCfg())
     articulation._backend_manager._stage_usda = stage_usda
     articulation._process_tendons()
 
@@ -590,21 +590,6 @@ def test_root_worker_accepts_selector_widths(env_dtype: type) -> None:
 
     np.testing.assert_array_equal(output.numpy(), data.numpy()[[1, 0]])
     np.testing.assert_array_equal(sim_env_ids.numpy(), [1, 0])
-
-
-@pytest.mark.parametrize(("env_dtype", "item_dtype"), [(wp.int32, wp.int32), (wp.int64, wp.int64)])
-def test_item_worker_accepts_selector_widths(env_dtype: type, item_dtype: type) -> None:
-    env_ids = _selector([1, 0], env_dtype)
-    item_ids = _selector([2, 0], item_dtype)
-    data = wp.array([[11.0, 12.0], [21.0, 22.0]], dtype=wp.float32, device="cpu")
-    output = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
-    kernel = kernels.write_2d_data_to_buffer_with_indices
-    if env_dtype != wp.int32 or item_dtype != wp.int32:
-        kernel = kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, item_ids)
-
-    wp.launch(kernel, dim=(2, 2), inputs=[data, env_ids, item_ids], outputs=[output], device="cpu")
-
-    np.testing.assert_array_equal(output.numpy(), [[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]])
 
 
 def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):

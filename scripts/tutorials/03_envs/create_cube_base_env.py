@@ -290,7 +290,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
         self.sim.device = args_cli.device
         # viewer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(5.0, 5.0, 5.0), lookat=(0.0, 0.0, 2.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(5.0, 5.0, 5.0), lookat=(0.0, 0.0, 2.0))
 
 
 def main():

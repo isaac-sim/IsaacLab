@@ -7,6 +7,7 @@
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -353,8 +354,7 @@ def test_fixed_joint_selection(sim, monkeypatch, root_type):
     view_factory = Mock(wraps=ArticulationView)
     monkeypatch.setattr(sensor_module, "ArticulationView", view_factory)
     monkeypatch.setattr(sim.backend_manager, "views", views)
-    monkeypatch.setattr(sim.backend_manager, "get_model", lambda: model)
-    monkeypatch.setattr(sim.backend_manager, "get_state_0", lambda: state)
+    monkeypatch.setattr(sim.backend_manager, "backend", SimpleNamespace(model=model, state_0=state))
     monkeypatch.setattr(sensor_module.BaseJointWrenchSensor, "_initialize_impl", lambda self: None)
     monkeypatch.setattr(sensor_module, "resolve_matching_prims_from_source", lambda *a, **kw: [(None, root_expr)])
     sensor = sensor_module.JointWrenchSensor(JointWrenchSensorCfg(prim_path=root_expr))

@@ -53,7 +53,8 @@ from isaaclab.utils import (
     update_from_dict,
     validate,
 )
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import migrate_visualizer_cfgs
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
@@ -71,7 +72,7 @@ class PresetTarget(enum.Enum):
 
     PHYSICS = ("physics", (PhysicsCfg,))
     RENDERER = ("renderer", (RendererCfg,))
-    VISUALIZER = ("visualizer", (VisualizerCfg,))
+    VISUALIZER = ("visualizer", (VisualizerBackendCfg,))
     DOMAIN = ("presets", ())
 
     def __new__(cls, label: str, base_classes: tuple[type, ...]):
@@ -265,6 +266,13 @@ def _iter_cfg_items(cfg):
     return ()
 
 
+def _has_interpolations(cfg: object) -> bool:
+    """Check whether the active configuration contains OmegaConf interpolations."""
+    if isinstance(cfg, str):
+        return "${" in cfg
+    return any(_has_interpolations(value) for _, value in _iter_cfg_items(cfg))
+
+
 def collect_presets(cfg, path: str = "") -> dict:
     """Discover preset alternatives, including those inside inactive branches.
 
@@ -456,7 +464,7 @@ def resolve_task_config(
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
 ):
-    """Resolve env and agent configs with Hydra overrides, presets, and scalars fully applied.
+    """Resolve env and agent configs with Hydra overrides, presets, scalars, and interpolations applied.
 
     Safe to call before Kit is launched -- callable config values are stored as
     :class:`~isaaclab.utils.string.ResolvableString` and resolved lazily on
@@ -484,14 +492,9 @@ def resolve_task_config(
     resolved = {}
     original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
 
-    @hydra.main(config_path=None, config_name=task, version_base="1.3")
+    @hydra.main(config_path=None, config_name=task)
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
-        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        update_from_dict(env_cfg, hydra_cfg["env"])
-        if isinstance(agent_cfg, dict) or agent_cfg is None:
-            agent_cfg = hydra_cfg["agent"]
-        else:
-            agent_cfg.from_dict(hydra_cfg["agent"])
+        env_cfg, agent_cfg = _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg)
         resolved.update(env_cfg=replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg=agent_cfg)
 
     try:
@@ -640,17 +643,20 @@ def register_task(
     if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
         from .presets import MultiBackendVisualizerCfg
 
-        selected = resolve_presets(
-            MultiBackendVisualizerCfg(), overrides={"": selectors[PresetTarget.VISUALIZER.matches]}
+        env_cfg.sim.visualizer_cfgs = migrate_visualizer_cfgs(
+            env_cfg.sim.visualizer_cfgs, env_cfg.sim.default_visualizer_cfg
         )
-        selected = selected if isinstance(selected, list) else [selected] if selected else []
+        env_cfg.sim.default_visualizer_cfg = None
         viewers = env_cfg.sim.visualizer_cfgs
-        viewers = viewers if isinstance(viewers, list) else [viewers] if viewers else []
-        env_cfg.sim.visualizer_cfgs = [
-            viewer
-            for choice in selected
-            for viewer in [v for v in viewers if v.visualizer_type == choice.visualizer_type] or [choice]
-        ]
+        if not viewers:
+            viewers = [VisualizerCfg()]
+        for viewer in viewers:
+            choices = MultiBackendVisualizerCfg()
+            backends = viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]
+            for backend in backends:
+                vars(choices)[backend.visualizer_type] = backend
+            viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
+        env_cfg.sim.visualizer_cfgs = viewers
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
@@ -667,7 +673,7 @@ def register_task(
         else:
             hydra_args.append(arg)
 
-    if not hydra_args:
+    if not hydra_args and not _has_interpolations(cfgs):
         return env_cfg, agent_cfg, hydra_args
 
     # Convert to dict for Hydra (handle gym spaces and slices)
@@ -675,10 +681,26 @@ def register_task(
     agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
     env_dict = to_dict(env_cfg)  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
+    hydra_cfg = OmegaConf.create(cfg_dict)
+
+    if not hydra_args:
+        env_cfg, agent_cfg = _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg)
+        return env_cfg, agent_cfg, hydra_args
 
     # Register plain config (no groups) - Hydra only handles global scalars
-    ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
+    ConfigStore.instance().store(name=task_name, node=hydra_cfg, replace=True)
     return env_cfg, agent_cfg, hydra_args
+
+
+def _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg) -> tuple:
+    """Apply resolved values while preserving environment and agent configclass instances."""
+    cfg_dict = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
+    update_from_dict(env_cfg, cfg_dict["env"])
+    if isinstance(agent_cfg, dict) or agent_cfg is None:
+        agent_cfg = cfg_dict["agent"]
+    else:
+        update_from_dict(agent_cfg, cfg_dict["agent"])
+    return env_cfg, agent_cfg
 
 
 def _setattr(obj, path: str, val):

@@ -498,7 +498,7 @@ Cable limitations
     Topologies the runtime object rejects still simulate: the physics model is built from the whole
     USD stage, so every curve carrying ``PhysicsCurvesDeformableSimAPI`` is imported whether or not
     a :class:`~isaaclab.assets.CableObject` wraps it. Drive them through
-    :class:`~isaaclab_newton.physics.NewtonManager` ``get_model()`` / ``get_state_0()`` and your own
+    the :class:`~isaaclab_newton.physics.NewtonBackend` ``model`` / ``state_0`` and your own
     ``newton.selection.ArticulationView``. There is no Isaac Lab asset wrapper for those cases.
 
 
@@ -614,13 +614,15 @@ Run an example first to confirm that the spawner, solver, and visualizer all wor
     # A larger cable pile, stopping after a fixed number of steps.
     uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500
 
-Try :ref:`VBD cable bending <interactive-demo-cable-bending>` for a compact browser lesson with one
-clamped VBD rod, live bending stiffness and a downward tip load. It illustrates
-transient response; use the native example for cable piles and measured comparisons.
+Try learned contact grasps on a soft beam, cloth sheet, or cable below. Change
+the target height or switch to Manual end-effector control; the beam and cloth
+also expose material settings. For controlled stiffness and cable-load
+comparisons, see :doc:`/source/how-to/solver_tuning_vbd`.
 
-For learned manipulation, try the :ref:`soft-body <interactive-demo-franka-soft>` and
-:ref:`cloth <interactive-demo-franka-cloth>` browser policies. Tune their material,
-move the target, or switch to keyboard end-effector control in Manual mode.
+.. isaaclab-demos:: franka_soft, franka_cloth, franka_cable
+   :title: Explore deformable manipulation
+   :physics: vbd
+   :activity: policy
 
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.

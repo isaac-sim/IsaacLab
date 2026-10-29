@@ -221,7 +221,7 @@ class InteractiveScene:
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
 
-        Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims
+        Disables collisions between the declared environments and enables collisions with the prims
         in global prim paths (e.g. ground plane).
 
         Args:
@@ -300,12 +300,12 @@ class InteractiveScene:
 
     @property
     def env_ns(self) -> str:
-        """The namespace ``/World/envs`` in which all environments are created."""
+        """The parent namespace of the declared environment template."""
         return self._env_fmt.rsplit("/", 1)[0]
 
     @property
     def env_regex_ns(self) -> str:
-        """The namespace ``/World/envs/env_[^/]+`` in which all environments are created."""
+        """The declared environment template with its instance slot expanded to a path expression."""
         return self._env_fmt.format("[^/]+")
 
     @property

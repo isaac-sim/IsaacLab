@@ -18,8 +18,8 @@ from isaaclab.assets.articulation import BaseArticulation, BaseArticulationData
 from isaaclab.envs import ManagerBasedRLEnv, mdp
 from isaaclab.managers import ActionManager, ObservationGroupCfg, ObservationManager, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.modifiers import ModifierCfg, bias
 from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils.tensor_processors import TensorProcessorCfg, bias
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -118,7 +118,7 @@ class TensorManagerEnv(ManagerBasedRLEnv):
         policy = {
             "joint_pos": ObservationTermCfg(
                 func=mdp.joint_pos_rel,
-                modifiers=[ModifierCfg(func=bias, params={"value": 0.1})],
+                tensor_processors=[TensorProcessorCfg(func=bias, params={"value": 0.1})],
                 clip=(-1.0, 1.0),
                 scale=2.0,
             ),

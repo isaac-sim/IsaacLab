@@ -85,7 +85,7 @@ class G1TerrainEnv(ManagerBasedRLEnv):
             "left_ankle_roll_link",
             "right_ankle_roll_link",
         }
-        for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/envs/env_0/Robot")):
+        for prim in Usd.PrimRange(stage.GetPrimAtPath(self.scene["robot"].cfg.spawn.spawn_path)):
             if prim.HasAPI(UsdPhysics.CollisionAPI) or prim.GetName().startswith("imu_in_"):
                 UsdGeom.Imageable(prim).MakeInvisible()
             if prim.GetName() == "visuals":

@@ -192,7 +192,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
-        default_visualizer_cfg=VISUALIZER_CFG,
+        visualizer_cfgs=VISUALIZER_CFG,
     )
 
     actuated_joint_names = JOINT_NAMES

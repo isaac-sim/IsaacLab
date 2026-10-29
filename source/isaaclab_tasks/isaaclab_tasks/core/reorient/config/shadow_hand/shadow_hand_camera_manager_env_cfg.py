@@ -8,7 +8,7 @@
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import clone, configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import preset
@@ -126,7 +126,11 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
         super().play_mode()
         # the tiled camera needs more environments than the shared play default
         self.scene.num_envs = 64
-        self.sim.default_visualizer_cfg = clone(CAMERA_VISUALIZER_CFG)
+        viewers = self.sim.visualizer_cfgs
+        for viewer in viewers if isinstance(viewers, list) else [viewers]:
+            viewer.eye = CAMERA_VISUALIZER_CFG.eye
+            viewer.lookat = CAMERA_VISUALIZER_CFG.lookat
+            viewer.focal_length = CAMERA_VISUALIZER_CFG.focal_length
         # mutate rather than replace: subclasses may have disabled the CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

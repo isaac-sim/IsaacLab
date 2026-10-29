@@ -89,12 +89,6 @@ and a Kit process has enough threads to exceed that; this is the whole dump.
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
-PROCESS_FAILURE_RETRIES_BY_FILE = {
-    "test_visualizer_integration_physx.py": 4,
-    "test_visualizer_integration_newton.py": 4,
-}
-"""Extra fresh-process attempts for visualizer tests that can enter stale render states."""
-
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
 
@@ -174,6 +168,53 @@ def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_
     return 0
 
 
+def _readable(fds, timeout):
+    """Return the pipes in ``fds`` that a read would not block on, waiting up to ``timeout`` seconds for one."""
+    if os.name != "nt":
+        return select.select(fds, [], [], timeout)[0]
+    # Windows cannot select() on pipes, so poll each one instead.
+    deadline = time.monotonic() + timeout
+    while not (ready := [fd for fd in fds if _pipe_readable(fd)]) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    return ready
+
+
+def _pipe_readable(fd):
+    """Return whether the Windows pipe ``fd`` holds output or its writer has closed it."""
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    peek = ctypes.windll.kernel32.PeekNamedPipe
+    peek.argtypes = (
+        wintypes.HANDLE,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+    )
+    available = wintypes.DWORD()
+    if not peek(msvcrt.get_osfhandle(fd), None, 0, None, ctypes.byref(available), None):
+        return True  # broken pipe: the read returns EOF at once
+    return available.value > 0
+
+
+def _kill_process_tree(process, pgid):
+    """Kill the test process and every process it started (Kit, Isaac Sim)."""
+    if pgid is None:
+        # Windows has no process groups; taskkill walks the tree from the test process instead.
+        result = subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, check=False)
+        if result.returncode != 0:
+            with contextlib.suppress(OSError):
+                process.kill()
+        return
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        process.kill()
+
+
 def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1, echo=True):
     """Read whatever is readable on the child's pipes, echoing it as it arrives.
 
@@ -193,7 +234,7 @@ def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1, echo=True):
     stdout_chunk = b""
     stderr_chunk = b""
     try:
-        ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], timeout)
+        ready_fds = _readable([stdout_fd, stderr_fd], timeout)
 
         for fd in ready_fds:
             with contextlib.suppress(OSError):
@@ -382,7 +423,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             universal_newlines=False,
             start_new_session=True,
         )
-        pgid = os.getpgid(process.pid)
+        pgid = None if os.name == "nt" else os.getpgid(process.pid)
 
         stdout_fd = process.stdout.fileno()
         stderr_fd = process.stderr.fileno()
@@ -439,11 +480,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                     # Ahead of the system tables, which _get_diagnostics truncates off the end.
                     pre_kill_diag = f"{hang_stacks}\n\n{pre_kill_diag}"
 
-                # Kill the entire process group (test + any Kit children).
-                try:
-                    os.killpg(pgid, signal.SIGKILL)
-                except (ProcessLookupError, PermissionError, OSError):
-                    process.kill()
+                _kill_process_tree(process, pgid)
                 try:
                     remaining_stdout, remaining_stderr = process.communicate(timeout=5)
                     stdout_data += remaining_stdout
@@ -465,12 +502,14 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         except Exception:
             pass
 
-        # Kill any orphaned child processes (Kit, Isaac Sim) left by the test.
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-            time.sleep(1)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
+        # Kill any orphaned child processes (Kit, Isaac Sim) left by the test. On Windows the
+        # tree is unreachable once its root has exited.
+        if pgid is not None:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+                time.sleep(1)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
 
         wall_time = time.time() - start_time
         return process.returncode, stdout_data, stderr_data, "", wall_time, ""
@@ -819,101 +858,6 @@ def _read_test_report(report_file, file_name):
     return report, errors, failures, skipped, tests, time_elapsed
 
 
-def _retry_failed_test_in_fresh_process(
-    *,
-    test_file,
-    file_name,
-    cmd,
-    timeout,
-    env,
-    startup_deadline,
-    report_file,
-    journal_file,
-    report,
-    errors,
-    failures,
-    skipped,
-    tests,
-    time_elapsed,
-    returncode,
-    stdout_data,
-    stderr_data,
-    kill_reason,
-    wall_time,
-    pre_kill_diag,
-    options,
-):
-    """Retry selected failed test files in a fresh subprocess.
-
-    ``env`` must carry :data:`JOURNAL_ENV_VAR`, and ``journal_file`` must be the path it names:
-    each attempt starts from an empty journal so a retry that crashes is reconstructed from its
-    own verdicts rather than from the ones the previous attempt left behind.
-    """
-    has_test_failures = errors > 0 or failures > 0
-    process_failure_attempts = 0
-    max_process_failure_retries = PROCESS_FAILURE_RETRIES_BY_FILE.get(file_name, 0)
-
-    while has_test_failures and process_failure_attempts < max_process_failure_retries:
-        process_failure_attempts += 1
-        logger.warning(
-            f"⚠️  {test_file}: failed in subprocess"
-            f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
-        )
-        # The renderer log and hang dump go too: a retry that dies has both quoted in the rebuilt report,
-        # and a leftover from the previous attempt would be attributed to this one.
-        for stale_file in (report_file, journal_file, env.get(hang_dump.DUMP_PATH_ENV_VAR, ""), ovrtx_log.LOG_PATH):
-            if not stale_file:
-                continue
-            with contextlib.suppress(FileNotFoundError):
-                os.remove(stale_file)
-
-        (
-            returncode,
-            stdout_data,
-            stderr_data,
-            kill_reason,
-            retry_wall_time,
-            pre_kill_diag,
-        ) = capture_test_output_with_timeout(
-            cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file, options=options
-        )
-        _print_captured_output(file_name, options, stdout_data, stderr_data)
-        wall_time += retry_wall_time
-        if not os.path.exists(report_file):
-            # The attempt died before pytest wrote its report; the caller rebuilds the result from
-            # this attempt's journal.
-            break
-
-        try:
-            report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
-            has_test_failures = errors > 0 or failures > 0
-        except Exception as e:
-            logger.error(f"Error reading retry test report {report_file}: {e}")
-            has_test_failures = True
-            errors = 1
-            failures = 0
-            skipped = 0
-            tests = 0
-            time_elapsed = 0.0
-            break
-
-    return (
-        report,
-        errors,
-        failures,
-        skipped,
-        tests,
-        time_elapsed,
-        returncode,
-        stdout_data,
-        stderr_data,
-        kill_reason,
-        wall_time,
-        pre_kill_diag,
-        has_test_failures,
-    )
-
-
 @dataclass
 class _PassContext:
     """Inputs shared across all pytest invocations for a single test file.
@@ -1050,7 +994,8 @@ def _run_one_pass(
     # ``isaaclab_physx/.../test_articulation.py``) don't write to the same path
     # inside the shared ``/workspace/isaaclab`` mount and trigger false
     # shutdown_hang detections in sibling shards via the report-file existence check.
-    report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
+    # A Windows drive colon would name an alternate data stream instead of a file.
+    report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__").replace(":", "")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
     # Crash-durable progress log. pytest writes its JUnit XML only at session end, so this is
     # the only record of what passed, failed, and was in flight when a run dies before that.
@@ -1284,61 +1229,7 @@ def _run_one_pass(
             skipped=skipped,
         )
 
-    (
-        report,
-        errors,
-        failures,
-        skipped,
-        tests,
-        time_elapsed,
-        returncode,
-        stdout_data,
-        stderr_data,
-        kill_reason,
-        wall_time,
-        pre_kill_diag,
-        has_test_failures,
-    ) = _retry_failed_test_in_fresh_process(
-        test_file=ctx.test_file,
-        file_name=ctx.file_name,
-        cmd=cmd,
-        timeout=ctx.timeout,
-        env=pass_env,
-        startup_deadline=ctx.startup_deadline,
-        report_file=report_file,
-        journal_file=journal_file,
-        report=report,
-        errors=errors,
-        failures=failures,
-        skipped=skipped,
-        tests=tests,
-        time_elapsed=time_elapsed,
-        returncode=returncode,
-        stdout_data=stdout_data,
-        stderr_data=stderr_data,
-        kill_reason=kill_reason,
-        wall_time=wall_time,
-        pre_kill_diag=pre_kill_diag,
-        options=ctx.capture,
-    )
-
-    if not os.path.exists(report_file):
-        # A retry died before pytest wrote its report. Keeping the earlier attempt's parsed results
-        # would report the file as FAILED and drop the crash, so the retry's journal is what the
-        # result is rebuilt from — including the test that was in flight when the process died.
-        return _make_missing_report_result(
-            journal_file=journal_file,
-            prefix="retry_crash",
-            pass_file_label=pass_file_label,
-            log_label=f"{ctx.test_file}{suffix} (fresh-process retry)",
-            report_file=report_file,
-            returncode=returncode,
-            kill_reason=kill_reason,
-            stdout_data=stdout_data,
-            stderr_data=stderr_data,
-            wall_time=wall_time,
-            pre_kill_diag=pre_kill_diag,
-        )
+    has_test_failures = errors > 0 or failures > 0
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
     no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
@@ -1404,12 +1295,12 @@ def _run_one_pass(
 def _starts_renderer(test_content: str) -> bool:
     """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX.
 
-    Files built on ``rendering_test_utils`` pick their renderer through its helpers, so they name neither.
+    The direct scene runner selects a renderer from its case matrix.
     """
     return (
         "enable_cameras=True" in test_content
         or "ovrtx" in test_content.lower()
-        or "rendering_test_utils" in test_content
+        or "from rendering_runner import" in test_content
     )
 
 

@@ -201,6 +201,9 @@ class _FakePipeline:
     def output(self, key: str) -> str:
         return f"selector:user_pipeline:{key}"
 
+    def output_types(self) -> dict:
+        return {"action": None}
+
 
 class _FakeTensorGroup:
     """Stand-in for an ``OptionalTensorGroup`` carrying joint positions."""

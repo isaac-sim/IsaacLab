@@ -640,6 +640,7 @@ class _ImplicitExecutor:
         """Compute all the executor's joints through the cached Warp launch."""
         collection._launch_cache.launch(
             self._cache_key,
+            wp.launch,
             actuator_kernels.compute_implicit_actuator_batch,
             dim=(collection.num_instances, self.joint_indices_wp.shape[0]),
             inputs=self.kernel_inputs,

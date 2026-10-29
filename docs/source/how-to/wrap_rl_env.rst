@@ -89,13 +89,13 @@ sources and clip options.
 
     import gymnasium as gym
 
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     # record from a Kit visualizer with this camera pose
-    env_cfg.sim.visualizer_cfgs = KitVisualizerCfg(eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0))
+    env_cfg.sim.visualizer_cfgs = KitBackendCfg(eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0))
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="viz:kit", output_dir="videos/train", video_length=200, video_interval=1500)
     ]

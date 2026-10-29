@@ -7,6 +7,7 @@
 
 import gymnasium as gym
 import pytest
+from omegaconf.errors import InterpolationResolutionError
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -123,3 +124,60 @@ def test_task_registrations_have_no_preset_to_agent_maps():
         if task_id.startswith("Isaac") and "agent_preset_compatibility" in spec.kwargs
     ]
     assert not offenders
+
+
+@pytest.mark.parametrize(
+    ("local_workers", "node_count", "world_size", "overrides", "scaling_count", "budget"),
+    [
+        pytest.param(1, 1, None, (), 1, (50000, 250), id="single_gpu_fallback"),
+        pytest.param(1, 1, 1, (), 1, (50000, 250), id="single_gpu_launcher"),
+        pytest.param(1, 2, 3, (), 3, (16667, 84), id="one_worker_node"),
+        pytest.param(2, 2, 3, (), 3, (16667, 84), id="two_worker_node"),
+        pytest.param(8, None, 16, (), 16, (3125, 16), id="missing_group_world_size"),
+        pytest.param(2, 2, 3, ("env.ngpus=4", "env.nnodes=4"), 16, (3125, 16), id="explicit_scaling_pair"),
+        pytest.param(
+            8, 2, 16, ("agent.max_iterations=100", "agent.save_interval=10"), 16, (100, 10), id="explicit_budget"
+        ),
+    ],
+)
+def test_microduck_distributed_sample_budget(
+    monkeypatch, local_workers, node_count, world_size, overrides, scaling_count, budget
+):
+    """All ranks retain the same sample milestones, including uneven worker counts and paired overrides."""
+    task = "IsaacContrib-Velocity-Rough-MicroDuck"
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    baseline, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point", overrides=[])
+    if world_size is None:
+        monkeypatch.delenv("WORLD_SIZE")
+    else:
+        monkeypatch.setenv("WORLD_SIZE", str(world_size))
+    monkeypatch.setenv("LOCAL_WORLD_SIZE", str(local_workers))
+    if node_count is None:
+        monkeypatch.delenv("GROUP_WORLD_SIZE", raising=False)
+    else:
+        monkeypatch.setenv("GROUP_WORLD_SIZE", str(node_count))
+    env_cfg, agent_cfg = resolve_task_config(task, "rsl_rl_cfg_entry_point", overrides=["presets=backlash", *overrides])
+
+    assert (agent_cfg.max_iterations, agent_cfg.save_interval) == budget
+    schedules = 0
+    for name, term in vars(baseline.curriculum).items():
+        stages = getattr(term, "params", {}).get("modify_params", {}).get("stages")
+        if stages is None:
+            continue
+        scaled = getattr(env_cfg.curriculum, name).params["modify_params"]["stages"]
+        for (step, value), (scaled_step, scaled_value) in zip(stages, scaled, strict=True):
+            assert 0 <= scaled_step * scaling_count - step < scaling_count
+            assert scaled_value == value
+        schedules += 1
+    assert schedules == 6
+
+
+@pytest.mark.parametrize("field", ["ngpus", "nnodes"])
+def test_microduck_scaling_override_requires_both_counts(field):
+    """An incomplete override cannot silently mix recipe scaling with a rank's local topology."""
+    with pytest.raises(InterpolationResolutionError, match="Set env.ngpus and env.nnodes together"):
+        resolve_task_config(
+            "IsaacContrib-Velocity-Rough-MicroDuck",
+            "rsl_rl_cfg_entry_point",
+            overrides=[f"env.{field}=2"],
+        )

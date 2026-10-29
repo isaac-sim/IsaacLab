@@ -61,14 +61,14 @@ _PRE_OVRTX_STAGE_FILE = "pre_ovrtx_renderer_stage.usda"
 _OVRTX_STAGE_FILE = "ovrtx_renderer_stage.usda"
 
 
-def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
+def _make_multi_env_stage(num_envs: int, env_template: str = "/World/envs/env_{}") -> Usd.Stage:
     """Build an in-memory stage with distinguishable content per environment."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
     UsdGeom.Xform.Define(stage, "/World/envs")
 
     for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
+        env_path = env_template.format(env_idx)
         UsdGeom.Xform.Define(stage, env_path)
         UsdGeom.Xform.Define(stage, f"{env_path}/Robot")
         UsdGeom.Xform.Define(stage, f"{env_path}/Object_env{env_idx}_only")
@@ -364,23 +364,29 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
 @pytest.mark.parametrize("suffix", ["", "/Robot"])
 def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix):
     """Export routed prototypes and materials, excluding unrouted sources and cloned descendants."""
-    stage = _make_multi_env_stage(3)
+    env_template = "/Lab/Cells/Cell{}" if suffix else "/World/envs/env_{}"
+    stage = _make_multi_env_stage(3, env_template)
+    UsdGeom.Cube.Define(stage, "/Lab/Unrelated")
     for env_id in range(3):
-        root = UsdGeom.Xform(stage.GetPrimAtPath(f"/World/envs/env_{env_id}"))
+        root = UsdGeom.Xform(stage.GetPrimAtPath(env_template.format(env_id)))
         root.AddTranslateOp().Set(Gf.Vec3d(3 * env_id, 0, 0))
         root.GetPrim().CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
-    stage.GetPrimAtPath("/World/envs/env_0").ClearTypeName()
-    stage.RemovePrim("/World/envs/env_2")
-    source = f"/World/envs/env_0{suffix}"
+    stage.GetPrimAtPath(env_template.format(0)).ClearTypeName()
+    stage.RemovePrim(env_template.format(2))
+    source = env_template.format(0) + suffix
     material = UsdShade.Material.Define(stage, f"{source}/warm")
     body = UsdGeom.Xform.Define(stage, f"{source}/Body").GetPrim()
     UsdShade.MaterialBindingAPI.Apply(body)
     UsdShade.MaterialBindingAPI(body).Bind(material)
-    asset = AssetBaseCfg(prim_path=f"/World/envs/env_[^/]+{suffix}", spawn=SpawnerCfg(spawn_path=source))
-    excluded_path = "/World/envs/env_1/Excluded"
+    asset = AssetBaseCfg(prim_path=env_template.format("[^/]+") + suffix, spawn=SpawnerCfg(spawn_path=source))
+    excluded_path = env_template.format(1) + "/Excluded"
     UsdGeom.Xform.Define(stage, excluded_path)
-    excluded = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Excluded", spawn=SpawnerCfg(spawn_path=excluded_path))
-    plan = make_clone_plan((asset, excluded), ((0, 1),), 3, positions=np.zeros((3, 3), dtype=np.float32))
+    excluded = AssetBaseCfg(
+        prim_path=env_template.format("[^/]+") + "/Excluded", spawn=SpawnerCfg(spawn_path=excluded_path)
+    )
+    plan = make_clone_plan(
+        (asset, excluded), ((0, 1),), 3, env_template=env_template, positions=np.zeros((3, 3), dtype=np.float32)
+    )
     renderer = _make_ovrtx_renderer_without_backend()
     _prepare_clones(renderer, plan, routed=(0,))
     authored_stage = stage.ExportToString()
@@ -405,7 +411,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         backend.populate(exported_usd)
         assert imported.call_args.args == (native, exported_usd)
         assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.ALL
-        native.clone.assert_called_once_with(source, [f"/World/envs/env_{i}{suffix}" for i in (1, 2)], ordinal=1)
+        native.clone.assert_called_once_with(source, [env_template.format(i) + suffix for i in (1, 2)], ordinal=1)
         native.advance_write_floor.assert_called_once_with(ordinal=1)
         backend.close()
     exported = Usd.Stage.CreateInMemory()
@@ -415,12 +421,13 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     binding = UsdShade.MaterialBindingAPI(exported.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()
     assert binding.GetTargets() == [Sdf.Path(f"{source}/warm")]
     assert exported.GetPrimAtPath(f"{source}/warm")
-    assert exported.GetPrimAtPath("/World/envs/env_0").IsA(UsdGeom.Xform)
+    assert exported.GetPrimAtPath(env_template.format(0)).IsA(UsdGeom.Xform)
+    assert exported.GetPrimAtPath("/Lab/Unrelated").IsA(UsdGeom.Cube)
     assert not exported.GetPrimAtPath(excluded_path)
-    assert exported.GetPrimAtPath("/World/envs/env_0/Robot")
-    assert bool(exported.GetPrimAtPath("/World/envs/env_0/Camera")) is (not suffix)
+    assert exported.GetPrimAtPath(env_template.format(0) + "/Robot")
+    assert bool(exported.GetPrimAtPath(env_template.format(0) + "/Camera")) is (not suffix)
     for env_id in (1, 2):
-        root = f"/World/envs/env_{env_id}"
+        root = env_template.format(env_id)
         assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
         if suffix:
             root_prim = exported.GetPrimAtPath(root)

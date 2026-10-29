@@ -326,9 +326,7 @@ class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # 100 Hz sim -> 25 Hz control
         self.episode_length_s = 6.0
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0
-        )
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0)
 
     def play_mode(self):
         """Enable typing markers for every playback environment."""

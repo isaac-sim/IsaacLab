@@ -35,8 +35,8 @@ class CableObjectData(BaseCableObjectData):
             backend_manager = NewtonManager._deprecated_active("CableObjectData()")
         self._backend_manager = backend_manager
         super().__init__(device)
-        model = self._backend_manager.get_model()
-        state = self._backend_manager.get_state_0()
+        model = self._backend_manager.backend.model
+        state = self._backend_manager.backend.state_0
         self._sim_bind_body_ids = root_view.get_attribute("joint_child", model)[:, 0].contiguous()
         self._sim_bind_link_pose_w = root_view.get_link_transforms(state)[:, 0]
         self._sim_bind_link_velocity_w = root_view.get_link_velocities(state)[:, 0]

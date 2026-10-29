@@ -245,7 +245,7 @@ OVERRIDES = {
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
         fixed_physics_backend="newton_coupler",
-        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+        visualizers=(None, "newton_gl"),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
