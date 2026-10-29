@@ -803,12 +803,14 @@ class Camera(SensorBase):
         for processor in processors:
             try:
                 processor.close()
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - reported after every processor is closed
+                logger.error("Error closing camera tensor processor: %s", error)
                 errors.append(error)
         if len(errors) == 1:
             raise errors[0]
         if errors:
-            raise ExceptionGroup("Failed to close camera tensor processors.", errors)
+            # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+            raise RuntimeError(f"{len(errors)} camera tensor processors failed to close") from errors[0]
 
     def _apply_tensor_processors(self) -> None:
         """Run the processors in order on a newly published capture and publish their outputs."""
