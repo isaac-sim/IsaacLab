@@ -15,7 +15,14 @@ import numpy as np
 import torch
 import warp as wp
 from newton import Model, ModelFlags
-from newton.actuators import DriveBAM, InputProcessorBacklash, InputProcessorDelay
+from newton.actuators import (
+    BatteryConstantResistance,
+    ClampingCurrentPWM,
+    DriveVoltageControlled,
+    InputProcessorDelay,
+    InputProcessorEncoder,
+    MotorDC,
+)
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg
@@ -222,31 +229,46 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             self._articulation._backend_manager.backend.actuators.reset(env_ids)
 
     def _create_bam_groups(self, collection: ActuatorCollection, adapter: NewtonActuatorAdapter) -> None:
-        """Create the supply, command lag and friction state of each BAM group.
+        """Bind the supply, command lag and friction state of each BAM group.
 
-        Each group gets one battery per environment, a lag stream per environment and delay processor when it
-        has a delay, and per-DOF friction state. Their resets follow every adapter reset.
+        Each group's servos draw from one Newton battery per environment, whose nominal voltage and resistance are
+        sampled here. A group with a delay gets a lag stream per environment and delay processor, and every group
+        gets per-DOF friction state. Their resets follow every adapter reset.
 
         Raises:
-            RuntimeError: If a group's DOFs are not driven by Newton's BAM drive reading its battery, with its
-                authored delay and exactly its configured backlash processor.
+            RuntimeError: If a group's DOFs are not driven by Newton's voltage-controlled drive, current and PWM
+                clamp and DC motor drawing from one battery per environment that powers exactly the group's
+                servos, with exactly its configured delay and encoder processors.
         """
         dofs_per_env = adapter.num_joints
-        bam_dofs: set[int] = set()
+        # Components and supply row of each servo DOF whose motor draws from a battery.
+        components: dict[int, tuple[list[type], list[type]]] = {}
+        supply_rows: dict[int, int] = {}
         delay_slots: dict[int, tuple[InputProcessorDelay, int]] = {}
-        backlash_feedback: dict[int, list[bool]] = {}
         for actuator in adapter.actuators:
-            # A drive on its own supply voltage would ignore the group's battery.
-            if not isinstance(actuator.drive, DriveBAM) or not actuator.drive.supply_from_control:
+            # A motor on its own vin would ignore the group's battery.
+            if not isinstance(actuator.drive, DriveVoltageControlled) or not isinstance(actuator.motor, MotorDC):
+                continue
+            if actuator.actuator_indices is None:
                 continue
             indices = actuator.indices.numpy().tolist()
-            bam_dofs.update(indices)
+            from_battery = actuator.motor.supply_from_battery.numpy()
+            kinds = ([type(c) for c in actuator.clamping], [type(p) for p in actuator.input_processors])
+            for slot, (dof, row) in enumerate(zip(indices, actuator.actuator_indices.numpy().tolist())):
+                if from_battery[slot] != 0.0:
+                    components[dof] = kinds
+                    supply_rows[dof] = row
             for processor in actuator.input_processors:
                 if isinstance(processor, InputProcessorDelay):
                     delay_slots.update((dof, (processor, slot)) for slot, dof in enumerate(indices))
-                elif isinstance(processor, InputProcessorBacklash):
-                    for dof in indices:
-                        backlash_feedback.setdefault(dof, []).append(processor.velocity_feedback)
+
+        # Battery of each supply row: its battery object and its index in that object.
+        row_batteries: dict[int, tuple[int, int]] = {}
+        for k, battery in enumerate(adapter.batteries):
+            starts = battery.actuator_start.numpy()
+            rows = battery.actuators.numpy()
+            for b in range(battery.num_batteries):
+                row_batteries.update((int(row), (k, b)) for row in rows[starts[b] : starts[b + 1]])
 
         # Group DOFs, environment-major and in group joint order. Instance e lives in environment e.
         all_joints = list(range(self.num_joints))
@@ -257,18 +279,28 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             backend_ids = np.asarray(self._articulation.map_joint_ids_to_backend(ids))
             local_dofs[name] = self._joint_dof_offset() + backend_ids
         env_offsets = np.arange(self.num_instances)[:, None] * dofs_per_env
+        control = self._articulation._backend_manager.backend.control
 
         for name, cfg in self._bam_cfgs.items():
             dofs = env_offsets + local_dofs[name]
-            if not bam_dofs.issuperset(dofs.ravel().tolist()):
-                raise RuntimeError(f"BAM group '{name}' is not driven by Newton's DriveBAM with supply_from_control.")
-            # Newton skips an unregistered processor token silently, and a stale one would read a play hinge.
-            expected = [] if cfg.backlash_joint_template is None else [cfg.backlash_velocity_feedback]
-            if any(backlash_feedback.get(dof, []) != expected for dof in dofs.ravel().tolist()):
-                wanted = f"one backlash processor with velocity_feedback={expected[0]}" if expected else "no backlash"
-                raise RuntimeError(f"BAM group '{name}' must read its servos through {wanted}.")
-            nominal_voltage, sag_gain = self._sample_bam_supply(cfg)
-            battery_offset = adapter.add_batteries(dofs, nominal_voltage, sag_gain, min_voltage=max(cfg.vin_min, 0.0))
+            if not set(components).issuperset(dofs.ravel().tolist()):
+                raise RuntimeError(
+                    f"BAM group '{name}' is not driven by Newton's DriveVoltageControlled and a MotorDC drawing from"
+                    " a battery."
+                )
+            # Newton skips an unknown component token, and a stale encoder would read a play hinge.
+            processors = []
+            if cfg.max_delay > 0:
+                processors.append(InputProcessorDelay)
+            if cfg.backlash_joint_template is not None:
+                processors.append(InputProcessorEncoder)
+            expected = ([ClampingCurrentPWM], processors)
+            if any(components[dof] != expected for dof in dofs.ravel().tolist()):
+                wanted = [cls.__name__ for cls in (*expected[0], *expected[1])]
+                raise RuntimeError(
+                    f"BAM group '{name}' must run its servos through exactly these components: {wanted}."
+                )
+            battery, battery_ids = self._bam_group_batteries(name, dofs, supply_rows, row_batteries, adapter)
             friction = BamFriction(cfg.motor, wp.array(dofs.ravel(), dtype=wp.uint32, device=self.device), dofs_per_env)
             adapter.register_reset_callback(friction.reset)
 
@@ -277,8 +309,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 # One lag per delay processor, so groups merged into one Newton actuator keep their own settings.
                 lag_slots: dict[int, tuple[InputProcessorDelay, list[int], list[int]]] = {}
                 for dof in dofs.ravel().tolist():
-                    if dof not in delay_slots:
-                        raise RuntimeError(f"BAM group '{name}' has max_delay > 0 but no Newton delay processor.")
                     delay, slot = delay_slots[dof]
                     entry = lag_slots.setdefault(id(delay), (delay, [], []))
                     entry[1].append(slot)
@@ -297,28 +327,81 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                     adapter.register_reset_callback(lag.reset)
                     self._articulation._backend_manager.register_pre_actuator_callback(lag.step)
                     command_lags.append(lag)
-            self.bam_groups[name] = BamGroup(
+            group = BamGroup(
                 num_envs=self.num_instances,
                 friction=friction,
                 command_lags=command_lags,
-                adapter=adapter,
-                battery_offset=battery_offset,
+                battery=battery,
+                battery_ids=battery_ids,
+                supply_voltage=control.actuator_supply_voltage,
+                supply_rows=wp.array([supply_rows[dof] for dof in dofs[:, 0]], dtype=wp.uint32, device=self.device),
             )
+            nominal_voltage, resistance = self._sample_bam_supply(cfg)
+            wp.to_torch(group.nominal_voltage).copy_(nominal_voltage)
+            wp.to_torch(group.battery_resistance).copy_(resistance)
+            # The model's control starts at the authored nominal voltage; supply the sampled one from the first step.
+            battery.reset(control)
+            self.bam_groups[name] = group
 
-    def _sample_bam_supply(self, cfg: BamActuatorCfg) -> tuple[wp.array, wp.array]:
-        """Sample the per-environment supply voltage and sag gain, held across resets.
+    def _bam_group_batteries(
+        self,
+        name: str,
+        dofs: np.ndarray,
+        supply_rows: dict[int, int],
+        row_batteries: dict[int, tuple[int, int]],
+        adapter: NewtonActuatorAdapter,
+    ) -> tuple[BatteryConstantResistance, slice]:
+        """Return the Newton batteries of a BAM group: their battery object and their indices in it.
 
-        Both ranges are drawn from the global torch generator, voltage first, with shape ``(num_envs, 1)``.
+        Args:
+            name: Group name.
+            dofs: Group DOFs, shape ``(num_envs, num_group_joints)``.
+            supply_rows: Supply row of each servo DOF.
+            row_batteries: Battery object and battery index of each supply row.
+            adapter: Adapter whose batteries power the servos.
 
         Returns:
-            The nominal voltage [V] and sag gain [V/(N.m)] of each environment, shape ``(num_envs,)`` each.
+            The battery object and the evenly spaced indices of each environment's battery in it.
+
+        Raises:
+            RuntimeError: If an environment's group servos do not share one constant-resistance battery that powers
+                only them, or the batteries are not evenly spaced over the environments.
+        """
+        owners = []
+        for env_dofs in dofs:
+            env_owners = {row_batteries.get(supply_rows[dof]) for dof in env_dofs.tolist()}
+            owners.append(env_owners.pop() if len(env_owners) == 1 else None)
+        error = (
+            f"BAM group '{name}' must draw from one NewtonConstantResistanceBattery per environment that powers"
+            " exactly its servos."
+        )
+        if None in owners or len({k for k, _ in owners}) != 1:
+            raise RuntimeError(error)
+        battery = adapter.batteries[owners[0][0]]
+        ids = np.array([b for _, b in owners])
+        counts = np.diff(battery.actuator_start.numpy())[ids]
+        if not isinstance(battery, BatteryConstantResistance) or (counts != dofs.shape[1]).any():
+            raise RuntimeError(error)
+        step = int(ids[1] - ids[0]) if len(ids) > 1 else 1
+        if step <= 0 or (ids != ids[0] + step * np.arange(len(ids))).any():
+            raise RuntimeError(f"BAM group '{name}' must draw from evenly spaced batteries, got {ids.tolist()}.")
+        return battery, slice(int(ids[0]), int(ids[-1]) + 1, step)
+
+    def _sample_bam_supply(self, cfg: BamActuatorCfg) -> tuple[torch.Tensor, torch.Tensor]:
+        """Sample the per-environment nominal supply voltage and battery resistance, held across resets.
+
+        Both ranges are drawn from the global torch generator, voltage first, with shape ``(num_envs, 1)``, as the
+        supply voltage and sag gain of the pre-native BAM path were.
+
+        Returns:
+            The nominal voltage [V] and battery resistance [Ohm] of each environment, shape ``(num_envs,)`` each.
         """
         samples = []
-        for value_range, default in ((cfg.vin_range, cfg.vin), (cfg.vin_drop_gain_range, 0.0)):
+        for value_range, default in ((cfg.vin_range, cfg.vin), (cfg.battery_resistance_range, cfg.battery_resistance)):
             values = torch.full((self.num_instances, 1), default, device=self.device, dtype=torch.float32)
             if value_range is not None:
                 values.uniform_(*value_range)
-            samples.append(wp.from_torch(values.view(-1)))
+            samples.append(values.view(-1))
         return samples[0], samples[1]
 
     def _bind_bam_friction(self) -> None:

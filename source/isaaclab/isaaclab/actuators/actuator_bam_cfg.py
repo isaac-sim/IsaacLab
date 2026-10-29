@@ -97,13 +97,15 @@ class BamActuatorCfg(ActuatorBaseCfg):
 
     Requires ``use_newton_actuators=True`` with Newton's MJWarp solver. Like other explicit
     actuators, it replaces existing USD actuators on the selected joints. Newton runs the firmware
-    and motor (:class:`~newton.actuators.DriveBAM`), the supply (:class:`~newton.actuators.Battery`),
-    the command delay and the effort clamp; Isaac Lab adds the random command lag and the gearbox
+    (:class:`~newton.actuators.DriveVoltageControlled`), the current and PWM limits
+    (:class:`~newton.actuators.ClampingCurrentPWM`), the DC motor (:class:`~newton.actuators.MotorDC`), the
+    supply (:class:`~newton.actuators.BatteryConstantResistance`), the command delay
+    (:class:`~newton.actuators.InputProcessorDelay`) and the play-angle read
+    (:class:`~newton.actuators.InputProcessorEncoder`); Isaac Lab adds the random command lag and the gearbox
     friction.
 
-    If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the torque
-    limit is the stall torque ``max(vin_range) * motor.kt / motor.resistance``, using
-    :attr:`vin` when :attr:`vin_range` is unset.
+    The motor torque is not clamped further: the current limit and the PWM range bound it.
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` must stay unset.
     """
 
     class_type: type | None = None
@@ -127,12 +129,17 @@ class BamActuatorCfg(ActuatorBaseCfg):
     vin_range: tuple[float, float] | None = None
     """Range of the per-environment supply voltage [V], sampled once and held across resets."""
 
-    vin_drop_gain_range: tuple[float, float] | None = None
-    """Range of the per-environment supply sag gain [V/(N.m)], sampled once and held across resets.
+    battery_resistance: float = 0.0
+    """Internal resistance of the battery [Ohm]. Overridden by :attr:`battery_resistance_range` when set.
 
-    Each environment's group joints share one battery. Its voltage is ``vin - gain * sum_j |tau_j|``
-    from the previous step's torques, floored at :attr:`vin_min` and 0 V. None disables sag.
+    Each environment's group joints share one battery. Its voltage is
+    ``max(vin - battery_resistance * max(sum_j duty_j * I_j, 0), vin_min, 0)`` from the supply current the motors
+    drew on the previous step, where ``duty_j * I_j`` is the current servo ``j`` draws during its PWM on-time. The
+    sum is signed, so a back-driven servo returns current. Zero disables sag.
     """
+
+    battery_resistance_range: tuple[float, float] | None = None
+    """Range of the per-environment battery resistance [Ohm], sampled once and held across resets."""
 
     vin_min: float = -math.inf
     """Lower bound on the sagged supply voltage [V]. The default keeps only the 0 V floor."""
@@ -153,16 +160,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.
 
     For example ``"passive_{}_backlash"``. The hinge must be a revolute sibling of the servo joint. When set, the
-    firmware reads servo plus play angle, while back-EMF, friction, and applied torque stay on the servo joint.
-    None disables backlash.
-    """
-
-    backlash_velocity_feedback: bool = False
-    """Whether the firmware and back-EMF also read the play-hinge velocity.
-
-    Authored as ``newton:velocityFeedback`` on Newton's ``NewtonActuatorBacklashAPI``. True reads servo plus play
-    velocity. False, the default, keeps the servo velocity as the BAM reference does. Only used with
-    :attr:`backlash_joint_template`.
+    firmware reads servo plus play angle through Newton's ``NewtonActuatorEncoderAPI``, while back-EMF, friction,
+    and applied torque stay on the servo joint. None disables backlash.
     """
 
     stiff_frictionloss: bool = True
@@ -173,12 +172,24 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """
 
     def validate_config(self) -> None:
-        """Reject command-lag settings the lag sampler cannot draw from.
+        """Reject settings the native composition cannot run.
 
         Raises:
-            ValueError: If the lag range is negative or reversed, :attr:`delay_hold_prob` lies outside
-                [0, 1], or :attr:`delay_update_period` is negative.
+            ValueError: If an effort limit is set, the battery resistance is negative or its range reversed,
+                :attr:`vin_min` exceeds the lowest supply voltage, the lag range is negative or reversed,
+                :attr:`delay_hold_prob` lies outside [0, 1], or :attr:`delay_update_period` is negative.
         """
+        if self.actuator_effort_limit is not None:
+            raise ValueError(
+                "BAM has no effort limit: Newton's clamps bound the motor voltage, not its torque. Limit the torque"
+                " through motor.max_current and motor.max_pwm instead."
+            )
+        low, high = self.battery_resistance_range or (self.battery_resistance, self.battery_resistance)
+        if not 0.0 <= low <= high:
+            raise ValueError(f"The battery resistance must be non-negative and ordered, got {low} and {high}")
+        lowest_voltage = min(self.vin_range) if self.vin_range is not None else self.vin
+        if self.vin_min > lowest_voltage:
+            raise ValueError(f"vin_min ({self.vin_min}) must not exceed the lowest supply voltage ({lowest_voltage})")
         if self.min_delay < 0:
             raise ValueError(f"min_delay must not be negative, got {self.min_delay}")
         if self.max_delay < self.min_delay:

@@ -160,8 +160,9 @@ def define_actuator_properties(
       :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` →
       ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
     * :class:`~isaaclab.actuators.BamActuatorCfg` →
-      ``NewtonBAMControlAPI`` + ``NewtonMaxEffortClampingAPI`` (+ ``NewtonActuatorDelayAPI``),
-      plus a backlash input processor when the servo reads through a play hinge
+      ``NewtonVoltageControlAPI`` + ``NewtonCurrentPWMClampingAPI`` + ``NewtonDCMotorAPI``
+      (+ ``NewtonActuatorDelayAPI``, + ``NewtonActuatorEncoderAPI`` when the servo reads through a play hinge),
+      drawing through ``newton:battery`` from one ``NewtonConstantResistanceBattery`` prim per group
 
     No-ops (returns immediately) when:
 
@@ -252,28 +253,26 @@ def author_actuator_prims(
         if is_bam:
             validate(cfg)
             # Float-typed in USD: an int-typed attribute on a weaker layer would truncate the override. The
-            # gearbox friction, supply sag and command lag are not authored: Isaac Lab runs them from the config.
+            # gearbox friction and the command lag are not authored: Isaac Lab runs them from the config.
             bam_attrs = {
-                # Newton's duty-cycle gain is the firmware gain times the fit's error gain.
-                "kp": float(cfg.kp_fw) * float(cfg.motor.error_gain),
+                # Firmware: duty = error_gain * kp * (target - q), applied as a voltage at the supply voltage.
+                "kp": float(cfg.kp_fw),
+                "error_gain": float(cfg.motor.error_gain),
+                # Firmware current and PWM limits, which bound that voltage.
+                "max_current": float(cfg.motor.max_current),
+                "max_pwm": float(cfg.motor.max_pwm),
+                # DC motor; the battery supplies its voltage, so vin only documents the nominal supply.
                 "kt": float(cfg.motor.kt),
                 "resistance": float(cfg.motor.resistance),
                 "vin": float(cfg.vin),
-                "max_pwm": float(cfg.motor.max_pwm),
-                "max_current": float(cfg.motor.max_current),
-                # Isaac Lab powers every BAM group from a battery, which writes the voltage the drive reads.
-                "supply_from_control": True,
             }
-            # Default to the stall torque at the highest sampled voltage.
-            voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
-            configured_effort_limit = (
-                voltage * cfg.motor.kt / cfg.motor.resistance
-                if configured_effort_limit is None
-                else configured_effort_limit
-            )
+            # Every BAM group draws from one battery per articulation, which Newton replicates per environment.
+            battery_path = f"{articulation_prim_path}/{group_name}_battery"
+            _define_bam_battery(stage, battery_path, cfg)
 
         effort_map: dict[str, float] = {}
-        if not is_remotized:
+        # BAM has no effort clamp: with a motor, Newton's clamps bound the voltage command instead.
+        if not is_remotized and not is_bam:
             if configured_effort_limit is None:
                 for joint_name in joint_names:
                     authored_effort_limit = _get_authored_joint_effort_limit(stage, joint_inventory[joint_name])
@@ -316,8 +315,9 @@ def author_actuator_prims(
             if is_neural:
                 schemas.append("NewtonNeuralControlAPI")
             elif is_bam:
-                schemas.append("NewtonBAMControlAPI")
+                schemas.extend(("NewtonVoltageControlAPI", "NewtonCurrentPWMClampingAPI", "NewtonDCMotorAPI"))
                 attrs.update(bam_attrs)
+                relationships["battery"] = battery_path
                 joint_prim = stage.GetPrimAtPath(joint_prim_path)
                 # Allocate the friction constraint; Isaac Lab overwrites this seed before each solve.
                 joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(1.0)
@@ -357,9 +357,9 @@ def author_actuator_prims(
                     attrs["max_delay"] = delay_steps
 
             if is_bam and cfg.backlash_joint_template is not None:
-                schemas.append("NewtonActuatorBacklashAPI")
-                attrs["velocity_feedback"] = bool(cfg.backlash_velocity_feedback)
-                relationships["backlash_joint"] = _bam_play_hinge_path(
+                # The encoder reads servo plus play angle; the motor keeps the servo velocity.
+                schemas.append("NewtonActuatorEncoderAPI")
+                relationships["output_joint"] = _bam_play_hinge_path(
                     stage, joint_prim_path, cfg.backlash_joint_template.format(jname)
                 )
 
@@ -386,10 +386,10 @@ def _set_actuator_properties(
     relationships: dict[str, str],
     model_path: str | None,
 ) -> None:
-    """Author an actuator prim's ``newton:`` attributes and joint relationships.
+    """Author a Newton actuator or battery prim's ``newton:`` attributes and relationships.
 
     A reused prim path keeps the replaced actuator's properties, and Newton reads every ``newton:`` attribute for a
-    drive schema without a registered definition, such as BAM's. Properties this call does not author are blocked.
+    schema without a registered definition. Properties this call does not author are blocked.
     """
     authored = {f"newton:{to_camel_case(name)}" for name in (*attrs, *array_attrs, *relationships)}
     if model_path is not None:
@@ -420,6 +420,22 @@ def _set_actuator_properties(
         else:
             # An explicit empty target list overrides the weaker layers' targets.
             prop.SetTargets([])
+
+
+def _define_bam_battery(stage: Usd.Stage, battery_path: str, cfg: BamActuatorCfg) -> None:
+    """Author the ``NewtonConstantResistanceBattery`` prim a BAM group's servos draw from.
+
+    Newton replicates the prim per environment. Isaac Lab writes each environment's nominal voltage and resistance at
+    start-up, sampled from their ranges when set.
+    """
+    battery = stage.DefinePrim(battery_path, "NewtonConstantResistanceBattery")
+    battery.SetActive(True)
+    attrs = {
+        "nominal_voltage": float(cfg.vin),
+        "resistance": float(cfg.battery_resistance),
+        "min_voltage": max(float(cfg.vin_min), 0.0),
+    }
+    _set_actuator_properties(battery, attrs, {}, {}, None)
 
 
 def _bam_play_hinge_path(stage: Usd.Stage, servo_path: str, hinge_name: str) -> str:
