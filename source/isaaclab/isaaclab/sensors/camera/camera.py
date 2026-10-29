@@ -327,11 +327,12 @@ class Camera(SensorBase):
         if getattr(self, "_view", None) is not None:
             self._view.close()
             self._view = None
-        for processor in getattr(self, "_tensor_processors", ()):
-            processor.close()
-        # cleanup render resources, allowing construction to have failed before renderer creation
-        if getattr(self, "_renderer", None) is not None:
-            self._renderer.cleanup(getattr(self, "_render_data", None))
+        try:
+            self._close_tensor_processors()
+        finally:
+            # cleanup render resources, allowing construction to have failed before renderer creation
+            if getattr(self, "_renderer", None) is not None:
+                self._renderer.cleanup(getattr(self, "_render_data", None))
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -795,6 +796,20 @@ class Camera(SensorBase):
             if new_capture:
                 camera._apply_tensor_processors()
 
+    def _close_tensor_processors(self) -> None:
+        """Close every processor, then raise their failures, so one failure does not leave the others open."""
+        processors, self._tensor_processors = getattr(self, "_tensor_processors", []), []
+        errors = []
+        for processor in processors:
+            try:
+                processor.close()
+            except Exception as error:
+                errors.append(error)
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise ExceptionGroup("Failed to close camera tensor processors.", errors)
+
     def _apply_tensor_processors(self) -> None:
         """Run the processors in order on a newly published capture and publish their outputs."""
         if not self.cfg.tensor_processors:
@@ -1095,15 +1110,15 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
-        for processor in self._tensor_processors:
-            processor.close()
-        self._tensor_processors = []
-        if self._render_data is not None:
-            self._renderer.cleanup(self._render_data)
-        self._render_data = None
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # release backend state deterministically, then invalidate the view
-        if self._view is not None:
-            self._view.close()
-            self._view = None
+        try:
+            self._close_tensor_processors()
+        finally:
+            if self._render_data is not None:
+                self._renderer.cleanup(self._render_data)
+            self._render_data = None
+            # call parent
+            super()._invalidate_initialize_callback(event)
+            # release backend state deterministically, then invalidate the view
+            if self._view is not None:
+                self._view.close()
+                self._view = None

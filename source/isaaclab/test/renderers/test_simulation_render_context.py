@@ -646,6 +646,25 @@ def test_camera_processors_skip_retained_captures(camera_batch_context, lazy):
     processors[1].assert_not_called()
 
 
+def test_failed_processor_close_still_releases_the_camera(camera_batch_context):
+    """A processor that fails to close leaves neither the other processors nor the render data open."""
+    _, renderer, _ = camera_batch_context
+    failing, closing = Mock(), Mock()
+    failing.close.side_effect = RuntimeError("close failed")
+    camera = _CpuCamera(renderer, "camera")
+    camera._tensor_processors = [failing, closing]
+    camera._view = None
+    camera._clear_debug_vis_handle = Mock()  # this test scene has no debug visualization
+    render_data = camera._render_data
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        camera._invalidate_initialize_callback(None)
+
+    closing.close.assert_called_once()
+    renderer.cleanup.assert_called_once_with(render_data)
+    assert camera._tensor_processors == [] and camera._render_data is None and not camera.is_initialized
+
+
 @pytest.mark.parametrize("failure", ["render_batch", "read_output"])
 def test_failed_eager_capture_can_retry_one_camera(camera_batch_context, failure):
     """Failed captures leave timestamps outdated, and lazy retries do not capture peer cameras."""

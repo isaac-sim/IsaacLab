@@ -244,7 +244,8 @@ class CameraCfg(SensorBaseCfg):
     With ``update_period > 0``, environments capture on different steps, so a call can mix new rows with rows that
     still hold the previous capture. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a
     boolean mask of shape ``(N,)`` marking the environments with a new capture. The name is reserved and the mask
-    is not published as a camera output.
+    is not published as a camera output. It describes the current capture request, so these processors need
+    synchronous rendering.
     """
 
     def __post_init__(self):
@@ -303,6 +304,13 @@ def _render_data_types(cfg: CameraCfg) -> list[str]:
     for processor_cfg in cfg.tensor_processors:
         if CAPTURE_MASK_NAME in processor_cfg.outputs:
             raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
+        if CAPTURE_MASK_NAME in processor_cfg.inputs and getattr(cfg.renderer_cfg, "async_rendering", False):
+            # The mask marks the environments of the current request, while asynchronous rendering publishes the
+            # previous request's image, so the mask would select the wrong rows.
+            raise ValueError(
+                f"Processors reading {CAPTURE_MASK_NAME!r} need synchronous rendering; set "
+                "renderer_cfg.async_rendering=False."
+            )
         inputs += [name for name in processor_cfg.inputs if name not in produced and name != CAPTURE_MASK_NAME]
         produced.update(processor_cfg.outputs)
     return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))

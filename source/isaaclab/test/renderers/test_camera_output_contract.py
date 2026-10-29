@@ -176,14 +176,20 @@ def test_capture_mask_is_not_requested_from_the_renderer():
     """The camera supplies env_mask to processors, so it never becomes a renderer data type or a processor output."""
     from isaaclab.sensors.camera.camera_cfg import _render_data_types
 
-    def cfg(processors):
-        return SimpleNamespace(data_types=["rgb_hdr"], tensor_processors=processors)
+    def cfg(processors, async_rendering=False):
+        renderer_cfg = SimpleNamespace(async_rendering=async_rendering)
+        return SimpleNamespace(data_types=["rgb_hdr"], tensor_processors=processors, renderer_cfg=renderer_cfg)
 
     stateful = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr", "env_mask"], outputs=["half"])
     assert _render_data_types(cfg([stateful])) == ["rgb_hdr"]
     reserved = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr"], outputs=["env_mask"])
     with pytest.raises(ValueError, match="reserved"):
         _render_data_types(cfg([reserved]))
+    # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
+    with pytest.raises(ValueError, match="synchronous rendering"):
+        _render_data_types(cfg([stateful], async_rendering=True))
+    plain = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr"], outputs=["half"])
+    assert _render_data_types(cfg([plain], async_rendering=True)) == ["rgb_hdr"]
 
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
