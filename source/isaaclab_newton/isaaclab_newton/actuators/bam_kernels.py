@@ -79,6 +79,7 @@ def bam_friction_budget_kernel(
     qfrc_constraint: wp.array[float],
     qfrc_frictionloss: wp.array[float],
     prev_applied_torque: wp.array[float],
+    episode_start: wp.array[wp.bool],
     friction_scale: wp.array[float],
     friction_base: wp.array[float],
     friction_stribeck: wp.array[float],
@@ -100,12 +101,17 @@ def bam_friction_budget_kernel(
     """Compute the velocity-independent gearbox friction budget from the servo velocity and transmitted loads.
 
     The external load is the previous solve's bias and constraint forces without the servo's own friction loss,
-    which would otherwise feed the load-dependent terms back on themselves.
+    which would otherwise feed the load-dependent terms back on themselves. The first budget of an episode reads
+    no external load, since the previous solve belongs to the terminated episode.
     """
     i = wp.tid()
     dof = dof_indices[i]
     joint_vel = joint_qd[dof]
-    ext_tau = -qfrc_bias[dof] + qfrc_constraint[dof] - qfrc_frictionloss[dof]
+    ext_tau = float(0.0)
+    if episode_start[i]:
+        episode_start[i] = False
+    else:
+        ext_tau = -qfrc_bias[dof] + qfrc_constraint[dof] - qfrc_frictionloss[dof]
     external_torque[i] = ext_tau
 
     stribeck_coeff = float(0.0)
@@ -149,15 +155,17 @@ def gather_dof_values_kernel(
 
 
 @wp.kernel
-def zero_masked_envs_kernel(
+def bam_friction_reset_kernel(
     env_mask: wp.array[wp.bool],
     dof_indices: wp.array[wp.uint32],
     dofs_per_env: int,
-    values: wp.array[float],
+    prev_applied_torque: wp.array[float],
+    episode_start: wp.array[wp.bool],
 ):
-    """Zero the slots whose DOF belongs to a masked environment, or every slot without a mask."""
+    """Start a new episode on the slots whose DOF belongs to a masked environment, or on every slot without a mask."""
     i = wp.tid()
     if env_mask:
         if not env_mask[int(dof_indices[i]) // dofs_per_env]:
             return
-    values[i] = 0.0
+    prev_applied_torque[i] = 0.0
+    episode_start[i] = True
