@@ -196,7 +196,7 @@ def _rotation_matrix_from_rpy(roll: float, pitch: float, yaw: float, reference: 
     )
 
 
-def franka_tool_position(joint_positions: torch.Tensor) -> torch.Tensor:
+def franka_tool_position(joint_positions: torch.Tensor, tool_offset_z: float = 0.2104) -> torch.Tensor:
     """Compute Panda tool-center positions [m] from seven joints [rad]."""
     if joint_positions.shape[-1] != 7:
         raise ValueError("Franka reset forward kinematics expects seven joint positions.")
@@ -222,7 +222,7 @@ def franka_tool_position(joint_positions: torch.Tensor) -> torch.Tensor:
             dim=1,
         )
         rotation = torch.bmm(rotation, joint_rotation)
-    tool_offset = joint_positions.new_tensor((0.0, 0.0, 0.2104)).expand(count, -1)
+    tool_offset = joint_positions.new_tensor((0.0, 0.0, tool_offset_z)).expand(count, -1)
     position += torch.bmm(rotation, tool_offset.unsqueeze(-1)).squeeze(-1)
     return position.reshape(*shape, 3)
 

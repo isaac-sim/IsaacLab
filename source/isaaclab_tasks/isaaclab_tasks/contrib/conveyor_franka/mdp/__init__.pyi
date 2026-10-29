@@ -77,7 +77,7 @@ from .terminations import (
     transfer_sequence_time_out,
 )
 from isaaclab.envs.mdp import *
-from isaaclab_tasks.contrib.nist.utils.sampling import (
+from isaaclab_tasks.utils.sampling import (
     BetaSamplingStrategyCfg,
     SamplerCfg,
     UniformSamplingStrategyCfg,
