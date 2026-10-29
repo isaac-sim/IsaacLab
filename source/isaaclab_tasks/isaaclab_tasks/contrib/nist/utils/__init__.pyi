@@ -41,7 +41,7 @@ from .pose_offset import Offset
 from .rigid_object_hasher import RigidObjectHasher
 from .event_combinators import ChainedResetTerms, TermChoice, reset_accumulator
 from .reset_state import get_reset_state, set_reset_state
-from .sampling import (
+from isaaclab_tasks.utils.sampling import (
     BetaSamplingStrategy,
     BetaSamplingStrategyCfg,
     Sampler,
