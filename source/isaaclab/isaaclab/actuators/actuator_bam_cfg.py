@@ -175,19 +175,25 @@ class BamActuatorCfg(ActuatorBaseCfg):
         """Reject settings the native composition cannot run.
 
         Raises:
-            ValueError: If an effort limit is set, the battery resistance is negative or its range reversed,
-                :attr:`vin_min` exceeds the lowest supply voltage, the lag range is negative or reversed,
-                :attr:`delay_hold_prob` lies outside [0, 1], or :attr:`delay_update_period` is negative.
+            ValueError: If an effort limit is set, the battery resistance or its range is negative or the range
+                reversed, :attr:`vin_min` exceeds :attr:`vin` or the lowest sampled supply voltage, the lag range is
+                negative or reversed, :attr:`delay_hold_prob` lies outside [0, 1], or :attr:`delay_update_period` is
+                negative.
         """
         if self.actuator_effort_limit is not None:
             raise ValueError(
                 "BAM has no effort limit: Newton's clamps bound the motor voltage, not its torque. Limit the torque"
                 " through motor.max_current and motor.max_pwm instead."
             )
+        # The battery prim carries the scalar values, which Newton validates on import; the ranges replace them
+        # per environment at start-up.
         low, high = self.battery_resistance_range or (self.battery_resistance, self.battery_resistance)
-        if not 0.0 <= low <= high:
-            raise ValueError(f"The battery resistance must be non-negative and ordered, got {low} and {high}")
-        lowest_voltage = min(self.vin_range) if self.vin_range is not None else self.vin
+        if min(low, self.battery_resistance) < 0.0 or low > high:
+            raise ValueError(
+                f"The battery resistance must be non-negative and ordered, got {self.battery_resistance} and range"
+                f" {self.battery_resistance_range}"
+            )
+        lowest_voltage = min(self.vin, *(self.vin_range or ()))
         if self.vin_min > lowest_voltage:
             raise ValueError(f"vin_min ({self.vin_min}) must not exceed the lowest supply voltage ({lowest_voltage})")
         if self.min_delay < 0:

@@ -286,7 +286,10 @@ def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd
         ({"actuator_effort_limit": 0.5}, "BAM has no effort limit"),
         ({"battery_resistance": -0.1}, "battery resistance must be non-negative"),
         ({"battery_resistance_range": (0.2, 0.1)}, "battery resistance must be non-negative and ordered"),
+        # The battery prim carries the scalar values, which Newton rejects on import when out of its limits.
+        ({"battery_resistance": -0.1, "battery_resistance_range": (0.0, 0.1)}, "battery resistance must be non-neg"),
         ({"vin_range": (6.0, 8.0), "vin_min": 6.5}, r"vin_min \(6.5\) must not exceed the lowest supply voltage"),
+        ({"vin": 6.0, "vin_range": (6.5, 8.2), "vin_min": 6.2}, r"must not exceed the lowest supply voltage \(6.0\)"),
         # Without these checks a reversed lag range would drop the lag and a hold above 1 would freeze it.
         ({"min_delay": 3}, r"max_delay \(0\) must not be below min_delay \(3\)"),
         ({"delay_hold_prob": 1.5}, r"delay_hold_prob must lie in \[0, 1\]"),
