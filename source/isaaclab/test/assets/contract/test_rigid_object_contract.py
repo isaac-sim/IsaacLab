@@ -26,6 +26,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from .rigid_object_factory import get_rigid_object, get_rigid_object_collection
 
+# The ovphysx cases carry pytest.mark.ov from backends(); CI selects test files by that text.
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 # Distinct instance and body counts make swapped axes visible.

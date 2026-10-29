@@ -24,7 +24,7 @@ import scipy.spatial.transform as tf
 import torch
 import warp as wp
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 # OVRTX-only CI jobs collect the consolidated isaaclab_ov test suite without
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.

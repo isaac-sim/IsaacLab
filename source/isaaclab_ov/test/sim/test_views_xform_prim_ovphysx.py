@@ -25,7 +25,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.views import FrameView  # noqa: E402
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 

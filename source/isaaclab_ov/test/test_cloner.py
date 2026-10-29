@@ -21,7 +21,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
 from isaaclab.sim import SimulationContext
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 
 def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, float, float, float]) -> Gf.Matrix4d:

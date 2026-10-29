@@ -33,6 +33,7 @@ pytestmark = [
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
     ),
     pytest.mark.kitless,
+    pytest.mark.ov,
 ]
 
 if not _MISSING_MODULES:

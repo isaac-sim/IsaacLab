@@ -46,7 +46,7 @@ from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils.math import quat_apply_inverse, quat_mul  # noqa: E402
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = [pytest.mark.integration, pytest.mark.kitless, pytest.mark.ov]
 
 _NUM_CUBES = 2
 _NUM_ENVS, _NUM_BODIES = 2, 3

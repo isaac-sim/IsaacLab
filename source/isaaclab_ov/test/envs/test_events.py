@@ -32,7 +32,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))

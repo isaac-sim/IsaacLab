@@ -16,7 +16,7 @@ import isaaclab_tasks  # noqa: E402, F401
 # Local imports should be imported last
 from env_test_utils import SINGLE_ENVIRONMENT_TASKS, _run_environments, setup_environment  # isort: skip
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 
 # Keep this physics smoke suite renderer-free. Matching state tasks cover the dynamics,

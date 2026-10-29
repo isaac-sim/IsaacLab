@@ -27,7 +27,7 @@ from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass, instantiate
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = [pytest.mark.integration, pytest.mark.kitless, pytest.mark.ov]
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

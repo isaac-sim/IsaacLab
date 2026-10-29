@@ -44,7 +44,7 @@ from ..deformable_utils import (  # noqa: E402
     pretriangulated_surface_deformable_spawn_cfg,
 )
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 wp.init()
 

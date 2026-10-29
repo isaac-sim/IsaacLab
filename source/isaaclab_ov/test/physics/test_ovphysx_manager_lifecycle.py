@@ -20,7 +20,7 @@ import pytest
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 

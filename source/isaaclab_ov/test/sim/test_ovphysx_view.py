@@ -41,7 +41,7 @@ from isaaclab_ov.sim.views.ovphysx_view import (  # noqa: E402
 )
 from ovphysx.types import TensorType  # noqa: E402
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 wp.init()
 wp.set_device("cpu")
