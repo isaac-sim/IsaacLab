@@ -111,6 +111,38 @@ def spawn_multi_asset(
     return sim_utils.find_first_matching_prim(spawned_prim_paths[0])
 
 
+@sim_utils.clone
+def spawn_switchable_assets(
+    prim_path: str,
+    cfg: wrappers_cfg.SwitchableAssetsCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Spawn a prim that holds every candidate asset as a child ``asset_<i>`` at its frame.
+
+    The prim takes the visibility, semantic tags and contact sensors of ``cfg``, as other spawners do; the
+    candidates inherit its visibility.
+
+    Args:
+        prim_path: The prim path to spawn the asset.
+        cfg: The configuration for spawning the asset.
+        translation: The translation of the spawned prim. Default is None.
+        orientation: The orientation of the spawned prim in (x, y, z, w) order. Default is None.
+
+    Returns:
+        The created prim.
+    """
+    prim = sim_utils.create_prim(prim_path, translation=translation, orientation=orientation)
+    for index, asset_cfg in enumerate(cfg.assets_cfg):
+        for attr_name in ("mass_props", "rigid_props", "collision_props"):
+            if getattr(cfg, attr_name) is not None:
+                setattr(asset_cfg, attr_name, getattr(cfg, attr_name))
+        asset_cfg.func(
+            f"{prim_path}/asset_{index}", asset_cfg, translation=(0.0, 0.0, 0.0), orientation=(0.0, 0.0, 0.0, 1.0)
+        )
+    return prim
+
+
 def spawn_multi_usd_file(
     prim_path: str,
     cfg: wrappers_cfg.MultiUsdFileCfg,

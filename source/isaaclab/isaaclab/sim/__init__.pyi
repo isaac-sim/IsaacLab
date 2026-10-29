@@ -165,8 +165,10 @@ __all__ = [
     "SphereCfg",
     "spawn_multi_asset",
     "spawn_multi_usd_file",
+    "spawn_switchable_assets",
     "MultiAssetSpawnerCfg",
     "MultiUsdFileCfg",
+    "SwitchableAssetsCfg",
     "add_reference_to_stage",
     "get_stage_up_axis",
     "traverse_stage",
@@ -373,6 +375,7 @@ from .spawners import (
     SphereLightCfg,
     SurfaceDeformableBodyMaterialBaseCfg,
     SurfaceDeformableBodyMaterialCfg,
+    SwitchableAssetsCfg,
     UrdfFileCfg,
     UsdFileCfg,
     UsdFileWithCompliantContactCfg,
@@ -403,6 +406,7 @@ from .spawners import (
     spawn_preview_surface,
     spawn_rigid_body_material,
     spawn_sphere,
+    spawn_switchable_assets,
 )
 from .utils import (
     add_labels,

@@ -77,8 +77,10 @@ __all__ = [
     "SphereCfg",
     "spawn_multi_asset",
     "spawn_multi_usd_file",
+    "spawn_switchable_assets",
     "MultiAssetSpawnerCfg",
     "MultiUsdFileCfg",
+    "SwitchableAssetsCfg",
 ]
 
 from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
@@ -162,4 +164,11 @@ from .shapes import (
     ShapeCfg,
     SphereCfg,
 )
-from .wrappers import spawn_multi_asset, spawn_multi_usd_file, MultiAssetSpawnerCfg, MultiUsdFileCfg
+from .wrappers import (
+    spawn_multi_asset,
+    spawn_multi_usd_file,
+    spawn_switchable_assets,
+    MultiAssetSpawnerCfg,
+    MultiUsdFileCfg,
+    SwitchableAssetsCfg,
+)

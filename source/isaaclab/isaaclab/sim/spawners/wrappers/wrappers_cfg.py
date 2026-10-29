@@ -53,6 +53,37 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
 
 @configclass
+class SwitchableAssetsCfg(RigidObjectSpawnerCfg):
+    """Configuration for a rigid object whose asset is switched among candidates at runtime.
+
+    Every environment holds all candidates as children ``asset_<i>`` of the spawned prim, placed at its frame.
+    Physics simulates them as one body that takes the shapes and inertia of the selected candidate; renderers
+    show only the selected one. Select candidates with
+    :meth:`~isaaclab.assets.BaseRigidObject.replace_mesh_to_sim`.
+
+    Supported by Newton physics only. The MuJoCo Warp solver supports candidates only with Newton's collision
+    pipeline: set ``use_mujoco_contacts=False`` (it defaults to ``True``) and keep ``use_mujoco_cpu=False``,
+    otherwise Newton raises :class:`NotImplementedError` when the model is built. For example:
+
+    .. code-block:: python
+
+        physics = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap"),
+        )
+
+    Render with OVRTX: the Newton Warp renderer does not support candidates.
+
+    Properties set on this configuration override those of the candidates, as in :class:`MultiAssetSpawnerCfg`.
+    """
+
+    func: str = "{DIR}.wrappers:spawn_switchable_assets"
+
+    assets_cfg: list[SpawnerCfg] = MISSING
+    """Candidate asset configurations. Each must spawn a single rigid body."""
+
+
+@configclass
 class MultiUsdFileCfg(UsdFileCfg):
     """Configuration parameters for loading multiple USD files.
 

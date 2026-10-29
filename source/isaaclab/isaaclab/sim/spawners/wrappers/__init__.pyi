@@ -6,9 +6,11 @@
 __all__ = [
     "spawn_multi_asset",
     "spawn_multi_usd_file",
+    "spawn_switchable_assets",
     "MultiAssetSpawnerCfg",
     "MultiUsdFileCfg",
+    "SwitchableAssetsCfg",
 ]
 
-from .wrappers import spawn_multi_asset, spawn_multi_usd_file
-from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg
+from .wrappers import spawn_multi_asset, spawn_multi_usd_file, spawn_switchable_assets
+from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg, SwitchableAssetsCfg

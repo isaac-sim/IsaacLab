@@ -440,6 +440,7 @@ Wrappers
 
     MultiAssetSpawnerCfg
     MultiUsdFileCfg
+    SwitchableAssetsCfg
 
 .. autofunction:: spawn_multi_asset
 
@@ -450,5 +451,11 @@ Wrappers
 .. autofunction:: spawn_multi_usd_file
 
 .. autoclass:: MultiUsdFileCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_switchable_assets
+
+.. autoclass:: SwitchableAssetsCfg
     :members:
     :exclude-members: __init__, func

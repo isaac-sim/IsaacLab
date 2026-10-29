@@ -687,6 +687,23 @@ class BaseRigidObject(AssetBase):
         """
         raise NotImplementedError()
 
+    def replace_mesh_to_sim(
+        self,
+        *,
+        variant_ids: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Select the candidate asset of an object spawned with :class:`~isaaclab.sim.SwitchableAssetsCfg`.
+
+        The body takes the shapes and inertia of the selected candidate and keeps its pose and velocity.
+
+        Args:
+            variant_ids: Candidate indices into :attr:`~isaaclab.sim.SwitchableAssetsCfg.assets_cfg`.
+                Shape is (len(env_ids),) with dtype int32.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support switchable assets.")
+
     """
     Internal helper.
     """
