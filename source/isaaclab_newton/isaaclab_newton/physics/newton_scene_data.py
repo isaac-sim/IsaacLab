@@ -19,6 +19,27 @@ if TYPE_CHECKING:
     from .newton_manager import NewtonManager
 
 
+@wp.kernel(enable_backward=False)
+def _publish_body_variant_transforms(
+    body_q: wp.array(dtype=wp.transformf),
+    body_variant: wp.array(dtype=wp.int32),
+    body_variant_start: wp.array(dtype=wp.int32),
+    variant_body: wp.array(dtype=wp.int32),
+    transforms: wp.array(dtype=wp.transformf),
+):
+    """Copy the body poses, then pose each body variant like its body when selected and out of view otherwise."""
+    i = wp.tid()
+    if i < body_q.shape[0]:
+        transforms[i] = body_q[i]
+        return
+    variant = i - body_q.shape[0]
+    body = variant_body[variant]
+    if body_variant[body] == variant - body_variant_start[body]:
+        transforms[i] = body_q[body]
+    else:
+        transforms[i] = wp.transformf(wp.vec3f(0.0, 0.0, -1.0e4), wp.quatf(0.0, 0.0, 0.0, 1.0))
+
+
 class NewtonSceneDataBackend(SceneDataBackend):
     """Scene data backend that reads rigid body transforms from Newton's simulation state.
 
@@ -34,6 +55,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         """
         self._manager = manager
         self._transforms = SceneDataFormat.Transform()
+        self._variant_model = None
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
         self._geometry_batches = []
@@ -87,6 +109,8 @@ class NewtonSceneDataBackend(SceneDataBackend):
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish the authoritative native pointer, including solver state-buffer swaps."""
         transforms = self.state.body_q
+        if self.model.body_variant_count:
+            transforms = self._publish_body_variants(transforms)
         if self._transforms.transforms is not transforms:
             self._transforms.transforms = transforms
             self.transforms_timestamp += 1
@@ -94,15 +118,42 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     @property
     def transform_count(self) -> int:
-        """Return the number of rigid body transforms in the Newton sim."""
-        return self.model.body_count
+        """Return the number of rigid body transforms in the Newton sim, including body variants."""
+        return self.model.body_count + self.model.body_variant_count
 
     @property
     def transform_paths(self) -> list[str]:
-        """Return the prim paths for each rigid body transform."""
-        if self.model.body_label is not None:
-            return list(self.model.body_label)
-        return []
+        """Return the prim paths for each rigid body transform, then for each body variant."""
+        model = self.model
+        if model.body_label is None:
+            return []
+        paths = list(model.body_label)
+        starts = model.body_variant_start.numpy()
+        for body in np.flatnonzero(np.diff(starts)):
+            paths.extend(
+                f"{paths[body]}/{label}" for label in model.body_variant_label[starts[body] : starts[body + 1]]
+            )
+        return paths
+
+    def _publish_body_variants(self, body_q: wp.array) -> wp.array:
+        """Return the body poses followed by the pose of each body variant's prim."""
+        model = self.model
+        if self._variant_model is not model:
+            starts = model.body_variant_start.numpy()
+            variant_body = np.repeat(np.arange(model.body_count, dtype=np.int32), np.diff(starts))
+            self._variant_body = wp.array(variant_body, dtype=wp.int32, device=model.device)
+            self._variant_transforms = wp.empty(
+                len(variant_body) + model.body_count, dtype=wp.transformf, device=model.device
+            )
+            self._variant_model = model
+        wp.launch(
+            _publish_body_variant_transforms,
+            dim=self._variant_transforms.shape[0],
+            inputs=[body_q, model.body_variant, model.body_variant_start, self._variant_body],
+            outputs=[self._variant_transforms],
+            device=model.device,
+        )
+        return self._variant_transforms
 
     @property
     def model(self) -> Model | None:

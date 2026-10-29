@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import JointType, ModelBuilder, ShapeFlags
+from newton import BodyFlags, JointType, ModelBuilder, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -172,6 +172,33 @@ def build_source_builders(
         if import_results_out is not None:
             import_results_out[source] = import_result
     return builders
+
+
+def add_switchable_body(builder: ModelBuilder, label: str, candidates: Sequence[ModelBuilder]) -> None:
+    """Add a free body whose shape variants are the candidate rigid bodies imported from the children of ``label``.
+
+    The body is kinematic or dynamic for all its variants, so the candidates must agree.
+
+    Args:
+        builder: Builder that receives the body.
+        label: Prim path of the switchable asset, used as body and articulation label.
+        candidates: Single-body imports of the candidate children, which sit at the frame of ``label``.
+
+    Raises:
+        ValueError: If some candidates are kinematic and others are not.
+    """
+    kinematic = {bool(candidate.body_flags[0] & BodyFlags.KINEMATIC) for candidate in candidates}
+    if len(kinematic) > 1:
+        raise ValueError(f"The candidates of the switchable asset '{label}' mix kinematic and dynamic bodies.")
+    body = builder.add_link(xform=candidates[0].body_q[0], label=label, is_kinematic=kinematic.pop())
+    builder.add_articulation([builder.add_joint_free(child=body, label=f"{label}_free_joint")], label=label)
+    names = []
+    for candidate in candidates:
+        path = candidate.body_label[0]
+        # Newton labels variant shapes "<body>/<variant>/<shape label>"; relative labels keep their prim paths.
+        candidate.shape_label = [shape[len(path) + 1 :] for shape in candidate.shape_label]
+        names.append(path[len(label) + 1 :])
+    builder.add_body_variants(body, candidates, labels=names)
 
 
 def _name_root_joints_after_their_body(builder: ModelBuilder) -> None:

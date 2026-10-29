@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from newton import ModelFlags
+from newton import Model, ModelFlags
 from newton.selection import ArticulationView
 
 from pxr import UsdPhysics
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
+from isaaclab.sim import SwitchableAssetsCfg
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -980,6 +981,19 @@ class RigidObject(BaseRigidObject):
         # tell the physics engine that some of the body properties have been updated
         self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
+    def replace_mesh_to_sim(
+        self,
+        *,
+        variant_ids: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        env_ids = self._resolve_env_ids(env_ids)
+        bodies = self._root_body_ids[wp.to_torch(env_ids) if isinstance(env_ids, wp.array) else env_ids]
+        variants = variant_ids if isinstance(variant_ids, wp.array) else wp.from_torch(variant_ids.to(torch.int32))
+        self._backend_manager.select_body_variants(variants, wp.from_torch(bodies))
+        # The candidates differ in center of mass.
+        self.data._reset_body_com_pose_b_dependents()
+
     """
     Internal helper.
     """
@@ -988,8 +1002,12 @@ class RigidObject(BaseRigidObject):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
-        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
+        if isinstance(self.cfg.spawn, SwitchableAssetsCfg):
+            # The candidate rigid bodies under the prim are shape variants of one body at the prim.
+            root_prim_path_expr = self.cfg.prim_path
+        else:
+            resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
+            _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
         self._root_view = ArticulationView(
             self._backend_manager.backend.model,
@@ -1017,6 +1035,9 @@ class RigidObject(BaseRigidObject):
         self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
+        layout = self._root_view.frequency_layouts[Model.AttributeFrequency.BODY]
+        bodies = layout.get_absolute_indices(self._root_view.world_count, self._root_view.count_per_world)
+        self._root_body_ids = torch.tensor(bodies.reshape(-1), dtype=torch.int32, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)

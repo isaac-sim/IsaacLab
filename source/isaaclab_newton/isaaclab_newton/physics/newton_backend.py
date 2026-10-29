@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from newton import CollisionPipeline, Contacts, Model, ModelBuilder, ShapeFlags, State
+from newton import CollisionPipeline, Contacts, Model, ModelBuilder, ModelFlags, ShapeFlags, State
 from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
 
@@ -34,6 +34,8 @@ from .newton_builder_cfg import NewtonBuilderCfg
 from .newton_manager_cfg import NewtonCfg
 
 if TYPE_CHECKING:
+    from newton.viewer import ViewerBase
+
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
@@ -186,6 +188,8 @@ class NewtonBackend:
         """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
         self.bvh_refit = TimestampedBuffer()
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
+        self.variants_version = 0
+        """Count of body variant selections, which consumers that cache the model's active shapes follow."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
         """Newton physics settings, or ``None`` for a render-only backend."""
         if not simulation:
@@ -250,6 +254,20 @@ class NewtonBackend:
         """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
         self.graphs: dict[str | tuple[str, int], wp.Graph] = {}
         """Captured parts of the step, keyed by part; empty until the first step is captured."""
+
+    def notify_viewer(self, viewer: ViewerBase, version: int) -> int:
+        """Let a viewer of the model draw the selected body variants, if the selection changed since ``version``.
+
+        Args:
+            viewer: Newton viewer bound to :attr:`model`.
+            version: :attr:`variants_version` when the viewer last followed the selection.
+
+        Returns:
+            The current :attr:`variants_version`.
+        """
+        if version != self.variants_version:
+            viewer.notify_model_changed(ModelFlags.SHAPE_ACTIVE)
+        return self.variants_version
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""

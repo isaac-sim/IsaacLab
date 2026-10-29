@@ -28,10 +28,11 @@ from isaaclab.scene_data.deformable_discovery import (
     expand_deformable_entries,
 )
 from isaaclab.sensors import SensorBaseCfg
-from isaaclab.sim import SimulationContext, SpawnerCfg
+from isaaclab.sim import SimulationContext, SpawnerCfg, SwitchableAssetsCfg
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
+    add_switchable_body,
     add_visual_deformables_to_sources,
     build_source_builders,
     replicate_builder_mapping,
@@ -96,6 +97,48 @@ def newton_builder_world_hook(
     finally:
         if hook in hooks:
             hooks.remove(hook)
+
+
+def _build_sources(
+    stage: Usd.Stage,
+    plan: ClonePlan,
+    source_paths: Sequence[str],
+    create_builder: Callable[[], ModelBuilder],
+    schema_resolvers: Sequence[Any],
+    ignore_paths: Sequence[str],
+    import_results: dict[str, dict[str, Any]],
+    **options,
+) -> dict[str, ModelBuilder]:
+    """Import the sources with :func:`build_source_builders`, which takes ``options``; a switchable asset becomes
+    one body whose variants are its candidates.
+
+    The body joins the builder of the source that imports the asset: the asset's own source, or the source of a
+    parent asset, which owns its subtree.
+    """
+    owners = {}
+    for path, cfg in zip(cloner_path.get_asset_prototype_paths(plan), plan.asset_cfgs):
+        if path is not None and isinstance(getattr(cfg, "spawn", None), SwitchableAssetsCfg):
+            owner = [source for source in source_paths if cloner_path.relative_to(path, source) is not None]
+            if owner:
+                owners[path] = owner[0]
+    candidates = {path: [str(child.GetPath()) for child in stage.GetPrimAtPath(path).GetChildren()] for path in owners}
+    # The sources skip the candidates, which are imported on their own and added as variants of one body.
+    ignored = [*ignore_paths, *(path for paths in candidates.values() for path in paths)]
+    builders = build_source_builders(
+        stage,
+        source_paths,
+        create_builder,
+        schema_resolvers,
+        ignore_paths=ignored,
+        import_results_out=import_results,
+        **options,
+    )
+    for path, source in owners.items():
+        variants = build_source_builders(
+            stage, candidates[path], create_builder, schema_resolvers, ignore_paths=ignore_paths, **options
+        )
+        add_switchable_body(builders[source], path, list(variants.values()))
+    return builders
 
 
 def _replicate_newton(
@@ -185,9 +228,10 @@ def _replicate_newton(
         )
 
     import_results: dict[str, dict[str, Any]] = {}
-    options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
-    options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
-    source_builders = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
+    options = dict(load_visual_shapes=load_visual_shapes, skip_mesh_approximation=not simulation)
+    source_builders = _build_sources(
+        stage, plan, source_paths, builder_factory, schema_resolvers, ignore_paths, import_results, **options
+    )
     # Imports contain authored USD poses, which need not include the planned world placement.
     source_inverse = {}
     xforms = UsdGeom.XformCache()
