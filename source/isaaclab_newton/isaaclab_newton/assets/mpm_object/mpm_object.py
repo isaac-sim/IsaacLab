@@ -15,7 +15,7 @@ import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_1d_mask, resolve_ids
 
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
@@ -284,7 +284,7 @@ class MPMObject(BaseDeformableObject):
         self._data.default_particle_state_w = self._data.default_nodal_state_w
 
     def _resolve_env_ids(self, env_ids):
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device, dtype=wp.int32)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None) -> wp.array:
         return resolve_1d_mask(mask=mask, all_mask=self._ALL_ENV_MASK)
