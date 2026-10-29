@@ -254,8 +254,8 @@ def test_window_dependencies_and_device_creation_have_one_owner():
         isinstance(node, ast.Attribute) and node.attr in ("_attached_visualizers", "_keyboard_detachers")
         for node in ast.walk(session)
     )
-    for script in ("scripts/environments/teleoperation/teleop_se3_agent.py", "scripts/tools/record_demos.py"):
-        tree = ast.parse((root / script).read_text())
+    for script in ("entrypoints/teleop_se3_agent.py", "entrypoints/record_demos.py"):
+        tree = ast.parse((package / script).read_text())
         assert not any(
             isinstance(node, ast.FunctionDef) and node.name in ("_builtin_device_cfgs", "setup_teleop_device")
             for node in ast.walk(tree)
