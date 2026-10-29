@@ -5,23 +5,19 @@
 
 """Newton USD export: loading the exported file reproduces the initialized model."""
 
-import json
-
 import newton
 import numpy as np
 import pytest
 import warp as wp
 from newton.usd import PrimType, SchemaResolverNewton
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Gf, Sdf, Usd, UsdPhysics, UsdShade
 
 
 def _export(
     tmp_path,
     solver_cfg,
     device,
-    num_envs=1,
-    env_id=0,
     hinge_actuator=None,
     num_substeps=1,
     edit_robot=None,
@@ -45,7 +41,7 @@ def _export(
     from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.test.utils.usd_export import make_export_scene_cfg
 
-    cfg = make_export_scene_cfg(tmp_path, num_envs=num_envs)
+    cfg = make_export_scene_cfg(tmp_path)
     if edit_robot is not None:
         robot = Usd.Stage.Open(cfg.robot.spawn.usd_path)
         edit_robot(robot)
@@ -69,9 +65,9 @@ def _export(
         sim.reset()
         if before_export is not None:
             before_export(scene)
-        scene.export_to_usd(output, env_id=env_id)
+        scene.export_to_usd(output)
         manager = sim.backend_manager
-        live = _capture(manager.backend.model, manager.backend.state_0.body_q, env_id)
+        live = _capture(manager.backend.model, manager.backend.state_0.body_q)
         solver_type = type(manager.backend.solver)
         # The engine's own construction of the solver, stepped from the model's initial state.
         model = manager.backend.model
@@ -103,8 +99,8 @@ def _newton_import(output, solver, device):
     return builder.finalize(device=device)
 
 
-def _capture(model, body_q, env_id):
-    """Every float model array, and the joint target modes, of one world's bodies, shapes, joints and DOFs.
+def _capture(model, body_q):
+    """Every float model array, and the joint target modes, of world 0's bodies, shapes, joints and DOFs.
 
     Keyed by attribute name and entity label; a DOF is labelled ``<joint label>:<axis index>``. Root body
     poses come from ``body_q``; other poses follow the joint state, which the export leaves out. The world's
@@ -142,11 +138,11 @@ def _capture(model, body_q, env_id):
         array = body_q.numpy() if name == "body_q" else array.numpy()
         if array.dtype.kind != "f" and name != "joint_target_mode":
             continue
-        for index in np.flatnonzero(np.isin(worlds[entity], (-1, env_id))):
+        for index in np.flatnonzero(np.isin(worlds[entity], (-1, 0))):
             if name != "body_q" or labels[entity][index] in roots:
                 values[name, labels[entity][index]] = array[index]
     gravity = model.gravity.numpy()
-    values["gravity", ""] = gravity[env_id] if gravity.ndim == 2 else gravity
+    values["gravity", ""] = gravity[0] if gravity.ndim == 2 else gravity
     return values
 
 
@@ -156,32 +152,20 @@ def _assert_pose_equal(actual, expected):
     np.testing.assert_allclose(actual[3:], sign * expected[3:], atol=1e-5)
 
 
-@pytest.mark.parametrize(
-    "solver,device,num_envs,env_id",
-    [("xpbd", "cpu", 1, 0), ("xpbd", "cpu", 2, 1), ("mujoco", "cuda:0", 1, 0)],
-)
-def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog, solver, device, num_envs, env_id):
+@pytest.mark.parametrize("solver,device", [("xpbd", "cpu"), ("mujoco", "cuda:0")])
+def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog, solver, device):
     """Newton's own import of the file reproduces every live model value, including config overrides."""
     from isaaclab_newton.physics import MJWarpSolverCfg, XPBDSolverCfg
-    from isaaclab_newton.sim.usd_export import UsdExporter
 
     if device.startswith("cuda") and not wp.is_cuda_available():
         pytest.skip("MuJoCo Warp requires CUDA.")
-    debug_output = tmp_path / "training.xml"
     solver_cfg = (
-        XPBDSolverCfg(iterations=7)
-        if solver == "xpbd"
-        else MJWarpSolverCfg(iterations=17, enable_multiccd=True, save_to_mjcf=str(debug_output))
+        XPBDSolverCfg(iterations=7) if solver == "xpbd" else MJWarpSolverCfg(iterations=17, enable_multiccd=True)
     )
-    output, live, solver_type, motion = _export(tmp_path, solver_cfg, device, num_envs, env_id)
+    output, live, _, motion = _export(tmp_path, solver_cfg, device)
 
-    debug_output.unlink(missing_ok=True)
-    _, loaded_solver, dt = UsdExporter.load_usd(output, device=device)
-    assert not debug_output.exists()  # loading does not write the training run's debug output
-    assert type(loaded_solver) is solver_type
-    assert dt == pytest.approx(1 / 120)
     model = _newton_import(output, solver, device)
-    loaded = _capture(model, model.body_q, 0)
+    loaded = _capture(model, model.body_q)
     if solver == "mujoco":
         # MuJoCo reads its options from the physics scene, so the default solver runs the configured one.
         imported_solver = newton.solvers.SolverMuJoCo(model)
@@ -198,7 +182,7 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
         for label, position in motion.items():
             np.testing.assert_allclose(moved[label], position, atol=1e-4, err_msg=label)
     # The actuator configuration differs from the USD drive, so the export must carry it.
-    hinge = f"/World/envs/env_{env_id}/Robot/Hinge:0"
+    hinge = "/World/envs/env_0/Robot/Hinge:0"
     assert live["joint_target_ke", hinge] == pytest.approx(83.0)
     assert live["joint_armature", hinge] == pytest.approx(0.023)
     assert set(live) == set(loaded), (sorted(set(live) - set(loaded))[:8], sorted(set(loaded) - set(live))[:8])
@@ -242,7 +226,7 @@ def test_inertia_newton_derives_on_import_is_not_written(tmp_path, mass):
     if mass:
         assert exported.GetAttributeAtPath(f"{link}.physics:mass").default == pytest.approx(mass)
     model = _newton_import(output, "xpbd", "cpu")
-    loaded = _capture(model, model.body_q, 0)
+    loaded = _capture(model, model.body_q)
     np.testing.assert_allclose(loaded["body_inertia", link], live["body_inertia", link], rtol=1e-5)
 
 
@@ -300,7 +284,7 @@ def test_builder_hook_and_shape_default_changes_are_written(tmp_path, solver):
         "newton:contactDamping",
     }
     model = _newton_import(output, solver, "cpu")
-    loaded = _capture(model, model.body_q, 0)
+    loaded = _capture(model, model.body_q)
     for collider in (table, link_collider):
         for name in (*MATERIAL_ATTRIBUTES, "shape_gap"):
             np.testing.assert_allclose(
@@ -323,33 +307,30 @@ def test_a_mass_change_keeps_the_inertia_derived_from_geometry(tmp_path):
     output, live, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", before_export=heavier_box)
 
     model = _newton_import(output, "xpbd", "cpu")
-    loaded = _capture(model, model.body_q, 0)
+    loaded = _capture(model, model.body_q)
     for name in ("body_mass", "body_inertia"):
         np.testing.assert_allclose(loaded[name, box], live[name, box], rtol=1e-5, err_msg=name)
 
 
-def test_loading_returns_the_solver_step(tmp_path):
-    """With substeps, the file states the solver step rate, and loading returns the solver step size."""
+def test_the_solver_step_rate_is_stated(tmp_path):
+    """With substeps, the file states the solver step rate, which Newton's import returns as its step."""
     from isaaclab_newton.physics import XPBDSolverCfg
-    from isaaclab_newton.sim.usd_export import UsdExporter
 
     output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu", num_substeps=2)
 
-    assert Usd.Stage.Open(output).GetPrimAtPath("/physicsScene").GetAttribute("newton:timeStepsPerSecond").Get() == 240
-    _, _, dt = UsdExporter.load_usd(output)
-    assert dt == pytest.approx(1 / 240)
+    result = newton.ModelBuilder().add_usd(Usd.Stage.Open(output), schema_resolvers=[SchemaResolverNewton()])
+    assert result["physics_dt"] == pytest.approx(1 / 240)
 
 
-def test_export_references_assets_and_keeps_one_environment(tmp_path):
-    """The exported layer references the robot file instead of copying it, and drops other environments."""
+def test_export_references_assets(tmp_path):
+    """The exported layer references the robot file instead of copying it."""
     from isaaclab_newton.physics import XPBDSolverCfg
 
-    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu", num_envs=2, env_id=0)
+    output, *_ = _export(tmp_path, XPBDSolverCfg(), "cpu")
 
     layer = Sdf.Layer.FindOrOpen(output)
     assert str(tmp_path / "robot.usda") in layer.externalReferences
     assert layer.GetPrimAtPath("/World/envs/env_0/Robot").referenceList.GetAddedOrExplicitItems()
-    assert not layer.GetPrimAtPath("/World/envs/env_1")
     # The robot's own prims come from the reference; only edits are authored over them.
     link = layer.GetPrimAtPath("/World/envs/env_0/Robot/Link")
     assert not link or link.specifier == Sdf.SpecifierOver
@@ -358,7 +339,6 @@ def test_export_references_assets_and_keeps_one_environment(tmp_path):
 def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     """An explicit PD actuator, whose gains the engine does not hold, becomes the joint's USD drive."""
     from isaaclab_newton.physics import XPBDSolverCfg
-    from isaaclab_newton.sim.usd_export import UsdExporter
 
     from isaaclab.actuators import IdealPDActuatorCfg
 
@@ -372,71 +352,10 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     assert hinge.GetMaxForceAttr().Get() == pytest.approx(12.0)
     # the drive replaces the actuator prim, so importers reading both apply the PD once
     assert not [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]
-    model, _, _ = UsdExporter.load_usd(output)
+    model = _newton_import(output, "xpbd", "cpu")
     hinge_dof = model.joint_qd_start.numpy()[model.joint_label.index("/World/envs/env_0/Robot/Hinge")]
     assert model.joint_target_ke.numpy()[hinge_dof] == pytest.approx(83.0, rel=1e-5)
     assert model.joint_target_kd.numpy()[hinge_dof] == pytest.approx(4.5, rel=1e-5)
-
-
-@pytest.mark.parametrize(
-    "settings",
-    [
-        {"solver_type": "builtins:dict", "solver": {}},
-        {
-            "solver_type": "isaaclab_newton.physics.xpbd_solver_cfg:XPBDSolverCfg",
-            "solver": {"class_type": "builtins:dict"},
-        },
-        {"solver_type": "isaaclab_newton.physics.xpbd_solver_cfg:XPBDSolverCfg", "solver": {"__dict__": {}}},
-    ],
-    ids=["solver type", "solver class", "undeclared field"],
-)
-def test_loading_refuses_classes_other_than_newton_solvers(tmp_path, settings):
-    """A file names the solver classes that loading instantiates; any other class is refused, not called."""
-    from isaaclab_newton.sim.usd_export import UsdExporter
-    from isaaclab_newton.sim.usd_export.usd_exporter import SETTINGS_KEY
-
-    layer = Sdf.Layer.CreateNew(str(tmp_path / "export.usda"))
-    layer.customLayerData = {SETTINGS_KEY: json.dumps(settings)}
-    layer.Save()
-
-    with pytest.raises(ValueError, match="is not a"):
-        UsdExporter.load_usd(layer.realPath)
-
-
-def test_loading_restores_nested_solver_configurations():
-    """An optional nested configuration the file states is created from its declared type, with its mappings."""
-    from isaaclab_newton.physics import KaminoDynamicsCfg, KaminoPADMMSolverCfg
-    from isaaclab_newton.sim.usd_export import UsdExporter
-
-    dynamics = KaminoDynamicsCfg(preconditioning=False, linear_solver_kwargs={"maxiter": 9})
-    exported = KaminoPADMMSolverCfg(dynamics=dynamics).to_dict()
-    loaded = KaminoPADMMSolverCfg()
-    UsdExporter._load_fields(loaded, json.loads(json.dumps(exported, default=str)), "export.usda")
-    assert loaded.dynamics.preconditioning is False
-    assert loaded.dynamics.linear_solver_kwargs == {"maxiter": 9}
-
-
-def test_loading_does_not_import_modules_the_file_names(tmp_path):
-    """A file naming an arbitrary module is refused before that module is imported."""
-    import sys
-
-    from isaaclab_newton.sim.usd_export import UsdExporter
-    from isaaclab_newton.sim.usd_export.usd_exporter import SETTINGS_KEY
-
-    xpbd = "isaaclab_newton.physics.xpbd_solver_cfg:XPBDSolverCfg"
-    cases = (
-        {"solver_type": "this:Cfg", "solver": {}},
-        {"solver_type": xpbd, "solver": {"__dict__": {"class_type": "this:Cfg"}}},
-        {"solver_type": xpbd, "solver": {"class_type": "this:Cfg"}},
-    )
-    for index, settings in enumerate(cases):
-        sys.modules.pop("this", None)
-        layer = Sdf.Layer.CreateNew(str(tmp_path / f"export_{index}.usda"))
-        layer.customLayerData = {SETTINGS_KEY: json.dumps(settings)}
-        layer.Save()
-        with pytest.raises(ValueError, match="is not a"):
-            UsdExporter.load_usd(layer.realPath)
-        assert "this" not in sys.modules
 
 
 def test_model_without_joint_dofs_has_no_changed_values():
@@ -511,30 +430,6 @@ def test_d6_limit_gains_go_to_a_stated_joint_wide_attribute():
     assert UsdExporter._limit_gain_attribute(joint, "joint_limit_ke", per_axis) == "newton:limitStiffness"
 
 
-def test_importing_without_a_solver_returns_a_model():
-    """A file without solver settings imports as a model only, with no manager to construct."""
-    from isaaclab_newton.sim.usd_export import UsdExporter
-
-    stage = Usd.Stage.CreateInMemory()
-    UsdPhysics.Scene.Define(stage, "/physicsScene")
-    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(stage, "/Box").GetPrim())
-    model = UsdExporter.import_model(stage)
-    assert model.body_count == 1
-
-
-def test_importing_runs_the_solver_preparation(monkeypatch):
-    """Import runs the selected solver's preparation before finalizing, as Isaac Lab's build does."""
-    from isaaclab_newton.physics import VBDSolver, VBDSolverCfg
-    from isaaclab_newton.sim.usd_export import UsdExporter
-
-    prepared = []
-    monkeypatch.setattr(VBDSolver, "prepare_builder", classmethod(lambda cls, cfg, b: prepared.append(b)))
-    stage = Usd.Stage.CreateInMemory()
-    UsdPhysics.Scene.Define(stage, "/physicsScene")
-    UsdExporter.import_model(stage, VBDSolverCfg())
-    assert len(prepared) == 1
-
-
 def test_changed_limits_are_written_with_the_mujoco_reference(tmp_path):
     """Newton's import subtracts a joint's MuJoCo reference from its USD limits, so a changed limit imports as live."""
     import torch
@@ -581,13 +476,10 @@ def test_attribute_tables_cover_newton_importer():
         DOF_ATTRIBUTES,
         MATERIAL_ATTRIBUTES,
         SHAPE_ATTRIBUTES,
-        SHAPE_CONTACT_ATTRIBUTES,
     )
 
     exported = {attribute for attribute, _, _ in DOF_ATTRIBUTES.values()}
-    exported |= (
-        set(SHAPE_ATTRIBUTES.values()) | set(MATERIAL_ATTRIBUTES.values()) | set(SHAPE_CONTACT_ATTRIBUTES.values())
-    )
+    exported |= set(SHAPE_ATTRIBUTES.values()) | set(MATERIAL_ATTRIBUTES.values())
     excluded = {
         # joint state is not part of the export
         *(
@@ -601,6 +493,8 @@ def test_attribute_tables_cover_newton_importer():
             for axis in ("linear", "angular", "rotX", "rotY", "rotZ")
             for gain in ("Stiffness", "Damping")
         ),
+        # deprecated collider contact gains; the export states them on the collider's physics material
+        *(SchemaResolverNewton.mapping[PrimType.SHAPE][key].name for key in ("ke", "kd", "kf", "ka")),
         # collision geometry generation, fixed at import
         "newton:maxHullVertices",
         "newton:sdfMaxResolution",

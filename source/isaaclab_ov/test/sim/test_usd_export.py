@@ -20,8 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 
 # Without a box per environment, environment 1 exists in physics only.
-@pytest.mark.parametrize("num_envs,env_id,box_per_env", [(1, 0, True), (2, 1, True), (2, 1, False)])
-def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_envs, env_id, box_per_env):
+def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
     """Every exported value of a fresh OVPhysX import equals the live engine's, including config overrides."""
     from isaaclab_ov.physics import OvPhysxCfg
     from usd_export_read_import import read, read_import, readings
@@ -30,12 +29,12 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
     from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
 
-    cfg = make_export_scene_cfg(tmp_path, num_envs=num_envs, box_per_env=box_per_env)
+    cfg = make_export_scene_cfg(tmp_path)
     sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=OvPhysxCfg())
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(cfg)
         sim.reset()
-        output = scene.export_to_usd(str(tmp_path / "exported.usda"), env_id=env_id)
+        output = scene.export_to_usd(str(tmp_path / "exported.usda"))
         stage = Usd.Stage.Open(output)
         articulations, bodies = physics_prims(stage)
         live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
@@ -44,10 +43,10 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
         imported = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
     loaded = readings(stage, imported)
 
-    hinge = live[f"/World/envs/env_{env_id}/Robot/Hinge", "angular"]
+    hinge = live["/World/envs/env_0/Robot/Hinge", "angular"]
     assert hinge["stiffness"] == pytest.approx(83.0)
     assert hinge["armature"] == pytest.approx(0.023)
-    exported_hinge = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/Hinge")
+    exported_hinge = stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge")
     assert exported_hinge.GetAttribute("physxJointAxis:angular:armature").HasAuthoredValue()
     # Zero joint friction equals the schema default, so the export leaves it unset.
     assert not exported_hinge.GetAttribute("physxJointAxis:angular:staticFrictionEffort").HasAuthoredValue()

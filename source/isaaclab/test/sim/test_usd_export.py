@@ -509,6 +509,28 @@ def test_an_asset_outside_the_environments_is_read_from_its_one_row():
     assert edits["physics:mass"] == pytest.approx(3.0)
 
 
+def test_an_environment_cloned_in_physics_only_is_exported_from_its_prototype():
+    """An environment the cloner created in physics only has no prim; its export defines it and places it."""
+    from isaaclab.assets import AssetBaseCfg
+    from isaaclab.cloner import make_clone_plan
+    from isaaclab.sim import SpawnerCfg
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Cube.Define(stage, "/World/envs/env_0/Box")
+    box = AssetBaseCfg(prim_path="/World/envs/env_.*/Box", spawn=SpawnerCfg(spawn_path="/World/envs/env_0/Box"))
+    scene = _scene()
+    scene.num_envs = 2
+    scene.env_prim_paths = ["/World/envs/env_0", "/World/envs/env_1"]
+    scene.clone_plan = make_clone_plan([box], [[0]], 2, positions=np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0]]))
+
+    _Exporter(scene, env_id=1)._select_environment(stage)
+
+    exported = stage.GetPrimAtPath("/World/envs/env_1/Box")
+    assert exported.IsDefined() and exported.GetTypeName() == "Cube"
+    assert not stage.GetPrimAtPath("/World/envs/env_0")
+    assert UsdGeom.XformCache().GetLocalToWorldTransform(exported).ExtractTranslation()[0] == pytest.approx(3.0)
+
+
 def test_scenes_with_deformable_or_cable_objects_are_refused():
     """Deformable and cable values are not exported, so the export raises instead of writing a file that differs."""
     for assets in ({"deformable_objects": {"cloth": object()}}, {"cable_objects": {"cable": object()}}):

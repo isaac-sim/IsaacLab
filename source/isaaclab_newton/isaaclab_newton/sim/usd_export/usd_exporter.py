@@ -7,16 +7,12 @@
 
 from __future__ import annotations
 
-import dataclasses
-import json
 import logging
 import math
-import sys
 from collections import Counter
 
 import newton
 import numpy as np
-import warp as wp
 from newton.usd import PrimType, SchemaResolverNewton
 
 from pxr import Sdf, Tf, Usd, UsdPhysics, UsdShade
@@ -29,20 +25,15 @@ from isaaclab.sim.usd_export.base_usd_exporter import (
     JointAttribute,
     UsdEdit,
 )
-from isaaclab.utils.dict import update_class_from_dict
 from isaaclab.utils.string import string_to_callable
 
 from isaaclab_newton.physics import NewtonSolver, NewtonSolverCfg
 from isaaclab_newton.physics.newton_builder import (
-    inject_terrain_heightfields,
     register_builder_attributes,
     usd_schema_resolvers,
 )
 
 logger = logging.getLogger(__name__)
-
-SETTINGS_KEY = "isaaclab:newton"
-"""Layer metadata holding what Newton's importer does not read from USD: the step size and the solver."""
 
 _SCENE = SchemaResolverNewton.mapping[PrimType.SCENE]
 _JOINT = SchemaResolverNewton.mapping[PrimType.JOINT]
@@ -94,9 +85,6 @@ MATERIAL_ATTRIBUTES = {
 }
 """Model shape array -> USD attribute on the collider's physics material, which takes precedence."""
 
-SHAPE_CONTACT_ATTRIBUTES = {_MATERIAL[key].name: _SHAPE[key].name for key in ("ke", "kd", "kf", "ka")}
-"""Material contact gain -> deprecated collider attribute, which :meth:`UsdExporter.import_model` still reads."""
-
 MUJOCO_FLAG_FIELDS = {
     "enable_multiccd": ("flag_multiccd", False),
     "disable_contacts": ("flag_contact", True),
@@ -121,13 +109,13 @@ class UsdExporter(BaseUsdExporter):
     """
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
-        """Return the live model values that differ from the build of ``stage``; record the step size and solver.
+        """Return the live model values that differ from Newton's import of ``stage``.
 
         Args:
             stage: The exported stage, reduced to the selected environment.
 
         Returns:
-            Values to author so that :meth:`load_usd` reproduces the live model.
+            Values to author so that Newton's import reproduces the live model.
         """
         physics_cfg = self.scene.sim.cfg.physics
         solver_cfg = physics_cfg.solver_cfg
@@ -144,13 +132,6 @@ class UsdExporter(BaseUsdExporter):
             *self._gravity_edits(stage, gravity),
             *self._scene_edits(solver_cfg),
         ]
-        settings = {
-            "dt": self.scene.sim.get_physics_dt(),
-            "solver_type": f"{type(solver_cfg).__module__}:{type(solver_cfg).__name__}",
-            "solver": solver_cfg.to_dict(),
-        }
-        layer = stage.GetRootLayer()
-        layer.customLayerData = {**layer.customLayerData, SETTINGS_KEY: json.dumps(settings)}
         # MuJoCo's and Kamino's own contacts are found every solver step; Newton's pipeline once per physics step.
         pipeline = not getattr(solver_cfg, "use_mujoco_contacts", getattr(solver_cfg, "use_collision_detector", False))
         if physics_cfg.num_substeps > 1 and pipeline:
@@ -159,94 +140,6 @@ class UsdExporter(BaseUsdExporter):
                 " solver step, while Isaac Lab collides once per physics step."
             )
         return edits
-
-    @classmethod
-    def load_usd(
-        cls, path: str, device: str = "cpu", allow_unsafe_torch_checkpoints: bool = False
-    ) -> tuple[newton.Model, newton.solvers.SolverBase | None, float | None]:
-        """Load a USD file exported from a Newton scene.
-
-        Referenced remote assets are downloaded first, as Isaac Lab does when spawning them. The solver is built from
-        the training configuration recorded in the file's layer metadata, so it overrides solver options a consumer
-        later edits on the physics scene; Newton's own import reads the scene's options.
-
-        Args:
-            path: Exported USD file.
-            device: Device of the model and solver. Defaults to ``"cpu"``.
-            allow_unsafe_torch_checkpoints: Load the torch checkpoints the file's actuators reference, such as
-                actuator networks. Loading one can run arbitrary code; enable it only for trusted files.
-                Defaults to False.
-
-        Returns:
-            The model, the solver configured as in training (None if the file records none), and the
-            solver step size [s]: the physics step divided by the training substeps (None if the file records none).
-        """
-        stage = cls.open_stage(path)
-        settings = json.loads(stage.GetRootLayer().customLayerData.get(SETTINGS_KEY, "{}"))
-        solver_cfg = None
-        if "solver_type" in settings:
-            # The file names the classes to use; look them up among Isaac Lab's, never importing what the file names.
-            solver_type = cls._solver_configurations().get(settings["solver_type"])
-            if solver_type is None:
-                raise ValueError(f"'{settings['solver_type']}' in '{path}' is not a Newton solver configuration.")
-            solver_cfg = solver_type()
-            cls._load_fields(solver_cfg, settings["solver"], path)
-            # File-writing debug output is the training machine's, not the loader's.
-            if hasattr(solver_cfg, "save_to_mjcf"):
-                solver_cfg.save_to_mjcf = None
-        force = settings.get("force_position_velocity_actuation", False)
-        model = cls.import_model(stage, solver_cfg, device, force, allow_unsafe_torch_checkpoints)
-        solver = None
-        if solver_cfg is not None:
-            solver = cls._solver(solver_cfg).build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
-        # The scene states the solver step rate (physics rate times substeps), as Newton's import reads it.
-        scene = next((prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.Scene)), None)
-        rate = scene.GetAttribute(_SCENE["time_steps_per_second"].name).Get() if scene else None
-        return model, solver, 1.0 / rate if rate else settings.get("dt")
-
-    @classmethod
-    def import_model(
-        cls,
-        stage: Usd.Stage,
-        solver_cfg=None,
-        device: str = "cpu",
-        force_position_velocity_actuation: bool = False,
-        allow_unsafe_torch_checkpoints: bool = False,
-    ) -> newton.Model:
-        """Import a stage with Newton's USD importer, as :meth:`load_usd` does.
-
-        Only the solver's custom attributes and schema resolvers are applied; Isaac Lab's builder
-        defaults are not, so an exported file carries every value that differs from Newton's.
-
-        Args:
-            stage: Stage to import.
-            solver_cfg: Newton solver configuration whose attributes the import registers. Defaults to None.
-            device: Device of the finalized model. Defaults to ``"cpu"``.
-            force_position_velocity_actuation: Actuate joints with both drive gains in position-velocity
-                mode. Defaults to False.
-            allow_unsafe_torch_checkpoints: Load the torch checkpoints the stage's actuators reference; see
-                :meth:`load_usd`. Defaults to False.
-
-        Returns:
-            The finalized model.
-        """
-        builder = newton.ModelBuilder()
-        register_builder_attributes(builder, solver_cfg)
-        # Tagged terrains become heightfields, as in Isaac Lab; the importer does not read their colliders.
-        terrains = inject_terrain_heightfields(stage, builder, root_paths=("/",), device=device)
-        for shape, label in enumerate(builder.shape_label):
-            cls._apply_authored_contacts(stage.GetPrimAtPath(label), builder, shape)
-        builder.add_usd(
-            stage,
-            schema_resolvers=usd_schema_resolvers(solver_cfg),
-            ignore_paths=terrains,
-            force_position_velocity_actuation=force_position_velocity_actuation,
-            allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoints,
-        )
-        # The solver's own preparation, as Isaac Lab runs it before finalizing (e.g. VBD coloring).
-        if solver_cfg is not None:
-            cls._solver(solver_cfg).prepare_builder(solver_cfg, builder)
-        return builder.finalize(device=device)
 
     @staticmethod
     def _import_base(stage: Usd.Stage, model: newton.Model, solver_cfg) -> _AlignedBase:
@@ -557,24 +450,6 @@ class UsdExporter(BaseUsdExporter):
         return options
 
     @staticmethod
-    def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
-        """Apply the contact values authored on a collider, or its physics material, to a builder shape."""
-        material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
-        contacts = {
-            array: SHAPE_CONTACT_ATTRIBUTES[attribute]
-            for array, attribute in MATERIAL_ATTRIBUTES.items()
-            if attribute in SHAPE_CONTACT_ATTRIBUTES
-        }
-        sources = [(prim, SHAPE_ATTRIBUTES), (prim, contacts)]
-        if material:
-            sources.append((material.GetPrim(), MATERIAL_ATTRIBUTES))
-        for owner, table in sources:
-            for array, attribute in table.items():
-                value = owner.GetAttribute(attribute).Get()
-                if value is not None:
-                    getattr(builder, array)[shape] = float(value)
-
-    @staticmethod
     def _limit_reference(model: newton.Model) -> np.ndarray:
         """Per DOF, MuJoCo's joint reference, which Newton's import subtracts from the USD limits."""
         mujoco = getattr(model, "mujoco", None)
@@ -608,57 +483,6 @@ class UsdExporter(BaseUsdExporter):
                     UsdEdit(edit.path, "mjc:actuatorfrcrange:max", float(edit.value)),
                 ]
         return widened
-
-    @classmethod
-    def _load_fields(cls, cfg, payload: dict, path: str, prefix: str = ""):
-        """Set the file's values on the declared fields of a trusted configuration.
-
-        A field holding code, such as the manager class, keeps its trusted value and must not be changed by the file;
-        an unset nested configuration is created from its declared type.
-        """
-        fields = {field.name: field for field in dataclasses.fields(cfg)}
-        default = type(cfg)().to_dict()
-        for key, value in payload.items():
-            if key not in fields:
-                raise ValueError(f"'{prefix}{key}' in '{path}' is not a field of {type(cfg).__name__}.")
-            current = getattr(cfg, key)
-            if key == "class_type" or callable(current):
-                if value != default.get(key):
-                    raise ValueError(f"'{value}' in '{path}' is not a Newton solver.")
-                continue
-            if isinstance(value, dict):
-                if current is None:
-                    current = cls._nested_configuration(cfg, fields[key])
-                    setattr(cfg, key, current)
-                if dataclasses.is_dataclass(current):
-                    cls._load_fields(current, value, path, f"{prefix}{key}/")
-                    continue
-                if current is None or isinstance(current, dict):
-                    # A mapping field holds data, e.g. solver keyword arguments, not a configuration.
-                    setattr(cfg, key, value)
-                    continue
-            update_class_from_dict(cfg, {key: value})
-
-    @staticmethod
-    def _nested_configuration(cfg, field: dataclasses.Field):
-        """A default instance of the configuration class a field declares (``X`` or ``X | None``), or None."""
-        names = field.type.replace(" ", "").split("|") if isinstance(field.type, str) else [field.type]
-        namespace = vars(sys.modules[type(cfg).__module__])
-        for name in names:
-            kind = namespace.get(name) if isinstance(name, str) else name
-            if isinstance(kind, type) and dataclasses.is_dataclass(kind):
-                return kind()
-        return None
-
-    @staticmethod
-    def _solver_configurations() -> dict[str, type[NewtonSolverCfg]]:
-        """Isaac Lab's Newton solver configurations, keyed as an exported file names them."""
-        import isaaclab_newton.physics as physics  # noqa: PLC0415
-
-        classes = (getattr(physics, name) for name in physics.__all__)
-        return {
-            f"{c.__module__}:{c.__name__}": c for c in classes if isinstance(c, type) and issubclass(c, NewtonSolverCfg)
-        }
 
     @staticmethod
     def _solver(solver_cfg: NewtonSolverCfg) -> type[NewtonSolver]:

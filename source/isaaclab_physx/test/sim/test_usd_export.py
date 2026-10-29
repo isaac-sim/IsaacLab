@@ -42,8 +42,7 @@ def _read_import(stage, articulations, bodies) -> dict:
             return pickle.load(file)
 
 
-@pytest.mark.parametrize("num_envs,env_id", [(1, 0), (2, 1)])
-def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_envs, env_id):
+def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
     """Every exported value of a PhysX import in a new process equals the live engine's."""
     from isaaclab_physx.physics import PhysxCfg
     from usd_export_read_import import read, readings
@@ -52,19 +51,19 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
     from isaaclab.sim import SimulationCfg, build_simulation_context
     from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
 
-    cfg = make_export_scene_cfg(tmp_path, num_envs=num_envs)
+    cfg = make_export_scene_cfg(tmp_path)
     sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=PhysxCfg())
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(cfg)
         sim.reset()
-        output = scene.export_to_usd(str(tmp_path / "exported.usda"), env_id=env_id)
+        output = scene.export_to_usd(str(tmp_path / "exported.usda"))
         stage = Usd.Stage.Open(output)
         articulations, bodies = physics_prims(stage)
         live = readings(stage, read(sim.backend_manager.get_physics_sim_view(), articulations, bodies))
         gravity = np.asarray(sim.backend_manager.get_gravity())
     loaded = readings(stage, _read_import(stage, articulations, bodies))
 
-    hinge = live[f"/World/envs/env_{env_id}/Robot/Hinge", "angular"]
+    hinge = live["/World/envs/env_0/Robot/Hinge", "angular"]
     assert hinge["stiffness"] == pytest.approx(83.0)
     assert hinge["armature"] == pytest.approx(0.023)
     assert live.keys() == loaded.keys()
