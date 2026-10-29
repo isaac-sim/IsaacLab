@@ -175,6 +175,12 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
         assert imported_solver.mjw_model.opt.iterations == 17
         # Configuration flags have their own USD names; disable flags are stated inverted.
         assert bool(model.mujoco.flag_multiccd.numpy()[0]) and bool(model.mujoco.flag_contact.numpy()[0])
+        # Options equal to Newton's import defaults are left to the importer.
+        stage = Usd.Stage.Open(output)
+        scene = next(prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.Scene))
+        assert scene.GetAttribute("mjc:option:iterations").HasAuthoredValue()
+        assert not scene.GetAttribute("mjc:option:cone").HasAuthoredValue()
+        assert not scene.GetAttribute("mjc:flag:contact").HasAuthoredValue()
         moved = _rollout(model, imported_solver)
         for label, position in motion.items():
             np.testing.assert_allclose(moved[label], position, atol=1e-4, err_msg=label)
@@ -423,7 +429,8 @@ def test_changed_limits_are_written_with_the_mujoco_reference(tmp_path):
 
 
 def test_kamino_constraint_gains_are_stated_on_the_scene():
-    """Kamino reads its constraint stabilization gains from the physics scene, so the export states all three."""
+    """Kamino reads its constraint stabilization gains from the physics scene, so the export states those that differ
+    from Newton's defaults."""
     from types import SimpleNamespace
 
     from isaaclab_newton.physics import KaminoConstraintsCfg, KaminoPADMMSolverCfg
@@ -435,10 +442,10 @@ def test_kamino_constraint_gains_are_stated_on_the_scene():
         physics_scene_path="/physicsScene",
         sim=SimpleNamespace(cfg=SimpleNamespace(physics=physics), get_physics_dt=lambda: 0.01),
     )
-    cfg = KaminoPADMMSolverCfg(constraints=KaminoConstraintsCfg(alpha=0.1, beta=0.2, gamma=0.3))
+    cfg = KaminoPADMMSolverCfg(constraints=KaminoConstraintsCfg(alpha=0.1, beta=0.2, gamma=0.01))
     edits = {edit.attribute: edit.value for edit in exporter._scene_edits(cfg)}
     assert edits["newton:kamino:constraints:beta"] == pytest.approx(0.2)
-    assert edits["newton:kamino:constraints:gamma"] == pytest.approx(0.3)
+    assert "newton:kamino:constraints:gamma" not in edits  # Newton's default
 
 
 def test_attribute_tables_cover_newton_importer():

@@ -492,7 +492,8 @@ class UsdExporter(BaseUsdExporter):
         """Edits stating the solver step rate and the solver options Newton's importer reads from the physics scene.
 
         Isaac Lab steps the solver ``num_substeps`` times per physics step; USD states one rate, so the file states
-        the solver's, which Newton's import returns as ``physics_dt``.
+        the solver's, which Newton's import returns as ``physics_dt``. An option equal to the value Newton's import
+        uses when the scene does not state it is not written.
         """
         path = self.scene.physics_scene_path
         rate = self.scene.sim.cfg.physics.num_substeps / self.scene.sim.get_physics_dt()
@@ -504,8 +505,8 @@ class UsdExporter(BaseUsdExporter):
             value = getattr(solver_cfg, name)
             if name in MUJOCO_FLAG_FIELDS and MUJOCO_FLAG_FIELDS[name][1] and value is not None:
                 value = not value
-            if value is not None:
-                edits.append(UsdEdit(path, attribute, value, types[type(value)]))
+            if value is not None and not self._is_import_default(attribute, value):
+                edits.append(UsdEdit(path, attribute.usd_attribute_name, value, types[type(value)]))
         if self._runs(solver_cfg, newton.solvers.SolverKamino):
             # Of Kamino's settings Newton reads from USD, only the constraint stabilization gains are written: the
             # PADMM ones change the result only together with settings USD cannot state (rho_0, warm start method).
@@ -513,13 +514,26 @@ class UsdExporter(BaseUsdExporter):
             newton.solvers.SolverKamino.register_custom_attributes(builder)
             constraints = solver_cfg.to_solver_config().constraints
             for gain in ("alpha", "beta", "gamma"):
-                attribute = builder.custom_attributes[f"kamino:constraints_{gain}"].usd_attribute_name
-                edits.append(UsdEdit(path, attribute, float(getattr(constraints, gain))))
+                attribute = builder.custom_attributes[f"kamino:constraints_{gain}"]
+                value = float(getattr(constraints, gain))
+                if not self._is_import_default(attribute, value):
+                    edits.append(UsdEdit(path, attribute.usd_attribute_name, value))
         return edits
 
+    @staticmethod
+    def _is_import_default(attribute, value) -> bool:
+        """Whether Newton's import resolves ``attribute`` to ``value`` when the USD does not state it."""
+        if attribute.default is None:
+            return False
+        if attribute.usd_value_transformer is not None:
+            value = attribute.usd_value_transformer(value, None)
+        if isinstance(value, float) or isinstance(attribute.default, float):
+            return bool(np.isclose(value, attribute.default, rtol=1e-6, atol=0.0))
+        return value == attribute.default
+
     @classmethod
-    def _scene_solver_options(cls, solver_cfg) -> dict[str, str]:
-        """Solver configuration field -> physics-scene attribute, for options the solver reads from the model.
+    def _scene_solver_options(cls, solver_cfg) -> dict[str, newton.ModelBuilder.CustomAttribute]:
+        """Solver configuration field -> Newton's physics-scene attribute, for options the solver reads from the model.
 
         Only MuJoCo reads its options from the model; Newton registers their USD attributes.
         """
@@ -529,7 +543,7 @@ class UsdExporter(BaseUsdExporter):
         register_builder_attributes(builder, solver_cfg)
         scene = (newton.Model.AttributeFrequency.ONCE, newton.Model.AttributeFrequency.WORLD)
         attributes = {
-            attribute.name: attribute.usd_attribute_name
+            attribute.name: attribute
             for attribute in builder.custom_attributes.values()
             if attribute.namespace == "mujoco" and attribute.frequency in scene and attribute.usd_attribute_name
         }
