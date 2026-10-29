@@ -10,6 +10,7 @@ Run :func:`read_import` in a separate process: a process has one attached OVPhys
 
 import numpy as np
 from isaaclab_ov import tensor_types as TT
+from isaaclab_ov.sim.usd_export import usd_exporter
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from pxr import Usd, UsdPhysics
@@ -29,7 +30,7 @@ def read_import(source: str, articulations: list[str], bodies: list[str]) -> dic
         Raw readings as returned by :func:`read`.
     """
     import ovstage
-    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import OvPhysxManager, ovphysx_compat
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxBackendCfg
     from isaaclab_ov.stage import create_ovstage
@@ -40,41 +41,19 @@ def read_import(source: str, articulations: list[str], bodies: list[str]) -> dic
         backend.stage = create_ovstage("usd_export_test")
         ovstage.population.open_usd_from_string(backend.stage, source, ordinal=1, domains=ovstage.PopulationDomain.ALL)
         backend.stage.advance_write_floor(ordinal=1).wait()
-        backend.physx.attach_ovstage(backend.stage, read_ordinal=1)
+        ovphysx_compat.finish_stage_operation(
+            backend.physx, backend.physx.attach_ovstage(backend.stage, read_ordinal=1)
+        )
         return read(backend.physx, articulations, bodies, "cpu")
     finally:
         backend.close()
 
 
-_DOF_TENSORS = {
-    "stiffness": TT.DOF_STIFFNESS,
-    "damping": TT.DOF_DAMPING,
-    "max_force": TT.DOF_MAX_FORCE,
-    "max_velocity": TT.DOF_MAX_VELOCITY,
-    "armature": TT.DOF_ARMATURE,
-}
+_DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature")
 
-ARTICULATION_TENSORS = {
-    **_DOF_TENSORS,
-    "limits": TT.DOF_LIMIT,
-    "friction": TT.DOF_FRICTION_PROPERTIES,
-    "mass": TT.BODY_MASS,
-    "inertia": TT.BODY_INERTIA,
-    "com_pose": TT.BODY_COM_POSE,
-    "disable_gravity": TT.BODY_DISABLE_GRAVITY,
-}
-"""Raw reading name -> OVPhysX binding read from each articulation."""
-
-RIGID_BODY_TENSORS = {
-    "mass": TT.RIGID_BODY_MASS,
-    "inertia": TT.RIGID_BODY_INERTIA,
-    "com_pose": TT.RIGID_BODY_COM_POSE,
-    "disable_gravity": TT.RIGID_BODY_DISABLE_GRAVITY,
-    "contact_offset": TT.RIGID_BODY_CONTACT_OFFSET,
-    "rest_offset": TT.RIGID_BODY_REST_OFFSET,
-    "material": TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
-}
-"""Raw reading name -> OVPhysX binding read from each rigid body outside articulations."""
+# The exporter's bindings, and gravity, which the round trip also compares.
+ARTICULATION_TENSORS = {**usd_exporter.ARTICULATION_TENSORS, "disable_gravity": TT.BODY_DISABLE_GRAVITY}
+RIGID_BODY_TENSORS = {**usd_exporter.RIGID_BODY_TENSORS, "disable_gravity": TT.RIGID_BODY_DISABLE_GRAVITY}
 
 
 def read(physx, articulations: list[str], bodies: list[str], device: str) -> dict:
@@ -97,7 +76,7 @@ def read(physx, articulations: list[str], bodies: list[str], device: str) -> dic
             raw[root].update(dof_names=list(view.dof_names), body_names=list(view.body_names))
         finally:
             view.close()
-        dofs = {name: raw[root].pop(name) for name in _DOF_TENSORS}
+        dofs = {name: raw[root].pop(name) for name in _DOF_READINGS}
         limits, friction = raw[root].pop("limits"), raw[root].pop("friction")
         dofs.update(lower_limit=limits[..., 0], upper_limit=limits[..., 1])
         dofs.update(static_friction=friction[..., 0], dynamic_friction=friction[..., 1])

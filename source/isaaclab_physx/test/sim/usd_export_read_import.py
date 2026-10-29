@@ -9,6 +9,8 @@ The USD export test loads exported files with this script, in a separate process
 has one attached PhysX simulation::
 
     python usd_export_read_import.py <stage.usda> <output.pkl> '[[articulations], [bodies]]'
+
+or, to step deformables from a given nodal state (:func:`simulate_deformables`), with a JSON object of its arguments.
 """
 
 import json
@@ -43,33 +45,59 @@ def main(source: str, output: str, articulations: list[str], bodies: list[str]):
         app.close()
 
 
-_DOF_GETTERS = {
-    "stiffness": "get_dof_stiffnesses",
-    "damping": "get_dof_dampings",
-    "max_force": "get_dof_max_forces",
-    "max_velocity": "get_dof_max_velocities",
-    "armature": "get_dof_armatures",
-}
+def simulate_deformables(source: str, output: str, bodies: dict, dt: float, steps: int):
+    """Import ``source`` on the GPU, set each deformable's nodal state, step, and write its nodal positions."""
+    from isaaclab.app import AppLauncher
 
-ARTICULATION_GETTERS = {
-    **_DOF_GETTERS,
-    "limits": "get_dof_limits",
-    "friction": "get_dof_friction_properties",
-    "mass": "get_masses",
-    "inertia": "get_inertias",
-    "com_pose": "get_coms",
-}
-"""Raw reading name -> articulation view getter."""
+    app = AppLauncher(headless=True).app
+    try:
+        import torch
 
-RIGID_BODY_GETTERS = {
-    "mass": "get_masses",
-    "inertia": "get_inertias",
-    "com_pose": "get_coms",
-    "material": "get_material_properties",
-    "contact_offset": "get_contact_offsets",
-    "rest_offset": "get_rest_offsets",
-}
-"""Raw reading name -> rigid body view getter."""
+        import carb
+        import omni.physics.tensors
+        import omni.physx
+        import omni.usd
+
+        # Settings for GPU tensor access, as PhysxManager sets them; the stage enables GPU dynamics itself.
+        settings = carb.settings.get_settings()
+        settings.set_int("/physics/cudaDevice", 0)
+        settings.set_bool("/physics/suppressReadback", True)
+        context = omni.usd.get_context()
+        if not context.open_stage(source):
+            raise RuntimeError(f"Could not open '{source}'.")
+        physx = omni.physx.get_physx_interface()
+        simulation = omni.physx.get_physx_simulation_interface()
+        physx.force_load_physics_from_usd()
+        physx.start_simulation()
+        # GPU tensor writes need one step; the state written afterwards replaces its result.
+        simulation.simulate(dt, 0.0)
+        simulation.fetch_results()
+        sim_view = omni.physics.tensors.create_simulation_view("torch", stage_id=context.get_stage_id())
+        sim_view.set_subspace_roots("/")
+        views = {}
+        for path, (kind, positions, velocities) in bodies.items():
+            create = (
+                sim_view.create_volume_deformable_body_view
+                if kind == "volume"
+                else sim_view.create_surface_deformable_body_view
+            )
+            view = create(path)
+            indices = torch.arange(view.count, dtype=torch.int32, device="cuda:0")
+            view.set_simulation_nodal_positions(torch.tensor(positions, device="cuda:0"), indices)
+            view.set_simulation_nodal_velocities(torch.tensor(velocities, device="cuda:0"), indices)
+            views[path] = view
+        for step in range(steps):
+            simulation.simulate(dt, (step + 1) * dt)
+            simulation.fetch_results()
+        with open(output, "wb") as file:
+            pickle.dump(
+                {path: view.get_simulation_nodal_positions().cpu().numpy() for path, view in views.items()}, file
+            )
+    finally:
+        app.close()
+
+
+_DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature")
 
 
 def read(simulation_view, articulations: list[str], bodies: list[str]) -> dict:
@@ -83,11 +111,14 @@ def read(simulation_view, articulations: list[str], bodies: list[str]) -> dict:
     Returns:
         Raw values keyed by object path, as consumed by :func:`readings`.
     """
+    # The exporter's getters; imported here because this file also runs before Isaac Sim starts.
+    from isaaclab_physx.sim.usd_export.usd_exporter import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
+
     raw = {}
     for root in articulations:
         view = simulation_view.create_articulation_view(root)
         data = {name: _get(getattr(view, getter)()) for name, getter in ARTICULATION_GETTERS.items()}
-        dofs = {name: data.pop(name) for name in _DOF_GETTERS}
+        dofs = {name: data.pop(name) for name in _DOF_READINGS}
         limits, friction = data.pop("limits"), data.pop("friction")
         dofs.update(lower_limit=limits[..., 0], upper_limit=limits[..., 1])
         dofs.update(static_friction=friction[..., 0], dynamic_friction=friction[..., 1])
@@ -135,4 +166,8 @@ def _get(values) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], *json.loads(sys.argv[3]))
+    request = json.loads(sys.argv[3])
+    if isinstance(request, dict):
+        simulate_deformables(sys.argv[1], sys.argv[2], **request)
+    else:
+        main(sys.argv[1], sys.argv[2], *request)

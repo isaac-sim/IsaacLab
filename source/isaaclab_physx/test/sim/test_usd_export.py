@@ -77,10 +77,86 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
     np.testing.assert_allclose(exported, gravity, rtol=1e-5)
 
 
+@pytest.mark.skipif(not __import__("torch").cuda.is_available(), reason="PhysX simulates deformables on the GPU")
+def test_importing_the_export_reproduces_deformables(tmp_path):
+    """Deformables of a PhysX import step like the live engine's from the same nodal state."""
+    import warp as wp
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_physx.sim.spawners.materials import (
+        PhysxDeformableBodyMaterialCfg,
+        PhysxSurfaceDeformableBodyMaterialCfg,
+    )
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import DeformableObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    body = [
+        sim_utils.OmniPhysicsDeformableBodyCfg(),
+        PhysxDeformableBodyCfg(solver_position_iteration_count=24, linear_damping=0.05),
+    ]
+    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
+    cfg.beam = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Beam",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, -0.3, 1.0)),
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.3, 0.04, 0.04),
+            volume_deformable_props=body,
+            physics_material=PhysxDeformableBodyMaterialCfg(youngs_modulus=2e5, poissons_ratio=0.3, density=500.0),
+        ),
+    )
+    cfg.cloth = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cloth",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 1.0)),
+        spawn=sim_utils.MeshRectangleCfg(
+            size=(0.2, 0.2),
+            surface_deformable_props=body,
+            physics_material=PhysxSurfaceDeformableBodyMaterialCfg(youngs_modulus=1e5, surface_thickness=0.002),
+        ),
+    )
+    kinds = {"beam": "volume", "cloth": "surface"}
+    dt, steps = 1 / 120, 20
+    with build_simulation_context(sim_cfg=SimulationCfg(device="cuda:0", dt=dt, physics=PhysxCfg())) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        output = scene.export_to_usd(str(tmp_path / "exported.usda"))
+        initial, live = {}, {}
+        for name, asset in scene.deformable_objects.items():
+            view = asset.root_view
+            positions = view.get_simulation_nodal_positions().numpy()
+            # Stretch and spin, so that the elastic forces act without any contact.
+            offsets = positions - positions.mean(axis=1, keepdims=True)
+            velocities = (2.0 * offsets + np.cross([0.0, 0.0, 3.0], offsets)).astype(np.float32)
+            view.set_simulation_nodal_velocities(
+                wp.array(velocities, device="cuda:0"), wp.array([0], dtype=wp.int32, device="cuda:0")
+            )
+            initial[view.prim_paths[0]] = (kinds[name], positions.tolist(), velocities.tolist())
+        for _ in range(steps):
+            sim.step(render=False)
+        for name, asset in scene.deformable_objects.items():
+            live[asset.root_view.prim_paths[0]] = asset.root_view.get_simulation_nodal_positions().numpy()
+
+    with tempfile.TemporaryDirectory() as directory:
+        result = os.path.join(directory, "positions.pkl")
+        request = {"bodies": initial, "dt": dt, "steps": steps}
+        script = Path(__file__).parent / "usd_export_read_import.py"
+        subprocess.run([sys.executable, str(script), output, result, json.dumps(request)], check=True)
+        with open(result, "rb") as file:
+            loaded = pickle.load(file)
+
+    assert loaded.keys() == live.keys()
+    for path, positions in live.items():
+        moved = np.abs(positions - np.asarray(initial[path][1])).max()
+        assert moved > 0.01, f"{path} barely moved"
+        np.testing.assert_allclose(loaded[path], positions, atol=1e-5, err_msg=path)
+
+
 def test_read_getters_cover_physx_views(tmp_path):
     """Every getter of the PhysX articulation and rigid-body views is compared by the round trip or excluded."""
     from isaaclab_physx.physics import PhysxCfg
-    from usd_export_read_import import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
+    from isaaclab_physx.sim.usd_export.usd_exporter import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
