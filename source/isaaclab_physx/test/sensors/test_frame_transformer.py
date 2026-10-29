@@ -687,6 +687,8 @@ def _make_frame_transformer(use_recorded_launch: bool = True):
     sensor.cfg = SimpleNamespace(prim_path="/World/Source")
     sensor._device = device
     sensor._num_envs = 1
+    sensor._ALL_ENV_MASK = wp.ones(sensor._num_envs, dtype=wp.bool, device=device)
+    sensor._reset_mask = wp.zeros(sensor._num_envs, dtype=wp.bool, device=device)
     sensor._num_target_frames = 1
     sensor._frame_physx_view = transform_view
     sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)
