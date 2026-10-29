@@ -70,6 +70,7 @@ def test_partial_reset_cannot_credit_the_next_selected_parcel(device):
     """A handoff is not another receipt; two receipts complete an episode, and an inactive loss fails it."""
     task = "IsaacContrib-Conveyor-Suction-Sorting"
     cfg = parse_env_cfg(task, device=device, num_envs=2)
+    cfg.commands.sort.deliveries_per_episode = 2
     cfg.sim.visualizer_cfgs = []
     cfg.sim.save_logs_to_file = False
     cfg.seed = 41

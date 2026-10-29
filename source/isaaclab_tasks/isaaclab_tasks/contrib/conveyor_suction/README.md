@@ -29,8 +29,8 @@ the seal implementation into Isaac Lab. Stock Newton releases do not provide thi
 
 ## Training and playback
 
-The default from-scratch configuration uses 512 environments and 6,000 PPO updates.
-It is a starting configuration; reliable twelve-parcel completion has not been established.
+The default configuration uses 512 environments, 6,000 PPO updates, and twelve-parcel goals
+within 240-second episodes. Reliable learning from scratch has not yet been validated.
 
 ```bash
 uv run isaaclab train --task IsaacContrib-Conveyor-Suction-Sorting \
@@ -66,8 +66,8 @@ when the environment is recreated. Training success from an easier reset is not 
 end-to-end pickup result. Evaluate separately from full belt starts and report correct-bin
 deliveries by size class, wrong-bin deliveries, drops, and complete twelve-parcel batches.
 
-Default training episodes require two deliveries within 30 seconds. Playback uses full belt
-starts and requires all twelve within 240 seconds. `commands.sort.deliveries_per_episode`
+Training and playback target a fully sorted twelve-parcel batch within 240 seconds. Playback
+samples full belt starts uniformly. `commands.sort.deliveries_per_episode`
 defines the success criterion for termination, reset sampling and `full_start_success_rate`;
 `full_batch_success_rate` separately requires all twelve receipts from a full start. Set the receipt goal to
 one for isolated pick-and-transfer evaluation. Losing an unsorted parcel ends the episode.
@@ -78,11 +78,8 @@ problems without expanding the reset catalog. Pre-sorted inventory earns no rece
 is excluded from `correct_deliveries`; full-start metrics exclude these partial batches.
 Goals below twelve retain the original all-unsorted inventory. Full-start playback is unchanged.
 
-Development runs continued compatible checkpoints through a three-receipt/120-second stage
-before twelve-receipt/240-second fine-tuning. Use `--checkpoint /path/to/model.pt` to resume,
-with `env.commands.sort.deliveries_per_episode` and `env.episode_length_s` overrides as needed.
-Resuming retains optimizer state by default; these staged runs do not validate the default
-from-scratch command as a recipe for complete batches.
+Development results used staged warm-started checkpoints. Resume a compatible checkpoint with
+`--checkpoint /path/to/model.pt`; optimizer state is retained by default.
 
 ## Facility references
 

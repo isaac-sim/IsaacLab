@@ -88,7 +88,7 @@ class SizeSortCommandCfg(CommandTermCfg):
     class_type: type | str = "{DIR}.mdp:SizeSortCommand"
     resampling_time_range: tuple[float, float] = (1.0e6, 1.0e6)
     reset_event_name: str = "reset_parcels"
-    deliveries_per_episode: int = 2
+    deliveries_per_episode: int = 12
     """Sorted-parcel goal; full-batch reset recipes can include pre-sorted inventory."""
 
 
