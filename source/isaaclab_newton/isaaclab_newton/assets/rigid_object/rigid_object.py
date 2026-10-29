@@ -1100,7 +1100,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of environment indices or a tensor of environment indices.
         """
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self.device)
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
@@ -1111,7 +1111,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self.device)
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     """
     Internal simulation callbacks.

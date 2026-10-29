@@ -724,7 +724,7 @@ class WrenchComposer:
         Raises:
             TypeError: If ``env_ids`` is a :class:`~isaaclab.utils.warp.ProxyArray`.
         """
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_ENV_INDICES, device=self.device)
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_ENV_INDICES)
 
     def _resolve_body_ids(
         self, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None
@@ -740,7 +740,7 @@ class WrenchComposer:
         Raises:
             TypeError: If ``body_ids`` is a :class:`~isaaclab.utils.warp.ProxyArray`.
         """
-        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self.device)
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _ensure_composed(self):
         """Compose input buffers into output buffers if dirty."""
