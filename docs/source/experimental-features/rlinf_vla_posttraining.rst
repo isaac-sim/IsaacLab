@@ -209,6 +209,28 @@ RLinf requires Ray for worker scheduling in both training and evaluation, includ
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+Physics Backend
+~~~~~~~~~~~~~~~
+
+The ``assemble_trocar`` task runs on PhysX by default. To use Newton (MuJoCo-Warp) instead,
+append ``physics=newton_mjwarp`` to the training or evaluation command:
+
+.. code-block:: bash
+
+   uv run --no-sync isaaclab train --rl_library rlinf \
+       --config_name isaaclab_ppo_gr00t_assemble_trocar \
+       --model_path /path/to/base_model \
+       physics=newton_mjwarp
+
+Trailing ``KEY=VALUE`` arguments are environment config overrides that RLinf forwards to every
+environment worker, for training and evaluation alike. For example,
+``env.terminations.task_success.params.success_stage=3`` ends episodes after the insertion stage.
+
+.. note::
+
+   Contact dynamics differ between the backends, so the published ``Assemble_Trocar`` checkpoint
+   succeeds less often on Newton than on PhysX until it is RL fine-tuned on Newton.
+
 Checkpoints
 -----------
 
