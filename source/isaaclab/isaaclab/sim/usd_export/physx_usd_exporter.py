@@ -45,6 +45,16 @@ JOINT_ATTRIBUTES = {
 }
 """Joint property -> USD attribute, required API schema, and scale to USD units for angular DOFs."""
 
+D6_JOINT_ATTRIBUTES = {
+    **JOINT_ATTRIBUTES,
+    "lower_limit": ("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    "upper_limit": ("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+}
+""":data:`JOINT_ATTRIBUTES` of a rotational D6 joint, whose axes are ``rotX``, ``rotY`` and ``rotZ``."""
+
+D6_AXES = ("rotX", "rotY", "rotZ", "transX", "transY", "transZ")
+"""Axes of a D6 joint; PhysX names a rotational DOF ``<joint>:<n>`` after its index here."""
+
 COLLIDER_ATTRIBUTES = {"contact_offset": "physxCollision:contactOffset", "rest_offset": "physxCollision:restOffset"}
 """Per-shape property -> USD attribute on the body's colliders."""
 
@@ -68,18 +78,24 @@ class PhysxUsdExporter(BaseUsdExporter):
         Returns:
             Edits in the PhysX USD dialect.
         """
-        edits, materials = [], {}
+        edits, materials, joint_wide = [], {}, defaultdict(set)
         for (path, axis), values in self._read_assets(stage).items():
             prim = stage.GetPrimAtPath(path)
             if axis is not None:
                 # PhysX drives only an axis whose USD states a drive; gains on another axis have no effect.
                 driven = prim.HasAPI(UsdPhysics.DriveAPI, axis)
-                for name, (attribute, schema, angular_scale) in JOINT_ATTRIBUTES.items():
+                d6 = axis in D6_AXES
+                table = D6_JOINT_ATTRIBUTES if d6 else JOINT_ATTRIBUTES
+                for name, (attribute, schema, angular_scale) in table.items():
                     if attribute.startswith("drive:") and not driven:
                         continue
-                    scale = angular_scale if axis == "angular" else 1.0
+                    scale = 1.0 if axis == "linear" else angular_scale
                     schema = schema and schema.format(axis=axis)
                     value = float(values[name]) * scale
+                    if d6 and "{axis}" not in attribute:
+                        # One attribute of the whole joint: written only if every axis holds the same value.
+                        joint_wide[path, attribute, schema].add(value)
+                        continue
                     edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
                 continue
             # What the USD leaves to the engine, such as mass derived from geometry, the importer derives the same way.
@@ -106,6 +122,11 @@ class PhysxUsdExporter(BaseUsdExporter):
                         for collider in colliders
                     }
                 )
+        for (path, attribute, schema), values in joint_wide.items():
+            if len(values) > 1:
+                logger.warning(f"The axes of joint '{path}' differ in {attribute}; keeping its USD value.")
+                continue
+            edits.append(self._value_edit(stage.GetPrimAtPath(path), attribute, values.pop(), schema=schema))
         edits = [edit for edit in edits if edit is not None] + self._material_edits(stage, materials)
         return edits + self._gravity_edits(stage, self.scene.sim.backend_manager.get_gravity())
 
@@ -170,16 +191,15 @@ class PhysxUsdExporter(BaseUsdExporter):
         }
         readings, unsupported = {}, set()
         for index, name in enumerate(articulation.joint_names):
-            path = self._unique(joints, name, scope)
-            prim = stage.GetPrimAtPath(path)
-            if prim.IsA(UsdPhysics.RevoluteJoint):
-                readings[path, "angular"] = {prop: values[index] for prop, values in dofs.items()}
-            elif prim.IsA(UsdPhysics.PrismaticJoint):
-                readings[path, "linear"] = {prop: values[index] for prop, values in dofs.items()}
-            else:
+            path, axis = self._joint_axis(stage, joints, name, scope)
+            if axis is None:
                 unsupported.add(path)
+                continue
+            readings[path, axis] = {prop: values[index] for prop, values in dofs.items()}
         if unsupported:
-            logger.warning(f"Joints other than revolute and prismatic are not exported: {sorted(unsupported)}.")
+            logger.warning(
+                f"Joints other than revolute, prismatic and rotational D6 are not exported: {sorted(unsupported)}."
+            )
         for index, name in enumerate(articulation.body_names):
             readings[self._unique(links, name, scope), None] = self._body_values(data, index)
         return readings
@@ -233,6 +253,40 @@ class PhysxUsdExporter(BaseUsdExporter):
         if len(paths) != 1:
             raise RuntimeError(f"Expected one prim named '{name}' below '{scope.GetPath()}', found {paths}.")
         return paths[0]
+
+    @classmethod
+    def _joint_axis(
+        cls, stage: Usd.Stage, joints: dict[str, list[str]], name: str, scope: Usd.Prim
+    ) -> tuple[str, str | None]:
+        """The prim and USD axis of the joint DOF an asset data name refers to; the axis is None if not exported.
+
+        PhysX names the DOFs of a multi-axis joint ``<joint>:<n>``, ``n`` indexing :data:`D6_AXES`.
+        """
+        joint, _, suffix = name.rpartition(":")
+        numbered = bool(joint) and suffix.isdigit()
+        path = cls._unique(joints, joint if numbered else name, scope)
+        prim = stage.GetPrimAtPath(path)
+        if prim.IsA(UsdPhysics.RevoluteJoint):
+            return path, "angular"
+        if prim.IsA(UsdPhysics.PrismaticJoint):
+            return path, "linear"
+        if prim.GetTypeName() == "PhysicsJoint":
+            free = [axis for axis in D6_AXES if not cls._locked(prim, axis)]
+            if all(axis.startswith("rot") for axis in free):
+                if numbered and int(suffix) < 3 and D6_AXES[int(suffix)] in free:
+                    return path, D6_AXES[int(suffix)]
+                if not numbered and len(free) == 1:
+                    return path, free[0]
+        return path, None
+
+    @staticmethod
+    def _locked(joint: Usd.Prim, axis: str) -> bool:
+        """Whether a D6 joint's USD locks an axis: its limit's low end lies above its high end."""
+        if not joint.HasAPI(UsdPhysics.LimitAPI, axis):
+            return False
+        limit = UsdPhysics.LimitAPI(joint, axis)
+        low, high = limit.GetLowAttr().Get(), limit.GetHighAttr().Get()
+        return low is not None and high is not None and low > high
 
     @staticmethod
     def _colliders(stage: Usd.Stage, body: str) -> list[str]:

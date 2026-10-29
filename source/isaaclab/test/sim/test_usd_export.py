@@ -114,6 +114,39 @@ def test_gains_of_a_joint_without_a_usd_drive_add_no_drive():
     assert not [edit for edit in edits if edit.path == "/Robot/Hinge" and edit.attribute.startswith("drive:")]
 
 
+def test_axes_of_a_rotational_d6_joint_map_to_its_usd_axes():
+    """PhysX names the DOFs of a multi-axis joint "<joint>:<n>" after the axis index (0 rotX, 1 rotY, 2 rotZ)."""
+    stage = Usd.Stage.CreateInMemory()
+    physics_scene = UsdPhysics.Scene.Define(stage, "/physicsScene")
+    physics_scene.CreateGravityDirectionAttr((0.0, 0.0, -1.0))
+    physics_scene.CreateGravityMagnitudeAttr(9.81)
+    for name in ("Base", "Link"):
+        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim())
+    joint = UsdPhysics.Joint.Define(stage, "/Robot/Waist").GetPrim()
+    limits = {"transX": (1, -1), "transY": (1, -1), "transZ": (1, -1), "rotX": (-45, 45), "rotY": (1, -1)}
+    for axis, (low, high) in limits.items():  # rotZ has no limit: free
+        limit = UsdPhysics.LimitAPI.Apply(joint, axis)
+        limit.CreateLowAttr(low)
+        limit.CreateHighAttr(high)
+    for axis in ("rotX", "rotZ"):
+        UsdPhysics.DriveAPI.Apply(joint, axis)
+    robot = _articulation(["Waist:0", "Waist:2"], ["Base", "Link"])
+    robot.data.joint_pos_limits.torch[0] = torch.deg2rad(torch.tensor([[-45.0, 45.0], [-60.0, 30.0]]))
+    robot.data.joint_effort_limits.torch.fill_(150.0)
+    robot.data.joint_armature.torch.fill_(0.01)
+    scene = _scene(articulations={"robot": robot})
+    scene.physics_scene_path = "/physicsScene"
+    scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
+
+    edits = {edit.attribute: edit.value for edit in _Exporter(scene).compute_diff(stage) if edit.path == "/Robot/Waist"}
+
+    assert "limit:rotX:physics:low" not in edits  # the USD states DOF 0's limits
+    assert edits["limit:rotZ:physics:low"] == pytest.approx(-60.0)
+    assert edits["drive:rotX:physics:maxForce"] == pytest.approx(150.0)
+    assert edits["drive:rotZ:physics:maxForce"] == pytest.approx(150.0)
+    assert edits["physxJoint:armature"] == pytest.approx(0.01)  # one attribute of the whole joint
+
+
 @pytest.mark.parametrize(
     "meters_per_unit,stated,live,written",
     [
