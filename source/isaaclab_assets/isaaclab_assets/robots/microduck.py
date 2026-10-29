@@ -104,7 +104,9 @@ MICRODUCK_CFG = ArticulationCfg(
             kp_fw=200.0,
             vin=7.4,
             vin_range=(6.5, 8.2),
-            # The pre-native sag gain range (0, 0.2) V/(N.m) times kt: the same drop per unit of motor current.
+            # The pre-native sag gain range (0, 0.2) V/(N.m) times kt: the same drop per ampere of supply current
+            # (duty * I) as the gain gave per ampere of motor current, so the supply sags about 9x less. Newton's
+            # supply settles only below motor resistance / 14 servos = 0.2 Ohm, so a 9x wider range is unavailable.
             battery_resistance_range=(0.0, 0.2 * _XL330_MOTOR_CFG.kt),
             vin_min=6.0,
             min_delay=3,

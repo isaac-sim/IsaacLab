@@ -9,9 +9,11 @@
 * **Breaking:** Changed the BAM supply sag to the law of Newton's ``BatteryConstantResistance``: each
   environment's voltage drops with the signed current its group's servos draw during their PWM on-time,
   ``max(vin - R * max(sum_j duty_j * I_j, 0), vin_min, 0)``, instead of ``vin - sag_gain * sum_j |tau_j|``. A
-  back-driven servo now returns current to the others. Set the battery resistance instead of the sag gain;
-  ``sag_gain * motor.kt`` gives the same drop per unit of motor current. Policies trained with sag see a
-  different supply and need retraining.
+  back-driven servo now returns current to the others. Set the battery resistance instead of the sag gain.
+  ``R = sag_gain * motor.kt`` drops the voltage per ampere of supply current ``duty * I`` as the sag gain did
+  per ampere of motor current ``I``, so the supply sags less by the duty cycle: MicroDuck's sags about 9 times
+  less (0.009 V instead of 0.082 V on average). Policies trained with sag see a different supply and need
+  retraining.
 * **Breaking:** Changed BAM servos to apply no effort clamp after the motor, and
   :class:`~isaaclab.actuators.BamActuatorCfg` to reject ``actuator_effort_limit``. Newton has no stage after
   its motors, and its clamps bound a motor's voltage command. The stall-torque cap

@@ -818,10 +818,11 @@ Each BAM group authors one ``NewtonConstantResistanceBattery`` prim under the ar
 Newton replicates per environment, and its servos draw from it through ``newton:battery``. The battery
 drops its voltage with the signed supply current, so a back-driven servo returns current to the
 others, and the voltage never rises above ``vin``. ``battery_resistance`` [Ohm] replaces the pre-native
-``vin_drop_gain_range`` [V/(N.m)]: ``R_b = sag_gain * kt`` drops the voltage per ampere of motor current as
-the sag gain did per unit of motor torque. The two laws still differ, since the battery weights each
-current by its duty cycle and keeps its sign. Newton gives ``R_b * sum_j max_pwm**2 / R < 1`` as the bound
-under which the supply settles.
+``vin_drop_gain_range`` [V/(N.m)]: ``R_b = sag_gain * kt`` drops the voltage per ampere of supply current
+``d_j * I_j`` as the sag gain did per ampere of motor current ``I_j``. The supply therefore sags less by
+the duty cycle, about 9 times less on MicroDuck, and a back-driven servo offsets the others. Newton gives
+``R_b * sum_j max_pwm**2 / R < 1`` as the bound under which the supply settles, which caps how far a
+wider range can make up for it.
 
 ``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
 actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to
