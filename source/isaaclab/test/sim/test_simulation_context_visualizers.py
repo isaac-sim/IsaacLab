@@ -399,7 +399,13 @@ class _DummyViserSceneDataProvider:
 @pytest.fixture
 def web_backend(monkeypatch):
     model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
-    backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
+    backend = SimpleNamespace(
+        model=model,
+        state_0=SimpleNamespace(body_q=None),
+        geometry_offsets={},
+        variants_version=0,
+        notify_viewer=lambda viewer, version: version,
+    )
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
         backend_manager=SimpleNamespace(backend_name="newton"),
@@ -467,7 +473,13 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(
     assert viewer.calls[0][1] == pytest.approx(0.25)
     assert viewer.calls[1] == ("log_state", backend.state_0)
     assert viewer.calls[2] == ("end_frame",)
-    replacement = SimpleNamespace(model=backend.model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
+    replacement = SimpleNamespace(
+        model=backend.model,
+        state_0=SimpleNamespace(body_q=None),
+        geometry_offsets={},
+        variants_version=0,
+        notify_viewer=lambda viewer, version: version,
+    )
     web_backend.get_or_create_backend.return_value = replacement
     visualizer.reset(soft=True)
     assert visualizer.backend is backend
@@ -527,7 +539,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     viewer.set_visible_worlds.assert_called_with(expected_visible)
     viewer.set_world_offsets.assert_called_once_with((0.0, 0.0, 0.0))
     apply_pose.assert_called_once_with((cfg.eye, cfg.lookat))
-    replacement = SimpleNamespace(model=SimpleNamespace(body_label=["/Replacement"]))
+    replacement = SimpleNamespace(model=SimpleNamespace(body_label=["/Replacement"]), variants_version=0)
     web_backend.get_or_create_backend.return_value = replacement
     visualizer.reset()
     assert visualizer.backend is replacement

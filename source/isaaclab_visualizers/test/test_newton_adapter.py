@@ -655,7 +655,10 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
         state_0=state,
         geometry_offsets={},
         contacts=None,
+        variants_version=0,
+        notify_viewer=lambda viewer, version: version,
     )
+    visualizer._variants_version = 0
     provider = scene_data_provider or _SceneDataProvider()
     provider.poses = state.body_q
     visualizer._transform_mapping = None
@@ -712,7 +715,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
-    backend = SimpleNamespace(model=new_model, state_0=new_state)
+    backend = SimpleNamespace(model=new_model, state_0=new_state, variants_version=0)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), backend_manager=Mock())
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 

@@ -864,6 +864,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
+        self._variants_version = self.backend.variants_version
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -940,6 +941,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     def _update_state(self):
         """Publish current scene state while the GL frame is active."""
+        self._variants_version = self.backend.notify_viewer(self._viewer, self._variants_version)
         state = self.backend.state_0
         provider = self._sim.get_scene_data_provider()
         poses = SceneDataFormat.Transform()
@@ -960,6 +962,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
+        self._variants_version = backend.variants_version
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:
