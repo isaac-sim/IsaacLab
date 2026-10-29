@@ -3,6 +3,27 @@ Changelog
 
 .. towncrier release notes start
 
+42.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.managers.ObservationTermCfg.history_newest_first` and
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` to place the current step first along the
+  history dimension for policies whose deployment runtime builds observation history in that order.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint latest`` in the skrl and rl_games benchmark play entrypoints loading the best-reward
+  checkpoint instead of the newest one, matching the fix in the training and play entrypoints.
+* Fixed :func:`~isaaclab.utils.math.sample_triangle` sampling a V-shaped distribution with the least density at the
+  midpoint and the most at the bounds. It now samples the documented symmetric triangular distribution, with its mode
+  at the midpoint of ``lower`` and ``upper``.
+* Preserved tuple containers when serializing and restoring nested ``slice`` values in dictionary utilities.
+
+
 42.0.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~~
 
