@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+1.0.0 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused core Warp mask resolution and selected memory writes in environment and joint-action paths.
+* **Breaking:** Import ``resolve_1d_mask`` from ``isaaclab.utils.warp.memory``; the experimental re-export has been removed.
+
+
 0.3.1 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~
 
