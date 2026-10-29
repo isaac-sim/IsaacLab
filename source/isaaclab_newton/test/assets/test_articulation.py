@@ -23,7 +23,7 @@ The composite scene runs on the CPU without CUDA-graph capture. On CUDA, one own
 ordered-state republish recorded into a captured graph.
 """
 
-from isaaclab_newton.physics import NewtonCfg, NewtonMJWarpManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
 from isaaclab.sim import FrameView, SimulationCfg
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
@@ -429,7 +429,7 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
     "first_property",
     ["body_com_jacobian_w", "body_link_jacobian_w", "mass_matrix", "gravity_compensation_forces"],
 )
-def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
+def test_task_space_allocation_and_capture(device, first_property):
     """Allocate only requested outputs and retain them across changed-state graph replay."""
     builder = ModelBuilder()
     builder.begin_world()
@@ -447,10 +447,10 @@ def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    backend_manager = NewtonMJWarpManager()
-    monkeypatch.setattr(backend_manager, "get_model", lambda: model)
-    monkeypatch.setattr(backend_manager, "get_state_0", lambda: state)
-    monkeypatch.setattr(backend_manager, "get_control", lambda: control)
+    backend_manager = NewtonManager(NewtonCfg())
+    backend_manager.backend = SimpleNamespace(
+        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+    )
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
     eager = ArticulationData(view, device, backend_manager=backend_manager)
     eager._apply_ordering_maps_after_resolve()
@@ -484,7 +484,7 @@ def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
-def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
+def test_world_hinged_root_has_no_base_dofs(device):
     """A root link hinged to the world adds no floating-base DoF columns to the Jacobian or mass matrix."""
     builder = ModelBuilder()
     builder.begin_world()
@@ -493,10 +493,10 @@ def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    backend_manager = NewtonMJWarpManager()
-    monkeypatch.setattr(backend_manager, "get_model", lambda: model)
-    monkeypatch.setattr(backend_manager, "get_state_0", lambda: state)
-    monkeypatch.setattr(backend_manager, "get_control", lambda: control)
+    backend_manager = NewtonManager(NewtonCfg())
+    backend_manager.backend = SimpleNamespace(
+        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+    )
     root_view = ArticulationView(model, "Robot")
     data = ArticulationData(root_view, device, backend_manager=backend_manager)
     data._apply_ordering_maps_after_resolve()
@@ -737,7 +737,7 @@ def scene(composite_scene: _Scene) -> _Scene:
 
 def _model_attribute(articulation: Articulation, name: str) -> torch.Tensor:
     """Read one live Newton model attribute through the articulation's view, in backend order."""
-    return wp.to_torch(articulation.root_view.get_attribute(name, articulation._backend_manager.get_model()))[:, 0]
+    return wp.to_torch(articulation.root_view.get_attribute(name, articulation._backend_manager.backend.model))[:, 0]
 
 
 def test_articulation_initialization_and_partial_state(scene: _Scene) -> None:
@@ -1344,7 +1344,7 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(scene: _Scene) 
         device=device,
     )
     assert backend_body_ids[0] != body_ids[0]
-    model = scene.sim.backend_manager.get_model()
+    model = scene.sim.backend_manager.backend.model
     initial_masses = articulation.data.body_mass.torch.clone()
     initial_inertias = articulation.data.body_inertia.torch.clone()
 
@@ -1544,7 +1544,7 @@ def test_set_material_properties(scene: _Scene) -> None:
     device = scene.device
 
     # Resolve this articulation's shapes per environment and body from the flat Newton model.
-    model = scene.sim.backend_manager.get_model()
+    model = scene.sim.backend_manager.backend.model
     body_world = model.body_world.numpy()
     body_labels = list(model.body_label)
     shape_body = model.shape_body.numpy()
@@ -1672,7 +1672,7 @@ def test_hand_with_tendons_targets_only_given_envs_and_properties_reach_solver(s
     articulation.write_fixed_tendon_properties_to_sim_mask()
     scene.step("tendon")
 
-    solver_model = scene.sim.backend_manager._solver.mjw_model
+    solver_model = scene.sim.backend_manager.backend.solver.mjw_model
     np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
     np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)
@@ -1738,7 +1738,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
 
     # Sanity: the islands have different DoF counts, so a regression to model-wide sizing would manifest as wrong
     # shapes on the smaller views.
-    model = scene.sim.backend_manager.get_model()
+    model = scene.sim.backend_manager.backend.model
     island_dofs = [other.num_joints + other.num_base_dofs for other in scene.articulations.values()]
     assert model.max_dofs_per_articulation == max(island_dofs) > min(island_dofs)
 
@@ -1851,7 +1851,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
     # Ground truth from Newton state. ``get_link_velocities`` returns shape
     # (num_instances, 1, num_bodies, 6) — per-articulation grouping with
     # one articulation per instance — so we squeeze the inner dim.
-    state = scene.sim.backend_manager.get_state_0()
+    state = scene.sim.backend_manager.backend.state_0
     body_qd_view = wp.to_torch(articulation.root_view.get_link_velocities(state)).squeeze(1)
     body_v_com = body_qd_view[..., :3]
     body_omega = body_qd_view[..., 3:]
@@ -1973,7 +1973,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
     device = scene.device
 
     # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-    model = scene.sim.backend_manager.get_model()
+    model = scene.sim.backend_manager.backend.model
     model_gravity_arr = model.gravity[: model.world_count]
     global_gravity = wp.to_torch(model.gravity)[-1].clone()
     assert articulation.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -2024,7 +2024,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     device = scene.device
     articulation = scene.articulations["floating"]
     scene.rest(articulation)
-    model = scene.sim.backend_manager.get_model()
+    model = scene.sim.backend_manager.backend.model
     jc_starts = model.joint_coord_world_start.numpy()
     body_starts = model.body_world_start.numpy()
     # The floating island is authored first, so its root owns the first body and joint coordinates of each world.
@@ -2047,7 +2047,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     original_simulate = backend_manager._simulate_physics_only
 
     def _patched_simulate() -> None:
-        if backend_manager._needs_collision_pipeline:
+        if backend_manager.backend.collision_pipeline is not None:
             bq = wp.to_torch(backend_manager.backend.state_0.body_q)
             jq = wp.to_torch(backend_manager.backend.state_0.joint_q)
             b0 = int(body_starts[0])
@@ -2060,7 +2060,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 
-    assert captured, "collision pipeline did not run — _needs_collision_pipeline is False"
+    assert captured, "collision pipeline did not run in the step"
 
     bq_root = captured["bq_root"]
     jq_root = captured["jq_root"]

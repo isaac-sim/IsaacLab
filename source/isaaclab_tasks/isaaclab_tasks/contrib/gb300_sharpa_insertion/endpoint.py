@@ -8,42 +8,14 @@
 from __future__ import annotations
 
 import warp as wp
-from isaaclab_newton.physics import VBDSolverCfg
-from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
-from newton import BodyFlags, CollisionPipeline, Contacts, Control, Model, State, StateFlags
+from isaaclab_newton.physics import VBDSolver
+from newton import BodyFlags, Contacts, Control, Model, State, StateFlags
 from newton.solvers import SolverVBD
 
-from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
+class EndpointVBD(SolverVBD):
+    """VBD whose proxy lifecycle prescribes the loose cable endpoint."""
 
-class NewtonEndpointCouplerManager(NewtonCouplerManager):
-    """Detect rigid contacts once; the cable has its own post-transfer pipeline."""
-
-    def _initialize_contacts(self) -> None:
-        if self._needs_collision_pipeline and self._collision_pipeline is None:
-            options = self._collision_cfg.to_pipeline_args() if self._collision_cfg is not None else {}
-            options["shape_pairs_filtered"] = self._solver.view("rigid").shape_contact_pairs
-            options["deterministic"] = self._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
-            # Shape IDs remain global; use the full model's body bindings, not
-            # the compact rigid view, when colliding the shared state.
-            self._collision_pipeline = CollisionPipeline(self.backend.model, **options)
-        super()._initialize_contacts()
-
-
-class NewtonEndpointVBDManager(NewtonVBDManager):
-    """Use the existing proxy lifecycle to prescribe the loose cable endpoint."""
-
-    @classmethod
-    def _create_solver(
-        cls,
-        model: Model,
-        solver_cfg: VBDSolverCfg,
-        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
-    ) -> SolverVBD:
-        return _EndpointVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg, deterministic_mode))
-
-
-class _EndpointVBD(SolverVBD):
     def __init__(self, model: Model, **kwargs):
         # Override the destination view only; the source rigid bodies stay dynamic.
         body_flags = model.body_flags.numpy()
@@ -125,6 +97,12 @@ class _EndpointVBD(SolverVBD):
             inputs=[self._prescribed_bodies, self._prescribed_velocities, state_in.body_qd, state_out.body_qd],
             device=self.device,
         )
+
+
+class EndpointVBDSolver(VBDSolver):
+    """VBD solver that builds :class:`EndpointVBD`."""
+
+    solver_class = EndpointVBD
 
 
 @wp.kernel

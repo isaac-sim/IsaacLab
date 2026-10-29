@@ -3,6 +3,116 @@ Changelog
 
 .. towncrier release notes start
 
+12.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused native Warp indexed views and copy/fill for asset and tendon writes, with shared selector normalization and boolean-masked kernels; native solver mappings remain in Newton.
+
+
+12.0.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.NewtonManager.shares_materials`, which reports whether contacts read one
+  material table shared by all environments. It is ``True`` only for Kamino with its own collision detector.
+* Added :class:`~isaaclab_newton.physics.NewtonSolver`, whose stateless class methods build Newton's solver
+  from a solver configuration and step, reset and collide it through Newton's :class:`~newton.solvers.SolverBase`
+  API. Each solver configuration's ``class_type`` selects a subclass, e.g.
+  :class:`~isaaclab_newton.physics.MJWarpSolver`, that overrides only where its solver differs.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the per-solver managers ``NewtonMJWarpManager``, ``NewtonXPBDManager``, ``NewtonVBDManager``,
+  ``NewtonFeatherstoneManager``, ``NewtonKaminoManager`` and ``NewtonMPMManager``;
+  :class:`~isaaclab_newton.physics.NewtonManager` runs every solver. Custom solvers subclass the matching
+  :class:`~isaaclab_newton.physics.NewtonSolver`, e.g.
+  :class:`~isaaclab_newton.physics.MJWarpSolver`, instead of overriding manager hooks.
+* **Breaking:** :attr:`~isaaclab_newton.physics.NewtonSolverCfg.class_type` now selects the
+  :class:`~isaaclab_newton.physics.NewtonSolver` instead of a manager class; set
+  :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to select a manager.
+* **Breaking:** Removed ``NewtonManager.create_builder``, ``create_fixed_tendon_control`` and
+  ``NewtonMPMManager.reset_solver_state``; use :func:`~isaaclab_newton.physics.create_builder`,
+  :meth:`NewtonSolver.fixed_tendon_control
+  <isaaclab_newton.physics.NewtonSolver.fixed_tendon_control>` and
+  :func:`~isaaclab_newton.physics.reset_mpm_solver_state`.
+* **Breaking:** Renamed the ``*_manager`` and ``*_manager_cfg`` solver modules to ``*_solver`` and ``*_solver_cfg``,
+  e.g. ``mjwarp_manager`` to ``mjwarp_solver``; import from ``isaaclab_newton.physics``.
+* Changed VBD to register its Newton custom builder attributes, like the other solvers.
+* Changed the check that rejects :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg` with MuJoCo contacts to
+  apply to any solver that does not use Newton's collision pipeline, e.g. Kamino's own collision detector and MPM.
+* Changed :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to reject ``None``; omit it to use
+  :class:`~isaaclab_newton.physics.NewtonManager`.
+* Changed MJWarp under a determinism request to build with its sensor stage disabled instead of raising when
+  :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` is ``False``; the configuration is no longer
+  modified. Tasks whose sensors read attributes only that stage fills (IMU/PVA ``body_qdd``, joint wrench
+  ``body_parent_f``) still raise.
+* Changed MJWarp with :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu` to step eagerly instead of
+  capturing a CUDA graph.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.envs.mdp.randomize_rigid_body_material` sharing sampled materials across all
+  environments for Kamino with Newton's collision pipeline, the default. Only Kamino's own collision detector
+  shares material groups; with Newton's pipeline each environment and shape is sampled as for the other solvers.
+
+
+11.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :attr:`~isaaclab_newton.physics.NewtonManager.builder` and
+  :attr:`~isaaclab_newton.physics.NewtonManager.backend` attributes: under Newton physics, read the shared builder and
+  the finalized model's data from ``sim.backend_manager``.
+* Added :class:`~isaaclab_newton.physics.NewtonBackend` fields for everything bound to one finalized Newton model under
+  Newton physics: solver, collision pipeline, contacts, sensors, Newton actuators and reset masks. Read them from
+  ``sim.backend_manager.backend``; a hard reset closes the backend and finalizes a new one.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.register_site` and the replication-output accessors
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_site_index_map`,
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_world_xforms` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_clone_source_builders`
+  (:class:`~isaaclab_newton.physics.NewtonCloneRecord`).
+
+Changed
+^^^^^^^
+
+* Changed the Newton dependency pin from ``71eeba16`` to the latest upstream ``main`` revision, ``42f7def1``.
+* Preserved trusted Torch actuator checkpoint loading across Newton's new explicit USD import opt-in.
+* Replaced duplicated heading, quaternion rotation, interval, and Jacobian math with core Warp operations.
+* **Breaking:** Manager internals moved to backend fields: ``_solver``, ``_contacts``, ``_collision_pipeline``,
+  ``_adapter``, ``_world_reset_mask``, ``_fk_reset_mask`` and ``kinematics_dirty`` are now ``backend.solver``,
+  ``backend.contacts``, ``backend.collision_pipeline``, ``backend.actuators``, ``backend.world_mask``,
+  ``backend.fk_mask`` and ``backend.kinematics_dirty``. Solver manager subclasses assign ``self.backend.solver`` in
+  ``_build_solver``.
+* **Breaking:** :meth:`~isaaclab_newton.physics.NewtonManager.add_contact_sensor` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.add_imu_sensor` return the Newton sensor instead of a key or index.
+* **Breaking:** Site requests and extended-attribute requests persist on the shared builder across hard resets, so
+  sensors no longer register them again. Replication outputs are read through the manager's accessors instead of
+  private manager fields.
+* **Breaking:** Removed ``NewtonManager.get_model``, ``get_state_0``, ``get_state_1``, ``get_control`` and
+  ``get_contacts``; read ``manager.backend.model``, ``state_0``, ``state_1``, ``control`` and ``contacts``. Removed
+  ``get_num_envs``, ``get_dt`` and ``get_solver_dt``; read ``backend.model.world_count``, ``backend.dt`` and
+  ``backend.solver_dt``.
+* **Breaking:** Removed ``NewtonManager.cl_register_site``; use
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_site`. Removed ``add_frame_transform_sensor``; construct
+  :class:`newton.sensors.SensorFrameTransform` on ``manager.backend.model``.
+* **Breaking:** :class:`~isaaclab_newton.physics.NewtonManager` takes its :class:`~isaaclab_newton.physics.NewtonCfg`
+  at construction. :class:`~isaaclab_newton.physics.NewtonBackend` no longer takes a builder; it finalizes the
+  simulation's shared builder. The ``_register_builder_attributes(builder, solver_cfg)`` subclass hook receives the
+  solver configuration instead of reading the active simulation.
+* **Breaking:** Moved :class:`~isaaclab_newton.physics.NewtonBackendCfg` to ``newton_backend_cfg`` and
+  :class:`~isaaclab_newton.physics.NewtonBuilderCfg` to ``newton_builder_cfg``; import them from
+  ``isaaclab_newton.physics``.
+
+
 10.1.1 (2026-10-24)
 ~~~~~~~~~~~~~~~~~~~
 

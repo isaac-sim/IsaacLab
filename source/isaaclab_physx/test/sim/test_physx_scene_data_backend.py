@@ -17,11 +17,11 @@ pytest.importorskip("omni.physics.tensors")
 @pytest.mark.parametrize("operation", ["step", "forward"])
 def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeypatch, operation):
     """SDP borrows native poses once per timestamp and completes pending joint writes."""
-    from isaaclab_physx.physics import physx_manager
+    from isaaclab_physx.physics import PhysxCfg, physx_manager
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-    manager = physx_manager.PhysxManager()
+    manager = physx_manager.PhysxManager(PhysxCfg())
     # On-demand capture keeps continuous Fabric writes off; each refresh must enable them while it runs.
     settings = {"/physics/fabricUpdateTransformations": False}
     refreshes = []
@@ -152,9 +152,9 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 @pytest.mark.parametrize("declared", [False, True])
 def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(monkeypatch, declared):
     """Only an explicitly initialized, empty geometry declaration publishes no batches."""
-    from isaaclab_physx.physics import physx_manager
+    from isaaclab_physx.physics import PhysxCfg, physx_manager
 
-    manager = physx_manager.PhysxManager()
+    manager = physx_manager.PhysxManager(PhysxCfg())
     monkeypatch.setattr(manager, "_fabric", None)
     backend = physx_manager.PhysxSceneDataBackend(manager)
     if declared:
@@ -171,7 +171,7 @@ def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(monkeypa
 @pytest.mark.parametrize("capacity", [3, 8])
 def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, capacity):
     """Declared unpadded counts survive native reordering and mesh paths."""
-    from isaaclab_physx.physics import physx_manager
+    from isaaclab_physx.physics import PhysxCfg, physx_manager
 
     from isaaclab.scene_data import SceneDataProvider
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
@@ -209,7 +209,7 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
     monkeypatch.setattr(
         physx_manager.omni.usd, "get_context", lambda: pytest.fail("Geometry bindings must not fetch a stage.")
     )
-    backend = physx_manager.PhysxSceneDataBackend(physx_manager.PhysxManager())
+    backend = physx_manager.PhysxSceneDataBackend(physx_manager.PhysxManager(PhysxCfg()))
     backend.backend = SimpleNamespace(
         simulation_view=SimpleNamespace(
             create_volume_deformable_body_view=create_view, create_surface_deformable_body_view=create_view

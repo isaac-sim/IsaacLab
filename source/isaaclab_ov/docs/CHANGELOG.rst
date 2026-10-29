@@ -3,6 +3,25 @@ Changelog
 
 .. towncrier release notes start
 
+8.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused native Warp indexed views and copy/fill for selected asset writes and root-column reads; shared kernels handle boolean masks and fused state layouts.
+
+
+8.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced duplicated heading, quaternion rotation, interval, and Jacobian math with core Warp operations.
+* **Breaking:** :class:`~isaaclab_ov.physics.OvPhysxManager` takes its :class:`~isaaclab_ov.physics.OvPhysxCfg` at construction.
+
+
 7.1.2 (2026-10-25)
 ~~~~~~~~~~~~~~~~~~
 

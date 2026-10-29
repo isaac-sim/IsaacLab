@@ -70,6 +70,7 @@ class _RefreshLogSensor(SensorBase):
         self._device = device
         self._num_envs = num_envs
         self._ALL_ENV_MASK = wp.ones(num_envs, dtype=wp.bool, device=device)
+        self._reset_mask = wp.zeros_like(self._ALL_ENV_MASK)
         self._is_initialized = True
         self._is_visualizing = False
         self._create_timing_buffers()
