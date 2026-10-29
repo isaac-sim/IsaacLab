@@ -16,9 +16,10 @@ from dataclasses import dataclass
 from functools import cache, partial
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
-from newton import CollisionPipeline, Contacts, ModelBuilder, State
+from newton import CollisionPipeline, Contacts, Model, ModelBuilder, ShapeFlags, State
 from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
 
@@ -89,6 +90,35 @@ def _flag_worlds(env_mask: wp.array(dtype=wp.bool), consume_mask: bool, world_ma
     world_mask[world] = True
     if consume_mask:
         env_mask[world] = False
+
+
+def _body_variant_shape_pairs_max(model: Model) -> int:
+    """Bound the broad-phase pairs of each world as if every body had its largest variant selected.
+
+    Newton's default bound counts the colliding shapes of all variants, although only the selected ones collide.
+    """
+    colliding = (model.shape_flags.numpy() & int(ShapeFlags.COLLIDE_SHAPES)) != 0
+    shape_world = model.shape_world.numpy()
+    starts = model.body_variant_start.numpy()
+    # TODO: Use Newton's public accessor for the shape range of a variant once it has one.
+    ranges = model._body_variant_shape_range.numpy()
+    # Colliding shapes outside the variants, per world and shared by all worlds.
+    marks = np.zeros(model.shape_count + 1, dtype=np.int64)
+    np.add.at(marks, ranges[:, 0], 1)
+    np.add.at(marks, ranges[:, 1], -1)
+    fixed = colliding & (np.cumsum(marks)[:-1] == 0)
+    counts = np.bincount(shape_world[fixed & (shape_world >= 0)], minlength=model.world_count)
+    shared = np.count_nonzero(fixed & (shape_world == -1))
+    # Plus the largest variant of each body, in its world or shared by all worlds.
+    cumulative = np.concatenate(([0], np.cumsum(colliding)))
+    bodies = np.flatnonzero(np.diff(starts))
+    largest = np.maximum.reduceat(cumulative[ranges[:, 1]] - cumulative[ranges[:, 0]], starts[bodies])
+    body_world = model.body_world.numpy()[bodies]
+    np.add.at(counts, body_world[body_world >= 0], largest[body_world >= 0])
+    shared += int(largest[body_world < 0].sum())
+    counts += shared
+    # Newton's broad phases need room for at least one pair.
+    return max(int((counts * (counts - 1) // 2).sum() + shared * (shared - 1) // 2), 1)
 
 
 @dataclass
@@ -542,6 +572,8 @@ class NewtonBackend:
         else:
             args = collision_cfg.to_pipeline_args() if collision_cfg is not None else {"broad_phase": "explicit"}
             args["deterministic"] = self.deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
+            if model.body_variant_count:
+                args["shape_pairs_max"] = _body_variant_shape_pairs_max(model)
             required = getattr(solver, "get_max_contact_count", lambda: 0)()
             if self.collision_pipeline is None:
                 self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
