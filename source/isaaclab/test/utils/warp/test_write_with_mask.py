@@ -32,7 +32,7 @@ def test_write_2d_with_mask(device, data_type):
         values = torch.arange(1, 7, dtype=torch.float32, device=torch_device).reshape(3, 2)
         data = {"scalar": 7.0, "torch": values[:2], "warp": wp.from_torch(values)[:2]}[data_type]
         out = wp.zeros((3, 2), dtype=wp.float32, device=device)
-    write_2d_with_mask(data, env_mask, item_mask, out, device)
+    write_2d_with_mask(data, env_mask, item_mask, out)
     expected = torch.zeros_like(values)
     expected[0, 1] = 7.0 if data_type == "scalar" else values[0, 1]
     assert torch.equal(wp.to_torch(out), expected)

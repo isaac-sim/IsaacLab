@@ -4366,27 +4366,27 @@ class Articulation(BaseArticulation):
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices on ``self._device``."""
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self._device)
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a Warp signed-integer array on ``self._device``."""
-        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self._device)
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a Warp signed-integer array on ``self._device``."""
-        return resolve_ids(ids=joint_ids, all_ids=self._ALL_JOINT_INDICES, device=self._device)
+        return resolve_ids(ids=joint_ids, all_ids=self._ALL_JOINT_INDICES)
 
     def _resolve_fixed_tendon_ids(
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
     ) -> wp.array | torch.Tensor:
         """Resolve fixed-tendon indices to a Warp signed-integer array on ``self._device``."""
-        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_FIXED_TENDON_INDICES, device=self._device)
+        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_FIXED_TENDON_INDICES)
 
     def _resolve_spatial_tendon_ids(
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
     ) -> wp.array | torch.Tensor:
         """Resolve spatial-tendon indices to a Warp signed-integer array on ``self._device``."""
-        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_SPATIAL_TENDON_INDICES, device=self._device)
+        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_SPATIAL_TENDON_INDICES)
 
     def _broadcast_scalar_to_2d(
         self, value: float | torch.Tensor | wp.array, shape: tuple[int, int]
