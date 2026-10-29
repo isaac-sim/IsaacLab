@@ -10,16 +10,17 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def make_export_scene_cfg(directory: Path, num_envs: int = 1):
+def make_export_scene_cfg(directory: Path, num_envs: int = 1, box_per_env: bool = True):
     """Create a scene whose configuration overrides values of its own USD assets.
 
     The robot USD authors a revolute drive (stiffness 1, damping 1 per degree, max force 100) that
     the actuator configuration replaces. With several environments, the box is a different
-    prototype per environment.
+    prototype per environment, unless ``box_per_env`` is False.
 
     Args:
         directory: Directory for the generated robot USD file.
         num_envs: Number of environments. Defaults to 1.
+        box_per_env: Whether each environment gets its own box prototype. Defaults to True.
 
     Returns:
         The scene configuration.
@@ -106,7 +107,7 @@ def make_export_scene_cfg(directory: Path, num_envs: int = 1):
         )
 
     cfg.box = rigid("Box", 2.5, (1.0, 0.0, 1.0))
-    if num_envs > 1:
+    if num_envs > 1 and box_per_env:
         cfg.box.spawn = sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[rigid("Box", 2.5 * (1 + index / 100), (1, 0, 1)).spawn for index in range(num_envs)],
             random_choice=False,

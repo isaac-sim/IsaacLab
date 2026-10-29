@@ -12,8 +12,8 @@ import os
 import shutil
 import tempfile
 from abc import ABC, abstractmethod
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, NamedTuple
+from collections.abc import Collection
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 import numpy as np
 
@@ -30,26 +30,47 @@ logger = logging.getLogger(__name__)
 _WORLD_POSE = "isaaclab:worldPose"
 """Pseudo attribute of a :class:`UsdEdit` that places a prim at a world transform."""
 
+_PHYSICS_MATERIAL = "isaaclab:physicsMaterial"
+"""Pseudo attribute of a :class:`UsdEdit` that binds a new physics material, at the path it gives, to a collider."""
+
 UNLIMITED = 1e10
 """Engine values of this magnitude mean "no limit", which an unset USD attribute already states.
 
 Newton's ``MAXVAL`` sentinel is 1e10; PhysX uses the float maximum.
 """
 
+_MASS_PROPERTIES = {"physics:mass": "mass", "physics:centerOfMass": "com"}
+"""Mass attribute -> the body property it states; the other mass attributes state the inertia."""
+
 _PD_ACTUATOR_SCHEMAS = {"NewtonPDControlAPI", "NewtonMaxEffortClampingAPI"}
 """API schemas of a Newton actuator that a USD joint drive expresses exactly: a PD law with an effort clamp."""
 
-USD_PHYSICS_JOINT_ATTRIBUTES = {
-    "stiffness": ("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
-    "damping": ("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
-    "max_force": ("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
-    "lower_limit": ("physics:lowerLimit", None, math.degrees(1.0)),
-    "upper_limit": ("physics:upperLimit", None, math.degrees(1.0)),
-}
-"""UsdPhysics joint property -> USD attribute, required API schema, and scale to USD units for angular DOFs.
 
-Every backend's importer reads these attributes.
-"""
+class JointAttribute(NamedTuple):
+    """The USD attribute stating a joint property; ``{axis}`` in its names stands for the joint axis."""
+
+    name: str
+    """Attribute name."""
+    schema: str | None
+    """API schema the attribute requires, if any."""
+    angular_scale: float
+    """Scale from the engine's units to USD units for an angular DOF."""
+
+
+USD_PHYSICS_JOINT_ATTRIBUTES = {
+    "stiffness": JointAttribute("drive:{axis}:physics:stiffness", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "damping": JointAttribute("drive:{axis}:physics:damping", "PhysicsDriveAPI:{axis}", math.radians(1.0)),
+    "max_force": JointAttribute("drive:{axis}:physics:maxForce", "PhysicsDriveAPI:{axis}", 1.0),
+    "lower_limit": JointAttribute("physics:lowerLimit", None, math.degrees(1.0)),
+    "upper_limit": JointAttribute("physics:upperLimit", None, math.degrees(1.0)),
+}
+"""UsdPhysics joint property -> USD attribute; every backend's importer reads these attributes."""
+
+USD_PHYSICS_D6_LIMIT_ATTRIBUTES = {
+    "lower_limit": JointAttribute("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    "upper_limit": JointAttribute("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+}
+"""UsdPhysics limits of one axis of a D6 joint (``rotX``, ``rotY``, ``rotZ``), which replace a single-axis joint's."""
 
 USD_PHYSICS_MATERIAL_ATTRIBUTES = {
     "static_friction": "physics:staticFriction",
@@ -66,7 +87,8 @@ class UsdEdit(NamedTuple):
     """Prim path in the exported stage."""
 
     attribute: str
-    """Attribute name, or ``_WORLD_POSE`` for a world transform given as a :class:`Gf.Matrix4d`."""
+    """Attribute name; ``_WORLD_POSE`` for a world transform given as a :class:`Gf.Matrix4d`, or
+    ``_PHYSICS_MATERIAL`` for a new physics material bound to the prim, given as its path."""
 
     value: Any
     """Value in USD units."""
@@ -88,6 +110,12 @@ class UsdEdit(NamedTuple):
                 instance = instance.GetParent()
             instance.SetInstanceable(False)
             prim = stage.GetPrimAtPath(self.path)
+        if self.attribute == _PHYSICS_MATERIAL:
+            material = UsdShade.Material.Define(stage, self.value)
+            UsdPhysics.MaterialAPI.Apply(material.GetPrim())
+            binding = UsdShade.MaterialBindingAPI.Apply(prim)
+            binding.Bind(material, UsdShade.Tokens.weakerThanDescendants, "physics")
+            return
         if self.attribute == _WORLD_POSE:
             # Replace the local transform, keeping the prim's scale.
             cache = UsdGeom.XformCache()
@@ -102,7 +130,8 @@ class UsdEdit(NamedTuple):
             prim.AddAppliedSchema(self.schema)
         attribute = prim.GetAttribute(self.attribute)
         if not attribute:
-            attribute = prim.CreateAttribute(self.attribute, Sdf.ValueTypeNames.Find(self.type_name))
+            # Schema attributes, whether or not this process registered the schema that defines them.
+            attribute = prim.CreateAttribute(self.attribute, Sdf.ValueTypeNames.Find(self.type_name), custom=False)
         attribute.Set(self.value)
 
 
@@ -110,9 +139,12 @@ class BaseUsdExporter(ABC):
     """Export one environment of an initialized scene: its USD plus the values its engine holds.
 
     The exported layer is the scene's in-memory root layer reduced to one environment, so assets
-    stay references to their source files. A backend writes every engine value that the layer does
-    not already state, so the file does not depend on any importer's defaults.
+    stay references to their source files. A backend compares the engine with what an import of the
+    layer gives (its base) and writes every value that differs, which is what Isaac Lab set.
     """
+
+    exports_deformables: ClassVar[bool] = False
+    """Whether an import of the layer reproduces the scene's deformable objects."""
 
     def __init__(self, scene: InteractiveScene, env_id: int = 0):
         """Initialize the exporter.
@@ -137,6 +169,9 @@ class BaseUsdExporter(ABC):
         Returns:
             The destination path.
         """
+        if self.scene.cable_objects or (self.scene.deformable_objects and not self.exports_deformables):
+            # Their values are not exported, so a fresh import would not reproduce them.
+            raise NotImplementedError("Scenes with deformable or cable objects are not exported on this backend.")
         self._schema_defaults.cache_clear()  # include schemas registered since the last export
         layer = Sdf.Layer.CreateAnonymous(".usda")
         layer.TransferContent(self.scene.stage.GetRootLayer())
@@ -157,6 +192,26 @@ class BaseUsdExporter(ABC):
         Args:
             stage: The exported stage, reduced to the selected environment.
         """
+
+    def read_engine_base(self) -> Any:
+        """Read what the engine loaded from the stage, before the scene's assets write their configuration.
+
+        The scene calls this when its physics is ready, ahead of asset initialization, and keeps the result for
+        :meth:`compute_diff`. Backends that compare against something else return None.
+
+        Returns:
+            The backend's base values, or None.
+        """
+        return None
+
+    def _engine_base(self) -> Any:
+        """The base :meth:`read_engine_base` returned when the scene's physics became ready."""
+        base = self.scene._usd_export_base
+        if isinstance(base, Exception):
+            raise RuntimeError("The engine could not be read when the physics became ready.") from base
+        if base is None:
+            raise RuntimeError("The engine was not read when the physics became ready: create the scene first.")
+        return base
 
     @staticmethod
     def open_stage(path: str) -> Usd.Stage:
@@ -217,7 +272,8 @@ class BaseUsdExporter(ABC):
                 target = templates[index].format(self.env_id)
                 source = sources[assets[index]]
                 if source is not None and not stage.GetPrimAtPath(target):
-                    Sdf.CreatePrimInLayer(layer, Sdf.Path(target).GetParentPath())
+                    # An environment the cloner created in physics only has no prim; an undefined parent hides the copy.
+                    stage.DefinePrim(Sdf.Path(target).GetParentPath())
                     Sdf.CopySpec(layer, source, layer, target)
             # The cloner offsets each environment in the engine only; place the environment prim there.
             env = stage.GetPrimAtPath(self.scene.env_prim_paths[self.env_id])
@@ -349,11 +405,23 @@ class BaseUsdExporter(ABC):
         return UsdEdit(str(prim.GetPath()), attribute, usd_value, type_name, schema)
 
     @classmethod
-    def _mass_edits(cls, prim: Usd.Prim, mass: float, com: np.ndarray, inertia: np.ndarray) -> list[UsdEdit]:
+    def _mass_edits(
+        cls,
+        prim: Usd.Prim,
+        mass: float,
+        com: np.ndarray,
+        inertia: np.ndarray,
+        changed: Collection[str] = ("mass", "com", "inertia"),
+    ) -> list[UsdEdit]:
         """Edits writing a body's mass [kg], COM [m] and body-axes inertia [kg*m^2, 3x3 or 9] the USD does not state.
 
-        ``com`` is the engine's, which includes the body's scale; importers scale the USD center of mass by it.
+        Only the properties in ``changed`` (``mass``, ``com``, ``inertia``) are written, so one an import derives by
+        itself is not restated when another changed. An inertia the USD leaves unset is derived from the mass, so
+        a changed mass then also writes the inertia. ``com`` is the engine's, which
+        includes the body's scale; importers scale the USD center of mass by it.
         """
+        if "mass" in changed and cls._stated(prim, "physics:diagonalInertia") is None:
+            changed = {*changed, "inertia"}
         scale = np.asarray(Gf.Transform(UsdGeom.XformCache().GetLocalToWorldTransform(prim)).GetScale(), dtype=float)
         com = np.asarray(com, dtype=float) / scale
         edits = [
@@ -368,15 +436,15 @@ class BaseUsdExporter(ABC):
             if not cls._close(np.asarray(compact, dtype=float), value):
                 edits.append(UsdEdit(str(prim.GetPath()), "newton:inertia", [float(v) for v in value], "double[]"))
         moments = cls._stated(prim, "physics:diagonalInertia")
-        axes = cls._stated(prim, "physics:principalAxes") or Gf.Quatf(1)
-        if moments is not None:
-            rotation = np.asarray(Gf.Matrix3d(Gf.Quatd(axes))).T
-            if cls._close(rotation @ np.diag(np.asarray(moments, dtype=float)) @ rotation.T, inertia):
-                return [edit for edit in edits if edit is not None]
-        moments, axes = cls._principal_inertia(inertia)
-        edits.append(UsdEdit(str(prim.GetPath()), "physics:diagonalInertia", moments, "float3", "PhysicsMassAPI"))
-        edits.append(UsdEdit(str(prim.GetPath()), "physics:principalAxes", axes, "quatf", "PhysicsMassAPI"))
-        return [edit for edit in edits if edit is not None]
+        rotation = np.asarray(Gf.Matrix3d(Gf.Quatd(cls._stated(prim, "physics:principalAxes") or Gf.Quatf(1)))).T
+        stated = moments is not None and cls._close(rotation @ np.diag(np.asarray(moments)) @ rotation.T, inertia)
+        if not stated:
+            moments, axes = cls._principal_inertia(inertia)
+            edits.append(UsdEdit(str(prim.GetPath()), "physics:diagonalInertia", moments, "float3", "PhysicsMassAPI"))
+            edits.append(UsdEdit(str(prim.GetPath()), "physics:principalAxes", axes, "quatf", "PhysicsMassAPI"))
+        return [
+            edit for edit in edits if edit is not None and _MASS_PROPERTIES.get(edit.attribute, "inertia") in changed
+        ]
 
     @classmethod
     def _pose_edit(cls, prim: Usd.Prim, pose: np.ndarray) -> UsdEdit | None:
@@ -416,26 +484,25 @@ class BaseUsdExporter(ABC):
 
     @classmethod
     def _material_edits(
-        cls,
-        stage: Usd.Stage,
-        values: dict[str, dict[str, float]],
-        without_material: Callable[[str, dict[str, float]], list[UsdEdit]] | None = None,
+        cls, stage: Usd.Stage, values: dict[str, dict[str, float]], fallbacks: dict[str, float] | None = None
     ) -> list[UsdEdit]:
         """Edits writing collider material values that the colliders' bound physics materials do not state.
 
         Colliders sharing a material must have equal values, and a material also used by colliders missing
-        from ``values`` is never changed.
+        from ``values`` is never changed. Colliders without a physics material get a new one, shared by those
+        with equal values, which states each value that differs from what an import reads from an unset one.
 
         Args:
             stage: The exported stage.
-            values: Engine material values [USD units], keyed by collider path and then by attribute.
-            without_material: Edits for a collider without a physics material. Defaults to None, which
-                leaves its material values to the importer's default.
+            values: Engine material values [USD units], keyed by collider path and then by attribute; every value
+                of the material for a collider without one.
+            fallbacks: What the importer reads for a material attribute left unset, where the attribute's schema
+                defines no default. Defaults to None (only schema defaults).
 
         Returns:
             The edits.
         """
-        users, groups, unbound, edits = {}, {}, 0, []
+        users, groups, created, edits = {}, {}, {}, []
         for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
             if prim.HasAPI(UsdPhysics.CollisionAPI):
                 material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
@@ -444,9 +511,14 @@ class BaseUsdExporter(ABC):
         for collider, engine in values.items():
             material, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(collider)).ComputeBoundMaterial("physics")
             if not material:
-                unbound += 1
-                if without_material is not None:
-                    edits += without_material(collider, engine)
+                stated = tuple(sorted(cls._unless_fallback(engine, fallbacks or {}).items()))
+                if stated not in created:
+                    root = stage.GetDefaultPrim().GetPath() if stage.GetDefaultPrim() else Sdf.Path.absoluteRootPath
+                    index = len(created)
+                    while stage.GetPrimAtPath(root.AppendPath(f"PhysicsMaterials/Material_{index}")):
+                        index += 1  # never reuse a prim the stage already has
+                    created[stated] = str(root.AppendPath(f"PhysicsMaterials/Material_{index}"))
+                edits.append(UsdEdit(collider, _PHYSICS_MATERIAL, created[stated]))
                 continue
             path = str(material.GetPath())
             if path in groups and (
@@ -465,11 +537,23 @@ class BaseUsdExporter(ABC):
             if pending and any(user not in values for user in users[path]):
                 raise NotImplementedError(f"Material '{path}' changed but is shared with colliders not exported.")
             edits += pending
-        if unbound:
-            logger.warning(
-                f"{unbound} colliders have no physics material; their friction stays the importer's default."
-            )
+        for stated, path in created.items():
+            edits += [
+                UsdEdit(path, name, value, schema="PhysicsMaterialAPI" if name.startswith("physics:") else None)
+                for name, value in stated
+            ]
         return edits
+
+    @classmethod
+    def _unless_fallback(cls, values: dict[str, float], fallbacks: dict[str, float]) -> dict[str, float]:
+        """The values an unset attribute would not give: unlike its schema default, else its importer fallback."""
+        stated = {}
+        for name, value in values.items():
+            default = cls._schema_default(name)
+            default = fallbacks.get(name) if default is None else default
+            if default is None or not cls._close(value, default):
+                stated[name] = value
+        return stated
 
     """
     USD values.

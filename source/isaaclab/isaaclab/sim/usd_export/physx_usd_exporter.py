@@ -17,8 +17,15 @@ import numpy as np
 
 from pxr import Usd, UsdPhysics
 
-from ..utils.queries import find_matching_prim_paths
-from .base_usd_exporter import USD_PHYSICS_JOINT_ATTRIBUTES, USD_PHYSICS_MATERIAL_ATTRIBUTES, BaseUsdExporter, UsdEdit
+from ..utils.queries import find_matching_prim_paths, resolve_matching_prims_from_source
+from .base_usd_exporter import (
+    USD_PHYSICS_D6_LIMIT_ATTRIBUTES,
+    USD_PHYSICS_JOINT_ATTRIBUTES,
+    USD_PHYSICS_MATERIAL_ATTRIBUTES,
+    BaseUsdExporter,
+    JointAttribute,
+    UsdEdit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,22 +40,22 @@ dynamic friction, restitution).
 
 JOINT_ATTRIBUTES = {
     **USD_PHYSICS_JOINT_ATTRIBUTES,
-    "armature": ("physxJoint:armature", "PhysxJointAPI", 1.0),
-    "max_velocity": ("physxJoint:maxJointVelocity", "PhysxJointAPI", math.degrees(1.0)),
-    "static_friction": ("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
-    "dynamic_friction": ("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
-    "viscous_friction": (
-        "physxJointAxis:{axis}:viscousFrictionCoefficient",
-        "PhysxJointAxisAPI:{axis}",
-        math.radians(1.0),
+    # Per axis: OVPhysX 0.7's PhysX schema has no PhysxJointAPI, and an axis value overrides it in Isaac Sim.
+    "armature": JointAttribute("physxJointAxis:{axis}:armature", "PhysxJointAxisAPI:{axis}", 1.0),
+    "max_velocity": JointAttribute(
+        "physxJointAxis:{axis}:maxJointVelocity", "PhysxJointAxisAPI:{axis}", math.degrees(1.0)
+    ),
+    "static_friction": JointAttribute("physxJointAxis:{axis}:staticFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
+    "dynamic_friction": JointAttribute("physxJointAxis:{axis}:dynamicFrictionEffort", "PhysxJointAxisAPI:{axis}", 1.0),
+    "viscous_friction": JointAttribute(
+        "physxJointAxis:{axis}:viscousFrictionCoefficient", "PhysxJointAxisAPI:{axis}", math.radians(1.0)
     ),
 }
-"""Joint property -> USD attribute, required API schema, and scale to USD units for angular DOFs."""
+"""Joint property -> USD attribute."""
 
 D6_JOINT_ATTRIBUTES = {
     **JOINT_ATTRIBUTES,
-    "lower_limit": ("limit:{axis}:physics:low", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
-    "upper_limit": ("limit:{axis}:physics:high", "PhysicsLimitAPI:{axis}", math.degrees(1.0)),
+    **USD_PHYSICS_D6_LIMIT_ATTRIBUTES,
 }
 """:data:`JOINT_ATTRIBUTES` of a rotational D6 joint, whose axes are ``rotX``, ``rotY`` and ``rotZ``."""
 
@@ -58,19 +65,23 @@ D6_AXES = ("rotX", "rotY", "rotZ", "transX", "transY", "transZ")
 COLLIDER_ATTRIBUTES = {"contact_offset": "physxCollision:contactOffset", "rest_offset": "physxCollision:restOffset"}
 """Per-shape property -> USD attribute on the body's colliders."""
 
-MASS_SOURCES = {"physics:principalAxes": "physics:diagonalInertia"}
-"""Mass attribute -> the attribute whose absence makes the engine derive it (principal axes come with the moments)."""
+COLLIDER_READINGS = ("material", *COLLIDER_ATTRIBUTES)
+"""Per-shape engine values of a rigid body outside articulations, which the asset data does not hold."""
 
 
 class PhysxUsdExporter(BaseUsdExporter):
     """Base of the PhysX-based backends: writes their engine values in the PhysX USD dialect.
 
-    Joint and body values come from the scene assets' data, which holds the engine values on every
-    backend. A backend only reads the collider values of rigid bodies, which the asset data does not hold.
+    The base is what the engine loaded from the stage, read when the physics is ready and before any asset
+    writes its configuration; a PhysX import of the stage loads the same. A value is written where the live
+    engine differs from it, so Isaac Lab's configuration is stated, and nothing the engine derives by itself is.
+
+    Live joint and body values come from the scene assets' data. A backend reads the base and the collider
+    values of rigid bodies, which the asset data does not hold.
     """
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
-        """Return the edits writing every engine value that ``stage`` does not already state.
+        """Return the edits writing every engine value that differs from what the engine loaded from the stage.
 
         Args:
             stage: The exported stage, reduced to the selected environment.
@@ -78,43 +89,80 @@ class PhysxUsdExporter(BaseUsdExporter):
         Returns:
             Edits in the PhysX USD dialect.
         """
-        edits, materials, joint_wide = [], {}, defaultdict(set)
-        for (path, axis), values in self._read_assets(stage).items():
-            prim = stage.GetPrimAtPath(path)
+        edits, materials = [], {}
+        skipped = defaultdict(list)
+
+        def value_edit(prim: Usd.Prim, attribute: str, value: float, schema: str | None) -> UsdEdit | None:
+            """:meth:`_value_edit`, keeping aside a value the USD authors without its schema (PhysX ignores it)."""
+            edit = self._value_edit(prim, attribute, value, schema=schema)
+            if edit is None and schema and schema not in prim.GetAppliedSchemas():
+                if self._stated(prim, attribute) is not None:
+                    path = str(prim.GetPath())
+                    skipped[path, schema].append(UsdEdit(path, attribute, value, schema=schema))
+            return edit
+
+        readings, base = self._read_assets(stage)
+        changes = {
+            key: {name for name, value in values.items() if not self._close(base[key][name], value)}
+            for key, values in readings.items()
+        }
+        # PhysX ignores an attribute whose API schema the prim lacks; applying the schema for an edit enables it.
+        activated = defaultdict(set)
+        for (path, axis), changed in changes.items():
             if axis is not None:
-                # PhysX drives only an axis whose USD states a drive; gains on another axis have no effect.
-                driven = prim.HasAPI(UsdPhysics.DriveAPI, axis)
-                d6 = axis in D6_AXES
-                table = D6_JOINT_ATTRIBUTES if d6 else JOINT_ATTRIBUTES
+                prim, table = stage.GetPrimAtPath(path), self._joint_table(axis)
+                changed |= self._not_imported(prim, axis)
+                applied = prim.GetAppliedSchemas()
+                for name in changed & self._written(prim, axis, table):
+                    schema = table[name].schema and table[name].schema.format(axis=axis)
+                    if schema and schema not in applied:
+                        activated[path].add(schema)
+        for (path, axis), values in readings.items():
+            prim = stage.GetPrimAtPath(path)
+            changed = changes[path, axis]
+            if axis is not None:
+                table = self._joint_table(axis)
+                written = self._written(prim, axis, table)
+                changed |= {
+                    name
+                    for name, (attribute, schema, _) in table.items()
+                    if schema
+                    and schema.format(axis=axis) in activated[path]
+                    and self._stated(prim, attribute.format(axis=axis)) is not None
+                }
                 for name, (attribute, schema, angular_scale) in table.items():
-                    if attribute.startswith("drive:") and not driven:
+                    if name not in written:
                         continue
                     scale = 1.0 if axis == "linear" else angular_scale
                     schema = schema and schema.format(axis=axis)
-                    value = float(values[name]) * scale
-                    if d6 and "{axis}" not in attribute:
-                        # One attribute of the whole joint: written only if every axis holds the same value.
-                        joint_wide[path, attribute, schema].add(value)
-                        continue
-                    edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
+                    if name in changed:
+                        edits.append(value_edit(prim, attribute.format(axis=axis), float(values[name]) * scale, schema))
                 continue
-            # What the USD leaves to the engine, such as mass derived from geometry, the importer derives the same way.
-            edits += [
-                edit
-                for edit in self._mass_edits(prim, float(values["mass"]), values["com"], values["inertia"])
-                if self._stated(prim, MASS_SOURCES.get(edit.attribute, edit.attribute)) is not None
-            ]
+            edits += self._mass_edits(prim, float(values["mass"]), values["com"], values["inertia"], changed)
             colliders = self._colliders(stage, path)
-            for name, attribute in COLLIDER_ATTRIBUTES.items():
-                # The engine reports shapes per body, without their prim identities.
-                value = self._uniform(values[name], path, name) if name in values else None
-                if value is not None:
-                    edits += [
-                        self._value_edit(stage.GetPrimAtPath(c), attribute, value, schema="PhysxCollisionAPI")
-                        for c in colliders
-                        if self._stated(stage.GetPrimAtPath(c), attribute) is not None
-                    ]
-            material = self._uniform(values["material"], path, "material") if "material" in values else None
+            # The engine reports shapes per body, without their prim identities.
+            uniform = {name: self._uniform(values[name], path, name) for name in COLLIDER_ATTRIBUTES if name in values}
+            for name in changed & {*uniform, "material"}:
+                if len(values[name]) and self._uniform(values[name], path, name) is None:
+                    raise NotImplementedError(
+                        f"The {name} of body '{path}' changed and differs between its shapes, which the engine"
+                        " reports without their prims."
+                    )
+            written = {name for name, value in uniform.items() if name in changed and value is not None}
+            for collider in map(stage.GetPrimAtPath, colliders):
+                names = set(written)
+                if written and "PhysxCollisionAPI" not in collider.GetAppliedSchemas():
+                    # The edits apply the schema, which enables the collider's other authored offsets.
+                    names |= {
+                        name
+                        for name, attribute in COLLIDER_ATTRIBUTES.items()
+                        if uniform.get(name) is not None and self._stated(collider, attribute) is not None
+                    }
+                edits += [
+                    value_edit(collider, COLLIDER_ATTRIBUTES[name], uniform[name], "PhysxCollisionAPI")
+                    for name in sorted(names)
+                ]
+            material = self._uniform(values["material"], path, "material") if "material" in changed else None
             if material is not None:
                 materials.update(
                     {
@@ -122,23 +170,57 @@ class PhysxUsdExporter(BaseUsdExporter):
                         for collider in colliders
                     }
                 )
-        for (path, attribute, schema), values in joint_wide.items():
-            if len(values) > 1:
-                logger.warning(f"The axes of joint '{path}' differ in {attribute}; keeping its USD value.")
-                continue
-            edits.append(self._value_edit(stage.GetPrimAtPath(path), attribute, values.pop(), schema=schema))
-        edits = [edit for edit in edits if edit is not None] + self._material_edits(stage, materials)
+        edits = [edit for edit in edits if edit is not None]
+        # A value authored without its schema takes effect only if an edit applies the schema; otherwise state it.
+        applied = {(edit.path, edit.schema) for edit in edits}
+        edits += [edit for key, group in skipped.items() if key not in applied for edit in group]
+        edits += self._material_edits(stage, materials)
         return edits + self._gravity_edits(stage, self.scene.sim.backend_manager.get_gravity())
 
-    @abstractmethod
-    def _read_rigid_body(self, path: str) -> dict[str, np.ndarray]:
-        """Read the per-shape collider values of a rigid body outside articulations from the engine.
+    def _joint_table(self, axis: str) -> dict[str, JointAttribute]:
+        """The USD attributes of a joint axis's properties, as the backend's import reads them."""
+        return D6_JOINT_ATTRIBUTES if axis in D6_AXES else JOINT_ATTRIBUTES
 
-        Args:
-            path: Rigid body prim path.
+    def _not_imported(self, prim: Usd.Prim, axis: str) -> set[str]:
+        """Joint properties the engine loaded from the stage that an import of it would not; none by default."""
+        return set()
+
+    @staticmethod
+    def _written(prim: Usd.Prim, axis: str, table: dict) -> set[str]:
+        """Joint properties the export may write on an axis.
+
+        PhysX drives only an axis whose USD states a drive; gains on another axis have no effect.
+        """
+        driven = prim.HasAPI(UsdPhysics.DriveAPI, axis)
+        return {name for name, (attribute, _, _) in table.items() if driven or not attribute.startswith("drive:")}
+
+    def read_engine_base(self) -> dict[str, list[dict[str, np.ndarray]]]:
+        """Read what the engine loaded for each scene asset, in every environment.
 
         Returns:
-            The body's ``material``, ``contact_offset`` and ``rest_offset`` entries of :data:`Readings`.
+            Per asset name, the engine values of :meth:`_read_engine` with the limits and friction split as in
+            :data:`Readings` and ``com`` the COM position; a rigid object collection holds one entry per object.
+        """
+        base = {name: [self._read_object(a.cfg.prim_path, a.cfg)] for name, a in self.scene.articulations.items()}
+        base |= {name: [self._read_object(obj.cfg.prim_path)] for name, obj in self.scene.rigid_objects.items()}
+        for name, collection in self.scene.rigid_object_collections.items():
+            base[name] = [self._read_object(cfg.prim_path) for cfg in collection.cfg.rigid_objects.values()]
+        return base
+
+    @abstractmethod
+    def _read_engine(self, path_expr: str, articulation: bool) -> dict[str, np.ndarray]:
+        """Read the engine values of the objects matching a prim path expression, one row per environment.
+
+        Args:
+            path_expr: Prim path expression of the articulation roots or rigid bodies, as an asset resolves it.
+            articulation: Whether the objects are articulations.
+
+        Returns:
+            Raw values: of an articulation, per DOF ``stiffness``, ``damping``, ``max_force``, ``armature``,
+            ``max_velocity``, ``limits`` (lower, upper) and ``friction`` (static, dynamic, viscous); per body
+            ``mass``, ``com_pose`` and row-major ``inertia``. Of a rigid body, the same body values and per shape
+            the ``material`` (static friction, dynamic friction, restitution), ``contact_offset`` and
+            ``rest_offset``.
         """
         raise NotImplementedError
 
@@ -146,19 +228,46 @@ class PhysxUsdExporter(BaseUsdExporter):
     Engine values.
     """
 
-    def _read_assets(self, stage: Usd.Stage) -> Readings:
-        """Read the engine values of the scene's assets, keyed by their prims in the exported stage."""
-        readings = {}
-        for articulation in self.scene.articulations.values():
-            readings.update(self._read_articulation(stage, articulation))
-        for rigid_object in self.scene.rigid_objects.values():
-            path = self._rigid_body_path(stage, rigid_object.cfg.prim_path)
-            readings[path, None] = {**self._body_values(rigid_object.data, 0), **self._read_rigid_body(path)}
-        for collection in self.scene.rigid_object_collections.values():
+    def _read_object(self, prim_path: str, articulation_cfg=None) -> dict[str, np.ndarray]:
+        """Engine values of an asset's articulation or rigid body, resolved as the asset resolves it."""
+        if getattr(articulation_cfg, "articulation_root_prim_path", None) is not None:
+            path_expr = prim_path + articulation_cfg.articulation_root_prim_path
+        else:
+            api = UsdPhysics.ArticulationRootAPI if articulation_cfg is not None else UsdPhysics.RigidBodyAPI
+            matches = resolve_matching_prims_from_source(
+                prim_path, predicate=lambda prim: prim.HasAPI(api), expected_num_matches=1
+            )
+            path_expr = matches[0][1]
+        values = self._read_engine(path_expr, articulation_cfg is not None)
+        values["com"] = values.pop("com_pose")[..., :3]
+        if articulation_cfg is not None:
+            limits, friction = values.pop("limits"), values.pop("friction")
+            values.update(lower_limit=limits[..., 0], upper_limit=limits[..., 1])
+            values.update(static_friction=friction[..., 0], dynamic_friction=friction[..., 1])
+            values.update(viscous_friction=friction[..., 2])
+        return values
+
+    def _read_assets(self, stage: Usd.Stage) -> tuple[Readings, Readings]:
+        """Read the live values of the scene's assets and their base, keyed by their prims in the exported stage."""
+        base = self._engine_base()
+        readings, bases = {}, {}
+        for name, articulation in self.scene.articulations.items():
+            for key, values in self._read_articulation(stage, articulation, base[name][0]):
+                readings[key], bases[key] = values
+        objects = [(obj.cfg, obj.data, 0, base[name][0]) for name, obj in self.scene.rigid_objects.items()]
+        for name, collection in self.scene.rigid_object_collections.items():
             # Collection bodies are ordered as the configured objects.
             for index, cfg in enumerate(collection.cfg.rigid_objects.values()):
-                path = self._rigid_body_path(stage, cfg.prim_path)
-                readings[path, None] = {**self._body_values(collection.data, index), **self._read_rigid_body(path)}
+                objects.append((cfg, collection.data, index, base[name][index]))
+        for cfg, data, index, engine in objects:
+            key = self._rigid_body_path(stage, cfg.prim_path), None
+            live = self._read_object(cfg.prim_path)
+            colliders = {name: self._env_row(live[name]) for name in COLLIDER_READINGS}
+            readings[key] = {**self._body_values(data, index), **colliders}
+            bases[key] = {
+                **self._body_base(engine, 0),
+                **{name: self._env_row(engine[name]) for name in COLLIDER_READINGS},
+            }
         exported = {path for path, _ in readings}
         missing = [
             str(prim.GetPath())
@@ -168,10 +277,10 @@ class PhysxUsdExporter(BaseUsdExporter):
         if missing:
             # Isaac Lab configures only its assets, so these bodies hold what their USD states.
             logger.info(f"Physics bodies outside the scene's assets are exported as authored: {missing}.")
-        return readings
+        return readings, bases
 
-    def _read_articulation(self, stage: Usd.Stage, articulation) -> Readings:
-        """Read an articulation's joint and link values, matching its joint and body names to prims."""
+    def _read_articulation(self, stage: Usd.Stage, articulation, engine: dict[str, np.ndarray]):
+        """Yield each joint DOF's and link's prim key with its live and base values, matching names to prims."""
         scope = stage.GetPrimAtPath(self._asset_path(stage, articulation.cfg.prim_path))
         joints = self._named(scope, lambda prim: prim.IsA(UsdPhysics.Joint))
         links = self._named(scope, lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI))
@@ -189,20 +298,23 @@ class PhysxUsdExporter(BaseUsdExporter):
             "dynamic_friction": self._row(data.joint_dynamic_friction_coeff),
             "viscous_friction": self._row(data.joint_viscous_friction_coeff),
         }
-        readings, unsupported = {}, set()
+        # The engine orders DOFs and bodies as the backend does; the asset data may reorder them.
+        engine_dof = {name: index for index, name in enumerate(articulation.backend_joint_names)}
+        engine_body = {name: index for index, name in enumerate(articulation.backend_body_names)}
         for index, name in enumerate(articulation.joint_names):
             path, axis = self._joint_axis(stage, joints, name, scope)
+            live = {prop: values[index] for prop, values in dofs.items()}
+            loaded = {prop: self._env_row(engine[prop])[engine_dof[name]] for prop in dofs}
             if axis is None:
-                unsupported.add(path)
+                if any(not self._close(loaded[prop], value) for prop, value in live.items()):
+                    raise NotImplementedError(
+                        f"Joint '{path}' changed; only revolute, prismatic and rotational D6 joints are exported."
+                    )
                 continue
-            readings[path, axis] = {prop: values[index] for prop, values in dofs.items()}
-        if unsupported:
-            logger.warning(
-                f"Joints other than revolute, prismatic and rotational D6 are not exported: {sorted(unsupported)}."
-            )
+            yield (path, axis), (live, loaded)
         for index, name in enumerate(articulation.body_names):
-            readings[self._unique(links, name, scope), None] = self._body_values(data, index)
-        return readings
+            key = self._unique(links, name, scope), None
+            yield key, (self._body_values(data, index), self._body_base(engine, engine_body[name]))
 
     def _body_values(self, data, index: int) -> dict[str, np.ndarray]:
         """Mass properties of one body of an asset in the selected environment."""
@@ -212,9 +324,25 @@ class PhysxUsdExporter(BaseUsdExporter):
             "inertia": self._row(data.body_inertia)[index],
         }
 
+    def _body_base(self, engine: dict[str, np.ndarray], index: int) -> dict[str, np.ndarray]:
+        """Mass properties of one body as the engine loaded them, in the selected environment."""
+        return {
+            "mass": float(np.ravel(self._env_row(engine["mass"]))[index]),
+            "com": np.reshape(self._env_row(engine["com"]), (-1, 3))[index],
+            "inertia": np.reshape(self._env_row(engine["inertia"]), (-1, 9))[index],
+        }
+
+    def _env_row(self, rows):
+        """The selected environment's row; an asset outside the environments, such as a shared one, has one row."""
+        if len(rows) == 1:
+            return rows[0]
+        if len(rows) != self.scene.num_envs:
+            raise NotImplementedError(f"An asset holds {len(rows)} instances for {self.scene.num_envs} environments.")
+        return rows[self.env_id]
+
     def _row(self, values) -> np.ndarray:
         """The selected environment's entry of an asset data array."""
-        return values.torch[self.env_id].detach().cpu().numpy()
+        return self._env_row(values.torch).detach().cpu().numpy()
 
     """
     Exported stage.
