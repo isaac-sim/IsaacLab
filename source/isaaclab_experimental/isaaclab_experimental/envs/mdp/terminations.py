@@ -125,8 +125,7 @@ class pose_command_success(ManagerTermBase):
         self._any_threshold = self._check_position or self._check_orientation
         self._body_idx = command.body_idx
         self._asset: Articulation = command.robot
-        cmd = env.command_manager.get_command(command_name)
-        self._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
+        self._cmd_wp = env.command_manager.get_command(command_name).warp
         # zero-copy alias of the command's persistent sticky-success buffer (allocated once, never
         # reallocated), so the kernel's write lands in the tensor ``reset()`` reads and clears.
         self._succeeded_wp = wp.from_torch(command._succeeded) if self._any_threshold else None

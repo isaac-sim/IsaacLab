@@ -196,7 +196,7 @@ def stable_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, c
     env = _Env()
     env.scene = scene_bodies
     env.action_manager = MockActionManagerWarp(action_wp[0], action_wp[1])
-    env.command_manager = MockCommandManager(cmd_tensor, cmd_term)
+    env.command_manager = MockCommandManager(cmd_tensor, cmd_term, proxy=False)
     env.num_envs = NUM_ENVS
     env.device = DEVICE
     env.episode_length_buf = episode_length_buf
