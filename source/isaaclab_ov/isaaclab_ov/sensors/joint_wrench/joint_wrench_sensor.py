@@ -18,12 +18,12 @@ from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, path_expr_to_glob
+from isaaclab.utils.warp import memory as memory_kernels
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
-from .kernels import joint_wrench_reset_kernel, joint_wrench_split_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.joint_wrench import JointWrenchSensorCfg
@@ -108,7 +108,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
-            joint_wrench_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
@@ -194,11 +194,11 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         self._root_view.read_into(TT.LINK_INCOMING_JOINT_FORCE, self._wrench_buf)
         wp.launch(
-            joint_wrench_split_kernel,
+            memory_kernels.make_split(wp.vec3f, wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[
+                self._wrench_buf.view(wp.float32),
                 env_mask,
-                self._wrench_buf,
                 self._data._force,
                 self._data._torque,
             ],

@@ -23,7 +23,6 @@ The following classes are part of the public :mod:`isaaclab_ov.sensors` API.
    JointWrenchSensor
    JointWrenchSensorData
    Pva
-   PvaData
 
 .. autoclass:: ContactSensor
    :show-inheritance:
@@ -53,7 +52,4 @@ The following classes are part of the public :mod:`isaaclab_ov.sensors` API.
    :show-inheritance:
 
 .. autoclass:: Pva
-   :show-inheritance:
-
-.. autoclass:: PvaData
    :show-inheritance:

@@ -587,6 +587,8 @@ When replacing a kernel launch with a host operation, validate the real callers 
 When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
+When a thread exclusively owns an output cell, use explicit read-add-write assignments.
+Warp array ``+=`` may lower to atomic addition; reserve atomics for concurrent reduction.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
@@ -647,7 +649,6 @@ Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a devic
 an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
 Verify ownership and dependency direction as well as numerical behavior and capture replay.
 
-
 Shared Warp memory operations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -682,6 +683,22 @@ Python factory caching reuses kernel objects; Warp separately owns compilation a
 Warm up the actual execution path before graph capture, including the needed selector dtypes.
 Later specializations must not invalidate kernels already compiled or captured. Check this alongside
 dependency direction, aliasing, selector widths, and replay with changed inputs.
+
+Shared sensor capabilities and storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Shared concepts have one owner, but backend capabilities can differ. Validate requested features
+before allocating resources. Keep optional measurements in coherent groups with explicit absence;
+never substitute zero measurements for unsupported features. A backend may extend a common data
+container with its own fields and lifecycle. Use the existing sensor factory and initialization
+root, not another capability registry or backend-specific copies of shared storage.
+
+Fused domain kernels retain gravity bias and lifecycle defaults while calling common equations.
+Name factories ``make_<operation>`` and cache optional PVA updates on demand. Isolate generated
+kernels with ``module="unique"``, keeping reset independent. Selecting one subset must not construct
+or compile other subsets, invalidate reset, or compile another backend's update path.
+Check cold compilation and warm execution separately.
+PVA shares pose/component storage and optional spatial outputs; backends own acquisition.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,11 +16,9 @@ from pxr import UsdGeom
 
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors.pva import BasePva
+from isaaclab.sensors.pva import BasePva, PvaData
+from isaaclab.sensors.pva.kernels import make_pva_update
 from isaaclab.sim.utils.queries import path_expr_to_glob
-
-from .kernels import pva_reset_kernel, pva_update_kernel
-from .pva_data import PvaData
 
 if TYPE_CHECKING:
     from isaaclab.sensors.pva import PvaCfg
@@ -64,6 +61,8 @@ class Pva(BasePva):
     __backend_name__: str = "physx"
     """The name of the backend for the PVA sensor."""
 
+    supported_data_types = frozenset({"pose", "velocity", "acceleration", "projected_gravity"})
+
     def __init__(self, cfg: PvaCfg):
         """Initializes the PVA sensor.
 
@@ -73,7 +72,8 @@ class Pva(BasePva):
         # initialize base class
         super().__init__(cfg)
         # Create empty variables for storing output data
-        self._data = PvaData()
+        self._data = PvaData(self.cfg.data_types)
+        self._update_kernel = make_pva_update(self._data.data_types)
 
         # Internal: expression used to build the rigid body view (may be different from cfg.prim_path)
         self._rigid_parent_expr: str | None = None
@@ -101,41 +101,8 @@ class Pva(BasePva):
     """
 
     @property
-    def data(self) -> PvaData:
-        # update sensors if needed
-        self._update_outdated_buffers()
-        # return the data
-        return self._data
-
-    @property
     def num_instances(self) -> int:
         return self._view.count
-
-    """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        # resolve indices and mask
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        # reset the timestamps
-        super().reset(None, env_mask)
-
-        wp.launch(
-            pva_reset_kernel,
-            dim=self._num_envs,
-            inputs=[
-                env_mask,
-                self._data._pos_w,
-                self._data._quat_w,
-                self._data._lin_vel_b,
-                self._data._ang_vel_b,
-                self._data._lin_acc_b,
-                self._data._ang_acc_b,
-                self._data._projected_gravity_b,
-            ],
-            device=self._device,
-        )
 
     """
     Implementation.
@@ -194,6 +161,8 @@ class Pva(BasePva):
         re-filled in place rather than reallocated: consumers (and any recorded launch) hold
         the array pointer, and a fresh allocation would freeze the sensor on the old value.
         """
+        if "projected_gravity" not in self._data.data_types:
+            return
         gravity = self._physics_sim_view.get_gravity()
         gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
         if gravity == self._gravity_w:
@@ -215,26 +184,28 @@ class Pva(BasePva):
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
         self._backend_manager.update_kinematics()
         transforms = self._view.get_transforms()
-        velocities = self._view.get_velocities()
-        accelerations = self._view.get_accelerations()
-        coms = self._view.get_coms()
+        motion = bool(self._data.data_types & {"velocity", "acceleration"})
+        velocities = self._view.get_velocities() if motion else None
+        accelerations = self._view.get_accelerations() if "acceleration" in self._data.data_types else None
+        coms = self._view.get_coms() if motion else None
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)
-            self._raw_velocities = velocities.view(wp.spatial_vectorf)
-            self._raw_accelerations = accelerations.view(wp.spatial_vectorf)
-            self._raw_coms = coms.view(wp.transformf)
+            self._raw_velocities = velocities.view(wp.spatial_vectorf) if velocities is not None else None
+            self._raw_accelerations = accelerations.view(wp.spatial_vectorf) if accelerations is not None else None
+            self._raw_coms = coms.view(wp.transformf) if coms is not None else None
         elif (
             transforms.ptr != self._raw_transforms.ptr
-            or velocities.ptr != self._raw_velocities.ptr
-            or accelerations.ptr != self._raw_accelerations.ptr
-            or coms.ptr != self._raw_coms.ptr
+            or (velocities is not None and velocities.ptr != self._raw_velocities.ptr)
+            or (accelerations is not None and accelerations.ptr != self._raw_accelerations.ptr)
+            or (coms is not None and coms.ptr != self._raw_coms.ptr)
         ):
             raise RuntimeError(
                 f"A PhysX rigid body buffer of the sensor at '{self.cfg.prim_path}' was re-allocated"
                 " after its warp view was cached. The cached views and the recorded launch require"
                 " pointer-stable buffers refreshed in place."
             )
-        wp.copy(self._coms_buffer, self._raw_coms)
+        if motion:
+            wp.copy(self._coms_buffer, self._raw_coms)
 
         if self._use_recorded_launch:
             if self._update_cmd is None:
@@ -264,7 +235,7 @@ class Pva(BasePva):
         """Launch or record the kernel that updates the PVA data."""
 
         return wp.launch(
-            pva_update_kernel,
+            self._update_kernel,
             dim=self._num_envs,
             inputs=[
                 env_mask,
@@ -275,13 +246,7 @@ class Pva(BasePva):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_vec_w,
-                self._data._pos_w,
-                self._data._quat_w,
-                self._data._lin_vel_b,
-                self._data._ang_vel_b,
-                self._data._lin_acc_b,
-                self._data._ang_acc_b,
-                self._data._projected_gravity_b,
+                self._data.buffers,
             ],
             device=self._device,
             record_cmd=record_cmd,
@@ -294,13 +259,19 @@ class Pva(BasePva):
 
         # Store sensor offset (applied relative to rigid source).
         # This may be composed later with a fixed ancestor->target transform.
-        offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
-        offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
-        self._offset_pos_b = wp.from_torch(offset_pos_torch.contiguous(), dtype=wp.vec3f)
-        self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
+        self._offset_pos_b = wp.full(
+            self._num_envs, wp.vec3f(*self.cfg.offset.pos), dtype=wp.vec3f, device=self._device
+        )
+        self._offset_quat_b = wp.full(
+            self._num_envs, wp.quatf(*self.cfg.offset.rot), dtype=wp.quatf, device=self._device
+        )
 
         # Pre-allocate GPU buffer for COMs (get_coms() returns CPU array)
-        self._coms_buffer = wp.zeros(self._view.count, dtype=wp.transformf, device=self._device)
+        self._coms_buffer = (
+            wp.zeros(self._view.count, dtype=wp.transformf, device=self._device)
+            if self._data.data_types & {"velocity", "acceleration"}
+            else None
+        )
 
     def _invalidate_initialize_callback(self, event):
         """Invalidate the sensor and release cached PhysX and launch state."""

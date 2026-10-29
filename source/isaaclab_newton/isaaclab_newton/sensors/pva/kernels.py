@@ -3,106 +3,54 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Newton native gathers feeding the common PVA output equations."""
+
+from functools import cache
+
 import warp as wp
 
-
-@wp.kernel
-def pva_update_kernel(
-    # indexing
-    env_mask: wp.array(dtype=wp.bool),
-    site_indices: wp.array(dtype=int),
-    # model arrays
-    shape_body: wp.array(dtype=int),
-    shape_transform: wp.array(dtype=wp.transform),
-    body_com: wp.array(dtype=wp.vec3),
-    gravity: wp.array(dtype=wp.vec3),
-    body_world: wp.array(dtype=wp.int32),
-    # state arrays
-    body_q: wp.array(dtype=wp.transform),
-    body_qd: wp.array(dtype=wp.spatial_vector),
-    body_qdd: wp.array(dtype=wp.spatial_vector),
-    # outputs
-    out_pose_w: wp.array(dtype=wp.transformf),
-    out_pos_w: wp.array(dtype=wp.vec3f),
-    out_quat_w: wp.array(dtype=wp.quatf),
-    out_projected_gravity_b: wp.array(dtype=wp.vec3f),
-    out_lin_vel_b: wp.array(dtype=wp.vec3f),
-    out_ang_vel_b: wp.array(dtype=wp.vec3f),
-    out_lin_acc_b: wp.array(dtype=wp.vec3f),
-    out_ang_acc_b: wp.array(dtype=wp.vec3f),
-):
-    idx = wp.tid()
-    if not env_mask[idx]:
-        return
-
-    site_idx = site_indices[idx]
-    body_idx = shape_body[site_idx]
-    site_xform = shape_transform[site_idx]
-
-    # 1. World-frame pose at sensor site
-    body_xform = body_q[body_idx]
-    body_quat = wp.transform_get_rotation(body_xform)
-    sensor_pos = wp.transform_get_translation(body_xform) + wp.quat_rotate(body_quat, site_xform.p)
-    sensor_quat = body_quat * site_xform.q
-
-    # 2. Projected gravity (normalized to unit vector)
-    world_idx = body_world[body_idx]
-    g = gravity[wp.max(world_idx, 0)]
-    projected_gravity_b = wp.quat_rotate_inv(sensor_quat, wp.normalize(g))
-
-    # 3. Velocity at sensor site: v_site = v_com + omega x r
-    #    r = lever arm from body COM to sensor site, in world frame.
-    #    body_qd stores the spatial velocity at the COM, so the linear
-    #    velocity at the site requires the cross-product correction.
-    r = wp.quat_rotate(body_quat, site_xform.p - body_com[body_idx])
-    ang_vel_w = wp.spatial_bottom(body_qd[body_idx])
-    lin_vel_w = wp.spatial_top(body_qd[body_idx]) + wp.cross(ang_vel_w, r)
-
-    lin_vel_b = wp.quat_rotate_inv(sensor_quat, lin_vel_w)
-    ang_vel_b = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
-
-    # 4. Acceleration at sensor site via rigid-body transport (from body_qdd):
-    #    a_site = a_com + alpha x r + omega x (omega x r)
-    ang_acc_w = wp.spatial_bottom(body_qdd[body_idx])
-    lin_acc_w = (
-        wp.spatial_top(body_qdd[body_idx]) + wp.cross(ang_acc_w, r) + wp.cross(ang_vel_w, wp.cross(ang_vel_w, r))
-    )
-
-    lin_acc_b = wp.quat_rotate_inv(sensor_quat, lin_acc_w)
-    ang_acc_b = wp.quat_rotate_inv(sensor_quat, ang_acc_w)
-
-    # 5. Write outputs
-    out_pose_w[idx] = wp.transform(sensor_pos, sensor_quat)
-    out_pos_w[idx] = sensor_pos
-    out_quat_w[idx] = sensor_quat
-    out_projected_gravity_b[idx] = projected_gravity_b
-    out_lin_vel_b[idx] = lin_vel_b
-    out_ang_vel_b[idx] = ang_vel_b
-    out_lin_acc_b[idx] = lin_acc_b
-    out_ang_acc_b[idx] = ang_acc_b
+from isaaclab.sensors.pva.kernels import make_pva_writer
+from isaaclab.sensors.pva.pva_data import PvaBuffers
 
 
-@wp.kernel
-def pva_reset_kernel(
-    env_mask: wp.array(dtype=wp.bool),
-    out_pose_w: wp.array(dtype=wp.transformf),
-    out_pos_w: wp.array(dtype=wp.vec3f),
-    out_quat_w: wp.array(dtype=wp.quatf),
-    out_projected_gravity_b: wp.array(dtype=wp.vec3f),
-    out_lin_vel_b: wp.array(dtype=wp.vec3f),
-    out_ang_vel_b: wp.array(dtype=wp.vec3f),
-    out_lin_acc_b: wp.array(dtype=wp.vec3f),
-    out_ang_acc_b: wp.array(dtype=wp.vec3f),
-):
-    idx = wp.tid()
-    if not env_mask[idx]:
-        return
+@cache
+def make_pva_update(data_types: frozenset[str]) -> wp.Kernel:
+    """Return a native gather and shared writer for the requested output groups."""
+    write = make_pva_writer(data_types)
+    velocity = "velocity" in data_types or "acceleration" in data_types
+    acceleration = "acceleration" in data_types
+    gravity_enabled = "projected_gravity" in data_types
 
-    out_pose_w[idx] = wp.transform(wp.vec3f(0.0, 0.0, 0.0), wp.quatf(0.0, 0.0, 0.0, 1.0))
-    out_pos_w[idx] = wp.vec3f(0.0, 0.0, 0.0)
-    out_quat_w[idx] = wp.quatf(0.0, 0.0, 0.0, 1.0)
-    out_projected_gravity_b[idx] = wp.vec3f(0.0, 0.0, -1.0)
-    out_lin_vel_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
-    out_ang_vel_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
-    out_lin_acc_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
-    out_ang_acc_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
+    @wp.kernel(module="unique")
+    def update(
+        env_mask: wp.array(dtype=wp.bool),
+        site_indices: wp.array(dtype=int),
+        shape_body: wp.array(dtype=int),
+        shape_transform: wp.array(dtype=wp.transformf),
+        body_com: wp.array(dtype=wp.vec3f),
+        gravity: wp.array(dtype=wp.vec3f),
+        body_world: wp.array(dtype=wp.int32),
+        body_q: wp.array(dtype=wp.transformf),
+        body_qd: wp.array(dtype=wp.spatial_vectorf),
+        body_qdd: wp.array(dtype=wp.spatial_vectorf),
+        out: PvaBuffers,
+    ):
+        i = wp.tid()
+        if not env_mask[i]:
+            return
+        site = site_indices[i]
+        body = shape_body[site]
+        vel = wp.spatial_vectorf()
+        acc = wp.spatial_vectorf()
+        com = wp.vec3f()
+        g = wp.vec3f()
+        if wp.static(velocity):
+            vel = body_qd[body]
+            com = body_com[body]
+        if wp.static(acceleration):
+            acc = body_qdd[body]
+        if wp.static(gravity_enabled):
+            g = wp.normalize(gravity[wp.max(body_world[body], 0)])
+        write(i, body_q[body], shape_transform[site], com, vel, acc, g, out)
+
+    return update

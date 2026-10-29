@@ -5,26 +5,7 @@
 
 import warp as wp
 
-
-@wp.kernel
-def imu_reset_kernel(
-    env_mask: wp.array(dtype=wp.bool),
-    out_ang_vel_b: wp.array(dtype=wp.vec3f),
-    out_lin_acc_b: wp.array(dtype=wp.vec3f),
-):
-    """Reset the IMU sensor data.
-
-    Args:
-        env_mask: Mask of environments to reset.
-        out_ang_vel_b: Output angular velocity in the body frame.
-        out_lin_acc_b: Output linear acceleration in the body frame.
-    """
-    idx = wp.tid()
-    if not env_mask[idx]:
-        return
-
-    out_ang_vel_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
-    out_lin_acc_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
+from isaaclab.utils.warp.math import acceleration_at_offset
 
 
 @wp.kernel
@@ -67,17 +48,10 @@ def imu_update_kernel(
     body_quat = wp.transform_get_rotation(transforms[idx])
 
     ang_vel_w = wp.spatial_bottom(velocities[idx])
-    lin_acc_w = wp.spatial_top(accelerations[idx])
-    ang_acc_w = wp.spatial_bottom(accelerations[idx])
 
     com_pos_b = wp.transform_get_translation(coms[idx])
     lever_arm = wp.quat_rotate(body_quat, offset_pos_b[idx] - com_pos_b)
-    lin_acc_w = (
-        lin_acc_w
-        + wp.cross(ang_acc_w, lever_arm)
-        + wp.cross(ang_vel_w, wp.cross(ang_vel_w, lever_arm))
-        + gravity_bias_w
-    )
+    lin_acc_w = acceleration_at_offset(accelerations[idx], ang_vel_w, lever_arm) + gravity_bias_w
 
     sensor_quat = body_quat * offset_quat_b[idx]
     out_ang_vel_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_vel_w)

@@ -47,17 +47,3 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     )
     out_force[env, j] = wp.spatial_top(wrench)
     out_torque[env, j] = wp.spatial_bottom(wrench)
-
-
-@wp.kernel
-def joint_wrench_reset_kernel(
-    env_mask: wp.array(dtype=wp.bool),
-    out_force: wp.array(dtype=wp.vec3f, ndim=2),
-    out_torque: wp.array(dtype=wp.vec3f, ndim=2),
-):
-    """Zero force / torque entries for the environments selected by ``env_mask``."""
-    env, joint = wp.tid()
-    if not env_mask[env]:
-        return
-    out_force[env, joint] = wp.vec3f(0.0, 0.0, 0.0)
-    out_torque[env, joint] = wp.vec3f(0.0, 0.0, 0.0)
