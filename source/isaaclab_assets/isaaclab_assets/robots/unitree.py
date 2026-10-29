@@ -773,7 +773,6 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
         "waist": ImplicitActuatorCfg(
             joint_names_expr=["waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"],
             joint_effort_limit=1000.0,
-            joint_velocity_limit=0.0,
             stiffness={"waist_yaw_joint": 10000.0, "waist_roll_joint": 10000.0, "waist_pitch_joint": 10000.0},
             damping={"waist_yaw_joint": 10000.0, "waist_roll_joint": 10000.0, "waist_pitch_joint": 10000.0},
             armature=None,

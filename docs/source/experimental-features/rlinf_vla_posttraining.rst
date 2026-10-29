@@ -76,8 +76,9 @@ the alternative model dependencies below.
    uv pip install -e ".[base]" --no-deps
    cd ../
 
-   # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
-   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+   # Step 4: Install flash-attn from source (requires CUDA 13 nvcc)
+   uv pip install ninja packaging psutil wheel
+   uv pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
 Existing RLinf 0.2 installations must rerun Step 1 to use the shared RLinf revision above.
 Both GR00T generations use its per-generation model packages and action registries.

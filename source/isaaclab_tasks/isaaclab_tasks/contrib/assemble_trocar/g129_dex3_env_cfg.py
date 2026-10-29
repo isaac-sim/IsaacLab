@@ -253,14 +253,16 @@ class RewardsCfg:
     Each stage gives 1.0 reward on completion -> Total reward for full task = 4.0
     This ensures clear reward signal for each stage transition.
 
-    ``update_stage`` runs first (weight=0) to advance the task stage before any
-    reward term reads it, removing implicit ordering dependencies.
+    ``update_stage`` runs first to advance the task stage before any reward term
+    reads it, removing implicit ordering dependencies. It always returns zeros, so
+    its weight does not change the reward.
     """
 
-    # Stage machine — weight=0, runs before all reward terms to update task stage
+    # Stage machine — runs before all reward terms to update task stage. The weight must be
+    # non-zero: the reward manager skips weight-0 terms, which would freeze the stage at 0.
     update_stage = RewTerm(
         func=mdp.update_task_stage,
-        weight=0.0,
+        weight=1.0,
         params={
             "asset_cfg1": SceneEntityCfg("trocar_1"),
             "asset_cfg2": SceneEntityCfg("trocar_2"),
