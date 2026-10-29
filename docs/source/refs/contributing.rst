@@ -582,8 +582,9 @@ Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned a
 parallel ``_ta``, ``_warp``, ``_wp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
 ``data``. A value that both Torch and Warp code read is one unsuffixed ``ProxyArray``: Torch code reads
 ``.torch`` and Warp code ``.warp``, while implicit Torch use of the proxy goes through its deprecated
-compatibility layer. Selector resolvers in ``isaaclab.utils.warp.memory`` accept a ``ProxyArray`` and use
-its Warp array. Use explicit native access only where the receiving API requires it. In particular,
+compatibility layer. Index Torch tensors with ``proxy.torch``: Torch reads a non-tuple sequence shorter
+than 32 elements whose items are tensors, which a short ``ProxyArray`` is, as a tuple of indices. Selector
+resolvers in ``isaaclab.utils.warp.memory`` accept a ``ProxyArray`` and use its Warp array. Use explicit native access only where the receiving API requires it. In particular,
 host operations such as ``memory.concat`` that inspect Warp shapes, strides, and views require
 ``proxy.warp``; they do not perform the automatic argument conversion of ``wp.launch``.
 When replacing a kernel launch with a host operation, validate the real callers as well as the kernel.

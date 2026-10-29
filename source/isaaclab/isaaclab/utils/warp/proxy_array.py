@@ -167,16 +167,8 @@ class ProxyArray:
         return self._warp.device
 
     def __len__(self) -> int:
-        """Reject ``len()``; use :attr:`shape` instead.
-
-        Torch reads a short sized sequence used as an index as a tuple of indices, so a sized
-        :class:`ProxyArray` would select the wrong elements in ``tensor[proxy]``. Without a length, torch
-        indexes with it as an array.
-
-        Raises:
-            TypeError: Always.
-        """
-        raise TypeError("len() of a ProxyArray is not supported; use .shape[0].")
+        """Return the size of the first dimension."""
+        return self._warp.shape[0]
 
     def __copy__(self) -> ProxyArray:
         """Return a wrapper of the same warp array."""
