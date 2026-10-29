@@ -22,7 +22,7 @@ from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, check_file_path, retrieve_file_path
 
 pytestmark = [
     pytest.mark.integration,
@@ -35,6 +35,9 @@ DT = 1.0 / 120.0
 
 BAM_DATA_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Tests/BAM"
 """Hosted BAM fixtures: the pendulum USD, its recorded trajectory and the upstream fit."""
+
+PENDULUM_TRAJECTORY = f"{BAM_DATA_DIR}/bam_pendulum_trajectory_v2.npz"
+"""Recorded pendulum trajectory, version 2: recorded on CUDA at decimation 1 and not hosted yet."""
 
 NUM_ENVS = 2
 """Environments simulated side by side, so a per-environment randomization is observable."""
@@ -138,6 +141,8 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     On CUDA the friction scales change after graph capture, so live parameter updates are
     exercised with both state-buffer parities.
     """
+    if not check_file_path(PENDULUM_TRAJECTORY):
+        pytest.skip(f"Pending upload of the version 2 pendulum recording to {PENDULUM_TRAJECTORY}.")
     (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": _make_cfg()})
     friction = get_bam_group(robot, "servo").friction
     np.testing.assert_allclose(
@@ -150,7 +155,7 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     # Version 2 starts without external load: the solver has not exported one before the first step, and reset
     # environments read none. Version 1 fed MuJoCo Warp's start-up gravity load (9.81e-3 N.m) into the first
     # friction budget; with that load seeded, this path reproduces version 1 within the tolerances below.
-    with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory_v2.npz")) as golden:
+    with np.load(retrieve_file_path(PENDULUM_TRAJECTORY)) as golden:
         assert native_sim.get_physics_dt() == float(golden["dt"])
         traces = {name: [] for name in ("position", "velocity", "effort", "friction_budget")}
         for index in range(0, len(golden["target"]), decimation):
