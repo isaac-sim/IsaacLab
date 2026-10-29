@@ -107,7 +107,8 @@ in this mode: a Kit visualizer would render before the pose write.
 
 ``Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark`` renders the Rizon-Sharpa coffee demo's kitchen
 scene, without the coffee powder, in every environment. Each environment replays the demo's recorded
-arm motion from its own random time offset. It requires Newton physics. Select the camera data type
+arm motion from its own random time offset. It requires Newton physics and loads the demo's hosted
+asset bundle; set ``ISAACLAB_COFFEE_ASSET_ROOT`` to use a local copy. Select the camera data type
 and resolution with a preset named like the Kuka-Allegro camera presets:
 
 .. code-block:: bash

@@ -18,9 +18,14 @@ from isaaclab_newton.cloner import newton_builder_world_hook
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import ActionTerm
+from isaaclab.utils import math as math_utils
 
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.attachment import MountedSpoonAttachment
-from isaaclab_tasks.contrib.rizon_sharpa_coffee.robot import DEFAULT_SPOON_OFFSET_POS, DEFAULT_SPOON_OFFSET_ROT
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.robot import (
+    DEFAULT_SPOON_OFFSET_POS,
+    DEFAULT_SPOON_OFFSET_ROT,
+    PALM_BODY_NAME,
+)
 
 if TYPE_CHECKING:
     from .coffee_kitchen_camera_env_cfg import CoffeeKitchenCameraEnvCfg, CoffeeMotionPlaybackCfg
@@ -105,11 +110,35 @@ class CoffeeKitchenCameraEnv(ManagerBasedRLEnv):
         self._next_shape = builder.shape_count
 
     def load_managers(self) -> None:
-        # As in the demo, the mount is registered before the managers.
+        # As in the demo, the spoon is placed and mounted before the managers.
+        self._palm_id = self.scene["robot"].find_bodies(PALM_BODY_NAME)[0][0]
+        self._tool_position = torch.tensor(DEFAULT_SPOON_OFFSET_POS, device=self.device).expand(self.num_envs, -1)
+        self._tool_quaternion = torch.tensor(DEFAULT_SPOON_OFFSET_ROT, device=self.device).expand(self.num_envs, -1)
+        self.sync_spoon()
         self._attachment = MountedSpoonAttachment(
             self.scene["robot"], self.scene["spoon"], DEFAULT_SPOON_OFFSET_POS, DEFAULT_SPOON_OFFSET_ROT
         )
         super().load_managers()
+
+    def _reset_idx(self, env_ids: torch.Tensor | slice):
+        super()._reset_idx(env_ids)
+        # The mount moves the spoon only during physics steps; the frame rendered at reset needs it on the palm.
+        self.sync_spoon(env_ids)
+
+    def sync_spoon(self, env_ids: torch.Tensor | slice | None = None) -> None:
+        """Place the spoon on the palm, as the demo's ``sync_spoon`` does on construction and reset."""
+        selected = slice(None) if env_ids is None else env_ids
+        data = self.scene["robot"].data
+        palm = data.body_link_pose_w.torch[selected, self._palm_id]
+        pos, quat = math_utils.combine_frame_transforms(
+            palm[:, :3], palm[:, 3:], self._tool_position[selected], self._tool_quaternion[selected]
+        )
+        velocity = data.body_link_vel_w.torch[selected, self._palm_id].clone()
+        offset = pos - palm[:, :3]
+        velocity[:, :3] += torch.cross(velocity[:, 3:], offset, dim=-1)
+        spoon = self.scene["spoon"]
+        spoon.write_root_link_pose_to_sim_index(root_pose=torch.cat((pos, quat), dim=-1), env_ids=env_ids)
+        spoon.write_root_link_velocity_to_sim_index(root_velocity=velocity, env_ids=env_ids)
 
     def close(self) -> None:
         if self._attachment is not None:

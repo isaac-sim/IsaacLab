@@ -6,15 +6,16 @@
 """The Rizon-Sharpa coffee demo's kitchen scene with one camera per environment.
 
 The scene comes from the demo's own code (:mod:`isaaclab_tasks.contrib.rizon_sharpa_coffee`): its
-``configure_scene`` builds the robot, table, bowl, cup and spoon, its dome and key lights light the scene,
-and its kinematic mount moves the spoon with the palm. Every environment replays the demo's recorded arm
-motion (``coffee_arm_motion.json``) from its own random time offset.
+``configure_scene`` builds the robot, table, bowl, cup and spoon, and its kinematic mount moves the spoon
+with the palm. Every environment replays the demo's recorded arm motion (``coffee_arm_motion.json``) from
+its own random time offset.
 
 Differences from the demo:
 
 * no coffee powder or water, so no MPM solver;
 * a kitchen in every environment instead of one around the first, without its ceiling, lights and cameras;
-* the dome and key lights stay on, because RTX Minimal mode shades with the scene's first distant light only;
+* the scene's dome and key lights light it instead of the demo's kitchen lighting, which turns them off.
+  RTX Minimal mode shades with the first distant light only, which is the key light;
 * the recorded motion replaces the live IK controller, at 100 Hz physics instead of 800 Hz;
 * a square camera with the demo's kitchen view.
 
@@ -100,9 +101,12 @@ def spawn_coffee_kitchen(
                 f"{root.GetPath()} has {len(lights)} lights and {len(cameras)} cameras; expected "
                 f"{KITCHEN_LIGHT_COUNT} and {KITCHEN_CAMERA_COUNT}"
             )
-        for prim in [*lights, *cameras, root.GetPrimAtPath("KitchenRoom/Ceiling")]:
-            if not prim.IsValid() or prim.IsInstanceProxy():
-                raise RuntimeError(f"{prim.GetPath()} is missing or inside an instance and cannot be deactivated")
+        ceiling = root.GetPrimAtPath("KitchenRoom/Ceiling")
+        if not ceiling.IsValid():
+            raise RuntimeError(f"{root.GetPath()} has no KitchenRoom/Ceiling")
+        for prim in [*lights, *cameras, ceiling]:
+            if prim.IsInstanceProxy():
+                raise RuntimeError(f"{prim.GetPath()} is inside an instance and cannot be deactivated")
             prim.SetActive(False)
     for prim in stage.Traverse():
         if prim.GetPath().HasPrefix("/World/envs") and prim.GetName() == "StudioFloor":
