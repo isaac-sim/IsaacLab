@@ -199,12 +199,14 @@ def test_microduck_backlash_preset_reads_output_side_encoders(device):
         # One physics step, not a decimated env step, keeps the first-step effort analytic.
         robot.actuators.target_command.set_position_index(value=robot.data.default_joint_pos.torch)
         robot.write_data_to_sim()
+        # The supply voltage of this step, which the reset set to each environment's nominal voltage.
+        vin = wp.to_torch(get_bam_group(robot, "servos").voltage)[:, None]
+        torch.testing.assert_close(vin[:, 0], wp.to_torch(get_bam_group(robot, "servos").nominal_voltage))
         env.sim.backend_manager.set_decimation(1)
         env.sim.step(render=False)
         env.sim.backend_manager.set_decimation(env.cfg.decimation)
         robot.update(env.physics_dt)
         servos = robot.cfg.actuators["servos"]
-        vin = wp.to_torch(get_bam_group(robot, "servos").nominal_voltage)[:, None]
         expected = -play * servos.kp_fw * servos.motor.error_gain * vin * servos.motor.kt / servos.motor.resistance
         servo_ids = robot.find_joints(MICRODUCK_JOINT_NAMES, preserve_order=True)[0]
         effort = robot.actuators.applied_effort.torch[:, servo_ids]
