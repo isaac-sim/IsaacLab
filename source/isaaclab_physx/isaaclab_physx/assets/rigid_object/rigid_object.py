@@ -19,6 +19,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -137,8 +138,8 @@ class RigidObject(BaseRigidObject):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -397,10 +398,7 @@ class RigidObject(BaseRigidObject):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.write_root_link_pose_to_sim_index(
             root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
         )
@@ -491,10 +489,7 @@ class RigidObject(BaseRigidObject):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.write_root_com_pose_to_sim_index(
             root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
         )
@@ -593,10 +588,7 @@ class RigidObject(BaseRigidObject):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.write_root_com_velocity_to_sim_index(
             root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
         )
@@ -699,10 +691,7 @@ class RigidObject(BaseRigidObject):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.write_root_link_velocity_to_sim_index(
             root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
         )
@@ -781,14 +770,8 @@ class RigidObject(BaseRigidObject):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        else:
-            body_ids = self._ALL_BODY_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
@@ -861,14 +844,8 @@ class RigidObject(BaseRigidObject):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        else:
-            body_ids = self._ALL_BODY_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
@@ -944,14 +921,8 @@ class RigidObject(BaseRigidObject):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        else:
-            body_ids = self._ALL_BODY_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
@@ -1032,40 +1003,6 @@ class RigidObject(BaseRigidObject):
         self._data.default_root_pose = wp.array(default_root_pose, dtype=wp.transformf, device=self.device)
         self._data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self.device)
 
-    def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve environment mask to a torch tensor.
-
-        Args:
-            env_mask: Environment mask. If None, then all indices are used.
-
-        Returns:
-            A torch tensor of environment indices.
-        """
-        if env_mask is not None:
-            if isinstance(env_mask, wp.array):
-                env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0]
-        else:
-            env_ids = self._ALL_INDICES
-        return env_ids
-
-    def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve body mask to a torch tensor.
-
-        Args:
-            body_mask: Body mask. If None, then all indices are used.
-
-        Returns:
-            A torch tensor of body indices.
-        """
-        if body_mask is not None:
-            if isinstance(body_mask, wp.array):
-                body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0]
-        else:
-            body_ids = self._ALL_BODY_INDICES
-        return body_ids
-
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
         """Get CPU environment indices. Uses pre-allocated pinned buffer for full-index case.
 
@@ -1128,39 +1065,33 @@ class RigidObject(BaseRigidObject):
             )
         return self._sim_env_ids_views[count]
 
-    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_env_ids(
+        self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None
+    ) -> wp.array | torch.Tensor:
         """Resolve environment indices to a warp array or tensor.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Boolean mask; takes precedence over ``env_ids``.
 
         Returns:
             A warp array of environment indices or a tensor of environment indices.
         """
-        if (env_ids is None) or (env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES)
 
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+    def _resolve_body_ids(
+        self, body_ids: Sequence[int] | torch.Tensor | wp.array | None = None, body_mask: wp.array | None = None
+    ) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
 
         Args:
             body_ids: Body indices. If None, then all indices are used.
+            body_mask: Boolean mask; takes precedence over ``body_ids``.
 
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        if (body_ids is None) or (body_ids == slice(None)):
-            return self._ALL_BODY_INDICES
-        return body_ids
+        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES)
 
     """
     Internal simulation callbacks.
