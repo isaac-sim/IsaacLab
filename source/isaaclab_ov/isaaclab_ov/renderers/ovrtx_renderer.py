@@ -32,7 +32,6 @@ import weakref
 from builtins import ExceptionGroup
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
-from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
@@ -42,7 +41,6 @@ import numpy as np
 import ovstage
 import torch
 import warp as wp
-from packaging.version import Version
 
 import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 
@@ -77,12 +75,15 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.cloner import ovrtx_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
+    IdentifierMap,
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
     decode_semantic_id_map,
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
@@ -118,7 +119,6 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
-_OVRTX_VERSION = Version(version("ovrtx"))
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
 _CAMERA_INTRINSIC_ATTRIBUTES = (
@@ -180,14 +180,21 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     logger.info("Wrote USD file: %s", output_path)
 
 
-def _decode_segmentation_map(
-    render_var: RenderVarOutput, decoder: Callable[[np.ndarray | dict[str, np.ndarray]], Any]
-) -> Any:
-    """Decode the packed 0.6 or named-tensor 0.7 label map before its mapping is released."""
+def _decode_segmentation_map_named(render_var: RenderVarOutput, decoder: Callable[[IdentifierMap], Any]) -> Any:
+    """Decode OVRTX 0.7 label tensors before their mapping is released."""
     with render_var.map(device=Device.CPU) as mapping:
-        if hasattr(mapping, "keys") and len(mapping) > 1:
-            return decoder({name: np.from_dlpack(mapping[name]) for name in mapping.keys()})
+        return decoder({name: np.from_dlpack(mapping[name]) for name in mapping.keys()})
+
+
+def _decode_segmentation_map_packed(render_var: RenderVarOutput, decoder: Callable[[IdentifierMap], Any]) -> Any:
+    """Decode the OVRTX 0.6 label buffer before its mapping is released."""
+    with render_var.map(device=Device.CPU) as mapping:
         return decoder(np.from_dlpack(mapping))
+
+
+_decode_segmentation_map = (
+    _decode_segmentation_map_named if OVRTX_USES_NAMED_SEGMENTATION_MAPS else _decode_segmentation_map_packed
+)
 
 
 def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
@@ -383,7 +390,7 @@ class OVRTXRenderer(BaseRenderer):
                     self._use_ovstage and self.scene.cfg.population_domains & ovstage.PopulationDomain.PHYSICS
                 ),
             )  # fmt: skip
-            if _OVRTX_VERSION.release[:2] == (0, 7):
+            if not self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
                 # Author the camera mode before loading the stage: changing it later
                 # leaves cached camera poses stale until another scene update.
                 settings_path = Sdf.Path(stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings")
@@ -419,7 +426,7 @@ class OVRTXRenderer(BaseRenderer):
                 )  # fmt: skip
         self._setup_xform_bindings(stage)
         self._setup_geometry_bindings()
-        if self._use_ovstage and _OVRTX_VERSION.release[:2] == (0, 7):
+        if self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
             # OVRTX 0.7's GPU camera cache mixes tiled views and misses pose updates.
             # Disable only camera reads before registering products (and before attaching
             # an OVStage), retaining GPU instance transforms for large articulated scenes.
