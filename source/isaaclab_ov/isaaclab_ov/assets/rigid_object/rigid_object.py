@@ -1062,7 +1062,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             Environment indices on ``self._device``.
         """
-        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES, device=self._device)
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _sim_env_ids_view(self, count: int) -> wp.array:
         """Return a cached prefix of the simulator-index scratch buffer."""
@@ -1085,7 +1085,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             Body indices.
         """
-        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES, device=self._device)
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
         """Resolve an environment mask to a ``wp.bool`` array.

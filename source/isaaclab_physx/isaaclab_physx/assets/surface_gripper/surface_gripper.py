@@ -16,7 +16,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
-from isaaclab.utils.warp.memory import resolve_ids
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -554,7 +554,7 @@ class SurfaceGripper(AssetBase):
         Returns:
             A warp array of int32 indices.
         """
-        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES, device=self._device, dtype=wp.int32)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_INDICES))
 
     def parse_gripper_parameter(
         self, cfg_value: float | int | tuple | None, default_value: float | int | tuple | None, ndim: int = 0
