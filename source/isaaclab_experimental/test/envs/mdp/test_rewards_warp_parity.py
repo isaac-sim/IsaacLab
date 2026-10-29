@@ -144,7 +144,6 @@ def warp_env(scene, action_wp, episode_length_buf, term_mgr):
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
-    env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
     return env
 
 
@@ -184,7 +183,6 @@ def warp_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, cmd
     env.step_dt = 0.02
     env.max_episode_length = 500
     env.max_episode_length_s = 10.0
-    env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
     return env
 
 

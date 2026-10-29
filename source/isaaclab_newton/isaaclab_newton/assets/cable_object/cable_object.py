@@ -18,6 +18,7 @@ from pxr import UsdGeom
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
 
 from .cable_object_data import CableObjectData
 from .kernels import (
@@ -58,13 +59,14 @@ class CableObject(BaseCableObject):
         """Articulation view for the cable."""
         return self._root_view
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the cable object's internal buffers.
 
         Args:
             env_ids: Environment indices. Defaults to all instances.
+            env_mask: Environment mask. Defaults to all instances. Shape is (num_instances,).
         """
-        del env_ids
+        del env_ids, env_mask
 
     def write_data_to_sim(self) -> None:
         """Write buffered commands to the simulation."""
@@ -207,15 +209,7 @@ class CableObject(BaseCableObject):
         dtype=wp.int32
     ):
         """Resolve environment indices to a Warp array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        if isinstance(env_ids, Sequence):
-            return wp.array(list(env_ids), dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _write_segment_state_to_sim(
         self,

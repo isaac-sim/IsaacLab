@@ -17,6 +17,7 @@ import warp as wp
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_1d_mask, resolve_ids
 
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -402,23 +403,11 @@ class DeformableObject(BaseDeformableObject):
 
     def _resolve_env_ids(self, env_ids):
         """Resolve environment indices to a warp int32 array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self._ALL_INDICES
-        elif isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        return env_ids
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
         """Resolve an environment mask to a warp bool array."""
-        if mask is None:
-            return full_mask
-        if isinstance(mask, torch.Tensor):
-            if mask.dtype != torch.bool:
-                mask = mask.to(torch.bool)
-            return wp.from_torch(mask, dtype=wp.bool)
-        return mask
+        return resolve_1d_mask(mask=mask, all_mask=full_mask)
 
     def _iter_particle_states(self):
         """Yield active Newton states."""

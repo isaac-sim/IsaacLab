@@ -706,6 +706,93 @@ def set_body_link_velocity_to_sim(
     body_acc_w[env_id, body_id] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
+@wp.kernel
+def set_body_com_pose_to_sim_mask(
+    data: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    body_com_pose_w: wp.array2d(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+):
+    """Write body COM pose data, and the link poses derived from it, for the selected environments and bodies.
+
+    Args:
+        data: Input array of body COM poses (position [m] and quaternion). Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame [m]. Shape is (num_envs, num_bodies).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        body_mask: Input array of body mask. Shape is (num_bodies,).
+        body_com_pose_w: Output array where body COM poses (position [m] and quaternion) are written.
+            Shape is (num_envs, num_bodies).
+        body_link_pose_w: Output array where body link poses derived from COM are written (position [m] and
+            quaternion). Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and body_mask[j]:
+        body_com_pose_w[i, j] = data[i, j]
+        body_link_pose_w[i, j] = get_com_pose_in_link_frame_func(body_com_pose_w[i, j], body_com_pos_b[i, j])
+
+
+@wp.kernel
+def set_body_com_velocity_to_sim_mask(
+    data: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
+    body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+):
+    """Write body COM velocity data, and zero the body accelerations, for the selected environments and bodies.
+
+    Args:
+        data: Input array of body COM spatial velocities [m/s, rad/s]. Shape is (num_envs, num_bodies).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        body_mask: Input array of body mask. Shape is (num_bodies,).
+        body_com_velocity_w: Output array where body COM velocities [m/s, rad/s] are written.
+            Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations [m/s^2, rad/s^2] are zeroed. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and body_mask[j]:
+        body_com_velocity_w[i, j] = data[i, j]
+        body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
+@wp.kernel
+def set_body_link_velocity_to_sim_mask(
+    data: wp.array2d(dtype=wp.spatial_vectorf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    body_link_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
+    body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
+    body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+):
+    """Write body link velocity data, the COM velocities derived from it, and zero the body accelerations, for the
+    selected environments and bodies.
+
+    Args:
+        data: Input array of body link spatial velocities [m/s, rad/s]. Shape is (num_envs, num_bodies).
+        body_com_pos_b: Input array of body COM positions in body frame [m]. Shape is (num_envs, num_bodies).
+        body_link_pose_w: Input array of body link poses in world frame (position [m] and quaternion).
+            Shape is (num_envs, num_bodies).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        body_mask: Input array of body mask. Shape is (num_bodies,).
+        body_link_velocity_w: Output array where body link velocities [m/s, rad/s] are written.
+            Shape is (num_envs, num_bodies).
+        body_com_velocity_w: Output array where body COM velocities [m/s, rad/s], derived from link, are written.
+            Shape is (num_envs, num_bodies).
+        body_acc_w: Output array where body accelerations [m/s^2, rad/s^2] are zeroed. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and body_mask[j]:
+        body_link_velocity_w[i, j] = data[i, j]
+        body_com_velocity_w[i, j] = get_link_velocity_in_com_frame_func(
+            body_link_velocity_w[i, j], body_link_pose_w[i, j], body_com_pos_b[i, j]
+        )
+        body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
 _SET_BODY_LINK_POSE_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_link_pose_to_sim, ("env_ids", "body_ids"))
 _SET_BODY_COM_POSE_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_com_pose_to_sim, ("env_ids", "body_ids"))
 _SET_BODY_COM_VELOCITY_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_com_velocity_to_sim, ("env_ids", "body_ids"))

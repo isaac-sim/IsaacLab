@@ -18,12 +18,15 @@ import warnings
 
 import pytest
 import torch
+import warp as wp
+from isaaclab_physx.assets.articulation import Articulation
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 from isaaclab_contrib.assets import Multirotor, MultirotorCfg
+from isaaclab_contrib.assets.multirotor.multirotor import _ThrusterCollection
 
 # Best-effort: suppress unraisable destructor warnings emitted during
 # teardown of partially-constructed assets in CI/dev environments. We still
@@ -154,6 +157,30 @@ def test_set_thrust_target_env_slice_unit():
     # other envs remain unchanged
     assert torch.allclose(m._data.thrust_target[0], original[0])
     assert torch.allclose(m._data.thrust_target[3], original[3])
+
+
+def test_thruster_collection_resets_masked_envs_unit():
+    """A mask-only reset, as the articulation forwards it, resets the thrusters of the masked envs only."""
+    reset_env_ids = []
+    thrusters = _ThrusterCollection(thrusters=types.SimpleNamespace(reset=reset_env_ids.append))
+
+    thrusters.reset(env_mask=wp.array([True, False, True, False], dtype=wp.bool, device="cpu"))
+
+    assert [env_ids.tolist() for env_ids in reset_env_ids] == [[0, 2]]
+
+
+def test_reset_with_only_mask_restores_masked_thrust_targets_unit(monkeypatch):
+    """A mask-only reset, as the scene forwards it, reaches the articulation and restores the masked envs only."""
+    parent_masks = []
+    monkeypatch.setattr(Articulation, "reset", lambda self, env_ids=None, env_mask=None: parent_masks.append(env_mask))
+    m = Multirotor.__new__(Multirotor)
+    m._data = types.SimpleNamespace(thrust_target=torch.ones(4, 2), default_thruster_rps=torch.zeros(4, 2))
+    env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
+
+    m.reset(env_mask=env_mask)
+
+    assert parent_masks == [env_mask]
+    torch.testing.assert_close(m._data.thrust_target, torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]))
 
 
 def generate_multirotor(
