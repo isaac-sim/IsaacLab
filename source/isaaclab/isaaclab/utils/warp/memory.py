@@ -309,20 +309,17 @@ def write_2d_with_mask(
         column_mask: Boolean mask over the second dimension of ``out``.
         out: Output array. The launch runs on its device.
     """
+    dim = (row_mask.shape[0], column_mask.shape[0])
     if isinstance(data, (int, float)):
         kernel = make_masked_fill(out.dtype, 2)
+    elif isinstance(data, torch.Tensor) and data.ndim > 2 and data.stride(-1) != 1:
+        # a vector-typed argument needs packed components; copy strided ones through scalar views instead
+        scalar = out.dtype._wp_scalar_type_
+        kernel, dim = make_masked_copy(scalar, 3), (*dim, data.shape[-1])
+        data, out = wp.from_torch(data, dtype=scalar), out.view(scalar)
     else:
-        if isinstance(data, torch.Tensor) and data.ndim > 2:
-            # a vector-typed kernel argument needs contiguous components
-            data = data.contiguous()
         kernel = make_masked_copy(out.dtype, 2)
-    wp.launch(
-        kernel,
-        dim=(row_mask.shape[0], column_mask.shape[0]),
-        inputs=[data, row_mask, column_mask],
-        outputs=[out],
-        device=out.device,
-    )
+    wp.launch(kernel, dim=dim, inputs=[data, row_mask, column_mask], outputs=[out], device=out.device)
 
 
 @cache
