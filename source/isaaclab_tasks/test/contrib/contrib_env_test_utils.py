@@ -40,6 +40,16 @@ _SKIPPED_TASK_SUBSTRINGS = {
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
 }
+_MASSLESS_KINEMATIC_BODY = (
+    "Newton exports zero masses to MuJoCo since newton#4872, and MuJoCo rejects the massless kinematic {} as a"
+    " moving body. Give it a small mass and inertia, or weld it to a body with mass."
+)
+_EXPECTED_FAILURES = {
+    "IsaacContrib-Franka-Pour": _MASSLESS_KINEMATIC_BODY.format("TargetCup"),
+    "IsaacContrib-Shoelace-DualFranka": _MASSLESS_KINEMATIC_BODY.format("shoe"),
+    "IsaacContrib-UR10-Particle-Push": _MASSLESS_KINEMATIC_BODY.format("Table"),
+}
+"""Known failures on the pinned Newton, kept strict so the tests run again once fixed."""
 _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
 ]
@@ -101,6 +111,8 @@ def contrib_environment_params(runtime: Runtime) -> list:
         marks = task_marks[task_name]
         if (skip_reason := _skip_reason(task_name)) is not None:
             marks = (*marks, pytest.mark.skip(reason=skip_reason))
+        if (failure := _EXPECTED_FAILURES.get(task_name)) is not None:
+            marks = (*marks, pytest.mark.xfail(reason=failure, raises=ValueError, strict=True))
         params.append(pytest.param(task_name, id=task_name, marks=marks))
     return params
 
