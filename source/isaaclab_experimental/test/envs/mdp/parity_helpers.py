@@ -538,17 +538,15 @@ class MockCommandTerm:
 
 
 class MockCommandManager:
-    """Mock command manager returning a fixed command tensor and term."""
+    """Mock command manager returning a fixed command and term: a ProxyArray like the Warp manager, or the tensor
+    like the stable manager."""
 
-    def __init__(self, command_tensor: torch.Tensor, cmd_term: MockCommandTerm):
-        self._cmd = command_tensor
+    def __init__(self, command_tensor: torch.Tensor, cmd_term: MockCommandTerm, proxy: bool = True):
+        self._cmd = ProxyArray(wp.from_torch(command_tensor)) if proxy else command_tensor
         self._term = cmd_term
 
-    def get_command(self, name: str) -> torch.Tensor:
+    def get_command(self, name: str) -> ProxyArray | torch.Tensor:
         return self._cmd
-
-    def get_command_wp(self, name: str) -> wp.array:
-        return wp.from_torch(self._cmd)
 
     def get_term(self, name: str):
         return self._term
@@ -647,11 +645,8 @@ class MockPoseCommandManager:
     def __init__(self, term):
         self._term = term
 
-    def get_command(self, name: str) -> torch.Tensor:
-        return self._term.pose_command_b
-
-    def get_command_wp(self, name: str) -> wp.array:
-        return wp.from_torch(self._term.pose_command_b)
+    def get_command(self, name: str) -> ProxyArray:
+        return ProxyArray(wp.from_torch(self._term.pose_command_b))
 
     def get_term(self, name: str):
         return self._term

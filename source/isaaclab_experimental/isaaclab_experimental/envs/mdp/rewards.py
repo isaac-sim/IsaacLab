@@ -517,7 +517,7 @@ def track_lin_vel_xy_exp(
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            env.command_manager.get_command(command_name).warp,
             1.0 / (std * std),
             out,
         ],
@@ -557,7 +557,7 @@ def track_ang_vel_z_exp(
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            env.command_manager.get_command_wp(command_name),
+            env.command_manager.get_command(command_name).warp,
             2,
             1.0 / (std * std),
             out,

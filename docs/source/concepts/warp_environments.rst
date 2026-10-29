@@ -537,8 +537,9 @@ Command terms subclass :class:`isaaclab_experimental.managers.CommandTerm`. They
 metrics in persistent ``wp.array`` buffers and resample the environments selected by a mask with
 :attr:`WarpRng.state <isaaclab.utils.seed.WarpRng.state>`; the command manager records ``compute`` and
 ``reset`` like the other managers.
-Warp terms read a command with ``env.command_manager.get_command_wp(name)`` on every call instead of
-caching it, so a term never holds another environment's buffer.
+Terms read a command with ``env.command_manager.get_command(name)`` on every call instead of caching it, so
+a term never holds another environment's buffer. It is a :class:`~isaaclab.utils.warp.ProxyArray`: Warp terms
+read ``.warp`` and torch terms ``.torch``.
 
 
 Capture Safety
