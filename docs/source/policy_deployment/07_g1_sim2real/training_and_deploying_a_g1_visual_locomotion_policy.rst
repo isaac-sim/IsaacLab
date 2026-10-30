@@ -5,19 +5,20 @@ Training and Deploying a G1 Visual Locomotion Policy
 
 This guide follows one policy from training to a walking robot: a teacher trained with PPO, a
 student distilled from it that sees through a chest-mounted depth camera, a LEAPP export, and a
-control loop that drives a physical Unitree G1 over DDS.
+deployment using Isaac ROS Deploy and the official Unitree G1 ros2_control hardware interface.
 
 :doc:`../05_leapp/deploying_exported_policies_with_leapp` ends at
 :class:`~envs.LeappDeploymentEnv`, which runs an exported policy back in simulation. This guide
 continues from there onto hardware using the `Isaac ROS Deploy node runtime
 <https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/concepts/ros2_nodes_runtime.html>`__.
 Its ``InputBuilderNode``, ``TritonNode`` and ``OutputBuilderNode`` execute the exported graph.
-``g1_deploy.py`` connects that runtime to the robot's Unitree DDS interface and depth stream.
+``g1_deploy.py`` configures the official hardware driver, message converters and controllers for this policy.
 
 .. note::
 
    The pipeline below is specific to a 29-DoF Unitree G1 with a RealSense D435i on the chest. The
-   structure generalizes, but every number in it was measured on that robot.
+   camera calibration and policy settings are specific to that setup. The ROS controller integration
+   must be validated on your robot before unsupported walking.
 
 .. code-block:: text
 
@@ -48,43 +49,23 @@ root, install the LEAPP export dependencies into its Python environment:
 
    uv sync --extra leapp
 
-For hardware deployment, prepare an `Isaac ROS 5.0 environment
-<https://nvidia-isaac-ros.github.io/getting_started/index.html>`__ with GPU access and install
-``isaac_ros_deploy_bringup`` and ``isaac_ros_triton`` with their runtime dependencies. The deployment
-environment must also reach the robot's Ethernet subnet and receive the UDP depth stream.
-From the repository root inside that environment, create a Python environment that can import
-the installed ROS packages:
+For hardware deployment, use the `Isaac ROS 5.0 setup
+<https://nvidia-isaac-ros.github.io/getting_started/index.html>`__: an Ubuntu 24.04 environment with
+ROS 2 Lyrical and access to a supported NVIDIA GPU with compatible drivers and CUDA libraries.
+Install the official G1 hardware stack, inference runtime and image conversion packages there:
 
 .. code-block:: bash
 
+   sudo apt-get install ros-lyrical-unitree-g1-bringup ros-lyrical-isaac-ros-deploy-bringup \
+       ros-lyrical-isaac-ros-triton ros-lyrical-isaac-ros-tensor-proc ros-lyrical-cv-bridge
    source /opt/ros/lyrical/setup.bash
-   uv venv --python /usr/bin/python3 --system-site-packages .venv-g1-deploy
 
-Install CycloneDDS and the Unitree Python SDK in this deployment environment.
-Use version ``0.10.2`` for compatibility with the robot. Python 3.12 requires building
-the DDS library first, following the `Unitree SDK installation instructions
-<https://github.com/unitreerobotics/unitree_sdk2_python#installation>`__:
-
-.. code-block:: bash
-
-   sudo apt-get install -y build-essential cmake git
-   git clone --depth 1 --branch 0.10.2 https://github.com/eclipse-cyclonedds/cyclonedds.git /tmp/cyclonedds-0.10.2
-   export CYCLONEDDS_HOME="$HOME/.local/cyclonedds-0.10.2"
-   cmake -S /tmp/cyclonedds-0.10.2 -B /tmp/cyclonedds-0.10.2/build -DCMAKE_INSTALL_PREFIX="$CYCLONEDDS_HOME"
-   cmake --build /tmp/cyclonedds-0.10.2/build --target install --parallel
-   uv pip install --python .venv-g1-deploy/bin/python numpy pyyaml "cyclonedds==0.10.2" \
-       "git+https://github.com/unitreerobotics/unitree_sdk2_python.git"
-
-Source the ROS setup file and set ``CYCLONEDDS_HOME`` to the same path in each deployment terminal.
-Check the ROS and SDK imports before connecting to the robot:
-
-.. code-block:: bash
-
-   .venv-g1-deploy/bin/python -c \
-       "import rclpy; from isaac_ros_deploy_interfaces.msg import JointCommand; from unitree_sdk2py.core.channel import ChannelFactoryInitialize; print('ROS and SDK ready')"
-
-Connect the workstation to the robot's subnet over Ethernet. The robot's onboard computer also
-needs the RealSense drivers and a depth publisher, as described in `Starting the Camera`_ below.
+The deployment scripts use the environment's Python, NumPy and PyYAML. They do not require the
+Unitree Python SDK, a Python DDS binding, or a separate Python inference manager.
+Connect the deployment machine to the robot's Ethernet subnet. Follow the official
+`Isaac ROS Robots G1 setup <https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_robots/tree/release-5.0/unitree_g1>`__
+for hardware access and ros2_control configuration. The camera computer needs a compatible ROS 2
+environment and the RealSense ROS driver, as described in `Starting the Camera`_ below.
 
 
 Training the Teacher
@@ -163,167 +144,120 @@ any of it.
 Running on the Robot
 --------------------
 
-Resolving the Connections Against Hardware
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Official Runtime and Hardware Interfaces
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:class:`~envs.LeappDeploymentEnv` resolves each ``isaaclab_connection`` in the exported YAML
-against a simulated scene. Hardware deployment resolves the same connections against the robot:
+The script creates temporary configuration for the exported policy and launches official nodes:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 44 26 30
+* ``UnitreeHgSystemInterface`` handles Unitree DDS and the 29 body motor interfaces.
+* ``JointStateBroadcaster`` and ``IMUSensorBroadcaster`` publish ROS robot state.
+* Isaac ROS Deploy's ``InputBuilderNode`` converts ``JointState``, ``Imu`` and ``Twist`` inputs,
+  selects joints by the export's names, and assembles the inputs at 50 Hz. The broadcaster's
+  ``extra_joints`` supplies zero state for the unactuated fingers present in the export.
+* ``ImageToTensorNode`` converts the preprocessed ``32FC1`` depth image without dividing by 255.
+* Triton executes the LEAPP ONNX graph; ``OutputBuilderNode`` publishes ``JointCommand`` targets and gains.
+* ``ForwardJointCommandController`` passes the 29 body commands through ``SafetyController``
+  to the hardware at 200 Hz. Hand commands are not sent to the robot.
 
-   * - Connection
-     - Simulation
-     - Hardware
-   * - ``state:robot:joint_pos``
-     - articulation
-     - ``rt/lowstate``
-   * - ``state:robot:joint_vel``
-     - articulation
-     - ``rt/lowstate``
-   * - ``state:robot:root_quat_w``
-     - scene root
-     - IMU
-   * - ``state:robot:root_ang_vel_b``
-     - scene root
-     - IMU gyroscope
-   * - ``state:depth_camera:output:distance_to_image_plane``
-     - rendered
-     - UDP depth stream
-   * - ``command:base_velocity``
-     - ``CommandManager``
-     - keyboard
-   * - ``write:robot:set_joint_position_target_index``
-     - articulation
-     - ``rt/lowcmd``
-   * - ``write:robot:write_joint_stiffness_to_sim_index``
-     - articulation
-     - ``rt/lowcmd`` Kp
-   * - ``write:robot:write_joint_damping_to_sim_index``
-     - articulation
-     - ``rt/lowcmd`` Kd
+The exported models, graph connections and feedback initial values are not modified. Only the
+external port metadata and ROS controller configuration are adapted. The stock G1 launch configures
+NVIDIA's AGILE controller group, so this script composes the same official components for the
+visual policy's different inputs and outputs.
 
-The Control Loop
-^^^^^^^^^^^^^^^^
+A small watchdog checks input/output age, finite state and commands, joint layout and orientation.
+Missing input or output for 0.2 seconds latches a stop and requests the official ``FreezeController``,
+configured with zero stiffness and damping gain 3. The official input builder only warns about
+stale inputs, so this check is still needed. A separate startup window allows Triton to produce its
+first result. Restart deployment after a stop; receiving data again does not automatically re-arm it.
 
-The script publishes sensor and command tensors as ROS ``TensorList`` messages. Isaac ROS Deploy
-runs the ONNX graph and returns ``JointCommand`` messages containing targets and gains. The script
-checks their timestamps, joint layout and finite values before writing the 29 motor commands.
-The official input builder is configured for 50 Hz; the loop waits for a fresh result each step.
+Camera and IMU Conventions
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. literalinclude:: ../../../../scripts/deploy/g1_deploy.py
-   :language: python
-   :start-at: while teleop.running:
-   :end-at: link.write(joint_pos, kp, kd)
-   :dedent: 16
+The official driver and IMU converter provide the graph's ``(x, y, z, w)`` quaternion convention.
+The policy expects orientation and angular velocity in the pelvis frame. If the IMU mounting needs
+calibration, supply a corrected ROS ``Imu`` topic with ``--imu_topic``; the old ``--imu_tilt``
+Python correction is no longer applied by this launcher.
 
-Two details about the ends of this loop.
-
-Joint targets are mapped to the 29 body motors by joint name using the exported ``element_names``.
-
-Before enabling the policy, the robot transitions to the predefined starting pose over three seconds
-and holds it until the operator confirms. The inference graph is warmed up before taking control;
-its enable gate stays closed during the ramp and hold, and feedback resets when the policy is enabled.
-
-Conversions
-^^^^^^^^^^^
-
-The following conversions adapt robot sensor data to the graph's input format.
-
-**Quaternion order.** The IMU publishes ``(w, x, y, z)`` and the graph expects ``(x, y, z, w)``.
-
-**IMU mounting offset.** ``--imu_tilt=PITCH,ROLL`` supplies the IMU pitch and roll in degrees
-measured with the pelvis level. Both orientation and angular velocity are corrected before reaching
-the graph. The default is ``0,0``.
-
-**Invalid depth.** A real camera returns zero where it got no return. The graph reads zero as a
-very close surface, so an unprocessed frame plants obstacles at the robot's feet. Pixels with no
-return are filled with the clip range instead.
-
-**Field of view.** The publisher crops to the trained field of view before downsampling. Resizing
-the whole frame compresses the horizontal axis by about 3%, and the array is 64x38 either way, so
-nothing downstream can detect it.
+The depth preprocessor retains the policy-specific operations: centered crop toward the trained
+87.0° horizontal and 58.8° vertical field of view, valid-pixel averaging to 64x38, millimetre
+quantization, a three-metre clip and missing-return value, and 180° rotation to compensate the
+exported camera orientation. ``--depth-rotation 0`` disables that last operation. Standard image
+resizing alone would change how invalid pixels contribute to the policy's depth input.
 
 Starting the Camera
 ^^^^^^^^^^^^^^^^^^^
 
-Run ``scripts/deploy/depth_publisher.py`` on the G1 computer connected to the chest RealSense
-camera (PC2). The script is standalone and requires only NumPy and ``pyrealsense2``; Isaac Lab
-does not need to be installed on the robot.
-
-From the Isaac Lab repository root on the workstation, copy the script to PC2. The commands below
-use ``192.168.123.164`` as PC2's address; replace it if your robot uses a different address.
-
-.. code-block:: bash
-
-   scp scripts/deploy/depth_publisher.py unitree@192.168.123.164:~/depth_publisher.py
-
-Install the Python dependencies on PC2 using the same interpreter that will run the publisher.
-The RealSense drivers must be installed and the camera available to the ``unitree`` user.
-
-.. code-block:: bash
-
-   ssh unitree@192.168.123.164 \
-       '/usr/bin/python3 -m pip install --user numpy pyrealsense2'
-
-Start the publisher from the workstation and leave this SSH session running. Replace
-``<WORKSTATION_IP>`` with the workstation's address on the robot network, which receives the
-depth stream and runs the policy in a second terminal.
-
-.. code-block:: bash
-
-   ssh unitree@192.168.123.164 \
-       '/usr/bin/python3 ~/depth_publisher.py --host <WORKSTATION_IP>'
-
-The publisher requests 848x480 depth at 90 Hz, crops using the camera intrinsics toward the
-trained 87.0° horizontal and 58.8° vertical field of view, and averages valid pixels into 64x38
-frames. It sends unsigned 16-bit millimetres to UDP port 5601 and reports the publishing rate
-every five seconds. Missing returns stay zero; the control loop fills them with the clip range.
-If camera startup fails, the script retries and reduces the requested rate to 60 Hz on its final
-attempt. ``--port`` must match the policy's ``--depth_port`` if you change the default port.
-Press ``Ctrl+C`` to stop the publisher after stopping the policy.
-
-Starting the Policy
-^^^^^^^^^^^^^^^^^^^
-
-Put the robot in debug mode and support it on a stand before starting. Run from the repository root
-in the Isaac ROS deployment environment prepared above. Use the exported ONNX bundle, keeping its
-YAML, models and initial-state file together; the script creates temporary ROS port metadata without
-modifying the source bundle.
+On the computer attached to the chest RealSense, start the official ROS driver:
 
 .. code-block:: bash
 
    source /opt/ros/lyrical/setup.bash
-   .venv-g1-deploy/bin/python scripts/deploy/g1_deploy.py \
-       --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --interface <NETWORK_INTERFACE> --domain_id 0
+   ros2 launch realsense2_camera rs_launch.py enable_color:=false enable_depth:=true \
+       depth_module.depth_profile:=848x480x90
 
-The loop takes control in two steps. Typing ``go`` ramps the robot to the policy's start pose over
-three seconds and then holds it. Type ``go2`` within 300 seconds to engage the policy three seconds
-later; other input is ignored. ``rt/lowcmd`` keeps flowing throughout, so there is no watchdog gap
-between the two. The robot must be upright after the ramp and before policy engagement.
+Install ``ros-lyrical-realsense2-camera`` and its device dependencies on that computer first.
+If the camera cannot sustain 90 Hz, select a supported 60 Hz profile. Camera and deployment
+processes must use the same ROS domain, discover each other on the robot network, and have
+synchronized clocks: freshness checks use the original image capture timestamp.
 
-The policy starts with zero forward speed and adopts the robot's current heading. Keyboard controls
-take effect without Enter:
+On the deployment machine, run the preprocessor in another terminal:
 
-.. code-block:: text
+.. code-block:: bash
 
-   w/s    forward speed +/- 0.1 m/s (0 to 1 m/s)
-   q/e    heading target +/- 15 degrees
-   space  zero forward speed
-   r      adopt the current heading
-   x      quit
-   ?      show controls
+   source /opt/ros/lyrical/setup.bash
+   python3 scripts/deploy/depth_publisher.py
 
-The yaw-rate command is half the wrapped heading error, limited to ±1 rad/s. Space leaves the
-heading target unchanged. ``Ctrl+C``, ``L2+B``, ``L1+A`` or ``select`` stops the run with damping,
-including during the ramp and hold. Exiting the policy restores the terminal settings.
+It subscribes to ``/camera/camera/depth/image_rect_raw`` and
+``/camera/camera/depth/camera_info`` and publishes ``/g1_policy/depth/image``.
+Use ``--depth-topic`` and ``--camera-info-topic`` if the driver uses different names.
+There is no custom UDP camera transport.
+
+Starting and Stopping the Policy
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Put the robot in debug mode and support it in the policy's starting pose before launch. The official
+safety controller initially holds the activation pose with ``blend_ratio=0``; this launcher does not
+move the robot through the former Python startup ramp. Use the exported ONNX bundle with its YAML,
+models and initial-state file kept together:
+
+.. code-block:: bash
+
+   source /opt/ros/lyrical/setup.bash
+   python3 scripts/deploy/g1_deploy.py \
+       --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> --interface <ROBOT_ETHERNET_INTERFACE>
+
+Supply a continuous ``geometry_msgs/msg/Twist`` command on ``/cmd_vel``. Only ``linear.x``,
+``linear.y`` and ``angular.z`` enter the policy. For an initial zero command, use another terminal:
+
+.. code-block:: bash
+
+   ros2 topic pub --rate 50 /cmd_vel geometry_msgs/msg/Twist '{}'
+
+After the launcher reports ``Fresh policy output ready``, the operator can enable policy control:
+
+.. code-block:: bash
+
+   ros2 param set /safety_controller blend_ratio 1.0
+
+The official controller blends from the activation pose toward the policy with a maximum blend
+rate of 0.3 per second. Replace the zero-command publisher with a ROS teleoperation source when
+needed; use only one command source and keep its publication interval below 0.2 seconds.
+The former ``go``/``go2``, keyboard heading control and Python remote-button handling are not used.
+
+To request a latched stop, publish:
+
+.. code-block:: bash
+
+   ros2 topic pub --once /g1_policy/stop std_msgs/msg/Empty '{}'
+
+``Ctrl+C`` also requests damping and waits for the controller switch before shutting down the ROS
+processes. Setting ``blend_ratio`` back to zero holds the activation pose; it is not the damping stop.
 
 .. warning::
 
-   Keep the robot supported until the policy is engaged. The start pose is held with PD control and
-   no policy, and it is not statically stable at these gains.
+   Keep the robot supported during bringup. ROS service-based stopping depends on a responsive
+   controller manager and hardware connection; it is not a hardware emergency stop. Validate the
+   robot's independent stopping procedure before hardware use.
 
 
 Further Reading
