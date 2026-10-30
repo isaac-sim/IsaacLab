@@ -149,6 +149,15 @@ class G1ShoelaceSceneCfg(ShoelaceSceneCfg):
     robot_left = None
     robot_right = None
     robot = _robot_cfg()
+    # Visual support up to the soles at z=0.21678 m in the fixed standing pose.
+    robot_platform = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/RobotPlatform",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.50, 0.40, 0.217),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.12, 0.16, 0.20), roughness=0.8),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.34, 0.1085)),
+    )
     packing_table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/PackingTable",
         spawn=sim_utils.UsdFileCfg(

@@ -37,7 +37,8 @@ def spawn_packing_workstation(
     tray.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.70, 0.13, PACKING_TABLE_HEIGHT))
     tray.GetAttribute("xformOp:scale").Set(Gf.Vec3f(0.9, 0.9, 0.75))
     # The source uses MDL materials; explicit USD preview surfaces also render in Newton GL.
-    colors = {
+    materials = {}
+    for name, color in {
         "TableTop": (0.42, 0.46, 0.48),
         "TableTopSide": (0.30, 0.23, 0.15),
         "Body": (0.12, 0.16, 0.20),
@@ -45,9 +46,7 @@ def spawn_packing_workstation(
         "BlueCrate": (0.035, 0.18, 0.29),
         "YellowCrate": (0.55, 0.36, 0.08),
         "Tray": (0.045, 0.22, 0.23),
-    }
-    materials = {}
-    for name, color in colors.items():
+    }.items():
         material_path = str(root.GetPath().AppendPath(f"PreviewLooks/{name}"))
         sim_utils.spawn_preview_surface(
             material_path,
@@ -59,10 +58,8 @@ def spawn_packing_workstation(
     for prim in Usd.PrimRange(root):
         if prim.IsA(UsdGeom.Mesh):
             path = str(prim.GetPath())
-            material_name = None
-            if "M_HeavyDutyPackingTable_C01_" in prim.GetName():
-                material_name = prim.GetName().removeprefix("M_HeavyDutyPackingTable_C01_")
-            elif "/SM_Crate_" in path:
+            material_name = prim.GetName().removeprefix("M_HeavyDutyPackingTable_C01_")
+            if "/SM_Crate_" in path:
                 material_name = "BlueCrate" if "Blue" in path else "YellowCrate"
             elif "/container_h20/" in path:
                 material_name = "Tray"
@@ -70,10 +67,7 @@ def spawn_packing_workstation(
                 UsdShade.MaterialBindingAPI.Apply(prim).Bind(
                     materials[material_name], bindingStrength=UsdShade.Tokens.strongerThanDescendants
                 )
-                geometry = UsdGeom.Gprim(prim)
-                geometry.CreateDisplayColorAttr([colors[material_name]])
-                geometry.GetDisplayColorPrimvar().SetInterpolation(UsdGeom.Tokens.constant)
-        # Remove physics schemas: Newton imports disabled rigid bodies as kinematic bodies.
+        # Exclude decorative rigid bodies and colliders from Newton import, not just contact pairs.
         for api in (UsdPhysics.CollisionAPI, UsdPhysics.MeshCollisionAPI, UsdPhysics.RigidBodyAPI, UsdPhysics.MassAPI):
             if prim.HasAPI(api):
                 prim.RemoveAPI(api)

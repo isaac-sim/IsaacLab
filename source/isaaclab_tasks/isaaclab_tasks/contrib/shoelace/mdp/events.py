@@ -37,13 +37,13 @@ def install_settled_default_state(env: ManagerBasedEnv, env_ids: torch.Tensor | 
         curve = _source_curve(env, side)
         positions = read_shoelace_attribute(curve, "settledPositions", (cable.num_segments, 3))
         orientations = read_shoelace_attribute(curve, "settledOrientations", (cable.num_segments, 4), quaternion=True)
-        transform = _source_transform(curve)
+        source_env = env.sim.stage.GetPrimAtPath(env.scene.env_prim_paths[0])
+        transform = _source_transform(curve, source_env)
         matrix = np.asarray(transform)
         positions = positions @ matrix[:3, :3] + matrix[3, :3]
         rotation = transform.ExtractRotationQuat()
         default_pose = cable.data.default_segment_pose_w.torch
-        # Remove the source environment origin before broadcasting to replicated environments.
-        positions -= env.scene.env_origins[0].cpu().numpy()
+        # USD retains the source prototype; world placement comes from the clone plan.
         default_pose[..., :3] = default_pose.new_tensor(positions)
         default_pose[..., :3] += env.scene.env_origins.unsqueeze(1)
         local_rotation = default_pose.new_tensor(orientations)
@@ -154,13 +154,13 @@ def _source_curve(env: ManagerBasedEnv, side: str) -> Usd.Prim:
     return curve
 
 
-def _source_transform(curve: Usd.Prim) -> Gf.Matrix4d:
-    """Return the default-time curve-to-world transform, with translation in [m].
+def _source_transform(curve: Usd.Prim, source_env: Usd.Prim) -> Gf.Matrix4d:
+    """Return the default-time curve-to-environment transform, with translation in [m].
 
     The generated asset is meter-based. Raise ``ValueError`` for scale, shear, or
     reflection, which violate the baked startup data's rigid-transform assumption.
     """
-    transform = UsdGeom.Xformable(curve).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    transform, _ = UsdGeom.XformCache(Usd.TimeCode.Default()).ComputeRelativeTransform(curve, source_env)
     linear = np.asarray(transform)[:3, :3]
     if not np.allclose(linear @ linear.T, np.eye(3), atol=1.0e-6) or np.linalg.det(linear) < 0.0:
         raise ValueError(f"{curve.GetPath()}: bake scale/shear before using shoelace startup data")
