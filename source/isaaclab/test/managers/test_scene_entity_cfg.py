@@ -17,6 +17,7 @@ from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.dict import class_to_dict
 from isaaclab.utils.string import resolve_matching_names
 
 pytestmark = pytest.mark.unit
@@ -132,6 +133,7 @@ def test_resolve_warp_indexes_and_masks_the_selection(scene):
     assert full.joint_mask.warp.numpy().tolist() == [True] * 4
     assert full.body_indices.warp.numpy().tolist() == [0, 1, 2, 3]
     assert full.body_mask.warp.numpy().tolist() == [True] * 4
-    for copied in (subset.copy(), copy.deepcopy(subset)):
+    for copied in (subset.copy(), copy.deepcopy(subset), class_to_dict(subset)):
         for name in ("joint_indices", "joint_mask", "body_indices", "body_mask"):
-            assert getattr(copied, name) is getattr(subset, name)
+            value = copied[name] if isinstance(copied, dict) else getattr(copied, name)
+            assert value is getattr(subset, name)
