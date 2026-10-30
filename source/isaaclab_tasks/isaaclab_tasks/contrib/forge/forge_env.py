@@ -65,6 +65,9 @@ class ForgeEnv(FactoryEnv):
 
     def _compute_intermediate_values(self, dt):
         """Add noise to observations for force sensing."""
+        # Preserve the previous noisy pose before the parent updates the shared history.
+        prev_fingertip_pos = self.prev_fingertip_pos.clone()
+        prev_fingertip_quat = self.prev_fingertip_quat.clone()
         super()._compute_intermediate_values(dt)
 
         # Add noise to fingertip position.
@@ -83,15 +86,15 @@ class ForgeEnv(FactoryEnv):
         self.noisy_fingertip_quat = quat_mul(
             self.fingertip_midpoint_quat, quat_from_angle_axis(rot_noise_angle, rot_noise_axis)
         )
-        self.noisy_fingertip_quat[:, ::3].zero_()
+        self.noisy_fingertip_quat[:, 2:].zero_()
         self.noisy_fingertip_quat = self.noisy_fingertip_quat * self.flip_quats.unsqueeze(-1)
 
         # Repeat finite differencing with noisy fingertip positions.
-        self.ee_linvel_fd = (self.noisy_fingertip_pos - self.prev_fingertip_pos) / dt
+        self.ee_linvel_fd = (self.noisy_fingertip_pos - prev_fingertip_pos) / dt
         self.prev_fingertip_pos = self.noisy_fingertip_pos.clone()
 
         # Add state differences if velocity isn't being added.
-        rot_diff_quat = quat_mul(self.noisy_fingertip_quat, quat_conjugate(self.prev_fingertip_quat))
+        rot_diff_quat = quat_mul(self.noisy_fingertip_quat, quat_conjugate(prev_fingertip_quat))
         rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
